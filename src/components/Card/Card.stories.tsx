@@ -30,9 +30,8 @@ export const WithInteraction: Story = {
 export const Edge: Story = {
   render: () => (
     <Card>
-      {Array.from({ length: 20 }).map((_, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <p key={i}>Row {i + 1}</p>
+      {Array.from({ length: 20 }, (_, i) => (
+        <p key={`row-${i}`}>Row {i + 1}</p>
       ))}
     </Card>
   ),
