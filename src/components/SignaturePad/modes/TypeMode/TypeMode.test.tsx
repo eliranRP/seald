@@ -1,0 +1,35 @@
+import { describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { screen } from '@testing-library/react';
+import { renderWithTheme } from '../../../../test/renderWithTheme';
+import { TypeMode } from './TypeMode';
+
+describe('TypeMode', () => {
+  it('renders a text input labelled "Type your name"', () => {
+    renderWithTheme(<TypeMode onCommit={vi.fn()} onCancel={vi.fn()} />);
+    expect(screen.getByLabelText(/type your name/i)).toBeInTheDocument();
+  });
+
+  it('commits on Enter with a typed value', async () => {
+    const onCommit = vi.fn();
+    renderWithTheme(<TypeMode onCommit={onCommit} onCancel={vi.fn()} />);
+    const input = screen.getByLabelText(/type your name/i);
+    await userEvent.type(input, 'Jamie{Enter}');
+    expect(onCommit).toHaveBeenCalledWith({ kind: 'typed', text: 'Jamie', font: 'caveat' });
+  });
+
+  it('does not commit empty text', async () => {
+    const onCommit = vi.fn();
+    renderWithTheme(<TypeMode onCommit={onCommit} onCancel={vi.fn()} />);
+    const input = screen.getByLabelText(/type your name/i);
+    await userEvent.type(input, '   {Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('renders a script-font preview of the typed text', async () => {
+    renderWithTheme(<TypeMode onCommit={vi.fn()} onCancel={vi.fn()} />);
+    const input = screen.getByLabelText(/type your name/i);
+    await userEvent.type(input, 'Jamie');
+    expect(screen.getByTestId('type-mode-preview')).toHaveTextContent('Jamie');
+  });
+});
