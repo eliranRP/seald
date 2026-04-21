@@ -18,6 +18,16 @@ describe('TypeMode', () => {
     expect(onCommit).toHaveBeenCalledWith({ kind: 'typed', text: 'Jamie', font: 'caveat' });
   });
 
+  it('commits exactly once when Enter is followed by blur', async () => {
+    const onCommit = vi.fn();
+    renderWithTheme(<TypeMode onCommit={onCommit} onCancel={vi.fn()} />);
+    const input = screen.getByLabelText(/type your name/i);
+    await userEvent.type(input, 'Jamie{Enter}');
+    // Simulate losing focus after Enter (previously caused a second commit).
+    input.blur();
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
   it('does not commit empty text', async () => {
     const onCommit = vi.fn();
     renderWithTheme(<TypeMode onCommit={onCommit} onCancel={vi.fn()} />);

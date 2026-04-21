@@ -31,7 +31,6 @@ export function TypeMode(props: TypeModeProps) {
         value={text}
         onChange={(next) => setText(next)}
         onKeyDown={handleKeyDown}
-        onBlur={tryCommit}
       />
       <Preview data-testid="type-mode-preview" aria-hidden={text.length === 0}>
         {text || ' '}
