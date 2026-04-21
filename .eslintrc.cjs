@@ -123,5 +123,12 @@ module.exports = {
         'import/no-extraneous-dependencies': 'off',
       },
     },
+    {
+      files: ['src/**/*.d.ts'],
+      rules: {
+        '@typescript-eslint/no-empty-object-type': 'off',
+        '@typescript-eslint/no-unused-vars': 'off',
+      },
+    },
   ],
 };
