@@ -6,7 +6,7 @@ import { seald } from './theme';
 const css = readFileSync(resolve(__dirname, './tokens.css'), 'utf8');
 
 function extract(name: string): string {
-  const m = css.match(new RegExp(`--${name}:\\s*([^;]+);`));
+  const m = css.match(new RegExp(`--${name}\\b:\\s*([^;]+);`));
   if (!m?.[1]) throw new Error(`Missing --${name} in tokens.css`);
   return m[1].trim();
 }
