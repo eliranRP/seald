@@ -36,7 +36,7 @@ export const Edge: Story = {
   render: () => (
     <div>
       <Icon icon={PenTool} />
-      <Icon icon={PenTool} label="Sign here" />
+      <Icon icon={PenTool} label="חתום כאן" /> {/* RTL label */}
     </div>
   ),
 };
