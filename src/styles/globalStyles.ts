@@ -14,6 +14,10 @@ export const GlobalStyles = createGlobalStyle`
     text-rendering: optimizeLegibility;
   }
   :focus:not(:focus-visible) { outline: none; }
+  :focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.border.focus};
+    outline-offset: 2px;
+  }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
