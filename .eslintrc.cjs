@@ -34,6 +34,48 @@ module.exports = {
     ],
     '@typescript-eslint/consistent-type-imports': 'error',
     '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    // Layer boundary enforcement (Phase-1 component library).
+    // Layers: L0 styles < L1 primitives < L2 domain < L3 widgets < L4 providers.
+    // A component in Ln must NOT import from any layer above it. Same layer and
+    // utilities (src/lib, src/types, src/test) are always allowed.
+    'import/no-restricted-paths': [
+      'error',
+      {
+        zones: [
+          // L0 (styles) must not import from any component layer.
+          {
+            target: './src/styles',
+            from: './src/components',
+            message: 'Layer boundary: L0 (styles) must not import from components.',
+          },
+          // L1 (primitives) must not import from L2/L3.
+          {
+            target: [
+              './src/components/Badge',
+              './src/components/Button',
+              './src/components/Avatar',
+              './src/components/Icon',
+              './src/components/TextField',
+              './src/components/DocThumb',
+              './src/components/SignatureMark',
+            ],
+            from: [
+              './src/components/StatusBadge',
+              './src/components/SignatureField',
+              './src/components/SignaturePad',
+              './src/components/SignerRow',
+            ],
+            message: 'Layer boundary: L1 primitives must not import from L2/L3 components.',
+          },
+          // L2 (domain) must not import from L3.
+          {
+            target: ['./src/components/StatusBadge', './src/components/SignatureField'],
+            from: ['./src/components/SignaturePad', './src/components/SignerRow'],
+            message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
+          },
+        ],
+      },
+    ],
     'no-restricted-syntax': [
       'error',
       {
