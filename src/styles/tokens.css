@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,500;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&family=Caveat:wght@500;600;700&display=swap');
+
+:root {
+  --ink-900: #0b1220;
+  --ink-800: #131a2b;
+  --ink-700: #1f2937;
+  --ink-600: #374151;
+  --ink-500: #64748b;
+  --ink-400: #94a3b8;
+  --ink-300: #cbd5e1;
+  --ink-200: #e2e8f0;
+  --ink-150: #edf1f6;
+  --ink-100: #f3f6fa;
+  --ink-50: #f8fafc;
+  --paper: #ffffff;
+
+  --indigo-50: #eef2ff;
+  --indigo-100: #e0e7ff;
+  --indigo-200: #c7d2fe;
+  --indigo-300: #a5b4fc;
+  --indigo-400: #818cf8;
+  --indigo-500: #6366f1;
+  --indigo-600: #4f46e5;
+  --indigo-700: #4338ca;
+  --indigo-800: #3730a3;
+  --indigo-900: #312e81;
+
+  --success-50: #ecfdf5;
+  --success-500: #10b981;
+  --success-700: #047857;
+  --warn-50: #fffbeb;
+  --warn-500: #f59e0b;
+  --warn-700: #b45309;
+  --danger-50: #fef2f2;
+  --danger-500: #ef4444;
+  --danger-700: #b91c1c;
+  --info-50: #eff6ff;
+  --info-500: #3b82f6;
+  --info-700: #1d4ed8;
+
+  --fg-1: var(--ink-900);
+  --fg-2: var(--ink-700);
+  --fg-3: var(--ink-500);
+  --fg-4: var(--ink-400);
+  --bg-app: var(--ink-50);
+  --bg-surface: var(--paper);
+  --bg-sunken: var(--ink-100);
+  --bg-subtle: var(--ink-150);
+  --border-1: var(--ink-200);
+  --border-2: var(--ink-300);
+  --border-focus: var(--indigo-500);
+  --accent: var(--indigo-600);
+  --accent-hover: var(--indigo-700);
+  --accent-press: var(--indigo-800);
+  --accent-subtle: var(--indigo-50);
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.04), 0 6px 16px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 8px 16px rgba(15, 23, 42, 0.06), 0 24px 56px rgba(15, 23, 42, 0.12);
+  --shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.18);
+  --shadow-paper: 0 1px 0 rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.08),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
+}
