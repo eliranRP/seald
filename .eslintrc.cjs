@@ -37,8 +37,15 @@ module.exports = {
     'no-restricted-syntax': [
       'error',
       {
-        selector: 'TSTypeReference[typeName.name=/^(React\\.FC|FC)$/]',
-        message: 'Do not use React.FC — declare props explicitly.',
+        selector:
+          "TSTypeReference[typeName.type='Identifier'][typeName.name=/^(FC|VFC|FunctionComponent)$/]",
+        message: 'Do not use FC/VFC/FunctionComponent type — declare props explicitly.',
+      },
+      {
+        selector:
+          "TSTypeReference[typeName.type='TSQualifiedName'][typeName.left.name='React'][typeName.right.name=/^(FC|VFC|FunctionComponent)$/]",
+        message:
+          'Do not use React.FC/React.VFC/React.FunctionComponent — declare props explicitly.',
       },
     ],
   },
@@ -60,7 +67,7 @@ module.exports = {
       },
     },
     {
-      files: ['**/*.test.{ts,tsx}', '**/*.stories.tsx', '.storybook/**/*', 'src/test/**/*'],
+      files: ['**/*.test.{ts,tsx}', '**/*.stories.{ts,tsx}', '.storybook/**/*', 'src/test/**/*'],
       rules: {
         'import/no-extraneous-dependencies': 'off',
         'react/jsx-props-no-spreading': 'off',
