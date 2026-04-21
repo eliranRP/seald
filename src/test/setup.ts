@@ -1,6 +1,9 @@
 import '@testing-library/jest-dom/vitest';
+import { expect } from 'vitest';
+import * as axeMatchers from 'vitest-axe/matchers';
 
-// matchMedia stub — jsdom doesn't implement it and several components check prefers-reduced-motion
+expect.extend(axeMatchers);
+
 if (!window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
