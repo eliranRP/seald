@@ -104,6 +104,37 @@ describe('UploadMode', () => {
     });
   });
 
+  it('surfaces an error when FileReader.onerror fires', () => {
+    function makeFailingReader(): FileReaderLike {
+      const reader: FileReaderLike = {
+        result: null,
+        onload: null,
+        onerror: null,
+        readAsDataURL(_file: Blob): void {
+          if (reader.onerror) {
+            reader.onerror.call(reader, {} as ProgressEvent<FileReader>);
+          }
+        },
+      };
+      return reader;
+    }
+    Object.defineProperty(window, 'FileReader', {
+      value: function FailingFileReader() {
+        return makeFailingReader();
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const onCommit = vi.fn();
+    renderWithTheme(<UploadMode onCommit={onCommit} onCancel={vi.fn()} />);
+    const input = screen.getByTestId('upload-mode-input') as HTMLInputElement;
+    const png = new File(['abc'], 'sig.png', { type: 'image/png' });
+    fireEvent.change(input, { target: { files: [png] } });
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not read file/i);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
   it('Cancel button calls onCancel', async () => {
     const onCancel = vi.fn();
     renderWithTheme(<UploadMode onCommit={vi.fn()} onCancel={onCancel} />);

@@ -44,6 +44,9 @@ export function UploadMode(props: UploadModeProps) {
       setPreview({ url: result, name: file.name });
       onCommit({ kind: 'upload', pngDataUrl: result, fileName: file.name });
     };
+    reader.onerror = () => {
+      setError('Could not read file.');
+    };
     reader.readAsDataURL(file);
   };
 
