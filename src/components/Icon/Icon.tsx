@@ -8,7 +8,7 @@ export const Icon = forwardRef<HTMLSpanElement, IconProps>((props, ref) => {
     ? ({ role: 'img', 'aria-label': label } as const)
     : ({ 'aria-hidden': true } as const);
   return (
-    <IconRoot ref={ref} $size={size} {...a11y} {...rest}>
+    <IconRoot ref={ref} $size={size} {...rest} {...a11y}>
       <IconComponent width={size} height={size} strokeWidth={1.75} />
     </IconRoot>
   );

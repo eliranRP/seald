@@ -26,4 +26,31 @@ describe('Icon', () => {
     const { container } = renderWithTheme(<Icon icon={PenTool} label="Pen" />);
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('forwards ref to the root span', () => {
+    const ref = { current: null as HTMLSpanElement | null };
+    renderWithTheme(<Icon icon={PenTool} ref={ref} />);
+    expect(ref.current).toBeInstanceOf(HTMLSpanElement);
+  });
+
+  it('forwards rest props (className, data-*) to the root span', () => {
+    const { container } = renderWithTheme(
+      <Icon icon={PenTool} data-testid="icon" className="custom" />,
+    );
+    const span = container.querySelector('span');
+    expect(span).toHaveAttribute('data-testid', 'icon');
+    expect(span).toHaveClass('custom');
+  });
+
+  it('does not let rest props override computed aria attributes', () => {
+    const { getByRole } = renderWithTheme(
+      <Icon icon={PenTool} label="Sign" aria-label="override" />,
+    );
+    expect(getByRole('img')).toHaveAttribute('aria-label', 'Sign');
+  });
+
+  it('has no axe violations in decorative mode', async () => {
+    const { container } = renderWithTheme(<Icon icon={PenTool} />);
+    expect(await axe(container)).toHaveNoViolations();
+  });
 });
