@@ -20,8 +20,8 @@
     "noUnusedParameters": true,
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": false,
+    "noEmit": true,
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
   },
-  "include": ["src", ".storybook/**/*"],
-  "references": [{ "path": "./tsconfig.node.json" }]
+  "include": ["src", ".storybook/**/*"]
 }

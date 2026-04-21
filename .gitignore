@@ -10,3 +10,11 @@ coverage
 .env.local
 .husky/_
 *.tsbuildinfo
+.history
+
+# tsc emit guardrails — all TS output belongs in dist/ (vite build)
+src/**/*.js
+src/**/*.js.map
+vite.config.js
+vite.config.d.ts
+vite.config.js.map
