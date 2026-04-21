@@ -6,7 +6,13 @@ export interface UseControllableArgs<T> {
   readonly onChange?: ((value: T) => void) | undefined;
 }
 
-/** Supports controlled (value + onChange) and uncontrolled (defaultValue) modes. */
+/**
+ * Supports controlled (value + onChange) and uncontrolled (defaultValue) modes.
+ *
+ * NOTE: the returned value is typed as `T`, but if the caller supplies neither
+ * `value` nor `defaultValue` the initial value will be `undefined` at runtime.
+ * Always supply at least one of them, or include `undefined` in `T`.
+ */
 export function useControllable<T>(args: UseControllableArgs<T>): readonly [T, (next: T) => void] {
   const { value, defaultValue, onChange } = args;
   const isControlled = value !== undefined;
