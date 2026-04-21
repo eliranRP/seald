@@ -52,7 +52,7 @@ layers.**
 | L3    | widgets    | `src/components/{SignaturePad}`                                              |
 | L4    | providers  | (none yet)                                                                   |
 
-Full description: [`docs/layers.md`](docs/layers.md). Enforcement is automated
+Full description: [`docs/layers.md`](./layers.md). Enforcement is automated
 via the `import/no-restricted-paths` rule in `.eslintrc.cjs`; violations fail
 `pnpm lint`.
 
