@@ -19,6 +19,7 @@ describe('StatusBadge', () => {
   });
 
   it('STATUS_BADGE_MAP is frozen + exhaustive', () => {
+    expect(Object.isFrozen(STATUS_BADGE_MAP)).toBe(true);
     expect(Object.keys(STATUS_BADGE_MAP).sort()).toEqual([
       'awaiting-others',
       'awaiting-you',
