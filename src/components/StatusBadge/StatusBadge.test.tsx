@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { axe } from 'vitest-axe';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { StatusBadge, STATUS_BADGE_MAP } from './StatusBadge';
 import type { SignerStatus } from '../../types/sealdTypes';
@@ -16,6 +17,11 @@ describe('StatusBadge', () => {
   it.each(pairs)('maps %s → %s', (status, label) => {
     const { getByText } = renderWithTheme(<StatusBadge status={status} />);
     expect(getByText(label)).toBeInTheDocument();
+  });
+
+  it('renders without axe violations', async () => {
+    const { container } = renderWithTheme(<StatusBadge status="awaiting-you" />);
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it('STATUS_BADGE_MAP is frozen + exhaustive', () => {

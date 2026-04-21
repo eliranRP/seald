@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
+import { axe } from 'vitest-axe';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { SignaturePad } from './SignaturePad';
 
@@ -38,6 +39,11 @@ describe('SignaturePad', () => {
     expect(screen.queryByRole('tab', { name: 'Draw' })).toBeNull();
     expect(screen.getByRole('tab', { name: 'Type' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Upload' })).toBeInTheDocument();
+  });
+
+  it('renders without axe violations', async () => {
+    const { container } = renderWithTheme(<SignaturePad onCommit={vi.fn()} />);
+    expect(await axe(container)).toHaveNoViolations();
   });
 
   it('calls onCommit once with a typed value when TypeMode submits', async () => {
