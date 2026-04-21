@@ -4,3 +4,4 @@ dist-ssr
 storybook-static
 coverage
 .vite
+!.storybook
