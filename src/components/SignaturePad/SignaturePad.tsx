@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SignatureValue } from '../../types/sealdTypes';
 import { DrawMode } from './modes/DrawMode/DrawMode';
@@ -34,6 +34,9 @@ export function SignaturePad(props: SignaturePadProps): ReactNode {
   }, [availableModes]);
 
   const [mode, setMode] = useState<SignaturePadMode>(() => resolveInitialMode(initialMode, modes));
+  const reactId = useId();
+  const tabId = (m: SignaturePadMode): string => `${reactId}-tab-${m}`;
+  const panelId = (m: SignaturePadMode): string => `${reactId}-panel-${m}`;
 
   const hook = useSignaturePadValue(initialValue === undefined ? {} : { initialValue });
   const { begin, commit, cancel, reset } = hook;
@@ -76,11 +79,11 @@ export function SignaturePad(props: SignaturePadProps): ReactNode {
           return (
             <Tab
               key={m}
-              id={`signature-pad-tab-${m}`}
+              id={tabId(m)}
               type="button"
               role="tab"
               aria-selected={selected}
-              aria-controls={`signature-pad-panel-${m}`}
+              aria-controls={panelId(m)}
               tabIndex={selected ? 0 : -1}
               $selected={selected}
               onClick={() => selectMode(m)}
@@ -90,11 +93,7 @@ export function SignaturePad(props: SignaturePadProps): ReactNode {
           );
         })}
       </TabList>
-      <Panel
-        role="tabpanel"
-        id={`signature-pad-panel-${mode}`}
-        aria-labelledby={`signature-pad-tab-${mode}`}
-      >
+      <Panel role="tabpanel" id={panelId(mode)} aria-labelledby={tabId(mode)}>
         {panel}
       </Panel>
     </Root>
