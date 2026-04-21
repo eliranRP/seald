@@ -62,15 +62,19 @@ module.exports = {
             from: [
               './src/components/StatusBadge',
               './src/components/SignatureField',
-              './src/components/SignaturePad',
               './src/components/SignerRow',
+              './src/components/SignaturePad',
             ],
             message: 'Layer boundary: L1 primitives must not import from L2/L3 components.',
           },
           // L2 (domain) must not import from L3.
           {
-            target: ['./src/components/StatusBadge', './src/components/SignatureField'],
-            from: ['./src/components/SignaturePad', './src/components/SignerRow'],
+            target: [
+              './src/components/StatusBadge',
+              './src/components/SignatureField',
+              './src/components/SignerRow',
+            ],
+            from: ['./src/components/SignaturePad'],
             message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
           },
         ],

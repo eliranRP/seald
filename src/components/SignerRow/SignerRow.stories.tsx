@@ -12,9 +12,9 @@ const base: Signer = {
 };
 
 const meta: Meta<typeof SignerRow> = {
-  title: 'L3/SignerRow',
+  title: 'L2/SignerRow',
   component: SignerRow,
-  tags: ['autodocs', 'layer-3'],
+  tags: ['autodocs', 'layer-2'],
   args: { signer: base, showMenu: true },
 };
 export default meta;

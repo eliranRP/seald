@@ -48,8 +48,8 @@ layers.**
 | ----- | ---------- | ---------------------------------------------------------------------------- |
 | L0    | tokens     | `src/styles/**`                                                              |
 | L1    | primitives | `src/components/{Badge,Button,Avatar,Icon,TextField,DocThumb,SignatureMark}` |
-| L2    | domain     | `src/components/{StatusBadge,SignatureField}`                                |
-| L3    | widgets    | `src/components/{SignaturePad,SignerRow}`                                    |
+| L2    | domain     | `src/components/{StatusBadge,SignatureField,SignerRow}`                      |
+| L3    | widgets    | `src/components/{SignaturePad}`                                              |
 | L4    | providers  | (none yet)                                                                   |
 
 Full description: [`docs/layers.md`](docs/layers.md). Enforcement is automated
