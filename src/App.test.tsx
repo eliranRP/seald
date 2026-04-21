@@ -24,13 +24,25 @@ describe('App dev harness', () => {
     renderApp();
     const rows = screen.getAllByRole('group');
     expect(rows).toHaveLength(3);
-    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
-    expect(screen.getByText('Alan Turing')).toBeInTheDocument();
-    expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Ada Lovelace/ })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Alan Turing/ })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Grace Hopper/ })).toBeInTheDocument();
   });
 
   it('renders a SignaturePad with a tablist', () => {
     renderApp();
     expect(screen.getByRole('tablist', { name: /signature mode/i })).toBeInTheDocument();
+  });
+
+  it('renders demo sections for new public components', () => {
+    renderApp();
+    expect(screen.getByRole('heading', { level: 2, name: 'Avatar' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Badge' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Card' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Icon' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'SignatureField' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'SignatureMark' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'StatusBadge' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'TextField' })).toBeInTheDocument();
   });
 });

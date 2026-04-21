@@ -1,12 +1,21 @@
 import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import styled, { useTheme } from 'styled-components';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, Search, Star } from 'lucide-react';
 import {
+  Avatar,
+  Badge,
   Button,
+  Card,
   DocThumb,
+  Icon,
+  SignatureField,
+  SignatureMark,
   SignaturePad,
   SignerRow,
+  StatusBadge,
+  TextField,
+  SIGNER_STATUSES,
   type SignatureValue,
   type Signer,
 } from './index';
@@ -99,6 +108,19 @@ const Controls = styled.div`
   gap: ${({ theme }) => theme.space[3]};
 `;
 
+const InlineRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
+const Stack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
 const SIGNERS: ReadonlyArray<Signer> = [
   { id: 's1', name: 'Ada Lovelace', email: 'ada@analytical.engine', status: 'awaiting-you' },
   { id: 's2', name: 'Alan Turing', email: 'alan@bletchley.park', status: 'awaiting-others' },
@@ -166,6 +188,71 @@ export function App() {
           <DocThumb title="Master Services Agreement" size={72} />
           <StatusLine>Master Services Agreement — 4 pages</StatusLine>
         </DocRow>
+      </Section>
+
+      <Section aria-labelledby="avatar-heading">
+        <SectionTitle id="avatar-heading">Avatar</SectionTitle>
+        <InlineRow>
+          <Avatar name="Ada Lovelace" />
+          <Avatar name="Alan Turing" size={40} />
+          <Avatar name="Grace Hopper" size={56} tone="emerald" />
+        </InlineRow>
+      </Section>
+
+      <Section aria-labelledby="badge-heading">
+        <SectionTitle id="badge-heading">Badge</SectionTitle>
+        <InlineRow>
+          <Badge tone="indigo">Indigo</Badge>
+          <Badge tone="emerald">Emerald</Badge>
+          <Badge tone="amber">Amber</Badge>
+          <Badge tone="red">Red</Badge>
+          <Badge tone="neutral">Neutral</Badge>
+        </InlineRow>
+      </Section>
+
+      <Section aria-labelledby="card-heading">
+        <SectionTitle id="card-heading">Card</SectionTitle>
+        <Card aria-label="Demo card">
+          <StatusLine>Cards group related content with a subtle border.</StatusLine>
+        </Card>
+      </Section>
+
+      <Section aria-labelledby="icon-heading">
+        <SectionTitle id="icon-heading">Icon</SectionTitle>
+        <InlineRow>
+          <Icon icon={Star} size={20} label="Star" />
+        </InlineRow>
+      </Section>
+
+      <Section aria-labelledby="signaturefield-heading">
+        <SectionTitle id="signaturefield-heading">SignatureField</SectionTitle>
+        <InlineRow>
+          <SignatureField kind="signature" signerName="Ada Lovelace" />
+          <SignatureField kind="initials" signerName="Alan Turing" filled />
+          <SignatureField kind="date" signerName="Grace Hopper" selected />
+        </InlineRow>
+      </Section>
+
+      <Section aria-labelledby="signaturemark-heading">
+        <SectionTitle id="signaturemark-heading">SignatureMark</SectionTitle>
+        <SignatureMark name="Ada Lovelace" />
+      </Section>
+
+      <Section aria-labelledby="statusbadge-heading">
+        <SectionTitle id="statusbadge-heading">StatusBadge</SectionTitle>
+        <InlineRow>
+          {SIGNER_STATUSES.map((status) => (
+            <StatusBadge key={status} status={status} />
+          ))}
+        </InlineRow>
+      </Section>
+
+      <Section aria-labelledby="textfield-heading">
+        <SectionTitle id="textfield-heading">TextField</SectionTitle>
+        <Stack>
+          <TextField label="Email" type="email" placeholder="you@seald.app" iconLeft={Search} />
+          <TextField label="Full name" helpText="First and last name" />
+        </Stack>
       </Section>
 
       <Section aria-labelledby="pad-heading">
