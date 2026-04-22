@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Filter, UploadCloud } from 'lucide-react';
+import { UploadCloud } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { Badge } from '../../components/Badge';
@@ -132,9 +132,6 @@ export function DashboardPage() {
             <Title>Everything you&apos;ve sent</Title>
           </TitleBlock>
           <HeaderActions>
-            <Button variant="secondary" iconLeft={Filter}>
-              Filter
-            </Button>
             <Button
               variant="primary"
               iconLeft={UploadCloud}
