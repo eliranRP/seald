@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { ArrowLeft, Copy, X as XIcon } from 'lucide-react';
 import { AddSignerDropdown } from '../../components/AddSignerDropdown';
@@ -35,6 +35,7 @@ import {
   RightRailInner,
   RightRailScroll,
   Shell,
+  SnapGuide,
   Workspace,
 } from './DocumentPage.styles';
 
@@ -48,6 +49,16 @@ const DROP_SIBLING_GAP = 12;
 // Pixels the pointer must travel before a mousedown on the canvas background
 // is treated as a marquee-select drag rather than a plain click.
 const MARQUEE_THRESHOLD = 3;
+// Pointer tolerance (px) for aligning a dragged field's edge/center with
+// another field's edge/center. Small enough not to catch "accidental" snaps
+// while still feeling magnetic when the user approaches alignment.
+const SNAP_THRESHOLD = 5;
+// Pixel offset applied to pasted / keyboard-duplicated fields so they're not
+// perfectly hidden behind the original.
+const PASTE_OFFSET = 16;
+// Cap on the number of undo snapshots we retain — enough for several reverses
+// while keeping memory bounded on long sessions.
+const UNDO_HISTORY_LIMIT = 50;
 const ADDDROPDOWN_WRAP_STYLE: React.CSSProperties = {
   position: 'relative',
   height: 0,
@@ -140,6 +151,21 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const suppressNextBgClickRef = useRef<boolean>(false);
   const dragKindRef = useRef<FieldKind | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  // ---------------------------------------------------------------- snap
+  // Alignment guides surfaced while dragging a field that edges/centers
+  // within SNAP_THRESHOLD of another field on the same page. Each guide is
+  // a full-width (h) or full-height (v) line anchored to the snap position.
+  const [snapGuides, setSnapGuides] = useState<
+    ReadonlyArray<{ readonly orientation: 'h' | 'v'; readonly pos: number }>
+  >([]);
+  // --------------------------------------------------------------- history
+  // Undo stack: snapshots of `fields` taken right before each discrete
+  // mutation (drop, delete, duplicate, paste). Move/resize aren't recorded
+  // so a long drag doesn't flood the stack with micro-states.
+  const undoStackRef = useRef<ReadonlyArray<ReadonlyArray<PlacedFieldValue>>>([]);
+  // Cmd+C snapshot — the fields the user most recently copied. Stored in a
+  // ref (not state) because paste doesn't need to re-render on copy.
+  const clipboardRef = useRef<ReadonlyArray<PlacedFieldValue>>([]);
 
   const placedFieldSigners = useMemo(
     () => signers.map((s) => ({ id: s.id, name: s.name, color: s.color })),
@@ -212,6 +238,20 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [pagesPopoverFor, fields],
   );
 
+  // --------------------------------------------------------------- history
+  /**
+   * Snapshot the current `fields` for undo. Called right before every
+   * discrete mutation (drop, delete, paste, duplicate) — NOT for
+   * move/resize, which would otherwise flood the stack during a single
+   * drag.
+   */
+  const pushUndo = useCallback((snapshot: ReadonlyArray<PlacedFieldValue>): void => {
+    const next = [...undoStackRef.current, snapshot];
+    // Cap history so a long session doesn't grow unbounded.
+    undoStackRef.current =
+      next.length > UNDO_HISTORY_LIMIT ? next.slice(next.length - UNDO_HISTORY_LIMIT) : next;
+  }, []);
+
   // -------------------------------------------------------------------- DnD
   const handlePaletteDragStart = useCallback((kind: FieldKind, e: DragEvent<HTMLElement>): void => {
     dragKindRef.current = kind;
@@ -258,6 +298,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           y,
           signerIds: [],
         };
+        pushUndo(fields);
         onFieldsChange([...fields, fallback]);
         setSelectedIds([fallback.id]);
         setSignerPopoverFor(fallback.id);
@@ -276,6 +317,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         y,
         signerIds: [signer.id],
       }));
+      pushUndo(fields);
       onFieldsChange([...fields, ...spawned]);
       // Select them all as a group so the user can immediately drag the whole
       // row or delete it as one.
@@ -284,7 +326,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       setSignerPopoverFor(null);
       dragKindRef.current = null;
     },
-    [currentPage, fields, onFieldsChange, signers],
+    [currentPage, fields, onFieldsChange, pushUndo, signers],
   );
 
   const handleCanvasBackgroundClick = useCallback((): void => {
@@ -366,17 +408,67 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     (id: string, x: number, y: number): void => {
       const anchor = fields.find((f) => f.id === id);
       if (!anchor) return;
-      const dx = x - anchor.x;
-      const dy = y - anchor.y;
-      // If the moved field is part of the current multi-selection, move every
-      // selected field by the same delta so the whole group travels together.
+      const w = anchor.width ?? FIELD_WIDTH;
+      const h = anchor.height ?? FIELD_HEIGHT;
       const grouped = selectedIds.includes(id) && selectedIds.length > 1;
+      // Peers to snap against: same page, not currently being moved.
+      const movingSet = grouped ? new Set(selectedIds) : new Set<string>([id]);
+      const peers = fields.filter((f) => f.page === anchor.page && !movingSet.has(f.id));
+
+      // --- Horizontal snapping (vertical guide lines) ---
+      let snappedX = x;
+      const vGuides: Array<{ readonly orientation: 'v'; readonly pos: number }> = [];
+      for (const p of peers) {
+        const pw = p.width ?? FIELD_WIDTH;
+        if (Math.abs(x - p.x) <= SNAP_THRESHOLD) {
+          snappedX = p.x;
+          vGuides.push({ orientation: 'v', pos: p.x });
+          break;
+        }
+        if (Math.abs(x + w - (p.x + pw)) <= SNAP_THRESHOLD) {
+          snappedX = p.x + pw - w;
+          vGuides.push({ orientation: 'v', pos: p.x + pw });
+          break;
+        }
+        if (Math.abs(x + w / 2 - (p.x + pw / 2)) <= SNAP_THRESHOLD) {
+          snappedX = p.x + pw / 2 - w / 2;
+          vGuides.push({ orientation: 'v', pos: p.x + pw / 2 });
+          break;
+        }
+      }
+
+      // --- Vertical snapping (horizontal guide lines) ---
+      let snappedY = y;
+      const hGuides: Array<{ readonly orientation: 'h'; readonly pos: number }> = [];
+      for (const p of peers) {
+        const ph = p.height ?? FIELD_HEIGHT;
+        if (Math.abs(y - p.y) <= SNAP_THRESHOLD) {
+          snappedY = p.y;
+          hGuides.push({ orientation: 'h', pos: p.y });
+          break;
+        }
+        if (Math.abs(y + h - (p.y + ph)) <= SNAP_THRESHOLD) {
+          snappedY = p.y + ph - h;
+          hGuides.push({ orientation: 'h', pos: p.y + ph });
+          break;
+        }
+        if (Math.abs(y + h / 2 - (p.y + ph / 2)) <= SNAP_THRESHOLD) {
+          snappedY = p.y + ph / 2 - h / 2;
+          hGuides.push({ orientation: 'h', pos: p.y + ph / 2 });
+          break;
+        }
+      }
+
+      setSnapGuides([...vGuides, ...hGuides]);
+
+      const dx = snappedX - anchor.x;
+      const dy = snappedY - anchor.y;
       if (grouped) {
         onFieldsChange(
           fields.map((f) => (selectedIds.includes(f.id) ? { ...f, x: f.x + dx, y: f.y + dy } : f)),
         );
       } else {
-        onFieldsChange(fields.map((f) => (f.id === id ? { ...f, x, y } : f)));
+        onFieldsChange(fields.map((f) => (f.id === id ? { ...f, x: snappedX, y: snappedY } : f)));
       }
     },
     [fields, onFieldsChange, selectedIds],
@@ -398,6 +490,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
   const removeField = useCallback(
     (id: string): void => {
+      pushUndo(fields);
       onFieldsChange(fields.filter((f) => f.id !== id));
       if (selectedIds.includes(id)) {
         setSelectedIds((prev) => prev.filter((sid) => sid !== id));
@@ -405,7 +498,29 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       if (signerPopoverFor === id) setSignerPopoverFor(null);
       if (pagesPopoverFor === id) setPagesPopoverFor(null);
     },
-    [fields, onFieldsChange, pagesPopoverFor, selectedIds, signerPopoverFor],
+    [fields, onFieldsChange, pagesPopoverFor, pushUndo, selectedIds, signerPopoverFor],
+  );
+
+  /**
+   * Sidebar action — clone the single field at `id` in place (with a small
+   * offset so the copy is visible) and select the new copy. Called from the
+   * FieldsPlacedList row's Duplicate button.
+   */
+  const duplicateField = useCallback(
+    (id: string): void => {
+      const source = fields.find((f) => f.id === id);
+      if (!source) return;
+      const clone: PlacedFieldValue = {
+        ...source,
+        id: makeId(),
+        x: source.x + PASTE_OFFSET,
+        y: source.y + PASTE_OFFSET,
+      };
+      pushUndo(fields);
+      onFieldsChange([...fields, clone]);
+      setSelectedIds([clone.id]);
+    },
+    [fields, onFieldsChange, pushUndo],
   );
 
   // --------------------------------------------------------- group actions
@@ -413,11 +528,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   // so users don't have to act on each field individually.
   const removeSelectedGroup = useCallback((): void => {
     if (selectedIds.length < 2) return;
+    pushUndo(fields);
     onFieldsChange(fields.filter((f) => !selectedIds.includes(f.id)));
     setSelectedIds([]);
     setSignerPopoverFor(null);
     setPagesPopoverFor(null);
-  }, [fields, onFieldsChange, selectedIds]);
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
 
   const duplicateSelectedGroup = useCallback((): void => {
     if (selectedIds.length < 2) return;
@@ -457,10 +573,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         y: source.y,
         signerIds: source.signerIds,
       }));
+      pushUndo(fields);
       onFieldsChange([...fields, ...clones]);
       setPagesPopoverFor(null);
     },
-    [fields, onFieldsChange, pagesPopoverField, totalPages],
+    [fields, onFieldsChange, pagesPopoverField, pushUndo, totalPages],
   );
 
   // Apply the Place-on-pages selection for a multi-field group: clone every
@@ -491,11 +608,118 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           page,
         })),
       );
+      pushUndo(fields);
       onFieldsChange([...fields, ...clones]);
       setGroupPagesPopoverOpen(false);
     },
-    [fields, onFieldsChange, selectedIds, currentPage, totalPages],
+    [fields, onFieldsChange, pushUndo, selectedIds, currentPage, totalPages],
   );
+
+  // --------------------------------------------------------- keyboard
+  /**
+   * Copy the currently selected fields onto the internal clipboard. Stored in
+   * a ref (not state) so paste doesn't depend on re-render. Deep-ish copy —
+   * each clone keeps the original's type/coords/signer assignment.
+   */
+  const copySelection = useCallback((): void => {
+    if (selectedIds.length === 0) return;
+    const picked = fields.filter((f) => selectedIds.includes(f.id));
+    if (picked.length === 0) return;
+    clipboardRef.current = picked;
+  }, [fields, selectedIds]);
+
+  /**
+   * Paste the most-recently-copied fields onto the current page at a small
+   * offset so they don't hide the originals. Each paste produces fresh ids
+   * and selects the new fields as a group.
+   */
+  const pasteClipboard = useCallback((): void => {
+    const clip = clipboardRef.current;
+    if (clip.length === 0) return;
+    const clones: ReadonlyArray<PlacedFieldValue> = clip.map((f) => ({
+      ...f,
+      id: makeId(),
+      page: currentPage,
+      x: f.x + PASTE_OFFSET,
+      y: f.y + PASTE_OFFSET,
+    }));
+    pushUndo(fields);
+    onFieldsChange([...fields, ...clones]);
+    setSelectedIds(clones.map((f) => f.id));
+  }, [currentPage, fields, onFieldsChange, pushUndo]);
+
+  /**
+   * Pop the most recent snapshot off the undo stack and restore it. Clears
+   * downstream state (popovers, selection) since the ids in the restored
+   * snapshot may no longer match what the user currently has selected.
+   */
+  const undo = useCallback((): void => {
+    const stack = undoStackRef.current;
+    if (stack.length === 0) return;
+    const last = stack[stack.length - 1];
+    if (!last) return;
+    undoStackRef.current = stack.slice(0, -1);
+    onFieldsChange(last);
+    setSelectedIds((prev) => prev.filter((id) => last.some((f) => f.id === id)));
+    setSignerPopoverFor(null);
+    setPagesPopoverFor(null);
+    setGroupPagesPopoverOpen(false);
+  }, [onFieldsChange]);
+
+  /**
+   * Remove every selected field (single or group) in one mutation. Used by
+   * Delete/Backspace key handler so users don't have to click the X.
+   */
+  const removeSelection = useCallback((): void => {
+    if (selectedIds.length === 0) return;
+    pushUndo(fields);
+    onFieldsChange(fields.filter((f) => !selectedIds.includes(f.id)));
+    setSelectedIds([]);
+    setSignerPopoverFor(null);
+    setPagesPopoverFor(null);
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent): void => {
+      // Don't intercept shortcuts while the user is typing in an input/textarea
+      // or a contenteditable surface (e.g. popover filters).
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTyping =
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (target?.isContentEditable ?? false);
+      if (isTyping) return;
+
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'c' || e.key === 'C')) {
+        if (selectedIds.length === 0) return;
+        e.preventDefault();
+        copySelection();
+        return;
+      }
+      if (mod && (e.key === 'v' || e.key === 'V')) {
+        if (clipboardRef.current.length === 0) return;
+        e.preventDefault();
+        pasteClipboard();
+        return;
+      }
+      if (mod && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
+        if (undoStackRef.current.length === 0) return;
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedIds.length === 0) return;
+        e.preventDefault();
+        removeSelection();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [copySelection, pasteClipboard, removeSelection, selectedIds, undo]);
 
   // ----------------------------------------------------------------- signer
   const handlePickContact = useCallback(
@@ -643,6 +867,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                         onToggleRequired={toggleRequired}
                         onMove={moveField}
                         onResize={resizeField}
+                        onDragEnd={() => setSnapGuides([])}
                       />
                     );
                   })}
@@ -657,6 +882,17 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     }}
                   />
                 ) : null}
+                {snapGuides.map((g, i) => (
+                  <SnapGuide
+                    // Positional keys are fine here — guides are short-lived
+                    // drag-time state with no stable identity of their own.
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
+                    data-testid="snap-guide"
+                    $orientation={g.orientation}
+                    style={g.orientation === 'v' ? { left: g.pos } : { top: g.pos }}
+                  />
+                ))}
                 {groupToolbarRect ? (
                   <GroupToolbar
                     data-testid="group-toolbar"
@@ -737,6 +973,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     if (f) setCurrentPage(f.page);
                     setSelectedIds([id]);
                   }}
+                  onDuplicateField={duplicateField}
+                  onRemoveField={removeField}
                 />
               </RightRailScroll>
               <RightRailFooter>

@@ -84,6 +84,20 @@ export const MarqueeRect = styled.div`
 `;
 
 /**
+ * A dashed indigo line rendered on the canvas while the user drags a field
+ * that aligns (within a few pixels) with a peer's left/right/center or
+ * top/bottom/middle edge — helps users line things up without pixel-hunting.
+ */
+export const SnapGuide = styled.div<{ readonly $orientation: 'h' | 'v' }>`
+  position: absolute;
+  pointer-events: none;
+  background: ${({ theme }) => theme.color.indigo[500]};
+  z-index: 7;
+  ${({ $orientation }) =>
+    $orientation === 'v' ? 'top: 0; bottom: 0; width: 1px;' : 'left: 0; right: 0; height: 1px;'}
+`;
+
+/**
  * Floating toolbar shown above the bounding box of a multi-field selection.
  * Lets the user duplicate or delete every selected field at once instead of
  * having to do it one field at a time.

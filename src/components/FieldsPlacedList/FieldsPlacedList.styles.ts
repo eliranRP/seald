@@ -41,6 +41,28 @@ export const Item = styled.li`
   margin: 0;
   padding: 0;
   list-style: none;
+  /* Anchors RowActions, which sits over the right edge of Row so its buttons
+     are siblings of the Row button (no <button> inside <button> nesting). */
+  position: relative;
+`;
+
+/**
+ * Absolute-positioned wrapper for the selected-row action buttons. Rendered
+ * as a sibling of Row (not a child) so the buttons don't nest inside Row's
+ * <button>, which would be invalid DOM.
+ */
+export const RowActions = styled.div`
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  gap: 4px;
+  pointer-events: none;
+  /* Re-enable pointer events on each button child so clicks still register. */
+  & > * {
+    pointer-events: auto;
+  }
 `;
 
 export const Row = styled.button<{ readonly $selected: boolean }>`
@@ -104,4 +126,49 @@ export const AvatarChip = styled.span<{ readonly $color: string; readonly $first
   margin-left: ${({ $first }) => ($first ? '0' : '-5px')};
   border: 1.5px solid ${({ theme }) => theme.color.bg.surface};
   box-sizing: border-box;
+`;
+
+/**
+ * Small mono-font pill showing how many fields of this kind are placed across
+ * the whole document. Rendered next to the label so users can tell at a
+ * glance how many Email/Signature/Date fields exist.
+ */
+export const UsageCount = styled.span`
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: 10px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  background: ${({ theme }) => theme.color.ink[50]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  padding: 1px 6px;
+  flex-shrink: 0;
+  line-height: 1.4;
+`;
+
+/**
+ * Inline action buttons rendered on the selected row only — Duplicate and
+ * Remove. They sit alongside the page tag / avatars so the user can act on a
+ * field from the side rail without needing to hunt the canvas overlay.
+ */
+export const RowAction = styled.button<{ readonly $tone: 'indigo' | 'danger' }>`
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 0;
+  background: ${({ $tone, theme }) =>
+    $tone === 'danger' ? theme.color.danger[500] : theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  flex-shrink: 0;
+  &:hover {
+    filter: brightness(1.08);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
 `;

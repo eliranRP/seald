@@ -19,6 +19,16 @@ export interface FieldsPlacedListProps extends Omit<HTMLAttributes<HTMLDivElemen
   readonly signers: ReadonlyArray<FieldsPlacedListSigner>;
   readonly selectedFieldId?: string | undefined;
   readonly onSelectField?: ((id: string) => void) | undefined;
+  /**
+   * Fires when the user clicks the Duplicate button on the selected row.
+   * Rendered inline next to the row label only while that row is selected.
+   */
+  readonly onDuplicateField?: ((id: string) => void) | undefined;
+  /**
+   * Fires when the user clicks the Remove button on the selected row.
+   * Same render rule as {@link onDuplicateField}.
+   */
+  readonly onRemoveField?: ((id: string) => void) | undefined;
   readonly title?: string | undefined;
   readonly emptyHint?: ReactNode | undefined;
 }

@@ -552,4 +552,72 @@ describe('DocumentPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^back$/i }));
     expect(onBack).toHaveBeenCalledTimes(1);
   });
+
+  it('Delete key removes every selected field', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 20, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.click(screen.getByRole('group', { name: /date field for/i }), { shiftKey: true });
+    fireEvent.keyDown(window, { key: 'Delete' });
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(0);
+  });
+
+  it('Cmd+C then Cmd+V clones selected fields onto the current page with new ids', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.keyDown(window, { key: 'c', metaKey: true });
+    fireEvent.keyDown(window, { key: 'v', metaKey: true });
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    // Original + 1 clone = 2 fields, and the clone has a different id.
+    expect(next).toHaveLength(2);
+    expect(next[1]?.id).not.toBe('f1');
+    expect(next[1]?.type).toBe('signature');
+  });
+
+  it('Cmd+Z restores the previous fields snapshot after a deletion', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.keyDown(window, { key: 'Delete' });
+    fireEvent.keyDown(window, { key: 'z', metaKey: true });
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    // Undo should restore the original single field.
+    expect(next).toHaveLength(1);
+    expect(next[0]?.id).toBe('f1');
+  });
+
+  it('side-rail row exposes a usage count and inline Duplicate/Remove actions on the selected row', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'signature', x: 200, y: 20, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    // The row exposes the total count of fields of this type across the doc.
+    const listSection = screen.getByRole('region', { name: /fields placed/i });
+    expect(
+      within(listSection).getAllByLabelText(/2 signature fields in document/i).length,
+    ).toBeGreaterThan(0);
+    // Inline actions only appear for the selected row — click the canvas
+    // field to select it, then invoke Remove from the side rail.
+    fireEvent.click(screen.getAllByRole('group', { name: /signature field for/i })[0] as Element);
+    const removeButtons = within(listSection).getAllByRole('button', { name: /remove field/i });
+    expect(removeButtons.length).toBe(1);
+    fireEvent.click(removeButtons[0] as Element);
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(1);
+    expect(next[0]?.id).toBe('f2');
+  });
 });

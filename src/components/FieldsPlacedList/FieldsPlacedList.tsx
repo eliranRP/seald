@@ -1,5 +1,6 @@
 import { forwardRef, useMemo } from 'react';
-import { Calendar, CheckSquare, Mail, PenTool, TextCursorInput, Type } from 'lucide-react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
+import { Calendar, CheckSquare, Copy, Mail, PenTool, TextCursorInput, Type, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { seald } from '../../styles/theme';
 import type { FieldKind } from '../../types/sealdTypes';
@@ -18,7 +19,10 @@ import {
   List,
   PageTag,
   Row,
+  RowAction,
+  RowActions,
   Section,
+  UsageCount,
 } from './FieldsPlacedList.styles';
 
 const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: LucideIcon }> = {
@@ -57,6 +61,8 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
     signers,
     selectedFieldId,
     onSelectField,
+    onDuplicateField,
+    onRemoveField,
     title = 'Fields placed',
     emptyHint = DEFAULT_EMPTY_HINT,
     ...rest
@@ -68,9 +74,42 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
     return map;
   }, [signers]);
 
+  // Per-kind totals so each row can show "how many of this type exist in the
+  // document" without the parent having to compute and pass them in.
+  const usageByType = useMemo<Record<FieldKind, number>>(() => {
+    const tally: Record<FieldKind, number> = {
+      signature: 0,
+      initials: 0,
+      date: 0,
+      text: 0,
+      checkbox: 0,
+      email: 0,
+    };
+    fields.forEach((f) => {
+      tally[f.type] += 1;
+    });
+    return tally;
+  }, [fields]);
+
   const handleRowClick = (id: string) => (): void => {
     onSelectField?.(id);
   };
+
+  const handleDuplicate =
+    (id: string) =>
+    (e: ReactMouseEvent<HTMLButtonElement>): void => {
+      // The button is nested inside the row button — stop propagation so the
+      // row's own onClick doesn't re-fire onSelectField after the action.
+      e.stopPropagation();
+      onDuplicateField?.(id);
+    };
+
+  const handleRemove =
+    (id: string) =>
+    (e: ReactMouseEvent<HTMLButtonElement>): void => {
+      e.stopPropagation();
+      onRemoveField?.(id);
+    };
 
   const isEmpty = fields.length === 0;
 
@@ -90,6 +129,7 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
             const visible = assigned.slice(0, MAX_AVATARS);
             const assignedNames = assigned.map((s) => s.name);
             const isSelected = selectedFieldId === field.id;
+            const usage = usageByType[field.type];
             return (
               <Item key={field.id}>
                 <Row
@@ -106,6 +146,11 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
                     aria-hidden
                   />
                   <Label>{meta.label}</Label>
+                  <UsageCount
+                    aria-label={`${String(usage)} ${meta.label} field${usage === 1 ? '' : 's'} in document`}
+                  >
+                    {`×${String(usage)}`}
+                  </UsageCount>
                   <PageTag>{`p${field.page}`}</PageTag>
                   <AvatarStack aria-hidden>
                     {visible.map((signer, i) => (
@@ -115,6 +160,33 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
                     ))}
                   </AvatarStack>
                 </Row>
+                {isSelected && (onDuplicateField || onRemoveField) ? (
+                  // Rendered as a sibling of Row (not a child) so the action
+                  // buttons aren't nested inside Row's <button> — which would
+                  // be invalid DOM.
+                  <RowActions>
+                    {onDuplicateField ? (
+                      <RowAction
+                        type="button"
+                        $tone="indigo"
+                        aria-label="Duplicate field"
+                        onClick={handleDuplicate(field.id)}
+                      >
+                        <Copy size={12} strokeWidth={1.75} aria-hidden />
+                      </RowAction>
+                    ) : null}
+                    {onRemoveField ? (
+                      <RowAction
+                        type="button"
+                        $tone="danger"
+                        aria-label="Remove field"
+                        onClick={handleRemove(field.id)}
+                      >
+                        <X size={12} strokeWidth={1.75} aria-hidden />
+                      </RowAction>
+                    ) : null}
+                  </RowActions>
+                ) : null}
               </Item>
             );
           })}
