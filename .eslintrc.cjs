@@ -60,6 +60,7 @@ module.exports = {
               './src/components/SignatureMark',
             ],
             from: [
+              './src/components/AddSignerDropdown',
               './src/components/FieldsPlacedList',
               './src/components/PageThumbStrip',
               './src/components/PageToolbar',
@@ -73,14 +74,18 @@ module.exports = {
               './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',
+              './src/components/PlaceOnPagesPopover',
+              './src/components/SelectSignersPopover',
               './src/components/SideBar',
               './src/components/SignaturePad',
+              './src/components/SignersPanel',
             ],
             message: 'Layer boundary: L1 primitives must not import from L2/L3 components.',
           },
           // L2 (domain) must not import from L3.
           {
             target: [
+              './src/components/AddSignerDropdown',
               './src/components/FieldsPlacedList',
               './src/components/PageThumbStrip',
               './src/components/PageToolbar',
@@ -96,8 +101,11 @@ module.exports = {
               './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',
+              './src/components/PlaceOnPagesPopover',
+              './src/components/SelectSignersPopover',
               './src/components/SideBar',
               './src/components/SignaturePad',
+              './src/components/SignersPanel',
             ],
             message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
           },

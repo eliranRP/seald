@@ -14,6 +14,7 @@ export * from './components/SignatureMark';
 export * from './components/TextField';
 
 // ————— L2 Domain —————
+export * from './components/AddSignerDropdown';
 export * from './components/FieldsPlacedList';
 export * from './components/PageThumbStrip';
 export * from './components/PageToolbar';
@@ -29,8 +30,11 @@ export * from './components/DocumentCanvas';
 export * from './components/FieldPalette';
 export * from './components/FieldsBar';
 export * from './components/NavBar';
+export * from './components/PlaceOnPagesPopover';
+export * from './components/SelectSignersPopover';
 export * from './components/SideBar';
 export * from './components/SignaturePad';
+export * from './components/SignersPanel';
 
 // ————— Providers —————
 export { SealdThemeProvider } from './providers/SealdThemeProvider';

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import styled, { useTheme } from 'styled-components';
 import { RotateCcw, Search, Star } from 'lucide-react';
 import {
+  AddSignerDropdown,
   Avatar,
   Badge,
   Button,
@@ -21,12 +22,15 @@ import {
   SignatureMark,
   SignaturePad,
   SignerRow,
+  SignersPanel,
   StatusBadge,
   TextField,
   SIGNER_STATUSES,
+  type AddSignerContact,
   type PlacedFieldSigner,
   type SignatureValue,
   type Signer,
+  type SignersPanelSigner,
 } from './index';
 
 const Page = styled.main`
@@ -133,6 +137,17 @@ const Stack = styled.div`
 const DEMO_PLACED_SIGNERS: ReadonlyArray<PlacedFieldSigner> = [
   { id: 'p1', name: 'Hedy Lamarr', color: '#F472B6' },
   { id: 'p2', name: 'Katherine Johnson', color: '#7DD3FC' },
+];
+
+const DEMO_PANEL_SIGNERS: ReadonlyArray<SignersPanelSigner> = [
+  { id: 'ps1', name: 'Hedy Lamarr', email: 'hedy@spread.spectrum', color: '#F472B6' },
+  { id: 'ps2', name: 'Katherine Johnson', email: 'katherine@nasa.gov', color: '#7DD3FC' },
+];
+
+const DEMO_CONTACTS: ReadonlyArray<AddSignerContact> = [
+  { id: 'dc1', name: 'Hedy Lamarr', email: 'hedy@spread.spectrum', color: '#F472B6' },
+  { id: 'dc2', name: 'Katherine Johnson', email: 'katherine@nasa.gov', color: '#7DD3FC' },
+  { id: 'dc3', name: 'Grace Hopper', email: 'grace@cobol.dev', color: '#10B981' },
 ];
 
 const SIGNERS: ReadonlyArray<Signer> = [
@@ -381,6 +396,26 @@ export function App() {
             signerCount={2}
             onSend={() => {}}
             onSaveDraft={() => {}}
+          />
+        </div>
+      </Section>
+
+      <Section aria-labelledby="signerspanel-heading">
+        <SectionTitle id="signerspanel-heading">SignersPanel</SectionTitle>
+        <div style={{ maxWidth: 320 }}>
+          <SignersPanel signers={DEMO_PANEL_SIGNERS} onRequestAdd={() => {}} />
+        </div>
+      </Section>
+
+      <Section aria-labelledby="addsignerdropdown-heading">
+        <SectionTitle id="addsignerdropdown-heading">AddSignerDropdown</SectionTitle>
+        <div style={{ position: 'relative', maxWidth: 320, height: 280 }}>
+          <AddSignerDropdown
+            contacts={DEMO_CONTACTS}
+            existingContactIds={['dc1']}
+            onPick={() => {}}
+            onCreate={() => {}}
+            autoFocus={false}
           />
         </div>
       </Section>
