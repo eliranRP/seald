@@ -91,7 +91,7 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('document', { name: /page 2 of 4/i })).toBeInTheDocument();
   });
 
-  it('emits onFieldsChange with a new field when a palette drag is dropped on the canvas', () => {
+  it('drops a palette field as one ungrouped field per signer (not a single shared field)', () => {
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -117,10 +117,310 @@ describe('DocumentPage', () => {
     expect(onFieldsChangeSpy).toHaveBeenCalledTimes(1);
     const firstCall = onFieldsChangeSpy.mock.calls[0];
     const next = firstCall ? firstCall[0] : undefined;
-    expect(next?.length).toBe(1);
+    // One field per signer (2 signers → 2 fields), each with a single signerId.
+    expect(next?.length).toBe(2);
     expect(next?.[0]?.type).toBe('signature');
-    expect(next?.[0]?.page).toBe(1);
     expect(next?.[0]?.signerIds).toEqual(['a']);
+    expect(next?.[1]?.type).toBe('signature');
+    expect(next?.[1]?.signerIds).toEqual(['b']);
+    // No signer popover — the split already encodes per-signer intent.
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+  });
+
+  it('clears the selection when the canvas background is clicked', () => {
+    renderPage();
+    const field = screen.getByRole('group', { name: /signature field for/i });
+    fireEvent.click(field);
+    // The selection overlay ("Assign signers") is visible only while selected.
+    expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
+
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    fireEvent.click(canvas);
+
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+  });
+
+  it('multi-selects fields with shift-click (forming a group) so controls hide', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 20, signerIds: ['b'] },
+    ];
+    renderPage({ initialFields: fields });
+
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    // First click selects single → overlay visible.
+    expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
+    // Shift-click extends selection into a group → per-field overlay hidden.
+    fireEvent.click(date, { shiftKey: true });
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete field/i })).not.toBeInTheDocument();
+  });
+
+  it('drags a grouped field and moves every other group member by the same delta', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ initialFields: fields, onFieldsChangeSpy });
+
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+
+    // Mouse down on one group member (anchor) and drag.
+    fireEvent.mouseDown(sig, { clientX: 100, clientY: 100, button: 0 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 140, clientY: 120 }));
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'));
+    });
+
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    const f1 = next?.find((f) => f.id === 'f1');
+    const f2 = next?.find((f) => f.id === 'f2');
+    // Both fields shifted by the same delta (+40, +20).
+    expect(f1?.x).toBe(20 + 40);
+    expect(f1?.y).toBe(20 + 20);
+    expect(f2?.x).toBe(220 + 40);
+    expect(f2?.y).toBe(50 + 20);
+  });
+
+  it('plain click on a grouped field isolates it to a single selection (breaks the group)', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    renderPage({ initialFields: fields });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+    // Both selected — they share the grouped overlay, overlay controls hidden.
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+    // A plain click on one of them must isolate that field. The overlay
+    // controls reappear because the clicked field is now a single selection.
+    fireEvent.click(sig);
+    expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /delete field/i })).toBeInTheDocument();
+  });
+
+  it('preserves the group while dragging a member even though plain clicks isolate', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ initialFields: fields, onFieldsChangeSpy });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+
+    // Mousedown + drag past the threshold on a group member keeps the group
+    // together. The final mouseup does NOT isolate because a drag happened.
+    fireEvent.mouseDown(sig, { clientX: 100, clientY: 100, button: 0 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 140, clientY: 120 }));
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'));
+    });
+    // A native click event on the underlying element after the drag must not
+    // collapse the group either (suppressed by the drag-end flag).
+    fireEvent.click(sig);
+    // Overlay controls still hidden → group preserved.
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+    // And both fields moved together.
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    expect(next?.find((f) => f.id === 'f1')?.x).toBe(20 + 40);
+    expect(next?.find((f) => f.id === 'f2')?.x).toBe(220 + 40);
+  });
+
+  it('marquee-drags across the canvas to lasso-select every field it intersects into a group', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    renderPage({ initialFields: fields });
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    // Force a deterministic canvas rect so clientX/Y map predictably into
+    // canvas-local coordinates.
+    canvas.getBoundingClientRect = () =>
+      ({
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 600,
+        width: 800,
+        height: 600,
+        x: 0,
+        y: 0,
+      }) as DOMRect;
+
+    // Start a drag at (0, 0) on the background and sweep to (400, 200) which
+    // covers both fields.
+    fireEvent.mouseDown(canvas, { clientX: 0, clientY: 0, button: 0 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 400, clientY: 200 }));
+    });
+    // The live marquee rectangle renders during the drag.
+    expect(screen.getByTestId('canvas-marquee')).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'));
+    });
+    // The marquee is removed once the drag completes.
+    expect(screen.queryByTestId('canvas-marquee')).not.toBeInTheDocument();
+    // Both fields are selected as a group — grouped selection hides per-field
+    // overlay controls, so neither Assign signers nor Delete field is visible.
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /delete field/i })).not.toBeInTheDocument();
+  });
+
+  it('clicking background after a group click breaks the group; a subsequent click selects one', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    renderPage({ initialFields: fields });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+    // Still grouped — controls hidden.
+    expect(screen.queryByRole('button', { name: /assign signers/i })).not.toBeInTheDocument();
+
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    fireEvent.click(canvas);
+    // Now select a single previously-grouped field — it should behave as single.
+    fireEvent.click(sig);
+    expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /delete field/i })).toBeInTheDocument();
+  });
+
+  it('cascades independent per-signer fields for every successive palette drop', () => {
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onFieldsChangeSpy, initialFields: [] });
+
+    const signatureRow = screen.getByRole('button', { name: 'Signature' });
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    const dataTransfer = {
+      setData: vi.fn(),
+      getData: vi.fn().mockReturnValue('signature'),
+      effectAllowed: '',
+      dropEffect: '',
+      files: [],
+      items: [],
+      types: ['text/plain'],
+    };
+
+    // First drop at (150, 150): produces one field per signer (Ada, Alan)
+    // with a small cascade offset.
+    act(() => {
+      fireEvent.dragStart(signatureRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 150, clientY: 150 });
+    });
+
+    // Second drop at (300, 200): produces two more fields (no popover in either case).
+    act(() => {
+      fireEvent.dragStart(signatureRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 300, clientY: 200 });
+    });
+
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    // Four fields total: two per drop × two signers, each with a single signerId.
+    expect(next?.length).toBe(4);
+    expect(next?.map((f) => f.signerIds)).toEqual([['a'], ['b'], ['a'], ['b']]);
+  });
+
+  it('removes a signer from the right-rail panel when the remove button is clicked', () => {
+    const onRemoveSigner = vi.fn<(id: string) => void>();
+    renderPage({ onRemoveSigner });
+    const removeAda = screen.getByRole('button', { name: /remove signer ada byron/i });
+    fireEvent.click(removeAda);
+    expect(onRemoveSigner).toHaveBeenCalledWith('a');
+  });
+
+  it('fields default to required and show a visible required badge', () => {
+    renderPage();
+    // Default fields omit `required`; PlacedField treats missing as required.
+    const field = screen.getByRole('group', { name: /signature field for/i });
+    expect(within(field).getByLabelText(/required field/i)).toBeInTheDocument();
+  });
+
+  it('toggles a field between required and optional via the overlay button', () => {
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onFieldsChangeSpy });
+
+    const field = screen.getByRole('group', { name: /signature field for/i });
+    fireEvent.click(field);
+
+    // Initial state: required → button aria-pressed=true → clicking marks optional.
+    const toggle = screen.getByRole('button', { name: /mark field optional/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggle);
+
+    const firstCall = onFieldsChangeSpy.mock.calls[0];
+    const next = firstCall ? firstCall[0] : undefined;
+    const updated = next?.find((f) => f.id === 'field-1');
+    expect(updated?.required).toBe(false);
+
+    // After re-render, toggle label flips to "Mark field required" and the
+    // tile-level required badge disappears.
+    const refreshedField = screen.getByRole('group', { name: /signature field for/i });
+    expect(within(refreshedField).queryByLabelText(/required field/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /mark field required/i })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+  });
+
+  it('respects an explicit required: false without showing the required badge', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'opt', page: 1, type: 'text', x: 20, y: 20, signerIds: ['a'], required: false },
+    ];
+    renderPage({ initialFields: fields });
+    const field = screen.getByRole('group', { name: /text field for/i });
+    expect(within(field).queryByLabelText(/required field/i)).not.toBeInTheDocument();
+  });
+
+  it('resizes a selected field via its corner handle and emits the new size', () => {
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onFieldsChangeSpy });
+
+    const field = screen.getByRole('group', { name: /signature field for/i });
+    fireEvent.click(field);
+
+    const handle = screen.getByRole('button', { name: /resize bottom-right/i });
+    fireEvent.mouseDown(handle, { clientX: 200, clientY: 200, button: 0 });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 260, clientY: 230 }));
+    });
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'));
+    });
+
+    expect(onFieldsChangeSpy).toHaveBeenCalled();
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    const updated = next?.find((f) => f.id === 'field-1');
+    expect(updated?.width).toBe(132 + 60);
+    expect(updated?.height).toBe(54 + 30);
   });
 
   it('opens the signer popover from a PlacedField and applies selection', () => {

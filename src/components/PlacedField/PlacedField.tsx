@@ -1,6 +1,7 @@
-import { forwardRef, useCallback } from 'react';
+import { forwardRef, useCallback, useRef } from 'react';
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import {
+  Asterisk,
   Calendar,
   CheckSquare,
   ChevronDown,
@@ -23,6 +24,8 @@ import {
   GroupOverlay,
   Halo,
   InitialsBadge,
+  RequiredBadge,
+  RequiredToggle,
   ResizeHandle,
   Root,
   Tile,
@@ -35,6 +38,10 @@ import {
 const TILE_WIDTH = 132;
 const TILE_HEIGHT = 54;
 const TILE_GAP = 8;
+const DEFAULT_MIN_WIDTH = 80;
+const DEFAULT_MIN_HEIGHT = 36;
+/** Pointer movement (in pixels) required before a mousedown is treated as a drag. */
+const DRAG_THRESHOLD = 3;
 
 const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: LucideIcon }> = {
   signature: { label: 'Signature', icon: PenTool },
@@ -80,15 +87,24 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
     onOpenSignerPopover,
     onOpenPagesPopover,
     onRemove,
+    onToggleRequired,
     onMove,
+    onResize,
+    minWidth = DEFAULT_MIN_WIDTH,
+    minHeight = DEFAULT_MIN_HEIGHT,
     onDragStart,
     onDragEnd,
     ...rest
   } = props;
 
+  const suppressNextClickRef = useRef<boolean>(false);
+
   const assigned = resolveAssigned(field, signers);
   const multi = assigned.length > 1;
-  const totalWidth = multi ? TILE_WIDTH * 2 + TILE_GAP : TILE_WIDTH;
+  const naturalWidth = multi ? TILE_WIDTH * 2 + TILE_GAP : TILE_WIDTH;
+  const totalWidth = field.width ?? naturalWidth;
+  const totalHeight = field.height ?? TILE_HEIGHT;
+  const required = field.required ?? true;
   const meta = FIELD_META[field.type];
   const FieldIcon = meta.icon;
 
@@ -107,12 +123,22 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
         return;
       }
       e.stopPropagation();
-      onSelect?.(e);
+
+      // If this field is part of a multi-selection, defer the selection change
+      // until we know whether this was a click (→ isolate to single) or a drag
+      // (→ keep the group so every member can move together). Otherwise select
+      // immediately so single-click selection stays responsive.
+      const isGroupMember = selected && inGroup;
+      if (!isGroupMember) {
+        onSelect?.(e);
+      }
+
       onDragStart?.();
       const startX = e.clientX;
       const startY = e.clientY;
       const origX = field.x;
       const origY = field.y;
+      let didDrag = false;
       const rect =
         canvasRef !== undefined && canvasRef.current !== null
           ? canvasRef.current.getBoundingClientRect()
@@ -121,11 +147,20 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       const onWindowMove = (ev: MouseEvent): void => {
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
+        if (!didDrag && Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
+          didDrag = true;
+        }
+        if (!didDrag) {
+          return;
+        }
         let nx = origX + dx;
         let ny = origY + dy;
-        if (rect !== null) {
+        if (rect !== null && rect.width > 0 && rect.height > 0) {
           nx = Math.max(0, Math.min(nx, rect.width - totalWidth));
-          ny = Math.max(0, Math.min(ny, rect.height - TILE_HEIGHT));
+          ny = Math.max(0, Math.min(ny, rect.height - totalHeight));
+        } else {
+          nx = Math.max(0, nx);
+          ny = Math.max(0, ny);
         }
         onMove?.(field.id, nx, ny);
       };
@@ -134,17 +169,148 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
         window.removeEventListener('mousemove', onWindowMove);
         window.removeEventListener('mouseup', onWindowUp);
         onDragEnd?.();
+        // Group member that wasn't dragged → treat as a click and isolate it
+        // to a single selection. A real drag skips this branch so the group
+        // stays intact after moving.
+        if (isGroupMember && !didDrag) {
+          suppressNextClickRef.current = false;
+          onSelect?.(e);
+          return;
+        }
+        // Any successful drag suppresses the trailing click event the browser
+        // fires on the underlying element — otherwise the click handler below
+        // would re-fire onSelect and collapse a just-dragged group.
+        if (didDrag) {
+          suppressNextClickRef.current = true;
+        }
       };
 
       window.addEventListener('mousemove', onWindowMove);
       window.addEventListener('mouseup', onWindowUp);
     },
-    [canvasRef, field.id, field.x, field.y, onDragEnd, onDragStart, onMove, onSelect, totalWidth],
+    [
+      canvasRef,
+      field.id,
+      field.x,
+      field.y,
+      inGroup,
+      onDragEnd,
+      onDragStart,
+      onMove,
+      onSelect,
+      selected,
+      totalHeight,
+      totalWidth,
+    ],
+  );
+
+  const startResize = useCallback(
+    (e: ReactMouseEvent<HTMLButtonElement>, corner: 'nw' | 'ne' | 'sw' | 'se'): void => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.button !== 0) {
+        return;
+      }
+      const startClientX = e.clientX;
+      const startClientY = e.clientY;
+      const origX = field.x;
+      const origY = field.y;
+      const origW = totalWidth;
+      const origH = totalHeight;
+      const rect =
+        canvasRef !== undefined && canvasRef.current !== null
+          ? canvasRef.current.getBoundingClientRect()
+          : null;
+
+      const onWindowMove = (ev: MouseEvent): void => {
+        const dx = ev.clientX - startClientX;
+        const dy = ev.clientY - startClientY;
+        let nx = origX;
+        let ny = origY;
+        let nw = origW;
+        let nh = origH;
+        if (corner === 'nw') {
+          nx = origX + dx;
+          ny = origY + dy;
+          nw = origW - dx;
+          nh = origH - dy;
+        } else if (corner === 'ne') {
+          ny = origY + dy;
+          nw = origW + dx;
+          nh = origH - dy;
+        } else if (corner === 'sw') {
+          nx = origX + dx;
+          nw = origW - dx;
+          nh = origH + dy;
+        } else {
+          nw = origW + dx;
+          nh = origH + dy;
+        }
+        if (nw < minWidth) {
+          if (corner === 'nw' || corner === 'sw') {
+            nx = origX + (origW - minWidth);
+          }
+          nw = minWidth;
+        }
+        if (nh < minHeight) {
+          if (corner === 'nw' || corner === 'ne') {
+            ny = origY + (origH - minHeight);
+          }
+          nh = minHeight;
+        }
+        if (rect !== null && rect.width > 0 && rect.height > 0) {
+          if (nx < 0) {
+            nw += nx;
+            nx = 0;
+          }
+          if (ny < 0) {
+            nh += ny;
+            ny = 0;
+          }
+          if (nx + nw > rect.width) {
+            nw = rect.width - nx;
+          }
+          if (ny + nh > rect.height) {
+            nh = rect.height - ny;
+          }
+        }
+        onResize?.(field.id, nx, ny, nw, nh);
+      };
+
+      const onWindowUp = (): void => {
+        window.removeEventListener('mousemove', onWindowMove);
+        window.removeEventListener('mouseup', onWindowUp);
+        onDragEnd?.();
+      };
+
+      onDragStart?.();
+      window.addEventListener('mousemove', onWindowMove);
+      window.addEventListener('mouseup', onWindowUp);
+    },
+    [
+      canvasRef,
+      field.id,
+      field.x,
+      field.y,
+      minHeight,
+      minWidth,
+      onDragEnd,
+      onDragStart,
+      onResize,
+      totalHeight,
+      totalWidth,
+    ],
   );
 
   const handleClick = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>): void => {
       e.stopPropagation();
+      // A completed drag suppresses the trailing click so the drag's grouped
+      // selection isn't collapsed by a late-firing click handler.
+      if (suppressNextClickRef.current) {
+        suppressNextClickRef.current = false;
+        return;
+      }
       onSelect?.(e);
     },
     [onSelect],
@@ -174,6 +340,14 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
     [onOpenSignerPopover],
   );
 
+  const handleToggleRequired = useCallback(
+    (e: ReactMouseEvent<HTMLButtonElement>): void => {
+      e.stopPropagation();
+      onToggleRequired?.(field.id, !required);
+    },
+    [field.id, onToggleRequired, required],
+  );
+
   const tileSigners: ReadonlyArray<PlacedFieldSigner | null> = multi
     ? assigned
     : [assigned[0] ?? null];
@@ -188,6 +362,15 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           <ChevronDown size={12} strokeWidth={1.75} aria-hidden />
         </AssignBubble>
         <ControlsRight>
+          <RequiredToggle
+            type="button"
+            $on={required}
+            aria-label={required ? 'Mark field optional' : 'Mark field required'}
+            aria-pressed={required}
+            onClick={handleToggleRequired}
+          >
+            <Asterisk size={12} strokeWidth={2.25} aria-hidden />
+          </RequiredToggle>
           <ControlButton
             type="button"
             $tone="indigo"
@@ -206,10 +389,34 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           </ControlButton>
         </ControlsRight>
         <Halo aria-hidden />
-        <ResizeHandle $top="start" $left="start" aria-hidden />
-        <ResizeHandle $top="start" $left="end" aria-hidden />
-        <ResizeHandle $top="end" $left="start" aria-hidden />
-        <ResizeHandle $top="end" $left="end" aria-hidden />
+        <ResizeHandle
+          type="button"
+          $top="start"
+          $left="start"
+          aria-label="Resize top-left"
+          onMouseDown={(e) => startResize(e, 'nw')}
+        />
+        <ResizeHandle
+          type="button"
+          $top="start"
+          $left="end"
+          aria-label="Resize top-right"
+          onMouseDown={(e) => startResize(e, 'ne')}
+        />
+        <ResizeHandle
+          type="button"
+          $top="end"
+          $left="start"
+          aria-label="Resize bottom-left"
+          onMouseDown={(e) => startResize(e, 'sw')}
+        />
+        <ResizeHandle
+          type="button"
+          $top="end"
+          $left="end"
+          aria-label="Resize bottom-right"
+          onMouseDown={(e) => startResize(e, 'se')}
+        />
       </>
     );
   }
@@ -228,7 +435,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       $x={field.x}
       $y={field.y}
       $width={totalWidth}
-      $height={TILE_HEIGHT}
+      $height={totalHeight}
       $selected={selected}
       $isDragging={isDragging}
       onMouseDown={handleMouseDown}
@@ -236,6 +443,11 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
     >
       {selectionOrnaments}
       {groupOrnament}
+      {required ? (
+        <RequiredBadge aria-label="Required field" title="Required">
+          *
+        </RequiredBadge>
+      ) : null}
       <TileRow>
         {tileSigners.map((s, index) => {
           const bg = s !== null ? `${s.color}2A` : seald.color.indigo[50];

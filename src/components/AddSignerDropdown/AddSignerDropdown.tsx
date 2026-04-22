@@ -1,9 +1,10 @@
 import { forwardRef, useId, useMemo, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { UserPlus } from 'lucide-react';
+import { Check, UserPlus } from 'lucide-react';
 import { Button } from '../Button';
 import type { AddSignerContact, AddSignerDropdownProps } from './AddSignerDropdown.types';
 import {
+  CheckBox,
   CreateFooter,
   CreateHint,
   Email,
@@ -36,6 +37,7 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
     const {
       contacts,
       existingContactIds,
+      selectedIds,
       onPick,
       onCreate,
       onClose,
@@ -46,6 +48,11 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
       ...rest
     } = props;
 
+    // Multi-select mode: when the parent passes `selectedIds`, render each row
+    // as a checkbox reflecting membership and don't exclude selected contacts.
+    // Otherwise preserve the classic pick-and-close behavior.
+    const multi = selectedIds !== undefined;
+
     const [query, setQuery] = useState('');
     const listId = useId();
 
@@ -53,13 +60,15 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
     const lowered = trimmed.toLowerCase();
 
     const filtered = useMemo(() => {
-      const excluded = existingContactIds ?? [];
+      // In multi-select mode already-selected contacts stay visible so the user
+      // can uncheck them; in single-pick mode they're excluded as before.
+      const excluded = multi ? [] : (existingContactIds ?? []);
       const q = query.toLowerCase();
       return contacts.filter((c) => {
         if (excluded.includes(c.id)) return false;
         return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
       });
-    }, [contacts, existingContactIds, query]);
+    }, [contacts, existingContactIds, query, multi]);
 
     const visible = filtered.slice(0, maxResults);
     const isEmail = EMAIL_RE.test(trimmed);
@@ -101,24 +110,32 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
             autoFocus={autoFocus}
           />
         </SearchWrap>
-        <List id={listId} role="listbox">
-          {visible.map((c: AddSignerContact) => (
-            <OptionButton
-              key={c.id}
-              type="button"
-              role="option"
-              aria-selected="false"
-              onClick={() => onPick(c)}
-            >
-              <Initials $color={c.color} aria-hidden>
-                {initialsOf(c.name)}
-              </Initials>
-              <RowBody>
-                <Name>{c.name}</Name>
-                <Email>{c.email}</Email>
-              </RowBody>
-            </OptionButton>
-          ))}
+        <List id={listId} role="listbox" aria-multiselectable={multi ? 'true' : undefined}>
+          {visible.map((c: AddSignerContact) => {
+            const isChecked = multi ? (selectedIds ?? []).includes(c.id) : false;
+            return (
+              <OptionButton
+                key={c.id}
+                type="button"
+                role="option"
+                aria-selected={isChecked ? 'true' : 'false'}
+                onClick={() => onPick(c)}
+              >
+                {multi ? (
+                  <CheckBox $checked={isChecked} aria-hidden>
+                    {isChecked ? <Check size={12} strokeWidth={2.5} /> : null}
+                  </CheckBox>
+                ) : null}
+                <Initials $color={c.color} aria-hidden>
+                  {initialsOf(c.name)}
+                </Initials>
+                <RowBody>
+                  <Name>{c.name}</Name>
+                  <Email>{c.email}</Email>
+                </RowBody>
+              </OptionButton>
+            );
+          })}
           {showEmptyHint ? (
             <EmptyHint>Type a name or email to search your contacts.</EmptyHint>
           ) : null}

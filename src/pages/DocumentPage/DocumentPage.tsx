@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
-import type { DragEvent, ReactNode } from 'react';
+import type { DragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { AddSignerDropdown } from '../../components/AddSignerDropdown';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
@@ -27,6 +27,7 @@ import {
   Center,
   CenterHeader,
   CenterHeaderSide,
+  MarqueeRect,
   RightRailFooter,
   RightRailInner,
   RightRailScroll,
@@ -38,6 +39,12 @@ const DEFAULT_LEFT_WIDTH = 240;
 const DEFAULT_RIGHT_WIDTH = 320;
 const FIELD_WIDTH = 132;
 const FIELD_HEIGHT = 54;
+// Horizontal gap between adjacent drop-split siblings so each signer's field
+// sits cleanly next to the others rather than stacking on top of them.
+const DROP_SIBLING_GAP = 12;
+// Pixels the pointer must travel before a mousedown on the canvas background
+// is treated as a marquee-select drag rather than a plain click.
+const MARQUEE_THRESHOLD = 3;
 const ADDDROPDOWN_WRAP_STYLE: React.CSSProperties = {
   position: 'relative',
   height: 0,
@@ -90,6 +97,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     contacts = [],
     onAddSignerFromContact,
     onCreateSigner,
+    onRemoveSigner,
     onSend,
     onSaveDraft,
     onBack,
@@ -107,10 +115,22 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const [rightOpen, setRightOpen] = useState(true);
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
-  const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([]);
   const [signerPopoverFor, setSignerPopoverFor] = useState<string | null>(null);
   const [pagesPopoverFor, setPagesPopoverFor] = useState<string | null>(null);
   const [addSignerOpen, setAddSignerOpen] = useState(false);
+  // --------------------------------------------------------------- marquee
+  // Live rectangle rendered while the user drags across empty canvas to
+  // lasso-select multiple fields into a group.
+  const [marqueeRect, setMarqueeRect] = useState<{
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+    readonly h: number;
+  } | null>(null);
+  // Suppresses the trailing background click after a marquee drag so it
+  // doesn't immediately clear the group we just selected.
+  const suppressNextBgClickRef = useRef<boolean>(false);
   const dragKindRef = useRef<FieldKind | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
 
@@ -140,6 +160,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const existingContactIds = useMemo(
     () => signers.map((s) => s.id).filter((id) => contacts.some((c) => c.id === id)),
     [signers, contacts],
+  );
+
+  const singleSelectedId = useMemo<string | null>(
+    () => (selectedIds.length === 1 ? (selectedIds[0] ?? null) : null),
+    [selectedIds],
   );
 
   const signerPopoverField = useMemo(
@@ -181,26 +206,156 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       const rect = canvasRef.current?.getBoundingClientRect();
       const x = Math.max(0, Math.round(e.clientX - (rect?.left ?? 0) - FIELD_WIDTH / 2));
       const y = Math.max(0, Math.round(e.clientY - (rect?.top ?? 0) - FIELD_HEIGHT / 2));
-      const firstSignerId = signers[0]?.id;
-      const nextField: PlacedFieldValue = {
+
+      // Dropping a field assigns it to every current signer — but each signer
+      // gets their OWN independent field (offset so they're visible), rather
+      // than a single field shared by many signers. Users can reassign or
+      // delete individual fields from there.
+      if (signers.length === 0) {
+        // With no signers configured there's nothing to split — fall back to a
+        // single unassigned field and prompt the user to pick signers.
+        const fallback: PlacedFieldValue = {
+          id: makeId(),
+          page: currentPage,
+          type: kind,
+          x,
+          y,
+          signerIds: [],
+        };
+        onFieldsChange([...fields, fallback]);
+        setSelectedIds([fallback.id]);
+        setSignerPopoverFor(fallback.id);
+        dragKindRef.current = null;
+        return;
+      }
+
+      // Lay siblings out side-by-side along x so all N fields are visible
+      // side-by-side at the drop site rather than overlapping.
+      const step = FIELD_WIDTH + DROP_SIBLING_GAP;
+      const spawned: ReadonlyArray<PlacedFieldValue> = signers.map((signer, i) => ({
         id: makeId(),
         page: currentPage,
         type: kind,
-        x,
+        x: x + i * step,
         y,
-        signerIds: firstSignerId ? [firstSignerId] : [],
-      };
-      onFieldsChange([...fields, nextField]);
-      setSelectedFieldId(nextField.id);
+        signerIds: [signer.id],
+      }));
+      onFieldsChange([...fields, ...spawned]);
+      // Select them all as a group so the user can immediately drag the whole
+      // row or delete it as one.
+      setSelectedIds(spawned.map((f) => f.id));
+      // No signer popover: the split already encodes the per-signer intent.
+      setSignerPopoverFor(null);
       dragKindRef.current = null;
     },
     [currentPage, fields, onFieldsChange, signers],
   );
 
+  const handleCanvasBackgroundClick = useCallback((): void => {
+    // A marquee drag fires `mouseup` followed by a synthetic click on the
+    // canvas — honor the suppression flag so we don't wipe out the group the
+    // drag just selected.
+    if (suppressNextBgClickRef.current) {
+      suppressNextBgClickRef.current = false;
+      return;
+    }
+    // PlacedField stops propagation on its own click handler, so any click that
+    // reaches the canvas root lands on empty background — clear the selection
+    // to ungroup.
+    setSelectedIds([]);
+  }, []);
+
+  const handleCanvasMouseDown = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>): void => {
+      // PlacedField and its overlay controls stop propagation on their own
+      // mousedown handlers, so anything that reaches us originated on empty
+      // canvas background — the user is starting a lasso selection.
+      if (e.button !== 0) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const startX = e.clientX - rect.left;
+      const startY = e.clientY - rect.top;
+      let moved = false;
+      let curX = startX;
+      let curY = startY;
+
+      const onMove = (ev: MouseEvent): void => {
+        curX = ev.clientX - rect.left;
+        curY = ev.clientY - rect.top;
+        if (!moved && Math.hypot(curX - startX, curY - startY) < MARQUEE_THRESHOLD) return;
+        moved = true;
+        setMarqueeRect({
+          x: Math.min(startX, curX),
+          y: Math.min(startY, curY),
+          w: Math.abs(curX - startX),
+          h: Math.abs(curY - startY),
+        });
+      };
+
+      const onUp = (): void => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        setMarqueeRect(null);
+        if (!moved) return;
+        // Commit the group: every field on the current page whose bounding
+        // box intersects the marquee becomes selected.
+        const r = {
+          x: Math.min(startX, curX),
+          y: Math.min(startY, curY),
+          w: Math.abs(curX - startX),
+          h: Math.abs(curY - startY),
+        };
+        const hit = fields
+          .filter((f) => f.page === currentPage)
+          .filter((f) => {
+            const fw = f.width ?? FIELD_WIDTH;
+            const fh = f.height ?? FIELD_HEIGHT;
+            return f.x < r.x + r.w && f.x + fw > r.x && f.y < r.y + r.h && f.y + fh > r.y;
+          });
+        setSelectedIds(hit.map((f) => f.id));
+        setSignerPopoverFor(null);
+        setPagesPopoverFor(null);
+        suppressNextBgClickRef.current = true;
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [fields, currentPage],
+  );
+
   // --------------------------------------------------------------- mutations
   const moveField = useCallback(
     (id: string, x: number, y: number): void => {
-      onFieldsChange(fields.map((f) => (f.id === id ? { ...f, x, y } : f)));
+      const anchor = fields.find((f) => f.id === id);
+      if (!anchor) return;
+      const dx = x - anchor.x;
+      const dy = y - anchor.y;
+      // If the moved field is part of the current multi-selection, move every
+      // selected field by the same delta so the whole group travels together.
+      const grouped = selectedIds.includes(id) && selectedIds.length > 1;
+      if (grouped) {
+        onFieldsChange(
+          fields.map((f) => (selectedIds.includes(f.id) ? { ...f, x: f.x + dx, y: f.y + dy } : f)),
+        );
+      } else {
+        onFieldsChange(fields.map((f) => (f.id === id ? { ...f, x, y } : f)));
+      }
+    },
+    [fields, onFieldsChange, selectedIds],
+  );
+
+  const resizeField = useCallback(
+    (id: string, x: number, y: number, width: number, height: number): void => {
+      onFieldsChange(fields.map((f) => (f.id === id ? { ...f, x, y, width, height } : f)));
+    },
+    [fields, onFieldsChange],
+  );
+
+  const toggleRequired = useCallback(
+    (id: string, next: boolean): void => {
+      onFieldsChange(fields.map((f) => (f.id === id ? { ...f, required: next } : f)));
     },
     [fields, onFieldsChange],
   );
@@ -208,11 +363,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const removeField = useCallback(
     (id: string): void => {
       onFieldsChange(fields.filter((f) => f.id !== id));
-      if (selectedFieldId === id) setSelectedFieldId(null);
+      if (selectedIds.includes(id)) {
+        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
+      }
       if (signerPopoverFor === id) setSignerPopoverFor(null);
       if (pagesPopoverFor === id) setPagesPopoverFor(null);
     },
-    [fields, onFieldsChange, pagesPopoverFor, selectedFieldId, signerPopoverFor],
+    [fields, onFieldsChange, pagesPopoverFor, selectedIds, signerPopoverFor],
   );
 
   const applySignerSelection = useCallback(
@@ -346,36 +503,70 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 {...(docId ? { docId } : {})}
                 onDragOver={handleCanvasDragOver}
                 onDrop={handleCanvasDrop}
+                onClick={handleCanvasBackgroundClick}
+                onMouseDown={handleCanvasMouseDown}
               >
                 {fields
                   .filter((f) => f.page === currentPage)
-                  .map((field) => (
-                    <PlacedField
-                      key={field.id}
-                      field={field}
-                      signers={placedFieldSigners}
-                      selected={selectedFieldId === field.id}
-                      {...((canvasRef as { current: HTMLDivElement | null })
-                        ? { canvasRef: canvasRef as React.RefObject<HTMLElement> }
-                        : {})}
-                      onSelect={(e) => {
-                        e.stopPropagation();
-                        setSelectedFieldId(field.id);
-                        setSignerPopoverFor(null);
-                        setPagesPopoverFor(null);
-                      }}
-                      onOpenSignerPopover={(e) => {
-                        e.stopPropagation();
-                        setSignerPopoverFor(field.id);
-                      }}
-                      onOpenPagesPopover={(e) => {
-                        e.stopPropagation();
-                        setPagesPopoverFor(field.id);
-                      }}
-                      onRemove={() => removeField(field.id)}
-                      onMove={moveField}
-                    />
-                  ))}
+                  .map((field) => {
+                    const isSelected = selectedIds.includes(field.id);
+                    const inGroup = isSelected && selectedIds.length > 1;
+                    return (
+                      <PlacedField
+                        key={field.id}
+                        field={field}
+                        signers={placedFieldSigners}
+                        selected={isSelected}
+                        inGroup={inGroup}
+                        {...((canvasRef as { current: HTMLDivElement | null })
+                          ? { canvasRef: canvasRef as React.RefObject<HTMLElement> }
+                          : {})}
+                        onSelect={(e) => {
+                          e.stopPropagation();
+                          const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+                          if (additive) {
+                            setSelectedIds((prev) =>
+                              prev.includes(field.id)
+                                ? prev.filter((id) => id !== field.id)
+                                : [...prev, field.id],
+                            );
+                          } else {
+                            // A plain click always isolates this field to a
+                            // single selection — including when it was part of
+                            // a multi-selection. PlacedField defers this call
+                            // until after mouseup so an actual drag keeps the
+                            // group intact while moving.
+                            setSelectedIds([field.id]);
+                          }
+                          setSignerPopoverFor(null);
+                          setPagesPopoverFor(null);
+                        }}
+                        onOpenSignerPopover={(e) => {
+                          e.stopPropagation();
+                          setSignerPopoverFor(field.id);
+                        }}
+                        onOpenPagesPopover={(e) => {
+                          e.stopPropagation();
+                          setPagesPopoverFor(field.id);
+                        }}
+                        onRemove={() => removeField(field.id)}
+                        onToggleRequired={toggleRequired}
+                        onMove={moveField}
+                        onResize={resizeField}
+                      />
+                    );
+                  })}
+                {marqueeRect ? (
+                  <MarqueeRect
+                    data-testid="canvas-marquee"
+                    style={{
+                      left: marqueeRect.x,
+                      top: marqueeRect.y,
+                      width: marqueeRect.w,
+                      height: marqueeRect.h,
+                    }}
+                  />
+                ) : null}
               </DocumentCanvas>
             </CanvasWrap>
 
@@ -414,15 +605,16 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 <SignersPanel
                   signers={panelSigners}
                   onRequestAdd={() => setAddSignerOpen((v) => !v)}
+                  {...(onRemoveSigner ? { onRemoveSigner } : {})}
                 />
                 <FieldsPlacedList
                   fields={fieldsSummary}
                   signers={placedFieldSigners}
-                  {...(selectedFieldId ? { selectedFieldId } : {})}
+                  {...(singleSelectedId !== null ? { selectedFieldId: singleSelectedId } : {})}
                   onSelectField={(id) => {
                     const f = fields.find((x) => x.id === id);
                     if (f) setCurrentPage(f.page);
-                    setSelectedFieldId(id);
+                    setSelectedIds([id]);
                   }}
                 />
               </RightRailScroll>
@@ -440,6 +632,9 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       </Body>
 
       <SelectSignersPopover
+        // `key` ties the popover's identity to the field being edited so it
+        // fully remounts between fields — never carrying stale selection.
+        key={signerPopoverFor ?? 'closed'}
         open={signerPopoverFor !== null}
         signers={popoverSigners}
         {...(signerPopoverField ? { initialSelectedIds: signerPopoverField.signerIds } : {})}

@@ -72,3 +72,13 @@ export const RightRailFooter = styled.div`
 export const CanvasWrap = styled.div`
   position: relative;
 `;
+
+export const MarqueeRect = styled.div`
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid ${({ theme }) => theme.color.indigo[500]};
+  background: ${({ theme }) => theme.color.indigo[100]};
+  opacity: 0.35;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  z-index: 1;
+`;

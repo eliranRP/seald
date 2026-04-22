@@ -58,6 +58,34 @@ export const Chip = styled.span<{ readonly $clickable: boolean }>`
   }
 `;
 
+export const ChipWrap = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+export const RemoveButton = styled.button`
+  width: 18px;
+  height: 18px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  background: ${({ theme }) => theme.color.bg.surface};
+  color: ${({ theme }) => theme.color.fg[2]};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  &:hover {
+    color: ${({ theme }) => theme.color.danger[700]};
+    border-color: ${({ theme }) => theme.color.danger[500]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
 export const Initials = styled.span<{ readonly $color: string }>`
   width: 22px;
   height: 22px;

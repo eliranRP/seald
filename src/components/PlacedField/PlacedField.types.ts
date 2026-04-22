@@ -13,10 +13,21 @@ export interface PlacedFieldValue {
   readonly type: FieldKind;
   readonly x: number;
   readonly y: number;
+  readonly width?: number | undefined;
+  readonly height?: number | undefined;
   readonly signerIds: ReadonlyArray<string>;
+  /**
+   * Whether the field is required for form validation. Defaults to `true`
+   * when omitted so legacy fields retain the stricter default; callers can
+   * opt into optional fields by setting this to `false`.
+   */
+  readonly required?: boolean | undefined;
 }
 
-type RootAttrs = Omit<HTMLAttributes<HTMLDivElement>, 'onSelect' | 'onDragStart' | 'onDragEnd'>;
+type RootAttrs = Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'onSelect' | 'onDragStart' | 'onDragEnd' | 'onResize'
+>;
 
 export interface PlacedFieldProps extends RootAttrs {
   readonly field: PlacedFieldValue;
@@ -29,7 +40,13 @@ export interface PlacedFieldProps extends RootAttrs {
   readonly onOpenSignerPopover?: ((e: ReactMouseEvent<HTMLElement>) => void) | undefined;
   readonly onOpenPagesPopover?: ((e: ReactMouseEvent<HTMLElement>) => void) | undefined;
   readonly onRemove?: (() => void) | undefined;
+  readonly onToggleRequired?: ((id: string, next: boolean) => void) | undefined;
   readonly onMove?: ((id: string, x: number, y: number) => void) | undefined;
+  readonly onResize?:
+    | ((id: string, x: number, y: number, width: number, height: number) => void)
+    | undefined;
+  readonly minWidth?: number | undefined;
+  readonly minHeight?: number | undefined;
   readonly onDragStart?: (() => void) | undefined;
   readonly onDragEnd?: (() => void) | undefined;
 }

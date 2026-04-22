@@ -26,6 +26,7 @@ export * from './components/StatusBadge';
 
 // ————— L3 Widgets —————
 export * from './components/CollapsibleRail';
+export * from './components/CreateSignatureRequestDialog';
 export * from './components/DocumentCanvas';
 export * from './components/FieldPalette';
 export * from './components/FieldsBar';

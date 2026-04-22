@@ -43,6 +43,7 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   readonly contacts?: ReadonlyArray<AddSignerContact> | undefined;
   readonly onAddSignerFromContact?: ((contact: AddSignerContact) => void) | undefined;
   readonly onCreateSigner?: ((name: string, email: string) => void) | undefined;
+  readonly onRemoveSigner?: ((id: string) => void) | undefined;
 
   // Actions ---------------------------------------------------------------
   readonly onSend: () => void;

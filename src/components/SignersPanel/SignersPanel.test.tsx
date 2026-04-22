@@ -75,4 +75,23 @@ describe('SignersPanel', () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('renders a remove button per chip and fires onRemoveSigner(id) when clicked', async () => {
+    const onRemoveSigner = vi.fn<(id: string) => void>();
+    const { getByRole, getAllByRole } = renderWithTheme(
+      <SignersPanel signers={SIGNERS} onRemoveSigner={onRemoveSigner} />,
+    );
+    const removeButtons = getAllByRole('button', { name: /^Remove signer/i });
+    expect(removeButtons).toHaveLength(2);
+    const removeAna = getByRole('button', { name: /Remove signer Ana Torres/ });
+    await userEvent.click(removeAna);
+    expect(onRemoveSigner).toHaveBeenCalledTimes(1);
+    const first = onRemoveSigner.mock.calls[0];
+    expect(first ? first[0] : undefined).toBe('ana');
+  });
+
+  it('does not render remove buttons when onRemoveSigner is undefined', () => {
+    const { queryAllByRole } = renderWithTheme(<SignersPanel signers={SIGNERS} />);
+    expect(queryAllByRole('button', { name: /^Remove signer/i })).toHaveLength(0);
+  });
 });

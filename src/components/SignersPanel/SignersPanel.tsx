@@ -1,15 +1,17 @@
 import { forwardRef } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import type { SignersPanelProps, SignersPanelSigner } from './SignersPanel.types';
 import {
   AddButton,
   Chip,
   ChipItem,
   ChipList,
+  ChipWrap,
   Count,
   FirstName,
   Header,
   Initials,
+  RemoveButton,
   Root,
   Title,
 } from './SignersPanel.styles';
@@ -33,13 +35,19 @@ export const SignersPanel = forwardRef<HTMLElement, SignersPanelProps>((props, r
     signers,
     onRequestAdd,
     onSelectSigner,
+    onRemoveSigner,
     title = 'Signers',
     addLabel = 'Add signer',
+    removeLabelPrefix = 'Remove signer',
     ...rest
   } = props;
 
   const handleChipClick = (id: string) => (): void => {
     onSelectSigner?.(id);
+  };
+
+  const handleRemoveClick = (id: string) => (): void => {
+    onRemoveSigner?.(id);
   };
 
   const chipInteractive = onSelectSigner !== undefined;
@@ -62,23 +70,37 @@ export const SignersPanel = forwardRef<HTMLElement, SignersPanelProps>((props, r
       <ChipList role="list">
         {signers.map((signer) => {
           const hoverTitle = `${signer.name} · ${signer.email}`;
+          const chip = chipInteractive ? (
+            <Chip
+              as="button"
+              type="button"
+              $clickable
+              title={hoverTitle}
+              aria-label={`${signer.name}, ${signer.email}`}
+              onClick={handleChipClick(signer.id)}
+            >
+              {renderChipContent(signer)}
+            </Chip>
+          ) : (
+            <Chip $clickable={false} title={hoverTitle}>
+              {renderChipContent(signer)}
+            </Chip>
+          );
           return (
             <ChipItem key={signer.id}>
-              {chipInteractive ? (
-                <Chip
-                  as="button"
-                  type="button"
-                  $clickable
-                  title={hoverTitle}
-                  aria-label={`${signer.name}, ${signer.email}`}
-                  onClick={handleChipClick(signer.id)}
-                >
-                  {renderChipContent(signer)}
-                </Chip>
+              {onRemoveSigner !== undefined ? (
+                <ChipWrap>
+                  {chip}
+                  <RemoveButton
+                    type="button"
+                    aria-label={`${removeLabelPrefix} ${signer.name}`}
+                    onClick={handleRemoveClick(signer.id)}
+                  >
+                    <X size={12} aria-hidden />
+                  </RemoveButton>
+                </ChipWrap>
               ) : (
-                <Chip $clickable={false} title={hoverTitle}>
-                  {renderChipContent(signer)}
-                </Chip>
+                chip
               )}
             </ChipItem>
           );

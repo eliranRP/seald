@@ -60,6 +60,21 @@ export const OptionButton = styled.button`
   }
 `;
 
+export const CheckBox = styled.span<{ $checked: boolean }>`
+  width: 18px;
+  height: 18px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1.5px solid
+    ${({ theme, $checked }) => ($checked ? theme.color.success[500] : theme.color.border[2])};
+  background: ${({ theme, $checked }) =>
+    $checked ? theme.color.success[500] : theme.color.bg.surface};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+`;
+
 export const Initials = styled.span<{ $color: string }>`
   width: 24px;
   height: 24px;
