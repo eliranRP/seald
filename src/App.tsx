@@ -91,14 +91,33 @@ export function App() {
     setPdfFile(null);
   }, []);
 
+  // Wire the NavBar's add/remove contact buttons on the upload screen too so the
+  // chrome stays visually stable between upload → document. Clicking either one
+  // just jumps into the "create signature request" step.
+  const handleOpenSignersDialog = useCallback(() => {
+    setView('add-signers');
+  }, []);
+
   if (view === 'upload') {
-    return <UploadPage user={USER} onFileSelected={handleFileSelected} />;
+    return (
+      <UploadPage
+        user={USER}
+        onFileSelected={handleFileSelected}
+        onAddContact={handleOpenSignersDialog}
+        onRemoveContact={handleOpenSignersDialog}
+      />
+    );
   }
 
   if (view === 'add-signers') {
     return (
       <>
-        <UploadPage user={USER} onFileSelected={handleFileSelected} />
+        <UploadPage
+          user={USER}
+          onFileSelected={handleFileSelected}
+          onAddContact={handleOpenSignersDialog}
+          onRemoveContact={handleOpenSignersDialog}
+        />
         <CreateSignatureRequestDialog
           open
           signers={signers}

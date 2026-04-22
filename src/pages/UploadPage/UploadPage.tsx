@@ -67,6 +67,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     sideBarItems,
     onSelectSideBarItem,
     activeSideBarItemId,
+    onAddContact,
+    onRemoveContact,
     title = DEFAULT_TITLE,
     subtitle = DEFAULT_SUBTITLE,
     dropHeading = DEFAULT_DROP_HEADING,
@@ -179,6 +181,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
         activeItemId={activeNavId}
         onSelectItem={onSelectNavItem}
         {...(user ? { user } : {})}
+        {...(onAddContact ? { onAddContact } : {})}
+        {...(onRemoveContact ? { onRemoveContact } : {})}
         {...(onLogoClick
           ? {
               logo: (
