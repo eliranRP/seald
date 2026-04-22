@@ -60,10 +60,17 @@ module.exports = {
               './src/components/SignatureMark',
             ],
             from: [
+              './src/components/FieldsPlacedList',
               './src/components/PageThumbStrip',
+              './src/components/PageToolbar',
+              './src/components/PlacedField',
+              './src/components/SendPanelFooter',
               './src/components/StatusBadge',
               './src/components/SignatureField',
               './src/components/SignerRow',
+              './src/components/CollapsibleRail',
+              './src/components/DocumentCanvas',
+              './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',
               './src/components/SideBar',
@@ -74,12 +81,19 @@ module.exports = {
           // L2 (domain) must not import from L3.
           {
             target: [
+              './src/components/FieldsPlacedList',
               './src/components/PageThumbStrip',
+              './src/components/PageToolbar',
+              './src/components/PlacedField',
+              './src/components/SendPanelFooter',
               './src/components/StatusBadge',
               './src/components/SignatureField',
               './src/components/SignerRow',
             ],
             from: [
+              './src/components/CollapsibleRail',
+              './src/components/DocumentCanvas',
+              './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',
               './src/components/SideBar',

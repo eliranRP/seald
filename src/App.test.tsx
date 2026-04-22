@@ -22,8 +22,6 @@ describe('App dev harness', () => {
 
   it('renders three SignerRow entries', () => {
     renderApp();
-    const rows = screen.getAllByRole('group');
-    expect(rows).toHaveLength(3);
     expect(screen.getByRole('group', { name: /Ada Lovelace/ })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Alan Turing/ })).toBeInTheDocument();
     expect(screen.getByRole('group', { name: /Grace Hopper/ })).toBeInTheDocument();

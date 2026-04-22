@@ -7,8 +7,16 @@ import {
   Badge,
   Button,
   Card,
+  CollapsibleRail,
   DocThumb,
+  DocumentCanvas,
+  FieldPalette,
+  FieldsPlacedList,
   Icon,
+  PageThumbStrip,
+  PageToolbar,
+  PlacedField,
+  SendPanelFooter,
   SignatureField,
   SignatureMark,
   SignaturePad,
@@ -16,6 +24,7 @@ import {
   StatusBadge,
   TextField,
   SIGNER_STATUSES,
+  type PlacedFieldSigner,
   type SignatureValue,
   type Signer,
 } from './index';
@@ -121,6 +130,11 @@ const Stack = styled.div`
   gap: ${({ theme }) => theme.space[3]};
 `;
 
+const DEMO_PLACED_SIGNERS: ReadonlyArray<PlacedFieldSigner> = [
+  { id: 'p1', name: 'Hedy Lamarr', color: '#F472B6' },
+  { id: 'p2', name: 'Katherine Johnson', color: '#7DD3FC' },
+];
+
 const SIGNERS: ReadonlyArray<Signer> = [
   { id: 's1', name: 'Ada Lovelace', email: 'ada@analytical.engine', status: 'awaiting-you' },
   { id: 's2', name: 'Alan Turing', email: 'alan@bletchley.park', status: 'awaiting-others' },
@@ -150,6 +164,10 @@ export function App() {
   const theme = useTheme();
   const [committed, setCommitted] = useState<SignatureValue | null>(null);
   const [padKey, setPadKey] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [railOpen, setRailOpen] = useState(true);
+  const [railWidth, setRailWidth] = useState(280);
+  const [toolbarPage, setToolbarPage] = useState(2);
 
   const handleCommit = useCallback((value: SignatureValue) => {
     setCommitted(value);
@@ -238,6 +256,17 @@ export function App() {
         <SignatureMark name="Ada Lovelace" />
       </Section>
 
+      <Section aria-labelledby="pagethumbstrip-heading">
+        <SectionTitle id="pagethumbstrip-heading">PageThumbStrip</SectionTitle>
+        <StatusLine>Current page: {currentPage}</StatusLine>
+        <PageThumbStrip
+          totalPages={6}
+          currentPage={currentPage}
+          onSelectPage={setCurrentPage}
+          pagesWithFields={[2, 5]}
+        />
+      </Section>
+
       <Section aria-labelledby="statusbadge-heading">
         <SectionTitle id="statusbadge-heading">StatusBadge</SectionTitle>
         <InlineRow>
@@ -253,6 +282,107 @@ export function App() {
           <TextField label="Email" type="email" placeholder="you@seald.app" iconLeft={Search} />
           <TextField label="Full name" helpText="First and last name" />
         </Stack>
+      </Section>
+
+      <Section aria-labelledby="collapsiblerail-heading">
+        <SectionTitle id="collapsiblerail-heading">CollapsibleRail</SectionTitle>
+        <div
+          style={{
+            display: 'flex',
+            height: 260,
+            border: `1px solid ${theme.color.border[1]}`,
+            borderRadius: theme.radius.md,
+            overflow: 'hidden',
+            background: theme.color.bg.surface,
+          }}
+        >
+          <CollapsibleRail
+            side="left"
+            title="Fields"
+            open={railOpen}
+            onOpenChange={setRailOpen}
+            width={railWidth}
+            onWidthChange={setRailWidth}
+          >
+            <StatusLine>Drag the inner edge to resize.</StatusLine>
+            <StatusLine>Collapse with the chevron.</StatusLine>
+          </CollapsibleRail>
+          <div
+            style={{
+              flex: 1,
+              padding: theme.space[4],
+              color: theme.color.fg[2],
+              fontSize: theme.font.size.bodySm,
+            }}
+          >
+            Page content
+          </div>
+        </div>
+      </Section>
+
+      <Section aria-labelledby="fieldpalette-heading">
+        <SectionTitle id="fieldpalette-heading">FieldPalette</SectionTitle>
+        <div style={{ maxWidth: 280 }}>
+          <FieldPalette onFieldDragStart={() => {}} onFieldActivate={() => {}} />
+        </div>
+      </Section>
+
+      <Section aria-labelledby="pagetoolbar-heading">
+        <SectionTitle id="pagetoolbar-heading">PageToolbar</SectionTitle>
+        <PageToolbar
+          currentPage={toolbarPage}
+          totalPages={4}
+          onPrevPage={() => setToolbarPage((p) => Math.max(1, p - 1))}
+          onNextPage={() => setToolbarPage((p) => Math.min(4, p + 1))}
+          onJumpToNextZone={() => setToolbarPage(4)}
+        />
+      </Section>
+
+      <Section aria-labelledby="documentcanvas-heading">
+        <SectionTitle id="documentcanvas-heading">DocumentCanvas + PlacedField</SectionTitle>
+        <div style={{ background: theme.color.bg.app, padding: theme.space[6] }}>
+          <DocumentCanvas currentPage={4} totalPages={4}>
+            <PlacedField
+              field={{
+                id: 'demo-1',
+                page: 4,
+                type: 'signature',
+                x: 60,
+                y: 560,
+                signerIds: ['p1'],
+              }}
+              signers={DEMO_PLACED_SIGNERS}
+              selected
+            />
+          </DocumentCanvas>
+        </div>
+      </Section>
+
+      <Section aria-labelledby="fieldsplacedlist-heading">
+        <SectionTitle id="fieldsplacedlist-heading">FieldsPlacedList</SectionTitle>
+        <div style={{ maxWidth: 320 }}>
+          <FieldsPlacedList
+            fields={[
+              { id: 'f1', type: 'signature', page: 4, signerIds: ['p1'] },
+              { id: 'f2', type: 'date', page: 4, signerIds: ['p1', 'p2'] },
+            ]}
+            signers={DEMO_PLACED_SIGNERS}
+            selectedFieldId="f1"
+            onSelectField={() => {}}
+          />
+        </div>
+      </Section>
+
+      <Section aria-labelledby="sendpanelfooter-heading">
+        <SectionTitle id="sendpanelfooter-heading">SendPanelFooter</SectionTitle>
+        <div style={{ maxWidth: 320 }}>
+          <SendPanelFooter
+            fieldCount={2}
+            signerCount={2}
+            onSend={() => {}}
+            onSaveDraft={() => {}}
+          />
+        </div>
       </Section>
 
       <Section aria-labelledby="pad-heading">

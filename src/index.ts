@@ -14,11 +14,19 @@ export * from './components/SignatureMark';
 export * from './components/TextField';
 
 // ————— L2 Domain —————
+export * from './components/FieldsPlacedList';
+export * from './components/PageThumbStrip';
+export * from './components/PageToolbar';
+export * from './components/PlacedField';
+export * from './components/SendPanelFooter';
 export * from './components/SignatureField';
 export * from './components/SignerRow';
 export * from './components/StatusBadge';
 
 // ————— L3 Widgets —————
+export * from './components/CollapsibleRail';
+export * from './components/DocumentCanvas';
+export * from './components/FieldPalette';
 export * from './components/FieldsBar';
 export * from './components/NavBar';
 export * from './components/SideBar';
