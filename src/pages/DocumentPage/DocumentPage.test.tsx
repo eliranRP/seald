@@ -682,4 +682,44 @@ describe('DocumentPage', () => {
     // selection-only "Assign signers" pill being visible.
     expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
   });
+
+  // Regression: in continuous-scroll mode `currentPage` tracks scroll, not the
+  // selection's page. The group "duplicate to pages" handler used to filter
+  // source fields by `currentPage`, so scrolling away from the group before
+  // applying silently dropped every clone. The fix anchors on `groupRect.page`
+  // instead — the page where the selected fields actually live.
+  it('duplicates a group to all pages even when the user scrolled away from the group before applying', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange, totalPages: 4 });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+    // Advance current page via the toolbar — this is what reproduced the bug:
+    // clicking "Next page" sets currentPage=3 while the group stays on page 1.
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }));
+    fireEvent.click(screen.getByRole('button', { name: /next page/i }));
+    expect(screen.getByRole('document', { name: /page 3 of 4/i })).toBeInTheDocument();
+    // The group toolbar stays pinned to the group's page in the DOM tree and
+    // is still accessible via testing-library.
+    fireEvent.click(screen.getByRole('button', { name: /duplicate selected fields/i }));
+    const dialog = screen.getByRole('dialog', { name: /place on/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /apply/i }));
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    // Two originals on page 1 + two clones per target page × three target
+    // pages (2, 3, 4) = eight fields total. Before the fix this was just 2.
+    expect(next).toHaveLength(8);
+    expect(next.filter((f) => f.page === 1)).toHaveLength(2);
+    expect(next.filter((f) => f.page === 2)).toHaveLength(2);
+    expect(next.filter((f) => f.page === 3)).toHaveLength(2);
+    expect(next.filter((f) => f.page === 4)).toHaveLength(2);
+    // Each page's clone row preserves the originals' coordinates + signers.
+    const clonesOnP4 = next.filter((f) => f.page === 4);
+    expect(clonesOnP4.map((f) => f.x).sort()).toEqual([20, 220]);
+    expect(clonesOnP4.flatMap((f) => f.signerIds).sort()).toEqual(['a', 'b']);
+  });
 });

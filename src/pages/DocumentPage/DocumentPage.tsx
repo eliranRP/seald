@@ -870,22 +870,32 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   );
 
   // Apply the Place-on-pages selection for a multi-field group: clone every
-  // selected field (anchored to the current page) onto each chosen target
+  // selected field (anchored to the group's own page) onto each chosen target
   // page, preserving each field's x/y/type/signer assignment.
+  //
+  // The source page is derived from `groupRect.page` — NOT `currentPage` —
+  // because in continuous-scroll mode `currentPage` tracks which page is
+  // visible in the viewport, which can differ from the page where the
+  // selected fields actually live (user scrolled after multi-selecting).
+  // Using `currentPage` here caused the bug where "copy to all pages"
+  // silently did nothing whenever the user scrolled before applying.
   const applyGroupPagesSelection = useCallback(
     (mode: PlacePagesMode, customPages?: ReadonlyArray<number>): void => {
       if (selectedIds.length < 2) {
         setGroupPagesPopoverOpen(false);
         return;
       }
-      const sourceFields = fields.filter(
-        (f) => f.page === currentPage && selectedIds.includes(f.id),
-      );
+      const groupPage = groupRect?.page;
+      if (groupPage === undefined) {
+        setGroupPagesPopoverOpen(false);
+        return;
+      }
+      const sourceFields = fields.filter((f) => f.page === groupPage && selectedIds.includes(f.id));
       if (sourceFields.length === 0) {
         setGroupPagesPopoverOpen(false);
         return;
       }
-      const targets = resolveTargetPages(mode, currentPage, totalPages, customPages);
+      const targets = resolveTargetPages(mode, groupPage, totalPages, customPages);
       if (targets.length === 0) {
         setGroupPagesPopoverOpen(false);
         return;
@@ -915,7 +925,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       ]);
       setGroupPagesPopoverOpen(false);
     },
-    [fields, onFieldsChange, pushUndo, selectedIds, currentPage, totalPages],
+    [fields, onFieldsChange, pushUndo, selectedIds, groupRect, totalPages],
   );
 
   // --------------------------------------------------------- keyboard
