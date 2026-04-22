@@ -15,11 +15,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { seald } from '../../styles/theme';
 import type { FieldKind } from '../../types/sealdTypes';
-import type {
-  PlacedFieldProps,
-  PlacedFieldSigner,
-  PlacedFieldValue,
-} from './PlacedField.types';
+import type { PlacedFieldProps, PlacedFieldSigner, PlacedFieldValue } from './PlacedField.types';
 import {
   AssignBubble,
   ControlButton,

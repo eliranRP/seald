@@ -159,9 +159,7 @@ describe('PlacedField', () => {
   });
 
   it('has no axe violations (default)', async () => {
-    const { container } = renderWithTheme(
-      <PlacedField field={makeField()} signers={SIGNERS} />,
-    );
+    const { container } = renderWithTheme(<PlacedField field={makeField()} signers={SIGNERS} />);
     expect(await axe(container)).toHaveNoViolations();
   });
 
