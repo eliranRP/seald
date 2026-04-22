@@ -1,18 +1,14 @@
 import styled from 'styled-components';
 
 /**
- * Sticky glass pane that floats against the right edge of the canvas scroll
- * area. `position: sticky` keeps it pinned while pages scroll behind it; a
- * capped `max-height` + internal scroll means the rail stays a fixed width
- * even for 100+ page documents.
+ * Glass pane that floats against the right edge of the canvas scroll area.
+ * The parent `RailSlot` owns the sticky positioning so the rail stays pinned
+ * across the full scroll range. A capped `max-height` + internal scroll means
+ * the rail stays a fixed width even for 100+ page documents.
  */
 export const Rail = styled.nav`
-  position: sticky;
-  top: ${({ theme }) => theme.space[3]};
-  align-self: flex-start;
-  z-index: 14;
   width: 76px;
-  max-height: calc(100vh - 220px);
+  max-height: calc(100vh - 160px);
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);

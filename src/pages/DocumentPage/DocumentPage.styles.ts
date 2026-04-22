@@ -80,16 +80,22 @@ export const CenterInner = styled.div`
 `;
 
 /**
- * Wrapper that reserves inline spacing around the sticky `PageThumbRail`. The
- * rail itself owns its sticky positioning; this slot just keeps the rail away
- * from the canvas edge and the scroll container's right gutter so it doesn't
- * feel glued to either.
+ * Wrapper that pins the `PageThumbRail` to the top-right of the canvas scroll
+ * viewport. Sticky lives here (not on `PageThumbRail`) because the slot is a
+ * direct flex child of `CanvasScroll` — its containing block is the scroll
+ * container's content box, which stays in view across the full scroll range.
+ * Putting sticky on a deeper descendant would clamp its range to whatever
+ * height the flex line resolves to (= the visible scroll area), so the rail
+ * would scroll away after the first ~100px.
  */
 export const RailSlot = styled.div`
   flex-shrink: 0;
-  align-self: stretch;
+  position: sticky;
+  top: ${({ theme }) => theme.space[6]};
+  align-self: flex-start;
   display: flex;
-  padding: ${({ theme }) => `${theme.space[6]} ${theme.space[3]} ${theme.space[6]} 0`};
+  padding: ${({ theme }) => `0 ${theme.space[3]} 0 0`};
+  z-index: 14;
 `;
 
 /**
