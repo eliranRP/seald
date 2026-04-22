@@ -46,6 +46,7 @@ import {
   GroupToolbarButton,
   GroupToolbarLabel,
   MarqueeRect,
+  PageStack,
   RailSlot,
   RightRailFooter,
   RightRailInner,
@@ -187,18 +188,54 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     readonly y: number;
     readonly w: number;
     readonly h: number;
+    readonly page: number;
   } | null>(null);
   // Suppresses the trailing background click after a marquee drag so it
   // doesn't immediately clear the group we just selected.
   const suppressNextBgClickRef = useRef<boolean>(false);
   const dragKindRef = useRef<FieldKind | null>(null);
-  const canvasRef = useRef<HTMLDivElement | null>(null);
+  // One canvas element per page (continuous scroll mode). Keyed by page number
+  // so per-page event handlers (drop, marquee, click) can get the rect of the
+  // page they were invoked on instead of a single "current" canvas.
+  const canvasRefsRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  // One scrollable page wrap per page. Used to (a) feed the IntersectionObserver
+  // that derives `currentPage` from scroll position, and (b) scroll a specific
+  // page into view when the user clicks a rail thumbnail / prev-next / a
+  // FieldsPlacedList row.
+  const pageWrapRefsRef = useRef<Map<number, HTMLDivElement | null>>(new Map());
+  // Scroll container that hosts the page stack. Needed as the observer root so
+  // the chosen page reflects what's visible inside THIS viewport, not the
+  // document viewport (which would never intersect if the page is taller than
+  // the screen).
+  const canvasScrollRef = useRef<HTMLDivElement | null>(null);
+  // Stable per-page ref setters. Cached so the JSX doesn't hand a fresh
+  // function to every `<Paper ref={...}>` on every render, which would
+  // otherwise reset the ref map twice per render cycle.
+  const setCanvasRefForPage = useCallback(
+    (p: number) =>
+      (el: HTMLDivElement | null): void => {
+        canvasRefsRef.current.set(p, el);
+      },
+    [],
+  );
+  const setPageWrapRefForPage = useCallback(
+    (p: number) =>
+      (el: HTMLDivElement | null): void => {
+        pageWrapRefsRef.current.set(p, el);
+      },
+    [],
+  );
   // ---------------------------------------------------------------- snap
   // Alignment guides surfaced while dragging a field that edges/centers
   // within SNAP_THRESHOLD of another field on the same page. Each guide is
-  // a full-width (h) or full-height (v) line anchored to the snap position.
+  // a full-width (h) or full-height (v) line anchored to the snap position
+  // and tagged with the page it belongs to so the right page renders it.
   const [snapGuides, setSnapGuides] = useState<
-    ReadonlyArray<{ readonly orientation: 'h' | 'v'; readonly pos: number }>
+    ReadonlyArray<{
+      readonly orientation: 'h' | 'v';
+      readonly pos: number;
+      readonly page: number;
+    }>
   >([]);
   // --------------------------------------------------------------- history
   // Undo stack: snapshots of `fields` taken right before each discrete
@@ -222,11 +259,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     width: 560,
     height: 740,
   });
+  // All pages share the same paper size in this app, so we measure page 1's
+  // canvas as the canonical dimension and drive every page's scaler wrapper
+  // from it. Re-runs when `pdfDoc` swaps so a newly-loaded PDF's true size is
+  // picked up (the pre-load mock paper and the real PDF page differ in height).
   useLayoutEffect(() => {
-    const el = canvasRef.current;
+    const el = canvasRefsRef.current.get(1);
     if (!el) return undefined;
-    // Initial measurement — the PDF may resize the paper later, so also
-    // observe for subsequent size changes.
     setPaperSize({ width: el.offsetWidth, height: el.offsetHeight });
     if (typeof ResizeObserver === 'undefined') return undefined;
     const ro = new ResizeObserver(() => {
@@ -234,7 +273,79 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [pdfDoc, currentPage]);
+  }, [pdfDoc]);
+
+  // ---------------------------------------------------------------- scroll
+  // Pages whose scroll-parent intersection is > 0 (within a generous buffer)
+  // are "live": we render their DocumentCanvas + fields. Off-screen pages get
+  // a sized placeholder so scroll height stays correct without paying the
+  // cost of rendering every page's PDF canvas up front. Start with page 1
+  // in the live set so the initial render paints something even before the
+  // observer has a chance to fire.
+  const [visiblePages, setVisiblePages] = useState<ReadonlySet<number>>(() => new Set([1]));
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === 'undefined') return undefined;
+    const scrollEl = canvasScrollRef.current;
+    if (!scrollEl) return undefined;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        // Track both which pages just became visible (for lazy rendering) and
+        // which page has the highest intersection ratio (to drive currentPage).
+        setVisiblePages((prev) => {
+          const next = new Set(prev);
+          for (const entry of entries) {
+            const pageAttr = entry.target.getAttribute('data-page');
+            if (pageAttr && entry.isIntersecting) {
+              next.add(Number(pageAttr));
+            }
+          }
+          return next;
+        });
+        let bestPage: number | null = null;
+        let bestRatio = 0;
+        for (const entry of entries) {
+          if (entry.intersectionRatio > bestRatio) {
+            bestRatio = entry.intersectionRatio;
+            const pageAttr = entry.target.getAttribute('data-page');
+            if (pageAttr) bestPage = Number(pageAttr);
+          }
+        }
+        if (bestPage !== null && bestRatio > 0) setCurrentPage(bestPage);
+      },
+      {
+        root: scrollEl,
+        // Keep a 1-viewport buffer above/below the visible area so the next
+        // page is pre-rendered before the user reaches it — scrolling feels
+        // seamless without paying for pages far outside view.
+        rootMargin: '800px 0px',
+        threshold: [0, 0.25, 0.5, 0.75, 1],
+      },
+    );
+    // Observe every page wrap that's currently mounted. Re-observe when
+    // totalPages changes (new wraps appear).
+    pageWrapRefsRef.current.forEach((el) => {
+      if (el) obs.observe(el);
+    });
+    return () => obs.disconnect();
+  }, [totalPages]);
+
+  const scrollToPage = useCallback((p: number): void => {
+    const target = pageWrapRefsRef.current.get(p);
+    if (target && typeof target.scrollIntoView === 'function') {
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    // Eagerly mark the target visible so its DocumentCanvas mounts even when
+    // the IntersectionObserver doesn't fire (e.g. jsdom/tests, or smooth-scroll
+    // races where the user jumps before the observer re-evaluates).
+    setVisiblePages((prev) => {
+      if (prev.has(p)) return prev;
+      const next = new Set(prev);
+      next.add(p);
+      return next;
+    });
+    setCurrentPage(p);
+  }, []);
 
   const placedFieldSigners = useMemo(
     () => signers.map((s) => ({ id: s.id, name: s.name, color: s.color })),
@@ -287,19 +398,23 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [selectedIds],
   );
 
-  // Axis-aligned bounding box of the multi-field selection on the current
-  // page. Used to anchor BOTH the group toolbar (Duplicate/Remove-all) above
-  // the selection AND a dashed boundary rectangle drawn around it so users
-  // can see at a glance what's grouped. Null when there's no group on this
-  // page.
+  // Axis-aligned bounding box of the multi-field selection. In continuous
+  // scroll mode the group lives on whichever page the selected fields are
+  // on (users still can't multi-select across pages), so we derive the page
+  // from the first selected field rather than from `currentPage` (which now
+  // tracks scroll, not selection).
   const groupRect = useMemo<{
     readonly x: number;
     readonly y: number;
     readonly w: number;
     readonly h: number;
+    readonly page: number;
   } | null>(() => {
     if (selectedIds.length < 2) return null;
-    const picked = fields.filter((f) => f.page === currentPage && selectedIds.includes(f.id));
+    const firstSelected = fields.find((f) => selectedIds.includes(f.id));
+    if (!firstSelected) return null;
+    const groupPage = firstSelected.page;
+    const picked = fields.filter((f) => f.page === groupPage && selectedIds.includes(f.id));
     if (picked.length < 2) return null;
     let minX = Infinity;
     let minY = Infinity;
@@ -324,8 +439,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     ) {
       return null;
     }
-    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
-  }, [fields, currentPage, selectedIds]);
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY, page: groupPage };
+  }, [fields, selectedIds]);
 
   const signerPopoverField = useMemo(
     () => (signerPopoverFor ? fields.find((f) => f.id === signerPopoverFor) : undefined),
@@ -384,11 +499,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   }, []);
 
   const handleCanvasDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>): void => {
+    (e: DragEvent<HTMLDivElement>, dropPage: number): void => {
       const kind = dragKindRef.current;
       if (!kind) return;
       e.preventDefault();
-      const rect = canvasRef.current?.getBoundingClientRect();
+      const rect = canvasRefsRef.current.get(dropPage)?.getBoundingClientRect();
       // Divide by `zoom` so drop coords land in the canvas's native
       // coordinate space regardless of how the paper is visually scaled.
       const localX = (e.clientX - (rect?.left ?? 0)) / zoom;
@@ -405,7 +520,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         // single unassigned field and prompt the user to pick signers.
         const fallback: PlacedFieldValue = {
           id: makeId(),
-          page: currentPage,
+          page: dropPage,
           type: kind,
           x,
           y,
@@ -424,7 +539,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       const step = FIELD_WIDTH + DROP_SIBLING_GAP;
       const spawned: ReadonlyArray<PlacedFieldValue> = signers.map((signer, i) => ({
         id: makeId(),
-        page: currentPage,
+        page: dropPage,
         type: kind,
         x: x + i * step,
         y,
@@ -439,7 +554,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       setSignerPopoverFor(null);
       dragKindRef.current = null;
     },
-    [currentPage, fields, onFieldsChange, pushUndo, signers, zoom],
+    [fields, onFieldsChange, pushUndo, signers, zoom],
   );
 
   const handleCanvasBackgroundClick = useCallback((): void => {
@@ -457,12 +572,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   }, []);
 
   const handleCanvasMouseDown = useCallback(
-    (e: ReactMouseEvent<HTMLDivElement>): void => {
+    (e: ReactMouseEvent<HTMLDivElement>, page: number): void => {
       // PlacedField and its overlay controls stop propagation on their own
       // mousedown handlers, so anything that reaches us originated on empty
-      // canvas background — the user is starting a lasso selection.
+      // canvas background — the user is starting a lasso selection on
+      // whichever page's canvas they pressed.
       if (e.button !== 0) return;
-      const canvas = canvasRef.current;
+      const canvas = canvasRefsRef.current.get(page);
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
       // Marquee coords also live in the canvas's native space; divide by
@@ -484,6 +600,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           y: Math.min(startY, curY),
           w: Math.abs(curX - startX),
           h: Math.abs(curY - startY),
+          page,
         });
       };
 
@@ -492,8 +609,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         window.removeEventListener('mouseup', onUp);
         setMarqueeRect(null);
         if (!moved) return;
-        // Commit the group: every field on the current page whose bounding
-        // box intersects the marquee becomes selected.
+        // Commit the group: every field on the page the drag started on
+        // whose bounding box intersects the marquee becomes selected.
         const r = {
           x: Math.min(startX, curX),
           y: Math.min(startY, curY),
@@ -501,7 +618,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           h: Math.abs(curY - startY),
         };
         const hit = fields
-          .filter((f) => f.page === currentPage)
+          .filter((f) => f.page === page)
           .filter((f) => {
             const fw = f.width ?? FIELD_WIDTH;
             const fh = f.height ?? FIELD_HEIGHT;
@@ -516,7 +633,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [fields, currentPage, zoom],
+    [fields, zoom],
   );
 
   // --------------------------------------------------------------- mutations
@@ -533,44 +650,52 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
       // --- Horizontal snapping (vertical guide lines) ---
       let snappedX = x;
-      const vGuides: Array<{ readonly orientation: 'v'; readonly pos: number }> = [];
+      const vGuides: Array<{
+        readonly orientation: 'v';
+        readonly pos: number;
+        readonly page: number;
+      }> = [];
       for (const p of peers) {
         const pw = p.width ?? FIELD_WIDTH;
         if (Math.abs(x - p.x) <= SNAP_THRESHOLD) {
           snappedX = p.x;
-          vGuides.push({ orientation: 'v', pos: p.x });
+          vGuides.push({ orientation: 'v', pos: p.x, page: anchor.page });
           break;
         }
         if (Math.abs(x + w - (p.x + pw)) <= SNAP_THRESHOLD) {
           snappedX = p.x + pw - w;
-          vGuides.push({ orientation: 'v', pos: p.x + pw });
+          vGuides.push({ orientation: 'v', pos: p.x + pw, page: anchor.page });
           break;
         }
         if (Math.abs(x + w / 2 - (p.x + pw / 2)) <= SNAP_THRESHOLD) {
           snappedX = p.x + pw / 2 - w / 2;
-          vGuides.push({ orientation: 'v', pos: p.x + pw / 2 });
+          vGuides.push({ orientation: 'v', pos: p.x + pw / 2, page: anchor.page });
           break;
         }
       }
 
       // --- Vertical snapping (horizontal guide lines) ---
       let snappedY = y;
-      const hGuides: Array<{ readonly orientation: 'h'; readonly pos: number }> = [];
+      const hGuides: Array<{
+        readonly orientation: 'h';
+        readonly pos: number;
+        readonly page: number;
+      }> = [];
       for (const p of peers) {
         const ph = p.height ?? FIELD_HEIGHT;
         if (Math.abs(y - p.y) <= SNAP_THRESHOLD) {
           snappedY = p.y;
-          hGuides.push({ orientation: 'h', pos: p.y });
+          hGuides.push({ orientation: 'h', pos: p.y, page: anchor.page });
           break;
         }
         if (Math.abs(y + h - (p.y + ph)) <= SNAP_THRESHOLD) {
           snappedY = p.y + ph - h;
-          hGuides.push({ orientation: 'h', pos: p.y + ph });
+          hGuides.push({ orientation: 'h', pos: p.y + ph, page: anchor.page });
           break;
         }
         if (Math.abs(y + h / 2 - (p.y + ph / 2)) <= SNAP_THRESHOLD) {
           snappedY = p.y + ph / 2 - h / 2;
-          hGuides.push({ orientation: 'h', pos: p.y + ph / 2 });
+          hGuides.push({ orientation: 'h', pos: p.y + ph / 2, page: anchor.page });
           break;
         }
       }
@@ -1050,8 +1175,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 <PageToolbar
                   currentPage={currentPage}
                   totalPages={totalPages}
-                  onPrevPage={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  onNextPage={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  onPrevPage={() => scrollToPage(Math.max(1, currentPage - 1))}
+                  onNextPage={() => scrollToPage(Math.min(totalPages, currentPage + 1))}
                   zoom={zoom}
                   onZoomIn={zoomIn}
                   onZoomOut={zoomOut}
@@ -1063,164 +1188,191 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               </CenterHeader>
             </CenterTop>
 
-            <CanvasScroll>
+            <CanvasScroll ref={canvasScrollRef}>
               <CenterInner>
-                <CanvasWrap>
-                  <CanvasScaler
-                    style={{
-                      width: paperSize.width * zoom,
-                      height: paperSize.height * zoom,
-                    }}
-                  >
-                    <CanvasScaleInner
-                      style={{
-                        width: paperSize.width,
-                        height: paperSize.height,
-                        transform: `scale(${String(zoom)})`,
-                      }}
-                    >
-                      <DocumentCanvas
-                        ref={canvasRef}
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        {...(title ? { title } : {})}
-                        {...(docId ? { docId } : {})}
-                        {...(pdfDoc ? { pdfDoc } : {})}
-                        {...(pdfLoading ? { pdfLoading: true } : {})}
-                        onDragOver={handleCanvasDragOver}
-                        onDrop={handleCanvasDrop}
-                        onClick={handleCanvasBackgroundClick}
-                        onMouseDown={handleCanvasMouseDown}
+                <PageStack>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
+                    // Lazy-load heuristic: only mount the DocumentCanvas + fields
+                    // when the page wrap has intersected the observer's root (with
+                    // buffer). Off-screen pages render a sized placeholder so the
+                    // scroll height stays correct without paying the cost of
+                    // rasterizing every PDF page up front.
+                    const isLive = visiblePages.has(pageNum);
+                    const pageFields = fields.filter((f) => f.page === pageNum);
+                    // Per-page ref object that PlacedField uses for pointer math.
+                    // Keyed off the shared Map so drag/resize hits the right page
+                    // regardless of which page fired the interaction.
+                    const pageCanvasRef = {
+                      get current() {
+                        return canvasRefsRef.current.get(pageNum) ?? null;
+                      },
+                    } as React.RefObject<HTMLElement>;
+                    return (
+                      <CanvasWrap
+                        key={pageNum}
+                        data-page={pageNum}
+                        ref={setPageWrapRefForPage(pageNum)}
                       >
-                        {fields
-                          .filter((f) => f.page === currentPage)
-                          .map((field) => {
-                            const isSelected = selectedIds.includes(field.id);
-                            const inGroup = isSelected && selectedIds.length > 1;
-                            return (
-                              <PlacedField
-                                key={field.id}
-                                field={field}
-                                signers={placedFieldSigners}
-                                selected={isSelected}
-                                inGroup={inGroup}
-                                {...((canvasRef as { current: HTMLDivElement | null })
-                                  ? { canvasRef: canvasRef as React.RefObject<HTMLElement> }
-                                  : {})}
-                                onSelect={(e) => {
-                                  e.stopPropagation();
-                                  const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-                                  if (additive) {
-                                    setSelectedIds((prev) =>
-                                      prev.includes(field.id)
-                                        ? prev.filter((id) => id !== field.id)
-                                        : [...prev, field.id],
-                                    );
-                                  } else {
-                                    // A plain click always isolates this field to a
-                                    // single selection — including when it was part of
-                                    // a multi-selection. PlacedField defers this call
-                                    // until after mouseup so an actual drag keeps the
-                                    // group intact while moving.
-                                    setSelectedIds([field.id]);
-                                  }
-                                  setSignerPopoverFor(null);
-                                  setPagesPopoverFor(null);
-                                }}
-                                onOpenSignerPopover={(e) => {
-                                  e.stopPropagation();
-                                  setSignerPopoverFor(field.id);
-                                }}
-                                onOpenPagesPopover={(e) => {
-                                  e.stopPropagation();
-                                  setPagesPopoverFor(field.id);
-                                }}
-                                onRemove={() => removeField(field.id)}
-                                onToggleRequired={toggleRequired}
-                                onMove={moveField}
-                                onResize={resizeField}
-                                onDragEnd={() => setSnapGuides([])}
-                                zoom={zoom}
-                              />
-                            );
-                          })}
-                        {marqueeRect ? (
-                          <MarqueeRect
-                            data-testid="canvas-marquee"
+                        <CanvasScaler
+                          style={{
+                            width: paperSize.width * zoom,
+                            height: paperSize.height * zoom,
+                          }}
+                        >
+                          <CanvasScaleInner
                             style={{
-                              left: marqueeRect.x,
-                              top: marqueeRect.y,
-                              width: marqueeRect.w,
-                              height: marqueeRect.h,
+                              width: paperSize.width,
+                              height: paperSize.height,
+                              transform: `scale(${String(zoom)})`,
                             }}
-                          />
-                        ) : null}
-                        {snapGuides.map((g, i) => (
-                          <SnapGuide
-                            // Positional keys are fine here — guides are short-lived
-                            // drag-time state with no stable identity of their own.
-                            // eslint-disable-next-line react/no-array-index-key
-                            key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
-                            data-testid="snap-guide"
-                            $orientation={g.orientation}
-                            style={g.orientation === 'v' ? { left: g.pos } : { top: g.pos }}
-                          />
-                        ))}
-                        {groupRect ? (
-                          // Dashed rectangle drawn around every selected field's
-                          // bounding box on the current page. Purely decorative —
-                          // pointer events pass through to the fields beneath.
-                          <GroupBoundary
-                            data-testid="group-boundary"
-                            style={{
-                              left: groupRect.x - 6,
-                              top: groupRect.y - 6,
-                              width: groupRect.w + 12,
-                              height: groupRect.h + 12,
-                            }}
-                          />
-                        ) : null}
-                        {groupRect ? (
-                          <GroupToolbar
-                            data-testid="group-toolbar"
-                            style={{
-                              left: groupRect.x,
-                              top: Math.max(0, groupRect.y - 40),
-                              // Let the toolbar hug its content; the anchoring `left`
-                              // places it at the left edge of the bounding box.
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            onClick={(e) => e.stopPropagation()}
                           >
-                            <GroupToolbarLabel>{selectedIds.length} selected</GroupToolbarLabel>
-                            <GroupToolbarButton
-                              type="button"
-                              $tone="indigo"
-                              aria-label="Duplicate selected fields"
-                              onClick={duplicateSelectedGroup}
-                            >
-                              <Copy size={14} strokeWidth={1.75} aria-hidden />
-                            </GroupToolbarButton>
-                            <GroupToolbarButton
-                              type="button"
-                              $tone="danger"
-                              aria-label="Delete selected fields"
-                              onClick={removeSelectedGroup}
-                            >
-                              <XIcon size={14} strokeWidth={1.75} aria-hidden />
-                            </GroupToolbarButton>
-                          </GroupToolbar>
-                        ) : null}
-                      </DocumentCanvas>
-                    </CanvasScaleInner>
-                  </CanvasScaler>
-                </CanvasWrap>
+                            {isLive ? (
+                              <DocumentCanvas
+                                ref={setCanvasRefForPage(pageNum)}
+                                currentPage={pageNum}
+                                totalPages={totalPages}
+                                {...(title ? { title } : {})}
+                                {...(docId ? { docId } : {})}
+                                {...(pdfDoc ? { pdfDoc } : {})}
+                                {...(pdfLoading ? { pdfLoading: true } : {})}
+                                onDragOver={handleCanvasDragOver}
+                                onDrop={(e) => handleCanvasDrop(e, pageNum)}
+                                onClick={handleCanvasBackgroundClick}
+                                onMouseDown={(e) => handleCanvasMouseDown(e, pageNum)}
+                              >
+                                {pageFields.map((field) => {
+                                  const isSelected = selectedIds.includes(field.id);
+                                  const inGroup = isSelected && selectedIds.length > 1;
+                                  return (
+                                    <PlacedField
+                                      key={field.id}
+                                      field={field}
+                                      signers={placedFieldSigners}
+                                      selected={isSelected}
+                                      inGroup={inGroup}
+                                      canvasRef={pageCanvasRef}
+                                      onSelect={(e) => {
+                                        e.stopPropagation();
+                                        const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+                                        if (additive) {
+                                          setSelectedIds((prev) =>
+                                            prev.includes(field.id)
+                                              ? prev.filter((id) => id !== field.id)
+                                              : [...prev, field.id],
+                                          );
+                                        } else {
+                                          // A plain click always isolates this field to a
+                                          // single selection — including when it was part of
+                                          // a multi-selection. PlacedField defers this call
+                                          // until after mouseup so an actual drag keeps the
+                                          // group intact while moving.
+                                          setSelectedIds([field.id]);
+                                        }
+                                        setSignerPopoverFor(null);
+                                        setPagesPopoverFor(null);
+                                      }}
+                                      onOpenSignerPopover={(e) => {
+                                        e.stopPropagation();
+                                        setSignerPopoverFor(field.id);
+                                      }}
+                                      onOpenPagesPopover={(e) => {
+                                        e.stopPropagation();
+                                        setPagesPopoverFor(field.id);
+                                      }}
+                                      onRemove={() => removeField(field.id)}
+                                      onToggleRequired={toggleRequired}
+                                      onMove={moveField}
+                                      onResize={resizeField}
+                                      onDragEnd={() => setSnapGuides([])}
+                                      zoom={zoom}
+                                    />
+                                  );
+                                })}
+                                {marqueeRect && marqueeRect.page === pageNum ? (
+                                  <MarqueeRect
+                                    data-testid="canvas-marquee"
+                                    style={{
+                                      left: marqueeRect.x,
+                                      top: marqueeRect.y,
+                                      width: marqueeRect.w,
+                                      height: marqueeRect.h,
+                                    }}
+                                  />
+                                ) : null}
+                                {snapGuides
+                                  .filter((g) => g.page === pageNum)
+                                  .map((g, i) => (
+                                    <SnapGuide
+                                      // Positional keys are fine here — guides are short-lived
+                                      // drag-time state with no stable identity of their own.
+                                      // eslint-disable-next-line react/no-array-index-key
+                                      key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
+                                      data-testid="snap-guide"
+                                      $orientation={g.orientation}
+                                      style={
+                                        g.orientation === 'v' ? { left: g.pos } : { top: g.pos }
+                                      }
+                                    />
+                                  ))}
+                                {groupRect && groupRect.page === pageNum ? (
+                                  // Dashed rectangle drawn around every selected field's
+                                  // bounding box on this page. Purely decorative —
+                                  // pointer events pass through to the fields beneath.
+                                  <GroupBoundary
+                                    data-testid="group-boundary"
+                                    style={{
+                                      left: groupRect.x - 6,
+                                      top: groupRect.y - 6,
+                                      width: groupRect.w + 12,
+                                      height: groupRect.h + 12,
+                                    }}
+                                  />
+                                ) : null}
+                                {groupRect && groupRect.page === pageNum ? (
+                                  <GroupToolbar
+                                    data-testid="group-toolbar"
+                                    style={{
+                                      left: groupRect.x,
+                                      top: Math.max(0, groupRect.y - 40),
+                                    }}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <GroupToolbarLabel>
+                                      {selectedIds.length} selected
+                                    </GroupToolbarLabel>
+                                    <GroupToolbarButton
+                                      type="button"
+                                      $tone="indigo"
+                                      aria-label="Duplicate selected fields"
+                                      onClick={duplicateSelectedGroup}
+                                    >
+                                      <Copy size={14} strokeWidth={1.75} aria-hidden />
+                                    </GroupToolbarButton>
+                                    <GroupToolbarButton
+                                      type="button"
+                                      $tone="danger"
+                                      aria-label="Delete selected fields"
+                                      onClick={removeSelectedGroup}
+                                    >
+                                      <XIcon size={14} strokeWidth={1.75} aria-hidden />
+                                    </GroupToolbarButton>
+                                  </GroupToolbar>
+                                ) : null}
+                              </DocumentCanvas>
+                            ) : null}
+                          </CanvasScaleInner>
+                        </CanvasScaler>
+                      </CanvasWrap>
+                    );
+                  })}
+                </PageStack>
               </CenterInner>
               <RailSlot>
                 <PageThumbRail
                   totalPages={totalPages}
                   currentPage={currentPage}
-                  onSelectPage={setCurrentPage}
+                  onSelectPage={scrollToPage}
                   fieldCountByPage={fieldCountByPage}
                 />
               </RailSlot>
@@ -1262,7 +1414,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   {...(singleSelectedId !== null ? { selectedFieldId: singleSelectedId } : {})}
                   onSelectField={(id) => {
                     const f = fields.find((x) => x.id === id);
-                    if (f) setCurrentPage(f.page);
+                    if (f) scrollToPage(f.page);
                     setSelectedIds([id]);
                   }}
                   onDuplicateField={duplicateField}
@@ -1303,7 +1455,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           chosen mode to every selected field at once. */}
       <PlaceOnPagesPopover
         open={groupPagesPopoverOpen}
-        currentPage={currentPage}
+        currentPage={groupRect?.page ?? currentPage}
         totalPages={totalPages}
         onApply={applyGroupPagesSelection}
         onCancel={() => setGroupPagesPopoverOpen(false)}

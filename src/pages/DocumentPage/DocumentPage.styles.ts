@@ -136,6 +136,18 @@ export const RightRailFooter = styled.div`
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
 
+/**
+ * Vertical stack of all pages rendered continuously so the user can scroll
+ * between them instead of flipping one at a time. Replaces the prior "render
+ * only currentPage" layout.
+ */
+export const PageStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[5]};
+`;
+
 export const CanvasWrap = styled.div`
   position: relative;
 `;
