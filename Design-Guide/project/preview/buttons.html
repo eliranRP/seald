@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Buttons</title>
+    <link rel="stylesheet" href="_card.css" />
+  </head>
+  <body>
+    <div class="card">
+      <div class="label">Buttons</div>
+      <style>
+        .btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 10px 16px;
+          border-radius: 12px;
+          font: 600 14px/1 var(--font-sans);
+          border: 1px solid transparent;
+          cursor: pointer;
+        }
+        .btn--primary {
+          background: #4f46e5;
+          color: #fff;
+        }
+        .btn--primary:hover {
+          background: #4338ca;
+        }
+        .btn--secondary {
+          background: #fff;
+          color: var(--fg-1);
+          border-color: var(--border-1);
+        }
+        .btn--ghost {
+          background: transparent;
+          color: var(--fg-2);
+        }
+        .btn--danger {
+          background: #fff;
+          color: #b91c1c;
+          border-color: #fecaca;
+        }
+        .btn--sm {
+          padding: 6px 12px;
+          font-size: 13px;
+          border-radius: 10px;
+        }
+        .btn--lg {
+          padding: 14px 22px;
+          font-size: 15px;
+          border-radius: 14px;
+        }
+      </style>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+        <button class="btn btn--primary">Send for signature</button>
+        <button class="btn btn--secondary">Save as draft</button>
+        <button class="btn btn--ghost">Cancel</button>
+        <button class="btn btn--danger">Decline to sign</button>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 4px">
+        <button class="btn btn--primary btn--sm">Add signer</button>
+        <button class="btn btn--primary">Add signer</button>
+        <button class="btn btn--primary btn--lg">Add signer</button>
+        <button class="btn btn--primary" style="box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.18)">
+          Focused
+        </button>
+        <button class="btn btn--primary" style="opacity: 0.5; cursor: not-allowed">Disabled</button>
+      </div>
+      <div class="meta">Sentence case · no trailing period · 12px radius default</div>
+    </div>
+  </body>
+</html>
