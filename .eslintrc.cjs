@@ -63,6 +63,7 @@ module.exports = {
               './src/components/StatusBadge',
               './src/components/SignatureField',
               './src/components/SignerRow',
+              './src/components/FieldsBar',
               './src/components/NavBar',
               './src/components/SideBar',
               './src/components/SignaturePad',
@@ -77,6 +78,7 @@ module.exports = {
               './src/components/SignerRow',
             ],
             from: [
+              './src/components/FieldsBar',
               './src/components/NavBar',
               './src/components/SideBar',
               './src/components/SignaturePad',

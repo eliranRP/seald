@@ -19,6 +19,7 @@ export * from './components/SignerRow';
 export * from './components/StatusBadge';
 
 // ————— L3 Widgets —————
+export * from './components/FieldsBar';
 export * from './components/NavBar';
 export * from './components/SideBar';
 export * from './components/SignaturePad';
