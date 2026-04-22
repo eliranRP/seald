@@ -121,6 +121,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([]);
   const [signerPopoverFor, setSignerPopoverFor] = useState<string | null>(null);
   const [pagesPopoverFor, setPagesPopoverFor] = useState<string | null>(null);
+  // Mirrors `pagesPopoverFor` but for a multi-field (group) selection — the
+  // popover clones every selected field onto the chosen target pages instead
+  // of a single source field.
+  const [groupPagesPopoverOpen, setGroupPagesPopoverOpen] = useState(false);
   const [addSignerOpen, setAddSignerOpen] = useState(false);
   // --------------------------------------------------------------- marquee
   // Live rectangle rendered while the user drags across empty canvas to
@@ -417,22 +421,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
   const duplicateSelectedGroup = useCallback((): void => {
     if (selectedIds.length < 2) return;
-    // Classic paste-offset so duplicates sit visually adjacent to originals
-    // without landing exactly on top of them.
-    const OFFSET = 16;
-    const clones: ReadonlyArray<PlacedFieldValue> = fields
-      .filter((f) => selectedIds.includes(f.id))
-      .map((f) => ({
-        ...f,
-        id: makeId(),
-        x: f.x + OFFSET,
-        y: f.y + OFFSET,
-      }));
-    onFieldsChange([...fields, ...clones]);
-    // Re-select the freshly-cloned group so the user can immediately move,
-    // duplicate again, or delete the new copies as a unit.
-    setSelectedIds(clones.map((c) => c.id));
-  }, [fields, onFieldsChange, selectedIds]);
+    // Open the Place-on-pages popover so the user can choose which pages to
+    // clone the whole group onto (All pages, All but last, Custom, etc.),
+    // matching the single-field duplicate flow instead of doing an in-place
+    // paste-offset copy.
+    setGroupPagesPopoverOpen(true);
+  }, [selectedIds]);
 
   const applySignerSelection = useCallback(
     (ids: ReadonlyArray<string>): void => {
@@ -467,6 +461,40 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       setPagesPopoverFor(null);
     },
     [fields, onFieldsChange, pagesPopoverField, totalPages],
+  );
+
+  // Apply the Place-on-pages selection for a multi-field group: clone every
+  // selected field (anchored to the current page) onto each chosen target
+  // page, preserving each field's x/y/type/signer assignment.
+  const applyGroupPagesSelection = useCallback(
+    (mode: PlacePagesMode, customPages?: ReadonlyArray<number>): void => {
+      if (selectedIds.length < 2) {
+        setGroupPagesPopoverOpen(false);
+        return;
+      }
+      const sourceFields = fields.filter(
+        (f) => f.page === currentPage && selectedIds.includes(f.id),
+      );
+      if (sourceFields.length === 0) {
+        setGroupPagesPopoverOpen(false);
+        return;
+      }
+      const targets = resolveTargetPages(mode, currentPage, totalPages, customPages);
+      if (targets.length === 0) {
+        setGroupPagesPopoverOpen(false);
+        return;
+      }
+      const clones: ReadonlyArray<PlacedFieldValue> = targets.flatMap((page) =>
+        sourceFields.map((f) => ({
+          ...f,
+          id: makeId(),
+          page,
+        })),
+      );
+      onFieldsChange([...fields, ...clones]);
+      setGroupPagesPopoverOpen(false);
+    },
+    [fields, onFieldsChange, selectedIds, currentPage, totalPages],
   );
 
   // ----------------------------------------------------------------- signer
@@ -740,6 +768,15 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         totalPages={totalPages}
         onApply={applyPagesSelection}
         onCancel={() => setPagesPopoverFor(null)}
+      />
+      {/* Place-on-pages popover for a multi-field selection. Applies the
+          chosen mode to every selected field at once. */}
+      <PlaceOnPagesPopover
+        open={groupPagesPopoverOpen}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        onApply={applyGroupPagesSelection}
+        onCancel={() => setGroupPagesPopoverOpen(false)}
       />
     </Shell>
   );

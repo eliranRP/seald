@@ -305,27 +305,33 @@ describe('DocumentPage', () => {
     expect(next).toHaveLength(0);
   });
 
-  it('duplicates every selected field with a paste offset when the group Duplicate button is clicked', () => {
+  it('opens the Place-on-pages popover when the group Duplicate button is clicked and clones the group across target pages', () => {
     const fields: ReadonlyArray<PlacedFieldValue> = [
       { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
       { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
     ];
     const onFieldsChange = vi.fn();
-    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange, totalPages: 4 });
     const sig = screen.getByRole('group', { name: /signature field for/i });
     const date = screen.getByRole('group', { name: /date field for/i });
     fireEvent.click(sig);
     fireEvent.click(date, { shiftKey: true });
     fireEvent.click(screen.getByRole('button', { name: /duplicate selected fields/i }));
+    // The Place-on-pages dialog opens instead of doing an in-place paste.
+    const dialog = screen.getByRole('dialog', { name: /place on/i });
+    expect(dialog).toBeInTheDocument();
+    // "All pages" is the default for multi-page docs; click Apply.
+    fireEvent.click(within(dialog).getByRole('button', { name: /apply/i }));
     const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
-    // Original 2 + 2 clones.
-    expect(next).toHaveLength(4);
-    // Clones carry the same signer assignments as their originals.
-    const cloneSigners = next.slice(2).map((f) => f.signerIds);
-    expect(cloneSigners).toEqual([['a'], ['b']]);
-    // Clones are offset so they don't land directly on the originals.
-    expect(next[2]?.x).toBeGreaterThan(20);
-    expect(next[3]?.x).toBeGreaterThan(220);
+    // Originals (2) plus 2 clones per target page × 3 target pages (2,3,4) = 8.
+    expect(next).toHaveLength(2 + 2 * 3);
+    // Clones land on pages 2, 3, 4 — one per original per target.
+    const clonePages = next.slice(2).map((f) => f.page);
+    expect(new Set(clonePages)).toEqual(new Set([2, 3, 4]));
+    // Each clone preserves its original's signer assignment + coordinates.
+    const cloneOnP2 = next.slice(2).filter((f) => f.page === 2);
+    expect(cloneOnP2.map((f) => f.signerIds)).toEqual([['a'], ['b']]);
+    expect(cloneOnP2.map((f) => f.x)).toEqual([20, 220]);
   });
 
   it('clicking background after a group click breaks the group; a subsequent click selects one', () => {
