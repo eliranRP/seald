@@ -8,18 +8,18 @@ export * from './components/Avatar';
 export * from './components/Badge';
 export * from './components/Button';
 export * from './components/Card';
+export * from './components/DocThumb';
 export * from './components/Icon';
+export * from './components/SignatureMark';
 export * from './components/TextField';
 
 // ————— L2 Domain —————
-export * from './components/DocThumb';
-export * from './components/SignatureMark';
+export * from './components/SignatureField';
+export * from './components/SignerRow';
 export * from './components/StatusBadge';
 
 // ————— L3 Widgets —————
-export * from './components/SignatureField';
 export * from './components/SignaturePad';
-export * from './components/SignerRow';
 
 // ————— Providers —————
 export { SealdThemeProvider } from './providers/SealdThemeProvider';
