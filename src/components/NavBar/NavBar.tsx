@@ -1,19 +1,16 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
-import { Bell, Search, UserMinus, UserPlus } from 'lucide-react';
 import { Avatar } from '../Avatar';
 import type { NavBarProps, NavItem } from './NavBar.types';
 import {
   DefaultWordmark,
   Header,
-  IconButton,
   LogoMark,
   LogoSlot,
   Nav,
   NavItemButton,
   NavItemLink,
   RightCluster,
-  SearchPill,
   Spacer,
 } from './NavBar.styles';
 
@@ -61,18 +58,9 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     items = DEFAULT_ITEMS,
     activeItemId = 'documents',
     onSelectItem,
-    onSearch,
-    onBellClick,
-    bellIcon,
-    searchIcon,
     user,
-    onAddContact,
-    onRemoveContact,
     ...rest
   } = props;
-
-  const BellGlyph = bellIcon ?? Bell;
-  const SearchGlyph = searchIcon ?? Search;
 
   // Default logo composes an indigo mark + serif wordmark so the brand has a
   // visual anchor in the bar instead of relying on text alone. Consumers can
@@ -121,27 +109,6 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
       </Nav>
       <Spacer />
       <RightCluster>
-        {onAddContact ? (
-          <IconButton type="button" aria-label="Add contact" onClick={() => onAddContact()}>
-            <UserPlus size={18} strokeWidth={1.75} aria-hidden="true" />
-          </IconButton>
-        ) : null}
-        {onRemoveContact ? (
-          <IconButton type="button" aria-label="Remove contact" onClick={() => onRemoveContact()}>
-            <UserMinus size={18} strokeWidth={1.75} aria-hidden="true" />
-          </IconButton>
-        ) : null}
-        {onSearch ? (
-          <SearchPill type="button" aria-label="Open command palette" onClick={() => onSearch()}>
-            <SearchGlyph size={14} strokeWidth={1.75} aria-hidden="true" />
-            <span>⌘K</span>
-          </SearchPill>
-        ) : null}
-        {onBellClick ? (
-          <IconButton type="button" aria-label="Notifications" onClick={() => onBellClick()}>
-            <BellGlyph size={18} strokeWidth={1.75} aria-hidden="true" />
-          </IconButton>
-        ) : null}
         {user ? <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} /> : null}
       </RightCluster>
     </Header>

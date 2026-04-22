@@ -1146,8 +1146,6 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       <NavBar
         activeItemId={activeNavId}
         onSelectItem={onSelectNavItem}
-        onAddContact={() => setAddSignerOpen(true)}
-        onRemoveContact={() => setAddSignerOpen(true)}
         {...(user ? { user } : {})}
         {...(logoNode ? { logo: logoNode } : {})}
       />

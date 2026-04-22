@@ -23,20 +23,6 @@ describe('NavBar', () => {
     expect(id).toBe('templates');
   });
 
-  it('fires onSearch when the search pill is clicked', async () => {
-    const onSearch = vi.fn();
-    const { getByRole } = renderWithTheme(<NavBar onSearch={onSearch} />);
-    await userEvent.click(getByRole('button', { name: /command palette/i }));
-    expect(onSearch).toHaveBeenCalledTimes(1);
-  });
-
-  it('fires onBellClick when the bell is clicked', async () => {
-    const onBellClick = vi.fn();
-    const { getByRole } = renderWithTheme(<NavBar onBellClick={onBellClick} />);
-    await userEvent.click(getByRole('button', { name: 'Notifications' }));
-    expect(onBellClick).toHaveBeenCalledTimes(1);
-  });
-
   it('renders Avatar only when user prop is provided', () => {
     const { queryByRole, rerender } = renderWithTheme(<NavBar />);
     expect(queryByRole('img', { name: 'Jamie Okonkwo' })).toBeNull();
