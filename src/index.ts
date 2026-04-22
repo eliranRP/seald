@@ -36,6 +36,10 @@ export * from './components/SideBar';
 export * from './components/SignaturePad';
 export * from './components/SignersPanel';
 
+// ————— L4 Pages —————
+export * from './pages/UploadPage';
+export * from './pages/DocumentPage';
+
 // ————— Providers —————
 export { SealdThemeProvider } from './providers/SealdThemeProvider';
 export type { SealdThemeProviderProps } from './providers/SealdThemeProvider';

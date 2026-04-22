@@ -109,6 +109,12 @@ module.exports = {
             ],
             message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
           },
+          // L0-L3 (styles + components) must not import from L4 pages.
+          {
+            target: ['./src/styles', './src/components'],
+            from: './src/pages',
+            message: 'Layer boundary: components and styles must not import from L4 pages.',
+          },
         ],
       },
     ],
