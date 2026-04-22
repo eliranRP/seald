@@ -1,6 +1,6 @@
 import { forwardRef, useCallback, useMemo, useRef, useState } from 'react';
 import type { DragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Copy, X as XIcon } from 'lucide-react';
 import { AddSignerDropdown } from '../../components/AddSignerDropdown';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import { Button } from '../../components/Button';
@@ -27,6 +27,9 @@ import {
   Center,
   CenterHeader,
   CenterHeaderSide,
+  GroupToolbar,
+  GroupToolbarButton,
+  GroupToolbarLabel,
   MarqueeRect,
   RightRailFooter,
   RightRailInner,
@@ -166,6 +169,35 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     () => (selectedIds.length === 1 ? (selectedIds[0] ?? null) : null),
     [selectedIds],
   );
+
+  // Axis-aligned bounding box of the multi-field selection on the current
+  // page. Used to anchor the group toolbar (Duplicate/Remove-all) above the
+  // selection. Null when there's no group on this page.
+  const groupToolbarRect = useMemo<{
+    readonly x: number;
+    readonly y: number;
+    readonly w: number;
+  } | null>(() => {
+    if (selectedIds.length < 2) return null;
+    const picked = fields.filter((f) => f.page === currentPage && selectedIds.includes(f.id));
+    if (picked.length < 2) return null;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    for (const f of picked) {
+      const fw = f.width ?? FIELD_WIDTH;
+      if (f.x < minX) minX = f.x;
+      if (f.y < minY) minY = f.y;
+      if (f.x + fw > maxX) maxX = f.x + fw;
+    }
+    // Guard against non-finite coords (e.g. synthetic drops in tests where
+    // clientX/Y are absent). Rendering Infinity into CSS `left` triggers a
+    // React warning, so skip the toolbar in that case.
+    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX)) {
+      return null;
+    }
+    return { x: minX, y: minY, w: maxX - minX };
+  }, [fields, currentPage, selectedIds]);
 
   const signerPopoverField = useMemo(
     () => (signerPopoverFor ? fields.find((f) => f.id === signerPopoverFor) : undefined),
@@ -372,6 +404,36 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [fields, onFieldsChange, pagesPopoverFor, selectedIds, signerPopoverFor],
   );
 
+  // --------------------------------------------------------- group actions
+  // When more than one field is selected, expose Duplicate-all and Remove-all
+  // so users don't have to act on each field individually.
+  const removeSelectedGroup = useCallback((): void => {
+    if (selectedIds.length < 2) return;
+    onFieldsChange(fields.filter((f) => !selectedIds.includes(f.id)));
+    setSelectedIds([]);
+    setSignerPopoverFor(null);
+    setPagesPopoverFor(null);
+  }, [fields, onFieldsChange, selectedIds]);
+
+  const duplicateSelectedGroup = useCallback((): void => {
+    if (selectedIds.length < 2) return;
+    // Classic paste-offset so duplicates sit visually adjacent to originals
+    // without landing exactly on top of them.
+    const OFFSET = 16;
+    const clones: ReadonlyArray<PlacedFieldValue> = fields
+      .filter((f) => selectedIds.includes(f.id))
+      .map((f) => ({
+        ...f,
+        id: makeId(),
+        x: f.x + OFFSET,
+        y: f.y + OFFSET,
+      }));
+    onFieldsChange([...fields, ...clones]);
+    // Re-select the freshly-cloned group so the user can immediately move,
+    // duplicate again, or delete the new copies as a unit.
+    setSelectedIds(clones.map((c) => c.id));
+  }, [fields, onFieldsChange, selectedIds]);
+
   const applySignerSelection = useCallback(
     (ids: ReadonlyArray<string>): void => {
       if (!signerPopoverFor) return;
@@ -566,6 +628,37 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                       height: marqueeRect.h,
                     }}
                   />
+                ) : null}
+                {groupToolbarRect ? (
+                  <GroupToolbar
+                    data-testid="group-toolbar"
+                    style={{
+                      left: groupToolbarRect.x,
+                      top: Math.max(0, groupToolbarRect.y - 40),
+                      // Let the toolbar hug its content; the anchoring `left`
+                      // places it at the left edge of the bounding box.
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <GroupToolbarLabel>{selectedIds.length} selected</GroupToolbarLabel>
+                    <GroupToolbarButton
+                      type="button"
+                      $tone="indigo"
+                      aria-label="Duplicate selected fields"
+                      onClick={duplicateSelectedGroup}
+                    >
+                      <Copy size={14} strokeWidth={1.75} aria-hidden />
+                    </GroupToolbarButton>
+                    <GroupToolbarButton
+                      type="button"
+                      $tone="danger"
+                      aria-label="Delete selected fields"
+                      onClick={removeSelectedGroup}
+                    >
+                      <XIcon size={14} strokeWidth={1.75} aria-hidden />
+                    </GroupToolbarButton>
+                  </GroupToolbar>
                 ) : null}
               </DocumentCanvas>
             </CanvasWrap>

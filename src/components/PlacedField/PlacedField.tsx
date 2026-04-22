@@ -28,6 +28,7 @@ import {
   RequiredToggle,
   ResizeHandle,
   Root,
+  SelectionToolbar,
   Tile,
   TileEyebrow,
   TileHeader,
@@ -356,38 +357,42 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
   if (selected && !inGroup) {
     selectionOrnaments = (
       <>
-        <AssignBubble type="button" aria-label="Assign signers" onClick={handleOpenSigners}>
-          <Users size={12} strokeWidth={1.75} aria-hidden />
-          Assign signers
-          <ChevronDown size={12} strokeWidth={1.75} aria-hidden />
-        </AssignBubble>
-        <ControlsRight>
-          <RequiredToggle
-            type="button"
-            $on={required}
-            aria-label={required ? 'Mark field optional' : 'Mark field required'}
-            aria-pressed={required}
-            onClick={handleToggleRequired}
-          >
-            <Asterisk size={12} strokeWidth={2.25} aria-hidden />
-          </RequiredToggle>
-          <ControlButton
-            type="button"
-            $tone="indigo"
-            aria-label="Duplicate field to pages"
-            onClick={handleDuplicate}
-          >
-            <Copy size={12} strokeWidth={1.75} aria-hidden />
-          </ControlButton>
-          <ControlButton
-            type="button"
-            $tone="danger"
-            aria-label="Delete field"
-            onClick={handleDelete}
-          >
-            <X size={12} strokeWidth={1.75} aria-hidden />
-          </ControlButton>
-        </ControlsRight>
+        {/* All selection controls live in one horizontal row above the field
+            so the action buttons can never overlap the Assign-signers pill. */}
+        <SelectionToolbar>
+          <AssignBubble type="button" aria-label="Assign signers" onClick={handleOpenSigners}>
+            <Users size={12} strokeWidth={1.75} aria-hidden />
+            Assign signers
+            <ChevronDown size={12} strokeWidth={1.75} aria-hidden />
+          </AssignBubble>
+          <ControlsRight>
+            <RequiredToggle
+              type="button"
+              $on={required}
+              aria-label={required ? 'Mark field optional' : 'Mark field required'}
+              aria-pressed={required}
+              onClick={handleToggleRequired}
+            >
+              <Asterisk size={12} strokeWidth={2.25} aria-hidden />
+            </RequiredToggle>
+            <ControlButton
+              type="button"
+              $tone="indigo"
+              aria-label="Duplicate field to pages"
+              onClick={handleDuplicate}
+            >
+              <Copy size={12} strokeWidth={1.75} aria-hidden />
+            </ControlButton>
+            <ControlButton
+              type="button"
+              $tone="danger"
+              aria-label="Delete field"
+              onClick={handleDelete}
+            >
+              <X size={12} strokeWidth={1.75} aria-hidden />
+            </ControlButton>
+          </ControlsRight>
+        </SelectionToolbar>
         <Halo aria-hidden />
         <ResizeHandle
           type="button"

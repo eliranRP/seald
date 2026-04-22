@@ -27,10 +27,25 @@ export const Root = styled.div<{
   }
 `;
 
-export const AssignBubble = styled.button`
+/**
+ * Floating toolbar row above the selected field. Houses the Assign-signers
+ * pill AND the action buttons (required toggle, duplicate, delete) in one
+ * flex row so they can never overlap — even when the field is narrower than
+ * the toolbar content. The row is allowed to extend past the field's right
+ * edge instead of stacking its children on top of each other.
+ */
+export const SelectionToolbar = styled.div`
   position: absolute;
-  top: -32px;
+  top: -34px;
   left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  z-index: 6;
+`;
+
+export const AssignBubble = styled.button`
   padding: 5px 10px;
   background: ${({ theme }) => theme.color.ink[900]};
   color: ${({ theme }) => theme.color.fg.inverse};
@@ -53,10 +68,7 @@ export const AssignBubble = styled.button`
 `;
 
 export const ControlsRight = styled.div`
-  position: absolute;
-  top: -30px;
-  right: 0;
-  display: flex;
+  display: inline-flex;
   gap: 4px;
 `;
 

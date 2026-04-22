@@ -82,3 +82,51 @@ export const MarqueeRect = styled.div`
   border-radius: ${({ theme }) => theme.radius.sm};
   z-index: 1;
 `;
+
+/**
+ * Floating toolbar shown above the bounding box of a multi-field selection.
+ * Lets the user duplicate or delete every selected field at once instead of
+ * having to do it one field at a time.
+ */
+export const GroupToolbar = styled.div`
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[1]};
+  padding: 4px;
+  background: ${({ theme }) => theme.color.ink[900]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  z-index: 6;
+`;
+
+export const GroupToolbarLabel = styled.span`
+  padding: 0 ${({ theme }) => theme.space[2]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+`;
+
+export const GroupToolbarButton = styled.button<{ readonly $tone: 'indigo' | 'danger' }>`
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: ${({ $tone, theme }) =>
+    $tone === 'danger' ? theme.color.danger[500] : theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  &:hover {
+    filter: brightness(1.08);
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;

@@ -285,6 +285,49 @@ describe('DocumentPage', () => {
     expect(screen.queryByRole('button', { name: /delete field/i })).not.toBeInTheDocument();
   });
 
+  it('shows a group toolbar when 2+ fields are selected and bulk-deletes on click', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+    // Group toolbar appears with the selection count + bulk actions.
+    expect(screen.getByTestId('group-toolbar')).toBeInTheDocument();
+    expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /delete selected fields/i }));
+    // Both fields are removed in a single change.
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(0);
+  });
+
+  it('duplicates every selected field with a paste offset when the group Duplicate button is clicked', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    const date = screen.getByRole('group', { name: /date field for/i });
+    fireEvent.click(sig);
+    fireEvent.click(date, { shiftKey: true });
+    fireEvent.click(screen.getByRole('button', { name: /duplicate selected fields/i }));
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    // Original 2 + 2 clones.
+    expect(next).toHaveLength(4);
+    // Clones carry the same signer assignments as their originals.
+    const cloneSigners = next.slice(2).map((f) => f.signerIds);
+    expect(cloneSigners).toEqual([['a'], ['b']]);
+    // Clones are offset so they don't land directly on the originals.
+    expect(next[2]?.x).toBeGreaterThan(20);
+    expect(next[3]?.x).toBeGreaterThan(220);
+  });
+
   it('clicking background after a group click breaks the group; a subsequent click selects one', () => {
     const fields: ReadonlyArray<PlacedFieldValue> = [
       { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
