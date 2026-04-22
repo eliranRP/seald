@@ -62,20 +62,190 @@ function LeftRail({ active='sent', onNew }) {
 }
 
 function UploadScreen({ onNext }) {
+  // Loader states: idle → uploading → analyzing → ready
+  const [phase, setPhase] = useState('idle'); // 'idle' | 'uploading' | 'analyzing' | 'ready'
+  const [progress, setProgress] = useState(0);
+  const [fileMeta, setFileMeta] = useState(null); // {name, size, pages}
+  const [dragHover, setDragHover] = useState(false);
+
+  const startUpload = (meta) => {
+    setFileMeta(meta);
+    setPhase('uploading');
+    setProgress(0);
+    // Simulate an upload: 0 → 100 over ~1.6s
+    let p = 0;
+    const tick = () => {
+      p = Math.min(100, p + (8 + Math.random()*12));
+      setProgress(p);
+      if (p < 100) setTimeout(tick, 90 + Math.random()*60);
+      else {
+        // Move to analyzing for ~1s, then ready
+        setPhase('analyzing');
+        setTimeout(() => {
+          setPhase('ready');
+          // Auto-advance after a beat so the user sees the "ready" confirmation
+          setTimeout(() => onNext && onNext(), 650);
+        }, 950);
+      }
+    };
+    setTimeout(tick, 180);
+  };
+
+  const pickFile = () => {
+    // In a real app we'd open <input type="file">. Here: simulate a demo file.
+    startUpload({ name: 'Master Services Agreement.pdf', size: 482348, pages: 4 });
+  };
+
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragHover(false);
+    const f = e.dataTransfer?.files?.[0];
+    if (f) {
+      startUpload({ name: f.name || 'Document.pdf', size: f.size || 500000, pages: 4 });
+    } else {
+      pickFile();
+    }
+  };
+
+  const phaseLabel = phase === 'uploading' ? `Uploading · ${Math.round(progress)}%`
+                   : phase === 'analyzing' ? 'Analyzing pages…'
+                   : phase === 'ready'     ? 'Ready to place fields'
+                   : null;
+  const isBusy = phase !== 'idle' && phase !== 'ready';
+  const isReady = phase === 'ready';
+
   return (
     <div style={{padding:'48px 48px 80px', maxWidth:960, margin:'0 auto'}}>
       <div style={{fontFamily:'var(--font-serif)', fontSize:40, fontWeight:500, color:'var(--fg-1)', letterSpacing:'-0.02em', lineHeight:1.1}}>Start a new document</div>
       <div style={{fontSize:16, color:'var(--fg-3)', marginTop:10, lineHeight:1.55}}>Drop a PDF, or choose from your computer. We'll walk you through placing signature fields and sending it off.</div>
-      <div style={{marginTop:32, background:'#fff', border:'1.5px dashed var(--indigo-300)', borderRadius:28, padding:'56px 32px', textAlign:'center'}}>
-        <div style={{width:64,height:64,borderRadius:999,background:'var(--indigo-50)',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--indigo-600)',marginBottom:20}}><Icon name="upload-cloud" size={28}/></div>
-        <div style={{fontFamily:'var(--font-serif)',fontSize:24,fontWeight:500,color:'var(--fg-1)'}}>Drop your PDF here</div>
-        <div style={{fontSize:14,color:'var(--fg-3)',marginTop:8}}>or choose a file from your computer · up to 25 MB</div>
-            <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:24}}>
-          <Button variant="primary" onClick={onNext}>Choose file</Button>
+
+      {phase === 'idle' && (
+        <div
+          onDragOver={(e)=>{ e.preventDefault(); setDragHover(true); }}
+          onDragLeave={()=>setDragHover(false)}
+          onDrop={onDrop}
+          style={{
+            marginTop:32, background:'#fff',
+            border:`1.5px dashed ${dragHover?'var(--indigo-500)':'var(--indigo-300)'}`,
+            borderRadius:28, padding:'56px 32px', textAlign:'center',
+            transition:'border-color 160ms, background 160ms',
+            ...(dragHover ? { background:'var(--indigo-50)' } : {}),
+          }}
+        >
+          <div style={{width:64,height:64,borderRadius:999,background:'var(--indigo-50)',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--indigo-600)',marginBottom:20}}><Icon name="upload-cloud" size={28}/></div>
+          <div style={{fontFamily:'var(--font-serif)',fontSize:24,fontWeight:500,color:'var(--fg-1)'}}>Drop your PDF here</div>
+          <div style={{fontSize:14,color:'var(--fg-3)',marginTop:8}}>or choose a file from your computer · up to 25 MB</div>
+          <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:24}}>
+            <Button variant="primary" onClick={pickFile}>Choose file</Button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {phase !== 'idle' && (
+        <div style={{marginTop:32, background:'#fff', border:'1px solid var(--border-1)', borderRadius:28, padding:'40px 40px 36px', display:'flex', gap:28, alignItems:'center'}}>
+          {/* Left: animated document skeleton */}
+          <div style={{flexShrink:0, position:'relative', width:120, height:156, background:'var(--ink-50)', border:'1px solid var(--border-1)', borderRadius:10, padding:14, boxShadow:'var(--shadow-paper)', overflow:'hidden'}}>
+            {/* Corner fold */}
+            <div style={{position:'absolute', top:0, right:0, width:18, height:18, background:'linear-gradient(225deg, var(--ink-100) 50%, transparent 50%)'}}/>
+            {[...Array(7)].map((_,i)=>(
+              <div key={i} style={{height:4, borderRadius:2, background:'var(--ink-200)', margin:'7px 0', width:`${90 - (i*8)%40}%`}}/>
+            ))}
+            {/* Scanning bar */}
+            {isBusy && (
+              <div style={{
+                position:'absolute', left:0, right:0, height:36,
+                background:'linear-gradient(180deg, transparent, rgba(99,102,241,0.22), transparent)',
+                animation:'scanline 1.6s var(--ease-standard) infinite',
+              }}/>
+            )}
+            {isReady && (
+              <div style={{position:'absolute', inset:0, background:'rgba(16,185,129,0.08)', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                <div style={{width:40, height:40, borderRadius:999, background:'var(--success-500)', color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center'}}>
+                  <Icon name="check" size={22}/>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right: status + progress + filename */}
+          <div style={{flex:1, minWidth:0}}>
+            <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:4}}>
+              <Icon name="file-text" size={16} style={{color:'var(--fg-3)'}}/>
+              <div style={{fontSize:15, fontWeight:600, color:'var(--fg-1)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{fileMeta?.name}</div>
+              <div style={{fontSize:12, color:'var(--fg-3)', fontFamily:'var(--font-mono)'}}>{fileMeta ? formatBytes(fileMeta.size) : ''}</div>
+            </div>
+            <div style={{fontFamily:'var(--font-serif)', fontSize:24, fontWeight:500, color:'var(--fg-1)', marginTop:10, lineHeight:1.2}}>
+              {phase === 'uploading' && 'Uploading your document'}
+              {phase === 'analyzing' && 'Reading the pages'}
+              {phase === 'ready'     && 'Ready to place fields'}
+            </div>
+            <div style={{fontSize:13, color:'var(--fg-3)', marginTop:6, lineHeight:1.5}}>
+              {phase === 'uploading' && 'Securely transferring to Sealed. Your document is encrypted end-to-end.'}
+              {phase === 'analyzing' && `Detecting pages, signature lines, and text blocks${fileMeta?.pages ? ` — ${fileMeta.pages} pages found` : ''}.`}
+              {phase === 'ready'     && 'Taking you to the editor.'}
+            </div>
+
+            {/* Progress bar */}
+            <div style={{marginTop:20, height:6, borderRadius:999, background:'var(--ink-100)', overflow:'hidden', position:'relative'}}>
+              <div style={{
+                height:'100%',
+                width: phase==='uploading' ? `${progress}%`
+                      : phase==='analyzing' ? '100%'
+                      : '100%',
+                background: isReady ? 'var(--success-500)' : 'var(--indigo-600)',
+                borderRadius:999,
+                transition: phase==='uploading' ? 'width 140ms linear' : 'width 280ms var(--ease-standard), background 220ms',
+                ...(phase==='analyzing' ? {
+                  background: 'linear-gradient(90deg, var(--indigo-400), var(--indigo-600), var(--indigo-400))',
+                  backgroundSize: '200% 100%',
+                  animation: 'indeterminate 1.2s linear infinite',
+                } : {}),
+              }}/>
+            </div>
+
+            {/* Stage pills */}
+            <div style={{marginTop:16, display:'flex', gap:18, fontSize:12, fontWeight:600}}>
+              {[
+                {k:'uploading', l:'Upload'},
+                {k:'analyzing', l:'Analyze'},
+                {k:'ready',     l:'Ready'},
+              ].map(s => {
+                const order = ['uploading','analyzing','ready'];
+                const active = s.k === phase;
+                const done = order.indexOf(phase) > order.indexOf(s.k);
+                return (
+                  <div key={s.k} style={{display:'flex', alignItems:'center', gap:6, color: active?'var(--fg-1)' : done?'var(--success-700)':'var(--fg-4)'}}>
+                    {done
+                      ? <span style={{width:14, height:14, borderRadius:999, background:'var(--success-500)', color:'#fff', display:'inline-flex', alignItems:'center', justifyContent:'center'}}><Icon name="check" size={10}/></span>
+                      : active
+                        ? <span className="sealed-spinner" style={{width:14, height:14, borderRadius:999, border:'2px solid var(--indigo-200)', borderTopColor:'var(--indigo-600)', display:'inline-block'}}/>
+                        : <span style={{width:14, height:14, borderRadius:999, border:'2px solid var(--border-1)', display:'inline-block'}}/>
+                    }
+                    {s.l}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Keyframes for loader animations */}
+      <style>{`
+        @keyframes scanline { 0%{ top:-36px } 100%{ top:100% } }
+        @keyframes indeterminate { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+        @keyframes spin { to { transform: rotate(360deg) } }
+        .sealed-spinner { animation: spin 0.8s linear infinite; }
+      `}</style>
     </div>
   );
+}
+
+function formatBytes(n) {
+  if (!n) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024*1024) return (n/1024).toFixed(0) + ' KB';
+  return (n/1024/1024).toFixed(1) + ' MB';
 }
 
 /* ============================================================
@@ -93,20 +263,127 @@ const FIELD_TYPES = [
 
 /* Semantic sign zones detected in the PDF — bottom-of-page signature lines.
    Fields dropped or dragged within SNAP_RADIUS px of a zone's center snap to it. */
-const SIGN_ZONES = {
-  1: [], // no sign zones on page 1
-  2: [],
-  3: [],
-  4: [
-    { x: 60,  y: 560, w: 200, h: 54, label: 'Signature — Client' },
-    { x: 272, y: 560, w: 200, h: 54, label: 'Signature — Counterparty' },
-    { x: 60,  y: 640, w: 180, h: 40, label: 'Date' },
-  ],
-};
+const SIGN_ZONES_LAST = [
+  { x: 60,  y: 560, w: 200, h: 54, label: 'Signature — Client' },
+  { x: 272, y: 560, w: 200, h: 54, label: 'Signature — Counterparty' },
+  { x: 60,  y: 640, w: 180, h: 40, label: 'Date' },
+];
+function getSignZonesForPage(page, total) {
+  return page === total ? SIGN_ZONES_LAST : [];
+}
 const SNAP_RADIUS = 28;        // snap to zone if within this many px of its top-left
 const ALIGN_SNAP  = 6;         // align to other fields within this many px
 
-function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages = 4 }) {
+/* One page of the stacked document canvas. Renders paper, body text lines,
+   signature lines (last page), sign zones, fields, guides, marquee, and
+   the palette drag-ghost all in a single positioned frame. */
+function PageCanvas({
+  pageNum, totalPages, isLast, zones, pageFields, signers, fields,
+  selectedFieldId, selectedIds, draggingId, dragType, dragHoverPos,
+  activeZone, guides, marquee, canvasRef,
+  onDragOver, onDrop, onBackgroundMouseDown,
+  onSelectField, onOpenSignerPopover, onOpenPagesPopover, onRemoveField,
+  onMoveField, onFieldDragStart, onFieldDragEnd, onUnlink,
+}) {
+  const marqueeHere = marquee && marquee.page === pageNum;
+  const ghostHere   = dragType && dragHoverPos && dragHoverPos.page === pageNum;
+  const showZones   = dragType || draggingId;
+  return (
+    <div
+      data-page={pageNum}
+      onDragOver={(e)=>onDragOver(e, pageNum)}
+      onDrop={(e)=>onDrop(e, pageNum)}
+      onMouseDown={(e)=>{ if (e.target === e.currentTarget) onBackgroundMouseDown(e); }}
+      style={{
+        width:560, minHeight:740, background:'#fff', borderRadius:6,
+        boxShadow:'var(--shadow-paper)', padding:'56px 64px',
+        position:'relative', userSelect:'none',
+      }}
+    >
+      <div style={{fontFamily:'var(--font-serif)', fontSize:22, fontWeight:500, color:'var(--fg-1)'}}>Master Services Agreement</div>
+      <div style={{fontSize:11,color:'var(--fg-3)',fontFamily:'var(--font-mono)',marginTop:4}}>DOC-8F3A-4291 · Page {pageNum} of {totalPages}</div>
+      <div style={{height:18}}/>
+      {[...Array(isLast ? 8 : 14)].map((_,i)=>(<div key={i} style={{height:6,borderRadius:2,background:'var(--ink-150)',margin:'8px 0',width:`${70+((i+pageNum)*7)%30}%`}}/>))}
+
+      {isLast && (
+        <div style={{position:'absolute', left:64, right:64, top:540, display:'flex', flexDirection:'column', gap:28}}>
+          <div style={{display:'flex', gap:12}}>
+            <div style={{flex:1}}>
+              <div style={{borderBottom:'1.5px solid var(--ink-300)', height:54}}/>
+              <div style={{fontSize:10, fontFamily:'var(--font-mono)', color:'var(--fg-3)', marginTop:6, letterSpacing:'0.04em'}}>CLIENT SIGNATURE</div>
+            </div>
+            <div style={{flex:1}}>
+              <div style={{borderBottom:'1.5px solid var(--ink-300)', height:54}}/>
+              <div style={{fontSize:10, fontFamily:'var(--font-mono)', color:'var(--fg-3)', marginTop:6, letterSpacing:'0.04em'}}>COUNTERPARTY SIGNATURE</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {zones.map((z, i) => {
+        const isActive = activeZone && activeZone.x===z.x && activeZone.y===z.y && ghostHere;
+        if (!showZones && !isActive) return null;
+        return (
+          <div key={i} style={{
+            position:'absolute', left:z.x, top:z.y, width:z.w, height:z.h,
+            border: `1.5px dashed ${isActive?'var(--success-500)':'var(--indigo-400)'}`,
+            background: isActive?'rgba(16,185,129,0.10)':'rgba(99,102,241,0.06)',
+            borderRadius:8, pointerEvents:'none', zIndex:1,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            fontSize:11, fontWeight:600, color: isActive?'var(--success-700)':'var(--indigo-700)',
+            transition:'background 120ms, border-color 120ms'
+          }}>
+            {isActive ? '✓ Snap here' : z.label}
+          </div>
+        );
+      })}
+
+      {ghostHere && (
+        <div style={{position:'absolute', left:dragHoverPos.x, top:dragHoverPos.y, width:132, height:54, border:'1.5px dashed var(--indigo-500)', background:'rgba(99,102,241,0.12)', borderRadius:6, pointerEvents:'none', zIndex:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:'var(--indigo-700)'}}>
+          {FIELD_TYPES.find(t=>t.k===dragType)?.l}
+        </div>
+      )}
+
+      {guides && draggingId && pageFields.some(f=>f.id===draggingId) && guides.v && guides.v.map((x,i)=>(
+        <div key={'gv'+i} style={{position:'absolute', left:x, top:0, bottom:0, width:1, background:'#EC4899', pointerEvents:'none', zIndex:9}}/>
+      ))}
+      {guides && draggingId && pageFields.some(f=>f.id===draggingId) && guides.h && guides.h.map((y,i)=>(
+        <div key={'gh'+i} style={{position:'absolute', top:y, left:0, right:0, height:1, background:'#EC4899', pointerEvents:'none', zIndex:9}}/>
+      ))}
+
+      {pageFields.map(field => (
+        <PlacedField
+          key={field.id}
+          field={field}
+          signers={signers}
+          selected={selectedFieldId===field.id || selectedIds.includes(field.id)}
+          inGroup={selectedIds.includes(field.id) && selectedIds.length>1}
+          canvasRef={{current: document.querySelector(`[data-page="${pageNum}"]`)}}
+          onSelect={(e)=>onSelectField(field, e)}
+          onOpenSignerPopover={(e)=>onOpenSignerPopover(field, e)}
+          onOpenPagesPopover={(e)=>onOpenPagesPopover(field, e)}
+          onRemove={()=>onRemoveField(field)}
+          onMove={(fid,nx,ny)=>onMoveField(field, fid, nx, ny)}
+          onDragStart={()=>onFieldDragStart(field)}
+          onDragEnd={()=>onFieldDragEnd(field)}
+          isDragging={draggingId===field.id || (selectedIds.includes(field.id) && selectedIds.length>1 && draggingId && selectedIds.includes(draggingId))}
+        />
+      ))}
+
+      {marqueeHere && (
+        <div style={{position:'absolute', left:Math.min(marquee.x1,marquee.x2), top:Math.min(marquee.y1,marquee.y2), width:Math.abs(marquee.x2-marquee.x1), height:Math.abs(marquee.y2-marquee.y1), border:'1.5px dashed var(--indigo-500)', background:'rgba(99,102,241,0.08)', borderRadius:4, pointerEvents:'none', zIndex:10}}/>
+      )}
+      {selectedIds.length>1 && !marqueeHere && pageFields.some(f=>selectedIds.includes(f.id)) && (
+        <div style={{position:'absolute', top:10, right:10, padding:'6px 8px 6px 12px', background:'var(--ink-900)', color:'#fff', borderRadius:999, fontSize:12, fontWeight:600, boxShadow:'var(--shadow-md)', display:'inline-flex', alignItems:'center', gap:8, zIndex:12}}>
+          <Icon name="link" size={12}/> {selectedIds.length} linked — move together
+          <button onClick={(e)=>{ e.stopPropagation(); onUnlink(); }} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',padding:'3px 9px',borderRadius:999,fontSize:11,fontWeight:600,cursor:'pointer'}}>Unlink</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages = 12 }) {
   const [signers, setSigners] = useState(() => [
     { id:'s1', contactId:'c1', name:'Eliran Azulay',    email:'eliran@azulay.co', color:'#F472B6' },
     { id:'s2', contactId:'c2', name:'Nitsan Yanovitch', email:'nitsan@yanov.co',  color:'#7DD3FC' },
@@ -144,7 +421,7 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
   // Returns { x, y, guides:{v,h}, zone }
   const snapAndAlign = (fieldId, nx, ny, page, width, height) => {
     // 1) Sign-zone snap (strongest — snap exactly if within SNAP_RADIUS)
-    const zones = SIGN_ZONES[page] || [];
+    const zones = getSignZonesForPage(page, totalPages);
     let bestZone = null, bestDist = Infinity;
     for (const z of zones) {
       const dx = (z.x) - nx, dy = (z.y) - ny;
@@ -203,31 +480,34 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
   const [dragType, setDragType] = useState(null);
   const [dragHoverPos, setDragHoverPos] = useState(null); // {x,y,page} preview ghost
 
-  const handleCanvasDragOver = (e) => {
+  const handleCanvasDragOver = (e, pageNum) => {
     e.preventDefault();
-    if (!dragType || !canvasRef.current) return;
-    const rect = canvasRef.current.getBoundingClientRect();
+    if (!dragType) return;
+    // Find the page element matching pageNum via data attribute
+    const pageEl = canvasRef.current?.querySelector(`[data-page="${pageNum}"]`);
+    if (!pageEl) return;
+    const rect = pageEl.getBoundingClientRect();
     const nx = e.clientX - rect.left - 60;
     const ny = e.clientY - rect.top - 22;
-    // show hovered zone if close
-    const zones = SIGN_ZONES[currentPage] || [];
+    const zones = getSignZonesForPage(pageNum, totalPages);
     let bestZone = null, bestDist = Infinity;
     for (const z of zones) {
       const d = Math.hypot(z.x - nx, z.y - ny);
       if (d < SNAP_RADIUS && d < bestDist) { bestZone = z; bestDist = d; }
     }
     setActiveZone(bestZone);
-    setDragHoverPos({ x: bestZone ? bestZone.x : nx, y: bestZone ? bestZone.y : ny });
+    setDragHoverPos({ x: bestZone ? bestZone.x : nx, y: bestZone ? bestZone.y : ny, page: pageNum });
   };
 
-  const handleCanvasDrop = (e) => {
+  const handleCanvasDrop = (e, pageNum) => {
     e.preventDefault();
     if (!dragType) return;
-    const rect = canvasRef.current.getBoundingClientRect();
+    const pageEl = canvasRef.current?.querySelector(`[data-page="${pageNum}"]`);
+    if (!pageEl) return;
+    const rect = pageEl.getBoundingClientRect();
     let x = e.clientX - rect.left - 60;
     let y = e.clientY - rect.top - 22;
-    // Snap to nearest sign zone on drop
-    const zones = SIGN_ZONES[currentPage] || [];
+    const zones = getSignZonesForPage(pageNum, totalPages);
     let bestZone = null, bestDist = Infinity;
     for (const z of zones) {
       const d = Math.hypot(z.x - x, z.y - y);
@@ -236,7 +516,7 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
     if (bestZone) { x = bestZone.x; y = bestZone.y; }
     const newField = {
       id: 'f'+Math.random().toString(36).slice(2,7),
-      page: currentPage, type: dragType, x, y,
+      page: pageNum, type: dragType, x, y,
       signerIds: signers.length === 1 ? [signers[0].id] : signers.map(s=>s.id),
     };
     setFields(fs => [...fs, newField]);
@@ -247,21 +527,47 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
     setDragHoverPos(null);
   };
 
+  // Update currentPage based on which page is most visible while scrolling
+  useEffect(() => {
+    const scroller = canvasRef.current?.closest('[data-canvas-scroll]');
+    if (!scroller) return;
+    const pageEls = () => Array.from(canvasRef.current?.querySelectorAll('[data-page]') || []);
+    const onScroll = () => {
+      const sRect = scroller.getBoundingClientRect();
+      const center = sRect.top + sRect.height / 2;
+      let best = 1, bestDist = Infinity;
+      for (const el of pageEls()) {
+        const r = el.getBoundingClientRect();
+        const elCenter = r.top + r.height / 2;
+        const d = Math.abs(elCenter - center);
+        if (d < bestDist) { bestDist = d; best = Number(el.getAttribute('data-page')); }
+      }
+      setCurrentPage(best);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    // initial check
+    const t = setTimeout(onScroll, 50);
+    return () => { scroller.removeEventListener('scroll', onScroll); clearTimeout(t); };
+  }, []);
+
+  // Scroll to a given page in the stacked canvas
+  const scrollToPage = (p) => {
+    const scroller = canvasRef.current?.closest('[data-canvas-scroll]');
+    const pageEl = canvasRef.current?.querySelector(`[data-page="${p}"]`);
+    if (scroller && pageEl) {
+      const top = pageEl.offsetTop - 72;
+      scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+    }
+    setCurrentPage(p);
+  };
+
   // Jump to next unfilled sign zone
   const jumpToNextSignZone = () => {
-    // find first page with a zone that has no field near it
     for (let p = 1; p <= totalPages; p++) {
-      for (const z of (SIGN_ZONES[p] || [])) {
+      for (const z of getSignZonesForPage(p, totalPages)) {
         const covered = fields.some(f => f.page === p && Math.hypot(f.x - z.x, f.y - z.y) < 40);
         if (!covered) {
-          setCurrentPage(p);
-          // scroll canvas into view so zone is visible
-          setTimeout(()=>{
-            if (canvasRef.current) {
-              const scroller = canvasRef.current.closest('[data-canvas-scroll]');
-              if (scroller) scroller.scrollTo({ top: Math.max(0, z.y - 120), behavior: 'smooth' });
-            }
-          }, 50);
+          scrollToPage(p);
           return;
         }
       }
@@ -324,180 +630,158 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
         </div>
       </CollapsibleRail>
 
-      {/* Center canvas */}
-      <div data-canvas-scroll="true" style={{flex:1, minWidth:0, overflow:'auto', padding:'24px 0', position:'relative'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:780,margin:'0 auto 16px',padding:'0 24px'}}>
-          <Button variant="ghost" icon="arrow-left" size="sm" onClick={onBack}>Back</Button>
-          <div style={{display:'inline-flex',alignItems:'center',gap:2,padding:'4px 6px',borderRadius:10,border:'1px solid var(--border-1)',background:'#fff'}}>
-            <button onClick={jumpToNextSignZone} title="Jump to next signature line" style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
-              <Icon name="target" size={14}/>
-            </button>
-            <span style={{width:1,height:16,background:'var(--border-1)',margin:'0 4px'}}/>
-            <button onClick={()=>setCurrentPage(p=>Math.max(1,p-1))} style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-left" size={14}/></button>
-            <span style={{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--fg-2)',padding:'0 6px',minWidth:40,textAlign:'center'}}>{currentPage} / {totalPages}</span>
-            <button onClick={()=>setCurrentPage(p=>Math.min(totalPages,p+1))} style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14}/></button>
-          </div>
-          <div style={{width:68}}/>
-        </div>
-
+      {/* Center canvas — scrollable, stacked multi-page */}
+      <div data-canvas-scroll="true" style={{flex:1, minWidth:0, overflow:'auto', padding:'24px 0 80px', position:'relative'}}>
+        {/* Sticky thumbnail strip on the right edge of the canvas area */}
         <div
-          ref={canvasRef}
-          onDragOver={handleCanvasDragOver}
-          onDrop={handleCanvasDrop}
-          onMouseDown={(e)=>{
-            // Start marquee selection on background
-            if (e.target !== e.currentTarget) return;
-            const rect = canvasRef.current.getBoundingClientRect();
-            const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
-            setMarquee({x1:sx,y1:sy,x2:sx,y2:sy});
-            const onMove_ = (ev) => {
-              const r = canvasRef.current.getBoundingClientRect();
-              setMarquee(m => m ? {...m, x2: ev.clientX - r.left, y2: ev.clientY - r.top} : m);
-            };
-            const onUp_ = (ev) => {
-              window.removeEventListener('mousemove', onMove_);
-              window.removeEventListener('mouseup', onUp_);
-              const r = canvasRef.current.getBoundingClientRect();
-              const ex = ev.clientX - r.left, ey = ev.clientY - r.top;
-              const x1 = Math.min(sx,ex), y1 = Math.min(sy,ey), x2 = Math.max(sx,ex), y2 = Math.max(sy,ey);
-              if (Math.abs(x2-x1) < 4 && Math.abs(y2-y1) < 4) { setMarquee(null); return; }
-              setFields(curr => {
-                const hit = curr.filter(f => {
-                  if (f.page !== currentPage) return false;
-                  const multi = f.signerIds.length > 1;
-                  const fw = (multi ? 132*2+8 : 132), fh = 54;
-                  return f.x < x2 && f.x + fw > x1 && f.y < y2 && f.y + fh > y1;
-                }).map(f=>f.id);
-                setSelectedIds(hit);
-                setSelectedFieldId(hit.length===1?hit[0]:null);
-                return curr;
-              });
-              setMarquee(null);
-            };
-            window.addEventListener('mousemove', onMove_);
-            window.addEventListener('mouseup', onUp_);
+          onClick={e=>e.stopPropagation()}
+          style={{
+            position:'sticky', top:60, float:'right', marginRight:12, marginTop:-36, zIndex:14,
+            width:64, maxHeight:'calc(100vh - 180px)', overflowY:'auto',
+            background:'rgba(255,255,255,0.94)', backdropFilter:'blur(8px)',
+            border:'1px solid var(--border-1)', borderRadius:14, padding:'8px 6px',
+            boxShadow:'var(--shadow-sm)',
+            display:'flex', flexDirection:'column', gap:6,
           }}
-          onClick={e=>{ e.stopPropagation(); if (e.target===e.currentTarget){ setSelectedFieldId(null); setSelectedIds([]); setSignerPopover(null); setPagesPopover(null); } }}
-          style={{width:560, minHeight:740, background:'#fff', borderRadius:6, boxShadow:'var(--shadow-paper)', padding:'56px 64px', position:'relative', margin:'0 auto', userSelect:'none'}}
         >
-          <div style={{fontFamily:'var(--font-serif)', fontSize:22, fontWeight:500, color:'var(--fg-1)'}}>Master Services Agreement</div>
-          <div style={{fontSize:11,color:'var(--fg-3)',fontFamily:'var(--font-mono)',marginTop:4}}>DOC-8F3A-4291 · Page {currentPage} of {totalPages}</div>
-          <div style={{height:18}}/>
-          {[...Array(currentPage===totalPages ? 8 : 14)].map((_,i)=>(<div key={i} style={{height:6,borderRadius:2,background:'var(--ink-150)',margin:'8px 0',width:`${70+(i*7)%30}%`}}/>))}
-
-          {/* Explicit signature lines on final page — the semantic anchor */}
-          {currentPage===totalPages && (
-            <div style={{position:'absolute', left:64, right:64, top:540, display:'flex', flexDirection:'column', gap:28}}>
-              <div style={{display:'flex', gap:12}}>
-                <div style={{flex:1}}>
-                  <div style={{borderBottom:'1.5px solid var(--ink-300)', height:54}}/>
-                  <div style={{fontSize:10, fontFamily:'var(--font-mono)', color:'var(--fg-3)', marginTop:6, letterSpacing:'0.04em'}}>CLIENT SIGNATURE</div>
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{borderBottom:'1.5px solid var(--ink-300)', height:54}}/>
-                  <div style={{fontSize:10, fontFamily:'var(--font-mono)', color:'var(--fg-3)', marginTop:6, letterSpacing:'0.04em'}}>COUNTERPARTY SIGNATURE</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Sign zones — semantic drop targets. Highlighted when hovered during drag. */}
-          {(SIGN_ZONES[currentPage] || []).map((z, i) => {
-            const isActive = activeZone && activeZone.x===z.x && activeZone.y===z.y;
-            const show = dragType || draggingId || isActive;
-            if (!show) return null;
+          <div style={{fontSize:10, fontWeight:600, color:'var(--fg-3)', textAlign:'center', letterSpacing:'0.06em', padding:'2px 0 6px', borderBottom:'1px solid var(--border-1)', marginBottom:2}}>
+            {currentPage}/{totalPages}
+          </div>
+          {Array.from({length:totalPages},(_,i)=>i+1).map(p=>{
+            const hasFields = fields.filter(f=>f.page===p).length;
+            const isCurrent = p === currentPage;
             return (
-              <div key={i} style={{
-                position:'absolute', left:z.x, top:z.y, width:z.w, height:z.h,
-                border: `1.5px dashed ${isActive?'var(--success-500)':'var(--indigo-400)'}`,
-                background: isActive?'rgba(16,185,129,0.10)':'rgba(99,102,241,0.06)',
-                borderRadius:8, pointerEvents:'none', zIndex:1,
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:11, fontWeight:600, color: isActive?'var(--success-700)':'var(--indigo-700)',
-                transition:'background 120ms, border-color 120ms'
+              <div key={p} onClick={()=>scrollToPage(p)} title={`Page ${p}`} style={{
+                position:'relative', width:52, height:66, borderRadius:4, background:'#fff', cursor:'pointer',
+                border:`1.5px solid ${isCurrent?'var(--indigo-600)':'var(--border-1)'}`,
+                boxShadow: isCurrent ? '0 0 0 2px rgba(99,102,241,0.18)' : 'none',
+                transition:'border-color 140ms, box-shadow 140ms',
+                display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'flex-end',
+                padding:'6px 4px 4px',
               }}>
-                {isActive ? '✓ Snap here' : z.label}
+                {/* mini skeleton lines */}
+                <div style={{position:'absolute', left:6, right:6, top:6, display:'flex', flexDirection:'column', gap:2}}>
+                  {[...Array(p===totalPages?4:6)].map((_,i)=>(
+                    <div key={i} style={{height:2, borderRadius:1, background:'var(--ink-150)', width:`${65+((i+p)*11)%30}%`}}/>
+                  ))}
+                </div>
+                {hasFields>0 && (
+                  <span style={{position:'absolute', top:3, right:3, minWidth:14, height:14, padding:'0 4px', borderRadius:999, background:'var(--indigo-600)', color:'#fff', fontSize:9, fontWeight:700, display:'inline-flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-mono)'}}>{hasFields}</span>
+                )}
+                <div style={{fontSize:10, fontFamily:'var(--font-mono)', color: isCurrent?'var(--indigo-700)':'var(--fg-3)', fontWeight:isCurrent?600:500}}>{p}</div>
               </div>
             );
           })}
-
-          {/* Ghost preview while dragging from palette */}
-          {dragType && dragHoverPos && (
-            <div style={{position:'absolute', left:dragHoverPos.x, top:dragHoverPos.y, width:132, height:54, border:'1.5px dashed var(--indigo-500)', background:'rgba(99,102,241,0.12)', borderRadius:6, pointerEvents:'none', zIndex:3, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:600, color:'var(--indigo-700)'}}>
-              {FIELD_TYPES.find(t=>t.k===dragType)?.l}
-            </div>
-          )}
-
-          {/* Alignment guides (magenta) */}
-          {guides && guides.v && guides.v.map((x,i)=>(
-            <div key={'gv'+i} style={{position:'absolute', left:x, top:0, bottom:0, width:1, background:'#EC4899', pointerEvents:'none', zIndex:9, boxShadow:'0 0 0 0.5px #EC4899'}}/>
-          ))}
-          {guides && guides.h && guides.h.map((y,i)=>(
-            <div key={'gh'+i} style={{position:'absolute', top:y, left:0, right:0, height:1, background:'#EC4899', pointerEvents:'none', zIndex:9}}/>
-          ))}
-
-          {/* Fields on current page */}
-          {fields.filter(f=>f.page===currentPage).map(field => (
-            <PlacedField
-              key={field.id}
-              field={field}
-              signers={signers}
-              selected={selectedFieldId===field.id || selectedIds.includes(field.id)}
-              inGroup={selectedIds.includes(field.id) && selectedIds.length>1}
-              canvasRef={canvasRef}
-              onSelect={(e)=>{
-                e.stopPropagation();
-                if (e.shiftKey || e.metaKey || e.ctrlKey) {
-                  setSelectedIds(xs => xs.includes(field.id) ? xs.filter(x=>x!==field.id) : [...xs, field.id]);
-                  setSelectedFieldId(null);
-                } else if (!selectedIds.includes(field.id)) {
-                  setSelectedFieldId(field.id); setSelectedIds([]);
-                }
-                setSignerPopover(null); setPagesPopover(null);
-              }}
-              onOpenSignerPopover={(e)=>{ e.stopPropagation(); setSignerPopover({fieldId:field.id, screenX:e.clientX, screenY:e.clientY}); }}
-              onOpenPagesPopover={(e)=>{ e.stopPropagation(); setPagesPopover({fieldId:field.id, screenX:e.clientX, screenY:e.clientY}); }}
-              onRemove={()=>removeField(field.id)}
-              onMove={(fid,nx,ny)=>{
-                const ids = selectedIds.includes(fid) && selectedIds.length>1 ? selectedIds : [fid];
-                const page = field.page;
-                // Snap/align the anchor field
-                const snap = snapAndAlign(fid, nx, ny, page, 132, 54);
-                setActiveZone(snap.zone);
-                setGuides(snap.guides);
-                setFields(fs => {
-                  if (ids.length===1) return fs.map(f=>f.id===fid?{...f,x:snap.x,y:snap.y}:f);
-                  const anchor = fs.find(f=>f.id===fid);
-                  const dx = snap.x - anchor.x, dy = snap.y - anchor.y;
-                  return fs.map(f => ids.includes(f.id) ? {...f, x:f.x+dx, y:f.y+dy} : f);
-                });
-              }}
-              onDragStart={()=>setDraggingId(field.id)}
-              onDragEnd={()=>{ setDraggingId(null); setGuides(null); setActiveZone(null); }}
-              isDragging={draggingId===field.id || (selectedIds.includes(field.id) && selectedIds.length>1 && draggingId && selectedIds.includes(draggingId))}
-            />
-          ))}
-
-          {/* Marquee */}
-          {marquee && (
-            <div style={{position:'absolute', left:Math.min(marquee.x1,marquee.x2), top:Math.min(marquee.y1,marquee.y2), width:Math.abs(marquee.x2-marquee.x1), height:Math.abs(marquee.y2-marquee.y1), border:'1.5px dashed var(--indigo-500)', background:'rgba(99,102,241,0.08)', borderRadius:4, pointerEvents:'none', zIndex:10}}/>
-          )}
-          {selectedIds.length>1 && !marquee && (
-            <div style={{position:'absolute', top:10, right:10, padding:'6px 8px 6px 12px', background:'var(--ink-900)', color:'#fff', borderRadius:999, fontSize:12, fontWeight:600, boxShadow:'var(--shadow-md)', display:'inline-flex', alignItems:'center', gap:8, zIndex:12}}>
-              <Icon name="link" size={12}/> {selectedIds.length} linked — move together
-              <button onClick={(e)=>{ e.stopPropagation(); setSelectedIds([]); setSelectedFieldId(null); }} style={{background:'rgba(255,255,255,0.15)',border:'none',color:'#fff',padding:'3px 9px',borderRadius:999,fontSize:11,fontWeight:600,cursor:'pointer'}}>Unlink</button>
-            </div>
-          )}
         </div>
 
-        {/* Page thumbnails */}
-        <div style={{display:'flex',gap:6,justifyContent:'center',marginTop:18}}>
-          {Array.from({length:totalPages},(_,i)=>i+1).map(p=>(
-            <div key={p} onClick={()=>setCurrentPage(p)} style={{width:34,height:44,borderRadius:4,background:'#fff',border:`1.5px solid ${currentPage===p?'var(--indigo-600)':'var(--border-1)'}`,display:'flex',alignItems:'flex-end',justifyContent:'center',fontSize:10,fontFamily:'var(--font-mono)',color:currentPage===p?'var(--indigo-700)':'var(--fg-3)',padding:'0 0 3px',cursor:'pointer',position:'relative'}}>
-              {p}
-              {fields.filter(f=>f.page===p).length>0 && <span style={{position:'absolute',top:3,right:3,width:6,height:6,borderRadius:999,background:'var(--indigo-600)'}}/>}
+        {/* Sticky toolbar at top of scroll area */}
+        <div style={{position:'sticky', top:0, zIndex:15, background:'linear-gradient(180deg, var(--ink-50) 78%, rgba(250,250,249,0))', paddingBottom:14}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',maxWidth:780,margin:'0 auto',padding:'0 24px'}}>
+            <Button variant="ghost" icon="arrow-left" size="sm" onClick={onBack}>Back</Button>
+            <div style={{display:'inline-flex',alignItems:'center',gap:2,padding:'4px 6px',borderRadius:10,border:'1px solid var(--border-1)',background:'#fff',boxShadow:'var(--shadow-sm)'}}>
+              <button onClick={jumpToNextSignZone} title="Jump to next signature line" style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}>
+                <Icon name="target" size={14}/>
+              </button>
+              <span style={{width:1,height:16,background:'var(--border-1)',margin:'0 4px'}}/>
+              <button onClick={()=>scrollToPage(Math.max(1,currentPage-1))} style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-left" size={14}/></button>
+              <span style={{fontSize:12,fontFamily:'var(--font-mono)',color:'var(--fg-2)',padding:'0 6px',minWidth:44,textAlign:'center'}}>{currentPage} / {totalPages}</span>
+              <button onClick={()=>scrollToPage(Math.min(totalPages,currentPage+1))} style={{width:26,height:26,border:'none',background:'transparent',borderRadius:6,cursor:'pointer',color:'var(--fg-2)',display:'inline-flex',alignItems:'center',justifyContent:'center'}}><Icon name="chevron-right" size={14}/></button>
             </div>
-          ))}
+            <div style={{width:68}}/>
+          </div>
+        </div>
+
+        <div ref={canvasRef} style={{position:'relative', display:'flex', flexDirection:'column', alignItems:'center', gap:24}}>
+          {Array.from({length: totalPages}, (_, i) => i + 1).map(pageNum => {
+            const isLast = pageNum === totalPages;
+            const zones = getSignZonesForPage(pageNum, totalPages);
+            const pageFields = fields.filter(f => f.page === pageNum);
+            return (
+              <PageCanvas
+                key={pageNum}
+                pageNum={pageNum}
+                totalPages={totalPages}
+                isLast={isLast}
+                zones={zones}
+                pageFields={pageFields}
+                signers={signers}
+                selectedFieldId={selectedFieldId}
+                selectedIds={selectedIds}
+                draggingId={draggingId}
+                dragType={dragType}
+                dragHoverPos={dragHoverPos}
+                activeZone={activeZone}
+                guides={guides}
+                marquee={marquee}
+                canvasRef={canvasRef}
+                fields={fields}
+                onDragOver={handleCanvasDragOver}
+                onDrop={handleCanvasDrop}
+                onBackgroundMouseDown={(e)=>{
+                  const pageEl = e.currentTarget;
+                  const rect = pageEl.getBoundingClientRect();
+                  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+                  setCurrentPage(pageNum);
+                  setMarquee({page: pageNum, x1:sx,y1:sy,x2:sx,y2:sy});
+                  const onMove_ = (ev) => {
+                    const r = pageEl.getBoundingClientRect();
+                    setMarquee(m => m ? {...m, x2: ev.clientX - r.left, y2: ev.clientY - r.top} : m);
+                  };
+                  const onUp_ = (ev) => {
+                    window.removeEventListener('mousemove', onMove_);
+                    window.removeEventListener('mouseup', onUp_);
+                    const r = pageEl.getBoundingClientRect();
+                    const ex = ev.clientX - r.left, ey = ev.clientY - r.top;
+                    const x1 = Math.min(sx,ex), y1 = Math.min(sy,ey), x2 = Math.max(sx,ex), y2 = Math.max(sy,ey);
+                    if (Math.abs(x2-x1) < 4 && Math.abs(y2-y1) < 4) { setMarquee(null); return; }
+                    setFields(curr => {
+                      const hit = curr.filter(f => {
+                        if (f.page !== pageNum) return false;
+                        const multi = f.signerIds.length > 1;
+                        const fw = (multi ? 132*2+8 : 132), fh = 54;
+                        return f.x < x2 && f.x + fw > x1 && f.y < y2 && f.y + fh > y1;
+                      }).map(f=>f.id);
+                      setSelectedIds(hit);
+                      setSelectedFieldId(hit.length===1?hit[0]:null);
+                      return curr;
+                    });
+                    setMarquee(null);
+                  };
+                  window.addEventListener('mousemove', onMove_);
+                  window.addEventListener('mouseup', onUp_);
+                }}
+                onSelectField={(field, e) => {
+                  e.stopPropagation();
+                  if (e.shiftKey || e.metaKey || e.ctrlKey) {
+                    setSelectedIds(xs => xs.includes(field.id) ? xs.filter(x=>x!==field.id) : [...xs, field.id]);
+                    setSelectedFieldId(null);
+                  } else if (!selectedIds.includes(field.id)) {
+                    setSelectedFieldId(field.id); setSelectedIds([]);
+                  }
+                  setSignerPopover(null); setPagesPopover(null);
+                }}
+                onOpenSignerPopover={(field, e)=>{ e.stopPropagation(); setSignerPopover({fieldId:field.id, screenX:e.clientX, screenY:e.clientY}); }}
+                onOpenPagesPopover={(field, e)=>{ e.stopPropagation(); setPagesPopover({fieldId:field.id, screenX:e.clientX, screenY:e.clientY}); }}
+                onRemoveField={(field)=>removeField(field.id)}
+                onMoveField={(field, fid, nx, ny) => {
+                  const ids = selectedIds.includes(fid) && selectedIds.length>1 ? selectedIds : [fid];
+                  const page = field.page;
+                  const snap = snapAndAlign(fid, nx, ny, page, 132, 54);
+                  setActiveZone(snap.zone);
+                  setGuides(snap.guides);
+                  setFields(fs => {
+                    if (ids.length===1) return fs.map(f=>f.id===fid?{...f,x:snap.x,y:snap.y}:f);
+                    const anchor = fs.find(f=>f.id===fid);
+                    const dx = snap.x - anchor.x, dy = snap.y - anchor.y;
+                    return fs.map(f => ids.includes(f.id) ? {...f, x:f.x+dx, y:f.y+dy} : f);
+                  });
+                }}
+                onFieldDragStart={(field)=>setDraggingId(field.id)}
+                onFieldDragEnd={()=>{ setDraggingId(null); setGuides(null); setActiveZone(null); }}
+                onUnlink={()=>{ setSelectedIds([]); setSelectedFieldId(null); }}
+              />
+            );
+          })}
         </div>
       </div>
 
