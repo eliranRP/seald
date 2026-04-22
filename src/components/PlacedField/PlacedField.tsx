@@ -132,6 +132,10 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       const isGroupMember = selected && inGroup;
       if (!isGroupMember) {
         onSelect?.(e);
+        // Mousedown already handled selection (including Cmd/Shift-click
+        // toggling). The browser will still fire a synthetic click afterwards,
+        // so suppress its onSelect call or the click would undo the toggle.
+        suppressNextClickRef.current = true;
       }
 
       onDragStart?.();
@@ -172,10 +176,12 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
         onDragEnd?.();
         // Group member that wasn't dragged → treat as a click and isolate it
         // to a single selection. A real drag skips this branch so the group
-        // stays intact after moving.
+        // stays intact after moving. Suppress the trailing click so it doesn't
+        // re-fire onSelect (which would, for Cmd/Shift-click, un-toggle the
+        // field we just toggled on).
         if (isGroupMember && !didDrag) {
-          suppressNextClickRef.current = false;
           onSelect?.(e);
+          suppressNextClickRef.current = true;
           return;
         }
         // Any successful drag suppresses the trailing click event the browser

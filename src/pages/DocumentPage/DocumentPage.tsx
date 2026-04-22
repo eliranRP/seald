@@ -27,6 +27,7 @@ import {
   Center,
   CenterHeader,
   CenterHeaderSide,
+  GroupBoundary,
   GroupToolbar,
   GroupToolbarButton,
   GroupToolbarLabel,
@@ -190,6 +191,15 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [fields],
   );
   const pagesWithFields = useMemo(() => Array.from(new Set(fields.map((f) => f.page))), [fields]);
+  // Per-kind tally of placed fields across the whole document. Passed to the
+  // FieldPalette so each row shows how many of that kind are currently placed.
+  const usageByKind = useMemo<Partial<Record<FieldKind, number>>>(() => {
+    const tally: Partial<Record<FieldKind, number>> = {};
+    fields.forEach((f) => {
+      tally[f.type] = (tally[f.type] ?? 0) + 1;
+    });
+    return tally;
+  }, [fields]);
   const existingContactIds = useMemo(
     () => signers.map((s) => s.id).filter((id) => contacts.some((c) => c.id === id)),
     [signers, contacts],
@@ -201,12 +211,15 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   );
 
   // Axis-aligned bounding box of the multi-field selection on the current
-  // page. Used to anchor the group toolbar (Duplicate/Remove-all) above the
-  // selection. Null when there's no group on this page.
-  const groupToolbarRect = useMemo<{
+  // page. Used to anchor BOTH the group toolbar (Duplicate/Remove-all) above
+  // the selection AND a dashed boundary rectangle drawn around it so users
+  // can see at a glance what's grouped. Null when there's no group on this
+  // page.
+  const groupRect = useMemo<{
     readonly x: number;
     readonly y: number;
     readonly w: number;
+    readonly h: number;
   } | null>(() => {
     if (selectedIds.length < 2) return null;
     const picked = fields.filter((f) => f.page === currentPage && selectedIds.includes(f.id));
@@ -214,19 +227,27 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     let minX = Infinity;
     let minY = Infinity;
     let maxX = -Infinity;
+    let maxY = -Infinity;
     for (const f of picked) {
       const fw = f.width ?? FIELD_WIDTH;
+      const fh = f.height ?? FIELD_HEIGHT;
       if (f.x < minX) minX = f.x;
       if (f.y < minY) minY = f.y;
       if (f.x + fw > maxX) maxX = f.x + fw;
+      if (f.y + fh > maxY) maxY = f.y + fh;
     }
     // Guard against non-finite coords (e.g. synthetic drops in tests where
     // clientX/Y are absent). Rendering Infinity into CSS `left` triggers a
     // React warning, so skip the toolbar in that case.
-    if (!Number.isFinite(minX) || !Number.isFinite(minY) || !Number.isFinite(maxX)) {
+    if (
+      !Number.isFinite(minX) ||
+      !Number.isFinite(minY) ||
+      !Number.isFinite(maxX) ||
+      !Number.isFinite(maxY)
+    ) {
       return null;
     }
-    return { x: minX, y: minY, w: maxX - minX };
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
   }, [fields, currentPage, selectedIds]);
 
   const signerPopoverField = useMemo(
@@ -785,6 +806,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
             <FieldPalette
               {...(availableFieldKinds ? { kinds: availableFieldKinds } : {})}
               {...(requiredFieldKinds ? { requiredKinds: requiredFieldKinds } : {})}
+              usageByKind={usageByKind}
               onFieldDragStart={handlePaletteDragStart}
               onFieldDragEnd={handlePaletteDragEnd}
             />
@@ -893,12 +915,26 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     style={g.orientation === 'v' ? { left: g.pos } : { top: g.pos }}
                   />
                 ))}
-                {groupToolbarRect ? (
+                {groupRect ? (
+                  // Dashed rectangle drawn around every selected field's
+                  // bounding box on the current page. Purely decorative —
+                  // pointer events pass through to the fields beneath.
+                  <GroupBoundary
+                    data-testid="group-boundary"
+                    style={{
+                      left: groupRect.x - 6,
+                      top: groupRect.y - 6,
+                      width: groupRect.w + 12,
+                      height: groupRect.h + 12,
+                    }}
+                  />
+                ) : null}
+                {groupRect ? (
                   <GroupToolbar
                     data-testid="group-toolbar"
                     style={{
-                      left: groupToolbarRect.x,
-                      top: Math.max(0, groupToolbarRect.y - 40),
+                      left: groupRect.x,
+                      top: Math.max(0, groupRect.y - 40),
                       // Let the toolbar hug its content; the anchoring `left`
                       // places it at the left edge of the bounding box.
                     }}

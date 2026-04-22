@@ -52,6 +52,23 @@ export const RowLabel = styled.span`
   flex: 1;
 `;
 
+/**
+ * Small mono-font pill showing how many fields of this kind are placed
+ * across the whole document. Sits next to the row label so users can tell
+ * at a glance which kinds they've already used.
+ */
+export const UsageBadge = styled.span`
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: 10px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  background: ${({ theme }) => theme.color.ink[50]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  padding: 1px 6px;
+  flex-shrink: 0;
+  line-height: 1.4;
+`;
+
 export const HintCard = styled.div`
   margin-top: ${({ theme }) => theme.space[4]};
   padding: ${({ theme }) => theme.space[3]};

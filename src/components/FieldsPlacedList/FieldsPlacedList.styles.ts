@@ -129,23 +129,6 @@ export const AvatarChip = styled.span<{ readonly $color: string; readonly $first
 `;
 
 /**
- * Small mono-font pill showing how many fields of this kind are placed across
- * the whole document. Rendered next to the label so users can tell at a
- * glance how many Email/Signature/Date fields exist.
- */
-export const UsageCount = styled.span`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 10px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  background: ${({ theme }) => theme.color.ink[50]};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  padding: 1px 6px;
-  flex-shrink: 0;
-  line-height: 1.4;
-`;
-
-/**
  * Inline action buttons rendered on the selected row only — Duplicate and
  * Remove. They sit alongside the page tag / avatars so the user can act on a
  * field from the side rail without needing to hunt the canvas overlay.

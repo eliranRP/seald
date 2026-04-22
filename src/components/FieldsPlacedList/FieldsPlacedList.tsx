@@ -22,7 +22,6 @@ import {
   RowAction,
   RowActions,
   Section,
-  UsageCount,
 } from './FieldsPlacedList.styles';
 
 const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: LucideIcon }> = {
@@ -74,23 +73,6 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
     return map;
   }, [signers]);
 
-  // Per-kind totals so each row can show "how many of this type exist in the
-  // document" without the parent having to compute and pass them in.
-  const usageByType = useMemo<Record<FieldKind, number>>(() => {
-    const tally: Record<FieldKind, number> = {
-      signature: 0,
-      initials: 0,
-      date: 0,
-      text: 0,
-      checkbox: 0,
-      email: 0,
-    };
-    fields.forEach((f) => {
-      tally[f.type] += 1;
-    });
-    return tally;
-  }, [fields]);
-
   const handleRowClick = (id: string) => (): void => {
     onSelectField?.(id);
   };
@@ -129,7 +111,6 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
             const visible = assigned.slice(0, MAX_AVATARS);
             const assignedNames = assigned.map((s) => s.name);
             const isSelected = selectedFieldId === field.id;
-            const usage = usageByType[field.type];
             return (
               <Item key={field.id}>
                 <Row
@@ -146,11 +127,6 @@ export const FieldsPlacedList = forwardRef<HTMLElement, FieldsPlacedListProps>((
                     aria-hidden
                   />
                   <Label>{meta.label}</Label>
-                  <UsageCount
-                    aria-label={`${String(usage)} ${meta.label} field${usage === 1 ? '' : 's'} in document`}
-                  >
-                    {`×${String(usage)}`}
-                  </UsageCount>
                   <PageTag>{`p${field.page}`}</PageTag>
                   <AvatarStack aria-hidden>
                     {visible.map((signer, i) => (

@@ -21,6 +21,7 @@ import {
   RowLabel,
   SectionHeaderNext,
   SectionHeaderTop,
+  UsageBadge,
 } from './FieldPalette.styles';
 
 const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: LucideIcon }> = {
@@ -43,6 +44,7 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
     onFieldDragEnd,
     onFieldActivate,
     hint,
+    usageByKind,
     ...rest
   } = props;
 
@@ -74,6 +76,7 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
   const renderRow = (kind: FieldKind): ReactNode => {
     const meta = FIELD_META[kind];
     const RowIcon = meta.icon;
+    const usage = usageByKind?.[kind] ?? 0;
     return (
       <Row
         key={kind}
@@ -87,6 +90,13 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
       >
         <RowIcon size={16} strokeWidth={1.75} color={seald.color.indigo[600]} aria-hidden />
         <RowLabel>{meta.label}</RowLabel>
+        {usage > 0 ? (
+          <UsageBadge
+            aria-label={`${String(usage)} ${meta.label} field${usage === 1 ? '' : 's'} placed in document`}
+          >
+            {`×${String(usage)}`}
+          </UsageBadge>
+        ) : null}
         <GripVertical size={16} strokeWidth={1.75} color={seald.color.fg[4]} aria-hidden />
       </Row>
     );

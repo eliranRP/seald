@@ -98,6 +98,22 @@ export const SnapGuide = styled.div<{ readonly $orientation: 'h' | 'v' }>`
 `;
 
 /**
+ * Dashed indigo rectangle drawn around the axis-aligned bounding box of a
+ * multi-field selection. Makes it obvious at a glance which fields are
+ * grouped, especially when the group's members are spread out or when
+ * individual field halos are hidden (as in group mode).
+ */
+export const GroupBoundary = styled.div`
+  position: absolute;
+  pointer-events: none;
+  border: 1.5px dashed ${({ theme }) => theme.color.indigo[500]};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  opacity: 0.35;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  z-index: 4;
+`;
+
+/**
  * Floating toolbar shown above the bounding box of a multi-field selection.
  * Lets the user duplicate or delete every selected field at once instead of
  * having to do it one field at a time.

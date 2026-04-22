@@ -598,20 +598,33 @@ describe('DocumentPage', () => {
     expect(next[0]?.id).toBe('f1');
   });
 
-  it('side-rail row exposes a usage count and inline Duplicate/Remove actions on the selected row', () => {
+  it('left palette shows a per-kind usage count reflecting how many fields of that kind are placed', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'signature', x: 200, y: 20, signerIds: ['b'] },
+      { id: 'f3', page: 1, type: 'date', x: 20, y: 120, signerIds: ['a'] },
+    ];
+    renderPage({ initialFields: fields });
+    const palette = screen.getByRole('region', { name: /field palette/i });
+    // Per-kind badge sits next to the row label and is only rendered when >0.
+    expect(
+      within(palette).getByLabelText(/2 signature fields placed in document/i),
+    ).toBeInTheDocument();
+    expect(within(palette).getByLabelText(/1 date field placed in document/i)).toBeInTheDocument();
+    // Unplaced kinds do not get a badge rendered at all.
+    expect(within(palette).queryByLabelText(/0 .* fields placed/i)).not.toBeInTheDocument();
+  });
+
+  it('side-rail selected row exposes inline Duplicate/Remove actions that act on that field only', () => {
     const fields: ReadonlyArray<PlacedFieldValue> = [
       { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
       { id: 'f2', page: 1, type: 'signature', x: 200, y: 20, signerIds: ['b'] },
     ];
     const onFieldsChange = vi.fn();
     renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
-    // The row exposes the total count of fields of this type across the doc.
     const listSection = screen.getByRole('region', { name: /fields placed/i });
-    expect(
-      within(listSection).getAllByLabelText(/2 signature fields in document/i).length,
-    ).toBeGreaterThan(0);
-    // Inline actions only appear for the selected row — click the canvas
-    // field to select it, then invoke Remove from the side rail.
+    // Inline actions only appear for the selected row — click the first
+    // canvas field to select it, then invoke Remove from the side rail.
     fireEvent.click(screen.getAllByRole('group', { name: /signature field for/i })[0] as Element);
     const removeButtons = within(listSection).getAllByRole('button', { name: /remove field/i });
     expect(removeButtons.length).toBe(1);
@@ -619,5 +632,37 @@ describe('DocumentPage', () => {
     const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
     expect(next).toHaveLength(1);
     expect(next[0]?.id).toBe('f2');
+  });
+
+  it('draws a dashed group-boundary rectangle around a multi-field selection', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 80, signerIds: ['b'] },
+    ];
+    renderPage({ initialFields: fields });
+    // No boundary with just one field selected.
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    expect(screen.queryByTestId('group-boundary')).not.toBeInTheDocument();
+    // Shift-click adds the second field — now the boundary appears.
+    fireEvent.click(screen.getByRole('group', { name: /date field for/i }), { shiftKey: true });
+    expect(screen.getByTestId('group-boundary')).toBeInTheDocument();
+  });
+
+  it('Cmd+click toggling a single field keeps it selected (mousedown+mouseup+click should not double-toggle)', () => {
+    // Guard against a regression where both PlacedField's mousedown AND the
+    // browser's trailing click both called onSelect — under Cmd+click that
+    // toggled the field on then immediately off, leaving no selection.
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+    ];
+    renderPage({ initialFields: fields });
+    const sig = screen.getByRole('group', { name: /signature field for/i });
+    // Simulate a full native click sequence: mousedown → mouseup → click.
+    fireEvent.mouseDown(sig, { button: 0, metaKey: true });
+    fireEvent.mouseUp(sig, { button: 0, metaKey: true });
+    fireEvent.click(sig, { metaKey: true });
+    // After Cmd+click the field must still be selected — proven by the
+    // selection-only "Assign signers" pill being visible.
+    expect(screen.getByRole('button', { name: /assign signers/i })).toBeInTheDocument();
   });
 });
