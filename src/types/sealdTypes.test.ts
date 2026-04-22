@@ -12,7 +12,7 @@ describe('sealdTypes', () => {
       'expired',
       'draft',
     ]);
-    expect(FIELD_KINDS).toEqual(['signature', 'initials', 'date', 'text', 'checkbox']);
+    expect(FIELD_KINDS).toEqual(['signature', 'initials', 'date', 'text', 'checkbox', 'email']);
     expect(SIGNATURE_MODES).toEqual(['type', 'draw', 'upload']);
   });
 

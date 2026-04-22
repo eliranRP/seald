@@ -8,7 +8,7 @@ export const SIGNER_STATUSES = [
 ] as const;
 export type SignerStatus = (typeof SIGNER_STATUSES)[number];
 
-export const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox'] as const;
+export const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox', 'email'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
 export const SIGNATURE_MODES = ['type', 'draw', 'upload'] as const;
