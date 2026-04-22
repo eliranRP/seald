@@ -1,4 +1,12 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { DragEvent, MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { ArrowLeft, Copy, X as XIcon } from 'lucide-react';
 import { AddSignerDropdown } from '../../components/AddSignerDropdown';
@@ -9,29 +17,36 @@ import { DocumentCanvas } from '../../components/DocumentCanvas';
 import { FieldPalette } from '../../components/FieldPalette';
 import { FieldsPlacedList } from '../../components/FieldsPlacedList';
 import { NavBar } from '../../components/NavBar';
-import { PageThumbStrip } from '../../components/PageThumbStrip';
+import { PageThumbRail } from '../../components/PageThumbRail';
 import { PageToolbar } from '../../components/PageToolbar';
 import { PlaceOnPagesPopover } from '../../components/PlaceOnPagesPopover';
 import type { PlacePagesMode } from '../../components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
 import { PlacedField } from '../../components/PlacedField';
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
+import { RemoveLinkedCopiesDialog } from '../../components/RemoveLinkedCopiesDialog';
+import type { RemoveLinkedScope } from '../../components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '../../components/SelectSignersPopover';
 import { SendPanelFooter } from '../../components/SendPanelFooter';
-import { SideBar } from '../../components/SideBar';
 import { SignersPanel } from '../../components/SignersPanel';
 import type { FieldKind } from '../../types/sealdTypes';
 import type { DocumentPageProps } from './DocumentPage.types';
 import {
   Body,
+  CanvasScaleInner,
+  CanvasScaler,
+  CanvasScroll,
   CanvasWrap,
   Center,
   CenterHeader,
   CenterHeaderSide,
+  CenterInner,
+  CenterTop,
   GroupBoundary,
   GroupToolbar,
   GroupToolbarButton,
   GroupToolbarLabel,
   MarqueeRect,
+  RailSlot,
   RightRailFooter,
   RightRailInner,
   RightRailScroll,
@@ -60,6 +75,18 @@ const PASTE_OFFSET = 16;
 // Cap on the number of undo snapshots we retain — enough for several reverses
 // while keeping memory bounded on long sessions.
 const UNDO_HISTORY_LIMIT = 50;
+// Zoom range + step for the canvas. 25% granularity matches how most PDF
+// viewers (Preview, Acrobat) bucket their +/- clicks and keeps the percentage
+// readout tidy (50/75/100/125…).
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 0.25;
+const ZOOM_DEFAULT = 1;
+
+function clampZoom(z: number): number {
+  if (!Number.isFinite(z)) return ZOOM_DEFAULT;
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100));
+}
 const ADDDROPDOWN_WRAP_STYLE: React.CSSProperties = {
   position: 'relative',
   height: 0,
@@ -68,6 +95,12 @@ const ADDDROPDOWN_WRAP_STYLE: React.CSSProperties = {
 function makeId(): string {
   // RFC-style compact id — good enough for DOM keys and internal refs.
   return `f_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
+}
+
+function makeLinkId(): string {
+  // Shared id assigned to every field in a single Place-on-pages action so
+  // the Remove dialog can find and operate on all linked copies together.
+  return `l_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
 }
 
 /**
@@ -104,6 +137,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     title,
     docId,
     initialPage = 1,
+    pdfDoc,
+    pdfLoading,
     fields,
     onFieldsChange,
     availableFieldKinds,
@@ -126,6 +161,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const [currentPage, setCurrentPage] = useState<number>(() =>
     Math.min(Math.max(initialPage, 1), totalPages),
   );
+  // When a PDF loads asynchronously, `totalPages` can jump from a stale
+  // placeholder (e.g. 1) to the real count. Clamp the current page so an
+  // out-of-range value doesn't linger and break navigation.
+  useEffect(() => {
+    setCurrentPage((p) => Math.min(Math.max(p, 1), Math.max(1, totalPages)));
+  }, [totalPages]);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [leftWidth, setLeftWidth] = useState(DEFAULT_LEFT_WIDTH);
@@ -167,6 +208,33 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   // Cmd+C snapshot — the fields the user most recently copied. Stored in a
   // ref (not state) because paste doesn't need to re-render on copy.
   const clipboardRef = useRef<ReadonlyArray<PlacedFieldValue>>([]);
+  // ----------------------------------------------------------------- zoom
+  // Canvas zoom factor (1 = 100%). Applied via CSS transform on the scaler
+  // wrapper so the PDF canvas + every field + marquee + snap guides scale
+  // together; pointer math below divides by this factor to stay in the
+  // native coord space.
+  const [zoom, setZoom] = useState<number>(ZOOM_DEFAULT);
+  // Base (pre-transform) paper dimensions. Tracked so the scaler wrapper can
+  // reserve `size × zoom` of layout space — CSS transforms don't reflow, so
+  // without an explicit sized wrapper the page wouldn't scroll to the zoomed
+  // paper's edges.
+  const [paperSize, setPaperSize] = useState<{ readonly width: number; readonly height: number }>({
+    width: 560,
+    height: 740,
+  });
+  useLayoutEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return undefined;
+    // Initial measurement — the PDF may resize the paper later, so also
+    // observe for subsequent size changes.
+    setPaperSize({ width: el.offsetWidth, height: el.offsetHeight });
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      setPaperSize({ width: el.offsetWidth, height: el.offsetHeight });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pdfDoc, currentPage]);
 
   const placedFieldSigners = useMemo(
     () => signers.map((s) => ({ id: s.id, name: s.name, color: s.color })),
@@ -190,7 +258,16 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       })),
     [fields],
   );
-  const pagesWithFields = useMemo(() => Array.from(new Set(fields.map((f) => f.page))), [fields]);
+  // Count of placed fields per page. Passed to the PageThumbRail so each
+  // thumb can show an indigo badge with the number of fields on that page,
+  // matching the design reference in `ui_kits/signing_app`.
+  const fieldCountByPage = useMemo<Record<number, number>>(() => {
+    const out: Record<number, number> = {};
+    for (const f of fields) {
+      out[f.page] = (out[f.page] ?? 0) + 1;
+    }
+    return out;
+  }, [fields]);
   // Per-kind tally of placed fields across the whole document. Passed to the
   // FieldPalette so each row shows how many of that kind are currently placed.
   const usageByKind = useMemo<Partial<Record<FieldKind, number>>>(() => {
@@ -259,6 +336,17 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [pagesPopoverFor, fields],
   );
 
+  // ----------------------------------------------------------------- zoom
+  const zoomIn = useCallback((): void => {
+    setZoom((z) => clampZoom(z + ZOOM_STEP));
+  }, []);
+  const zoomOut = useCallback((): void => {
+    setZoom((z) => clampZoom(z - ZOOM_STEP));
+  }, []);
+  const resetZoom = useCallback((): void => {
+    setZoom(ZOOM_DEFAULT);
+  }, []);
+
   // --------------------------------------------------------------- history
   /**
    * Snapshot the current `fields` for undo. Called right before every
@@ -301,8 +389,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       if (!kind) return;
       e.preventDefault();
       const rect = canvasRef.current?.getBoundingClientRect();
-      const x = Math.max(0, Math.round(e.clientX - (rect?.left ?? 0) - FIELD_WIDTH / 2));
-      const y = Math.max(0, Math.round(e.clientY - (rect?.top ?? 0) - FIELD_HEIGHT / 2));
+      // Divide by `zoom` so drop coords land in the canvas's native
+      // coordinate space regardless of how the paper is visually scaled.
+      const localX = (e.clientX - (rect?.left ?? 0)) / zoom;
+      const localY = (e.clientY - (rect?.top ?? 0)) / zoom;
+      const x = Math.max(0, Math.round(localX - FIELD_WIDTH / 2));
+      const y = Math.max(0, Math.round(localY - FIELD_HEIGHT / 2));
 
       // Dropping a field assigns it to every current signer — but each signer
       // gets their OWN independent field (offset so they're visible), rather
@@ -347,7 +439,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       setSignerPopoverFor(null);
       dragKindRef.current = null;
     },
-    [currentPage, fields, onFieldsChange, pushUndo, signers],
+    [currentPage, fields, onFieldsChange, pushUndo, signers, zoom],
   );
 
   const handleCanvasBackgroundClick = useCallback((): void => {
@@ -373,15 +465,18 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
-      const startX = e.clientX - rect.left;
-      const startY = e.clientY - rect.top;
+      // Marquee coords also live in the canvas's native space; divide by
+      // `zoom` so the selection rectangle hits the right fields regardless
+      // of visual scale.
+      const startX = (e.clientX - rect.left) / zoom;
+      const startY = (e.clientY - rect.top) / zoom;
       let moved = false;
       let curX = startX;
       let curY = startY;
 
       const onMove = (ev: MouseEvent): void => {
-        curX = ev.clientX - rect.left;
-        curY = ev.clientY - rect.top;
+        curX = (ev.clientX - rect.left) / zoom;
+        curY = (ev.clientY - rect.top) / zoom;
         if (!moved && Math.hypot(curX - startX, curY - startY) < MARQUEE_THRESHOLD) return;
         moved = true;
         setMarqueeRect({
@@ -421,7 +516,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       window.addEventListener('mousemove', onMove);
       window.addEventListener('mouseup', onUp);
     },
-    [fields, currentPage],
+    [fields, currentPage, zoom],
   );
 
   // --------------------------------------------------------------- mutations
@@ -509,17 +604,59 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [fields, onFieldsChange],
   );
 
+  // Actual removal — shared by the direct path (no linked copies) and the
+  // "only this page" branch of the Remove linked copies dialog.
+  const removeByIds = useCallback(
+    (ids: ReadonlyArray<string>): void => {
+      if (ids.length === 0) return;
+      pushUndo(fields);
+      onFieldsChange(fields.filter((f) => !ids.includes(f.id)));
+      setSelectedIds((prev) => prev.filter((sid) => !ids.includes(sid)));
+      if (signerPopoverFor && ids.includes(signerPopoverFor)) setSignerPopoverFor(null);
+      if (pagesPopoverFor && ids.includes(pagesPopoverFor)) setPagesPopoverFor(null);
+    },
+    [fields, onFieldsChange, pagesPopoverFor, pushUndo, signerPopoverFor],
+  );
+
+  // Pending-remove state: set when the user tries to delete a field that has
+  // linked copies on other pages, cleared once they pick a scope or cancel.
+  // Tracks the ids the user attempted to remove; the set of linkIds they
+  // belong to is derived from `fields` at confirm time so late edits can't
+  // leave the dialog acting on stale data.
+  const [pendingRemove, setPendingRemove] = useState<{
+    readonly ids: ReadonlyArray<string>;
+  } | null>(null);
+
+  /**
+   * Entry point for every remove path (X button, Delete/Backspace key, group
+   * toolbar). If any target field belongs to a linked group whose peers live
+   * on other pages, open the confirmation dialog so the user can choose
+   * between "only this page" and "all pages". Otherwise remove immediately.
+   */
+  const requestRemove = useCallback(
+    (ids: ReadonlyArray<string>): void => {
+      if (ids.length === 0) return;
+      const linkIds = new Set<string>();
+      for (const f of fields) {
+        if (ids.includes(f.id) && f.linkId) linkIds.add(f.linkId);
+      }
+      const hasLinkedElsewhere =
+        linkIds.size > 0 &&
+        fields.some((f) => f.linkId != null && linkIds.has(f.linkId) && !ids.includes(f.id));
+      if (!hasLinkedElsewhere) {
+        removeByIds(ids);
+        return;
+      }
+      setPendingRemove({ ids });
+    },
+    [fields, removeByIds],
+  );
+
   const removeField = useCallback(
     (id: string): void => {
-      pushUndo(fields);
-      onFieldsChange(fields.filter((f) => f.id !== id));
-      if (selectedIds.includes(id)) {
-        setSelectedIds((prev) => prev.filter((sid) => sid !== id));
-      }
-      if (signerPopoverFor === id) setSignerPopoverFor(null);
-      if (pagesPopoverFor === id) setPagesPopoverFor(null);
+      requestRemove([id]);
     },
-    [fields, onFieldsChange, pagesPopoverFor, pushUndo, selectedIds, signerPopoverFor],
+    [requestRemove],
   );
 
   /**
@@ -546,15 +683,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
   // --------------------------------------------------------- group actions
   // When more than one field is selected, expose Duplicate-all and Remove-all
-  // so users don't have to act on each field individually.
+  // so users don't have to act on each field individually. Defer to
+  // `requestRemove` so a group containing linked copies still surfaces the
+  // "only this page / all pages" confirmation.
   const removeSelectedGroup = useCallback((): void => {
     if (selectedIds.length < 2) return;
-    pushUndo(fields);
-    onFieldsChange(fields.filter((f) => !selectedIds.includes(f.id)));
-    setSelectedIds([]);
-    setSignerPopoverFor(null);
-    setPagesPopoverFor(null);
-  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+    requestRemove(selectedIds);
+  }, [requestRemove, selectedIds]);
 
   const duplicateSelectedGroup = useCallback((): void => {
     if (selectedIds.length < 2) return;
@@ -586,6 +721,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         setPagesPopoverFor(null);
         return;
       }
+      // Reuse the source's existing linkId if it already belongs to a linked
+      // group (user is extending a previous Place-on-pages action), otherwise
+      // mint a new one so the source + every clone share a common link.
+      const linkId = source.linkId ?? makeLinkId();
       const clones: ReadonlyArray<PlacedFieldValue> = targets.map((page) => ({
         id: makeId(),
         page,
@@ -593,9 +732,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         x: source.x,
         y: source.y,
         signerIds: source.signerIds,
+        linkId,
       }));
       pushUndo(fields);
-      onFieldsChange([...fields, ...clones]);
+      onFieldsChange([
+        ...fields.map((f) => (f.id === source.id ? { ...f, linkId } : f)),
+        ...clones,
+      ]);
       setPagesPopoverFor(null);
     },
     [fields, onFieldsChange, pagesPopoverField, pushUndo, totalPages],
@@ -622,15 +765,29 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         setGroupPagesPopoverOpen(false);
         return;
       }
+      // Each source field gets its OWN linkId (reused from its existing link
+      // if present) so after the operation, a row of N sources becomes N
+      // independent linked columns — one per column across the target pages.
+      const linkIdBySource = new Map<string, string>();
+      for (const f of sourceFields) {
+        linkIdBySource.set(f.id, f.linkId ?? makeLinkId());
+      }
       const clones: ReadonlyArray<PlacedFieldValue> = targets.flatMap((page) =>
         sourceFields.map((f) => ({
           ...f,
           id: makeId(),
           page,
+          linkId: linkIdBySource.get(f.id),
         })),
       );
       pushUndo(fields);
-      onFieldsChange([...fields, ...clones]);
+      onFieldsChange([
+        ...fields.map((f) => {
+          const link = linkIdBySource.get(f.id);
+          return link ? { ...f, linkId: link } : f;
+        }),
+        ...clones,
+      ]);
       setGroupPagesPopoverOpen(false);
     },
     [fields, onFieldsChange, pushUndo, selectedIds, currentPage, totalPages],
@@ -689,16 +846,14 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
   /**
    * Remove every selected field (single or group) in one mutation. Used by
-   * Delete/Backspace key handler so users don't have to click the X.
+   * Delete/Backspace key handler so users don't have to click the X. Routes
+   * through `requestRemove` so a selection containing linked copies prompts
+   * the confirmation dialog.
    */
   const removeSelection = useCallback((): void => {
     if (selectedIds.length === 0) return;
-    pushUndo(fields);
-    onFieldsChange(fields.filter((f) => !selectedIds.includes(f.id)));
-    setSelectedIds([]);
-    setSignerPopoverFor(null);
-    setPagesPopoverFor(null);
-  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+    requestRemove(selectedIds);
+  }, [requestRemove, selectedIds]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -736,11 +891,83 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         if (selectedIds.length === 0) return;
         e.preventDefault();
         removeSelection();
+        return;
+      }
+      // Zoom shortcuts — match common browser/PDF viewer chords.
+      //   Cmd/Ctrl + "=" or "+": zoom in
+      //   Cmd/Ctrl + "-":         zoom out
+      //   Cmd/Ctrl + "0":         reset to 100%
+      if (mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+      if (mod && e.key === '-') {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+      if (mod && e.key === '0') {
+        e.preventDefault();
+        resetZoom();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [copySelection, pasteClipboard, removeSelection, selectedIds, undo]);
+  }, [
+    copySelection,
+    pasteClipboard,
+    removeSelection,
+    resetZoom,
+    selectedIds,
+    undo,
+    zoomIn,
+    zoomOut,
+  ]);
+
+  // --------------------------------------------------- linked-remove dialog
+  /**
+   * Total number of fields the user would affect if they pick "All pages" in
+   * the Remove linked copies dialog. Equals the number of fields the dialog
+   * would delete: every pending id plus every peer that shares a linkId with
+   * one of them.
+   */
+  const pendingLinkedCount = useMemo<number>(() => {
+    if (!pendingRemove) return 0;
+    const linkIds = new Set<string>();
+    for (const f of fields) {
+      if (pendingRemove.ids.includes(f.id) && f.linkId) linkIds.add(f.linkId);
+    }
+    if (linkIds.size === 0) return pendingRemove.ids.length;
+    return fields.filter(
+      (f) => pendingRemove.ids.includes(f.id) || (f.linkId != null && linkIds.has(f.linkId)),
+    ).length;
+  }, [fields, pendingRemove]);
+
+  const handleRemoveLinkedConfirm = useCallback(
+    (scope: RemoveLinkedScope): void => {
+      const pending = pendingRemove;
+      if (!pending) return;
+      if (scope === 'only-this') {
+        removeByIds(pending.ids);
+      } else {
+        const linkIds = new Set<string>();
+        for (const f of fields) {
+          if (pending.ids.includes(f.id) && f.linkId) linkIds.add(f.linkId);
+        }
+        const idsToRemove = fields
+          .filter((f) => pending.ids.includes(f.id) || (f.linkId != null && linkIds.has(f.linkId)))
+          .map((f) => f.id);
+        removeByIds(idsToRemove);
+      }
+      setPendingRemove(null);
+    },
+    [fields, pendingRemove, removeByIds],
+  );
+
+  const handleRemoveLinkedCancel = useCallback((): void => {
+    setPendingRemove(null);
+  }, []);
 
   // ----------------------------------------------------------------- signer
   const handlePickContact = useCallback(
@@ -784,14 +1011,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       <NavBar
         activeItemId={activeNavId}
         onSelectItem={onSelectNavItem}
+        onAddContact={() => setAddSignerOpen(true)}
+        onRemoveContact={() => setAddSignerOpen(true)}
         {...(user ? { user } : {})}
         {...(logoNode ? { logo: logoNode } : {})}
       />
       <Body>
-        <SideBar
-          activeItemId="drafts"
-          primaryAction={{ label: 'New document', onClick: () => {} }}
-        />
         <Workspace>
           <CollapsibleRail
             side="left"
@@ -813,162 +1038,193 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           </CollapsibleRail>
 
           <Center>
-            <CenterHeader>
-              <CenterHeaderSide>
-                {onBack ? (
-                  <Button variant="ghost" iconLeft={ArrowLeft} size="sm" onClick={onBack}>
-                    Back
-                  </Button>
-                ) : null}
-              </CenterHeaderSide>
-              <PageToolbar
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPrevPage={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                onNextPage={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              />
-              <CenterHeaderSide aria-hidden />
-            </CenterHeader>
+            <CenterTop>
+              <CenterHeader>
+                <CenterHeaderSide>
+                  {onBack ? (
+                    <Button variant="ghost" iconLeft={ArrowLeft} size="sm" onClick={onBack}>
+                      Back
+                    </Button>
+                  ) : null}
+                </CenterHeaderSide>
+                <PageToolbar
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onPrevPage={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onNextPage={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  zoom={zoom}
+                  onZoomIn={zoomIn}
+                  onZoomOut={zoomOut}
+                  onResetZoom={resetZoom}
+                  zoomInDisabled={zoom >= ZOOM_MAX - 1e-6}
+                  zoomOutDisabled={zoom <= ZOOM_MIN + 1e-6}
+                />
+                <CenterHeaderSide aria-hidden />
+              </CenterHeader>
+            </CenterTop>
 
-            <CanvasWrap>
-              <DocumentCanvas
-                ref={canvasRef}
-                currentPage={currentPage}
-                totalPages={totalPages}
-                {...(title ? { title } : {})}
-                {...(docId ? { docId } : {})}
-                onDragOver={handleCanvasDragOver}
-                onDrop={handleCanvasDrop}
-                onClick={handleCanvasBackgroundClick}
-                onMouseDown={handleCanvasMouseDown}
-              >
-                {fields
-                  .filter((f) => f.page === currentPage)
-                  .map((field) => {
-                    const isSelected = selectedIds.includes(field.id);
-                    const inGroup = isSelected && selectedIds.length > 1;
-                    return (
-                      <PlacedField
-                        key={field.id}
-                        field={field}
-                        signers={placedFieldSigners}
-                        selected={isSelected}
-                        inGroup={inGroup}
-                        {...((canvasRef as { current: HTMLDivElement | null })
-                          ? { canvasRef: canvasRef as React.RefObject<HTMLElement> }
-                          : {})}
-                        onSelect={(e) => {
-                          e.stopPropagation();
-                          const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-                          if (additive) {
-                            setSelectedIds((prev) =>
-                              prev.includes(field.id)
-                                ? prev.filter((id) => id !== field.id)
-                                : [...prev, field.id],
-                            );
-                          } else {
-                            // A plain click always isolates this field to a
-                            // single selection — including when it was part of
-                            // a multi-selection. PlacedField defers this call
-                            // until after mouseup so an actual drag keeps the
-                            // group intact while moving.
-                            setSelectedIds([field.id]);
-                          }
-                          setSignerPopoverFor(null);
-                          setPagesPopoverFor(null);
-                        }}
-                        onOpenSignerPopover={(e) => {
-                          e.stopPropagation();
-                          setSignerPopoverFor(field.id);
-                        }}
-                        onOpenPagesPopover={(e) => {
-                          e.stopPropagation();
-                          setPagesPopoverFor(field.id);
-                        }}
-                        onRemove={() => removeField(field.id)}
-                        onToggleRequired={toggleRequired}
-                        onMove={moveField}
-                        onResize={resizeField}
-                        onDragEnd={() => setSnapGuides([])}
-                      />
-                    );
-                  })}
-                {marqueeRect ? (
-                  <MarqueeRect
-                    data-testid="canvas-marquee"
+            <CanvasScroll>
+              <CenterInner>
+                <CanvasWrap>
+                  <CanvasScaler
                     style={{
-                      left: marqueeRect.x,
-                      top: marqueeRect.y,
-                      width: marqueeRect.w,
-                      height: marqueeRect.h,
+                      width: paperSize.width * zoom,
+                      height: paperSize.height * zoom,
                     }}
-                  />
-                ) : null}
-                {snapGuides.map((g, i) => (
-                  <SnapGuide
-                    // Positional keys are fine here — guides are short-lived
-                    // drag-time state with no stable identity of their own.
-                    // eslint-disable-next-line react/no-array-index-key
-                    key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
-                    data-testid="snap-guide"
-                    $orientation={g.orientation}
-                    style={g.orientation === 'v' ? { left: g.pos } : { top: g.pos }}
-                  />
-                ))}
-                {groupRect ? (
-                  // Dashed rectangle drawn around every selected field's
-                  // bounding box on the current page. Purely decorative —
-                  // pointer events pass through to the fields beneath.
-                  <GroupBoundary
-                    data-testid="group-boundary"
-                    style={{
-                      left: groupRect.x - 6,
-                      top: groupRect.y - 6,
-                      width: groupRect.w + 12,
-                      height: groupRect.h + 12,
-                    }}
-                  />
-                ) : null}
-                {groupRect ? (
-                  <GroupToolbar
-                    data-testid="group-toolbar"
-                    style={{
-                      left: groupRect.x,
-                      top: Math.max(0, groupRect.y - 40),
-                      // Let the toolbar hug its content; the anchoring `left`
-                      // places it at the left edge of the bounding box.
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
                   >
-                    <GroupToolbarLabel>{selectedIds.length} selected</GroupToolbarLabel>
-                    <GroupToolbarButton
-                      type="button"
-                      $tone="indigo"
-                      aria-label="Duplicate selected fields"
-                      onClick={duplicateSelectedGroup}
+                    <CanvasScaleInner
+                      style={{
+                        width: paperSize.width,
+                        height: paperSize.height,
+                        transform: `scale(${String(zoom)})`,
+                      }}
                     >
-                      <Copy size={14} strokeWidth={1.75} aria-hidden />
-                    </GroupToolbarButton>
-                    <GroupToolbarButton
-                      type="button"
-                      $tone="danger"
-                      aria-label="Delete selected fields"
-                      onClick={removeSelectedGroup}
-                    >
-                      <XIcon size={14} strokeWidth={1.75} aria-hidden />
-                    </GroupToolbarButton>
-                  </GroupToolbar>
-                ) : null}
-              </DocumentCanvas>
-            </CanvasWrap>
-
-            <PageThumbStrip
-              totalPages={totalPages}
-              currentPage={currentPage}
-              onSelectPage={setCurrentPage}
-              pagesWithFields={pagesWithFields}
-            />
+                      <DocumentCanvas
+                        ref={canvasRef}
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        {...(title ? { title } : {})}
+                        {...(docId ? { docId } : {})}
+                        {...(pdfDoc ? { pdfDoc } : {})}
+                        {...(pdfLoading ? { pdfLoading: true } : {})}
+                        onDragOver={handleCanvasDragOver}
+                        onDrop={handleCanvasDrop}
+                        onClick={handleCanvasBackgroundClick}
+                        onMouseDown={handleCanvasMouseDown}
+                      >
+                        {fields
+                          .filter((f) => f.page === currentPage)
+                          .map((field) => {
+                            const isSelected = selectedIds.includes(field.id);
+                            const inGroup = isSelected && selectedIds.length > 1;
+                            return (
+                              <PlacedField
+                                key={field.id}
+                                field={field}
+                                signers={placedFieldSigners}
+                                selected={isSelected}
+                                inGroup={inGroup}
+                                {...((canvasRef as { current: HTMLDivElement | null })
+                                  ? { canvasRef: canvasRef as React.RefObject<HTMLElement> }
+                                  : {})}
+                                onSelect={(e) => {
+                                  e.stopPropagation();
+                                  const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+                                  if (additive) {
+                                    setSelectedIds((prev) =>
+                                      prev.includes(field.id)
+                                        ? prev.filter((id) => id !== field.id)
+                                        : [...prev, field.id],
+                                    );
+                                  } else {
+                                    // A plain click always isolates this field to a
+                                    // single selection — including when it was part of
+                                    // a multi-selection. PlacedField defers this call
+                                    // until after mouseup so an actual drag keeps the
+                                    // group intact while moving.
+                                    setSelectedIds([field.id]);
+                                  }
+                                  setSignerPopoverFor(null);
+                                  setPagesPopoverFor(null);
+                                }}
+                                onOpenSignerPopover={(e) => {
+                                  e.stopPropagation();
+                                  setSignerPopoverFor(field.id);
+                                }}
+                                onOpenPagesPopover={(e) => {
+                                  e.stopPropagation();
+                                  setPagesPopoverFor(field.id);
+                                }}
+                                onRemove={() => removeField(field.id)}
+                                onToggleRequired={toggleRequired}
+                                onMove={moveField}
+                                onResize={resizeField}
+                                onDragEnd={() => setSnapGuides([])}
+                                zoom={zoom}
+                              />
+                            );
+                          })}
+                        {marqueeRect ? (
+                          <MarqueeRect
+                            data-testid="canvas-marquee"
+                            style={{
+                              left: marqueeRect.x,
+                              top: marqueeRect.y,
+                              width: marqueeRect.w,
+                              height: marqueeRect.h,
+                            }}
+                          />
+                        ) : null}
+                        {snapGuides.map((g, i) => (
+                          <SnapGuide
+                            // Positional keys are fine here — guides are short-lived
+                            // drag-time state with no stable identity of their own.
+                            // eslint-disable-next-line react/no-array-index-key
+                            key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
+                            data-testid="snap-guide"
+                            $orientation={g.orientation}
+                            style={g.orientation === 'v' ? { left: g.pos } : { top: g.pos }}
+                          />
+                        ))}
+                        {groupRect ? (
+                          // Dashed rectangle drawn around every selected field's
+                          // bounding box on the current page. Purely decorative —
+                          // pointer events pass through to the fields beneath.
+                          <GroupBoundary
+                            data-testid="group-boundary"
+                            style={{
+                              left: groupRect.x - 6,
+                              top: groupRect.y - 6,
+                              width: groupRect.w + 12,
+                              height: groupRect.h + 12,
+                            }}
+                          />
+                        ) : null}
+                        {groupRect ? (
+                          <GroupToolbar
+                            data-testid="group-toolbar"
+                            style={{
+                              left: groupRect.x,
+                              top: Math.max(0, groupRect.y - 40),
+                              // Let the toolbar hug its content; the anchoring `left`
+                              // places it at the left edge of the bounding box.
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <GroupToolbarLabel>{selectedIds.length} selected</GroupToolbarLabel>
+                            <GroupToolbarButton
+                              type="button"
+                              $tone="indigo"
+                              aria-label="Duplicate selected fields"
+                              onClick={duplicateSelectedGroup}
+                            >
+                              <Copy size={14} strokeWidth={1.75} aria-hidden />
+                            </GroupToolbarButton>
+                            <GroupToolbarButton
+                              type="button"
+                              $tone="danger"
+                              aria-label="Delete selected fields"
+                              onClick={removeSelectedGroup}
+                            >
+                              <XIcon size={14} strokeWidth={1.75} aria-hidden />
+                            </GroupToolbarButton>
+                          </GroupToolbar>
+                        ) : null}
+                      </DocumentCanvas>
+                    </CanvasScaleInner>
+                  </CanvasScaler>
+                </CanvasWrap>
+              </CenterInner>
+              <RailSlot>
+                <PageThumbRail
+                  totalPages={totalPages}
+                  currentPage={currentPage}
+                  onSelectPage={setCurrentPage}
+                  fieldCountByPage={fieldCountByPage}
+                />
+              </RailSlot>
+            </CanvasScroll>
           </Center>
 
           <CollapsibleRail
@@ -1051,6 +1307,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         totalPages={totalPages}
         onApply={applyGroupPagesSelection}
         onCancel={() => setGroupPagesPopoverOpen(false)}
+      />
+      <RemoveLinkedCopiesDialog
+        open={pendingRemove !== null}
+        linkedCount={pendingLinkedCount}
+        onConfirm={handleRemoveLinkedConfirm}
+        onCancel={handleRemoveLinkedCancel}
       />
     </Shell>
   );

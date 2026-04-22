@@ -1,9 +1,17 @@
 import styled from 'styled-components';
 
+/**
+ * Root app shell — pinned to the viewport so NavBar + SideBar stay anchored no
+ * matter how tall the zoomed canvas grows. Without `height: 100vh` + `overflow:
+ * hidden`, a highly-zoomed PDF would push Shell taller than the viewport and
+ * the entire page (NavBar included) would scroll as a unit — the PDF would
+ * appear to "destroy" the chrome hierarchy by scrolling past it.
+ */
 export const Shell = styled.div`
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: ${({ theme }) => theme.color.bg.app};
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
@@ -23,15 +31,74 @@ export const Workspace = styled.div`
   user-select: none;
 `;
 
+/**
+ * Center column: header at top, scrollable canvas area in the middle, thumb
+ * strip at the bottom. `overflow: hidden` keeps the canvas scroll confined to
+ * `CanvasScroll` below so the toolbar + thumb strip stay pinned at all zoom
+ * levels instead of drifting off-screen with the zoomed canvas.
+ */
 export const Center = styled.div`
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+/**
+ * Scrollable wrapper around the canvas ONLY. The toolbar sits outside this
+ * element so it stays pinned at any zoom level. Rendered as a flex row so the
+ * sticky page thumbnail rail can live as a sibling of the centered canvas
+ * column instead of stacking below it.
+ */
+export const CanvasScroll = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+`;
+
+/**
+ * Main canvas column inside `CanvasScroll`. `min-width: min-content` lets this
+ * div grow to fit a zoomed canvas wider than the viewport (enabling horizontal
+ * scroll in both directions), while `min-height: 100%` preserves vertical
+ * centering when the canvas is shorter than the viewport. `flex: 1` ensures it
+ * claims the remaining width next to the fixed-width rail on the right.
+ */
+export const CenterInner = styled.div`
+  flex: 1 1 auto;
+  min-height: 100%;
+  min-width: min-content;
   padding: ${({ theme }) => theme.space[6]} 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: ${({ theme }) => theme.space[4]};
+`;
+
+/**
+ * Wrapper that reserves inline spacing around the sticky `PageThumbRail`. The
+ * rail itself owns its sticky positioning; this slot just keeps the rail away
+ * from the canvas edge and the scroll container's right gutter so it doesn't
+ * feel glued to either.
+ */
+export const RailSlot = styled.div`
+  flex-shrink: 0;
+  align-self: stretch;
+  display: flex;
+  padding: ${({ theme }) => `${theme.space[6]} ${theme.space[3]} ${theme.space[6]} 0`};
+`;
+
+/**
+ * Static top bar slot that holds `CenterHeader`. Kept as its own styled div so
+ * the toolbar + back button never shrink or get squeezed when the canvas area
+ * grows very tall.
+ */
+export const CenterTop = styled.div`
+  flex-shrink: 0;
 `;
 
 export const CenterHeader = styled.div`
@@ -71,6 +138,24 @@ export const RightRailFooter = styled.div`
 
 export const CanvasWrap = styled.div`
   position: relative;
+`;
+
+/**
+ * Sizer that reserves layout space equal to the scaled paper. Its inner child
+ * applies `transform: scale(zoom)` with origin top-left — CSS transforms don't
+ * reflow by default, so without this sizer the scroll container wouldn't know
+ * to make room for the zoomed paper. Width/height are set inline from measured
+ * paper dims × zoom.
+ */
+export const CanvasScaler = styled.div`
+  position: relative;
+`;
+
+export const CanvasScaleInner = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
 `;
 
 export const MarqueeRect = styled.div`

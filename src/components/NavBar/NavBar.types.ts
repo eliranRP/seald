@@ -22,4 +22,8 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
   readonly bellIcon?: LucideIcon | undefined;
   readonly searchIcon?: LucideIcon | undefined;
   readonly user?: NavBarUser | undefined;
+  /** Opens the add-contact flow. Button only renders when handler is provided. */
+  readonly onAddContact?: (() => void) | undefined;
+  /** Opens the remove-contact flow. Button only renders when handler is provided. */
+  readonly onRemoveContact?: (() => void) | undefined;
 }

@@ -95,8 +95,13 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
     minHeight = DEFAULT_MIN_HEIGHT,
     onDragStart,
     onDragEnd,
+    zoom = 1,
     ...rest
   } = props;
+
+  // Guard against zero/negative zoom (undefined user input). Treating it as 1
+  // lets the component be forgiving rather than producing NaN deltas mid-drag.
+  const safeZoom = zoom > 0 ? zoom : 1;
 
   const suppressNextClickRef = useRef<boolean>(false);
 
@@ -150,8 +155,11 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           : null;
 
       const onWindowMove = (ev: MouseEvent): void => {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+        // Pointer deltas arrive in screen pixels; divide by the parent
+        // canvas's zoom to land back in the field's native coord space so a
+        // 10px drag at 200% zoom still moves the field by 10px (not 5).
+        const dx = (ev.clientX - startX) / safeZoom;
+        const dy = (ev.clientY - startY) / safeZoom;
         if (!didDrag && Math.hypot(dx, dy) >= DRAG_THRESHOLD) {
           didDrag = true;
         }
@@ -161,8 +169,12 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
         let nx = origX + dx;
         let ny = origY + dy;
         if (rect !== null && rect.width > 0 && rect.height > 0) {
-          nx = Math.max(0, Math.min(nx, rect.width - totalWidth));
-          ny = Math.max(0, Math.min(ny, rect.height - totalHeight));
+          // rect is a scaled bounding rect; reduce by zoom so the clamp
+          // compares against the canvas's native dimensions.
+          const rectW = rect.width / safeZoom;
+          const rectH = rect.height / safeZoom;
+          nx = Math.max(0, Math.min(nx, rectW - totalWidth));
+          ny = Math.max(0, Math.min(ny, rectH - totalHeight));
         } else {
           nx = Math.max(0, nx);
           ny = Math.max(0, ny);
@@ -205,6 +217,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       onDragStart,
       onMove,
       onSelect,
+      safeZoom,
       selected,
       totalHeight,
       totalWidth,
@@ -230,8 +243,10 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           : null;
 
       const onWindowMove = (ev: MouseEvent): void => {
-        const dx = ev.clientX - startClientX;
-        const dy = ev.clientY - startClientY;
+        // Same rationale as drag: normalize the delta into the field's
+        // native coord space when the parent canvas is visually zoomed.
+        const dx = (ev.clientX - startClientX) / safeZoom;
+        const dy = (ev.clientY - startClientY) / safeZoom;
         let nx = origX;
         let ny = origY;
         let nw = origW;
@@ -266,6 +281,8 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           nh = minHeight;
         }
         if (rect !== null && rect.width > 0 && rect.height > 0) {
+          const rectW = rect.width / safeZoom;
+          const rectH = rect.height / safeZoom;
           if (nx < 0) {
             nw += nx;
             nx = 0;
@@ -274,11 +291,11 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
             nh += ny;
             ny = 0;
           }
-          if (nx + nw > rect.width) {
-            nw = rect.width - nx;
+          if (nx + nw > rectW) {
+            nw = rectW - nx;
           }
-          if (ny + nh > rect.height) {
-            nh = rect.height - ny;
+          if (ny + nh > rectH) {
+            nh = rectH - ny;
           }
         }
         onResize?.(field.id, nx, ny, nw, nh);
@@ -304,6 +321,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       onDragEnd,
       onDragStart,
       onResize,
+      safeZoom,
       totalHeight,
       totalWidth,
     ],

@@ -37,7 +37,7 @@ describe('App', () => {
     // Apply is disabled until at least one receiver is added.
     expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
     // The document canvas has not rendered yet.
-    expect(screen.queryByRole('document', { name: /page 1 of 4/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('document', { name: /page 1 of/i })).not.toBeInTheDocument();
   });
 
   it('advances to the DocumentPage after adding a signer and applying', () => {
@@ -48,7 +48,7 @@ describe('App', () => {
     const contact = screen.getByRole('option', { name: /eliran azulay/i });
     fireEvent.click(contact);
     fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-    expect(screen.getByRole('document', { name: /page 1 of 4/i })).toBeInTheDocument();
+    expect(screen.getByRole('document', { name: /page 1 of/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send to sign/i })).toBeInTheDocument();
   });
 

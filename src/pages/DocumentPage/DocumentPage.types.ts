@@ -4,6 +4,7 @@ import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSig
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '../../components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
 import type { FieldKind } from '../../types/sealdTypes';
+import type { PDFDocumentProxy } from '../../lib/pdf';
 
 /** A signer as seen by the DocumentPage workspace — superset of the per-component shapes. */
 export interface DocumentPageSigner {
@@ -31,6 +32,18 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   readonly title?: string | undefined;
   readonly docId?: string | undefined;
   readonly initialPage?: number | undefined;
+  /**
+   * Optional parsed PDF document. When supplied, the center canvas renders
+   * the real PDF page at `totalPages`-indexed navigation; when absent the
+   * canvas falls back to the mock paper used in Storybook and tests.
+   */
+  readonly pdfDoc?: PDFDocumentProxy | null | undefined;
+  /**
+   * True while the `pdfDoc` is still being parsed. When set, the canvas
+   * displays a loading indicator instead of the mock paper so the user has
+   * feedback during the multi-second parse step for large PDFs.
+   */
+  readonly pdfLoading?: boolean | undefined;
 
   // Fields ----------------------------------------------------------------
   readonly fields: ReadonlyArray<PlacedFieldValue>;

@@ -22,6 +22,14 @@ export interface PlacedFieldValue {
    * opt into optional fields by setting this to `false`.
    */
   readonly required?: boolean | undefined;
+  /**
+   * Shared identifier across a set of "linked copies" — fields created in a
+   * single Place-on-pages action (one source + one clone per target page).
+   * Undefined for standalone fields that have never been duplicated across
+   * pages. Used by the remove flow to ask the user whether to delete just
+   * this page's copy or every linked copy at once.
+   */
+  readonly linkId?: string | undefined;
 }
 
 type RootAttrs = Omit<
@@ -49,4 +57,11 @@ export interface PlacedFieldProps extends RootAttrs {
   readonly minHeight?: number | undefined;
   readonly onDragStart?: (() => void) | undefined;
   readonly onDragEnd?: (() => void) | undefined;
+  /**
+   * Parent-canvas CSS zoom factor. When the canvas is visually scaled via
+   * CSS transform, pointer deltas and rect-derived clamps must be divided by
+   * the zoom factor to stay in the field's native (unzoomed) coordinate
+   * space. Defaults to 1 (no zoom).
+   */
+  readonly zoom?: number | undefined;
 }

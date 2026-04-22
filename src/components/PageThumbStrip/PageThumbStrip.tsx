@@ -1,4 +1,4 @@
-import { forwardRef, useMemo } from 'react';
+import { forwardRef, useEffect, useMemo, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { PageThumbStripProps } from './PageThumbStrip.types';
 import { FieldDot, Nav, Thumb } from './PageThumbStrip.styles';
@@ -27,6 +27,18 @@ export const PageThumbStrip = forwardRef<HTMLElement, PageThumbStripProps>((prop
     () => new Set(pagesWithFields ?? []),
     [pagesWithFields],
   );
+
+  // Keep the active thumb in view when the strip overflows (long docs). Without
+  // this, a user on page 25 of 30 wouldn't see which thumb is selected because
+  // it'd be clipped past the right edge of the strip. `scrollIntoView` is not
+  // implemented in jsdom, so we feature-detect before calling.
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    const el = activeRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+  }, [currentPage]);
 
   const pages = useMemo<ReadonlyArray<number>>(
     () => Array.from({ length: totalPages }, (_, i) => i + 1),
@@ -71,6 +83,7 @@ export const PageThumbStrip = forwardRef<HTMLElement, PageThumbStripProps>((prop
         return (
           <Thumb
             key={page}
+            ref={isCurrent ? activeRef : undefined}
             type="button"
             $active={isCurrent}
             aria-current={isCurrent ? 'page' : undefined}

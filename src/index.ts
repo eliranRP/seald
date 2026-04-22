@@ -31,6 +31,7 @@ export * from './components/DocumentCanvas';
 export * from './components/FieldPalette';
 export * from './components/FieldsBar';
 export * from './components/NavBar';
+export * from './components/PdfPageView';
 export * from './components/PlaceOnPagesPopover';
 export * from './components/SelectSignersPopover';
 export * from './components/SideBar';

@@ -1,12 +1,13 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, UserMinus, UserPlus } from 'lucide-react';
 import { Avatar } from '../Avatar';
 import type { NavBarProps, NavItem } from './NavBar.types';
 import {
   DefaultWordmark,
   Header,
   IconButton,
+  LogoMark,
   LogoSlot,
   Nav,
   NavItemButton,
@@ -23,6 +24,37 @@ const DEFAULT_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'reports', label: 'Reports' },
 ];
 
+/**
+ * The Sealed quill/seal mark. Inlined (rather than imported as an SVG asset) so
+ * it inherits `color: currentColor` and travels with the component in any
+ * Storybook/test environment without needing an asset pipeline.
+ */
+function SealedMark(): ReactNode {
+  return (
+    <svg viewBox="0 0 40 40" width="18" height="18" fill="none" aria-hidden="true">
+      <g transform="translate(6, 6)">
+        <path
+          d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z"
+          fill="currentColor"
+        />
+        <path
+          d="M22 4 L 24 2 C 25 1, 26.5 1, 27.5 2 L 28 2.5 C 29 3.5, 29 5, 28 6 L 26 8 Z"
+          fill="currentColor"
+          opacity="0.7"
+        />
+        <path
+          d="M0 28 C 8 26, 18 26, 28 28"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          fill="none"
+          opacity="0.85"
+        />
+      </g>
+    </svg>
+  );
+}
+
 export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
   const {
     logo,
@@ -34,13 +66,25 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     bellIcon,
     searchIcon,
     user,
+    onAddContact,
+    onRemoveContact,
     ...rest
   } = props;
 
   const BellGlyph = bellIcon ?? Bell;
   const SearchGlyph = searchIcon ?? Search;
 
-  const logoNode: ReactNode = logo ?? <DefaultWordmark>Sealed</DefaultWordmark>;
+  // Default logo composes an indigo mark + serif wordmark so the brand has a
+  // visual anchor in the bar instead of relying on text alone. Consumers can
+  // still fully override via the `logo` prop.
+  const logoNode: ReactNode = logo ?? (
+    <>
+      <LogoMark>
+        <SealedMark />
+      </LogoMark>
+      <DefaultWordmark>Sealed</DefaultWordmark>
+    </>
+  );
 
   return (
     <Header {...rest} ref={ref}>
@@ -77,13 +121,27 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
       </Nav>
       <Spacer />
       <RightCluster>
-        <SearchPill type="button" aria-label="Open command palette" onClick={() => onSearch?.()}>
-          <SearchGlyph size={14} strokeWidth={1.75} aria-hidden="true" />
-          <span>⌘K</span>
-        </SearchPill>
-        <IconButton type="button" aria-label="Notifications" onClick={() => onBellClick?.()}>
-          <BellGlyph size={18} strokeWidth={1.75} aria-hidden="true" />
-        </IconButton>
+        {onAddContact ? (
+          <IconButton type="button" aria-label="Add contact" onClick={() => onAddContact()}>
+            <UserPlus size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        ) : null}
+        {onRemoveContact ? (
+          <IconButton type="button" aria-label="Remove contact" onClick={() => onRemoveContact()}>
+            <UserMinus size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        ) : null}
+        {onSearch ? (
+          <SearchPill type="button" aria-label="Open command palette" onClick={() => onSearch()}>
+            <SearchGlyph size={14} strokeWidth={1.75} aria-hidden="true" />
+            <span>⌘K</span>
+          </SearchPill>
+        ) : null}
+        {onBellClick ? (
+          <IconButton type="button" aria-label="Notifications" onClick={() => onBellClick()}>
+            <BellGlyph size={18} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        ) : null}
         {user ? <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} /> : null}
       </RightCluster>
     </Header>

@@ -18,6 +18,23 @@ export const Header = styled.header`
 export const LogoSlot = styled.div`
   display: inline-flex;
   align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+/**
+ * Rounded indigo square containing the Sealed quill mark. Rendered by default
+ * alongside the wordmark so the brand gets a visual anchor, not just text.
+ */
+export const LogoMark = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  flex-shrink: 0;
 `;
 
 export const DefaultWordmark = styled.span`

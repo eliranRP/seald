@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import type { AddSignerContact, PlacedFieldValue } from './index';
 import { CreateSignatureRequestDialog, DocumentPage, UploadPage } from './index';
+import { usePdfDocument } from './lib/pdf';
 
 type View = 'upload' | 'add-signers' | 'document';
 
@@ -29,9 +30,15 @@ export function App() {
   const [view, setView] = useState<View>('upload');
   const [fields, setFields] = useState<ReadonlyArray<PlacedFieldValue>>([]);
   const [signers, setSigners] = useState<ReadonlyArray<AppSigner>>(INITIAL_SIGNERS);
+  // The uploaded PDF file drives both the document canvas render and the
+  // total-pages count. Stored as the raw `File` so pdfjs can parse it via
+  // `usePdfDocument` below.
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const { doc: pdfDoc, numPages, loading: pdfLoading } = usePdfDocument(pdfFile);
 
-  const handleFileSelected = useCallback((_file: File) => {
+  const handleFileSelected = useCallback((file: File) => {
     setFields([]);
+    setPdfFile(file);
     // Before placing any fields, require the user to name at least one signer.
     // This mirrors the "Create your signature request" step common to e-sign
     // apps and keeps signer setup out of the document canvas chrome.
@@ -81,6 +88,7 @@ export function App() {
 
   const handleBack = useCallback(() => {
     setView('upload');
+    setPdfFile(null);
   }, []);
 
   if (view === 'upload') {
@@ -107,8 +115,13 @@ export function App() {
 
   return (
     <DocumentPage
-      totalPages={4}
+      // Fall back to a single placeholder page while the PDF is still parsing
+      // so the canvas has something to render. `DocumentPage` clamps the
+      // current page once the real count arrives.
+      totalPages={numPages > 0 ? numPages : 1}
       initialPage={1}
+      pdfDoc={pdfDoc}
+      pdfLoading={pdfLoading}
       user={USER}
       signers={signers}
       contacts={CONTACTS}

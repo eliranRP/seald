@@ -648,6 +648,23 @@ describe('DocumentPage', () => {
     expect(screen.getByTestId('group-boundary')).toBeInTheDocument();
   });
 
+  it('zooms the canvas via toolbar +/- buttons and resets via the percentage chip', () => {
+    renderPage();
+    // Default zoom is 100%.
+    expect(screen.getByRole('button', { name: /zoom 100%/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    // Single step = 25% → 125%.
+    expect(screen.getByRole('button', { name: /zoom 125%/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(screen.getByRole('button', { name: /zoom 150%/i })).toBeInTheDocument();
+    // Clicking the percentage chip resets to 100%.
+    fireEvent.click(screen.getByRole('button', { name: /zoom 150%/i }));
+    expect(screen.getByRole('button', { name: /zoom 100%/i })).toBeInTheDocument();
+    // Zoom out below 100%.
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }));
+    expect(screen.getByRole('button', { name: /zoom 75%/i })).toBeInTheDocument();
+  });
+
   it('Cmd+click toggling a single field keeps it selected (mousedown+mouseup+click should not double-toggle)', () => {
     // Guard against a regression where both PlacedField's mousedown AND the
     // browser's trailing click both called onSelect — under Cmd+click that

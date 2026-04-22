@@ -77,4 +77,46 @@ describe('PageToolbar', () => {
     const { container } = renderWithTheme(<PageToolbar {...baseProps()} />);
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('omits the zoom group when `zoom` is not supplied (backwards-compat)', () => {
+    const { queryByRole } = renderWithTheme(<PageToolbar {...baseProps()} />);
+    expect(queryByRole('button', { name: /zoom in/i })).toBeNull();
+    expect(queryByRole('button', { name: /zoom out/i })).toBeNull();
+  });
+
+  it('renders a zoom group with a percentage readout and fires handlers', async () => {
+    const onZoomIn = vi.fn();
+    const onZoomOut = vi.fn();
+    const onResetZoom = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <PageToolbar
+        {...baseProps()}
+        zoom={1.25}
+        onZoomIn={onZoomIn}
+        onZoomOut={onZoomOut}
+        onResetZoom={onResetZoom}
+      />,
+    );
+    expect(getByRole('button', { name: /zoom 125%/i })).toBeInTheDocument();
+    await userEvent.click(getByRole('button', { name: 'Zoom in' }));
+    await userEvent.click(getByRole('button', { name: 'Zoom out' }));
+    await userEvent.click(getByRole('button', { name: /zoom 125%/i }));
+    expect(onZoomIn).toHaveBeenCalledTimes(1);
+    expect(onZoomOut).toHaveBeenCalledTimes(1);
+    expect(onResetZoom).toHaveBeenCalledTimes(1);
+  });
+
+  it('respects zoomInDisabled / zoomOutDisabled flags', () => {
+    const { getByRole } = renderWithTheme(
+      <PageToolbar
+        {...baseProps()}
+        zoom={2.5}
+        onZoomIn={vi.fn()}
+        onZoomOut={vi.fn()}
+        zoomInDisabled
+      />,
+    );
+    expect(getByRole('button', { name: 'Zoom in' })).toBeDisabled();
+    expect(getByRole('button', { name: 'Zoom out' })).not.toBeDisabled();
+  });
 });
