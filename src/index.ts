@@ -20,6 +20,7 @@ export * from './components/StatusBadge';
 
 // ————— L3 Widgets —————
 export * from './components/NavBar';
+export * from './components/SideBar';
 export * from './components/SignaturePad';
 
 // ————— Providers —————
