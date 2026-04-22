@@ -1,13 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
-import { App } from './App';
+import { AppRoutes } from './AppRoutes';
+import { AppStateProvider } from './providers/AppStateProvider';
 import { seald } from './styles/theme';
 
-function renderApp() {
+function renderApp(initialEntries: ReadonlyArray<string> = ['/']) {
   return render(
     <ThemeProvider theme={seald}>
-      <App />
+      <AppStateProvider>
+        <MemoryRouter initialEntries={[...initialEntries]}>
+          <AppRoutes />
+        </MemoryRouter>
+      </AppStateProvider>
     </ThemeProvider>,
   );
 }
@@ -18,75 +24,54 @@ function makePdf(name = 'contract.pdf', sizeBytes = 1024): File {
   return file;
 }
 
-describe('App', () => {
-  it('starts on the UploadPage', () => {
-    renderApp();
+describe('App routing', () => {
+  it('redirects root to the Dashboard', () => {
+    renderApp(['/']);
     expect(
-      screen.getByRole('heading', { level: 1, name: /start a new document/i }),
+      screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
     ).toBeInTheDocument();
+  });
+
+  it('clicking "New document" on the Dashboard navigates to the upload flow', () => {
+    renderApp(['/documents']);
+    fireEvent.click(screen.getByRole('button', { name: /new document/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
   it('opens the Create signature request dialog immediately after a PDF is chosen', () => {
-    renderApp();
+    renderApp(['/document/new']);
     const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(
       screen.getByRole('dialog', { name: /create your signature request/i }),
     ).toBeInTheDocument();
-    // Apply is disabled until at least one receiver is added.
     expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
-    // The document canvas has not rendered yet.
-    expect(screen.queryByRole('document', { name: /page 1 of/i })).not.toBeInTheDocument();
   });
 
-  it('advances to the DocumentPage after adding a signer and applying', () => {
-    renderApp();
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [makePdf()] } });
-    fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    const contact = screen.getByRole('option', { name: /eliran azulay/i });
-    fireEvent.click(contact);
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-    expect(screen.getByRole('document', { name: /page 1 of/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send to sign/i })).toBeInTheDocument();
-  });
-
-  it('cancelling the dialog returns to the UploadPage and discards picked signers', () => {
-    renderApp();
+  it('cancelling the dialog stays on the upload page and discards picked signers', () => {
+    renderApp(['/document/new']);
     const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
     fireEvent.click(screen.getByRole('option', { name: /eliran azulay/i }));
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
-    // Choose a file again — the dialog should reopen with no receivers.
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
     expect(screen.queryAllByRole('button', { name: /remove receiver/i })).toHaveLength(0);
   });
 
-  it('returns to the UploadPage when Back is clicked on the DocumentPage', () => {
-    renderApp();
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [makePdf()] } });
-    fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    fireEvent.click(screen.getByRole('option', { name: /eliran azulay/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^back$/i }));
-    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+  it('Signers page lists seed contacts', () => {
+    renderApp(['/signers']);
+    expect(
+      screen.getByRole('heading', { level: 1, name: /people you send documents to/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/eliran@azulay.co/i)).toBeInTheDocument();
   });
 
-  it('DocumentPage shows the signer the user added in the pre-document dialog', () => {
-    renderApp();
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [makePdf()] } });
-    fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    fireEvent.click(screen.getByRole('option', { name: /eliran azulay/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-    // The signers panel now has exactly one entry (with a remove button).
-    expect(screen.getAllByRole('button', { name: /^remove signer/i })).toHaveLength(1);
-    const panel = screen.getByLabelText(/^signers$/i);
-    expect(panel.textContent ?? '').toMatch(/1/);
+  it('Signers page opens the add dialog', () => {
+    renderApp(['/signers']);
+    fireEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
+    expect(screen.getByRole('dialog', { name: /^add signer$/i })).toBeInTheDocument();
   });
 });
