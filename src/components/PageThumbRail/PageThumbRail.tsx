@@ -42,26 +42,33 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
     [totalPages],
   );
 
-  // Keep the active thumb visible when the rail overflows. We scroll ONLY the
-  // rail's own overflow container — never `scrollIntoView`, which would walk
-  // up to the outer canvas scroll and fight the user's wheel as they scroll
-  // through pages (causing the viewport to jump back whenever the active
-  // page changed mid-scroll).
+  // Keep the active thumb centered in the rail's viewport when the rail
+  // overflows. We scroll ONLY the rail's own overflow container — never
+  // `scrollIntoView`, which would walk up to the outer canvas scroll and
+  // fight the user's wheel as they scroll through pages.
+  //
+  // The align is debounced so a fast wheel scroll that sweeps through many
+  // pages doesn't fire a rail auto-scroll on every intermediate page. The
+  // rail catches up once the user pauses briefly (120ms) on a page, which
+  // is imperceptible on a single page change but prevents visible jitter
+  // on rapid scroll.
   const activeRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const thumb = activeRef.current;
-    if (!thumb) return;
-    const rail = thumb.parentElement;
-    if (!rail) return;
-    const thumbTop = thumb.offsetTop - rail.offsetTop;
-    const thumbBottom = thumbTop + thumb.offsetHeight;
-    const viewTop = rail.scrollTop;
-    const viewBottom = viewTop + rail.clientHeight;
-    if (thumbTop < viewTop) {
-      rail.scrollTop = thumbTop;
-    } else if (thumbBottom > viewBottom) {
-      rail.scrollTop = thumbBottom - rail.clientHeight;
+    const rail = thumb?.parentElement ?? null;
+    if (!thumb || !rail) {
+      return undefined;
     }
+    const timer = window.setTimeout(() => {
+      const thumbTop = thumb.offsetTop - rail.offsetTop;
+      const thumbCenter = thumbTop + thumb.offsetHeight / 2;
+      const target = thumbCenter - rail.clientHeight / 2;
+      const max = Math.max(0, rail.scrollHeight - rail.clientHeight);
+      rail.scrollTo({ top: Math.max(0, Math.min(max, target)), behavior: 'smooth' });
+    }, 120);
+    return () => {
+      window.clearTimeout(timer);
+    };
   }, [currentPage]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>): void => {
