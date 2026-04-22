@@ -14,6 +14,10 @@ type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {};
 
+export const Dark: Story = {
+  args: { variant: 'dark', children: 'Dark' },
+};
+
 export const AllVariants: Story = {
   render: () => (
     <div
