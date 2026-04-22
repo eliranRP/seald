@@ -1,0 +1,1060 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sealed — Signature flow wireframe</title>
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <style>
+      body {
+        margin: 0;
+        background: #fafaf8;
+        color: var(--fg-1);
+        font-family: var(--font-sans);
+      }
+      .page {
+        max-width: 1800px;
+        margin: 0 auto;
+        padding: 56px 40px 120px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+        margin-bottom: 10px;
+      }
+      h1 {
+        font-family: var(--font-serif);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        font-size: 48px;
+        line-height: 1.05;
+        margin: 0 0 14px;
+      }
+      .lede {
+        font-size: 16px;
+        color: var(--fg-2);
+        line-height: 1.55;
+        max-width: 72ch;
+        margin-bottom: 40px;
+      }
+      .pagehead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 40px;
+      }
+      .pagehead img {
+        height: 28px;
+      }
+      .pagehead .links {
+        display: flex;
+        gap: 6px;
+      }
+      .pagehead .links a {
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+        color: var(--fg-2);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .legend {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        padding: 14px 18px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+        border-radius: 14px;
+        margin-bottom: 40px;
+        font-size: 12px;
+        color: var(--fg-2);
+      }
+      .legend b {
+        color: var(--fg-1);
+        font-weight: 600;
+        margin-right: 6px;
+      }
+      .legend-swatch {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        vertical-align: -3px;
+        margin-right: 6px;
+      }
+
+      /* Flow — two tracks (sender / recipient) rendered as a grid */
+      .flow {
+        display: grid;
+        grid-template-columns: 100px repeat(5, 1fr);
+        gap: 24px;
+        align-items: start;
+      }
+      .track-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+        padding-top: 36px;
+        writing-mode: horizontal-tb;
+      }
+      .frame {
+        background: #fff;
+        border: 1.25px solid #0f172a;
+        border-radius: 14px;
+        padding: 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        position: relative;
+        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+        min-height: 280px;
+      }
+      .frame .num {
+        position: absolute;
+        top: -12px;
+        left: 14px;
+        width: 24px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--ink-900);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--font-mono);
+      }
+      .frame .title {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--fg-1);
+        margin-top: 2px;
+      }
+      .frame .sub {
+        font-size: 11px;
+        color: var(--fg-3);
+        line-height: 1.4;
+      }
+      .frame .screen {
+        flex: 1;
+        border: 1px dashed #cbd5e1;
+        border-radius: 8px;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        background: #fdfdfb;
+      }
+      .frame .annot {
+        font-size: 10px;
+        color: var(--fg-3);
+        line-height: 1.45;
+        padding-top: 4px;
+        border-top: 1px dashed var(--border-1);
+      }
+      .ghost {
+        height: 6px;
+        border-radius: 2px;
+        background: #e2e8f0;
+      }
+      .ghost.narrow {
+        width: 55%;
+      }
+      .ghost.medium {
+        width: 75%;
+      }
+      .ghost.dark {
+        background: #cbd5e1;
+      }
+      .btn-wf {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 700;
+      }
+      .btn-wf.primary {
+        background: var(--ink-900);
+        color: #fff;
+      }
+      .btn-wf.secondary {
+        background: #fff;
+        border: 1px solid var(--ink-900);
+        color: var(--ink-900);
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 6px;
+        border: 1px solid var(--ink-900);
+        border-radius: 999px;
+        font-size: 9px;
+        font-weight: 600;
+        background: #fff;
+        width: fit-content;
+      }
+      .pill .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: var(--ink-900);
+      }
+      .field-box {
+        border: 1.5px dashed #6366f1;
+        background: rgba(99, 102, 241, 0.08);
+        border-radius: 4px;
+        padding: 4px 6px;
+        font-size: 9px;
+        font-weight: 600;
+        color: #4338ca;
+      }
+      .field-box.emerald {
+        border-color: #10b981;
+        background: rgba(16, 185, 129, 0.12);
+        color: #047857;
+      }
+      .doc {
+        border: 1px solid var(--border-1);
+        border-radius: 4px;
+        padding: 8px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-height: 110px;
+      }
+      .doc .line {
+        height: 3px;
+        border-radius: 1px;
+        background: #e2e8f0;
+      }
+      .doc .line.w90 {
+        width: 90%;
+      }
+      .doc .line.w70 {
+        width: 70%;
+      }
+      .doc .line.w60 {
+        width: 60%;
+      }
+      .doc .line.w50 {
+        width: 50%;
+      }
+      .doc .line.w80 {
+        width: 80%;
+      }
+      .sigline {
+        border-bottom: 1.5px solid #0f172a;
+        height: 20px;
+        margin-top: 4px;
+      }
+      .sigline.sealed {
+        border-bottom-color: #10b981;
+      }
+
+      /* Arrow between frames */
+      .arrow-row {
+        display: grid;
+        grid-template-columns: 100px repeat(5, 1fr);
+        gap: 24px;
+        margin: 8px 0;
+      }
+      .arrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--fg-3);
+        font-size: 11px;
+        height: 28px;
+      }
+      .arrow svg {
+        flex-shrink: 0;
+      }
+      .arrow .lbl {
+        font-style: italic;
+        margin: 0 6px;
+      }
+
+      /* Side-branch: recipient track */
+      .branch-divider {
+        margin: 56px 0 28px;
+        border-top: 1px dashed var(--border-2);
+        padding-top: 20px;
+      }
+      .section-title {
+        font-family: var(--font-serif);
+        font-size: 28px;
+        font-weight: 500;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .section-lede {
+        font-size: 14px;
+        color: var(--fg-3);
+        margin-bottom: 24px;
+        line-height: 1.5;
+      }
+
+      /* Decision diamond */
+      .decision {
+        border: 1.25px solid #0f172a;
+        background: #fef3c7;
+        padding: 10px 14px;
+        border-radius: 4px;
+        transform: rotate(0);
+        position: relative;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+        color: var(--fg-1);
+      }
+
+      /* State legend */
+      .key {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin: 18px 0 32px;
+        font-size: 11px;
+        color: var(--fg-2);
+      }
+      .key span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+        border-radius: 999px;
+      }
+
+      /* Mobile / email column styling */
+      .phone {
+        width: 100%;
+        max-width: 180px;
+        margin: 0 auto;
+        border: 1.5px solid var(--ink-900);
+        border-radius: 18px;
+        padding: 8px;
+        background: #fff;
+      }
+      .phone .notch {
+        width: 30%;
+        height: 4px;
+        background: var(--ink-900);
+        border-radius: 999px;
+        margin: 2px auto 8px;
+      }
+      .phone .stage {
+        border: 1px dashed var(--border-2);
+        border-radius: 10px;
+        padding: 8px;
+        min-height: 180px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .email-card {
+        background: #f8fafc;
+        border: 1px solid var(--border-1);
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 10px;
+      }
+      .email-card .from {
+        color: var(--fg-3);
+        font-size: 9px;
+        margin-bottom: 3px;
+      }
+      .email-card .subj {
+        font-weight: 700;
+        font-size: 11px;
+        margin-bottom: 4px;
+      }
+
+      /* Notes column */
+      .notes {
+        background: #fffbeb;
+        border: 1px dashed #fcd34d;
+        border-radius: 10px;
+        padding: 14px 16px;
+        font-size: 12px;
+        color: var(--fg-2);
+        line-height: 1.55;
+      }
+      .notes b {
+        color: var(--fg-1);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="pagehead">
+        <img src="../assets/logo.svg" alt="Sealed" />
+        <div class="links">
+          <a href="storybook.html">← Component storybook</a>
+          <a href="../ui_kits/signing_app/index.html">Signing app →</a>
+        </div>
+      </div>
+
+      <div class="eyebrow">Flow wireframe</div>
+      <h1>The signature flow, end to end.</h1>
+      <p class="lede">
+        Two tracks: the <b>sender</b> prepares and dispatches a document; the
+        <b>recipient</b> receives, reviews, and signs. This wireframe shows how the screens connect,
+        where the state changes, and which channel each moment happens in.
+      </p>
+
+      <div class="legend">
+        <span
+          ><span class="legend-swatch" style="background: #0f172a"></span><b>Solid</b> frame:
+          primary screen</span
+        >
+        <span
+          ><span
+            class="legend-swatch"
+            style="background: #fef3c7; border: 1px solid #0f172a; border-radius: 2px"
+          ></span
+          ><b>Amber</b>: decision / state change</span
+        >
+        <span
+          ><span class="legend-swatch" style="background: #fff; border: 1.5px dashed #6366f1"></span
+          ><b>Dashed indigo</b>: signature field</span
+        >
+        <span
+          ><span
+            class="legend-swatch"
+            style="background: rgba(16, 185, 129, 0.12); border: 1.5px dashed #10b981"
+          ></span
+          ><b>Dashed emerald</b>: snapped / signed</span
+        >
+      </div>
+
+      <!-- ============================================================
+       SENDER TRACK — Request signature
+       ============================================================ -->
+      <h2 class="section-title">Track A — Sender requests a signature</h2>
+      <p class="section-lede">
+        Jamie drafts a contract, assigns signers to fields, and sends it out.
+      </p>
+
+      <div class="flow">
+        <div class="track-label">Desktop<br />signing app</div>
+
+        <div class="frame">
+          <span class="num">1</span>
+          <div class="title">Upload PDF</div>
+          <div class="sub">ui_kits/signing_app · UploadScreen</div>
+          <div class="screen">
+            <div
+              style="
+                border: 1.5px dashed #818cf8;
+                border-radius: 8px;
+                padding: 14px;
+                text-align: center;
+                background: #eef2ff;
+              "
+            >
+              <div style="font-size: 18px">☁</div>
+              <div style="font-size: 10px; font-weight: 600; color: #4338ca; margin-top: 4px">
+                Drop PDF here
+              </div>
+              <div style="font-size: 9px; color: var(--fg-3)">or choose file · up to 25 MB</div>
+            </div>
+            <div style="margin-top: auto; display: flex; justify-content: center">
+              <span class="btn-wf primary">Choose file</span>
+            </div>
+          </div>
+          <div class="annot">
+            <b>Entry:</b> "New document" button, drag-and-drop anywhere on the window.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">2</span>
+          <div class="title">Place fields</div>
+          <div class="sub">PlaceFieldsScreen · 3-pane</div>
+          <div class="screen" style="flex-direction: row; gap: 4px; padding: 6px">
+            <div style="width: 28px; display: flex; flex-direction: column; gap: 3px">
+              <div class="field-box" style="padding: 3px">sig</div>
+              <div class="field-box" style="padding: 3px">init</div>
+              <div class="field-box" style="padding: 3px">date</div>
+            </div>
+            <div
+              style="
+                flex: 1;
+                background: #fff;
+                border: 1px solid var(--border-1);
+                border-radius: 3px;
+                padding: 5px;
+                position: relative;
+              "
+            >
+              <div
+                class="line"
+                style="height: 2px; background: #e2e8f0; margin: 2px 0; width: 80%"
+              ></div>
+              <div
+                class="line"
+                style="height: 2px; background: #e2e8f0; margin: 2px 0; width: 65%"
+              ></div>
+              <div
+                class="line"
+                style="height: 2px; background: #e2e8f0; margin: 2px 0; width: 75%"
+              ></div>
+              <div
+                style="
+                  position: absolute;
+                  bottom: 16px;
+                  left: 5px;
+                  right: 5px;
+                  display: flex;
+                  gap: 3px;
+                "
+              >
+                <div class="field-box emerald" style="flex: 1; padding: 4px; font-size: 7px">
+                  ✓ Client
+                </div>
+                <div class="field-box emerald" style="flex: 1; padding: 4px; font-size: 7px">
+                  ✓ Counter
+                </div>
+              </div>
+            </div>
+            <div style="width: 32px; display: flex; flex-direction: column; gap: 3px">
+              <div style="height: 12px; background: #f472b6; border-radius: 999px"></div>
+              <div style="height: 12px; background: #7dd3fc; border-radius: 999px"></div>
+              <div class="pill" style="font-size: 7px; padding: 1px 4px">+ add</div>
+            </div>
+          </div>
+          <div class="annot">
+            <b>Key affordances:</b> snap-to-sign-zones, alignment guides, grouped drag with unlink,
+            "Next sign line" jump.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">3</span>
+          <div class="title">Review &amp; send</div>
+          <div class="sub">Right rail footer CTA</div>
+          <div class="screen">
+            <div style="font-size: 10px; font-weight: 700; color: var(--fg-1)">Signers (2)</div>
+            <div style="display: flex; gap: 4px">
+              <span class="pill" style="padding: 2px 6px 2px 2px"
+                ><span class="dot" style="background: #f472b6"></span>Eliran</span
+              >
+              <span class="pill" style="padding: 2px 6px 2px 2px"
+                ><span class="dot" style="background: #7dd3fc"></span>Nitsan</span
+              >
+            </div>
+            <div style="font-size: 10px; color: var(--fg-2); margin-top: 6px">
+              ✓ 2 fields · 2 signers
+            </div>
+            <div style="margin-top: auto">
+              <span class="btn-wf primary" style="width: 100%; box-sizing: border-box"
+                >Send to sign →</span
+              >
+            </div>
+          </div>
+          <div class="annot">
+            <b>Validation:</b> CTA disabled until ≥1 field placed. Helper line below summarises
+            counts.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">4</span>
+          <div class="title">Sent confirmation</div>
+          <div class="sub">SentScreen</div>
+          <div
+            class="screen"
+            style="align-items: center; justify-content: center; text-align: center"
+          >
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 999px;
+                background: #d1fae5;
+                color: #047857;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+                margin: 0 auto;
+              "
+            >
+              ✓
+            </div>
+            <div style="font-family: var(--font-serif); font-size: 18px; font-weight: 500">
+              Sealed.
+            </div>
+            <div style="font-size: 10px; color: var(--fg-3); line-height: 1.5">
+              Sent to your signers. We'll let you know when they complete their part.
+            </div>
+            <div style="margin-top: auto">
+              <span class="btn-wf secondary">Back to documents</span>
+            </div>
+          </div>
+          <div class="annot"><b>State:</b> document is "Awaiting others" in the dashboard.</div>
+        </div>
+
+        <div class="frame">
+          <span class="num">5</span>
+          <div class="title">Dashboard</div>
+          <div class="sub">ui_kits/dashboard</div>
+          <div class="screen">
+            <div style="font-size: 10px; font-weight: 700">Documents</div>
+            <div class="email-card" style="background: #fff">
+              <div class="subj">Master Services Agreement</div>
+              <span class="pill" style="font-size: 9px; padding: 1px 6px 1px 2px"
+                ><span class="dot" style="background: #f59e0b"></span>Awaiting others</span
+              >
+            </div>
+            <div class="email-card" style="background: #fff">
+              <div class="subj">NDA — Farrow &amp; Co.</div>
+              <span class="pill" style="font-size: 9px; padding: 1px 6px 1px 2px"
+                ><span class="dot" style="background: #10b981"></span>Completed</span
+              >
+            </div>
+          </div>
+          <div class="annot"><b>Post-send:</b> tracking, reminders, and download from here.</div>
+        </div>
+      </div>
+
+      <div class="arrow-row">
+        <div></div>
+        <div class="arrow">→ drop file</div>
+        <div class="arrow">→ drag fields</div>
+        <div class="arrow">→ click Send</div>
+        <div class="arrow">→ emails dispatch</div>
+        <div class="arrow">→ track status</div>
+      </div>
+
+      <!-- ============================================================
+       RECIPIENT TRACK — Receive and sign
+       ============================================================ -->
+      <div class="branch-divider">
+        <h2 class="section-title">Track B — Recipient receives &amp; signs</h2>
+        <p class="section-lede">
+          Eliran gets an email, opens the link, and signs — either on desktop or mobile.
+        </p>
+      </div>
+
+      <div class="flow">
+        <div class="track-label">Email +<br />signing link</div>
+
+        <div class="frame">
+          <span class="num">6</span>
+          <div class="title">Request email</div>
+          <div class="sub">ui_kits/email/request.html</div>
+          <div class="screen">
+            <div class="email-card">
+              <div class="from">From: Sealed &lt;no-reply@sealed.app&gt;</div>
+              <div class="subj">Jamie sent you a document to sign</div>
+              <div style="font-size: 9px; color: var(--fg-2); line-height: 1.4">
+                Master Services Agreement — 4 pages. The document is waiting at Sealed.
+              </div>
+              <div style="margin-top: 8px">
+                <span class="btn-wf primary" style="font-size: 9px; padding: 5px 8px"
+                  >Review and sign →</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="annot">
+            <b>Channel:</b> transactional email. HTML-email-safe: no flexbox, table-based.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">7</span>
+          <div class="title">Review document</div>
+          <div class="sub">Recipient landing</div>
+          <div class="screen">
+            <div class="doc">
+              <div class="line w80"></div>
+              <div class="line w70"></div>
+              <div class="line w90"></div>
+              <div class="line w60"></div>
+              <div class="line w80"></div>
+              <div style="display: flex; gap: 6px; margin-top: 6px">
+                <div class="field-box" style="flex: 1; padding: 6px; text-align: center">
+                  Sign here →
+                </div>
+              </div>
+            </div>
+            <span class="pill"
+              ><span class="dot" style="background: #f59e0b"></span>Awaiting you</span
+            >
+          </div>
+          <div class="annot"><b>Decision point:</b> sign, decline, or request changes.</div>
+        </div>
+
+        <div class="frame">
+          <span class="num">8</span>
+          <div class="title">Capture signature</div>
+          <div class="sub">SignScreen · type-your-name</div>
+          <div
+            class="screen"
+            style="align-items: center; justify-content: center; text-align: center"
+          >
+            <div style="font-family: var(--font-script); font-size: 26px; color: var(--ink-900)">
+              Eliran Azulay
+            </div>
+            <div
+              style="border-bottom: 1.5px solid var(--ink-900); width: 80%; margin: 0 auto"
+            ></div>
+            <div
+              style="
+                margin-top: 10px;
+                border: 1px solid var(--border-1);
+                border-radius: 6px;
+                padding: 4px 8px;
+                font-size: 9px;
+                color: var(--fg-3);
+                width: 80%;
+                box-sizing: border-box;
+              "
+            >
+              Your full name
+            </div>
+            <div style="margin-top: auto"><span class="btn-wf primary">✎ Sign and send</span></div>
+          </div>
+          <div class="annot">
+            <b>Only "type" is wired</b> in the hi-fi kit; draw/upload can be layered in later.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">9</span>
+          <div class="title">Sealed confirmation</div>
+          <div class="sub">Recipient success</div>
+          <div
+            class="screen"
+            style="align-items: center; justify-content: center; text-align: center"
+          >
+            <div
+              style="
+                width: 36px;
+                height: 36px;
+                border-radius: 999px;
+                background: #d1fae5;
+                color: #047857;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 18px;
+              "
+            >
+              ✓
+            </div>
+            <div style="font-family: var(--font-serif); font-size: 20px; font-weight: 500">
+              This contract is sealed.
+            </div>
+            <div style="font-size: 10px; color: var(--fg-3)">Audit trail is on the last page.</div>
+            <div style="margin-top: auto">
+              <span class="btn-wf secondary">Download signed copy</span>
+            </div>
+          </div>
+          <div class="annot">
+            <b>Motion:</b> drawn signature pulses indigo → emerald over 320ms. The one flourish.
+          </div>
+        </div>
+
+        <div class="frame">
+          <span class="num">10</span>
+          <div class="title">Completion email</div>
+          <div class="sub">ui_kits/email/completed.html</div>
+          <div class="screen">
+            <div class="email-card">
+              <div class="from">From: Sealed</div>
+              <div class="subj">Master Services Agreement is sealed</div>
+              <div style="font-size: 9px; color: var(--fg-2); line-height: 1.4">
+                Signed by 2 of 2 signers. PDF attached with full audit trail.
+              </div>
+              <div style="margin-top: 8px">
+                <span class="btn-wf secondary" style="font-size: 9px; padding: 5px 8px"
+                  >View document</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="annot">
+            <b>Sent to all parties</b> once the final signer completes. Includes the signed PDF and
+            audit JSON.
+          </div>
+        </div>
+      </div>
+
+      <div class="arrow-row">
+        <div></div>
+        <div class="arrow">→ open link</div>
+        <div class="arrow">→ review content</div>
+        <div class="arrow">→ type name</div>
+        <div class="arrow">→ all signed</div>
+        <div class="arrow">→ notify everyone</div>
+      </div>
+
+      <!-- ============================================================
+       MOBILE PARITY
+       ============================================================ -->
+      <div class="branch-divider">
+        <h2 class="section-title">Track C — Mobile parity</h2>
+        <p class="section-lede">
+          The recipient flow works identically on iOS. Sending is desktop-first for now.
+        </p>
+      </div>
+
+      <div class="flow" style="grid-template-columns: 100px repeat(4, 1fr)">
+        <div class="track-label">iOS<br />app</div>
+
+        <div class="frame">
+          <span class="num">M1</span>
+          <div class="title">Push notification</div>
+          <div class="sub">System-level</div>
+          <div class="screen">
+            <div class="phone">
+              <div class="notch"></div>
+              <div class="stage" style="justify-content: flex-end">
+                <div
+                  style="background: rgba(255, 255, 255, 0.9); border-radius: 8px; padding: 6px 8px"
+                >
+                  <div style="font-size: 8px; font-weight: 700">Sealed</div>
+                  <div style="font-size: 8px">Jamie sent you a document</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="annot"><b>Trigger:</b> same moment as the request email.</div>
+        </div>
+
+        <div class="frame">
+          <span class="num">M2</span>
+          <div class="title">Inbox</div>
+          <div class="sub">MobileApp · Inbox tab</div>
+          <div class="screen">
+            <div class="phone">
+              <div class="notch"></div>
+              <div class="stage">
+                <div style="font-size: 10px; font-weight: 700">Inbox</div>
+                <div style="border: 1px solid var(--border-1); border-radius: 5px; padding: 5px">
+                  <div style="font-size: 8px; font-weight: 700">MSA — Jamie</div>
+                  <div style="font-size: 7px; color: #f59e0b">● Awaiting you</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="annot"><b>Status dot</b> uses the same semantic palette as desktop.</div>
+        </div>
+
+        <div class="frame">
+          <span class="num">M3</span>
+          <div class="title">Sign (sheet)</div>
+          <div class="sub">Modal sheet, full-height</div>
+          <div class="screen">
+            <div class="phone">
+              <div class="notch"></div>
+              <div class="stage">
+                <div class="doc" style="min-height: 60px">
+                  <div class="line w90"></div>
+                  <div class="line w70"></div>
+                  <div class="sigline"></div>
+                </div>
+                <div style="font-family: var(--font-script); font-size: 14px; text-align: center">
+                  Eliran Azulay
+                </div>
+                <div style="margin-top: auto">
+                  <span
+                    class="btn-wf primary"
+                    style="width: 100%; box-sizing: border-box; font-size: 9px"
+                    >Sign</span
+                  >
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="annot"><b>Bottom-sheet pattern</b> instead of desktop's centered modal.</div>
+        </div>
+
+        <div class="frame">
+          <span class="num">M4</span>
+          <div class="title">Completed</div>
+          <div class="sub">Completed tab</div>
+          <div class="screen">
+            <div class="phone">
+              <div class="notch"></div>
+              <div
+                class="stage"
+                style="align-items: center; justify-content: center; text-align: center"
+              >
+                <div
+                  style="
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 999px;
+                    background: #d1fae5;
+                    color: #047857;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 14px;
+                    margin: 0 auto;
+                  "
+                >
+                  ✓
+                </div>
+                <div style="font-family: var(--font-serif); font-size: 14px">Sealed.</div>
+                <div style="font-size: 8px; color: var(--fg-3)">
+                  On your device &amp; in the cloud
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="annot"><b>Parity:</b> same copy, same motion, same audit trail.</div>
+        </div>
+      </div>
+
+      <!-- ============================================================
+       STATE MACHINE
+       ============================================================ -->
+      <div class="branch-divider">
+        <h2 class="section-title">Document state machine</h2>
+        <p class="section-lede">
+          Every document is in exactly one of these states. Transitions are triggered by the actions
+          above.
+        </p>
+      </div>
+
+      <div
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
+          padding: 32px;
+          background: #fff;
+          border: 1px solid var(--border-1);
+          border-radius: 16px;
+        "
+      >
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div
+            style="
+              padding: 10px 16px;
+              background: var(--ink-100);
+              border: 1px solid var(--border-1);
+              border-radius: 999px;
+              font-size: 12px;
+              font-weight: 600;
+            "
+          >
+            Draft
+          </div>
+          <div style="font-size: 10px; color: var(--fg-3)">Sender preparing</div>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 14px; color: var(--fg-3)">→</div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div
+            style="
+              padding: 10px 16px;
+              background: #fef3c7;
+              color: #b45309;
+              border: 1px solid #fde68a;
+              border-radius: 999px;
+              font-size: 12px;
+              font-weight: 600;
+            "
+          >
+            Awaiting others
+          </div>
+          <div style="font-size: 10px; color: var(--fg-3)">Sent, waiting on signers</div>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 14px; color: var(--fg-3)">→</div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div
+            style="
+              padding: 10px 16px;
+              background: #fef3c7;
+              color: #b45309;
+              border: 1px solid #fde68a;
+              border-radius: 999px;
+              font-size: 12px;
+              font-weight: 600;
+            "
+          >
+            Awaiting you
+          </div>
+          <div style="font-size: 10px; color: var(--fg-3)">Recipient's turn</div>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 14px; color: var(--fg-3)">→</div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+          <div
+            style="
+              padding: 10px 16px;
+              background: #d1fae5;
+              color: #047857;
+              border: 1px solid #a7f3d0;
+              border-radius: 999px;
+              font-size: 12px;
+              font-weight: 600;
+            "
+          >
+            Completed
+          </div>
+          <div style="font-size: 10px; color: var(--fg-3)">All signers done</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 16px">
+        <div style="font-size: 11px; color: var(--fg-3)">
+          Side branches from any non-terminal state:
+        </div>
+        <span class="pill" style="font-size: 10px; padding: 2px 10px 2px 4px"
+          ><span class="dot" style="background: #ef4444"></span>Declined</span
+        >
+        <span class="pill" style="font-size: 10px; padding: 2px 10px 2px 4px"
+          ><span class="dot" style="background: #cbd5e1"></span>Expired</span
+        >
+      </div>
+
+      <!-- ============================================================
+       COMPONENT MAP
+       ============================================================ -->
+      <div class="branch-divider">
+        <h2 class="section-title">Component map</h2>
+        <p class="section-lede">
+          Which storybook components show up in each frame. Use this when implementing a new screen
+          — start from the components below, don't invent.
+        </p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px">
+        <div class="notes">
+          <b>Frames 1–4 (Sender)</b><br />TopNav · LeftRail · Button · Badge · Card · TextField ·
+          DocThumb · Avatar · SignatureMark · Signature field · Alignment guides · Sign zones ·
+          Select signers popover · Place on pages popover · Add signer dropdown · Grouped-fields HUD
+        </div>
+        <div class="notes">
+          <b>Frames 6–10 (Recipient)</b><br />TopNav (condensed) · Button · Badge · Card ·
+          SignatureMark · Email request card · Email completion card · Status dot pattern · Audit
+          trail section (final PDF page)
+        </div>
+        <div class="notes">
+          <b>Frames M1–M4 (Mobile)</b><br />iOS frame · Bottom-sheet modal · Button (full-width) ·
+          Status dot pattern · SignatureMark · DocThumb (mobile size) · Inbox row
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

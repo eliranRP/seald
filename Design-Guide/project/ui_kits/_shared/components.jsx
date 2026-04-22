@@ -58,13 +58,17 @@ function Button({ variant = 'primary', size = 'md', icon, iconRight, children, o
 
 /* ---------- Badge ---------- */
 function Badge({ tone = 'neutral', children }) {
-  const tones = {
+  // Accept semantic aliases as well as native tone names.
+  const aliases = { success:'emerald', warning:'amber', danger:'red', error:'red' };
+  const key = aliases[tone] || tone;
+  const map = {
     indigo: { bg:'var(--indigo-50)', fg:'var(--indigo-800)', dot:'var(--indigo-600)' },
     amber:  { bg:'var(--warn-50)',   fg:'var(--warn-700)',   dot:'var(--warn-500)' },
     emerald:{ bg:'var(--success-50)',fg:'var(--success-700)',dot:'var(--success-500)' },
     red:    { bg:'var(--danger-50)', fg:'var(--danger-700)', dot:'var(--danger-500)' },
     neutral:{ bg:'var(--ink-100)',   fg:'var(--fg-2)',       dot:'var(--fg-3)' },
-  }[tone];
+  };
+  const tones = map[key] || map.neutral;
   return (
     <span style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px 4px 8px',borderRadius:999,background:tones.bg,color:tones.fg,fontSize:12,fontWeight:600,lineHeight:1.2}}>
       <span style={{width:6,height:6,borderRadius:999,background:tones.dot}}/>

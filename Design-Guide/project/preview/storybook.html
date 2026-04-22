@@ -1,0 +1,1904 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sealed — Component storybook</title>
+    <link rel="stylesheet" href="../colors_and_type.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    <script
+      src="https://unpkg.com/react@18.3.1/umd/react.development.js"
+      integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
+      integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"
+      integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y"
+      crossorigin="anonymous"
+    ></script>
+    <style>
+      body {
+        margin: 0;
+        background: var(--ink-50);
+        color: var(--fg-1);
+        font-family: var(--font-sans);
+      }
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 56px 32px 120px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+        margin-bottom: 10px;
+      }
+      h1 {
+        font-family: var(--font-serif);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        font-size: 56px;
+        line-height: 1.05;
+        margin: 0 0 16px;
+        color: var(--fg-1);
+      }
+      h2 {
+        font-family: var(--font-serif);
+        font-weight: 500;
+        letter-spacing: -0.02em;
+        font-size: 32px;
+        line-height: 1.1;
+        margin: 0 0 20px;
+        color: var(--fg-1);
+      }
+      h3 {
+        font-family: var(--font-sans);
+        font-weight: 600;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--fg-3);
+        margin: 0 0 12px;
+      }
+      .lede {
+        font-size: 17px;
+        color: var(--fg-2);
+        line-height: 1.55;
+        max-width: 68ch;
+      }
+      .toc {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin: 32px 0 48px;
+        padding: 16px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+        border-radius: 16px;
+      }
+      .toc a {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--fg-2);
+        text-decoration: none;
+      }
+      .toc a:hover {
+        background: var(--ink-100);
+        color: var(--fg-1);
+      }
+      .toc a .n {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg-4);
+        width: 20px;
+      }
+      section {
+        margin-top: 64px;
+      }
+      .section-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        border-bottom: 1px solid var(--border-1);
+        padding-bottom: 14px;
+        margin-bottom: 24px;
+      }
+      .section-head .count {
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--fg-3);
+      }
+      .story {
+        background: #fff;
+        border: 1px solid var(--border-1);
+        border-radius: 16px;
+        padding: 24px;
+        margin-bottom: 16px;
+      }
+      .story .title {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 4px;
+      }
+      .story .title .name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--fg-1);
+      }
+      .story .title .code {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg-3);
+        background: var(--ink-100);
+        padding: 2px 6px;
+        border-radius: 4px;
+      }
+      .story .desc {
+        font-size: 13px;
+        color: var(--fg-3);
+        margin: 0 0 18px;
+        max-width: 60ch;
+        line-height: 1.5;
+      }
+      .canvas {
+        padding: 28px;
+        background: var(--ink-50);
+        border: 1px dashed var(--border-1);
+        border-radius: 12px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px;
+        align-items: center;
+      }
+      .canvas.dense {
+        gap: 8px;
+      }
+      .canvas.col {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .label {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--fg-4);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin-right: 10px;
+        min-width: 92px;
+      }
+      .swatch-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+        width: 100%;
+      }
+      .swatch {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .swatch .chip {
+        height: 64px;
+        border-radius: 12px;
+        border: 1px solid rgba(15, 23, 42, 0.06);
+      }
+      .swatch .meta {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        color: var(--fg-3);
+        display: flex;
+        justify-content: space-between;
+      }
+      .swatch .nm {
+        font-weight: 600;
+        color: var(--fg-2);
+        font-family: var(--font-sans);
+        font-size: 11px;
+      }
+      .icon-grid {
+        display: grid;
+        grid-template-columns: repeat(8, 1fr);
+        gap: 12px;
+        width: 100%;
+      }
+      .icon-cell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 6px;
+        border-radius: 10px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+      }
+      .icon-cell .n {
+        font-size: 10px;
+        color: var(--fg-3);
+        font-family: var(--font-mono);
+      }
+      .type-row {
+        display: flex;
+        align-items: baseline;
+        gap: 20px;
+        padding: 12px 0;
+        border-top: 1px solid var(--border-1);
+      }
+      .type-row:first-child {
+        border-top: none;
+      }
+      .type-row .spec {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--fg-3);
+        width: 140px;
+        flex-shrink: 0;
+      }
+      .kbd {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        background: var(--ink-100);
+        border: 1px solid var(--border-1);
+        border-bottom-width: 2px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: var(--fg-2);
+      }
+      .divider {
+        height: 1px;
+        background: var(--border-1);
+        margin: 40px 0;
+      }
+      .pagehead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 32px;
+      }
+      .pagehead img {
+        height: 28px;
+      }
+      .pagehead .links {
+        display: flex;
+        gap: 6px;
+      }
+      .pagehead .links a {
+        font-size: 13px;
+        padding: 6px 12px;
+        border-radius: 8px;
+        background: #fff;
+        border: 1px solid var(--border-1);
+        color: var(--fg-2);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .pagehead .links a:hover {
+        background: var(--ink-100);
+      }
+      /* anchor offset so headings aren't covered by anything */
+      section {
+        scroll-margin-top: 24px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="pagehead">
+        <img src="../assets/logo.svg" alt="Sealed" />
+        <div class="links">
+          <a href="signature-flow-wireframe.html">Flow wireframe →</a>
+          <a href="../ui_kits/signing_app/index.html">Signing app →</a>
+        </div>
+      </div>
+
+      <div class="eyebrow">Design system</div>
+      <h1>Component storybook</h1>
+      <p class="lede">
+        Every component in Sealed, in one scrollable page. Use this as the source of truth when
+        building a new screen — each story shows the default, size variants, states, and code
+        handle.
+      </p>
+
+      <div class="toc">
+        <a href="#foundations"><span class="n">01</span> Foundations</a>
+        <a href="#color"><span class="n">02</span> Color</a>
+        <a href="#type"><span class="n">03</span> Type</a>
+        <a href="#iconography"><span class="n">04</span> Iconography</a>
+        <a href="#buttons"><span class="n">05</span> Buttons</a>
+        <a href="#inputs"><span class="n">06</span> Inputs</a>
+        <a href="#badges"><span class="n">07</span> Badges &amp; status</a>
+        <a href="#avatars"><span class="n">08</span> Avatars</a>
+        <a href="#cards"><span class="n">09</span> Cards &amp; surfaces</a>
+        <a href="#doc-thumb"><span class="n">10</span> Document thumb</a>
+        <a href="#signature"><span class="n">11</span> Signature mark</a>
+        <a href="#nav"><span class="n">12</span> Navigation</a>
+        <a href="#field"><span class="n">13</span> Signature field</a>
+        <a href="#popover"><span class="n">14</span> Popovers &amp; sheets</a>
+        <a href="#email-atoms"><span class="n">15</span> Email atoms</a>
+      </div>
+
+      <div id="root"></div>
+    </div>
+
+    <script src="../ui_kits/_shared/components.jsx" type="text/babel"></script>
+    <script type="text/babel" data-presets="react">
+      /* useState/useRef/useEffect already destructured in components.jsx */
+
+      /* ---- helpers ---- */
+      const Story = ({ id, name, code, desc, children, dense, col }) => (
+        <div className="story" id={id}>
+          <div className="title">
+            <span className="name">{name}</span>
+            {code && <span className="code">{code}</span>}
+          </div>
+          {desc && <p className="desc">{desc}</p>}
+          <div className={'canvas' + (dense ? ' dense' : '') + (col ? ' col' : '')}>{children}</div>
+        </div>
+      );
+      const SectionHead = ({ n, title, count }) => (
+        <div className="section-head">
+          <div>
+            <div className="eyebrow">Section {n}</div>
+            <h2 style={{ margin: 0 }}>{title}</h2>
+          </div>
+          {count && <span className="count">{count}</span>}
+        </div>
+      );
+
+      /* ====================================================================
+   01 — FOUNDATIONS
+   ==================================================================== */
+      function Foundations() {
+        return (
+          <section id="foundations">
+            <SectionHead n="01" title="Foundations" count="Tokens" />
+            <Story
+              name="Corner radii"
+              code="--r-*"
+              desc="Soft radii throughout. 12px default on inputs & buttons, 16px on cards, 20px on panels, 28px on hero/signing surfaces."
+            >
+              {[
+                ['xs', 6],
+                ['sm', 8],
+                ['md', 12],
+                ['lg', 16],
+                ['xl', 20],
+                ['2xl', 28],
+                ['pill', 999],
+              ].map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}
+                >
+                  <div
+                    style={{
+                      width: 80,
+                      height: 56,
+                      background: 'var(--indigo-100)',
+                      border: '1px solid var(--indigo-200)',
+                      borderRadius: v === 999 ? 999 : v,
+                    }}
+                  />
+                  <div
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)' }}
+                  >
+                    --r-{k}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-2)', fontWeight: 600 }}>
+                    {v === 999 ? 'pill' : `${v}px`}
+                  </div>
+                </div>
+              ))}
+            </Story>
+            <Story
+              name="Shadows"
+              code="--shadow-*"
+              desc="Sparingly used. Default cards are border-only. Shadows escalate with elevation; `--shadow-paper` is special — the signature lifted-page shadow for document previews."
+            >
+              {[
+                ['sm', '--shadow-sm'],
+                ['md', '--shadow-md'],
+                ['lg', '--shadow-lg'],
+                ['xl', '--shadow-xl'],
+                ['paper', '--shadow-paper'],
+              ].map(([nm, v]) => (
+                <div
+                  key={nm}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                    alignItems: 'center',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 120,
+                      height: 80,
+                      background: '#fff',
+                      borderRadius: 12,
+                      boxShadow: `var(${v})`,
+                      border: nm === 'paper' ? '1px solid var(--border-1)' : undefined,
+                    }}
+                  />
+                  <div
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)' }}
+                  >
+                    {v}
+                  </div>
+                </div>
+              ))}
+            </Story>
+            <Story
+              name="Spacing scale"
+              code="--sp-*"
+              desc="4px base grid. Most common values: 16, 24, 48, 80."
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
+                {[
+                  ['1', 4],
+                  ['2', 8],
+                  ['3', 12],
+                  ['4', 16],
+                  ['6', 24],
+                  ['8', 32],
+                  ['12', 48],
+                  ['16', 64],
+                  ['20', 80],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        color: 'var(--fg-3)',
+                        width: 60,
+                      }}
+                    >
+                      --sp-{k}
+                    </span>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 11,
+                        color: 'var(--fg-2)',
+                        width: 40,
+                      }}
+                    >
+                      {v}px
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-block',
+                        height: 14,
+                        width: v,
+                        background: 'var(--indigo-500)',
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   02 — COLOR
+   ==================================================================== */
+      function ColorSwatch({ name, value, hex }) {
+        return (
+          <div className="swatch">
+            <div className="chip" style={{ background: value }} />
+            <div className="nm">{name}</div>
+            <div className="meta">
+              <span>{hex}</span>
+            </div>
+          </div>
+        );
+      }
+      function ColorSection() {
+        return (
+          <section id="color">
+            <SectionHead n="02" title="Color" />
+            <Story
+              name="Primary — Indigo"
+              code="--indigo-*"
+              desc="Indigo 600 is the brand. Use as ink on paper: CTAs, links, focus, the mark. Never as a large flat background."
+            >
+              <div className="swatch-grid">
+                {[
+                  ['50', '#EEF2FF'],
+                  ['100', '#E0E7FF'],
+                  ['200', '#C7D2FE'],
+                  ['300', '#A5B4FC'],
+                  ['400', '#818CF8'],
+                  ['500', '#6366F1'],
+                  ['600', '#4F46E5'],
+                  ['700', '#4338CA'],
+                  ['800', '#3730A3'],
+                  ['900', '#312E81'],
+                ].map(([k, h]) => (
+                  <ColorSwatch key={k} name={`indigo-${k}`} value={h} hex={h} />
+                ))}
+              </div>
+            </Story>
+            <Story
+              name="Neutrals — Ink"
+              code="--ink-*"
+              desc="Slightly cool slate-tinted neutrals. --ink-900 is the text color; --ink-50 is the app backdrop."
+            >
+              <div className="swatch-grid">
+                {[
+                  ['50', '#F8FAFC'],
+                  ['100', '#F1F5F9'],
+                  ['200', '#E2E8F0'],
+                  ['300', '#CBD5E1'],
+                  ['500', '#64748B'],
+                  ['700', '#334155'],
+                  ['900', '#0F172A'],
+                ].map(([k, h]) => (
+                  <ColorSwatch key={k} name={`ink-${k}`} value={h} hex={h} />
+                ))}
+              </div>
+            </Story>
+            <Story
+              name="Semantic"
+              desc="Reserved, never decorative. Emerald = signed/success · Amber = awaiting/warning · Red = declined/danger."
+            >
+              <div className="swatch-grid">
+                <ColorSwatch name="success-500" value="#10B981" hex="#10B981" />
+                <ColorSwatch name="success-700" value="#047857" hex="#047857" />
+                <ColorSwatch name="warning-500" value="#F59E0B" hex="#F59E0B" />
+                <ColorSwatch name="danger-500" value="#EF4444" hex="#EF4444" />
+                <ColorSwatch name="danger-700" value="#B91C1C" hex="#B91C1C" />
+              </div>
+            </Story>
+            <Story
+              name="Signer palette"
+              desc="Per-signer field tints. Assigned automatically when a signer is added; stays with them across the document."
+            >
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                {[
+                  ['#F472B6', 'Pink'],
+                  ['#7DD3FC', 'Sky'],
+                  ['#10B981', 'Emerald'],
+                  ['#F59E0B', 'Amber'],
+                  ['#818CF8', 'Indigo'],
+                  ['#EC4899', 'Fuchsia'],
+                ].map(([h, n]) => (
+                  <div
+                    key={h}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 14px 8px 8px',
+                      background: '#fff',
+                      border: '1px solid var(--border-1)',
+                      borderRadius: 999,
+                    }}
+                  >
+                    <span style={{ width: 22, height: 22, borderRadius: 999, background: h }} />
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>{n}</span>
+                    <span
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--fg-3)' }}
+                    >
+                      {h}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   03 — TYPE
+   ==================================================================== */
+      function TypeSection() {
+        return (
+          <section id="type">
+            <SectionHead n="03" title="Type" />
+            <Story
+              name="Display — Source Serif 4"
+              code="--font-serif"
+              desc="Hero and section headings. Weight 500 is the house display weight; italic is allowed for emphasis in long-form."
+            >
+              <div style={{ width: '100%' }}>
+                <div className="type-row">
+                  <div className="spec">Display 1 · 56/1.05 · 500</div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontWeight: 500,
+                      fontSize: 56,
+                      lineHeight: 1.05,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    Put your name to it.
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">Display 2 · 40/1.1 · 500</div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontWeight: 500,
+                      fontSize: 40,
+                      lineHeight: 1.1,
+                      letterSpacing: '-0.02em',
+                    }}
+                  >
+                    A quieter way to sign.
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">H2 · 32/1.1 · 500</div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontWeight: 500,
+                      fontSize: 32,
+                      lineHeight: 1.1,
+                      letterSpacing: '-0.01em',
+                    }}
+                  >
+                    Three ways to get signed
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">H3 · 24/1.2 · 500</div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-serif)',
+                      fontWeight: 500,
+                      fontSize: 24,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    Signed by two of three
+                  </div>
+                </div>
+              </div>
+            </Story>
+            <Story
+              name="UI — Inter"
+              code="--font-sans"
+              desc="All product UI, body copy, labels. Weights 400 / 500 / 600 / 700."
+            >
+              <div style={{ width: '100%' }}>
+                <div className="type-row">
+                  <div className="spec">Body · 16/1.55 · 400</div>
+                  <div
+                    style={{
+                      fontSize: 16,
+                      lineHeight: 1.55,
+                      color: 'var(--fg-2)',
+                      maxWidth: '52ch',
+                    }}
+                  >
+                    Sealed is a quieter way to sign, send, and store documents — built for the
+                    contracts you actually care about.
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">Body sm · 14/1.55 · 400</div>
+                  <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--fg-2)' }}>
+                    Drop a PDF, or choose from your computer. Up to 25 MB.
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">Label · 13/1.2 · 600</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>Send for signature</div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">Caption · 12/1.4 · 500</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--fg-3)' }}>
+                    Sent 2 hours ago · Awaiting others
+                  </div>
+                </div>
+                <div className="type-row">
+                  <div className="spec">Eyebrow · 11/1 · 600 · 0.12em</div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      letterSpacing: '0.12em',
+                      textTransform: 'uppercase',
+                      color: 'var(--fg-3)',
+                    }}
+                  >
+                    Audit trail
+                  </div>
+                </div>
+              </div>
+            </Story>
+            <Story
+              name="Mono — JetBrains Mono"
+              code="--font-mono"
+              desc="Document IDs, timestamps, IP addresses, dense data. Never for prose."
+            >
+              <div
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 13,
+                  color: 'var(--fg-2)',
+                  lineHeight: 1.7,
+                }}
+              >
+                <div>DOC-8F3A-4291</div>
+                <div>2026-05-14T09:42:11Z</div>
+                <div>192.168.1.47</div>
+                <div>sha256:9fc18e…</div>
+              </div>
+            </Story>
+            <Story
+              name="Script — Caveat"
+              code="--font-script"
+              desc="Used sparingly. Brand mark, one hero moment, signature placeholder. Never in body copy. Never as a headline."
+            >
+              <div
+                style={{ fontFamily: 'var(--font-script)', fontSize: 56, color: 'var(--ink-900)' }}
+              >
+                Jamie Okonkwo
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   04 — ICONOGRAPHY
+   ==================================================================== */
+      function IconSection() {
+        const names = [
+          'pen-tool',
+          'file-signature',
+          'file-text',
+          'upload-cloud',
+          'send',
+          'check-circle-2',
+          'circle-dashed',
+          'shield-check',
+          'clock',
+          'users',
+          'download',
+          'more-horizontal',
+          'x',
+          'arrow-right',
+          'arrow-left',
+          'chevron-right',
+          'chevron-left',
+          'lock',
+          'mail',
+          'inbox',
+          'plus',
+          'copy',
+          'trash-2',
+          'target',
+          'link',
+        ];
+        return (
+          <section id="iconography">
+            <SectionHead n="04" title="Iconography" count={`${names.length} Lucide icons`} />
+            <Story
+              name="Library — Lucide"
+              code="lucide-icons"
+              desc="1.75px stroke. Always currentColor. Sizes: 16 dense · 20 default · 24 rail · 32+ empty states. Never mix with filled icons."
+            >
+              <div className="icon-grid">
+                {names.map((n) => (
+                  <div key={n} className="icon-cell">
+                    <Icon name={n} size={22} style={{ color: 'var(--fg-1)' }} />
+                    <span className="n">{n}</span>
+                  </div>
+                ))}
+              </div>
+            </Story>
+            <Story
+              name="Sizes"
+              desc="Icons scale with their container; the gap to a label is always 6–8px."
+            >
+              <div className="row">
+                <div className="row" style={{ gap: 6 }}>
+                  <Icon name="pen-tool" size={14} />
+                  <span style={{ fontSize: 12 }}>14 dense</span>
+                </div>
+                <div className="row" style={{ gap: 6 }}>
+                  <Icon name="pen-tool" size={16} />
+                  <span style={{ fontSize: 13 }}>16 compact</span>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <Icon name="pen-tool" size={20} />
+                  <span style={{ fontSize: 14 }}>20 default</span>
+                </div>
+                <div className="row" style={{ gap: 10 }}>
+                  <Icon name="pen-tool" size={24} />
+                  <span style={{ fontSize: 15 }}>24 rail</span>
+                </div>
+                <div className="row" style={{ gap: 12 }}>
+                  <Icon name="pen-tool" size={32} />
+                  <span style={{ fontSize: 16 }}>32 empty state</span>
+                </div>
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   05 — BUTTONS
+   ==================================================================== */
+      function ButtonSection() {
+        return (
+          <section id="buttons">
+            <SectionHead n="05" title="Buttons" />
+            <Story
+              name="Variants"
+              code="<Button variant=…>"
+              desc="Primary for the single most-important action per surface. Secondary for alternate paths. Ghost for low-emphasis. Danger only for destructive (decline, delete)."
+            >
+              <Button variant="primary" icon="send">
+                Send for signature
+              </Button>
+              <Button variant="secondary">Save as draft</Button>
+              <Button variant="ghost">Cancel</Button>
+              <Button variant="danger" icon="x">
+                Decline to sign
+              </Button>
+            </Story>
+            <Story
+              name="Sizes"
+              code="size=…"
+              desc="sm · md (default) · lg — match to the density of the surface."
+            >
+              <Button variant="primary" size="sm">
+                Add signer
+              </Button>
+              <Button variant="primary">Add signer</Button>
+              <Button variant="primary" size="lg">
+                Add signer
+              </Button>
+            </Story>
+            <Story
+              name="States"
+              desc="Disabled never relies on color alone — always paired with a reason in helper text."
+            >
+              <Button variant="primary">Default</Button>
+              <Button variant="primary" style={{ boxShadow: 'var(--shadow-focus)' }}>
+                Focused
+              </Button>
+              <Button variant="primary" disabled>
+                Disabled
+              </Button>
+              <Button variant="primary" icon="pen-tool">
+                With leading icon
+              </Button>
+              <Button variant="primary" iconRight="arrow-right">
+                Trailing icon
+              </Button>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   06 — INPUTS
+   ==================================================================== */
+      function InputSection() {
+        const [v, setV] = useState('Jamie Okonkwo');
+        return (
+          <section id="inputs">
+            <SectionHead n="06" title="Inputs" />
+            <Story
+              name="Text field"
+              code="<TextField/>"
+              desc="Idle border 1px, focus 1.5px + indigo halo. Label sits above, helper text below."
+            >
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: 16,
+                  width: '100%',
+                }}
+              >
+                <TextField
+                  label="Full name"
+                  value={v}
+                  onChange={setV}
+                  placeholder="e.g. Jamie Okonkwo"
+                />
+                <TextField
+                  label="Email"
+                  value=""
+                  onChange={() => {}}
+                  placeholder="name@company.com"
+                  icon="mail"
+                />
+                <TextField label="Document ID" value="DOC-8F3A-4291" onChange={() => {}} disabled />
+                <TextField
+                  label="Email"
+                  value="not-an-email"
+                  onChange={() => {}}
+                  error="Enter a valid email address."
+                />
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   07 — BADGES / STATUS
+   ==================================================================== */
+      function BadgeSection() {
+        return (
+          <section id="badges">
+            <SectionHead n="07" title="Badges & status" />
+            <Story
+              name="Tones"
+              code="<Badge tone=…>"
+              desc="Tones map to states. Neutral for metadata; indigo for brand moments; semantic colors are reserved."
+            >
+              <Badge tone="neutral">Draft</Badge>
+              <Badge tone="indigo">Step 2 of 3</Badge>
+              <Badge tone="success">Completed</Badge>
+              <Badge tone="warning">Awaiting you</Badge>
+              <Badge tone="danger">Declined</Badge>
+            </Story>
+            <Story
+              name="Status dot pattern"
+              desc="Small colored dot + label — used in dashboard rows and the mobile inbox."
+            >
+              {[
+                { k: 'Awaiting you', c: 'var(--warning-500)' },
+                { k: 'Awaiting others', c: 'var(--fg-3)' },
+                { k: 'Completed', c: 'var(--success-500)' },
+                { k: 'Declined', c: 'var(--danger-500)' },
+                { k: 'Expired', c: 'var(--ink-300)' },
+              ].map((s) => (
+                <span
+                  key={s.k}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 12px',
+                    background: '#fff',
+                    border: '1px solid var(--border-1)',
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--fg-1)',
+                  }}
+                >
+                  <span style={{ width: 8, height: 8, borderRadius: 999, background: s.c }} />
+                  {s.k}
+                </span>
+              ))}
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   08 — AVATARS
+   ==================================================================== */
+      function AvatarSection() {
+        return (
+          <section id="avatars">
+            <SectionHead n="08" title="Avatars" />
+            <Story
+              name="Sizes"
+              code="<Avatar name size/>"
+              desc="Initials-only avatars. Tone is auto-assigned from a 6-color palette per person."
+            >
+              <Avatar name="Jamie Okonkwo" size={24} />
+              <Avatar name="Jamie Okonkwo" size={32} />
+              <Avatar name="Jamie Okonkwo" size={40} />
+              <Avatar name="Jamie Okonkwo" size={48} />
+              <Avatar name="Jamie Okonkwo" size={64} />
+            </Story>
+            <Story
+              name="Signer palette applied"
+              desc="Each signer on a document gets a persistent color from the 6-color palette (see Color section)."
+            >
+              <div className="row">
+                {[
+                  'Eliran Azulay',
+                  'Nitsan Yanovitch',
+                  'Ana Torres',
+                  'Meilin Chen',
+                  'Priya Kapoor',
+                  'Jamie Okonkwo',
+                ].map((n) => (
+                  <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <Avatar name={n} size={36} />
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{n}</div>
+                  </div>
+                ))}
+              </div>
+            </Story>
+            <Story name="Stack" desc="Overlapping avatars for signer lists on a document row.">
+              <div style={{ display: 'inline-flex' }}>
+                {['Eliran Azulay', 'Nitsan Yanovitch', 'Ana Torres'].map((n, i) => (
+                  <div
+                    key={n}
+                    style={{
+                      marginLeft: i === 0 ? 0 : -8,
+                      border: '2px solid #fff',
+                      borderRadius: 999,
+                      display: 'inline-block',
+                    }}
+                  >
+                    <Avatar name={n} size={32} />
+                  </div>
+                ))}
+                <div
+                  style={{
+                    marginLeft: -8,
+                    width: 32,
+                    height: 32,
+                    borderRadius: 999,
+                    background: 'var(--ink-100)',
+                    border: '2px solid #fff',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--fg-2)',
+                  }}
+                >
+                  +2
+                </div>
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   09 — CARDS
+   ==================================================================== */
+      function CardSection() {
+        return (
+          <section id="cards">
+            <SectionHead n="09" title="Cards & surfaces" />
+            <Story
+              name="Default card"
+              code="<Card/>"
+              desc="Border + no shadow. The workhorse container. 24px padding, 16px radius."
+            >
+              <Card style={{ width: 320 }}>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 20,
+                    fontWeight: 500,
+                    marginBottom: 6,
+                  }}
+                >
+                  Master Services Agreement
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 16 }}>
+                  3 signers · Awaiting others
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <Button variant="secondary" size="sm">
+                    Open
+                  </Button>
+                  <Button variant="ghost" size="sm">
+                    Copy link
+                  </Button>
+                </div>
+              </Card>
+            </Story>
+            <Story
+              name="Elevated card"
+              code="elevated"
+              desc="Rare — used for hero callouts on marketing. Adds `--shadow-md`. Don't use for in-product lists."
+            >
+              <Card elevated style={{ width: 320 }}>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 20,
+                    fontWeight: 500,
+                    marginBottom: 6,
+                  }}
+                >
+                  Sign one, sign them all
+                </div>
+                <div
+                  style={{ fontSize: 13, color: 'var(--fg-2)', lineHeight: 1.55, marginBottom: 16 }}
+                >
+                  Link a signature field once, mirror it across every page.
+                </div>
+                <Button variant="primary" size="sm" iconRight="arrow-right">
+                  Try it
+                </Button>
+              </Card>
+            </Story>
+            <Story
+              name="Dashed drop zone"
+              desc="Used on the upload screen. 1.5px dashed indigo-300, pillowy radius, centered icon + copy."
+            >
+              <div
+                style={{
+                  width: 480,
+                  padding: '40px 24px',
+                  textAlign: 'center',
+                  background: '#fff',
+                  border: '1.5px dashed var(--indigo-300)',
+                  borderRadius: 28,
+                }}
+              >
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 999,
+                    background: 'var(--indigo-50)',
+                    color: 'var(--indigo-600)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 14,
+                  }}
+                >
+                  <Icon name="upload-cloud" size={22} />
+                </div>
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: 18, fontWeight: 500 }}>
+                  Drop your PDF here
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 4 }}>
+                  or choose from your computer · up to 25 MB
+                </div>
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   10 — DOC THUMB
+   ==================================================================== */
+      function DocThumbSection() {
+        return (
+          <section id="doc-thumb">
+            <SectionHead n="10" title="Document thumb" />
+            <Story
+              name="Variants"
+              code="<DocThumb/>"
+              desc="Tiny PDF glyph for dashboard rows and inbox. 52px default; scales up for empty states."
+            >
+              <DocThumb title="Agreement" />
+              <DocThumb title="Agreement" signed />
+              <DocThumb title="Agreement" size={72} />
+              <DocThumb title="Agreement" signed size={72} />
+              <DocThumb title="Agreement" size={96} />
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   11 — SIGNATURE MARK
+   ==================================================================== */
+      function SignatureMarkSection() {
+        return (
+          <section id="signature">
+            <SectionHead n="11" title="Signature mark" />
+            <Story
+              name="The one flourish"
+              code="<SignatureMark/>"
+              desc="Caveat-script rendering of a typed name, with an ink underline. The only place script font appears in-product. Used in the Type signing tab and the Sent screen."
+            >
+              <SignatureMark name="Jamie Okonkwo" size={44} />
+              <SignatureMark name="Eliran Azulay" size={56} />
+              <SignatureMark name="Ana Torres" size={72} color="var(--indigo-700)" />
+              <SignatureMark name="Meilin Chen" size={56} underline={false} />
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   12 — NAVIGATION
+   ==================================================================== */
+      function NavSection() {
+        return (
+          <section id="nav">
+            <SectionHead n="12" title="Navigation" />
+            <Story
+              col
+              name="Top bar"
+              desc="56px sticky. Border-bottom, never a shadow. Backdrop-blur kicks in when the page scrolls beneath."
+            >
+              <div
+                style={{
+                  width: '100%',
+                  height: 56,
+                  background: 'rgba(255,255,255,0.82)',
+                  backdropFilter: 'blur(12px)',
+                  borderBottom: '1px solid var(--border-1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '0 24px',
+                  gap: 24,
+                  borderRadius: 12,
+                }}
+              >
+                <img src="../assets/logo.svg" height="26" alt="Sealed" />
+                <div style={{ display: 'flex', gap: 4, marginLeft: 16 }}>
+                  <div
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      background: 'var(--ink-100)',
+                      color: 'var(--fg-1)',
+                    }}
+                  >
+                    Documents
+                  </div>
+                  <div
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      fontWeight: 500,
+                      color: 'var(--fg-3)',
+                    }}
+                  >
+                    Contacts
+                  </div>
+                </div>
+                <div style={{ flex: 1 }} />
+                <Avatar name="Jamie Okonkwo" size={32} />
+              </div>
+            </Story>
+            <Story
+              col
+              name="Left rail"
+              desc="240px, on ink-50 backdrop. 'New document' primary button pinned at top. Active item is a paper-white card."
+            >
+              <div
+                style={{
+                  width: 240,
+                  padding: '16px 12px',
+                  border: '1px solid var(--border-1)',
+                  background: 'var(--ink-50)',
+                  borderRadius: 12,
+                }}
+              >
+                <Button
+                  variant="primary"
+                  icon="upload-cloud"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                >
+                  New document
+                </Button>
+                <div style={{ height: 18 }} />
+                {[
+                  ['inbox', 'Inbox'],
+                  ['send', 'Sent'],
+                  ['file-text', 'Drafts'],
+                  ['check-circle-2', 'Completed'],
+                ].map(([i, l], idx) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 12px',
+                      borderRadius: 10,
+                      background: idx === 1 ? '#fff' : 'transparent',
+                      border: idx === 1 ? '1px solid var(--border-1)' : '1px solid transparent',
+                      color: idx === 1 ? 'var(--fg-1)' : 'var(--fg-2)',
+                      fontSize: 14,
+                      fontWeight: idx === 1 ? 600 : 500,
+                      marginBottom: 2,
+                    }}
+                  >
+                    <Icon
+                      name={i}
+                      size={16}
+                      style={{ color: idx === 1 ? 'var(--indigo-600)' : 'var(--fg-3)' }}
+                    />
+                    <span>{l}</span>
+                  </div>
+                ))}
+              </div>
+            </Story>
+            <Story
+              col
+              name="Stepper (bottom-left)"
+              desc="Low-key page nav used in demo kits. Pill buttons, mono type."
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 4,
+                  padding: 6,
+                  background: '#fff',
+                  border: '1px solid var(--border-1)',
+                  borderRadius: 10,
+                }}
+              >
+                {['upload', 'place', 'sign', 'sent', 'contacts'].map((s, i) => (
+                  <div
+                    key={s}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 7,
+                      fontSize: 12,
+                      fontFamily: 'var(--font-mono)',
+                      background: i === 1 ? 'var(--ink-900)' : 'transparent',
+                      color: i === 1 ? '#fff' : 'var(--fg-3)',
+                    }}
+                  >
+                    {s}
+                  </div>
+                ))}
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   13 — SIGNATURE FIELD
+   ==================================================================== */
+      function FieldSection() {
+        return (
+          <section id="field">
+            <SectionHead n="13" title="Signature field" />
+            <Story
+              name="Placed field — default & selected"
+              desc="Sits on the document canvas. Color tint matches the signer. Selected state shows dashed halo + corner handles + overlay controls."
+            >
+              <div style={{ display: 'flex', gap: 40, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 132,
+                    height: 54,
+                    background: 'rgba(129,140,248,0.18)',
+                    border: '1.5px solid #818CF8',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      fontSize: 12,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <Icon name="pen-tool" size={12} style={{ color: '#818CF8' }} />
+                    Signature
+                  </div>
+                  <div
+                    style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-3)' }}
+                  >
+                    SIGN ID (UUID)
+                  </div>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: -6,
+                      right: -6,
+                      width: 16,
+                      height: 16,
+                      borderRadius: 999,
+                      background: '#818CF8',
+                      color: '#fff',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    EA
+                  </span>
+                </div>
+                <div style={{ position: 'relative', width: 132, height: 54, padding: 0 }}>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: -4,
+                      border: '1.5px solid var(--indigo-500)',
+                      borderRadius: 8,
+                      pointerEvents: 'none',
+                    }}
+                  />
+                  {[
+                    [-5, -5],
+                    [-5, 'auto'],
+                    ['auto', -5],
+                    ['auto', 'auto'],
+                  ].map((pos, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        position: 'absolute',
+                        top: pos[0] === 'auto' ? 'auto' : pos[0],
+                        bottom: pos[0] === 'auto' ? -5 : 'auto',
+                        left: pos[1] === 'auto' ? 'auto' : pos[1],
+                        right: pos[1] === 'auto' ? -5 : 'auto',
+                        width: 10,
+                        height: 10,
+                        borderRadius: 999,
+                        background: '#fff',
+                        border: '1.5px solid var(--indigo-500)',
+                      }}
+                    />
+                  ))}
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      background: 'rgba(244,114,182,0.18)',
+                      border: '1.5px solid #F472B6',
+                      borderRadius: 6,
+                      padding: '8px 10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Icon name="pen-tool" size={12} style={{ color: '#F472B6' }} />
+                      Signature
+                    </div>
+                    <div
+                      style={{ fontFamily: 'var(--font-mono)', fontSize: 9, color: 'var(--fg-3)' }}
+                    >
+                      SIGN ID (UUID)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Story>
+            <Story
+              name="Sign zones (drop targets)"
+              desc="Invisible by default; appear during drag as dashed indigo rectangles. Turn emerald + '✓ Snap here' when within snap radius."
+            >
+              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+                <div
+                  style={{
+                    width: 160,
+                    height: 54,
+                    border: '1.5px dashed var(--indigo-400)',
+                    background: 'rgba(99,102,241,0.06)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--indigo-700)',
+                  }}
+                >
+                  Signature — Client
+                </div>
+                <div
+                  style={{
+                    width: 160,
+                    height: 54,
+                    border: '1.5px dashed var(--success-500)',
+                    background: 'rgba(16,185,129,0.10)',
+                    borderRadius: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--success-700)',
+                  }}
+                >
+                  ✓ Snap here
+                </div>
+              </div>
+            </Story>
+            <Story
+              name="Alignment guides"
+              desc="Magenta 1px lines appear when a dragged field aligns with another's edges or center (±6px)."
+            >
+              <div
+                style={{
+                  position: 'relative',
+                  width: 360,
+                  height: 120,
+                  background: '#fff',
+                  border: '1px dashed var(--border-2)',
+                  borderRadius: 8,
+                  padding: 20,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 20,
+                    top: 30,
+                    width: 120,
+                    height: 40,
+                    background: 'rgba(244,114,182,0.18)',
+                    border: '1.5px solid #F472B6',
+                    borderRadius: 6,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 180,
+                    top: 30,
+                    width: 120,
+                    height: 40,
+                    background: 'rgba(125,211,252,0.18)',
+                    border: '1.5px solid #7DD3FC',
+                    borderRadius: 6,
+                    opacity: 0.55,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 180,
+                    top: 0,
+                    bottom: 0,
+                    width: 1,
+                    background: '#EC4899',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 30,
+                    left: 0,
+                    right: 0,
+                    height: 1,
+                    background: '#EC4899',
+                  }}
+                />
+              </div>
+            </Story>
+            <Story
+              name="Field palette item"
+              desc="Draggable chip in the left rail. Cursor becomes grab; icon is indigo."
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: 240 }}>
+                {[
+                  ['pen-tool', 'Signature'],
+                  ['type', 'Initials'],
+                  ['user', 'Name'],
+                  ['calendar', 'Date'],
+                  ['text-cursor-input', 'Text'],
+                  ['check-square', 'Checkbox'],
+                ].map(([i, l]) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '10px 10px',
+                      borderRadius: 10,
+                      fontSize: 13,
+                      fontWeight: 500,
+                      color: 'var(--fg-2)',
+                      background: '#fff',
+                      border: '1px solid var(--border-1)',
+                    }}
+                  >
+                    <Icon name={i} size={16} style={{ color: 'var(--indigo-600)' }} />
+                    {l}
+                    <span style={{ flex: 1 }} />
+                    <Icon name="grip-vertical" size={14} style={{ color: 'var(--fg-4)' }} />
+                  </div>
+                ))}
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   14 — POPOVERS & SHEETS
+   ==================================================================== */
+      function PopoverSection() {
+        return (
+          <section id="popover">
+            <SectionHead n="14" title="Popovers & sheets" />
+            <Story
+              name="Centered modal"
+              desc="560px wide. 20px radius, shadow-xl, 35% ink scrim behind. Used for 'Select signers' and 'Place on pages' popovers."
+            >
+              <div
+                style={{
+                  width: 460,
+                  padding: '32px 24px 20px',
+                  background: '#fff',
+                  borderRadius: 20,
+                  boxShadow: 'var(--shadow-xl)',
+                  border: '1px solid var(--border-1)',
+                }}
+              >
+                <div
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 22,
+                    fontWeight: 500,
+                    textAlign: 'center',
+                    marginBottom: 20,
+                  }}
+                >
+                  Select signers
+                </div>
+                {['Eliran Azulay', 'Nitsan Yanovitch'].map((n, i) => (
+                  <label
+                    key={n}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '6px 4px' }}
+                  >
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 6,
+                        border: `1.5px solid ${i === 0 ? 'var(--success-500)' : 'var(--border-2)'}`,
+                        background: i === 0 ? 'var(--success-500)' : '#fff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {i === 0 && <Icon name="check" size={14} style={{ color: '#fff' }} />}
+                    </span>
+                    <span
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 999,
+                        background: ['#F472B6', '#7DD3FC'][i],
+                      }}
+                    />
+                    <span style={{ fontSize: 16, fontWeight: 500 }}>{n}</span>
+                  </label>
+                ))}
+                <div
+                  style={{
+                    borderTop: '1px solid var(--border-1)',
+                    margin: '20px -24px 0',
+                    padding: '14px 24px 0',
+                    display: 'flex',
+                    justifyContent: 'flex-end',
+                    gap: 14,
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 14,
+                      color: 'var(--fg-2)',
+                      fontWeight: 600,
+                      textDecoration: 'underline',
+                      textUnderlineOffset: 3,
+                    }}
+                  >
+                    Cancel
+                  </span>
+                  <Button variant="primary" size="sm">
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            </Story>
+            <Story
+              name="Floating HUD — grouped fields"
+              desc="Pill-shaped, ink-900 background. Surfaces when 2+ fields are selected; 'Unlink' drops the grouping."
+            >
+              <div
+                style={{
+                  padding: '6px 8px 6px 12px',
+                  background: 'var(--ink-900)',
+                  color: '#fff',
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: 'var(--shadow-md)',
+                }}
+              >
+                <Icon name="link" size={12} /> 2 linked — move together
+                <button
+                  style={{
+                    background: 'rgba(255,255,255,0.15)',
+                    border: 'none',
+                    color: '#fff',
+                    padding: '3px 9px',
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                  }}
+                >
+                  Unlink
+                </button>
+              </div>
+            </Story>
+            <Story
+              name="Dropdown — add signer"
+              desc="280px; sits under the + button on the signers chip row. Contains a search input and contact list."
+            >
+              <div
+                style={{
+                  width: 280,
+                  background: '#fff',
+                  border: '1px solid var(--border-1)',
+                  borderRadius: 12,
+                  boxShadow: 'var(--shadow-lg)',
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ padding: 10, borderBottom: '1px solid var(--border-1)' }}>
+                  <div
+                    style={{
+                      padding: '8px 10px',
+                      border: '1px solid var(--border-1)',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      color: 'var(--fg-3)',
+                    }}
+                  >
+                    Search contacts or type email…
+                  </div>
+                </div>
+                {['Ana Torres', 'Meilin Chen', 'Priya Kapoor'].map((n, i) => (
+                  <div
+                    key={n}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px' }}
+                  >
+                    <Avatar name={n} size={24} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{n}</div>
+                      <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                        {['ana@farrow.law', 'meilin@chen.co', 'priya@kapoor.com'][i]}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ====================================================================
+   15 — EMAIL ATOMS
+   ==================================================================== */
+      function EmailSection() {
+        return (
+          <section id="email-atoms">
+            <SectionHead n="15" title="Email atoms" />
+            <Story
+              name="Request email card"
+              desc="HTML-email-safe: no flexbox, table-based. Capsule CTA button, mono doc ID in footer. See `ui_kits/email/request.html`."
+            >
+              <div
+                style={{
+                  width: 480,
+                  background: '#fff',
+                  border: '1px solid var(--border-1)',
+                  borderRadius: 16,
+                  padding: 32,
+                }}
+              >
+                <img src="../assets/logo.svg" height="26" alt="Sealed" />
+                <div style={{ height: 24 }} />
+                <div
+                  style={{
+                    fontFamily: 'var(--font-serif)',
+                    fontSize: 24,
+                    fontWeight: 500,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  Eliran has sent you a document to sign.
+                </div>
+                <div
+                  style={{ fontSize: 14, color: 'var(--fg-2)', marginTop: 12, lineHeight: 1.55 }}
+                >
+                  Master Services Agreement — 4 pages. The document is waiting at Sealed; opening
+                  the link confirms receipt.
+                </div>
+                <div style={{ height: 20 }} />
+                <Button variant="primary" iconRight="arrow-right">
+                  Review and sign
+                </Button>
+                <div style={{ height: 20 }} />
+                <div
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11,
+                    color: 'var(--fg-3)',
+                    borderTop: '1px solid var(--border-1)',
+                    paddingTop: 14,
+                  }}
+                >
+                  DOC-8F3A-4291 · expires May 21, 2026
+                </div>
+              </div>
+            </Story>
+          </section>
+        );
+      }
+
+      /* ---------- Render ---------- */
+      function App() {
+        return (
+          <>
+            <Foundations />
+            <ColorSection />
+            <TypeSection />
+            <IconSection />
+            <ButtonSection />
+            <InputSection />
+            <BadgeSection />
+            <AvatarSection />
+            <CardSection />
+            <DocThumbSection />
+            <SignatureMarkSection />
+            <NavSection />
+            <FieldSection />
+            <PopoverSection />
+            <EmailSection />
+          </>
+        );
+      }
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>

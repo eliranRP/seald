@@ -15,32 +15,32 @@
         font-family: var(--font-sans);
         color: var(--fg-2);
       }
-      .layout-toggle {
+      .stepper {
         position: fixed;
         bottom: 20px;
-        right: 20px;
+        left: 20px;
         z-index: 50;
+        display: flex;
+        gap: 6;
         background: #fff;
         border: 1px solid var(--border-1);
         border-radius: 999px;
         padding: 4px;
-        display: flex;
-        gap: 2px;
         box-shadow: var(--shadow-md);
         font-family: var(--font-sans);
       }
-      .layout-toggle button {
+      .stepper button {
         border: none;
         background: transparent;
-        padding: 7px 14px;
+        padding: 6px 12px;
         border-radius: 999px;
         font-size: 12px;
         font-weight: 600;
         color: var(--fg-3);
         cursor: pointer;
       }
-      .layout-toggle button.on {
-        background: var(--indigo-600);
+      .stepper button.on {
+        background: var(--ink-900);
         color: #fff;
       }
     </style>
@@ -67,94 +67,61 @@
     <script type="text/babel" src="./Screens.jsx"></script>
     <script type="text/babel">
       const { useState, useEffect } = React;
-
       function App() {
-        const [step, setStep] = useState(() => localStorage.getItem('sealed.step') || 'upload');
-        const [layout, setLayout] = useState(
-          () => localStorage.getItem('sealed.layout') || 'split',
-        );
+        const [page, setPage] = useState(() => localStorage.getItem('sealed.page') || 'place');
+        const [contacts, setContacts] = useContacts();
         useEffect(() => {
-          localStorage.setItem('sealed.step', step);
-          localStorage.setItem('sealed.layout', layout);
-        }, [step, layout]);
+          localStorage.setItem('sealed.page', page);
+        }, [page]);
         useEffect(() => {
           if (window.lucide) window.lucide.createIcons();
-        }, [step, layout]);
+        });
+
+        const showFlow = (step) => setPage(step);
 
         return (
-          <div data-screen-label={`Signing App — ${step}`}>
-            <TopNav onLogo={() => setStep('upload')} />
-            <div style={{ display: 'flex' }}>
-              <LeftRail active={step === 'upload' ? 'drafts' : 'sent'} onPick={() => {}} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {step === 'upload' && <UploadScreen onNext={() => setStep('place')} />}
-                {step === 'place' && (
-                  <PlaceFieldsScreen
-                    layout={layout}
-                    onNext={() => setStep('sign')}
-                    onBack={() => setStep('upload')}
-                  />
-                )}
-                {step === 'sign' && (
-                  <SignScreen onDone={() => setStep('sent')} onBack={() => setStep('place')} />
-                )}
-                {step === 'sent' && <SentScreen onReset={() => setStep('upload')} />}
-              </div>
-            </div>
-
-            {step === 'place' && (
-              <div className="layout-toggle">
-                <button
-                  className={layout === 'split' ? 'on' : ''}
-                  onClick={() => setLayout('split')}
-                >
-                  Right rail
-                </button>
-                <button className={layout === 'left' ? 'on' : ''} onClick={() => setLayout('left')}>
-                  Left rail
-                </button>
+          <div data-screen-label={`Signing App — ${page}`}>
+            <TopNav
+              active={page === 'contacts' ? 'contacts' : 'documents'}
+              onLogo={() => setPage('upload')}
+              onNav={(k) => {
+                if (k === 'contacts') setPage('contacts');
+                else setPage('place');
+              }}
+            />
+            {page === 'contacts' ? (
+              <ContactsScreen contacts={contacts} setContacts={setContacts} />
+            ) : (
+              <div style={{ display: 'flex' }}>
+                {page !== 'place' && <LeftRail active={page === 'upload' ? 'drafts' : 'sent'} />}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {page === 'upload' && <UploadScreen onNext={() => setPage('place')} />}
+                  {page === 'place' && (
+                    <PlaceFieldsScreen
+                      contacts={contacts}
+                      setContacts={setContacts}
+                      onNext={() => setPage('sign')}
+                      onBack={() => setPage('upload')}
+                    />
+                  )}
+                  {page === 'sign' && (
+                    <SignScreen onDone={() => setPage('sent')} onBack={() => setPage('place')} />
+                  )}
+                  {page === 'sent' && <SentScreen onReset={() => setPage('upload')} />}
+                </div>
               </div>
             )}
 
-            <div
-              style={{
-                position: 'fixed',
-                bottom: 20,
-                left: 20,
-                zIndex: 50,
-                display: 'flex',
-                gap: 6,
-                background: '#fff',
-                border: '1px solid var(--border-1)',
-                borderRadius: 999,
-                padding: '4px',
-                boxShadow: 'var(--shadow-md)',
-              }}
-            >
-              {['upload', 'place', 'sign', 'sent'].map((s, i) => (
-                <button
-                  key={s}
-                  onClick={() => setStep(s)}
-                  style={{
-                    border: 'none',
-                    background: step === s ? 'var(--ink-900)' : 'transparent',
-                    color: step === s ? '#fff' : 'var(--fg-3)',
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-sans)',
-                  }}
-                >
-                  {i + 1}. {s}
+            <div className="stepper">
+              {['upload', 'place', 'sign', 'sent', 'contacts'].map((s) => (
+                <button key={s} className={page === s ? 'on' : ''} onClick={() => setPage(s)}>
+                  {s}
                 </button>
               ))}
             </div>
           </div>
         );
       }
-
       ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
   </body>

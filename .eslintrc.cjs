@@ -60,6 +60,7 @@ module.exports = {
               './src/components/SignatureMark',
             ],
             from: [
+              './src/components/PageThumbStrip',
               './src/components/StatusBadge',
               './src/components/SignatureField',
               './src/components/SignerRow',
@@ -73,6 +74,7 @@ module.exports = {
           // L2 (domain) must not import from L3.
           {
             target: [
+              './src/components/PageThumbStrip',
               './src/components/StatusBadge',
               './src/components/SignatureField',
               './src/components/SignerRow',
