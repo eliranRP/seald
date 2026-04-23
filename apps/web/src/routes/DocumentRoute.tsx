@@ -49,13 +49,18 @@ export function DocumentRoute() {
   const handleCreateSigner = useCallback(
     (name: string, email: string) => {
       if (!doc) return;
-      const created = addContact(name, email);
-      updateDocument(doc.id, {
-        signers: [
-          ...doc.signers,
-          { id: created.id, name: created.name, email: created.email, color: created.color },
-        ],
-      });
+      addContact(name, email)
+        .then((created) => {
+          updateDocument(doc.id, {
+            signers: [
+              ...doc.signers,
+              { id: created.id, name: created.name, email: created.email, color: created.color },
+            ],
+          });
+        })
+        .catch(() => {
+          // Left unhandled here; the contact simply doesn't get attached.
+        });
     },
     [doc, addContact, updateDocument],
   );

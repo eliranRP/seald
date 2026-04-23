@@ -1,8 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import { SIGNER_COLOR_PALETTE, fetchContacts, fetchDocuments } from '../lib/mockApi';
+import { SIGNER_COLOR_PALETTE, fetchDocuments } from '../lib/mockApi';
 import type { AppDocument, AppUser } from '../lib/mockApi';
+import {
+  useContactsQuery,
+  useCreateContactMutation,
+  useDeleteContactMutation,
+  useUpdateContactMutation,
+} from '../features/contacts';
 import { useAuth } from './AuthProvider';
 
 export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from '../lib/mockApi';
@@ -22,9 +28,9 @@ export interface AppStateValue {
   readonly updateDocument: (id: string, patch: Partial<AppDocument>) => void;
   readonly sendDocument: (id: string) => void;
   readonly deleteDocument: (id: string) => void;
-  readonly addContact: (name: string, email: string) => AddSignerContact;
-  readonly updateContact: (id: string, patch: { name?: string; email?: string }) => void;
-  readonly removeContact: (id: string) => void;
+  readonly addContact: (name: string, email: string) => Promise<AddSignerContact>;
+  readonly updateContact: (id: string, patch: { name?: string; email?: string }) => Promise<void>;
+  readonly removeContact: (id: string) => Promise<void>;
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
@@ -49,40 +55,46 @@ export interface AppStateProviderProps {
  * Holds the in-memory application state shared across pages (documents,
  * contacts, user). Lives above the router so navigation doesn't reset state.
  *
- * `user` is mirrored from `AuthProvider` — the mock `fetchCurrentUser` has
- * been retired in favour of Supabase session. Contacts + documents are still
- * served by the mock API, but the fetch is skipped for guests (who have no
- * server-side state) and anonymous visitors (who never reach state-consuming
- * pages). Mutator callbacks remain in-memory; a real implementation would
- * swap them for POST/PATCH without changing the consumer surface.
+ * - `user` is mirrored from `AuthProvider` (Supabase session).
+ * - `contacts` comes from the Nest API via React-Query; fetched when the
+ *   user is signed in, empty for guests and anonymous visitors. All three
+ *   contact mutators delegate to the corresponding React-Query mutation
+ *   hooks (optimistic update + rollback-on-error baked in) so consumers
+ *   keep the same small imperative surface they had before.
+ * - `documents` still comes from the local mock API until that resource is
+ *   swapped to a server-backed endpoint.
  */
 export function AppStateProvider(props: AppStateProviderProps) {
   const { children } = props;
   const { user: authUser } = useAuth();
   const [documents, setDocuments] = useState<ReadonlyArray<AppDocument>>([]);
-  const [contacts, setContacts] = useState<ReadonlyArray<AddSignerContact>>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
+
+  const contactsEnabled = Boolean(authUser);
+  const contactsQuery = useContactsQuery(contactsEnabled);
+  const createContactMutation = useCreateContactMutation();
+  const updateContactMutation = useUpdateContactMutation();
+  const deleteContactMutation = useDeleteContactMutation();
 
   useEffect(() => {
     if (!authUser) {
-      // Guest or anonymous — no server fetch. Drop to ready state so pages
-      // don't spin forever.
       setDocuments([]);
-      setContacts([]);
-      setLoading(false);
+      setDocumentsLoading(false);
       return () => {};
     }
     let cancelled = false;
-    setLoading(true);
-    Promise.all([fetchContacts(), fetchDocuments()])
-      .then(([fetchedContacts, fetchedDocuments]) => {
+    setDocumentsLoading(true);
+    fetchDocuments()
+      .then((fetchedDocuments) => {
         if (cancelled) return;
-        setContacts(fetchedContacts);
         setDocuments(fetchedDocuments);
-        setLoading(false);
+        setDocumentsLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setDocuments([]);
+          setDocumentsLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -98,6 +110,16 @@ export function AppStateProvider(props: AppStateProviderProps) {
       avatarUrl: authUser.avatarUrl,
     };
   }, [authUser]);
+
+  const contacts = useMemo<ReadonlyArray<AddSignerContact>>(
+    () => (authUser ? (contactsQuery.data ?? []) : []),
+    [authUser, contactsQuery.data],
+  );
+
+  // Loading is true until both the contacts query (if enabled) and the
+  // documents fetch have resolved at least once. Guests/anonymous users
+  // skip the contacts fetch so we only block on docs.
+  const loading = documentsLoading || (contactsEnabled && contactsQuery.isPending);
 
   const getDocument = useCallback(
     (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
@@ -141,30 +163,27 @@ export function AppStateProvider(props: AppStateProviderProps) {
   }, []);
 
   const addContact = useCallback(
-    (name: string, email: string): AddSignerContact => {
-      const id = nextId('c');
+    async (name: string, email: string): Promise<AddSignerContact> => {
       const color = nextColor(contacts.length);
-      const contact: AddSignerContact = { id, name, email, color };
-      setContacts((prev) => [...prev, contact]);
-      return contact;
+      const saved = await createContactMutation.mutateAsync({ name, email, color });
+      return saved;
     },
-    [contacts.length],
+    [contacts.length, createContactMutation],
   );
 
   const updateContact = useCallback(
-    (id: string, patch: { name?: string; email?: string }): void => {
-      setContacts((prev) =>
-        prev.map((c) =>
-          c.id === id ? { ...c, name: patch.name ?? c.name, email: patch.email ?? c.email } : c,
-        ),
-      );
+    async (id: string, patch: { name?: string; email?: string }): Promise<void> => {
+      await updateContactMutation.mutateAsync({ id, patch });
     },
-    [],
+    [updateContactMutation],
   );
 
-  const removeContact = useCallback((id: string): void => {
-    setContacts((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+  const removeContact = useCallback(
+    async (id: string): Promise<void> => {
+      await deleteContactMutation.mutateAsync(id);
+    },
+    [deleteContactMutation],
+  );
 
   const value = useMemo<AppStateValue>(
     () => ({

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRoutes } from './AppRoutes';
 import { AppStateProvider } from './providers/AppStateProvider';
 import { AuthProvider } from './providers/AuthProvider';
@@ -9,8 +10,7 @@ import { seald } from './styles/theme';
 
 // The browser Supabase client is mocked at the module boundary so jsdom
 // runs don't spin up network clients. The default stub returns a signed-in
-// session so the integration tests below see the app as an authed user;
-// tests that need the anonymous path can override this mock per-case.
+// session so the integration tests below see the app as an authed user.
 vi.mock('./lib/supabase/supabaseClient', () => {
   const user = {
     id: 'test-user',
@@ -37,16 +37,112 @@ vi.mock('./lib/supabase/supabaseClient', () => {
   };
 });
 
+// The axios `apiClient` is mocked so the contacts React-Query hooks see a
+// stable seed list without hitting the network. Create/update/delete each
+// echo their input so optimistic mutations settle cleanly.
+vi.mock('./lib/api/apiClient', () => {
+  const SEED = [
+    {
+      id: 'c1',
+      owner_id: 'test-user',
+      name: 'Eliran Azulay',
+      email: 'eliran@azulay.co',
+      color: '#F472B6',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'c2',
+      owner_id: 'test-user',
+      name: 'Nitsan Yanovitch',
+      email: 'nitsan@yanov.co',
+      color: '#7DD3FC',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'c3',
+      owner_id: 'test-user',
+      name: 'Ana Torres',
+      email: 'ana@farrow.law',
+      color: '#10B981',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'c4',
+      owner_id: 'test-user',
+      name: 'Meilin Chen',
+      email: 'meilin@chen.co',
+      color: '#F59E0B',
+      created_at: '',
+      updated_at: '',
+    },
+    {
+      id: 'c5',
+      owner_id: 'test-user',
+      name: 'Priya Kapoor',
+      email: 'priya@kapoor.com',
+      color: '#818CF8',
+      created_at: '',
+      updated_at: '',
+    },
+  ];
+  return {
+    apiClient: {
+      get: vi.fn(async (url: string) => {
+        if (url === '/contacts') return { data: SEED, status: 200 };
+        return { data: {}, status: 200 };
+      }),
+      post: vi.fn(async (_url: string, body: { name: string; email: string; color: string }) => ({
+        data: {
+          id: `c_new_${Date.now()}`,
+          owner_id: 'test-user',
+          name: body.name,
+          email: body.email,
+          color: body.color,
+          created_at: '',
+          updated_at: '',
+        },
+        status: 201,
+      })),
+      patch: vi.fn(async (url: string, body: Record<string, unknown>) => ({
+        data: {
+          id: url.split('/').pop(),
+          owner_id: 'test-user',
+          ...body,
+          created_at: '',
+          updated_at: '',
+        },
+        status: 200,
+      })),
+      delete: vi.fn(async () => ({ data: null, status: 204 })),
+    },
+  };
+});
+
+function buildQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0, staleTime: 0 },
+      mutations: { retry: false },
+    },
+  });
+}
+
 function renderApp(initialEntries: ReadonlyArray<string> = ['/']) {
+  const qc = buildQueryClient();
   return render(
     <ThemeProvider theme={seald}>
-      <AuthProvider>
-        <AppStateProvider>
-          <MemoryRouter initialEntries={[...initialEntries]}>
-            <AppRoutes />
-          </MemoryRouter>
-        </AppStateProvider>
-      </AuthProvider>
+      <QueryClientProvider client={qc}>
+        <AuthProvider>
+          <AppStateProvider>
+            <MemoryRouter initialEntries={[...initialEntries]}>
+              <AppRoutes />
+            </MemoryRouter>
+          </AppStateProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </ThemeProvider>,
   );
 }

@@ -36,8 +36,14 @@ export function UploadRoute() {
 
   const handleCreateContact = useCallback(
     (name: string, email: string) => {
-      const created = addContact(name, email);
-      setSelectedSigners((prev) => [...prev, created]);
+      addContact(name, email)
+        .then((created) => {
+          setSelectedSigners((prev) => [...prev, created]);
+        })
+        .catch(() => {
+          // Creation errors surface in the console for now; keeping the
+          // dialog open lets the user retry without losing their other picks.
+        });
     },
     [addContact],
   );
