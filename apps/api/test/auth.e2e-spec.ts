@@ -1,0 +1,96 @@
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+import { AppModule } from '../src/app.module';
+import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
+import { APP_ENV } from '../src/config/config.module';
+import type { AppEnv } from '../src/config/env.schema';
+import { buildTestJwks } from './test-jwks';
+
+const TEST_ENV: AppEnv = {
+  NODE_ENV: 'test',
+  PORT: 0,
+  SUPABASE_URL: 'https://example.supabase.co',
+  SUPABASE_JWT_AUDIENCE: 'authenticated',
+  CORS_ORIGIN: 'http://localhost:5173',
+};
+const ISSUER = `${TEST_ENV.SUPABASE_URL}/auth/v1`;
+
+describe('Auth (e2e)', () => {
+  let app: INestApplication;
+  let tk: Awaited<ReturnType<typeof buildTestJwks>>;
+
+  beforeAll(async () => {
+    tk = await buildTestJwks();
+
+    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(APP_ENV)
+      .useValue(TEST_ENV)
+      .overrideProvider(JWKS_RESOLVER)
+      .useValue(tk.resolver)
+      .compile();
+
+    app = moduleRef.createNestApplication();
+    app.enableCors({ origin: TEST_ENV.CORS_ORIGIN, credentials: true });
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('GET /health is public', async () => {
+    await request(app.getHttpServer()).get('/health').expect(200).expect({ status: 'ok' });
+  });
+
+  it('GET /me without Authorization returns 401 missing_token', async () => {
+    const res = await request(app.getHttpServer()).get('/me').expect(401);
+    expect(res.body.message).toBe('missing_token');
+  });
+
+  it('GET /me with expired token returns 401 token_expired', async () => {
+    const token = await tk.sign(
+      { sub: 'u1' },
+      { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE, expiresIn: '-1s' },
+    );
+    const res = await request(app.getHttpServer())
+      .get('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(401);
+    expect(res.body.message).toBe('token_expired');
+  });
+
+  it('GET /me with valid token returns the user', async () => {
+    const token = await tk.sign(
+      { sub: 'u1', email: 'a@b.com', app_metadata: { provider: 'google' } },
+      { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE },
+    );
+    await request(app.getHttpServer())
+      .get('/me')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect({ id: 'u1', email: 'a@b.com', provider: 'google' });
+  });
+
+  it('CORS preflight from allowed origin succeeds', async () => {
+    await request(app.getHttpServer())
+      .options('/health')
+      .set('Origin', TEST_ENV.CORS_ORIGIN)
+      .set('Access-Control-Request-Method', 'GET')
+      .expect(204);
+  });
+
+  it('CORS preflight from disallowed origin is blocked', async () => {
+    const res = await request(app.getHttpServer())
+      .options('/health')
+      .set('Origin', 'https://evil.example')
+      .set('Access-Control-Request-Method', 'GET');
+    // Express cors with a fixed string origin never reflects the requesting origin back —
+    // it always returns the configured allowed origin, not the caller's origin.
+    // The browser enforces the block because the echoed origin doesn't match the request's.
+    expect(res.headers['access-control-allow-origin']).not.toBe('https://evil.example');
+  });
+});
