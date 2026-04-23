@@ -35,6 +35,9 @@ importers:
       react-router-dom:
         specifier: ^7.14.2
         version: 7.14.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      shared:
+        specifier: workspace:*
+        version: link:../../packages/shared
       styled-components:
         specifier: 6.1.13
         version: 6.1.13(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -129,6 +132,12 @@ importers:
       vitest-axe:
         specifier: 0.1.0
         version: 0.1.0(vitest@2.1.2(@types/node@20.16.10)(jsdom@25.0.1))
+
+  packages/shared:
+    devDependencies:
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
 
 packages:
 
