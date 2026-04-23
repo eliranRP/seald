@@ -4,6 +4,7 @@ import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
 import { EmptyState } from '../../components/EmptyState';
 import { PageHeader } from '../../components/PageHeader';
+import { Skeleton } from '../../components/Skeleton';
 import { TextField } from '../../components/TextField';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import { useAppState } from '../../providers/AppStateProvider';
@@ -35,6 +36,77 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+interface RenderContactsBodyArgs {
+  readonly loading: boolean;
+  readonly contacts: ReadonlyArray<AddSignerContact>;
+  readonly docCountBySigner: ReadonlyMap<string, number>;
+  readonly onEdit: (contact: AddSignerContact) => void;
+  readonly onDelete: (id: string) => void;
+}
+
+function renderContactsBody(args: RenderContactsBodyArgs): JSX.Element | JSX.Element[] {
+  const { loading, contacts, docCountBySigner, onEdit, onDelete } = args;
+  // While the initial fetch is in flight and we have nothing cached, render
+  // skeleton rows sized to the real table so the layout doesn't shift when
+  // data lands.
+  if (loading && contacts.length === 0) {
+    return Array.from({ length: 5 }, (_, i) => (
+      <TableRow key={`sk-${i}`} aria-hidden>
+        <NameCell>
+          <Skeleton variant="circle" width={32} height={32} />
+          <Skeleton width={140} />
+        </NameCell>
+        <EmailCell>
+          <Skeleton width={180} />
+        </EmailCell>
+        <DocsCell>
+          <Skeleton width={90} />
+        </DocsCell>
+        <ActionsCell>
+          <Skeleton variant="rect" width={56} height={28} />
+          <Skeleton variant="rect" width={72} height={28} />
+        </ActionsCell>
+      </TableRow>
+    ));
+  }
+  if (contacts.length === 0) {
+    return <EmptyState>No signers yet. Add one to get started.</EmptyState>;
+  }
+  return contacts.map((c) => (
+    <TableRow key={c.id}>
+      <NameCell>
+        <Avatar name={c.name} size={32} />
+        <span>{c.name}</span>
+      </NameCell>
+      <EmailCell>{c.email}</EmailCell>
+      <DocsCell>
+        {docCountBySigner.get(c.id) ?? 0} document
+        {(docCountBySigner.get(c.id) ?? 0) === 1 ? '' : 's'}
+      </DocsCell>
+      <ActionsCell>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconLeft={Pencil}
+          aria-label={`Edit ${c.name}`}
+          onClick={() => onEdit(c)}
+        >
+          Edit
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          iconLeft={Trash2}
+          aria-label={`Delete ${c.name}`}
+          onClick={() => onDelete(c.id)}
+        >
+          Delete
+        </Button>
+      </ActionsCell>
+    </TableRow>
+  ));
+}
+
 /**
  * L4 page — Contacts / Signers CRUD. Lists every contact from `useAppState`
  * and exposes add / edit / delete through a small dialog. Used as the target
@@ -42,7 +114,8 @@ function isValidEmail(value: string): boolean {
  * the (smaller) add-signer popovers inside the document editor.
  */
 export function ContactsPage() {
-  const { contacts, documents, addContact, updateContact, removeContact } = useAppState();
+  const { contacts, contactsLoading, documents, addContact, updateContact, removeContact } =
+    useAppState();
   const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -128,43 +201,13 @@ export function ContactsPage() {
             <div>Documents</div>
             <div aria-hidden />
           </TableHead>
-          {contacts.length === 0 ? (
-            <EmptyState>No signers yet. Add one to get started.</EmptyState>
-          ) : (
-            contacts.map((c) => (
-              <TableRow key={c.id}>
-                <NameCell>
-                  <Avatar name={c.name} size={32} />
-                  <span>{c.name}</span>
-                </NameCell>
-                <EmailCell>{c.email}</EmailCell>
-                <DocsCell>
-                  {docCountBySigner.get(c.id) ?? 0} document
-                  {(docCountBySigner.get(c.id) ?? 0) === 1 ? '' : 's'}
-                </DocsCell>
-                <ActionsCell>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    iconLeft={Pencil}
-                    aria-label={`Edit ${c.name}`}
-                    onClick={() => openEdit(c)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    iconLeft={Trash2}
-                    aria-label={`Delete ${c.name}`}
-                    onClick={() => handleDelete(c.id)}
-                  >
-                    Delete
-                  </Button>
-                </ActionsCell>
-              </TableRow>
-            ))
-          )}
+          {renderContactsBody({
+            loading: contactsLoading,
+            contacts,
+            docCountBySigner,
+            onEdit: openEdit,
+            onDelete: handleDelete,
+          })}
         </TableShell>
       </Inner>
 

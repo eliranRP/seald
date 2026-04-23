@@ -9,6 +9,7 @@ import {
   useDeleteContactMutation,
   useUpdateContactMutation,
 } from '../features/contacts';
+import { useMinDuration } from '../lib/useMinDuration';
 import { useAuth } from './AuthProvider';
 
 export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from '../lib/mockApi';
@@ -23,6 +24,10 @@ export interface AppStateValue {
   readonly contacts: ReadonlyArray<AddSignerContact>;
   /** True until the initial contacts/documents fetch resolves. */
   readonly loading: boolean;
+  /** True until the initial contacts fetch resolves. `false` for guests. */
+  readonly contactsLoading: boolean;
+  /** True until the initial documents fetch resolves. `false` for guests. */
+  readonly documentsLoading: boolean;
   readonly getDocument: (id: string) => AppDocument | undefined;
   readonly createDocument: (file: File, totalPages: number) => string;
   readonly updateDocument: (id: string, patch: Partial<AppDocument>) => void;
@@ -116,10 +121,18 @@ export function AppStateProvider(props: AppStateProviderProps) {
     [authUser, contactsQuery.data],
   );
 
-  // Loading is true until both the contacts query (if enabled) and the
-  // documents fetch have resolved at least once. Guests/anonymous users
-  // skip the contacts fetch so we only block on docs.
-  const loading = documentsLoading || (contactsEnabled && contactsQuery.isPending);
+  // Per-resource loading flags so pages can show targeted skeletons instead
+  // of a single coarse "loading" spinner. The top-level `loading` stays true
+  // until both have resolved (backwards compatible with existing callers).
+  //
+  // Both flags are held "true" for a minimum of 2 seconds by `useMinDuration`.
+  // Cached react-query reads and the ~10 ms mock-API fetch can resolve faster
+  // than the skeleton animation loop, which flashes the UI; enforcing a
+  // minimum visible window keeps the loading state readable without slowing
+  // any real network work.
+  const contactsLoading = useMinDuration(contactsEnabled && contactsQuery.isPending, 2000);
+  const documentsLoadingHeld = useMinDuration(documentsLoading, 2000);
+  const loading = documentsLoadingHeld || contactsLoading;
 
   const getDocument = useCallback(
     (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
@@ -191,6 +204,8 @@ export function AppStateProvider(props: AppStateProviderProps) {
       documents,
       contacts,
       loading,
+      contactsLoading,
+      documentsLoading: documentsLoadingHeld,
       getDocument,
       createDocument,
       updateDocument,
@@ -205,6 +220,8 @@ export function AppStateProvider(props: AppStateProviderProps) {
       documents,
       contacts,
       loading,
+      contactsLoading,
+      documentsLoadingHeld,
       getDocument,
       createDocument,
       updateDocument,

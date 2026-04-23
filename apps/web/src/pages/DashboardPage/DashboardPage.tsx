@@ -9,6 +9,7 @@ import { DocThumb } from '../../components/DocThumb';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterTabs } from '../../components/FilterTabs';
 import { PageHeader } from '../../components/PageHeader';
+import { Skeleton } from '../../components/Skeleton';
 import { StatCard } from '../../components/StatCard';
 import { useAppState } from '../../providers/AppStateProvider';
 import type { AppDocument, DocumentStatus } from '../../providers/AppStateProvider';
@@ -78,13 +79,83 @@ function primaryRecipient(d: AppDocument): { name: string; email: string } | nul
   return { name: first.name, email: first.email };
 }
 
+interface RenderDocumentsBodyArgs {
+  readonly loading: boolean;
+  readonly rowsForSkeleton: boolean;
+  readonly filtered: ReadonlyArray<AppDocument>;
+  readonly navigate: (path: string) => void;
+}
+
+function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.Element[] {
+  const { loading, rowsForSkeleton, filtered, navigate } = args;
+  if (loading && rowsForSkeleton) {
+    return Array.from({ length: 6 }, (_, i) => (
+      <TableRow key={`sk-${i}`} as="div" aria-hidden>
+        <DocCell>
+          <Skeleton variant="rect" width={40} height={40} />
+          <div style={{ minWidth: 0, display: 'grid', gap: 6 }}>
+            <Skeleton width={200} />
+            <Skeleton width={80} />
+          </div>
+        </DocCell>
+        <RecipientCell>
+          <Skeleton variant="circle" width={24} height={24} />
+          <Skeleton width={120} />
+        </RecipientCell>
+        <Skeleton variant="rect" width={110} height={22} />
+        <DateCell>
+          <Skeleton width={90} />
+        </DateCell>
+        <Skeleton variant="rect" width={24} height={24} />
+      </TableRow>
+    ));
+  }
+  if (filtered.length === 0) {
+    return <EmptyState>No documents match this filter.</EmptyState>;
+  }
+  return filtered.map((d) => {
+    const recipient = primaryRecipient(d);
+    return (
+      <TableRow
+        key={d.id}
+        type="button"
+        onClick={() => navigate(`/document/${d.id}`)}
+        aria-label={`Open ${d.title}`}
+      >
+        <DocCell>
+          <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
+          <div style={{ minWidth: 0 }}>
+            <DocTitle>{d.title}</DocTitle>
+            <DocCode>{d.code}</DocCode>
+          </div>
+        </DocCell>
+        <RecipientCell>
+          {recipient ? (
+            <>
+              <Avatar name={recipient.name} size={24} />
+              <RecipientLabel>{recipient.name}</RecipientLabel>
+            </>
+          ) : (
+            <RecipientLabel>—</RecipientLabel>
+          )}
+        </RecipientCell>
+        <div>
+          <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+        </div>
+        <DateCell>{formatDate(d.updatedAt)}</DateCell>
+        <div aria-hidden />
+      </TableRow>
+    );
+  });
+}
+
 /**
  * L4 page — the dashboard / inbox view listing every document the user has
  * created or received. Pulls documents from `useAppState` and renders the
  * filter tabs + table from `Design-Guide/ui_kits/dashboard`.
  */
 export function DashboardPage() {
-  const { documents } = useAppState();
+  const { documents, documentsLoading } = useAppState();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   // Filter id is URL-driven via `?filter=`. Invalid / missing values collapse
@@ -184,44 +255,12 @@ export function DashboardPage() {
             <div>Date</div>
             <div aria-hidden />
           </TableHead>
-          {filtered.length === 0 ? (
-            <EmptyState>No documents match this filter.</EmptyState>
-          ) : (
-            filtered.map((d) => {
-              const recipient = primaryRecipient(d);
-              return (
-                <TableRow
-                  key={d.id}
-                  type="button"
-                  onClick={() => navigate(`/document/${d.id}`)}
-                  aria-label={`Open ${d.title}`}
-                >
-                  <DocCell>
-                    <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
-                    <div style={{ minWidth: 0 }}>
-                      <DocTitle>{d.title}</DocTitle>
-                      <DocCode>{d.code}</DocCode>
-                    </div>
-                  </DocCell>
-                  <RecipientCell>
-                    {recipient ? (
-                      <>
-                        <Avatar name={recipient.name} size={24} />
-                        <RecipientLabel>{recipient.name}</RecipientLabel>
-                      </>
-                    ) : (
-                      <RecipientLabel>—</RecipientLabel>
-                    )}
-                  </RecipientCell>
-                  <div>
-                    <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-                  </div>
-                  <DateCell>{formatDate(d.updatedAt)}</DateCell>
-                  <div aria-hidden />
-                </TableRow>
-              );
-            })
-          )}
+          {renderDocumentsBody({
+            loading: documentsLoading,
+            rowsForSkeleton: documents.length === 0,
+            filtered,
+            navigate,
+          })}
         </TableShell>
       </Inner>
     </Main>
