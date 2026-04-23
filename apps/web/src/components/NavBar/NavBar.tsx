@@ -1,15 +1,21 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
+import { User as UserIcon } from 'lucide-react';
 import { Avatar } from '../Avatar';
-import type { NavBarProps, NavItem } from './NavBar.types';
+import { Icon } from '../Icon';
+import { UserMenu } from '../UserMenu';
+import type { NavBarProps, NavItem, NavBarUser } from './NavBar.types';
 import {
   DefaultWordmark,
+  GhostButton,
+  GuestChip,
   Header,
   LogoMark,
   LogoSlot,
   Nav,
   NavItemButton,
   NavItemLink,
+  PrimaryButton,
   RightCluster,
   Spacer,
 } from './NavBar.styles';
@@ -19,6 +25,47 @@ const DEFAULT_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'sign', label: 'Sign' },
   { id: 'signers', label: 'Signers' },
 ];
+
+interface RightClusterArgs {
+  readonly isGuest: boolean;
+  readonly user: NavBarUser | undefined;
+  readonly onSignIn: (() => void) | undefined;
+  readonly onSignUp: (() => void) | undefined;
+  readonly onSignOut: (() => void) | undefined;
+}
+
+function renderRightCluster(args: RightClusterArgs): ReactNode {
+  const { isGuest, user, onSignIn, onSignUp, onSignOut } = args;
+  if (isGuest) {
+    return (
+      <>
+        <GhostButton type="button" onClick={onSignIn}>
+          Sign in
+        </GhostButton>
+        <PrimaryButton type="button" onClick={onSignUp}>
+          Sign up
+        </PrimaryButton>
+      </>
+    );
+  }
+  if (!user) return null;
+  // When a sign-out handler is provided (the common authed case in the real
+  // app) render the full popover menu; otherwise fall back to a plain avatar
+  // so Storybook / static usages still render cleanly.
+  if (onSignOut) {
+    return (
+      <UserMenu
+        user={{
+          name: user.name,
+          email: user.email ?? '',
+          ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
+        }}
+        onSignOut={onSignOut}
+      />
+    );
+  }
+  return <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} />;
+}
 
 /**
  * The Sealed quill/seal mark. Inlined (rather than imported as an SVG asset) so
@@ -58,12 +105,13 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     activeItemId = 'documents',
     onSelectItem,
     user,
+    mode = 'authed',
+    onSignIn,
+    onSignUp,
+    onSignOut,
     ...rest
   } = props;
 
-  // Default logo composes an indigo mark + serif wordmark so the brand has a
-  // visual anchor in the bar instead of relying on text alone. Consumers can
-  // still fully override via the `logo` prop.
   const logoNode: ReactNode = logo ?? (
     <>
       <LogoMark>
@@ -73,42 +121,51 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     </>
   );
 
+  const isGuest = mode === 'guest';
+
   return (
     <Header {...rest} ref={ref}>
       <LogoSlot>{logoNode}</LogoSlot>
-      <Nav aria-label="Primary">
-        {items.map((item) => {
-          const isActive = item.id === activeItemId;
-          const ariaCurrent = isActive ? ('page' as const) : undefined;
-          if (item.href !== undefined) {
+      {isGuest ? (
+        <GuestChip aria-label="Guest mode">
+          <Icon icon={UserIcon} size={12} />
+          <span>Guest mode</span>
+        </GuestChip>
+      ) : (
+        <Nav aria-label="Primary">
+          {items.map((item) => {
+            const isActive = item.id === activeItemId;
+            const ariaCurrent = isActive ? ('page' as const) : undefined;
+            if (item.href !== undefined) {
+              return (
+                <NavItemLink
+                  key={item.id}
+                  href={item.href}
+                  $active={isActive}
+                  aria-current={ariaCurrent}
+                  onClick={() => onSelectItem?.(item.id)}
+                >
+                  {item.label}
+                </NavItemLink>
+              );
+            }
             return (
-              <NavItemLink
+              <NavItemButton
                 key={item.id}
-                href={item.href}
+                type="button"
                 $active={isActive}
                 aria-current={ariaCurrent}
                 onClick={() => onSelectItem?.(item.id)}
               >
                 {item.label}
-              </NavItemLink>
+              </NavItemButton>
             );
-          }
-          return (
-            <NavItemButton
-              key={item.id}
-              type="button"
-              $active={isActive}
-              aria-current={ariaCurrent}
-              onClick={() => onSelectItem?.(item.id)}
-            >
-              {item.label}
-            </NavItemButton>
-          );
-        })}
-      </Nav>
+          })}
+        </Nav>
+      )}
       <Spacer />
       <RightCluster>
-        {user ? <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} /> : null}
+        {renderRightCluster({ isGuest, user, onSignIn, onSignUp, onSignOut })}
       </RightCluster>
     </Header>
   );

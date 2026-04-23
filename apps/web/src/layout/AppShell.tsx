@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
+import { useAuth } from '../providers/AuthProvider';
 import { NAV_ITEMS, matchNavId } from './navItems';
 
 const Shell = styled.div`
@@ -22,11 +23,14 @@ const Content = styled.main`
 `;
 
 /**
- * L4 layout — wraps routed pages with the shared NavBar so the chrome doesn't
- * reflow between tabs. Pages render into `<Outlet />`.
+ * L4 layout — wraps routed pages with the shared NavBar. The NavBar's `mode`
+ * follows auth state: `authed` for signed-in users, `guest` for anonymous
+ * visitors who chose "Skip". Anonymous-without-skip never reach this shell
+ * (they're bounced by `RequireAuth` / `RequireAuthOrGuest` upstream).
  */
 export function AppShell() {
   const { user } = useAppState();
+  const { guest, exitGuestMode, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const activeNavId = matchNavId(location.pathname);
@@ -34,12 +38,30 @@ export function AppShell() {
   const handleSelectNavItem = useCallback(
     (id: string): void => {
       const item = NAV_ITEMS.find((n) => n.id === id);
-      if (item) {
-        navigate(item.path);
-      }
+      if (item) navigate(item.path);
     },
     [navigate],
   );
+
+  const handleSignIn = useCallback((): void => {
+    exitGuestMode();
+    navigate('/signin');
+  }, [exitGuestMode, navigate]);
+
+  const handleSignUp = useCallback((): void => {
+    exitGuestMode();
+    navigate('/signup');
+  }, [exitGuestMode, navigate]);
+
+  const handleSignOut = useCallback((): void => {
+    signOut()
+      .catch(() => {
+        /* already surfaced via AuthProvider state; user lands on /signin via RequireAuth */
+      })
+      .finally(() => navigate('/signin', { replace: true }));
+  }, [signOut, navigate]);
+
+  const mode = !user && guest ? 'guest' : 'authed';
 
   return (
     <Shell>
@@ -47,6 +69,10 @@ export function AppShell() {
         activeItemId={activeNavId}
         onSelectItem={handleSelectNavItem}
         user={user ?? undefined}
+        mode={mode}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+        onSignOut={handleSignOut}
       />
       <Content>
         <Outlet />

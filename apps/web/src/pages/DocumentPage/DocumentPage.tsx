@@ -153,6 +153,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onLogoClick,
     onSelectNavItem,
     activeNavId = 'sign',
+    navMode,
+    onSignIn,
+    onSignUp,
+    onSignOut,
     ...rest
   } = props;
 
@@ -1121,6 +1125,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         onSelectItem={onSelectNavItem}
         {...(user ? { user } : {})}
         {...(logoNode ? { logo: logoNode } : {})}
+        {...(navMode ? { mode: navMode } : {})}
+        {...(onSignIn ? { onSignIn } : {})}
+        {...(onSignUp ? { onSignUp } : {})}
+        {...(onSignOut ? { onSignOut } : {})}
       />
       <Body>
         <Workspace>

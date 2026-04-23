@@ -1,0 +1,1 @@
+export { CheckEmailPage } from './CheckEmailPage';

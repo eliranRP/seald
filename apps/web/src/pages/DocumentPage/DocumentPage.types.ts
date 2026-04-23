@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type { NavBarUser } from '../../components/NavBar/NavBar.types';
+import type { NavBarMode, NavBarUser } from '../../components/NavBar/NavBar.types';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '../../components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
@@ -68,6 +68,10 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   readonly onLogoClick?: (() => void) | undefined;
   readonly onSelectNavItem?: ((id: string) => void) | undefined;
   readonly activeNavId?: string | undefined;
+  readonly navMode?: NavBarMode | undefined;
+  readonly onSignIn?: (() => void) | undefined;
+  readonly onSignUp?: (() => void) | undefined;
+  readonly onSignOut?: (() => void) | undefined;
 }
 
 export type { PlacePagesMode };

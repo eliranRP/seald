@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { NavBarUser } from '../../components/NavBar/NavBar.types';
+import type { NavBarMode, NavBarUser } from '../../components/NavBar/NavBar.types';
 
 /**
  * Error codes emitted when a file fails validation before `onFileSelected`
@@ -27,6 +27,11 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly onSelectNavItem?: ((id: string) => void) | undefined;
   readonly activeNavId?: string | undefined;
   readonly user?: NavBarUser | undefined;
+  /** NavBar mode: `authed` renders the avatar, `guest` renders Sign in / Sign up CTAs. */
+  readonly navMode?: NavBarMode | undefined;
+  readonly onSignIn?: (() => void) | undefined;
+  readonly onSignUp?: (() => void) | undefined;
+  readonly onSignOut?: (() => void) | undefined;
 
   // Dropzone copy / limits -----------------------------------------------
   readonly title?: string | undefined;

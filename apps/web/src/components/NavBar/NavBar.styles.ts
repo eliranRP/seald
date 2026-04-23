@@ -100,3 +100,65 @@ export const RightCluster = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
 `;
+
+/**
+ * "Guest mode" pill rendered after the logo. Purely informational — the
+ * actual upgrade CTAs live in the RightCluster.
+ */
+export const GuestChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  margin-left: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => `${theme.space[1]} ${theme.space[3]}`};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[100]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: 0.01em;
+`;
+
+export const GhostButton = styled.button`
+  appearance: none;
+  height: 34px;
+  padding: 0 ${({ theme }) => theme.space[4]};
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.color.ink[100]};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const PrimaryButton = styled.button`
+  appearance: none;
+  height: 34px;
+  padding: 0 ${({ theme }) => theme.space[4]};
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.color.ink[800]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;

@@ -1,21 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import { ThemeProvider } from 'styled-components';
 import { ContactsPage } from './ContactsPage';
-import { AppStateProvider } from '../../providers/AppStateProvider';
-import { seald } from '../../styles/theme';
+import { renderWithProviders } from '../../test/renderWithProviders';
 
 function renderContacts() {
-  return render(
-    <ThemeProvider theme={seald}>
-      <AppStateProvider>
-        <MemoryRouter initialEntries={['/signers']}>
-          <ContactsPage />
-        </MemoryRouter>
-      </AppStateProvider>
-    </ThemeProvider>,
+  return renderWithProviders(
+    <MemoryRouter initialEntries={['/signers']}>
+      <ContactsPage />
+    </MemoryRouter>,
   );
 }
 

@@ -41,6 +41,20 @@ export const CustomItems: Story = {
   render: () => <NavBar items={ALT_ITEMS} activeItemId="b" user={{ name: 'Alex Rivers' }} />,
 };
 
+export const GuestMode: Story = {
+  render: () => (
+    <NavBar
+      mode="guest"
+      onSignIn={() => {
+        /* story stub */
+      }}
+      onSignUp={() => {
+        /* story stub */
+      }}
+    />
+  ),
+};
+
 export const LogoSlot: Story = {
   render: () => (
     <NavBar

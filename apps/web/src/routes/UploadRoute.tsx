@@ -4,6 +4,7 @@ import { UploadPage } from '../pages/UploadPage';
 import { CreateSignatureRequestDialog } from '../components/CreateSignatureRequestDialog';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { useAppState } from '../providers/AppStateProvider';
+import { useAuth } from '../providers/AuthProvider';
 import { usePdfDocument } from '../lib/pdf';
 import { NAV_ITEMS } from '../layout/navItems';
 
@@ -15,6 +16,7 @@ import { NAV_ITEMS } from '../layout/navItems';
 export function UploadRoute() {
   const navigate = useNavigate();
   const { user, contacts, createDocument, addContact, updateDocument } = useAppState();
+  const { guest, exitGuestMode, signOut } = useAuth();
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>([]);
@@ -77,6 +79,24 @@ export function UploadRoute() {
     [navigate],
   );
 
+  const handleAuthCta = useCallback(
+    (path: string): void => {
+      exitGuestMode();
+      navigate(path);
+    },
+    [exitGuestMode, navigate],
+  );
+
+  const handleSignOut = useCallback((): void => {
+    signOut()
+      .catch(() => {
+        /* soft-fail: still route to signin */
+      })
+      .finally(() => navigate('/signin', { replace: true }));
+  }, [signOut, navigate]);
+
+  const navMode = !user && guest ? 'guest' : 'authed';
+
   return (
     <>
       <UploadPage
@@ -84,6 +104,10 @@ export function UploadRoute() {
         onFileSelected={handleFileSelected}
         activeNavId="sign"
         onSelectNavItem={handleSelectNavItem}
+        navMode={navMode}
+        onSignIn={() => handleAuthCta('/signin')}
+        onSignUp={() => handleAuthCta('/signup')}
+        onSignOut={handleSignOut}
       />
       <CreateSignatureRequestDialog
         open={dialogOpen}

@@ -6,6 +6,7 @@ import type { AddSignerContact } from '../components/AddSignerDropdown/AddSigner
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
+import { useAuth } from '../providers/AuthProvider';
 import { NAV_ITEMS } from '../layout/navItems';
 
 /**
@@ -18,6 +19,7 @@ export function DocumentRoute() {
   const params = useParams<{ readonly id: string }>();
   const navigate = useNavigate();
   const { user, contacts, getDocument, updateDocument, addContact, sendDocument } = useAppState();
+  const { guest, exitGuestMode, signOut } = useAuth();
   const doc = params.id ? getDocument(params.id) : undefined;
   const { doc: pdfDoc, loading: pdfLoading } = usePdfDocument(doc?.file ?? null);
   const [exitOpen, setExitOpen] = useState(false);
@@ -105,9 +107,27 @@ export function DocumentRoute() {
     [navigate],
   );
 
+  const handleAuthCta = useCallback(
+    (path: string): void => {
+      exitGuestMode();
+      navigate(path);
+    },
+    [exitGuestMode, navigate],
+  );
+
+  const handleSignOut = useCallback((): void => {
+    signOut()
+      .catch(() => {
+        /* soft-fail: still route to signin */
+      })
+      .finally(() => navigate('/signin', { replace: true }));
+  }, [signOut, navigate]);
+
   if (!doc) {
     return null;
   }
+
+  const navMode = !user && guest ? 'guest' : 'authed';
 
   return (
     <>
@@ -130,6 +150,10 @@ export function DocumentRoute() {
         user={user ?? undefined}
         activeNavId="sign"
         onSelectNavItem={handleSelectNavItem}
+        navMode={navMode}
+        onSignIn={() => handleAuthCta('/signin')}
+        onSignUp={() => handleAuthCta('/signup')}
+        onSignOut={handleSignOut}
       />
       <ExitConfirmDialog
         open={exitOpen}

@@ -45,4 +45,38 @@ describe('NavBar', () => {
     expect(ref.current).toBeInstanceOf(HTMLElement);
     expect(ref.current?.tagName).toBe('HEADER');
   });
+
+  describe('guest mode', () => {
+    it('renders the Guest mode chip and Sign in / Sign up buttons instead of nav items', () => {
+      const { getByRole, queryByRole, getByLabelText } = renderWithTheme(
+        <NavBar mode="guest" onSignIn={() => {}} onSignUp={() => {}} />,
+      );
+      expect(getByLabelText('Guest mode')).toBeInTheDocument();
+      expect(getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+      expect(getByRole('button', { name: /sign up/i })).toBeInTheDocument();
+      // Nav items should be hidden in guest mode.
+      expect(queryByRole('button', { name: /documents/i })).toBeNull();
+      expect(queryByRole('button', { name: /^sign$/i })).toBeNull();
+      expect(queryByRole('button', { name: /signers/i })).toBeNull();
+    });
+
+    it('Sign in / Sign up buttons call their respective handlers', async () => {
+      const onSignIn = vi.fn();
+      const onSignUp = vi.fn();
+      const { getByRole } = renderWithTheme(
+        <NavBar mode="guest" onSignIn={onSignIn} onSignUp={onSignUp} />,
+      );
+      await userEvent.click(getByRole('button', { name: /sign in/i }));
+      await userEvent.click(getByRole('button', { name: /sign up/i }));
+      expect(onSignIn).toHaveBeenCalledTimes(1);
+      expect(onSignUp).toHaveBeenCalledTimes(1);
+    });
+
+    it('axe clean in guest mode', async () => {
+      const { container } = renderWithTheme(
+        <NavBar mode="guest" onSignIn={() => {}} onSignUp={() => {}} />,
+      );
+      expect(await axe(container)).toHaveNoViolations();
+    });
+  });
 });

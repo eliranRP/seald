@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ThemeProvider } from 'styled-components';
 import { DashboardPage } from './DashboardPage';
-import { AppStateProvider } from '../../providers/AppStateProvider';
-import { seald } from '../../styles/theme';
+import { renderWithProviders } from '../../test/renderWithProviders';
 
 function renderDashboard(initialPath = '/documents') {
-  return render(
-    <ThemeProvider theme={seald}>
-      <AppStateProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route path="/documents" element={<DashboardPage />} />
-          </Routes>
-        </MemoryRouter>
-      </AppStateProvider>
-    </ThemeProvider>,
+  return renderWithProviders(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route path="/documents" element={<DashboardPage />} />
+      </Routes>
+    </MemoryRouter>,
   );
 }
 

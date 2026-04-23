@@ -1,19 +1,52 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { AppRoutes } from './AppRoutes';
 import { AppStateProvider } from './providers/AppStateProvider';
+import { AuthProvider } from './providers/AuthProvider';
 import { seald } from './styles/theme';
+
+// The browser Supabase client is mocked at the module boundary so jsdom
+// runs don't spin up network clients. The default stub returns a signed-in
+// session so the integration tests below see the app as an authed user;
+// tests that need the anonymous path can override this mock per-case.
+vi.mock('./lib/supabase/supabaseClient', () => {
+  const user = {
+    id: 'test-user',
+    email: 'jamie@seald.app',
+    user_metadata: { name: 'Jamie Okonkwo' },
+  };
+  const session = { user, access_token: 't' };
+  const subscription = { subscription: { unsubscribe: () => {} } };
+  return {
+    supabase: {
+      auth: {
+        getSession: async () => ({ data: { session }, error: null }),
+        onAuthStateChange: () => ({ data: subscription }),
+        signInWithPassword: async () => ({ data: { session }, error: null }),
+        signUp: async () => ({ data: { session, user }, error: null }),
+        signInWithOAuth: async () => ({ data: {}, error: null }),
+        resetPasswordForEmail: async () => ({ data: {}, error: null }),
+        signOut: async () => ({ error: null }),
+      },
+    },
+    setKeepSignedIn: () => {},
+    getKeepSignedIn: () => true,
+    KEEP_SIGNED_IN_STORAGE_KEY: 'sealed.keepSignedIn',
+  };
+});
 
 function renderApp(initialEntries: ReadonlyArray<string> = ['/']) {
   return render(
     <ThemeProvider theme={seald}>
-      <AppStateProvider>
-        <MemoryRouter initialEntries={[...initialEntries]}>
-          <AppRoutes />
-        </MemoryRouter>
-      </AppStateProvider>
+      <AuthProvider>
+        <AppStateProvider>
+          <MemoryRouter initialEntries={[...initialEntries]}>
+            <AppRoutes />
+          </MemoryRouter>
+        </AppStateProvider>
+      </AuthProvider>
     </ThemeProvider>,
   );
 }
@@ -25,29 +58,28 @@ function makePdf(name = 'contract.pdf', sizeBytes = 1024): File {
 }
 
 describe('App routing', () => {
-  it('redirects root to the Dashboard', () => {
+  it('redirects root to the Dashboard', async () => {
     renderApp(['/']);
     expect(
-      screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
+      await screen.findByRole('heading', { level: 1, name: /everything you've sent/i }),
     ).toBeInTheDocument();
   });
 
-  it('clicking "New document" on the Dashboard navigates to the upload flow', () => {
+  it('clicking "New document" on the Dashboard navigates to the upload flow', async () => {
     renderApp(['/documents']);
-    fireEvent.click(screen.getByRole('button', { name: /new document/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /new document/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
-  it('clicking the Sign NavBar tab navigates to /document/new', () => {
+  it('clicking the Sign NavBar tab navigates to /document/new', async () => {
     renderApp(['/documents']);
-    // The NavBar's Sign tab is the single entry point into the upload flow.
-    fireEvent.click(screen.getByRole('button', { name: /^sign$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^sign$/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
-  it('opens the Create signature request dialog immediately after a PDF is chosen', () => {
+  it('opens the Create signature request dialog immediately after a PDF is chosen', async () => {
     renderApp(['/document/new']);
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
+    const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(
       screen.getByRole('dialog', { name: /create your signature request/i }),
@@ -57,10 +89,9 @@ describe('App routing', () => {
 
   it('cancelling the dialog stays on the upload page and discards picked signers', async () => {
     renderApp(['/document/new']);
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
+    const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    // Seed contacts load from the mock API — wait before picking one.
     fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
@@ -72,14 +103,14 @@ describe('App routing', () => {
   it('Signers page lists seed contacts', async () => {
     renderApp(['/signers']);
     expect(
-      screen.getByRole('heading', { level: 1, name: /people you send documents to/i }),
+      await screen.findByRole('heading', { level: 1, name: /people you send documents to/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText(/eliran@azulay.co/i)).toBeInTheDocument();
   });
 
-  it('Signers page opens the add dialog', () => {
+  it('Signers page opens the add dialog', async () => {
     renderApp(['/signers']);
-    fireEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^add signer$/i }));
     expect(screen.getByRole('dialog', { name: /^add signer$/i })).toBeInTheDocument();
   });
 });

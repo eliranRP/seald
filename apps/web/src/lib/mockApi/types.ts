@@ -38,7 +38,10 @@ export interface AppDocument {
 }
 
 export interface AppUser {
+  readonly id?: string | undefined;
   readonly name: string;
+  readonly email?: string | undefined;
+  readonly avatarUrl?: string | undefined;
 }
 
 export type EmailPreviewVariant = 'request' | 'completed';

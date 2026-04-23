@@ -1,22 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import {
-  SIGNER_COLOR_PALETTE,
-  fetchContacts,
-  fetchCurrentUser,
-  fetchDocuments,
-} from '../lib/mockApi';
+import { SIGNER_COLOR_PALETTE, fetchContacts, fetchDocuments } from '../lib/mockApi';
 import type { AppDocument, AppUser } from '../lib/mockApi';
+import { useAuth } from './AuthProvider';
 
 export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from '../lib/mockApi';
 
 export interface AppStateValue {
-  /** Null while the initial fetch is in flight. */
+  /**
+   * The signed-in user, mirrored from `AuthProvider`. `null` for guests and
+   * anonymous visitors (the latter never reach a page that reads this).
+   */
   readonly user: AppUser | null;
   readonly documents: ReadonlyArray<AppDocument>;
   readonly contacts: ReadonlyArray<AddSignerContact>;
-  /** True until the initial parallel fetch for user/contacts/documents resolves. */
+  /** True until the initial contacts/documents fetch resolves. */
   readonly loading: boolean;
   readonly getDocument: (id: string) => AppDocument | undefined;
   readonly createDocument: (file: File, totalPages: number) => string;
@@ -50,41 +49,55 @@ export interface AppStateProviderProps {
  * Holds the in-memory application state shared across pages (documents,
  * contacts, user). Lives above the router so navigation doesn't reset state.
  *
- * Initial data is fetched in parallel from `src/lib/mockApi` on mount, which
- * simulates the eventual real server. Until those resolve, `loading` is true,
- * `user` is null, and the `documents`/`contacts` lists are empty. Mutator
- * callbacks (createDocument, addContact, …) remain purely in-memory — a real
- * implementation would swap them for POST/PATCH calls without changing the
- * consumer surface.
+ * `user` is mirrored from `AuthProvider` — the mock `fetchCurrentUser` has
+ * been retired in favour of Supabase session. Contacts + documents are still
+ * served by the mock API, but the fetch is skipped for guests (who have no
+ * server-side state) and anonymous visitors (who never reach state-consuming
+ * pages). Mutator callbacks remain in-memory; a real implementation would
+ * swap them for POST/PATCH without changing the consumer surface.
  */
 export function AppStateProvider(props: AppStateProviderProps) {
   const { children } = props;
-  const [user, setUser] = useState<AppUser | null>(null);
+  const { user: authUser } = useAuth();
   const [documents, setDocuments] = useState<ReadonlyArray<AppDocument>>([]);
   const [contacts, setContacts] = useState<ReadonlyArray<AddSignerContact>>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
+    if (!authUser) {
+      // Guest or anonymous — no server fetch. Drop to ready state so pages
+      // don't spin forever.
+      setDocuments([]);
+      setContacts([]);
+      setLoading(false);
+      return () => {};
+    }
     let cancelled = false;
-    Promise.all([fetchCurrentUser(), fetchContacts(), fetchDocuments()])
-      .then(([fetchedUser, fetchedContacts, fetchedDocuments]) => {
-        if (cancelled) {
-          return;
-        }
-        setUser(fetchedUser);
+    setLoading(true);
+    Promise.all([fetchContacts(), fetchDocuments()])
+      .then(([fetchedContacts, fetchedDocuments]) => {
+        if (cancelled) return;
         setContacts(fetchedContacts);
         setDocuments(fetchedDocuments);
         setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUser]);
+
+  const user = useMemo<AppUser | null>(() => {
+    if (!authUser) return null;
+    return {
+      id: authUser.id,
+      name: authUser.name,
+      email: authUser.email,
+      avatarUrl: authUser.avatarUrl,
+    };
+  }, [authUser]);
 
   const getDocument = useCallback(
     (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
