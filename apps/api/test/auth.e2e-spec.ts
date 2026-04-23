@@ -6,6 +6,7 @@ import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
 import { APP_ENV } from '../src/config/config.module';
 import type { AppEnv } from '../src/config/env.schema';
 import { buildTestJwks } from './test-jwks';
+import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -35,6 +36,7 @@ describe('Auth (e2e)', () => {
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
     );
+    app.useGlobalFilters(new HttpExceptionFilter());
     await app.init();
   });
 
@@ -48,7 +50,7 @@ describe('Auth (e2e)', () => {
 
   it('GET /me without Authorization returns 401 missing_token', async () => {
     const res = await request(app.getHttpServer()).get('/me').expect(401);
-    expect(res.body.message).toBe('missing_token');
+    expect(res.body.error).toBe('missing_token');
   });
 
   it('GET /me with expired token returns 401 token_expired', async () => {
@@ -60,7 +62,7 @@ describe('Auth (e2e)', () => {
       .get('/me')
       .set('Authorization', `Bearer ${token}`)
       .expect(401);
-    expect(res.body.message).toBe('token_expired');
+    expect(res.body.error).toBe('token_expired');
   });
 
   it('GET /me with valid token returns the user', async () => {
