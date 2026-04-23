@@ -1595,12 +1595,15 @@ describe('Auth (e2e)', () => {
       .expect(204);
   });
 
-  it('CORS preflight from disallowed origin is blocked', async () => {
+  it('CORS never echoes a caller-supplied origin (browser-enforced block)', async () => {
+    // With `origin: CORS_ORIGIN` as a plain string, the cors middleware always
+    // echoes the configured origin, never the caller's. A browser receiving this
+    // mismatch will block the cross-origin read. This asserts that invariant.
     const res = await request(app.getHttpServer())
       .options('/health')
       .set('Origin', 'https://evil.example')
       .set('Access-Control-Request-Method', 'GET');
-    expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    expect(res.headers['access-control-allow-origin']).toBe(TEST_ENV.CORS_ORIGIN);
   });
 });
 ```
