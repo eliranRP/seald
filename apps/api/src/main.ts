@@ -10,8 +10,13 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 function loadDotenv(): void {
   // Populate process.env from apps/api/.env for local dev.
   // In production the host (e.g. Vercel, Docker) injects env vars directly.
+  //
+  // Resolve relative to the package root, not __dirname: the compiled entry
+  // lives at `apps/api/dist/src/main.js`, so `__dirname`-based lookup would
+  // land in `apps/api/dist/.env` (wrong). `process.cwd()` is always the API
+  // package when launched via `pnpm --filter api start:dev`.
   try {
-    process.loadEnvFile(resolve(__dirname, '../.env'));
+    process.loadEnvFile(resolve(process.cwd(), '.env'));
   } catch {
     // No .env file present — fall through and let zod validate whatever is in process.env.
   }
