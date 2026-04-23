@@ -7,6 +7,9 @@ export interface Database {
   envelope_fields: EnvelopeFieldsTable;
   envelope_events: EnvelopeEventsTable;
   envelope_jobs: EnvelopeJobsTable;
+  outbound_emails: OutboundEmailsTable;
+  idempotency_records: IdempotencyRecordsTable;
+  email_webhooks: EmailWebhooksTable;
 }
 
 export interface ContactsTable {
@@ -151,4 +154,56 @@ export interface EnvelopeJobsTable {
   started_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   finished_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export type EmailKindDb =
+  | 'invite'
+  | 'reminder'
+  | 'completed'
+  | 'declined_to_sender'
+  | 'withdrawn_to_signer'
+  | 'withdrawn_after_sign'
+  | 'expired_to_sender'
+  | 'expired_to_signer';
+export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
+
+export interface OutboundEmailsTable {
+  id: Generated<string>;
+  envelope_id: string | null;
+  signer_id: string | null;
+  kind: EmailKindDb;
+  to_email: string;
+  to_name: string;
+  payload: ColumnType<Record<string, unknown>, string, string | undefined>;
+  status: ColumnType<EmailStatusDb, EmailStatusDb | undefined, EmailStatusDb | undefined>;
+  attempts: ColumnType<number, number | undefined, number | undefined>;
+  max_attempts: ColumnType<number, number | undefined, number | undefined>;
+  scheduled_for: ColumnType<Date, string | undefined, string | undefined>;
+  sent_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  last_error: string | null;
+  provider_id: string | null;
+  source_event_id: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface IdempotencyRecordsTable {
+  user_id: string;
+  idempotency_key: string;
+  method: string;
+  path: string;
+  request_hash: string;
+  response_status: number;
+  response_body: ColumnType<Record<string, unknown>, string, never>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  expires_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface EmailWebhooksTable {
+  id: Generated<string>;
+  provider: string;
+  event_type: string;
+  provider_id: string;
+  payload: ColumnType<Record<string, unknown>, string, never>;
+  received_at: ColumnType<Date, string | undefined, never>;
+  processed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
 }

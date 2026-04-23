@@ -104,6 +104,16 @@ export function createPgMemDb(): PgMemHandle {
     );
   mem.public.none(patched0002);
 
+  // Load 0003_outbound_emails.sql with pg-mem patches:
+  // - citext → text
+  // - strip RLS alters
+  const migration0003Path = resolve(__dirname, '../db/migrations/0003_outbound_emails.sql');
+  const raw0003 = readFileSync(migration0003Path, 'utf8');
+  const patched0003 = raw0003
+    .replace(/\bcitext\b/g, 'text')
+    .replace(/alter table public\.\w+ enable row level security;/g, '');
+  mem.public.none(patched0003);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
