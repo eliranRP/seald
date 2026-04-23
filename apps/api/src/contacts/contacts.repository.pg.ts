@@ -53,17 +53,36 @@ export class ContactsPgRepository extends ContactsRepository {
     return rows.map(toDomain);
   }
 
-  async findOneByOwner(_owner_id: string, _id: string): Promise<Contact | null> {
-    throw new Error('not implemented');
+  async findOneByOwner(owner_id: string, id: string): Promise<Contact | null> {
+    const row = await this.db
+      .selectFrom('contacts')
+      .selectAll()
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
   }
-  async update(
-    _owner_id: string,
-    _id: string,
-    _patch: UpdateContactPatch,
-  ): Promise<Contact | null> {
-    throw new Error('not implemented');
+
+  async update(owner_id: string, id: string, patch: UpdateContactPatch): Promise<Contact | null> {
+    if (Object.keys(patch).length === 0) {
+      return this.findOneByOwner(owner_id, id);
+    }
+    const row = await this.db
+      .updateTable('contacts')
+      .set({ ...patch, updated_at: new Date().toISOString() })
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
   }
-  async delete(_owner_id: string, _id: string): Promise<boolean> {
-    throw new Error('not implemented');
+
+  async delete(owner_id: string, id: string): Promise<boolean> {
+    const res = await this.db
+      .deleteFrom('contacts')
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return (res?.numDeletedRows ?? 0n) > 0n;
   }
 }

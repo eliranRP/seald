@@ -64,3 +64,111 @@ describe('ContactsPgRepository — create + list', () => {
     expect(await repo.findAllByOwner(ownerId)).toEqual([]);
   });
 });
+
+describe('ContactsPgRepository — findOne / update / delete', () => {
+  let handle: PgMemHandle;
+  let repo: ContactsPgRepository;
+  let ownerId: string;
+  let otherOwnerId: string;
+
+  beforeEach(async () => {
+    handle = createPgMemDb();
+    repo = new ContactsPgRepository(handle.db);
+    ownerId = await seedUser(handle);
+    otherOwnerId = await seedUser(handle);
+  });
+  afterEach(async () => {
+    await handle.close();
+  });
+
+  it('findOneByOwner returns the row when owned', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    const got = await repo.findOneByOwner(ownerId, c.id);
+    expect(got?.id).toBe(c.id);
+  });
+
+  it('findOneByOwner returns null when id belongs to another owner', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    const got = await repo.findOneByOwner(otherOwnerId, c.id);
+    expect(got).toBeNull();
+  });
+
+  it('findOneByOwner returns null for an unknown id', async () => {
+    const got = await repo.findOneByOwner(ownerId, '00000000-0000-0000-0000-000000000000');
+    expect(got).toBeNull();
+  });
+
+  it('update with a non-empty patch mutates the owned row and returns it', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    const got = await repo.update(ownerId, c.id, { name: 'A2', color: '#FFFFFF' });
+    expect(got?.name).toBe('A2');
+    expect(got?.color).toBe('#FFFFFF');
+    expect(got?.email).toBe('a@x.com');
+  });
+
+  it('update with an empty patch returns the current row without erroring', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    const got = await repo.update(ownerId, c.id, {});
+    expect(got?.id).toBe(c.id);
+    expect(got?.name).toBe('A');
+  });
+
+  it('update returns null when owner does not match', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    const got = await repo.update(otherOwnerId, c.id, { name: 'hacked' });
+    expect(got).toBeNull();
+    const fresh = await repo.findOneByOwner(ownerId, c.id);
+    expect(fresh?.name).toBe('A');
+  });
+
+  it('delete returns true and removes an owned row', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    expect(await repo.delete(ownerId, c.id)).toBe(true);
+    expect(await repo.findOneByOwner(ownerId, c.id)).toBeNull();
+  });
+
+  it('delete returns false when owner does not match', async () => {
+    const c = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    expect(await repo.delete(otherOwnerId, c.id)).toBe(false);
+    expect(await repo.findOneByOwner(ownerId, c.id)).not.toBeNull();
+  });
+
+  it('delete returns false for an unknown id', async () => {
+    expect(await repo.delete(ownerId, '00000000-0000-0000-0000-000000000000')).toBe(false);
+  });
+});
