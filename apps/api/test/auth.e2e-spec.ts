@@ -14,7 +14,17 @@ const TEST_ENV: AppEnv = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_JWT_AUDIENCE: 'authenticated',
   CORS_ORIGIN: 'http://localhost:5173',
+  APP_PUBLIC_URL: 'http://localhost:5173',
   DATABASE_URL: 'postgres://u:p@host:5432/db',
+  STORAGE_BUCKET: 'envelopes',
+  TC_VERSION: '2026-04-24',
+  PRIVACY_VERSION: '2026-04-24',
+  EMAIL_PROVIDER: 'logging',
+  EMAIL_FROM_ADDRESS: 'onboarding@resend.dev',
+  EMAIL_FROM_NAME: 'Seald',
+  PDF_SIGNING_PROVIDER: 'local',
+  PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
+  ENVELOPE_RETENTION_YEARS: 7,
 };
 const ISSUER = `${TEST_ENV.SUPABASE_URL}/auth/v1`;
 
