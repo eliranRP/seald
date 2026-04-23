@@ -14,6 +14,7 @@ import {
   EnvelopeSignerEmailTakenError,
   EnvelopeTerminalError,
   InvalidCursorError,
+  ShortCodeCollisionError,
   type AddSignerInput,
   type CreateDraftInput,
   type CreateFieldInput,
@@ -40,6 +41,20 @@ type EventRow = Selectable<EnvelopeEventsTable>;
  * pg-mem does not populate `constraint` — instead, it leaks the column
  * tuple in the message. Match both shapes.
  */
+/**
+ * Detect a 23505 unique violation against envelopes.short_code. Real Postgres
+ * exposes `constraint = 'envelopes_short_code_key'`; pg-mem embeds the
+ * column info in the message text.
+ */
+function isShortCodeUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; constraint?: string; message?: string };
+  if (e.code !== '23505') return false;
+  if (e.constraint === 'envelopes_short_code_key') return true;
+  if (typeof e.message === 'string' && e.message.toLowerCase().includes('short_code')) return true;
+  return false;
+}
+
 function isSignerEmailUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; constraint?: string; message?: string };
@@ -204,20 +219,25 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
   // ---------- Reads ----------
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
-    const row = await this.db
-      .insertInto('envelopes')
-      .values({
-        owner_id: input.owner_id,
-        title: input.title,
-        short_code: input.short_code,
-        tc_version: input.tc_version,
-        privacy_version: input.privacy_version,
-        expires_at: input.expires_at,
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    // A fresh draft has no signers or fields yet.
-    return toEnvelopeDomain(row, [], []);
+    try {
+      const row = await this.db
+        .insertInto('envelopes')
+        .values({
+          owner_id: input.owner_id,
+          title: input.title,
+          short_code: input.short_code,
+          tc_version: input.tc_version,
+          privacy_version: input.privacy_version,
+          expires_at: input.expires_at,
+        })
+        .returningAll()
+        .executeTakeFirstOrThrow();
+      // A fresh draft has no signers or fields yet.
+      return toEnvelopeDomain(row, [], []);
+    } catch (err) {
+      if (isShortCodeUniqueViolation(err)) throw new ShortCodeCollisionError();
+      throw err;
+    }
   }
 
   async findByIdForOwner(owner_id: string, envelope_id: string): Promise<Envelope | null> {

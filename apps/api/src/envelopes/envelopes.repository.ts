@@ -198,6 +198,11 @@ export abstract class EnvelopesRepository {
 
   // Jobs
   abstract enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string>;
+
+  // Cursor helper — decode the opaque cursor returned by listByOwner. Throws
+  // InvalidCursorError on malformed input. Lives on the port so the service
+  // layer doesn't need to know the cursor encoding format.
+  abstract decodeCursorOrThrow(cursor: string): { updated_at: string; id: string };
 }
 
 /**
@@ -231,5 +236,21 @@ export class InvalidCursorError extends Error {
   constructor() {
     super('invalid_cursor');
     this.name = 'InvalidCursorError';
+  }
+}
+
+/**
+ * Thrown by `createDraft` when the 13-char short_code collides with an
+ * existing envelope's unique constraint. The service layer retries with a
+ * freshly generated short code a small number of times before surfacing.
+ *
+ * Collision space is ~10^23, so in practice this should never fire; it
+ * exists so the unique-constraint race is modelled explicitly rather than
+ * leaking as a generic `23505`.
+ */
+export class ShortCodeCollisionError extends Error {
+  constructor() {
+    super('short_code_collision');
+    this.name = 'ShortCodeCollisionError';
   }
 }
