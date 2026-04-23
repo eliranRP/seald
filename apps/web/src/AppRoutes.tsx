@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
+import { DebugAuthPage } from './pages/DebugAuthPage';
 import { EmailPreviewPage } from './pages/EmailPreviewPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { UploadRoute } from './routes/UploadRoute';
@@ -18,6 +19,9 @@ export function AppRoutes() {
       <Route path="/document/new" element={<UploadRoute />} />
       <Route path="/document/:id" element={<DocumentRoute />} />
       <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
+
+      {/* Developer-only auth debug surface — no shared chrome. */}
+      <Route path="/debug/auth" element={<DebugAuthPage />} />
 
       {/* Everything else lives under the shared AppShell with a single NavBar. */}
       <Route element={<AppShell />}>
