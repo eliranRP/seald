@@ -87,6 +87,23 @@ export function createPgMemDb(): PgMemHandle {
 
   mem.public.none(patched);
 
+  // Load 0002_envelopes.sql with pg-mem patches:
+  // - strip citext extension (already aliased to text at global)
+  // - citext → text (no-op since extension was stripped, but be explicit)
+  // - strip RLS alters (pg-mem doesn't implement)
+  // - strip envelopes_set_updated_at trigger (references function stripped from 0001)
+  const migration0002Path = resolve(__dirname, '../db/migrations/0002_envelopes.sql');
+  const raw0002 = readFileSync(migration0002Path, 'utf8');
+  const patched0002 = raw0002
+    .replace(/create extension if not exists "citext";/g, '')
+    .replace(/\bcitext\b/g, 'text')
+    .replace(/alter table public\.\w+ enable row level security;/g, '')
+    .replace(
+      /create trigger envelopes_set_updated_at[\s\S]*?execute function public\.set_updated_at\(\);/g,
+      '',
+    );
+  mem.public.none(patched0002);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
