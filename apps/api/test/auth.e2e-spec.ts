@@ -14,6 +14,7 @@ const TEST_ENV: AppEnv = {
   SUPABASE_URL: 'https://example.supabase.co',
   SUPABASE_JWT_AUDIENCE: 'authenticated',
   CORS_ORIGIN: 'http://localhost:5173',
+  DATABASE_URL: 'postgres://u:p@host:5432/db',
 };
 const ISSUER = `${TEST_ENV.SUPABASE_URL}/auth/v1`;
 

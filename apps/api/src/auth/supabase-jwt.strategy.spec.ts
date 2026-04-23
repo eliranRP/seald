@@ -13,6 +13,7 @@ function makeEnv(): AppEnv {
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_JWT_AUDIENCE: AUDIENCE,
     CORS_ORIGIN: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://u:p@host:5432/db',
   };
 }
 

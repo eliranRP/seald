@@ -6,6 +6,12 @@ export const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_JWT_AUDIENCE: z.string().min(1).default('authenticated'),
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .refine((v) => /^postgres(ql)?:\/\//.test(v), {
+      message: 'DATABASE_URL must be a postgres:// or postgresql:// URL',
+    }),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

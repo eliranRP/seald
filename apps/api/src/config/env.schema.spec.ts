@@ -7,6 +7,7 @@ describe('parseEnv', () => {
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_JWT_AUDIENCE: 'authenticated',
     CORS_ORIGIN: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://u:p@host:5432/db',
   };
 
   it('parses a valid env', () => {
@@ -33,5 +34,35 @@ describe('parseEnv', () => {
 
   it('throws when PORT is not numeric', () => {
     expect(() => parseEnv({ ...valid, PORT: 'abc' })).toThrow(/PORT/);
+  });
+});
+
+describe('env.schema — DATABASE_URL', () => {
+  const base = {
+    NODE_ENV: 'test',
+    PORT: '3000',
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_JWT_AUDIENCE: 'authenticated',
+    CORS_ORIGIN: 'http://localhost:5173',
+  };
+
+  it('rejects missing DATABASE_URL', () => {
+    expect(() => parseEnv(base)).toThrow(/DATABASE_URL/);
+  });
+
+  it('rejects DATABASE_URL that is not a postgres URL', () => {
+    expect(() => parseEnv({ ...base, DATABASE_URL: 'http://not-postgres' })).toThrow(
+      /DATABASE_URL/,
+    );
+  });
+
+  it('accepts a postgres:// URL', () => {
+    const env = parseEnv({ ...base, DATABASE_URL: 'postgres://u:p@host:5432/db?sslmode=require' });
+    expect(env.DATABASE_URL).toBe('postgres://u:p@host:5432/db?sslmode=require');
+  });
+
+  it('accepts a postgresql:// URL', () => {
+    const env = parseEnv({ ...base, DATABASE_URL: 'postgresql://u:p@host:5432/db' });
+    expect(env.DATABASE_URL).toBe('postgresql://u:p@host:5432/db');
   });
 });
