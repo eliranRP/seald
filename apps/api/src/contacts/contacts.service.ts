@@ -2,7 +2,11 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import type { Contact } from './contact.entity';
 import type { CreateContactDto } from './dto/create-contact.dto';
 import type { UpdateContactDto } from './dto/update-contact.dto';
-import { ContactEmailTakenError, ContactsRepository } from './contacts.repository';
+import {
+  ContactEmailTakenError,
+  ContactsRepository,
+  type UpdateContactPatch,
+} from './contacts.repository';
 
 @Injectable()
 export class ContactsService {
@@ -28,8 +32,15 @@ export class ContactsService {
   }
 
   async update(owner_id: string, id: string, dto: UpdateContactDto): Promise<Contact> {
+    // class-transformer/@Transform can inject own `<field>: undefined` on the
+    // DTO instance for optional fields that were absent from the request body.
+    // Forwarding them would cause the PG adapter to SET column = NULL. Strip
+    // undefined keys here so the repo receives only caller-specified fields.
+    const patch = Object.fromEntries(
+      Object.entries(dto).filter(([, v]) => v !== undefined),
+    ) as UpdateContactPatch;
     try {
-      const c = await this.repo.update(owner_id, id, dto);
+      const c = await this.repo.update(owner_id, id, patch);
       if (!c) throw new NotFoundException('contact_not_found');
       return c;
     } catch (err) {

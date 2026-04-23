@@ -112,6 +112,21 @@ describe('ContactsService', () => {
     });
   });
 
+  it('update: drops undefined DTO fields so they do not overwrite existing values', async () => {
+    // ValidationPipe + class-transformer creates own `email: undefined` on the
+    // DTO instance when @Transform is decorated (even if the request body
+    // omitted email). If the service forwarded that as-is, the real PG adapter
+    // would set email = NULL. The service must strip undefined keys.
+    const c = await repo.create({ owner_id: OWNER, name: 'A', email: 'a@x.com', color: '#000000' });
+    const dirty = { name: 'A2', email: undefined, color: undefined } as unknown as Parameters<
+      typeof svc.update
+    >[2];
+    const updated = await svc.update(OWNER, c.id, dirty);
+    expect(updated.email).toBe('a@x.com');
+    expect(updated.color).toBe('#000000');
+    expect(updated.name).toBe('A2');
+  });
+
   it('remove: missing row → NotFoundException', async () => {
     await expect(svc.remove(OWNER, 'missing')).rejects.toBeInstanceOf(NotFoundException);
   });
