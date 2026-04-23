@@ -10,7 +10,6 @@
     "baseUrl": "./",
     "incremental": true,
     "strictNullChecks": true,
-    "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
