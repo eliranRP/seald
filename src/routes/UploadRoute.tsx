@@ -5,6 +5,7 @@ import { CreateSignatureRequestDialog } from '../components/CreateSignatureReque
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { useAppState } from '../providers/AppStateProvider';
 import { usePdfDocument } from '../lib/pdf';
+import { NAV_ITEMS } from '../layout/navItems';
 
 /**
  * Route wrapper around `UploadPage` that gates document creation on the
@@ -66,9 +67,24 @@ export function UploadRoute() {
     setSelectedSigners([]);
   }, []);
 
+  const handleSelectNavItem = useCallback(
+    (id: string): void => {
+      const item = NAV_ITEMS.find((n) => n.id === id);
+      if (item) {
+        navigate(item.path);
+      }
+    },
+    [navigate],
+  );
+
   return (
     <>
-      <UploadPage user={user} onFileSelected={handleFileSelected} activeNavId="documents" />
+      <UploadPage
+        user={user ?? undefined}
+        onFileSelected={handleFileSelected}
+        activeNavId="sign"
+        onSelectNavItem={handleSelectNavItem}
+      />
       <CreateSignatureRequestDialog
         open={dialogOpen}
         signers={selectedSigners}

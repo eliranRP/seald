@@ -91,7 +91,7 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('document', { name: /page 2 of 4/i })).toBeInTheDocument();
   });
 
-  it('drops a palette field as one ungrouped field per signer (not a single shared field)', () => {
+  it('drops a palette field pre-assigned to every signer and opens the Select signers popover', () => {
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -117,14 +117,110 @@ describe('DocumentPage', () => {
     expect(onFieldsChangeSpy).toHaveBeenCalledTimes(1);
     const firstCall = onFieldsChangeSpy.mock.calls[0];
     const next = firstCall ? firstCall[0] : undefined;
-    // One field per signer (2 signers → 2 fields), each with a single signerId.
-    expect(next?.length).toBe(2);
+    // Exactly one field is created, pre-assigned to every current signer so
+    // "everyone signs this" is a single confirm-click for the user.
+    expect(next?.length).toBe(1);
     expect(next?.[0]?.type).toBe('signature');
-    expect(next?.[0]?.signerIds).toEqual(['a']);
-    expect(next?.[1]?.type).toBe('signature');
-    expect(next?.[1]?.signerIds).toEqual(['b']);
-    // No signer popover — the split already encodes per-signer intent.
+    expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
+    // The Select signers popover opens automatically after the drop so the
+    // user is prompted to confirm / adjust assignees before moving on.
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
+  });
+
+  it('drag-and-drop of any palette field surfaces the Select signers popover as a regression guard', () => {
+    // Regression: previously dropping onto the canvas silently auto-assigned
+    // one field per signer and skipped the popover, so users had no cue that
+    // an assignment decision was needed.
+    renderPage({ initialFields: [] });
+
+    const dateRow = screen.getByRole('button', { name: 'Date' });
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    const dataTransfer = {
+      setData: vi.fn(),
+      getData: vi.fn().mockReturnValue('date'),
+      effectAllowed: '',
+      dropEffect: '',
+      files: [],
+      items: [],
+      types: ['text/plain'],
+    };
+
+    // Before the drop the popover is closed.
     expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+    act(() => {
+      fireEvent.dragStart(dateRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
+    });
+    // After the drop the "Select signers" dialog is on-screen with the
+    // signer checkboxes ready for the user to pick.
+    const dialog = screen.getByRole('dialog', { name: /select signers/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /ada byron/i })).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /alan turing/i })).toBeInTheDocument();
+  });
+
+  it('pre-checks every signer checkbox by default in the popover after a drop', () => {
+    // Regression: users reported landing on the popover with no boxes
+    // checked, which made the common "everyone signs this" case a multi-tap
+    // affair. The drop now pre-populates signerIds with every signer.
+    renderPage({ initialFields: [] });
+
+    const signatureRow = screen.getByRole('button', { name: 'Signature' });
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    const dataTransfer = {
+      setData: vi.fn(),
+      getData: vi.fn().mockReturnValue('signature'),
+      effectAllowed: '',
+      dropEffect: '',
+      files: [],
+      items: [],
+      types: ['text/plain'],
+    };
+    act(() => {
+      fireEvent.dragStart(signatureRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
+    });
+
+    const dialog = screen.getByRole('dialog', { name: /select signers/i });
+    const ada = within(dialog).getByRole('checkbox', { name: /ada byron/i });
+    const alan = within(dialog).getByRole('checkbox', { name: /alan turing/i });
+    expect(ada).toBeChecked();
+    expect(alan).toBeChecked();
+  });
+
+  it('pre-selected popover lets the user Apply in one click to keep every signer assigned', () => {
+    const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onFieldsChangeSpy, initialFields: [] });
+
+    const signatureRow = screen.getByRole('button', { name: 'Signature' });
+    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
+    const dataTransfer = {
+      setData: vi.fn(),
+      getData: vi.fn().mockReturnValue('signature'),
+      effectAllowed: '',
+      dropEffect: '',
+      files: [],
+      items: [],
+      types: ['text/plain'],
+    };
+    act(() => {
+      fireEvent.dragStart(signatureRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
+    });
+
+    // User clicks Apply immediately without touching any checkbox — the
+    // resulting field should still carry every signer.
+    const dialog = screen.getByRole('dialog', { name: /select signers/i });
+    fireEvent.click(within(dialog).getByRole('button', { name: /apply/i }));
+
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    expect(next?.length).toBe(1);
+    expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
   });
 
   it('clears the selection when the canvas background is clicked', () => {
@@ -355,7 +451,7 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('button', { name: /delete field/i })).toBeInTheDocument();
   });
 
-  it('cascades independent per-signer fields for every successive palette drop', () => {
+  it('each successive palette drop re-opens the Select signers popover for the new field', () => {
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -371,29 +467,33 @@ describe('DocumentPage', () => {
       types: ['text/plain'],
     };
 
-    // First drop at (150, 150): produces one field per signer (Ada, Alan)
-    // with a small cascade offset.
+    // First drop: creates a pre-assigned field and opens the popover.
+    // Confirm with Apply to keep the default "everyone" assignment.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 150, clientY: 150 });
     });
+    const firstDialog = screen.getByRole('dialog', { name: /select signers/i });
+    fireEvent.click(within(firstDialog).getByRole('button', { name: /apply/i }));
 
-    // Second drop at (300, 200): produces two more fields (no popover in either case).
+    // Second drop: creates a second field and the popover re-opens for it,
+    // again with every signer pre-checked.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 300, clientY: 200 });
     });
-
-    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
 
     const { calls } = onFieldsChangeSpy.mock;
     const last = calls[calls.length - 1];
     const next = last ? last[0] : undefined;
-    // Four fields total: two per drop × two signers, each with a single signerId.
-    expect(next?.length).toBe(4);
-    expect(next?.map((f) => f.signerIds)).toEqual([['a'], ['b'], ['a'], ['b']]);
+    // Two fields total — one per drop — both pre-assigned to every signer
+    // until the user narrows the selection inside the popover.
+    expect(next?.length).toBe(2);
+    expect(next?.every((f) => f.type === 'signature')).toBe(true);
+    expect(next?.every((f) => f.signerIds.length === 2)).toBe(true);
   });
 
   it('removes a signer from the right-rail panel when the remove button is clicked', () => {

@@ -6,6 +6,7 @@ import type { AddSignerContact } from '../components/AddSignerDropdown/AddSigner
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
+import { NAV_ITEMS } from '../layout/navItems';
 
 /**
  * Route wrapper around `DocumentPage`. Binds the document's persisted fields /
@@ -94,6 +95,16 @@ export function DocumentRoute() {
     navigate('/documents');
   }, [doc, updateDocument, navigate]);
 
+  const handleSelectNavItem = useCallback(
+    (id: string): void => {
+      const item = NAV_ITEMS.find((n) => n.id === id);
+      if (item) {
+        navigate(item.path);
+      }
+    },
+    [navigate],
+  );
+
   if (!doc) {
     return null;
   }
@@ -116,8 +127,9 @@ export function DocumentRoute() {
         onSend={handleSend}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
-        user={user}
-        activeNavId="documents"
+        user={user ?? undefined}
+        activeNavId="sign"
+        onSelectNavItem={handleSelectNavItem}
       />
       <ExitConfirmDialog
         open={exitOpen}

@@ -2,7 +2,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
-import { PlaceholderPage } from './pages/PlaceholderPage';
 import { EmailPreviewPage } from './pages/EmailPreviewPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { UploadRoute } from './routes/UploadRoute';
@@ -24,27 +23,7 @@ export function AppRoutes() {
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/documents" replace />} />
         <Route path="/documents" element={<DashboardPage />} />
-        <Route
-          path="/templates"
-          element={
-            <PlaceholderPage
-              eyebrow="Templates"
-              title="Templates"
-              body="Reusable signature request templates will live here. This space is reserved for a future release."
-            />
-          }
-        />
         <Route path="/signers" element={<ContactsPage />} />
-        <Route
-          path="/reports"
-          element={
-            <PlaceholderPage
-              eyebrow="Reports"
-              title="Reports"
-              body="Completion metrics and turnaround trends will appear here in a future release."
-            />
-          }
-        />
         <Route path="/email/request" element={<EmailPreviewPage variant="request" />} />
         <Route path="/email/completed" element={<EmailPreviewPage variant="completed" />} />
         <Route path="*" element={<Navigate to="/documents" replace />} />

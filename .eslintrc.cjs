@@ -57,11 +57,16 @@ module.exports = {
               './src/components/Icon',
               './src/components/TextField',
               './src/components/DocThumb',
+              './src/components/EmptyState',
               './src/components/SignatureMark',
+              './src/components/StatCard',
             ],
             from: [
               './src/components/AddSignerDropdown',
+              './src/components/EmailMasthead',
               './src/components/FieldsPlacedList',
+              './src/components/FilterTabs',
+              './src/components/PageHeader',
               './src/components/PageThumbStrip',
               './src/components/PageToolbar',
               './src/components/PlacedField',
@@ -71,6 +76,7 @@ module.exports = {
               './src/components/SignerRow',
               './src/components/CollapsibleRail',
               './src/components/DocumentCanvas',
+              './src/components/EmailCard',
               './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',
@@ -86,7 +92,10 @@ module.exports = {
           {
             target: [
               './src/components/AddSignerDropdown',
+              './src/components/EmailMasthead',
               './src/components/FieldsPlacedList',
+              './src/components/FilterTabs',
+              './src/components/PageHeader',
               './src/components/PageThumbStrip',
               './src/components/PageToolbar',
               './src/components/PlacedField',
@@ -98,6 +107,7 @@ module.exports = {
             from: [
               './src/components/CollapsibleRail',
               './src/components/DocumentCanvas',
+              './src/components/EmailCard',
               './src/components/FieldPalette',
               './src/components/FieldsBar',
               './src/components/NavBar',

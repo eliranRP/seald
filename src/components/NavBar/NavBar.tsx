@@ -16,9 +16,8 @@ import {
 
 const DEFAULT_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'documents', label: 'Documents' },
-  { id: 'templates', label: 'Templates' },
+  { id: 'sign', label: 'Sign' },
   { id: 'signers', label: 'Signers' },
-  { id: 'reports', label: 'Reports' },
 ];
 
 /**

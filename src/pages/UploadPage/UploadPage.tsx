@@ -3,7 +3,6 @@ import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { NavBar } from '../../components/NavBar';
-import { SideBar } from '../../components/SideBar';
 import type { UploadPageErrorCode, UploadPageProps } from './UploadPage.types';
 import {
   Actions,
@@ -62,11 +61,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     onError,
     onLogoClick,
     onSelectNavItem,
-    activeNavId = 'documents',
+    activeNavId = 'sign',
     user,
-    sideBarItems,
-    onSelectSideBarItem,
-    activeSideBarItemId,
     title = DEFAULT_TITLE,
     subtitle = DEFAULT_SUBTITLE,
     dropHeading = DEFAULT_DROP_HEADING,
@@ -202,12 +198,6 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
           : {})}
       />
       <Body>
-        <SideBar
-          primaryAction={{ label: 'New document', onClick: openPicker, icon: UploadCloud }}
-          {...(sideBarItems ? { items: sideBarItems } : {})}
-          {...(activeSideBarItemId !== undefined ? { activeItemId: activeSideBarItemId } : {})}
-          {...(onSelectSideBarItem ? { onSelectItem: onSelectSideBarItem } : {})}
-        />
         <Main>
           <Inner>
             <div>

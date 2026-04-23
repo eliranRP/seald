@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { UploadCloud } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { Badge } from '../../components/Badge';
 import type { BadgeTone } from '../../components/Badge/Badge.types';
 import { Button } from '../../components/Button';
 import { DocThumb } from '../../components/DocThumb';
+import { EmptyState } from '../../components/EmptyState';
+import { FilterTabs } from '../../components/FilterTabs';
+import { PageHeader } from '../../components/PageHeader';
+import { StatCard } from '../../components/StatCard';
 import { useAppState } from '../../providers/AppStateProvider';
 import type { AppDocument, DocumentStatus } from '../../providers/AppStateProvider';
 import {
@@ -13,29 +17,24 @@ import {
   DocCell,
   DocCode,
   DocTitle,
-  EmptyState,
-  Eyebrow,
-  HeaderActions,
-  HeaderRow,
+  HeaderSlot,
   Inner,
   Main,
   RecipientCell,
   RecipientLabel,
-  StatCard,
   StatGrid,
-  StatLabel,
-  StatValue,
   TableHead,
   TableRow,
   TableShell,
-  TabButton,
-  TabCount,
-  Tabs,
-  Title,
-  TitleBlock,
 } from './DashboardPage.styles';
 
 type FilterId = 'all' | 'you' | 'others' | 'completed' | 'drafts';
+
+const FILTER_IDS: ReadonlyArray<FilterId> = ['all', 'you', 'others', 'completed', 'drafts'];
+
+function isFilterId(value: string | null): value is FilterId {
+  return value !== null && (FILTER_IDS as ReadonlyArray<string>).includes(value);
+}
 
 interface FilterDef {
   readonly id: FilterId;
@@ -87,7 +86,24 @@ function primaryRecipient(d: AppDocument): { name: string; email: string } | nul
 export function DashboardPage() {
   const { documents } = useAppState();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<FilterId>('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Filter id is URL-driven via `?filter=`. Invalid / missing values collapse
+  // to the default `all` tab, so refresh, back, and forward all round-trip
+  // cleanly through whichever tab the user was on.
+  const rawFilter = searchParams.get('filter');
+  const tab: FilterId = isFilterId(rawFilter) ? rawFilter : 'all';
+
+  const handleSelectTab = useCallback(
+    (id: FilterId): void => {
+      if (id === 'all') {
+        // Keep the URL clean for the default tab — no stray `?filter=all`.
+        setSearchParams({});
+      } else {
+        setSearchParams({ filter: id });
+      }
+    },
+    [setSearchParams],
+  );
 
   const counts = useMemo(() => {
     const byFilter = new Map<FilterId, number>();
@@ -123,51 +139,42 @@ export function DashboardPage() {
     ];
   }, [documents]);
 
+  const tabItems = useMemo(
+    () => FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts.get(f.id) ?? 0 })),
+    [counts],
+  );
+
   return (
     <Main>
       <Inner>
-        <HeaderRow>
-          <TitleBlock>
-            <Eyebrow>Documents</Eyebrow>
-            <Title>Everything you&apos;ve sent</Title>
-          </TitleBlock>
-          <HeaderActions>
-            <Button
-              variant="primary"
-              iconLeft={UploadCloud}
-              onClick={() => navigate('/document/new')}
-            >
-              New document
-            </Button>
-          </HeaderActions>
-        </HeaderRow>
+        <HeaderSlot>
+          <PageHeader
+            eyebrow="Documents"
+            title="Everything you've sent"
+            actions={
+              <Button
+                variant="primary"
+                iconLeft={UploadCloud}
+                onClick={() => navigate('/document/new')}
+              >
+                New document
+              </Button>
+            }
+          />
+        </HeaderSlot>
 
         <StatGrid>
           {stats.map((s) => (
-            <StatCard key={s.label}>
-              <StatLabel>{s.label}</StatLabel>
-              <StatValue $tone={s.tone}>{s.value}</StatValue>
-            </StatCard>
+            <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} />
           ))}
         </StatGrid>
 
-        <Tabs role="tablist" aria-label="Document filters">
-          {FILTERS.map((f) => (
-            <TabButton
-              key={f.id}
-              role="tab"
-              type="button"
-              aria-selected={tab === f.id}
-              $active={tab === f.id}
-              onClick={() => setTab(f.id)}
-            >
-              {f.label}
-              <TabCount aria-label={`${counts.get(f.id) ?? 0} items`}>
-                {counts.get(f.id) ?? 0}
-              </TabCount>
-            </TabButton>
-          ))}
-        </Tabs>
+        <FilterTabs
+          items={tabItems}
+          activeId={tab}
+          onSelect={(id) => handleSelectTab(id as FilterId)}
+          aria-label="Document filters"
+        />
 
         <TableShell>
           <TableHead role="row">

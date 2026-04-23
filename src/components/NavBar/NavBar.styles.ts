@@ -5,6 +5,7 @@ export const Header = styled.header`
   top: 0;
   z-index: ${({ theme }) => theme.z.nav};
   height: 56px;
+  min-height: 56px;
   background: rgba(255, 255, 255, 0.82);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
+import { NAV_ITEMS, matchNavId } from './navItems';
 
 const Shell = styled.div`
   display: flex;
@@ -19,31 +20,6 @@ const Content = styled.main`
   display: flex;
   flex-direction: column;
 `;
-
-/**
- * Maps NavBar items to URL pathnames. Central so the NavBar's active state
- * is derived purely from the URL.
- */
-const NAV_ITEMS = [
-  { id: 'documents', label: 'Documents', path: '/documents' },
-  { id: 'templates', label: 'Templates', path: '/templates' },
-  { id: 'signers', label: 'Signers', path: '/signers' },
-  { id: 'reports', label: 'Reports', path: '/reports' },
-] as const;
-
-function matchNavId(pathname: string): string {
-  const match = NAV_ITEMS.find(
-    (item) => pathname === item.path || pathname.startsWith(`${item.path}/`),
-  );
-  if (match) {
-    return match.id;
-  }
-  // Document editor lives under /document/*; keep Documents highlighted there.
-  if (pathname.startsWith('/document')) {
-    return 'documents';
-  }
-  return 'documents';
-}
 
 /**
  * L4 layout — wraps routed pages with the shared NavBar so the chrome doesn't
@@ -67,7 +43,11 @@ export function AppShell() {
 
   return (
     <Shell>
-      <NavBar activeItemId={activeNavId} onSelectItem={handleSelectNavItem} user={user} />
+      <NavBar
+        activeItemId={activeNavId}
+        onSelectItem={handleSelectNavItem}
+        user={user ?? undefined}
+      />
       <Content>
         <Outlet />
       </Content>

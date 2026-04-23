@@ -60,9 +60,6 @@ const DEFAULT_LEFT_WIDTH = 240;
 const DEFAULT_RIGHT_WIDTH = 320;
 const FIELD_WIDTH = 132;
 const FIELD_HEIGHT = 54;
-// Horizontal gap between adjacent drop-split siblings so each signer's field
-// sits cleanly next to the others rather than stacking on top of them.
-const DROP_SIBLING_GAP = 12;
 // Pixels the pointer must travel before a mousedown on the canvas background
 // is treated as a marquee-select drag rather than a plain click.
 const MARQUEE_THRESHOLD = 3;
@@ -155,7 +152,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     user,
     onLogoClick,
     onSelectNavItem,
-    activeNavId = 'documents',
+    activeNavId = 'sign',
     ...rest
   } = props;
 
@@ -511,47 +508,23 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
       const x = Math.max(0, Math.round(localX - FIELD_WIDTH / 2));
       const y = Math.max(0, Math.round(localY - FIELD_HEIGHT / 2));
 
-      // Dropping a field assigns it to every current signer — but each signer
-      // gets their OWN independent field (offset so they're visible), rather
-      // than a single field shared by many signers. Users can reassign or
-      // delete individual fields from there.
-      if (signers.length === 0) {
-        // With no signers configured there's nothing to split — fall back to a
-        // single unassigned field and prompt the user to pick signers.
-        const fallback: PlacedFieldValue = {
-          id: makeId(),
-          page: dropPage,
-          type: kind,
-          x,
-          y,
-          signerIds: [],
-        };
-        pushUndo(fields);
-        onFieldsChange([...fields, fallback]);
-        setSelectedIds([fallback.id]);
-        setSignerPopoverFor(fallback.id);
-        dragKindRef.current = null;
-        return;
-      }
-
-      // Lay siblings out side-by-side along x so all N fields are visible
-      // side-by-side at the drop site rather than overlapping.
-      const step = FIELD_WIDTH + DROP_SIBLING_GAP;
-      const spawned: ReadonlyArray<PlacedFieldValue> = signers.map((signer, i) => ({
+      // Every drop creates a single field and immediately opens the
+      // "Select signers" popover so the user can confirm / adjust the
+      // assignees. The field is pre-populated with every current signer so
+      // the common case ("everyone signs this") is a single confirmation
+      // click; the user can uncheck whoever shouldn't be on this field.
+      const dropped: PlacedFieldValue = {
         id: makeId(),
         page: dropPage,
         type: kind,
-        x: x + i * step,
+        x,
         y,
-        signerIds: [signer.id],
-      }));
+        signerIds: signers.map((s) => s.id),
+      };
       pushUndo(fields);
-      onFieldsChange([...fields, ...spawned]);
-      // Select them all as a group so the user can immediately drag the whole
-      // row or delete it as one.
-      setSelectedIds(spawned.map((f) => f.id));
-      // No signer popover: the split already encodes the per-signer intent.
-      setSignerPopoverFor(null);
+      onFieldsChange([...fields, dropped]);
+      setSelectedIds([dropped.id]);
+      setSignerPopoverFor(dropped.id);
       dragKindRef.current = null;
     },
     [fields, onFieldsChange, pushUndo, signers, zoom],

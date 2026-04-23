@@ -16,36 +16,6 @@ export const Inner = styled.div`
   gap: ${({ theme }) => theme.space[6]};
 `;
 
-export const HeaderRow = styled.div`
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[6]};
-`;
-
-export const TitleBlock = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.space[1]};
-`;
-
-export const Eyebrow = styled.div`
-  font-size: 13px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.08em;
-  color: ${({ theme }) => theme.color.fg[3]};
-  text-transform: uppercase;
-`;
-
-export const Title = styled.h1`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h1};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
-  color: ${({ theme }) => theme.color.fg[1]};
-  margin: 0;
-`;
-
 export const TableShell = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -53,7 +23,9 @@ export const TableShell = styled.div`
   overflow: hidden;
 `;
 
-const GRID = '1fr 1.4fr 160px 64px';
+// Actions column sizes to its content (two ghost buttons + icons) so the
+// Edit/Delete labels never overlap the Documents column text.
+const GRID = '1.1fr 1.4fr 140px auto';
 
 export const TableHead = styled.div`
   display: grid;
@@ -97,19 +69,18 @@ export const EmailCell = styled.div`
 export const DocsCell = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.color.fg[3]};
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 export const ActionsCell = styled.div`
   display: inline-flex;
   gap: ${({ theme }) => theme.space[2]};
   justify-self: end;
-`;
-
-export const EmptyState = styled.div`
-  padding: ${({ theme }) => `${theme.space[12]} ${theme.space[5]}`};
-  text-align: center;
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-size: 14px;
+  align-items: center;
+  white-space: nowrap;
 `;
 
 export const DialogBackdrop = styled.div`

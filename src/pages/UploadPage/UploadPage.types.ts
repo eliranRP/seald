@@ -1,6 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 import type { NavBarUser } from '../../components/NavBar/NavBar.types';
-import type { SideBarNavItem } from '../../components/SideBar/SideBar.types';
 
 /**
  * Error codes emitted when a file fails validation before `onFileSelected`
@@ -12,7 +11,7 @@ import type { SideBarNavItem } from '../../components/SideBar/SideBar.types';
 export type UploadPageErrorCode = 'type' | 'size';
 
 /**
- * L4 page — composes NavBar + SideBar + a centered upload dropzone.
+ * L4 page — composes NavBar + a centered upload dropzone.
  *
  * The page owns no persistent state. It drives drag-over visuals and file
  * validation, then bubbles the chosen `File` up via `onFileSelected`.
@@ -28,9 +27,6 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly onSelectNavItem?: ((id: string) => void) | undefined;
   readonly activeNavId?: string | undefined;
   readonly user?: NavBarUser | undefined;
-  readonly sideBarItems?: ReadonlyArray<SideBarNavItem> | undefined;
-  readonly onSelectSideBarItem?: ((id: string) => void) | undefined;
-  readonly activeSideBarItemId?: string | undefined;
 
   // Dropzone copy / limits -----------------------------------------------
   readonly title?: string | undefined;

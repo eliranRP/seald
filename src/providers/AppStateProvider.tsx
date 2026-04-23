@@ -1,54 +1,23 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import {
+  SIGNER_COLOR_PALETTE,
+  fetchContacts,
+  fetchCurrentUser,
+  fetchDocuments,
+} from '../lib/mockApi';
+import type { AppDocument, AppUser } from '../lib/mockApi';
 
-/**
- * Canonical color palette used when auto-assigning a color to a freshly created
- * signer. Kept here (rather than in App.tsx) so every page can follow the same
- * assignment policy when a signer is added from within a document flow or from
- * the contacts page.
- */
-const SIGNER_COLOR_PALETTE = ['#F472B6', '#7DD3FC', '#10B981', '#F59E0B', '#818CF8'] as const;
-
-export type DocumentStatus =
-  | 'draft'
-  | 'awaiting-you'
-  | 'awaiting-others'
-  | 'completed'
-  | 'declined';
-
-export interface DocumentSigner {
-  readonly id: string;
-  readonly name: string;
-  readonly email: string;
-  readonly color: string;
-}
-
-export interface AppDocument {
-  readonly id: string;
-  readonly title: string;
-  /** Short display identifier shown alongside the title (e.g. `DOC-8F3A`). */
-  readonly code: string;
-  readonly status: DocumentStatus;
-  readonly fields: ReadonlyArray<PlacedFieldValue>;
-  readonly signers: ReadonlyArray<DocumentSigner>;
-  /** ISO string — the date the document was last updated / sent. */
-  readonly updatedAt: string;
-  /** Raw uploaded File — null for seeded demo documents that were never uploaded. */
-  readonly file: File | null;
-  /** Estimated / mocked page count. Comes from the parsed PDF when `file` is set. */
-  readonly totalPages: number;
-}
-
-export interface AppUser {
-  readonly name: string;
-}
+export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from '../lib/mockApi';
 
 export interface AppStateValue {
-  readonly user: AppUser;
+  /** Null while the initial fetch is in flight. */
+  readonly user: AppUser | null;
   readonly documents: ReadonlyArray<AppDocument>;
   readonly contacts: ReadonlyArray<AddSignerContact>;
+  /** True until the initial parallel fetch for user/contacts/documents resolves. */
+  readonly loading: boolean;
   readonly getDocument: (id: string) => AppDocument | undefined;
   readonly createDocument: (file: File, totalPages: number) => string;
   readonly updateDocument: (id: string, patch: Partial<AppDocument>) => void;
@@ -60,80 +29,6 @@ export interface AppStateValue {
 }
 
 const AppStateContext = createContext<AppStateValue | null>(null);
-
-const USER: AppUser = { name: 'Jamie Okonkwo' };
-
-const SEED_CONTACTS: ReadonlyArray<AddSignerContact> = [
-  { id: 'c1', name: 'Eliran Azulay', email: 'eliran@azulay.co', color: '#F472B6' },
-  { id: 'c2', name: 'Nitsan Yanovitch', email: 'nitsan@yanov.co', color: '#7DD3FC' },
-  { id: 'c3', name: 'Ana Torres', email: 'ana@farrow.law', color: '#10B981' },
-  { id: 'c4', name: 'Meilin Chen', email: 'meilin@chen.co', color: '#F59E0B' },
-  { id: 'c5', name: 'Priya Kapoor', email: 'priya@kapoor.com', color: '#818CF8' },
-];
-
-/**
- * Seed the dashboard with representative documents so the list isn't empty on
- * first load. These have no backing PDF (file=null) — opening one jumps to the
- * prepare view with a placeholder canvas. This mirrors the demo/fixture data
- * used in `Design-Guide/ui_kits/dashboard/Dashboard.jsx`.
- */
-const SEED_DOCUMENTS: ReadonlyArray<AppDocument> = [
-  {
-    id: 'd1',
-    title: 'Master services agreement',
-    code: 'DOC-8F3A',
-    status: 'awaiting-others',
-    fields: [],
-    signers: [{ id: 'c3', name: 'Ana Torres', email: 'ana@farrow.law', color: '#10B981' }],
-    updatedAt: '2026-04-18T10:00:00.000Z',
-    file: null,
-    totalPages: 8,
-  },
-  {
-    id: 'd2',
-    title: 'NDA — Quill Capital',
-    code: 'DOC-02B1',
-    status: 'awaiting-you',
-    fields: [],
-    signers: [{ id: 'c2', name: 'Nitsan Yanovitch', email: 'nitsan@yanov.co', color: '#7DD3FC' }],
-    updatedAt: '2026-04-20T14:30:00.000Z',
-    file: null,
-    totalPages: 3,
-  },
-  {
-    id: 'd3',
-    title: 'Offer letter — M. Chen',
-    code: 'DOC-771A',
-    status: 'completed',
-    fields: [],
-    signers: [{ id: 'c4', name: 'Meilin Chen', email: 'meilin@chen.co', color: '#F59E0B' }],
-    updatedAt: '2026-04-14T09:15:00.000Z',
-    file: null,
-    totalPages: 2,
-  },
-  {
-    id: 'd4',
-    title: 'Consulting agreement',
-    code: 'DOC-4C0F',
-    status: 'completed',
-    fields: [],
-    signers: [{ id: 'c5', name: 'Priya Kapoor', email: 'priya@kapoor.com', color: '#818CF8' }],
-    updatedAt: '2026-04-11T16:40:00.000Z',
-    file: null,
-    totalPages: 5,
-  },
-  {
-    id: 'd5',
-    title: 'Vendor onboarding — Argus',
-    code: 'DOC-5E70',
-    status: 'draft',
-    fields: [],
-    signers: [],
-    updatedAt: '2026-04-08T11:00:00.000Z',
-    file: null,
-    totalPages: 4,
-  },
-];
 
 function nextId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
@@ -155,16 +50,41 @@ export interface AppStateProviderProps {
  * Holds the in-memory application state shared across pages (documents,
  * contacts, user). Lives above the router so navigation doesn't reset state.
  *
- * Intentionally small and ephemeral — this is a front-end-only demo with no
- * persistence. Producers that would wire a real backend would swap this
- * provider for a React Query / Zustand / RTK store without having to change
- * any page components, since consumers only ever go through
- * `useAppState()`.
+ * Initial data is fetched in parallel from `src/lib/mockApi` on mount, which
+ * simulates the eventual real server. Until those resolve, `loading` is true,
+ * `user` is null, and the `documents`/`contacts` lists are empty. Mutator
+ * callbacks (createDocument, addContact, …) remain purely in-memory — a real
+ * implementation would swap them for POST/PATCH calls without changing the
+ * consumer surface.
  */
 export function AppStateProvider(props: AppStateProviderProps) {
   const { children } = props;
-  const [documents, setDocuments] = useState<ReadonlyArray<AppDocument>>(SEED_DOCUMENTS);
-  const [contacts, setContacts] = useState<ReadonlyArray<AddSignerContact>>(SEED_CONTACTS);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [documents, setDocuments] = useState<ReadonlyArray<AppDocument>>([]);
+  const [contacts, setContacts] = useState<ReadonlyArray<AddSignerContact>>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([fetchCurrentUser(), fetchContacts(), fetchDocuments()])
+      .then(([fetchedUser, fetchedContacts, fetchedDocuments]) => {
+        if (cancelled) {
+          return;
+        }
+        setUser(fetchedUser);
+        setContacts(fetchedContacts);
+        setDocuments(fetchedDocuments);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const getDocument = useCallback(
     (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
@@ -235,9 +155,10 @@ export function AppStateProvider(props: AppStateProviderProps) {
 
   const value = useMemo<AppStateValue>(
     () => ({
-      user: USER,
+      user,
       documents,
       contacts,
+      loading,
       getDocument,
       createDocument,
       updateDocument,
@@ -248,8 +169,10 @@ export function AppStateProvider(props: AppStateProviderProps) {
       removeContact,
     }),
     [
+      user,
       documents,
       contacts,
+      loading,
       getDocument,
       createDocument,
       updateDocument,

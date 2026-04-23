@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
+import { EmptyState } from '../../components/EmptyState';
+import { PageHeader } from '../../components/PageHeader';
 import { TextField } from '../../components/TextField';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import { useAppState } from '../../providers/AppStateProvider';
@@ -14,18 +16,13 @@ import {
   DialogTitle,
   DocsCell,
   EmailCell,
-  EmptyState,
-  Eyebrow,
   FieldStack,
-  HeaderRow,
   Inner,
   Main,
   NameCell,
   TableHead,
   TableRow,
   TableShell,
-  Title,
-  TitleBlock,
 } from './ContactsPage.styles';
 
 type DialogState =
@@ -114,15 +111,15 @@ export function ContactsPage() {
   return (
     <Main>
       <Inner>
-        <HeaderRow>
-          <TitleBlock>
-            <Eyebrow>Signers</Eyebrow>
-            <Title>People you send documents to</Title>
-          </TitleBlock>
-          <Button variant="primary" iconLeft={UserPlus} onClick={openAdd}>
-            Add signer
-          </Button>
-        </HeaderRow>
+        <PageHeader
+          eyebrow="Signers"
+          title="People you send documents to"
+          actions={
+            <Button variant="primary" iconLeft={UserPlus} onClick={openAdd}>
+              Add signer
+            </Button>
+          }
+        />
 
         <TableShell>
           <TableHead>

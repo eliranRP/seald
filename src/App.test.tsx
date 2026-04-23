@@ -38,6 +38,13 @@ describe('App routing', () => {
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
+  it('clicking the Sign NavBar tab navigates to /document/new', () => {
+    renderApp(['/documents']);
+    // The NavBar's Sign tab is the single entry point into the upload flow.
+    fireEvent.click(screen.getByRole('button', { name: /^sign$/i }));
+    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+  });
+
   it('opens the Create signature request dialog immediately after a PDF is chosen', () => {
     renderApp(['/document/new']);
     const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
@@ -48,12 +55,13 @@ describe('App routing', () => {
     expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
   });
 
-  it('cancelling the dialog stays on the upload page and discards picked signers', () => {
+  it('cancelling the dialog stays on the upload page and discards picked signers', async () => {
     renderApp(['/document/new']);
     const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    fireEvent.click(screen.getByRole('option', { name: /eliran azulay/i }));
+    // Seed contacts load from the mock API — wait before picking one.
+    fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
     fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
     fireEvent.change(input, { target: { files: [makePdf()] } });
@@ -61,12 +69,12 @@ describe('App routing', () => {
     expect(screen.queryAllByRole('button', { name: /remove receiver/i })).toHaveLength(0);
   });
 
-  it('Signers page lists seed contacts', () => {
+  it('Signers page lists seed contacts', async () => {
     renderApp(['/signers']);
     expect(
       screen.getByRole('heading', { level: 1, name: /people you send documents to/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/eliran@azulay.co/i)).toBeInTheDocument();
+    expect(await screen.findByText(/eliran@azulay.co/i)).toBeInTheDocument();
   });
 
   it('Signers page opens the add dialog', () => {

@@ -20,14 +20,15 @@ function renderContacts() {
 }
 
 describe('ContactsPage', () => {
-  it('renders seed contacts', () => {
+  it('renders seed contacts', async () => {
     renderContacts();
-    expect(screen.getByText(/eliran azulay/i)).toBeInTheDocument();
-    expect(screen.getByText(/priya kapoor/i)).toBeInTheDocument();
+    expect(await screen.findByText(/eliran azulay/i)).toBeInTheDocument();
+    expect(await screen.findByText(/priya kapoor/i)).toBeInTheDocument();
   });
 
   it('adds a new signer through the dialog', async () => {
     renderContacts();
+    await screen.findByText(/eliran azulay/i);
     await userEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
     const dialog = screen.getByRole('dialog', { name: /^add signer$/i });
     const inputs = dialog.querySelectorAll('input');
@@ -42,6 +43,7 @@ describe('ContactsPage', () => {
 
   it('validates email before saving', async () => {
     renderContacts();
+    await screen.findByText(/eliran azulay/i);
     await userEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
     const dialog = screen.getByRole('dialog', { name: /^add signer$/i });
     const inputs = dialog.querySelectorAll('input');
@@ -55,6 +57,7 @@ describe('ContactsPage', () => {
 
   it('delete opens the confirm dialog and only removes on confirm', async () => {
     renderContacts();
+    await screen.findByText(/eliran azulay/i);
     const deleteButtons = screen.getAllByRole('button', { name: /^delete /i });
     const firstDelete = deleteButtons[0];
     expect(firstDelete).toBeDefined();
