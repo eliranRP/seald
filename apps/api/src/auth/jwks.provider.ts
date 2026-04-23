@@ -9,7 +9,7 @@ export function createJwksProvider() {
     provide: JWKS_RESOLVER,
     inject: [APP_ENV],
     useFactory: (env: AppEnv): JWTVerifyGetKey => {
-      const url = new URL(`${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`);
+      const url = new URL('/auth/v1/.well-known/jwks.json', env.SUPABASE_URL);
       return createRemoteJWKSet(url);
     },
   };
