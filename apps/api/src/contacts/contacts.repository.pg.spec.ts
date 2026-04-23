@@ -1,5 +1,6 @@
 import { createPgMemDb, seedUser, type PgMemHandle } from '../../test/pg-mem-db';
 import { ContactsPgRepository } from './contacts.repository.pg';
+import { ContactEmailTakenError } from './contacts.repository';
 
 describe('ContactsPgRepository — create + list', () => {
   let handle: PgMemHandle;
@@ -170,5 +171,48 @@ describe('ContactsPgRepository — findOne / update / delete', () => {
 
   it('delete returns false for an unknown id', async () => {
     expect(await repo.delete(ownerId, '00000000-0000-0000-0000-000000000000')).toBe(false);
+  });
+});
+
+describe('ContactsPgRepository — unique-violation mapping', () => {
+  let handle: PgMemHandle;
+  let repo: ContactsPgRepository;
+  let ownerId: string;
+
+  beforeEach(async () => {
+    handle = createPgMemDb();
+    repo = new ContactsPgRepository(handle.db);
+    ownerId = await seedUser(handle);
+  });
+  afterEach(async () => {
+    await handle.close();
+  });
+
+  it('create throws ContactEmailTakenError on (owner_id, email) collision', async () => {
+    await repo.create({ owner_id: ownerId, name: 'A', email: 'dup@x.com', color: '#000000' });
+    await expect(
+      repo.create({ owner_id: ownerId, name: 'B', email: 'dup@x.com', color: '#111111' }),
+    ).rejects.toBeInstanceOf(ContactEmailTakenError);
+  });
+
+  it('create succeeds for the same email under a different owner', async () => {
+    const otherOwner = await seedUser(handle);
+    await repo.create({ owner_id: ownerId, name: 'A', email: 'dup@x.com', color: '#000000' });
+    await expect(
+      repo.create({ owner_id: otherOwner, name: 'B', email: 'dup@x.com', color: '#111111' }),
+    ).resolves.toMatchObject({ email: 'dup@x.com' });
+  });
+
+  it('update throws ContactEmailTakenError when switching to an existing email', async () => {
+    const a = await repo.create({
+      owner_id: ownerId,
+      name: 'A',
+      email: 'a@x.com',
+      color: '#000000',
+    });
+    await repo.create({ owner_id: ownerId, name: 'B', email: 'b@x.com', color: '#111111' });
+    await expect(repo.update(ownerId, a.id, { email: 'b@x.com' })).rejects.toBeInstanceOf(
+      ContactEmailTakenError,
+    );
   });
 });
