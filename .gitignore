@@ -23,3 +23,4 @@ apps/*/dist
 apps/*/coverage
 apps/*/.env
 apps/*/.env.local
+.superpowers/
