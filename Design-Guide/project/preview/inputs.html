@@ -1,113 +1,22 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Inputs</title>
-    <link rel="stylesheet" href="_card.css" />
-  </head>
-  <body>
-    <div class="card">
-      <div class="label">Form inputs</div>
-      <style>
-        .f {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          max-width: 360px;
-        }
-        .f > label {
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--fg-2);
-        }
-        .inp {
-          padding: 11px 14px;
-          border: 1px solid var(--border-1);
-          border-radius: 12px;
-          font: 400 14px var(--font-sans);
-          background: #fff;
-          color: var(--fg-1);
-          outline: none;
-        }
-        .inp::placeholder {
-          color: var(--fg-4);
-        }
-        .inp--focus {
-          border-color: #4f46e5;
-          box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.18);
-        }
-        .inp--error {
-          border-color: #ef4444;
-          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.14);
-        }
-      </style>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px">
-        <div class="f">
-          <label>Signer email</label><input class="inp" placeholder="jamie@law.co" />
-        </div>
-        <div class="f">
-          <label>Signer email</label><input class="inp inp--focus" value="jamie@law.co" />
-        </div>
-        <div class="f">
-          <label>Signer email</label><input class="inp inp--error" value="jamie@" />
-          <div style="font-size: 12px; color: #b91c1c">Enter a valid email address.</div>
-        </div>
-        <div class="f">
-          <label>Document title</label
-          ><input
-            class="inp"
-            disabled
-            style="background: var(--ink-50); color: var(--fg-4)"
-            value="Untitled contract"
-          />
-        </div>
-      </div>
-      <div style="display: flex; gap: 12px; align-items: center; margin-top: 6px">
-        <div
-          style="
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: var(--fg-2);
-          "
-        >
-          <span
-            style="
-              width: 18px;
-              height: 18px;
-              border: 1.5px solid var(--border-2);
-              border-radius: 5px;
-              display: inline-block;
-            "
-          ></span
-          >Require all signers
-        </div>
-        <div
-          style="
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: var(--fg-2);
-          "
-        >
-          <span
-            style="
-              width: 18px;
-              height: 18px;
-              background: #4f46e5;
-              border-radius: 5px;
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              color: #fff;
-              font-size: 12px;
-            "
-            >✓</span
-          >Require all signers
-        </div>
-      </div>
-    </div>
-  </body>
-</html>
+<!doctype html><html><head><meta charset="utf-8"><title>Inputs</title><link rel="stylesheet" href="_card.css"></head>
+<body><div class="card">
+  <div class="label">Form inputs</div>
+  <style>
+    .f{display:flex;flex-direction:column;gap:6px;max-width:360px}
+    .f>label{font-size:13px;font-weight:600;color:var(--fg-2)}
+    .inp{padding:11px 14px;border:1px solid var(--border-1);border-radius:12px;font:400 14px var(--font-sans);background:#fff;color:var(--fg-1);outline:none}
+    .inp::placeholder{color:var(--fg-4)}
+    .inp--focus{border-color:#4F46E5;box-shadow:0 0 0 4px rgba(79,70,229,0.18)}
+    .inp--error{border-color:#EF4444;box-shadow:0 0 0 4px rgba(239,68,68,0.14)}
+  </style>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+    <div class="f"><label>Signer email</label><input class="inp" placeholder="jamie@law.co"/></div>
+    <div class="f"><label>Signer email</label><input class="inp inp--focus" value="jamie@law.co"/></div>
+    <div class="f"><label>Signer email</label><input class="inp inp--error" value="jamie@"/><div style="font-size:12px;color:#B91C1C">Enter a valid email address.</div></div>
+    <div class="f"><label>Document title</label><input class="inp" disabled style="background:var(--ink-50);color:var(--fg-4)" value="Untitled contract"/></div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center;margin-top:6px">
+    <div style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--fg-2)"><span style="width:18px;height:18px;border:1.5px solid var(--border-2);border-radius:5px;display:inline-block"></span>Require all signers</div>
+    <div style="display:inline-flex;align-items:center;gap:8px;font-size:14px;color:var(--fg-2)"><span style="width:18px;height:18px;background:#4F46E5;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:12px">✓</span>Require all signers</div>
+  </div>
+</div></body></html>

@@ -21,20 +21,35 @@ function useContacts() {
   return [contacts, setContacts];
 }
 
-function TopNav({ onLogo, active='documents', onNav }) {
+function TopNav({ onLogo, active='documents', onNav, guest=false, onSignIn, onSignUp }) {
   const items = ['Documents','Contacts'];
   return (
     <div style={{position:'sticky', top:0, zIndex:20, height:56, background:'rgba(255,255,255,0.82)', backdropFilter:'blur(12px)', borderBottom:'1px solid var(--border-1)', display:'flex', alignItems:'center', padding:'0 24px', gap:24}}>
       <img src="../../assets/logo.svg" height="26" alt="Sealed" onClick={onLogo} style={{cursor:'pointer'}}/>
-      <div style={{display:'flex',gap:4,marginLeft:16}}>
-        {items.map(l => {
-          const isActive = l.toLowerCase() === active;
-          return <div key={l} onClick={()=>onNav && onNav(l.toLowerCase())} style={{padding:'6px 12px',borderRadius:8,fontSize:14,fontWeight:500,color: isActive ?'var(--fg-1)':'var(--fg-3)',cursor:'pointer',background: isActive?'var(--ink-100)':'transparent'}}>{l}</div>;
-        })}
-      </div>
+      {guest ? (
+        <div style={{display:'inline-flex', alignItems:'center', gap:8, marginLeft:14, padding:'4px 10px', borderRadius:999, background:'var(--ink-100)', border:'1px solid var(--border-1)'}}>
+          <Icon name="user" size={12} style={{color:'var(--fg-3)'}}/>
+          <span style={{fontSize:12, fontWeight:600, color:'var(--fg-2)', letterSpacing:'0.01em'}}>Guest mode</span>
+        </div>
+      ) : (
+        <div style={{display:'flex',gap:4,marginLeft:16}}>
+          {items.map(l => {
+            const isActive = l.toLowerCase() === active;
+            return <div key={l} onClick={()=>onNav && onNav(l.toLowerCase())} style={{padding:'6px 12px',borderRadius:8,fontSize:14,fontWeight:500,color: isActive ?'var(--fg-1)':'var(--fg-3)',cursor:'pointer',background: isActive?'var(--ink-100)':'transparent'}}>{l}</div>;
+          })}
+        </div>
+      )}
       <div style={{flex:1}}/>
-      <div style={{display:'flex',alignItems:'center',gap:12}}>
-        <Avatar name="Jamie Okonkwo" size={32}/>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        {guest ? (
+          <>
+            <div style={{fontSize:13, color:'var(--fg-3)', display:'none'}} className="sealed-guest-hint">Save your work —</div>
+            <button onClick={onSignIn} style={{height:34, padding:'0 14px', border:'none', background:'transparent', borderRadius:8, fontSize:13, fontWeight:600, color:'var(--fg-2)', cursor:'pointer'}}>Sign in</button>
+            <button onClick={onSignUp} style={{height:34, padding:'0 14px', border:'none', background:'var(--ink-900)', color:'#fff', borderRadius:8, fontSize:13, fontWeight:600, cursor:'pointer'}}>Sign up</button>
+          </>
+        ) : (
+          <Avatar name="Jamie Okonkwo" size={32}/>
+        )}
       </div>
     </div>
   );
@@ -383,14 +398,14 @@ function PageCanvas({
   );
 }
 
-function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages = 12 }) {
-  const [signers, setSigners] = useState(() => [
+function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages = 12, guest = false }) {
+  const [signers, setSigners] = useState(() => guest ? [] : [
     { id:'s1', contactId:'c1', name:'Eliran Azulay',    email:'eliran@azulay.co', color:'#F472B6' },
     { id:'s2', contactId:'c2', name:'Nitsan Yanovitch', email:'nitsan@yanov.co',  color:'#7DD3FC' },
   ]);
-  const [currentPage, setCurrentPage] = useState(4);
+  const [currentPage, setCurrentPage] = useState(guest ? 1 : 4);
   // fields: array of {id, page, type, x, y, signerIds:[]}
-  const [fields, setFields] = useState(() => [
+  const [fields, setFields] = useState(() => guest ? [] : [
     { id:'f1', page:4, type:'signature', x: 60, y: 560, signerIds:['s1'] },
     { id:'f2', page:4, type:'signature', x: 272, y: 560, signerIds:['s2'] },
   ]);
@@ -626,7 +641,9 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
           <FieldPaletteItem key={f.k} f={f} onDragStart={()=>setDragType(f.k)}/>
         ))}
         <div style={{marginTop:18,padding:'12px 12px',background:'var(--indigo-50)',borderRadius:10,fontSize:12,color:'var(--indigo-800)',lineHeight:1.5}}>
-          Drag a field onto the page. You'll pick which signers fill it.
+          {guest && signers.length === 0
+            ? <><b style={{color:'var(--indigo-900)'}}>Start here:</b> add a signer using the <span style={{whiteSpace:'nowrap'}}>+ button</span> on the right, then drag fields onto the page.</>
+            : <>Drag a field onto the page. You'll pick which signers fill it.</>}
         </div>
       </CollapsibleRail>
 
@@ -795,6 +812,11 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
               <span style={{fontSize:11,color:'var(--fg-3)',fontFamily:'var(--font-mono)'}}>{signers.length}</span>
             </div>
             <div onClick={(e)=>e.stopPropagation()} style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:16,position:'relative'}}>
+              {signers.length === 0 && (
+                <div style={{flex:'1 1 100%', fontSize:12, color:'var(--fg-3)', lineHeight:1.5, padding:'2px 0 4px'}}>
+                  No signers yet. Click <b style={{color:'var(--fg-1)'}}>+</b> to add one — enter a name and email.
+                </div>
+              )}
               {signers.map(s=>(
                 <span key={s.id} title={`${s.name} · ${s.email}`} style={{display:'inline-flex',alignItems:'center',gap:6,padding:'4px 10px 4px 4px',borderRadius:999,background:'#fff',border:'1px solid var(--border-1)'}}>
                   <span style={{width:22,height:22,borderRadius:999,background:s.color,color:'#fff',display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700}}>{s.name.split(' ').map(x=>x[0]).join('').slice(0,2)}</span>

@@ -1,133 +1,20 @@
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Shadows</title>
-    <link rel="stylesheet" href="_card.css" />
-  </head>
-  <body>
-    <div class="card" style="background: var(--ink-50)">
-      <div class="label">Elevation · borders first, shadows sparingly</div>
-      <div
-        style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; padding-top: 8px"
-      >
-        <div style="text-align: center">
-          <div
-            style="
-              height: 72px;
-              background: #fff;
-              border: 1px solid var(--border-1);
-              border-radius: 12px;
-            "
-          ></div>
-          <div style="font-size: 12px; font-weight: 600; margin-top: 8px">border‑only</div>
-          <div class="meta">default card</div>
-        </div>
-        <div style="text-align: center">
-          <div
-            style="
-              height: 72px;
-              background: #fff;
-              border: 1px solid var(--border-1);
-              border-radius: 12px;
-              box-shadow:
-                0 1px 2px rgba(15, 23, 42, 0.04),
-                0 2px 4px rgba(15, 23, 42, 0.04);
-            "
-          ></div>
-          <div style="font-size: 12px; font-weight: 600; margin-top: 8px">sm</div>
-          <div class="meta">hover rows</div>
-        </div>
-        <div style="text-align: center">
-          <div
-            style="
-              height: 72px;
-              background: #fff;
-              border: 1px solid var(--border-1);
-              border-radius: 12px;
-              box-shadow:
-                0 2px 4px rgba(15, 23, 42, 0.04),
-                0 6px 16px rgba(15, 23, 42, 0.06);
-            "
-          ></div>
-          <div style="font-size: 12px; font-weight: 600; margin-top: 8px">md</div>
-          <div class="meta">menus</div>
-        </div>
-        <div style="text-align: center">
-          <div
-            style="
-              height: 72px;
-              background: #fff;
-              border: 1px solid var(--border-1);
-              border-radius: 12px;
-              box-shadow:
-                0 4px 8px rgba(15, 23, 42, 0.04),
-                0 12px 28px rgba(15, 23, 42, 0.08);
-            "
-          ></div>
-          <div style="font-size: 12px; font-weight: 600; margin-top: 8px">lg</div>
-          <div class="meta">popovers</div>
-        </div>
-        <div style="text-align: center">
-          <div
-            style="
-              height: 72px;
-              background: #fff;
-              border: 1px solid var(--border-1);
-              border-radius: 12px;
-              box-shadow:
-                0 8px 16px rgba(15, 23, 42, 0.06),
-                0 24px 56px rgba(15, 23, 42, 0.12);
-            "
-          ></div>
-          <div style="font-size: 12px; font-weight: 600; margin-top: 8px">xl</div>
-          <div class="meta">modals</div>
-        </div>
-      </div>
-      <div style="margin-top: 12px">
-        <div
-          style="
-            max-width: 280px;
-            height: 140px;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow:
-              0 1px 0 rgba(15, 23, 42, 0.04),
-              0 10px 30px rgba(15, 23, 42, 0.08),
-              0 0 0 1px rgba(15, 23, 42, 0.04);
-            position: relative;
-            overflow: hidden;
-          "
-        >
-          <div
-            style="position: absolute; inset: 14px; border-bottom: 1px solid var(--border-1)"
-          ></div>
-          <div
-            style="
-              position: absolute;
-              left: 14px;
-              top: 14px;
-              width: 60%;
-              height: 8px;
-              background: var(--ink-200);
-              border-radius: 3px;
-            "
-          ></div>
-          <div
-            style="
-              position: absolute;
-              left: 14px;
-              top: 34px;
-              width: 40%;
-              height: 6px;
-              background: var(--ink-150);
-              border-radius: 3px;
-            "
-          ></div>
-        </div>
-        <div style="font-size: 12px; font-weight: 600; margin-top: 8px">shadow‑paper</div>
-        <div class="meta">document preview · simulates lifted page</div>
-      </div>
+<!doctype html><html><head><meta charset="utf-8"><title>Shadows</title><link rel="stylesheet" href="_card.css"></head>
+<body><div class="card" style="background:var(--ink-50)">
+  <div class="label">Elevation · borders first, shadows sparingly</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:16px;padding-top:8px">
+    <div style="text-align:center"><div style="height:72px;background:#fff;border:1px solid var(--border-1);border-radius:12px"></div><div style="font-size:12px;font-weight:600;margin-top:8px">border‑only</div><div class="meta">default card</div></div>
+    <div style="text-align:center"><div style="height:72px;background:#fff;border:1px solid var(--border-1);border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,0.04),0 2px 4px rgba(15,23,42,0.04)"></div><div style="font-size:12px;font-weight:600;margin-top:8px">sm</div><div class="meta">hover rows</div></div>
+    <div style="text-align:center"><div style="height:72px;background:#fff;border:1px solid var(--border-1);border-radius:12px;box-shadow:0 2px 4px rgba(15,23,42,0.04),0 6px 16px rgba(15,23,42,0.06)"></div><div style="font-size:12px;font-weight:600;margin-top:8px">md</div><div class="meta">menus</div></div>
+    <div style="text-align:center"><div style="height:72px;background:#fff;border:1px solid var(--border-1);border-radius:12px;box-shadow:0 4px 8px rgba(15,23,42,0.04),0 12px 28px rgba(15,23,42,0.08)"></div><div style="font-size:12px;font-weight:600;margin-top:8px">lg</div><div class="meta">popovers</div></div>
+    <div style="text-align:center"><div style="height:72px;background:#fff;border:1px solid var(--border-1);border-radius:12px;box-shadow:0 8px 16px rgba(15,23,42,0.06),0 24px 56px rgba(15,23,42,0.12)"></div><div style="font-size:12px;font-weight:600;margin-top:8px">xl</div><div class="meta">modals</div></div>
+  </div>
+  <div style="margin-top:12px">
+    <div style="max-width:280px;height:140px;background:#fff;border-radius:10px;box-shadow:0 1px 0 rgba(15,23,42,0.04),0 10px 30px rgba(15,23,42,0.08),0 0 0 1px rgba(15,23,42,0.04);position:relative;overflow:hidden">
+      <div style="position:absolute;inset:14px;border-bottom:1px solid var(--border-1)"></div>
+      <div style="position:absolute;left:14px;top:14px;width:60%;height:8px;background:var(--ink-200);border-radius:3px"></div>
+      <div style="position:absolute;left:14px;top:34px;width:40%;height:6px;background:var(--ink-150);border-radius:3px"></div>
     </div>
-  </body>
-</html>
+    <div style="font-size:12px;font-weight:600;margin-top:8px">shadow‑paper</div>
+    <div class="meta">document preview · simulates lifted page</div>
+  </div>
+</div></body></html>
