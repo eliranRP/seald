@@ -18,3 +18,8 @@ src/**/*.js.map
 vite.config.js
 vite.config.d.ts
 vite.config.js.map
+
+apps/*/dist
+apps/*/coverage
+apps/*/.env
+apps/*/.env.local

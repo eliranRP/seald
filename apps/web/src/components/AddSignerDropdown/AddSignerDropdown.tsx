@@ -1,5 +1,5 @@
 import { forwardRef, useId, useMemo, useState } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Check, UserPlus } from 'lucide-react';
 import { Button } from '../Button';
 import type { AddSignerContact, AddSignerDropdownProps } from './AddSignerDropdown.types';
@@ -103,7 +103,7 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
           <SearchInput
             type="text"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
             placeholder={placeholder}
             aria-label={placeholder}
             role="searchbox"

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -184,7 +185,7 @@ export function ContactsPage() {
             role="dialog"
             aria-modal="true"
             aria-label={dialog.mode === 'add' ? 'Add signer' : 'Edit signer'}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e: MouseEvent) => e.stopPropagation()}
           >
             <DialogTitle>{dialog.mode === 'add' ? 'Add signer' : 'Edit signer'}</DialogTitle>
             <FieldStack>

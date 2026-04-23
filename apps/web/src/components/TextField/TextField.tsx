@@ -1,5 +1,5 @@
 import { forwardRef, useId } from 'react';
-import type { ReactNode } from 'react';
+import type { ChangeEvent, ReactNode } from 'react';
 import { Icon } from '../Icon';
 import type { TextFieldProps } from './TextField.types';
 import { Field, Label, InputWrap, IconSlot, Input, HelpText, ErrorText } from './TextField.styles';
@@ -53,7 +53,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>((props, re
           defaultValue={defaultValue}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedId}
-          onChange={(e) => onChange?.(e.target.value, e)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => onChange?.(e.target.value, e)}
         />
       </InputWrap>
       {feedback}
