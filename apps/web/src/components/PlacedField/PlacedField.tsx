@@ -423,28 +423,28 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           $top="start"
           $left="start"
           aria-label="Resize top-left"
-          onMouseDown={(e: ReactMouseEvent<HTMLButtonElement>) => startResize(e, 'nw')}
+          onMouseDown={(e) => startResize(e, 'nw')}
         />
         <ResizeHandle
           type="button"
           $top="start"
           $left="end"
           aria-label="Resize top-right"
-          onMouseDown={(e: ReactMouseEvent<HTMLButtonElement>) => startResize(e, 'ne')}
+          onMouseDown={(e) => startResize(e, 'ne')}
         />
         <ResizeHandle
           type="button"
           $top="end"
           $left="start"
           aria-label="Resize bottom-left"
-          onMouseDown={(e: ReactMouseEvent<HTMLButtonElement>) => startResize(e, 'sw')}
+          onMouseDown={(e) => startResize(e, 'sw')}
         />
         <ResizeHandle
           type="button"
           $top="end"
           $left="end"
           aria-label="Resize bottom-right"
-          onMouseDown={(e: ReactMouseEvent<HTMLButtonElement>) => startResize(e, 'se')}
+          onMouseDown={(e) => startResize(e, 'se')}
         />
       </>
     );

@@ -1316,8 +1316,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                       left: groupRect.x,
                                       top: Math.max(0, groupRect.y - 40),
                                     }}
-                                    onMouseDown={(e: ReactMouseEvent) => e.stopPropagation()}
-                                    onClick={(e: ReactMouseEvent) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <GroupToolbarLabel>
                                       {selectedIds.length} selected

@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import type { MouseEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { Avatar } from '../Avatar';
 import { StatusBadge, STATUS_BADGE_MAP } from '../StatusBadge';
@@ -18,7 +18,7 @@ export const SignerRow = forwardRef<HTMLDivElement, SignerRowProps>((props, ref)
         type="button"
         aria-label={`Actions for ${signer.name}`}
         aria-haspopup="menu"
-        onClick={(e: MouseEvent<HTMLButtonElement>) => onMenuClick?.(signer.id, e)}
+        onClick={(e) => onMenuClick?.(signer.id, e)}
       >
         <Icon icon={MoreHorizontal} size={20} />
       </MenuButton>

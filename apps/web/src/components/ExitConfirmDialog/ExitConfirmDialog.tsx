@@ -1,5 +1,4 @@
 import { forwardRef, useEffect, useId } from 'react';
-import type { MouseEvent } from 'react';
 import { Button } from '../Button';
 import type { ExitConfirmDialogProps } from './ExitConfirmDialog.types';
 import { Backdrop, Card, Description, Footer, Title } from './ExitConfirmDialog.styles';
@@ -53,7 +52,7 @@ export const ExitConfirmDialog = forwardRef<HTMLDivElement, ExitConfirmDialogPro
           aria-modal="true"
           aria-labelledby={titleId}
           aria-describedby={descId}
-          onClick={(e: MouseEvent) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
           {...rest}
         >
           <Title id={titleId}>{title}</Title>
