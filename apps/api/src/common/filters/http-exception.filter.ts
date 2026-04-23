@@ -13,10 +13,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      const normalized =
+      const raw =
         typeof body === 'string'
-          ? { error: body }
-          : { error: (body as { message?: string }).message ?? 'error' };
+          ? body
+          : ((body as { message?: string | string[] }).message ?? 'error');
+      const normalized = { error: Array.isArray(raw) ? raw.join('; ') : raw };
       response.status(status).json(normalized);
       return;
     }
