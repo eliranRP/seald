@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Avatar } from '../../components/Avatar';
 import { Badge } from '../../components/Badge';
 import type { BadgeTone } from '../../components/Badge/Badge.types';
 import { Button } from '../../components/Button';
@@ -11,8 +10,8 @@ import { FilterTabs } from '../../components/FilterTabs';
 import { PageHeader } from '../../components/PageHeader';
 import { Skeleton } from '../../components/Skeleton';
 import { StatCard } from '../../components/StatCard';
-import { useAppState } from '../../providers/AppStateProvider';
-import type { AppDocument, DocumentStatus } from '../../providers/AppStateProvider';
+import { useEnvelopesQuery } from '../../features/envelopes';
+import type { EnvelopeListItem, EnvelopeStatus } from '../../features/envelopes';
 import {
   DateCell,
   DocCell,
@@ -40,49 +39,58 @@ function isFilterId(value: string | null): value is FilterId {
 interface FilterDef {
   readonly id: FilterId;
   readonly label: string;
-  readonly matches: (d: AppDocument) => boolean;
+  readonly matches: (d: EnvelopeListItem) => boolean;
 }
 
+/**
+ * Backend emits `draft | awaiting_others | sealing | completed | declined |
+ * expired | canceled`. For the sender-facing dashboard we collapse this into
+ * the five-tab taxonomy the UI was designed around. "Awaiting you" stays
+ * visible but never matches (until co-signing ships).
+ */
 const FILTERS: ReadonlyArray<FilterDef> = [
   { id: 'all', label: 'All', matches: () => true },
-  { id: 'you', label: 'Awaiting you', matches: (d) => d.status === 'awaiting-you' },
-  { id: 'others', label: 'Awaiting others', matches: (d) => d.status === 'awaiting-others' },
+  { id: 'you', label: 'Awaiting you', matches: () => false },
+  {
+    id: 'others',
+    label: 'Awaiting others',
+    matches: (d) => d.status === 'awaiting_others' || d.status === 'sealing',
+  },
   { id: 'completed', label: 'Completed', matches: (d) => d.status === 'completed' },
   { id: 'drafts', label: 'Drafts', matches: (d) => d.status === 'draft' },
 ];
 
-const STATUS_LABEL: Record<DocumentStatus, string> = {
+const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
-  'awaiting-you': 'Awaiting you',
-  'awaiting-others': 'Awaiting others',
+  awaiting_others: 'Awaiting others',
+  sealing: 'Sealing',
   completed: 'Completed',
   declined: 'Declined',
+  expired: 'Expired',
+  canceled: 'Canceled',
 };
 
-const STATUS_TONE: Record<DocumentStatus, BadgeTone> = {
+const STATUS_TONE: Record<EnvelopeStatus, BadgeTone> = {
   draft: 'neutral',
-  'awaiting-you': 'indigo',
-  'awaiting-others': 'amber',
+  awaiting_others: 'amber',
+  sealing: 'indigo',
   completed: 'emerald',
   declined: 'red',
+  expired: 'red',
+  canceled: 'neutral',
 };
 
-function formatDate(iso: string): string {
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
 }
 
-function primaryRecipient(d: AppDocument): { name: string; email: string } | null {
-  const first = d.signers[0];
-  if (!first) return null;
-  return { name: first.name, email: first.email };
-}
-
 interface RenderDocumentsBodyArgs {
   readonly loading: boolean;
   readonly rowsForSkeleton: boolean;
-  readonly filtered: ReadonlyArray<AppDocument>;
+  readonly filtered: ReadonlyArray<EnvelopeListItem>;
   readonly navigate: (path: string) => void;
 }
 
@@ -113,61 +121,50 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
   if (filtered.length === 0) {
     return <EmptyState>No documents match this filter.</EmptyState>;
   }
-  return filtered.map((d) => {
-    const recipient = primaryRecipient(d);
-    return (
-      <TableRow
-        key={d.id}
-        type="button"
-        onClick={() => navigate(`/document/${d.id}`)}
-        aria-label={`Open ${d.title}`}
-      >
-        <DocCell>
-          <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
-          <div style={{ minWidth: 0 }}>
-            <DocTitle>{d.title}</DocTitle>
-            <DocCode>{d.code}</DocCode>
-          </div>
-        </DocCell>
-        <RecipientCell>
-          {recipient ? (
-            <>
-              <Avatar name={recipient.name} size={24} />
-              <RecipientLabel>{recipient.name}</RecipientLabel>
-            </>
-          ) : (
-            <RecipientLabel>—</RecipientLabel>
-          )}
-        </RecipientCell>
-        <div>
-          <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+  return filtered.map((d) => (
+    <TableRow
+      key={d.id}
+      type="button"
+      onClick={() => navigate(`/document/${d.id}`)}
+      aria-label={`Open ${d.title}`}
+    >
+      <DocCell>
+        <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
+        <div style={{ minWidth: 0 }}>
+          <DocTitle>{d.title}</DocTitle>
+          <DocCode>{d.short_code}</DocCode>
         </div>
-        <DateCell>{formatDate(d.updatedAt)}</DateCell>
-        <div aria-hidden />
-      </TableRow>
-    );
-  });
+      </DocCell>
+      <RecipientCell>
+        <RecipientLabel>—</RecipientLabel>
+      </RecipientCell>
+      <div>
+        <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+      </div>
+      <DateCell>{formatDate(d.updated_at)}</DateCell>
+      <div aria-hidden />
+    </TableRow>
+  ));
 }
 
 /**
- * L4 page — the dashboard / inbox view listing every document the user has
- * created or received. Pulls documents from `useAppState` and renders the
- * filter tabs + table from `Design-Guide/ui_kits/dashboard`.
+ * L4 page — the sender dashboard / inbox view listing every envelope the
+ * user has created. Pulls from the live `/envelopes` endpoint via
+ * React-Query; no hardcoded seed data.
  */
 export function DashboardPage() {
-  const { documents, documentsLoading } = useAppState();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  // Filter id is URL-driven via `?filter=`. Invalid / missing values collapse
-  // to the default `all` tab, so refresh, back, and forward all round-trip
-  // cleanly through whichever tab the user was on.
   const rawFilter = searchParams.get('filter');
   const tab: FilterId = isFilterId(rawFilter) ? rawFilter : 'all';
+
+  const q = useEnvelopesQuery(true, { limit: 100 });
+  const envelopes: ReadonlyArray<EnvelopeListItem> = useMemo(() => q.data?.items ?? [], [q.data]);
+  const documentsLoading = q.isPending;
 
   const handleSelectTab = useCallback(
     (id: FilterId): void => {
       if (id === 'all') {
-        // Keep the URL clean for the default tab — no stray `?filter=all`.
         setSearchParams({});
       } else {
         setSearchParams({ filter: id });
@@ -179,36 +176,38 @@ export function DashboardPage() {
   const counts = useMemo(() => {
     const byFilter = new Map<FilterId, number>();
     FILTERS.forEach((f) => {
-      byFilter.set(f.id, documents.filter(f.matches).length);
+      byFilter.set(f.id, envelopes.filter(f.matches).length);
     });
     return byFilter;
-  }, [documents]);
+  }, [envelopes]);
 
   const filtered = useMemo(() => {
     const match = FILTERS.find((f) => f.id === tab) ?? FILTERS[0]!;
-    return documents.filter(match.matches);
-  }, [documents, tab]);
+    return envelopes.filter(match.matches);
+  }, [envelopes, tab]);
 
   const stats = useMemo(() => {
-    const awaitingYou = documents.filter((d) => d.status === 'awaiting-you').length;
-    const awaitingOthers = documents.filter((d) => d.status === 'awaiting-others').length;
-    const completedThisMonth = documents.filter((d) => {
+    const awaitingOthers = envelopes.filter(
+      (d) => d.status === 'awaiting_others' || d.status === 'sealing',
+    ).length;
+    const completedThisMonth = envelopes.filter((d) => {
       if (d.status !== 'completed') return false;
-      const when = new Date(d.updatedAt);
+      const when = new Date(d.completed_at ?? d.updated_at);
       const now = new Date();
       return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
     }).length;
+    const drafts = envelopes.filter((d) => d.status === 'draft').length;
     return [
-      { label: 'Awaiting you', value: awaitingYou.toString(), tone: 'indigo' as const },
+      { label: 'Drafts', value: drafts.toString(), tone: 'indigo' as const },
       { label: 'Awaiting others', value: awaitingOthers.toString(), tone: 'amber' as const },
       {
         label: 'Completed this month',
         value: completedThisMonth.toString(),
         tone: 'emerald' as const,
       },
-      { label: 'Total', value: documents.length.toString(), tone: 'neutral' as const },
+      { label: 'Total', value: envelopes.length.toString(), tone: 'neutral' as const },
     ];
-  }, [documents]);
+  }, [envelopes]);
 
   const tabItems = useMemo(
     () => FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts.get(f.id) ?? 0 })),
@@ -257,7 +256,7 @@ export function DashboardPage() {
           </TableHead>
           {renderDocumentsBody({
             loading: documentsLoading,
-            rowsForSkeleton: documents.length === 0,
+            rowsForSkeleton: envelopes.length === 0,
             filtered,
             navigate,
           })}

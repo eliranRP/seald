@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import { SIGNER_COLOR_PALETTE, fetchDocuments } from '../lib/mockApi';
+import { SIGNER_COLOR_PALETTE } from '../lib/mockApi';
 import type { AppDocument, AppUser } from '../lib/mockApi';
 import {
   useContactsQuery,
@@ -20,13 +20,25 @@ export interface AppStateValue {
    * anonymous visitors (the latter never reach a page that reads this).
    */
   readonly user: AppUser | null;
+  /**
+   * In-memory **draft** store for the authoring editor. Holds the raw `File`,
+   * the placed fields (pixel coords), and the picked signer contacts while
+   * the user is composing an envelope. Lives here rather than in the
+   * editor's route state so navigating between upload → document → sent
+   * doesn't lose the draft. The dashboard does NOT read this — it lists
+   * envelopes straight from `/envelopes` via React-Query.
+   */
   readonly documents: ReadonlyArray<AppDocument>;
   readonly contacts: ReadonlyArray<AddSignerContact>;
-  /** True until the initial contacts/documents fetch resolves. */
-  readonly loading: boolean;
   /** True until the initial contacts fetch resolves. `false` for guests. */
+  readonly loading: boolean;
   readonly contactsLoading: boolean;
-  /** True until the initial documents fetch resolves. `false` for guests. */
+  /**
+   * Kept `false` — documents no longer come from a remote fetch at this
+   * layer; the authoritative source is the dashboard's `useEnvelopesQuery`.
+   * The flag is preserved for backward-compat with page code that still
+   * reads it.
+   */
   readonly documentsLoading: boolean;
   readonly getDocument: (id: string) => AppDocument | undefined;
   readonly createDocument: (file: File, totalPages: number) => string;
@@ -57,54 +69,29 @@ export interface AppStateProviderProps {
 }
 
 /**
- * Holds the in-memory application state shared across pages (documents,
- * contacts, user). Lives above the router so navigation doesn't reset state.
+ * Holds the in-memory application state shared across pages (draft
+ * documents, contacts, user). Lives above the router so navigation doesn't
+ * reset state.
  *
  * - `user` is mirrored from `AuthProvider` (Supabase session).
- * - `contacts` comes from the Nest API via React-Query; fetched when the
- *   user is signed in, empty for guests and anonymous visitors. All three
- *   contact mutators delegate to the corresponding React-Query mutation
- *   hooks (optimistic update + rollback-on-error baked in) so consumers
- *   keep the same small imperative surface they had before.
- * - `documents` still comes from the local mock API until that resource is
- *   swapped to a server-backed endpoint.
+ * - `contacts` comes from the Nest API via React-Query. Mutators delegate
+ *   to the contact mutation hooks.
+ * - `documents` is a purely **client-side draft store** populated when the
+ *   user uploads a PDF and cleared after the draft is sent to the server.
+ *   The dashboard reads envelopes directly from `/envelopes`; this store
+ *   exists only to carry the raw `File` + in-progress fields between the
+ *   upload and document-editor routes.
  */
 export function AppStateProvider(props: AppStateProviderProps) {
   const { children } = props;
   const { user: authUser } = useAuth();
   const [documents, setDocuments] = useState<ReadonlyArray<AppDocument>>([]);
-  const [documentsLoading, setDocumentsLoading] = useState<boolean>(false);
 
   const contactsEnabled = Boolean(authUser);
   const contactsQuery = useContactsQuery(contactsEnabled);
   const createContactMutation = useCreateContactMutation();
   const updateContactMutation = useUpdateContactMutation();
   const deleteContactMutation = useDeleteContactMutation();
-
-  useEffect(() => {
-    if (!authUser) {
-      setDocuments([]);
-      setDocumentsLoading(false);
-      return () => {};
-    }
-    let cancelled = false;
-    setDocumentsLoading(true);
-    fetchDocuments()
-      .then((fetchedDocuments) => {
-        if (cancelled) return;
-        setDocuments(fetchedDocuments);
-        setDocumentsLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setDocuments([]);
-          setDocumentsLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authUser]);
 
   const user = useMemo<AppUser | null>(() => {
     if (!authUser) return null;
@@ -121,18 +108,11 @@ export function AppStateProvider(props: AppStateProviderProps) {
     [authUser, contactsQuery.data],
   );
 
-  // Per-resource loading flags so pages can show targeted skeletons instead
-  // of a single coarse "loading" spinner. The top-level `loading` stays true
-  // until both have resolved (backwards compatible with existing callers).
-  //
-  // Both flags are held "true" for a minimum of 2 seconds by `useMinDuration`.
-  // Cached react-query reads and the ~10 ms mock-API fetch can resolve faster
-  // than the skeleton animation loop, which flashes the UI; enforcing a
-  // minimum visible window keeps the loading state readable without slowing
-  // any real network work.
   const contactsLoading = useMinDuration(contactsEnabled && contactsQuery.isPending, 2000);
-  const documentsLoadingHeld = useMinDuration(documentsLoading, 2000);
-  const loading = documentsLoadingHeld || contactsLoading;
+  // Preserved for back-compat with consumers that still read the flag.
+  // Drafts live in memory only; there is no network fetch to block on.
+  const documentsLoading = false;
+  const loading = contactsLoading;
 
   const getDocument = useCallback(
     (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
@@ -165,6 +145,10 @@ export function AppStateProvider(props: AppStateProviderProps) {
   }, []);
 
   const sendDocument = useCallback((id: string): void => {
+    // Mark the local draft as awaiting-others so SentConfirmationPage can
+    // keep rendering the handoff summary. The server-authoritative record
+    // lives under `/envelopes/:id` once `useSendEnvelope` publishes the
+    // draft; the dashboard will show it on next refetch.
     const nowIso = new Date().toISOString();
     setDocuments((prev) =>
       prev.map((d) => (d.id === id ? { ...d, status: 'awaiting-others', updatedAt: nowIso } : d)),
@@ -205,7 +189,7 @@ export function AppStateProvider(props: AppStateProviderProps) {
       contacts,
       loading,
       contactsLoading,
-      documentsLoading: documentsLoadingHeld,
+      documentsLoading,
       getDocument,
       createDocument,
       updateDocument,
@@ -221,7 +205,7 @@ export function AppStateProvider(props: AppStateProviderProps) {
       contacts,
       loading,
       contactsLoading,
-      documentsLoadingHeld,
+      documentsLoading,
       getDocument,
       createDocument,
       updateDocument,
