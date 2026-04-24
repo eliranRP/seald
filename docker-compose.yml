@@ -35,7 +35,7 @@ services:
       SKIP_MIGRATIONS: "${SKIP_MIGRATIONS:-0}"
       NODE_OPTIONS: --enable-source-maps
     env_file:
-      - .env
+      - apps/api/.env
     expose:
       - "3000"
     healthcheck:
