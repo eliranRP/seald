@@ -63,9 +63,14 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
       TF_VAR_ssh_pubkey: ${{ secrets.SSH_PUBKEY }}
+      # Enable managed GoDaddy DNS whenever the credentials are present. If
+      # the account tier can't use the production API, flip to false here
+      # and manage DNS manually from the GoDaddy dashboard.
+      TF_VAR_godaddy_enabled: ${{ secrets.GODADDY_API_KEY != '' }}
       TF_VAR_godaddy_api_key: ${{ secrets.GODADDY_API_KEY }}
       TF_VAR_godaddy_api_secret: ${{ secrets.GODADDY_API_SECRET }}
       TF_VAR_godaddy_domain: ${{ secrets.GODADDY_DOMAIN }}
+      TF_VAR_godaddy_subdomain: api
 
     defaults:
       run:
