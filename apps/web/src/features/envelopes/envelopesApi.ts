@@ -111,6 +111,50 @@ export async function getEnvelope(id: string, signal?: AbortSignal): Promise<Env
   return data;
 }
 
+export type EnvelopeEventType =
+  | 'created'
+  | 'sent'
+  | 'viewed'
+  | 'tc_accepted'
+  | 'field_filled'
+  | 'signed'
+  | 'all_signed'
+  | 'sealed'
+  | 'declined'
+  | 'expired'
+  | 'canceled'
+  | 'reminder_sent'
+  | 'session_invalidated_by_decline'
+  | 'job_failed'
+  | 'retention_deleted';
+
+export interface EnvelopeEvent {
+  readonly id: string;
+  readonly envelope_id: string;
+  readonly signer_id: string | null;
+  readonly actor_kind: 'sender' | 'signer' | 'system';
+  readonly event_type: EnvelopeEventType;
+  readonly ip: string | null;
+  readonly user_agent: string | null;
+  readonly metadata: Record<string, unknown>;
+  readonly created_at: string;
+}
+
+export interface EnvelopeEventsResponse {
+  readonly events: ReadonlyArray<EnvelopeEvent>;
+}
+
+export async function listEnvelopeEvents(
+  id: string,
+  signal?: AbortSignal,
+): Promise<EnvelopeEventsResponse> {
+  const { data } = await apiClient.get<EnvelopeEventsResponse>(
+    `/envelopes/${id}/events`,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
 export async function createEnvelope(
   input: { readonly title: string },
   signal?: AbortSignal,

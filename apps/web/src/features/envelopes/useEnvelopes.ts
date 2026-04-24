@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EnvelopeListItem } from 'shared';
 import type {
   Envelope,
+  EnvelopeEventsResponse,
   EnvelopeField,
   EnvelopeListResponse,
   EnvelopeSigner,
@@ -13,6 +14,7 @@ import {
   createEnvelope,
   deleteEnvelope,
   getEnvelope,
+  listEnvelopeEvents,
   listEnvelopes,
   placeEnvelopeFields,
   removeEnvelopeSigner,
@@ -22,6 +24,8 @@ import {
 
 export const ENVELOPES_KEY = ['envelopes'] as const;
 export const ENVELOPE_KEY = (id: string): readonly [string, string] => ['envelope', id] as const;
+export const ENVELOPE_EVENTS_KEY = (id: string): readonly [string, string, string] =>
+  ['envelope', id, 'events'] as const;
 
 /**
  * Lists the signed-in user's envelopes. Pass `enabled: false` for guests
@@ -39,6 +43,19 @@ export function useEnvelopeQuery(id: string, enabled: boolean) {
   return useQuery<Envelope>({
     queryKey: ENVELOPE_KEY(id),
     queryFn: ({ signal }) => getEnvelope(id, signal),
+    enabled: enabled && Boolean(id),
+  });
+}
+
+/**
+ * Fetches the audit-trail event log for an envelope. Used by the
+ * EnvelopeDetailPage timeline. Reuses React-Query's shared cache so
+ * re-mounts are instant.
+ */
+export function useEnvelopeEventsQuery(id: string, enabled: boolean) {
+  return useQuery<EnvelopeEventsResponse>({
+    queryKey: ENVELOPE_EVENTS_KEY(id),
+    queryFn: ({ signal }) => listEnvelopeEvents(id, signal),
     enabled: enabled && Boolean(id),
   });
 }

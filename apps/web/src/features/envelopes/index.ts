@@ -1,8 +1,10 @@
 export {
   ENVELOPES_KEY,
   ENVELOPE_KEY,
+  ENVELOPE_EVENTS_KEY,
   useEnvelopesQuery,
   useEnvelopeQuery,
+  useEnvelopeEventsQuery,
   useCreateEnvelopeMutation,
   useUploadEnvelopeFileMutation,
   useAddEnvelopeSignerMutation,
@@ -20,6 +22,7 @@ export type {
 export {
   listEnvelopes,
   getEnvelope,
+  listEnvelopeEvents,
   createEnvelope,
   uploadEnvelopeFile,
   addEnvelopeSigner,
@@ -30,6 +33,9 @@ export {
 } from './envelopesApi';
 export type {
   Envelope,
+  EnvelopeEvent,
+  EnvelopeEventType,
+  EnvelopeEventsResponse,
   EnvelopeField,
   EnvelopeSigner,
   EnvelopeStatus,

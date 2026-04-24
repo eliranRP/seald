@@ -49,46 +49,58 @@ beforeEach(() => {
 
 describe('EnvelopeDetailPage', () => {
   it('renders envelope title, short code, and signer list on success', async () => {
-    get.mockResolvedValueOnce({
-      data: {
-        id: 'env-1',
-        owner_id: 'u',
-        title: 'Master Services Agreement',
-        short_code: 'MSA-ABCD-1234',
-        status: 'awaiting_others',
-        original_pages: 4,
-        expires_at: '2030-01-01T00:00:00Z',
-        tc_version: '1',
-        privacy_version: '1',
-        sent_at: '2026-04-01T00:00:00Z',
-        completed_at: null,
-        signers: [
-          {
-            id: 's1',
-            email: 'maya@example.com',
-            name: 'Maya Raskin',
-            color: '#10B981',
-            role: 'signatory',
-            signing_order: 1,
-            status: 'awaiting',
-            viewed_at: null,
-            tc_accepted_at: null,
-            signed_at: null,
-            declined_at: null,
-          },
-        ],
-        fields: [],
-        created_at: '2026-04-01T00:00:00Z',
-        updated_at: '2026-04-01T00:00:00Z',
-      },
-      status: 200,
+    // The detail page now fires two concurrent requests: GET /envelopes/:id
+    // and GET /envelopes/:id/events. The events response drives the activity
+    // timeline — we return an empty list here.
+    get.mockImplementation((url: string) => {
+      if (url.endsWith('/events')) {
+        return Promise.resolve({ data: { events: [] }, status: 200 });
+      }
+      return Promise.resolve({
+        data: {
+          id: 'env-1',
+          owner_id: 'u',
+          title: 'Master Services Agreement',
+          short_code: 'MSA-ABCD-1234',
+          status: 'awaiting_others',
+          original_pages: 4,
+          expires_at: '2030-01-01T00:00:00Z',
+          tc_version: '1',
+          privacy_version: '1',
+          sent_at: '2026-04-01T00:00:00Z',
+          completed_at: null,
+          signers: [
+            {
+              id: 's1',
+              email: 'maya@example.com',
+              name: 'Maya Raskin',
+              color: '#10B981',
+              role: 'signatory',
+              signing_order: 1,
+              status: 'awaiting',
+              viewed_at: null,
+              tc_accepted_at: null,
+              signed_at: null,
+              declined_at: null,
+            },
+          ],
+          fields: [],
+          created_at: '2026-04-01T00:00:00Z',
+          updated_at: '2026-04-01T00:00:00Z',
+        },
+        status: 200,
+      });
     });
 
     renderAt('env-1');
 
     expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
-    expect(screen.getByText('MSA-ABCD-1234')).toBeInTheDocument();
-    expect(screen.getByText(/maya raskin/i)).toBeInTheDocument();
+    // The short code appears in both the breadcrumb and the header meta,
+    // matching the kit layout — assert it shows at least once.
+    expect(screen.getAllByText('MSA-ABCD-1234').length).toBeGreaterThanOrEqual(1);
+    // Maya appears in both the signer sidebar and the pending entry on
+    // the activity timeline.
+    expect(screen.getAllByText(/maya raskin/i).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/maya@example\.com/i)).toBeInTheDocument();
   });
 
