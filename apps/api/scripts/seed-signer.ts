@@ -148,7 +148,14 @@ async function main(): Promise<void> {
        ) values (
          $1, $2, $3, $4, $5, 'signatory', 1, $6, now()
        )`,
-      [signerId, envelopeId, 'maya+seed@seald.dev', 'Maya Raskin', '#10B981', tokenHash],
+      [
+        signerId,
+        envelopeId,
+        process.env.RECIPIENT_EMAIL ?? 'maya+seed@seald.dev',
+        process.env.RECIPIENT_NAME ?? 'Maya Raskin',
+        '#10B981',
+        tokenHash,
+      ],
     );
 
     // 4. Two fields on two pages so the fill page is non-trivial.
@@ -161,15 +168,46 @@ async function main(): Promise<void> {
       [envelopeId, signerId],
     );
 
-    // 5. Created event so the audit trail has a lineage.
-    await client.query(
-      `insert into public.envelope_events (envelope_id, actor_kind, event_type, metadata)
-       values ($1, 'system', 'created', '{"seed":true}'::jsonb),
-              ($1, 'system', 'sent',    '{"seed":true}'::jsonb)`,
-      [envelopeId],
+    // 5. Created + sent events so the audit trail has a lineage.
+    const evRows = await client.query<{ id: string; event_type: string }>(
+      `insert into public.envelope_events (envelope_id, signer_id, actor_kind, event_type, metadata)
+       values
+         ($1, null, 'system', 'created', '{"seed":true}'::jsonb),
+         ($1, $2,   'system', 'sent',    '{"seed":true}'::jsonb)
+       returning id, event_type`,
+      [envelopeId, signerId],
     );
+    const sentEventId = evRows.rows.find((r) => r.event_type === 'sent')?.id ?? null;
 
     const signerUrl = `${publicUrl}/sign/${envelopeId}?t=${token}`;
+    const verifyUrl = `${publicUrl}/verify/code/${shortCode}`;
+
+    // 6. Enqueue the invite email so `pnpm flush:emails` has something to
+    //    push through Resend. Mirrors the payload schema EnvelopesService
+    //    uses at real send time; the unique key
+    //    `(envelope_id, signer_id, kind, source_event_id)` is satisfied
+    //    because every seed has a fresh event id.
+    await client.query(
+      `insert into public.outbound_emails
+         (envelope_id, signer_id, kind, to_email, to_name, payload, source_event_id)
+       values ($1, $2, 'invite', $3, $4, $5::jsonb, $6)`,
+      [
+        envelopeId,
+        signerId,
+        process.env.RECIPIENT_EMAIL ?? 'maya+seed@seald.dev',
+        process.env.RECIPIENT_NAME ?? 'Maya Raskin',
+        JSON.stringify({
+          sender_name: 'Eliran Azulay',
+          sender_email: 'sender@seald.dev',
+          envelope_title: 'SEED test envelope',
+          sign_url: signerUrl,
+          verify_url: verifyUrl,
+          short_code: shortCode,
+          public_url: publicUrl,
+        }),
+        sentEventId,
+      ],
+    );
     console.log('\n=============================================');
     console.log('SEED ENVELOPE READY');
     console.log('=============================================');
