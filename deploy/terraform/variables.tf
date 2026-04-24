@@ -51,3 +51,43 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# ---------- GoDaddy DNS (optional) ----------
+
+variable "godaddy_enabled" {
+  description = "Set to true to create the A record at GoDaddy automatically. Requires a production-tier GoDaddy API key (free dev keys only work against OTE)."
+  type        = bool
+  default     = false
+}
+
+variable "godaddy_api_key" {
+  description = "GoDaddy API key. Generate at https://developer.godaddy.com/keys. Production tier only — you must have 10+ domains OR a Discount Domain Club membership."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "godaddy_api_secret" {
+  description = "GoDaddy API secret, paired with godaddy_api_key."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "godaddy_domain" {
+  description = "Your GoDaddy-managed domain (e.g. nromomentum.com). No leading @."
+  type        = string
+  default     = ""
+}
+
+variable "godaddy_subdomain" {
+  description = "Subdomain to point at the EIP (e.g. api → api.nromomentum.com). Use @ for apex, though HTTPS on apex has extra DNS CAA considerations."
+  type        = string
+  default     = "api"
+}
+
+variable "godaddy_record_ttl" {
+  description = "DNS TTL in seconds for the A record. 600 is a good default — short enough to retry fast if you ever need to move."
+  type        = number
+  default     = 600
+}

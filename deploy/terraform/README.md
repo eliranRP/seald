@@ -9,10 +9,16 @@ Single-node AWS deploy template for Seald. Provisions:
 
 Postgres + Storage live on Supabase — not in scope for this module.
 
-DNS is **intentionally out of scope**. GoDaddy's Terraform provider is
-unmaintained and rate-limits hard; it's simpler to `terraform apply`, copy
-the outputted IP, and paste it into the GoDaddy DNS dashboard by hand.
-You'll only do this once per domain.
+DNS has two modes — choose at apply time via `godaddy_enabled`:
+
+**Manual (default):** `terraform apply`, copy the outputted EIP, paste
+it as an A record into the GoDaddy DNS dashboard by hand. One-time per
+domain.
+
+**Managed (`godaddy_enabled = true`):** Terraform creates / updates the
+A record for you via the community `n3integration/godaddy` provider.
+Requires a production-tier GoDaddy API key — see **GoDaddy credentials**
+below.
 
 ## First-time use
 
@@ -51,6 +57,47 @@ apps/api/scripts/generate-dev-p12.sh      # writes to ./secrets/
 # 4. Launch
 docker compose up -d --build
 ```
+
+## GoDaddy credentials (managed DNS mode)
+
+Set these five variables if you want Terraform to own the A record:
+
+| tfvar                | Value                                                                     |
+| -------------------- | ------------------------------------------------------------------------- |
+| `godaddy_enabled`    | `true`                                                                    |
+| `godaddy_api_key`    | API key from [developer.godaddy.com/keys](https://developer.godaddy.com/keys) (Production tier). |
+| `godaddy_api_secret` | The matching secret shown at key creation.                                |
+| `godaddy_domain`     | Your registered domain, e.g. `nromomentum.com` (no leading `@`).          |
+| `godaddy_subdomain`  | Subdomain to manage, e.g. `api` → `api.nromomentum.com`. Defaults to `api`. |
+
+Example `terraform.tfvars`:
+
+```hcl
+ssh_pubkey        = "ssh-ed25519 AAAAC3… you@host"
+ssh_ingress_cidrs = ["1.2.3.4/32"]
+aws_region        = "us-east-1"
+
+godaddy_enabled    = true
+godaddy_api_key    = "dLhhhhhhh_XXXXXXX"      # paste from GoDaddy
+godaddy_api_secret = "YYYYYYYYYYYYYYYY"        # paste from GoDaddy
+godaddy_domain     = "nromomentum.com"
+godaddy_subdomain  = "api"
+```
+
+**Important — API-tier gotcha.** GoDaddy restricts their production API
+to accounts that meet ONE of:
+
+1. 10+ active domains in the account, OR
+2. A "Discount Domain Club" membership.
+
+Free developer keys only hit their OTE (sandbox) environment and
+**will not** update real DNS. If you don't qualify, leave
+`godaddy_enabled = false` and update DNS by hand from the GoDaddy
+dashboard — it's a 30-second one-time task.
+
+To rotate the key: generate a new one in the GoDaddy dashboard, update
+`terraform.tfvars`, `terraform apply`. Delete the old key at GoDaddy
+once the new one is confirmed working.
 
 ## Tear-down
 
