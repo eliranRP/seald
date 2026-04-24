@@ -15,37 +15,15 @@
       <span class="kicker kicker-success">Complete · Fully executed</span>
       <h1>All signatures collected on <em>{{envelope_title}}</em>.</h1>
       <p>
-        Everyone has signed. The executed PDF is permanently stored in your Sealed library and
-        sealed with a cryptographic audit trail.
+        Everyone has signed. The executed PDF is attached and permanently stored in your Sealed
+        library.
       </p>
-      <div class="doc">
-        <div class="doc-thumb"><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="doc-meta">
-          <div class="doc-title">{{envelope_title}}</div>
-          <div class="doc-id">Ref {{short_code}}</div>
-        </div>
-      </div>
+
+      {{signer_list_html}} {{timeline_html}}
+
       <div style="display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap">
         <a href="{{sealed_url}}" class="cta cta-success" style="margin: 0">Download signed PDF</a>
         <a href="{{audit_url}}" class="cta-ghost">View audit trail</a>
-      </div>
-      <div class="callout callout-indigo" style="margin-top: 22px">
-        <svg
-          class="callout-icon"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="#4F46E5"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M10 2 L3 5 V10 C3 14 6 17 10 18 C14 17 17 14 17 10 V5 Z" />
-          <path d="M7 10 L9 12 L13 8" />
-        </svg>
-        <div>
-          Sealed uses eIDAS-qualified signatures with a full audit trail. This document is legally
-          binding and independently verifiable.
-        </div>
       </div>
       <div class="verify">
         Verify this document at any time using its reference code: <code>{{short_code}}</code><br />

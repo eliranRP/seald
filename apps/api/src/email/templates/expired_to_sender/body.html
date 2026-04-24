@@ -1,6 +1,6 @@
 <div class="wrap">
   <div class="card">
-    <div class="accent accent-amber"></div>
+    <div class="accent accent-slate"></div>
     <div class="masthead">
       <span class="mark"
         ><svg width="18" height="18" viewBox="0 0 28 28">
@@ -12,35 +12,31 @@
       <span class="wordmark">Sealed</span>
     </div>
     <div class="body">
-      <span class="kicker kicker-amber">Expired · Incomplete</span>
-      <h1><em>{{envelope_title}}</em> expired before all signatures were collected.</h1>
+      <span class="kicker kicker-slate">Expired · Action needed</span>
+      <h1><em>{{envelope_title}}</em> expired without all signatures.</h1>
       <p>
-        The signing window closed on {{expired_at_readable}}. Of <b>{{total_signers}}</b> signers,
-        <b>{{signed_count}}</b> had completed by the deadline.
+        Your envelope expired on <b>{{expired_at_readable}}</b>. Of
+        <b>{{total_signers}}</b> signers, <b>{{signed_count}}</b> had completed by the deadline.
+        Here's where each signer left it:
       </p>
-      <div class="callout callout-amber">
-        <svg
-          class="callout-icon"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="#92400E"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="10" cy="10" r="7" />
-          <path d="M10 6 V10 L13 12" />
-        </svg>
-        <div>
-          Partial signatures are not legally executed. The envelope was not sealed and no
-          enforceable document was produced.
-        </div>
-      </div>
-      <a href="{{dashboard_url}}" class="cta cta-primary">Open in dashboard</a>
+
+      {{signer_list_html}}
+
       <p class="muted">
-        You can send a fresh signing request from your dashboard. The expired envelope remains in
-        your audit history.
+        Nothing is lost — you can relaunch the envelope with an extended deadline, or start fresh
+        with a revised document.
       </p>
+
+      <div style="display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap">
+        <a href="{{dashboard_url}}" class="cta cta-primary" style="margin: 0"
+          >Resend with new deadline</a
+        >
+        <a href="{{dashboard_url}}" class="cta-ghost">Archive envelope</a>
+      </div>
+      <div class="verify">
+        Verify this document at any time using its reference code: <code>{{short_code}}</code><br />
+        <a href="{{verify_url}}">{{verify_url}}</a>
+      </div>
     </div>
     <div class="foot">
       <strong style="color: #1f2937">Sealed</strong> · End-to-end encrypted document signing<br />

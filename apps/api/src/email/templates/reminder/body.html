@@ -25,29 +25,14 @@
           <div class="doc-id">Ref {{short_code}}</div>
         </div>
       </div>
+
+      {{signer_list_html}}
+
       <a href="{{sign_url}}" class="cta cta-primary">Review and sign now</a>
       <p class="muted">Already signed from another device? You can safely ignore this email.</p>
       <div class="paste">
         Prefer to paste the link? Copy:<br />
         <a href="{{sign_url}}">{{sign_url}}</a>
-      </div>
-      <div class="callout callout-amber">
-        <svg
-          class="callout-icon"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke="#92400E"
-          stroke-width="1.6"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <circle cx="10" cy="10" r="7" />
-          <path d="M10 6 V10 L13 12" />
-        </svg>
-        <div>
-          This signing window closes on <strong>{{expires_at_readable}}</strong>. After that,
-          {{sender_name}} will need to send a fresh invitation.
-        </div>
       </div>
       <div class="verify">
         Verify this document at any time using its reference code: <code>{{short_code}}</code><br />

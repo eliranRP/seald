@@ -12,12 +12,14 @@
       <span class="wordmark">Sealed</span>
     </div>
     <div class="body">
-      <span class="kicker kicker-danger">Declined · Request canceled</span>
-      <h1><em>{{envelope_title}}</em> was declined and canceled.</h1>
+      <span class="kicker kicker-danger">Declined · Action needed</span>
+      <h1><b>{{decliner_name}}</b> declined to sign <em>{{envelope_title}}</em>.</h1>
       <p>
-        <b>{{decliner_name}}</b> ({{decliner_email}}) declined to sign on {{declined_at_readable}}.
-        No further signatures will be collected — the request has been canceled.
+        The envelope has been voided on {{declined_at_readable}}. No further signatures will be
+        collected. You can review their reason below and, if needed, create a revised version to
+        send again.
       </p>
+
       <div class="callout callout-danger">
         <svg
           class="callout-icon"
@@ -28,16 +30,28 @@
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <circle cx="10" cy="10" r="7" />
-          <path d="M7 10 H13" />
+          <circle cx="10" cy="10" r="8" />
+          <path d="M10 6 V11 M10 13.5 V14" />
         </svg>
-        <div><strong>Reason given:</strong><br />{{decline_reason}}</div>
+        <div><b>Reason given:</b> {{decline_reason}}</div>
       </div>
-      <a href="{{dashboard_url}}" class="cta cta-primary">Open in dashboard</a>
-      <p class="muted">
-        You can revise the document and send a fresh request from your dashboard. The declined
-        envelope remains in your audit history.
-      </p>
+
+      <div class="doc">
+        <div class="doc-thumb"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="doc-meta">
+          <div class="doc-title">{{envelope_title}}</div>
+          <div class="doc-id">Ref {{short_code}}</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap">
+        <a href="{{dashboard_url}}" class="cta cta-primary" style="margin: 0">Open in Sealed</a>
+        <a href="mailto:{{decliner_email}}" class="cta-ghost">Reply to {{decliner_name}}</a>
+      </div>
+      <div class="verify">
+        Verify this document at any time using its reference code: <code>{{short_code}}</code><br />
+        <a href="{{verify_url}}">{{verify_url}}</a>
+      </div>
     </div>
     <div class="foot">
       <strong style="color: #1f2937">Sealed</strong> · End-to-end encrypted document signing<br />
