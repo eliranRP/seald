@@ -146,11 +146,15 @@ function Content() {
     el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  // Remembered signature: first signature capture seeds this, subsequent
-  // signature/initials fields auto-apply without reopening the drawer.
-  // Clearing is manual (user taps a filled signature field to re-edit,
-  // handled by the drawer's normal open path when sigDrawer is set).
-  const lastSigResultRef = useRef<SignatureCaptureResult | null>(null);
+  // Remembered signature/initials — TWO separate slots because the
+  // user typically wants different marks for each kind (full name on
+  // a signature field, "EA" on an initials field). Sharing one slot
+  // would apply the initials blob to every signature field too. Keyed
+  // by the drawer kind so the next same-kind field auto-applies while
+  // the opposite kind still prompts for capture.
+  const lastByKindRef = useRef<Partial<Record<'signature' | 'initials', SignatureCaptureResult>>>(
+    {},
+  );
 
   const totalPages = envelope?.original_pages ?? 1;
   // Signed URL expires after 90s — refetch when the envelope identity
@@ -245,10 +249,12 @@ function Content() {
         return;
       }
       if (uiKind === 'signature' || uiKind === 'initials') {
-        // Reuse the signer's last choice on subsequent fields so they
-        // don't have to re-type / re-draw / re-upload the same mark per
-        // field. First field always opens the drawer to capture intent.
-        const remembered = lastSigResultRef.current;
+        // Reuse the signer's last choice on subsequent SAME-KIND fields
+        // so they don't have to re-type / re-draw / re-upload the same
+        // mark per field. First field of each kind always opens the
+        // drawer to capture intent. Signature and initials each keep
+        // their own memory — they usually differ (full name vs "EA").
+        const remembered = lastByKindRef.current[uiKind];
         if (remembered) {
           try {
             await setSignature(field.id, {
@@ -315,10 +321,12 @@ function Content() {
     async (result: SignatureCaptureResult): Promise<void> => {
       if (!sigDrawer) return;
       const { id } = sigDrawer.field;
+      const { kind } = sigDrawer;
       setSigDrawer(null);
-      // Remember the signer's choice so the next signature/initials
-      // field auto-applies without reopening the drawer.
-      lastSigResultRef.current = result;
+      // Remember the signer's choice per kind so the next same-kind
+      // field auto-applies without reopening the drawer. A signature
+      // field's result never leaks into the initials slot.
+      lastByKindRef.current[kind] = result;
       try {
         // Drop undefined optional fields so `exactOptionalPropertyTypes` is happy.
         await setSignature(id, {
