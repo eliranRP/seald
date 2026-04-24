@@ -171,6 +171,14 @@ jobs:
           exit 1
 
       - name: Verify the deployed SPA points at the production API
+        # Pulls index.html, picks the first /assets/*.js path, downloads
+        # it, and grep's for the production API URL. Built assets are
+        # deterministically named with content hashes so whatever first
+        # JS chunk we grab includes the bundled config.
+        #
+        # Uses full file reads (no `grep -q` piped after `curl`) to
+        # avoid SIGPIPE-style "Failure writing output to destination"
+        # errors when grep exits early.
         run: |
           set -euo pipefail
           DOMAIN="${{ secrets.WEB_DOMAIN }}"
@@ -178,21 +186,24 @@ jobs:
           EXPECTED="${{ secrets.VITE_API_BASE_URL }}"
           [ -z "${EXPECTED}" ] && EXPECTED="https://api.seald.nromomentum.com"
 
-          echo "Fetching any JS asset + grepping for '${EXPECTED}'"
-          # Pull index.html, extract the first bundled JS asset path, grep it.
-          curl -sS "https://${DOMAIN}/" | \
-            grep -oE '/assets/[^"]+\.js' | head -1 | \
-            while read path; do
-              full="https://${DOMAIN}${path}"
-              echo "  checking ${full}"
-              if curl -sS "${full}" | grep -qF "${EXPECTED}"; then
-                echo "OK — built asset references ${EXPECTED}"
-                exit 0
-              else
-                echo "  ${EXPECTED} not found in ${path}" >&2
-                exit 1
-              fi
-            done
+          echo "Fetching https://${DOMAIN}/ + looking for a /assets/*.js chunk"
+          curl -sS --fail "https://${DOMAIN}/" -o /tmp/index.html
+          asset_path="$(grep -oE '/assets/[^"]+\.js' /tmp/index.html | head -1 || true)"
+          if [ -z "${asset_path}" ]; then
+            echo "No /assets/*.js found in index.html" >&2
+            exit 1
+          fi
+          full="https://${DOMAIN}${asset_path}"
+          echo "Downloading ${full}"
+          curl -sS --fail "${full}" -o /tmp/asset.js
+          if grep -Fq "${EXPECTED}" /tmp/asset.js; then
+            echo "OK — ${asset_path} references ${EXPECTED}"
+          else
+            echo "${EXPECTED} not found in ${asset_path}" >&2
+            echo "First 500 chars of the asset:" >&2
+            head -c 500 /tmp/asset.js >&2
+            exit 1
+          fi
 
       - name: Verify the production API is reachable
         run: |
