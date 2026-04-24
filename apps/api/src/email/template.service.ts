@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import mjml2html from 'mjml';
@@ -6,13 +6,13 @@ import mjml2html from 'mjml';
 /**
  * Transactional email template registry + renderer.
  *
- * Layout:
- *   src/email/templates/<kind>.mjml      — HTML body (MJML source)
- *   src/email/templates/<kind>.txt       — plain-text body (mustache-ish {{var}})
- *   src/email/templates/<kind>.subject   — one-line subject (mustache-ish)
+ * Layout — one folder per kind, three files each:
+ *   src/email/templates/<kind>/body.mjml    — HTML body (MJML source)
+ *   src/email/templates/<kind>/body.txt     — plain-text body (mustache-ish {{var}})
+ *   src/email/templates/<kind>/subject.txt  — one-line subject (mustache-ish)
  *
- * At boot: MJML source is compiled to HTML once and cached. Per-send cost
- * is just variable interpolation + string concat.
+ * At boot: each subdirectory is discovered, MJML compiled to HTML once,
+ * cached. Per-send cost is just variable interpolation + string concat.
  *
  * Variable interpolation uses a simple `{{var}}` replacement — no loops,
  * no conditionals. Add a templating engine if the need arises; for eight
@@ -68,25 +68,23 @@ export class TemplateService implements OnModuleInit {
 
   /** Eagerly compile every template. Called once at boot. */
   private loadAll(): void {
-    const files = readdirSync(this.templatesDir);
-    const kinds = new Set<string>();
-    for (const f of files) {
-      const match = /^([a-z_]+)\.(mjml|txt|subject)$/.exec(f);
-      if (match) kinds.add(match[1]!);
-    }
-    for (const kind of kinds) {
-      this.compileOne(kind as EmailTemplateKind);
+    const entries = readdirSync(this.templatesDir);
+    for (const entry of entries) {
+      const entryPath = resolve(this.templatesDir, entry);
+      if (!statSync(entryPath).isDirectory()) continue;
+      this.compileOne(entry as EmailTemplateKind);
     }
     this.log.log(`compiled ${this.compiled.size} email templates`);
   }
 
   private compileOne(kind: EmailTemplateKind): void {
-    const mjmlPath = resolve(this.templatesDir, `${kind}.mjml`);
-    const txtPath = resolve(this.templatesDir, `${kind}.txt`);
-    const subjectPath = resolve(this.templatesDir, `${kind}.subject`);
+    const dir = resolve(this.templatesDir, kind);
+    const mjmlPath = resolve(dir, 'body.mjml');
+    const txtPath = resolve(dir, 'body.txt');
+    const subjectPath = resolve(dir, 'subject.txt');
     if (!existsSync(mjmlPath) || !existsSync(txtPath) || !existsSync(subjectPath)) {
       throw new Error(
-        `TemplateService: incomplete template set for '${kind}' — expected ${kind}.mjml, ${kind}.txt, ${kind}.subject`,
+        `TemplateService: incomplete template set at '${kind}/' — expected body.mjml, body.txt, subject.txt`,
       );
     }
     const mjml = readFileSync(mjmlPath, 'utf8');
@@ -98,7 +96,7 @@ export class TemplateService implements OnModuleInit {
     };
     if (errors.length > 0) {
       const summary = errors.map((e) => `${e.tagName ?? '?'}: ${e.message}`).join('; ');
-      throw new Error(`TemplateService: MJML errors in ${kind}.mjml — ${summary}`);
+      throw new Error(`TemplateService: MJML errors in ${kind}/body.mjml — ${summary}`);
     }
     this.compiled.set(kind, {
       html,

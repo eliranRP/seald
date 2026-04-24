@@ -3,6 +3,8 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailSender } from './email-sender';
 import { LoggingEmailSender } from './logging-email-sender';
+import { OutboundEmailsRepository } from './outbound-emails.repository';
+import { OutboundEmailsPgRepository } from './outbound-emails.repository.pg';
 import { ResendEmailSender } from './resend-email-sender';
 import { TemplateService } from './template.service';
 
@@ -19,6 +21,7 @@ import { TemplateService } from './template.service';
 @Module({
   providers: [
     TemplateService,
+    { provide: OutboundEmailsRepository, useClass: OutboundEmailsPgRepository },
     {
       provide: EmailSender,
       inject: [APP_ENV],
@@ -36,6 +39,6 @@ import { TemplateService } from './template.service';
       },
     },
   ],
-  exports: [EmailSender, TemplateService],
+  exports: [EmailSender, TemplateService, OutboundEmailsRepository],
 })
 export class EmailModule {}
