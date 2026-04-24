@@ -71,6 +71,7 @@ export const SignerSchema = z.object({
   signing_order: z.number().int().min(1),
   status: z.enum(SIGNER_UI_STATUSES),
   viewed_at: iso.nullable(),
+  tc_accepted_at: iso.nullable(),
   signed_at: iso.nullable(),
   declined_at: iso.nullable(),
 });

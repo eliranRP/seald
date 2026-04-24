@@ -195,6 +195,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       signing_order: 1,
       status: 'awaiting',
       viewed_at: null,
+      tc_accepted_at: null,
       signed_at: null,
       declined_at: null,
     };
@@ -269,12 +270,53 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return false;
   }
 
-  async recordSignerViewed(): Promise<EnvelopeSigner> {
-    throw new Error('not_implemented_in_fake');
+  async recordSignerViewed(
+    signer_id: string,
+    ip: string | null,
+    user_agent: string | null,
+  ): Promise<EnvelopeSigner> {
+    for (const env of this.envelopes.values()) {
+      const idx = env.signers.findIndex((s) => s.id === signer_id);
+      if (idx < 0) continue;
+      const signer = env.signers[idx]!;
+      // Idempotent: only stamp on first view.
+      const updated: EnvelopeSigner =
+        signer.viewed_at === null ? { ...signer, viewed_at: new Date().toISOString() } : signer;
+      const next = { ...env, signers: [...env.signers] };
+      next.signers[idx] = updated;
+      this.envelopes.set(env.id, next);
+      // Side-map for IP/UA — fixture doesn't surface these via domain type.
+      this.signerMeta.set(signer_id, {
+        ...(this.signerMeta.get(signer_id) ?? {}),
+        signing_ip: ip,
+        signing_user_agent: user_agent,
+      });
+      return updated;
+    }
+    throw new Error('signer_not_found');
   }
-  async acceptTerms(): Promise<EnvelopeSigner> {
-    throw new Error('not_implemented_in_fake');
+
+  async acceptTerms(signer_id: string): Promise<EnvelopeSigner> {
+    for (const env of this.envelopes.values()) {
+      const idx = env.signers.findIndex((s) => s.id === signer_id);
+      if (idx < 0) continue;
+      const signer = env.signers[idx]!;
+      const updated: EnvelopeSigner =
+        signer.tc_accepted_at === null
+          ? { ...signer, tc_accepted_at: new Date().toISOString() }
+          : signer;
+      const next = { ...env, signers: [...env.signers] };
+      next.signers[idx] = updated;
+      this.envelopes.set(env.id, next);
+      return updated;
+    }
+    throw new Error('signer_not_found');
   }
+
+  private readonly signerMeta = new Map<
+    string,
+    { signing_ip?: string | null; signing_user_agent?: string | null }
+  >();
   async fillField(
     _field_id: string,
     _signer_id: string,

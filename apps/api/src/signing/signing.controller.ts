@@ -1,11 +1,13 @@
-import { Body, Controller, HttpCode, Inject, Post, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { serialize as serializeCookie } from 'cookie';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { StartSessionDto } from './dto/start-session.dto';
+import { SignerSession } from './signer-session.decorator';
+import { SignerSessionGuard, type SignerSessionContext } from './signer-session.guard';
 import { SIGNER_SESSION_COOKIE, SignerSessionService } from './signer-session.service';
-import { SigningService } from './signing.service';
+import { SigningService, type SignMeResponse } from './signing.service';
 
 /**
  * Signer-facing HTTP surface. Routes under `/sign` operate either with:
@@ -55,4 +57,43 @@ export class SigningController {
       requires_tc_accept: result.requires_tc_accept,
     };
   }
+
+  @Get('me')
+  @UseGuards(SignerSessionGuard)
+  me(@SignerSession() session: SignerSessionContext): SignMeResponse {
+    return this.svc.me(session.envelope, session.signer);
+  }
+
+  @Get('pdf')
+  @UseGuards(SignerSessionGuard)
+  async pdf(
+    @SignerSession() session: SignerSessionContext,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const url = await this.svc.getOriginalPdfSignedUrl(session.envelope);
+    res.redirect(302, url);
+  }
+
+  @Post('accept-terms')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(204)
+  async acceptTerms(
+    @SignerSession() session: SignerSessionContext,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ip = extractClientIp(req);
+    const ua = req.headers['user-agent'] ?? null;
+    await this.svc.acceptTerms(session.envelope, session.signer, ip, ua);
+  }
+}
+
+function extractClientIp(req: Request): string | null {
+  // X-Forwarded-For is set by Caddy in prod; socket.remoteAddress is the
+  // raw peer in dev. We trust the first entry since the proxy is ours.
+  const xff = req.headers['x-forwarded-for'];
+  if (typeof xff === 'string' && xff.length > 0) {
+    const first = xff.split(',')[0]?.trim();
+    if (first) return first;
+  }
+  return req.socket?.remoteAddress ?? null;
 }

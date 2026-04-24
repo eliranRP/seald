@@ -231,4 +231,125 @@ describe('Signing — /sign/start (e2e)', () => {
       expect(res.body).toEqual({ error: 'envelope_terminal' });
     });
   });
+
+  /** Helper: run the full /sign/start flow and return the cookie header for
+   *  use in downstream requests. */
+  async function startSessionAndGetCookie(): Promise<{
+    envId: string;
+    signerId: string;
+    cookie: string;
+  }> {
+    const { envId, signerId, plaintextToken } = await buildSentEnvelope();
+    const started = await request(app.getHttpServer())
+      .post('/sign/start')
+      .send({ envelope_id: envId, token: plaintextToken });
+    expect(started.status).toBe(200);
+    const setCookie = started.headers['set-cookie'] as unknown as string[] | string;
+    const cookieStr = Array.isArray(setCookie) ? setCookie[0]! : setCookie;
+    // `Set-Cookie: seald_sign=xxx; HttpOnly; ...` → strip attributes
+    const cookie = cookieStr.split(';')[0]!;
+    return { envId, signerId, cookie };
+  }
+
+  describe('session guard — missing / invalid session', () => {
+    it('GET /sign/me without cookie → 401 missing_signer_session', async () => {
+      const res = await request(app.getHttpServer()).get('/sign/me');
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: 'missing_signer_session' });
+    });
+
+    it('GET /sign/me with garbage cookie → 401 invalid_signer_session', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/sign/me')
+        .set('Cookie', 'seald_sign=not.a.jwt');
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: 'invalid_signer_session' });
+    });
+
+    it('session-protected routes reject after envelope goes terminal', async () => {
+      const { envId, cookie } = await startSessionAndGetCookie();
+      const e = envelopesRepo.envelopes.get(envId)!;
+      envelopesRepo.envelopes.set(envId, { ...e, status: 'declined' });
+      const res = await request(app.getHttpServer()).get('/sign/me').set('Cookie', cookie);
+      expect(res.status).toBe(410);
+      expect(res.body).toEqual({ error: 'envelope_terminal' });
+    });
+  });
+
+  describe('GET /sign/me', () => {
+    it('returns a redacted view of the envelope scoped to the signer', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer()).get('/sign/me').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body.envelope).toMatchObject({
+        id: envId,
+        title: 'Sign me',
+        status: 'awaiting_others',
+      });
+      expect(res.body.envelope.short_code).toHaveLength(13);
+      expect(res.body.signer).toMatchObject({
+        id: signerId,
+        email: 'ada@example.com',
+        name: 'Ada',
+        status: 'awaiting',
+        viewed_at: null,
+        tc_accepted_at: null,
+        signed_at: null,
+        declined_at: null,
+      });
+      // Only the signer's own fields are surfaced.
+      expect(res.body.fields).toHaveLength(1);
+      expect(res.body.fields[0].signer_id).toBe(signerId);
+      // Single-signer envelope → no other signers.
+      expect(res.body.other_signers).toEqual([]);
+    });
+  });
+
+  describe('GET /sign/pdf', () => {
+    it('redirects to a signed URL for the original.pdf', async () => {
+      const { envId, cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .get('/sign/pdf')
+        .set('Cookie', cookie)
+        .redirects(0);
+      expect(res.status).toBe(302);
+      const location = res.headers['location'] as string;
+      expect(location).toContain(`${envId}%2Foriginal.pdf`);
+      expect(location).toContain('token=');
+    });
+  });
+
+  describe('POST /sign/accept-terms', () => {
+    it('stamps tc_accepted_at + viewed_at and writes both audit events', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+
+      const accept = await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', cookie);
+      expect(accept.status).toBe(204);
+
+      // /sign/me now shows the timestamps populated.
+      const me = await request(app.getHttpServer()).get('/sign/me').set('Cookie', cookie);
+      expect(me.body.signer.tc_accepted_at).not.toBeNull();
+      expect(me.body.signer.viewed_at).not.toBeNull();
+
+      // Audit events written — both tc_accepted and viewed appear for this signer.
+      const events = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.signer_id === signerId,
+      );
+      const types = events.map((e) => e.event_type).sort();
+      expect(types).toEqual(expect.arrayContaining(['tc_accepted', 'viewed']));
+    });
+
+    it('second call is idempotent — no duplicate audit events', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+      await request(app.getHttpServer()).post('/sign/accept-terms').set('Cookie', cookie);
+      await request(app.getHttpServer()).post('/sign/accept-terms').set('Cookie', cookie);
+      const tcCount = envelopesRepo.events.filter(
+        (e) =>
+          e.envelope_id === envId && e.signer_id === signerId && e.event_type === 'tc_accepted',
+      ).length;
+      expect(tcCount).toBe(1);
+    });
+  });
 });

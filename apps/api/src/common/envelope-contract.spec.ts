@@ -111,6 +111,7 @@ describe('envelope-contract', () => {
       signing_order: 1,
       status: 'awaiting' as const,
       viewed_at: null,
+      tc_accepted_at: null,
       signed_at: null,
       declined_at: null,
     };

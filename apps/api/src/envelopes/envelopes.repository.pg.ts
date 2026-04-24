@@ -104,6 +104,7 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     signing_order: row.signing_order,
     status: deriveSignerStatus(row),
     viewed_at: toIso(row.viewed_at),
+    tc_accepted_at: toIso(row.tc_accepted_at),
     signed_at: toIso(row.signed_at),
     declined_at: toIso(row.declined_at),
   };

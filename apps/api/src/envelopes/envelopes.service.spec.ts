@@ -225,6 +225,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       signing_order: 1,
       status: 'awaiting',
       viewed_at: null,
+      tc_accepted_at: null,
       signed_at: null,
       declined_at: null,
     };
