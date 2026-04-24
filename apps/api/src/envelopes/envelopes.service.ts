@@ -140,8 +140,17 @@ export class EnvelopesService {
     id: string,
     patch: UpdateDraftMetadataPatch,
   ): Promise<Envelope> {
-    if (Object.keys(patch).length === 0) throw new BadRequestException('validation_error');
-    const updated = await this.repo.updateDraftMetadata(owner_id, id, patch);
+    // class-transformer's @IsOptional() decorator leaves declared fields on the
+    // DTO instance as `undefined` when the request body omits them. Spreading
+    // those into the DB patch would clobber existing columns with null. Strip
+    // undefineds before passing to the repo (same defence as contacts.service).
+    const sanitized = Object.fromEntries(
+      Object.entries(patch).filter(([, v]) => v !== undefined),
+    ) as UpdateDraftMetadataPatch;
+    if (Object.keys(sanitized).length === 0) {
+      throw new BadRequestException('validation_error');
+    }
+    const updated = await this.repo.updateDraftMetadata(owner_id, id, sanitized);
     if (updated) return updated;
     const existing = await this.repo.findByIdForOwner(owner_id, id);
     if (!existing) throw new NotFoundException('envelope_not_found');
