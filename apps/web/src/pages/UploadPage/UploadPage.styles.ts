@@ -1,4 +1,4 @@
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 export const Shell = styled.div`
   display: flex;
@@ -121,4 +121,147 @@ export const ErrorText = styled.p`
   margin: 0;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.danger[700]};
+`;
+
+/* ---- Analyzing loader ------------------------------------------------ */
+
+export const scan = keyframes`
+  0%   { top: 10px; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: calc(100% - 10px); opacity: 0; }
+`;
+
+export const stepPulse = keyframes`
+  0%, 100% { opacity: 0.55; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(-1px); }
+`;
+
+export const shine = keyframes`
+  0%   { background-position: -120% 0; }
+  100% { background-position: 220% 0; }
+`;
+
+export const LoaderCard = styled.div`
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  background: ${({ theme }) => theme.color.bg.surface};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius['2xl']};
+  padding: ${({ theme }) => `${theme.space[12]} ${theme.space[8]} ${theme.space[8]}`};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[5]};
+  box-shadow: ${({ theme }) => theme.shadow.md};
+`;
+
+export const LoaderPage = styled.div`
+  position: relative;
+  width: 140px;
+  height: 180px;
+  background: ${({ theme }) => theme.color.bg.surface};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  padding: 14px 12px;
+  box-sizing: border-box;
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  overflow: hidden;
+`;
+
+export const LoaderLine = styled.div<{ $width: string }>`
+  height: 2px;
+  width: ${({ $width }) => $width};
+  background: ${({ theme }) => theme.color.ink[100]};
+  border-radius: 1px;
+  margin: 5px 0;
+  &:nth-child(1) {
+    background: ${({ theme }) => theme.color.ink[200]};
+  }
+`;
+
+export const LoaderScan = styled.div`
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    ${({ theme }) => theme.color.indigo[600]},
+    transparent
+  );
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.7);
+  animation: ${scan} 1.1s ease-in-out infinite;
+`;
+
+export const LoaderTitle = styled.div`
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.h3};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[1]};
+  text-align: center;
+`;
+
+export const LoaderSubtitle = styled.div`
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[3]};
+  text-align: center;
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+export const LoaderProgress = styled.div`
+  width: 100%;
+  height: 4px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[100]};
+  overflow: hidden;
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      ${({ theme }) => theme.color.indigo[600]} 30%,
+      ${({ theme }) => theme.color.indigo[600]} 70%,
+      transparent 100%
+    );
+    background-size: 50% 100%;
+    background-repeat: no-repeat;
+    animation: ${shine} 1.4s linear infinite;
+  }
+`;
+
+export const LoaderSteps = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+  width: 100%;
+`;
+
+export const LoaderStep = styled.li<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : theme.color.fg[3])};
+  padding: ${({ theme }) => `${theme.space[1]} 0`};
+  animation: ${({ $active }) => ($active ? stepPulse : 'none')} 1.6s ease-in-out infinite;
+`;
+
+export const LoaderStepDot = styled.span<{ $active: boolean; $done: boolean }>`
+  width: 10px;
+  height: 10px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme, $done, $active }) =>
+    $done ? theme.color.success[500] : $active ? theme.color.indigo[600] : theme.color.ink[200]};
+  flex-shrink: 0;
+  transition: background 200ms ease;
 `;

@@ -11,6 +11,14 @@ import type { NavBarMode, NavBarUser } from '../../components/NavBar/NavBar.type
 export type UploadPageErrorCode = 'type' | 'size';
 
 /**
+ * Drives which dropzone state is shown. `idle` is the default empty
+ * picker. `analyzing` covers the brief post-drop window where the PDF
+ * is parsed + page count + fields are extracted — the dropzone is
+ * replaced with an animated "Analyzing your document" loader.
+ */
+export type UploadPageStatus = 'idle' | 'analyzing';
+
+/**
  * L4 page — composes NavBar + a centered upload dropzone.
  *
  * The page owns no persistent state. It drives drag-over visuals and file
@@ -43,4 +51,14 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly accept?: string | undefined;
   /** Max accepted file size in bytes. Defaults to 25 MB. */
   readonly maxSizeBytes?: number | undefined;
+
+  // Loader ---------------------------------------------------------------
+  /**
+   * When `analyzing`, the dropzone is replaced with an animated loader
+   * showing "Analyzing your document". Useful while the chosen PDF is
+   * being parsed.
+   */
+  readonly status?: UploadPageStatus | undefined;
+  /** File name to display in the analyzing state. */
+  readonly analyzingFileName?: string | undefined;
 }

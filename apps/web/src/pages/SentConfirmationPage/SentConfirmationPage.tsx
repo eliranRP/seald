@@ -1,4 +1,4 @@
-import { CheckCircle2, LayoutList } from 'lucide-react';
+import { Check, LayoutList, ShieldCheck } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -8,18 +8,22 @@ import { useEnvelopeQuery } from '../../features/envelopes';
 import { useAppState } from '../../providers/AppStateProvider';
 import {
   Actions,
+  AuditBadge,
   Body,
   Card,
+  DeliveredChip,
   DocCode,
   DocInfo,
   DocMeta,
   DocTitle,
-  SealIcon,
+  Kicker,
+  SealBadge,
   SignerEmail,
   SignerItem,
   SignerList,
   SignerMeta,
   SignerName,
+  SignersCaption,
   Title,
   Wrap,
 } from './SentConfirmationPage.styles';
@@ -36,11 +40,13 @@ interface SentSummary {
 }
 
 /**
- * L4 page — post-send confirmation. Shown right after the user completes the
- * Send step from the document editor, and also as a deep-link target when
- * the user lands on `/document/:id/sent` from the dashboard or from an
- * external bookmark. Prefers the in-memory draft (always fresh) and falls
- * back to `/envelopes/:id` when no draft is present locally.
+ * L4 page — the "sealed" confirmation page shown right after the user
+ * completes the Send step (or as a deep-link from the dashboard).
+ *
+ * Layout follows the kit's sealed page: centered card with an animated
+ * wax-seal success badge, serif headline "Sent. Your envelope is on
+ * its way.", envelope preview card, delivered-signer chips, an audit-
+ * trail trust badge, and a pair of follow-up actions.
  */
 export function SentConfirmationPage() {
   const params = useParams<{ readonly id: string }>();
@@ -76,12 +82,12 @@ export function SentConfirmationPage() {
       return (
         <Wrap>
           <Card aria-busy="true">
-            <Skeleton variant="circle" width={56} height={56} />
+            <Skeleton variant="circle" width={88} height={88} />
             <div style={{ marginTop: 16 }}>
-              <Skeleton width={220} height={28} />
+              <Skeleton width={280} height={40} />
             </div>
             <div style={{ marginTop: 12 }}>
-              <Skeleton width={320} />
+              <Skeleton width={360} />
             </div>
           </Card>
         </Wrap>
@@ -102,16 +108,22 @@ export function SentConfirmationPage() {
     );
   }
 
+  const openEnvelope = (): void => {
+    if (params.id) navigate(`/document/${params.id}`);
+    else navigate('/documents');
+  };
+
   return (
     <Wrap>
       <Card>
-        <SealIcon>
-          <CheckCircle2 size={28} />
-        </SealIcon>
-        <Title>Request sent</Title>
+        <SealBadge aria-hidden>
+          <Check size={36} strokeWidth={2.4} />
+        </SealBadge>
+        <Kicker>Delivered</Kicker>
+        <Title>Sent. Your envelope is on its way.</Title>
         <Body>
-          We&apos;ve emailed each signer a link to sign. You&apos;ll get a notification when
-          everyone has completed the document.
+          Every signer has been emailed a unique link. You&apos;ll get a notification the moment
+          each signature lands — and a final one when the envelope is sealed.
         </Body>
 
         <DocMeta>
@@ -122,22 +134,36 @@ export function SentConfirmationPage() {
           </DocInfo>
         </DocMeta>
 
-        <div>
-          <SignerList aria-label="Signers">
-            {summary.signers.map((s) => (
-              <SignerItem key={s.id}>
-                <Avatar name={s.name} size={32} />
-                <SignerMeta>
-                  <SignerName>{s.name}</SignerName>
-                  <SignerEmail>{s.email}</SignerEmail>
-                </SignerMeta>
-              </SignerItem>
-            ))}
-          </SignerList>
-        </div>
+        <SignersCaption>
+          {summary.signers.length === 1
+            ? 'Invitation delivered to'
+            : `Invitations delivered to ${summary.signers.length} signers`}
+        </SignersCaption>
+        <SignerList aria-label="Signers">
+          {summary.signers.map((s) => (
+            <SignerItem key={s.id}>
+              <Avatar name={s.name} size={32} />
+              <SignerMeta>
+                <SignerName>{s.name}</SignerName>
+                <SignerEmail>{s.email}</SignerEmail>
+              </SignerMeta>
+              <DeliveredChip>
+                <Check size={11} strokeWidth={3} /> Delivered
+              </DeliveredChip>
+            </SignerItem>
+          ))}
+        </SignerList>
+
+        <AuditBadge>
+          <ShieldCheck size={14} />
+          Audit trail sealed — every event is cryptographically logged
+        </AuditBadge>
 
         <Actions>
-          <Button variant="primary" iconLeft={LayoutList} onClick={() => navigate('/documents')}>
+          <Button variant="primary" iconLeft={ShieldCheck} onClick={openEnvelope}>
+            View envelope
+          </Button>
+          <Button variant="secondary" iconLeft={LayoutList} onClick={() => navigate('/documents')}>
             Back to documents
           </Button>
         </Actions>

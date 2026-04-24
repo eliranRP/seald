@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useId, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { Button } from '../../components/Button';
@@ -15,6 +15,16 @@ import {
   HiddenFileInput,
   IconCircle,
   Inner,
+  LoaderCard,
+  LoaderLine,
+  LoaderPage,
+  LoaderProgress,
+  LoaderScan,
+  LoaderStep,
+  LoaderStepDot,
+  LoaderSteps,
+  LoaderSubtitle,
+  LoaderTitle,
   Main,
   Shell,
   Subtitle,
@@ -74,6 +84,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     chooseLabel = DEFAULT_CHOOSE,
     accept = DEFAULT_ACCEPT,
     maxSizeBytes = DEFAULT_MAX_BYTES,
+    status = 'idle',
+    analyzingFileName,
     ...rest
   } = props;
 
@@ -212,36 +224,40 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
               <Heading>{title}</Heading>
               <Subtitle>{subtitle}</Subtitle>
             </div>
-            <Dropzone
-              $dragging={dragging}
-              onDragEnter={handleDragEnter}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              role="region"
-              aria-label="Upload a PDF"
-              {...(error ? { 'aria-describedby': errorId } : {})}
-            >
-              <IconCircle>
-                <UploadCloud size={28} strokeWidth={1.75} aria-hidden />
-              </IconCircle>
-              <DropHeading>{dropHeading}</DropHeading>
-              <DropSubheading>{effectiveDropSubheading}</DropSubheading>
-              <Actions>
-                <Button variant="primary" onClick={handleChooseClick}>
-                  {chooseLabel}
-                </Button>
-              </Actions>
-              {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
-              <HiddenFileInput
-                ref={inputRef}
-                id={inputId}
-                type="file"
-                accept={accept}
-                onChange={handleInputChange}
-                aria-label="Choose PDF file"
-              />
-            </Dropzone>
+            {status === 'analyzing' ? (
+              <AnalyzingLoader fileName={analyzingFileName} />
+            ) : (
+              <Dropzone
+                $dragging={dragging}
+                onDragEnter={handleDragEnter}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                role="region"
+                aria-label="Upload a PDF"
+                {...(error ? { 'aria-describedby': errorId } : {})}
+              >
+                <IconCircle>
+                  <UploadCloud size={28} strokeWidth={1.75} aria-hidden />
+                </IconCircle>
+                <DropHeading>{dropHeading}</DropHeading>
+                <DropSubheading>{effectiveDropSubheading}</DropSubheading>
+                <Actions>
+                  <Button variant="primary" onClick={handleChooseClick}>
+                    {chooseLabel}
+                  </Button>
+                </Actions>
+                {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
+                <HiddenFileInput
+                  ref={inputRef}
+                  id={inputId}
+                  type="file"
+                  accept={accept}
+                  onChange={handleInputChange}
+                  aria-label="Choose PDF file"
+                />
+              </Dropzone>
+            )}
           </Inner>
         </Main>
       </Body>
@@ -250,3 +266,59 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
 });
 
 UploadPage.displayName = 'UploadPage';
+
+/* ---- Internal ---- */
+
+const ANALYZING_STEPS: ReadonlyArray<string> = [
+  'Reading PDF bytes',
+  'Extracting pages',
+  'Detecting fillable regions',
+  'Preparing canvas',
+];
+
+function AnalyzingLoader({ fileName }: { readonly fileName?: string | undefined }): JSX.Element {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    // Cycle through steps; the caller is responsible for unmounting
+    // the loader once the real async work finishes — we don't try to
+    // sync with actual progress (which is already complete by the
+    // time jsdom / a real browser renders a big PDF).
+    const id = window.setInterval(() => {
+      setActiveStep((n) => (n + 1) % ANALYZING_STEPS.length);
+    }, 650);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <LoaderCard role="status" aria-live="polite">
+      <LoaderPage aria-hidden>
+        <LoaderLine $width="70%" />
+        <LoaderLine $width="90%" />
+        <LoaderLine $width="82%" />
+        <LoaderLine $width="76%" />
+        <LoaderLine $width="60%" />
+        <LoaderLine $width="85%" />
+        <LoaderLine $width="72%" />
+        <LoaderScan />
+      </LoaderPage>
+      <LoaderTitle>Analyzing your document</LoaderTitle>
+      <LoaderSubtitle>
+        {fileName !== undefined && fileName.length > 0 ? fileName : 'Looking for signature fields…'}
+      </LoaderSubtitle>
+      <LoaderProgress aria-hidden />
+      <LoaderSteps>
+        {ANALYZING_STEPS.map((label, i) => {
+          const active = i === activeStep;
+          const done = i < activeStep;
+          return (
+            <LoaderStep key={label} $active={active}>
+              <LoaderStepDot $active={active} $done={done} aria-hidden />
+              {label}
+            </LoaderStep>
+          );
+        })}
+      </LoaderSteps>
+    </LoaderCard>
+  );
+}

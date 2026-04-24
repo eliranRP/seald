@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UploadPage } from '../pages/UploadPage';
 import { CreateSignatureRequestDialog } from '../components/CreateSignatureRequestDialog';
@@ -22,10 +22,27 @@ export function UploadRoute() {
   const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>([]);
   const { numPages } = usePdfDocument(pdfFile);
 
+  // Open the signer-picker once the PDF has been parsed (numPages > 0).
+  // In the meantime UploadPage shows the "Analyzing" loader. If parsing
+  // fails numPages stays 0 forever — a small defensive timeout opens
+  // the dialog anyway so the user is never stuck.
+  useEffect(() => {
+    if (!pdfFile) return undefined;
+    if (numPages > 0) {
+      setDialogOpen(true);
+      return undefined;
+    }
+    const t = window.setTimeout(() => setDialogOpen(true), 3000);
+    return () => window.clearTimeout(t);
+  }, [pdfFile, numPages]);
+
   const handleFileSelected = useCallback((file: File) => {
     setPdfFile(file);
     setSelectedSigners([]);
-    setDialogOpen(true);
+    // Hold the signer-picker dialog until the PDF has been parsed so
+    // the UploadPage can show its "Analyzing your document" loader in
+    // the intervening window.
+    setDialogOpen(false);
   }, []);
 
   const handleAddFromContact = useCallback((contact: AddSignerContact) => {
@@ -114,6 +131,8 @@ export function UploadRoute() {
         onSignIn={() => handleAuthCta('/signin')}
         onSignUp={() => handleAuthCta('/signup')}
         onSignOut={handleSignOut}
+        status={pdfFile && !dialogOpen ? 'analyzing' : 'idle'}
+        {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
       />
       <CreateSignatureRequestDialog
         open={dialogOpen}

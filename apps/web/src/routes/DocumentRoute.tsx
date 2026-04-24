@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DocumentPage } from '../pages/DocumentPage';
 import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
+import { SendingOverlay } from '../components/SendingOverlay';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
 import { usePdfDocument } from '../lib/pdf';
@@ -40,45 +41,6 @@ function toNormalized(
     width: Math.max(0, Math.min(1, widthPx / CANVAS_WIDTH)),
     height: Math.max(0, Math.min(1, heightPx / CANVAS_HEIGHT)),
   };
-}
-
-/**
- * Floating status toast shown while the send orchestration is in flight
- * (or after it errors). Intentionally plain styling to avoid adding a new
- * core component for one route.
- */
-function SendFlash({ phase, error }: { readonly phase: string; readonly error: string | null }) {
-  const labels: Record<string, string> = {
-    creating: 'Creating envelope…',
-    uploading: 'Uploading document…',
-    'adding-signers': 'Adding signers…',
-    'placing-fields': 'Placing fields…',
-    sending: 'Sending for signature…',
-    done: 'Sent!',
-  };
-  const message = error ?? labels[phase] ?? '';
-  if (!message) return null;
-  return (
-    <div
-      role={error ? 'alert' : 'status'}
-      style={{
-        position: 'fixed',
-        bottom: 24,
-        right: 24,
-        zIndex: 100,
-        padding: '12px 16px',
-        borderRadius: 10,
-        background: error ? '#FEF2F2' : '#0B1220',
-        color: error ? '#B91C1C' : '#FFFFFF',
-        fontSize: 13,
-        fontWeight: 600,
-        boxShadow: '0 10px 30px rgba(11,18,32,0.2)',
-        border: error ? '1px solid #EF4444' : '1px solid transparent',
-      }}
-    >
-      {message}
-    </div>
-  );
 }
 
 /**
@@ -299,9 +261,22 @@ export function DocumentRoute() {
         }}
         onCancel={() => setExitOpen(false)}
       />
-      {sendInFlight || sendError ? (
-        <SendFlash phase={sendEnvelope.phase} error={sendError} />
-      ) : null}
+      <SendingOverlay
+        open={sendInFlight || Boolean(sendError)}
+        phase={sendEnvelope.phase}
+        error={sendError}
+        signers={doc.signers.map((s) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          color: s.color,
+        }))}
+        fieldCount={doc.fields.length}
+        onRetry={() => {
+          sendEnvelope.reset();
+          setSendError(null);
+        }}
+      />
     </>
   );
 }
