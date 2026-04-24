@@ -58,8 +58,11 @@ body {
   align-items: center;
   gap: 10px;
 }
-/* Brand mark — rendered as a styled glyph because Gmail + Outlook
-   strip inline <svg>. A CSS-only mark renders identically everywhere. */
+/* Brand mark — Gmail strips inline <svg> entirely and will also
+   discard nested <span> contents inside an otherwise-styled container.
+   The template element inlines its own styles so nothing depends on
+   these class rules; keep them as a fallback for Apple Mail / Outlook
+   desktop. */
 .mark {
   width: 28px;
   height: 28px;
@@ -74,9 +77,6 @@ body {
   font-size: 16px;
   color: #ffffff !important;
   text-decoration: none;
-}
-.mark span {
-  color: #ffffff !important;
 }
 .wordmark {
   font-family: 'Source Serif 4', Georgia, serif;
@@ -132,9 +132,16 @@ h1 em {
   font-weight: 500;
 }
 /* Prevent Gmail/Apple Mail from auto-linking embedded emails and
-   restyling them as giant blue underlined text inside the h1. The
-   <a class="no-autolink"> wrapper below forces the parent styles. */
+   restyling them as giant blue underlined text. Gmail auto-wraps
+   bare emails in <a href="mailto:">, so we reset any anchor that
+   lives inside a headline, body paragraph, or the muted from-line.
+   Explicit links we place ourselves (.cta, .paste, .verify, .foot)
+   keep their styling because those live in their own scopes. */
 h1 a,
+h1 a[href],
+p a[href^='mailto:'],
+.from-line a[href],
+.muted a[href^='mailto:'],
 .no-autolink {
   color: inherit !important;
   text-decoration: none !important;
@@ -142,6 +149,7 @@ h1 a,
   font-weight: inherit !important;
   font-family: inherit !important;
   border-bottom: none !important;
+  pointer-events: none;
 }
 
 /* Secondary from-line used when the sender identity is better shown

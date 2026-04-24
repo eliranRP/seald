@@ -5,8 +5,10 @@ const svc = new TemplateService();
 svc.onModuleInit();
 
 const vars = {
-  sender_name: 'Eliran Azulay',
-  sender_email: 'sender@seald.dev',
+  // Deliberately pass an email as the display name so the render
+  // exercises Gmail/iOS auto-link reset for bare-email senders.
+  sender_name: 'eliranazulay@gmail.com',
+  sender_email: 'eliranazulay@gmail.com',
   envelope_title: 'SEED test envelope',
   sign_url: 'https://sealed.app/sign/96c64f23-0522-4d01-88fa-6f428a626cf2',
   verify_url: 'https://sealed.app/verify/code/FKXWAxpdWChG9',

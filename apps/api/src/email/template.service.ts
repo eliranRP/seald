@@ -127,11 +127,16 @@ export class TemplateService implements OnModuleInit {
 
   private wrapFragment(kind: EmailTemplateKind, fragment: string): string {
     const title = prettyTitle(kind);
+    // `format-detection` tells iOS Mail + Outlook not to auto-link
+    // emails / phone numbers in the body. Gmail ignores the meta but
+    // the auto-link reset rules in `_email.css` cover it there.
     return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="format-detection" content="telephone=no,email=no,address=no,date=no">
+<meta name="x-apple-disable-message-reformatting">
 <title>${title}</title>
 <style>
 ${this.sharedCss}
