@@ -81,10 +81,14 @@ jobs:
         run: pnpm --filter web build
 
       - name: Pack dist/
+        # The scp-action runs inside a Docker container that only
+        # bind-mounts `$GITHUB_WORKSPACE`; a tarball at /tmp on the
+        # runner host is invisible to it. Keep the archive in the repo
+        # workspace.
         run: |
           cd apps/web
-          tar -czf /tmp/web-dist.tar.gz -C dist .
-          ls -lh /tmp/web-dist.tar.gz
+          tar -czf "$GITHUB_WORKSPACE/web-dist.tar.gz" -C dist .
+          ls -lh "$GITHUB_WORKSPACE/web-dist.tar.gz"
 
       - name: Upload bundle to EC2
         uses: appleboy/scp-action@v0.1.7
@@ -93,9 +97,11 @@ jobs:
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
-          source: /tmp/web-dist.tar.gz
+          source: web-dist.tar.gz
           target: /tmp
-          strip_components: 1
+          # strip_components=0: source is at workspace root, so the
+          # remote file lands at /tmp/web-dist.tar.gz directly.
+          strip_components: 0
 
       - name: Install bundle + reload Caddy
         uses: appleboy/ssh-action@v1.1.0
