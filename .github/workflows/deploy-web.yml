@@ -57,9 +57,9 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
 
       - name: Install pnpm
+        # No explicit version — defer to `packageManager` in
+        # package.json so we stay in sync with the rest of the repo.
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Set up Node
         uses: actions/setup-node@v4
