@@ -1,0 +1,45 @@
+<div class="wrap">
+  <div class="card">
+    <div class="accent accent-slate"></div>
+    <div class="masthead">
+      <span class="mark"
+        ><svg width="18" height="18" viewBox="0 0 28 28">
+          <path
+            d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z"
+            fill="#fff"
+          /></svg
+      ></span>
+      <span class="wordmark">Sealed</span>
+    </div>
+    <div class="body">
+      <span class="kicker kicker-slate">Withdrawn · No action needed</span>
+      <h1><em>{{envelope_title}}</em> was withdrawn.</h1>
+      <p>
+        The signing request from <b>{{sender_name}}</b> has been withdrawn. You no longer need to
+        sign this document.
+      </p>
+      <div class="callout callout-slate">
+        <svg
+          class="callout-icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="#475569"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="10" cy="10" r="7" />
+          <path d="M7 10 H13" />
+        </svg>
+        <div>
+          Any link in a previous Sealed email for this envelope is no longer active. If you expected
+          to sign this and believe this is an error, please contact {{sender_name}} directly.
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <strong style="color: #1f2937">Sealed</strong> · End-to-end encrypted document signing<br />
+      <a href="{{public_url}}">{{public_url}}</a>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,442 @@
+/* Sealed — Shared email template styles.
+   Inline this as a <style> tag in each template (most mail clients strip <link>).
+   Keep selectors simple; no modern pseudo-classes, no CSS vars — Gmail/Outlook hostile. */
+
+body {
+  margin: 0;
+  padding: 32px 16px;
+  background: #f3f6fa;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Arial,
+    sans-serif;
+  color: #131a2b;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 560px;
+  margin: 0 auto;
+}
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.03),
+    0 8px 24px rgba(15, 23, 42, 0.05);
+}
+
+/* Top accent band — used for status emails */
+.accent {
+  height: 4px;
+}
+.accent-indigo {
+  background: #4f46e5;
+}
+.accent-success {
+  background: #10b981;
+}
+.accent-amber {
+  background: #f59e0b;
+}
+.accent-danger {
+  background: #ef4444;
+}
+.accent-slate {
+  background: #64748b;
+}
+
+/* Masthead */
+.masthead {
+  padding: 20px 28px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wordmark {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 500;
+  font-size: 18px;
+  color: #0b1220;
+  letter-spacing: -0.01em;
+}
+
+/* Kicker tag above subject — contextual by status */
+.kicker {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #4f46e5;
+  margin: 0 0 10px;
+  display: inline-block;
+}
+.kicker-success {
+  color: #047857;
+}
+.kicker-amber {
+  color: #92400e;
+}
+.kicker-danger {
+  color: #991b1b;
+}
+.kicker-slate {
+  color: #475569;
+}
+
+.body {
+  padding: 32px 28px 20px;
+}
+
+h1 {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 0 0 14px;
+  color: #0b1220;
+  line-height: 1.22;
+}
+h1 em {
+  font-style: italic;
+  font-weight: 500;
+}
+
+p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: #1f2937;
+  margin: 0 0 14px;
+}
+.muted {
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* Document preview card */
+.doc {
+  margin: 22px 0 10px;
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.doc-thumb {
+  width: 44px;
+  height: 56px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  flex-shrink: 0;
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.04),
+    0 6px 14px rgba(15, 23, 42, 0.06);
+  padding: 6px;
+  box-sizing: border-box;
+}
+.doc-thumb i {
+  display: block;
+  height: 2px;
+  background: #e2e8f0;
+  border-radius: 1px;
+  margin: 3px 0;
+}
+.doc-thumb i:nth-child(1) {
+  width: 82%;
+}
+.doc-thumb i:nth-child(2) {
+  width: 70%;
+}
+.doc-thumb i:nth-child(3) {
+  width: 88%;
+}
+.doc-thumb i:nth-child(4) {
+  width: 60%;
+}
+.doc-thumb i:nth-child(5) {
+  width: 76%;
+}
+.doc-meta {
+  flex: 1;
+  min-width: 0;
+}
+.doc-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: #0b1220;
+}
+.doc-id {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+/* CTA button */
+.cta {
+  display: inline-block;
+  margin: 22px 0 12px;
+  padding: 14px 26px;
+  background: #0b1220;
+  color: #fff !important;
+  text-decoration: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: -0.005em;
+}
+.cta-primary {
+  background: #0b1220;
+}
+.cta-indigo {
+  background: #4f46e5;
+}
+.cta-success {
+  background: #10b981;
+}
+.cta-ghost {
+  display: inline-block;
+  padding: 12px 20px;
+  background: #fff;
+  color: #0b1220 !important;
+  text-decoration: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* Signer list (for reminder, completed) */
+.signers {
+  margin: 18px 0 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.signer-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+}
+.signer-row:last-child {
+  border-bottom: none;
+}
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #4f46e5;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.avatar-success {
+  background: #10b981;
+}
+.avatar-amber {
+  background: #f59e0b;
+}
+.avatar-slate {
+  background: #64748b;
+}
+.signer-meta {
+  flex: 1;
+  min-width: 0;
+}
+.signer-name {
+  font-weight: 600;
+  color: #0b1220;
+}
+.signer-email {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 1px;
+}
+.signer-status {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+}
+.status-signed {
+  background: #ecfdf5;
+  color: #047857;
+}
+.status-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+.status-waiting {
+  background: #f1f5f9;
+  color: #475569;
+}
+.status-declined {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.status-expired {
+  background: #f1f5f9;
+  color: #475569;
+}
+.status-withdrawn {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Trust / info callouts */
+.callout {
+  padding: 14px 16px;
+  border-radius: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  font-size: 13px;
+  line-height: 1.55;
+  margin-top: 18px;
+}
+.callout-indigo {
+  background: #eef2ff;
+  color: #3730a3;
+}
+.callout-amber {
+  background: #fef3c7;
+  color: #92400e;
+}
+.callout-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.callout-slate {
+  background: #f1f5f9;
+  color: #475569;
+}
+.callout-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Verification block at bottom */
+.verify {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px dashed #e2e8f0;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.7;
+}
+.verify code {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #0b1220;
+  font-size: 11px;
+}
+.verify a {
+  color: #4f46e5;
+  word-break: break-all;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(79, 70, 229, 0.25);
+}
+
+/* Fallback paste link */
+.paste {
+  margin: 14px 0 2px;
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.6;
+}
+.paste a {
+  color: #4f46e5;
+  word-break: break-all;
+  text-decoration: none;
+}
+
+/* Footer */
+.foot {
+  padding: 20px 28px;
+  border-top: 1px solid #e2e8f0;
+  font-size: 12px;
+  color: #64748b;
+  background: #f8fafc;
+  line-height: 1.6;
+  border-radius: 0 0 16px 16px;
+}
+.foot a {
+  color: #64748b;
+  text-decoration: underline;
+}
+
+/* Two-column timeline (for completed.html) */
+.timeline {
+  margin: 18px 0 10px;
+  padding: 0;
+  list-style: none;
+}
+.timeline li {
+  position: relative;
+  padding: 10px 0 10px 26px;
+  font-size: 13px;
+  color: #1f2937;
+  border-left: 1px dashed #e2e8f0;
+  margin-left: 8px;
+}
+.timeline li:before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #10b981;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #10b981;
+}
+.timeline li.pending:before {
+  background: #f59e0b;
+  box-shadow: 0 0 0 1px #f59e0b;
+}
+.timeline time {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #64748b;
+  display: block;
+  margin-top: 2px;
+}

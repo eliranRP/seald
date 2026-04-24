@@ -1,0 +1,66 @@
+<div class="wrap">
+  <div class="card">
+    <div class="accent accent-indigo"></div>
+    <div class="masthead">
+      <span class="mark"
+        ><svg width="18" height="18" viewBox="0 0 28 28">
+          <path
+            d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z"
+            fill="#fff"
+          /></svg
+      ></span>
+      <span class="wordmark">Sealed</span>
+    </div>
+    <div class="body">
+      <span class="kicker">Signature requested</span>
+      <h1><b>{{sender_name}}</b> sent you a document to review and sign</h1>
+      <p style="font-weight: 600; font-size: 17px; color: #0b1220; margin-bottom: 0">
+        {{envelope_title}}
+      </p>
+      <div class="doc">
+        <div class="doc-thumb"><i></i><i></i><i></i><i></i><i></i></div>
+        <div class="doc-meta">
+          <div class="doc-title">{{envelope_title}}</div>
+          <div class="doc-id">Ref {{short_code}}</div>
+        </div>
+      </div>
+      <a href="{{sign_url}}" class="cta cta-primary">Review and sign</a>
+      <p class="muted">
+        This signing link is unique to you. Please don't forward this email — if someone else needs
+        to sign, ask {{sender_name}} ({{sender_email}}) to send them a separate invitation.
+      </p>
+      <div class="paste">
+        Prefer to paste the link? Copy:<br />
+        <a href="{{sign_url}}">{{sign_url}}</a>
+      </div>
+      <div class="callout callout-indigo">
+        <svg
+          class="callout-icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="#4F46E5"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M10 2 L3 5 V10 C3 14 6 17 10 18 C14 17 17 14 17 10 V5 Z" />
+          <path d="M7 10 L9 12 L13 8" />
+        </svg>
+        <div>
+          Sealed uses eIDAS-qualified signatures with a full audit trail. Your signature is legally
+          binding and independently verifiable.
+        </div>
+      </div>
+      <div class="verify">
+        Verify this document at any time using its reference code: <code>{{short_code}}</code><br />
+        <a href="{{verify_url}}">{{verify_url}}</a>
+      </div>
+    </div>
+    <div class="foot">
+      <strong style="color: #1f2937">Sealed</strong> · End-to-end encrypted document signing<br />
+      You received this because <a href="mailto:{{sender_email}}">{{sender_email}}</a> invited you
+      to sign a document.<br />
+      <a href="{{public_url}}">{{public_url}}</a>
+    </div>
+  </div>
+</div>
