@@ -127,6 +127,35 @@ export class SigningController {
     );
   }
 
+  @Post('submit')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(200)
+  async submit(
+    @SignerSession() session: SignerSessionContext,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ status: 'submitted'; envelope_status: string }> {
+    const result = await this.svc.submit(
+      session.envelope,
+      session.signer,
+      extractClientIp(req),
+      req.headers['user-agent'] ?? null,
+    );
+    // Clear the session cookie — the session is no longer usable since the
+    // signer has submitted. Any subsequent /sign/* call 401s.
+    res.setHeader(
+      'Set-Cookie',
+      serializeCookie(SIGNER_SESSION_COOKIE, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: this.env.NODE_ENV === 'production',
+        path: '/sign',
+        maxAge: 0,
+      }),
+    );
+    return result;
+  }
+
   @Post('signature')
   @UseGuards(SignerSessionGuard)
   @HttpCode(200)

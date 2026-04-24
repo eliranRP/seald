@@ -5,7 +5,9 @@ import {
   Injectable,
   NotFoundException,
   PayloadTooLargeException,
+  PreconditionFailedException,
   UnauthorizedException,
+  UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import sharp from 'sharp';
@@ -257,6 +259,83 @@ export class SigningService {
     });
 
     return updated;
+  }
+
+  /**
+   * Finalize the signer's participation:
+   *   1. Enforce pre-conditions — TC accepted, all required fields filled,
+   *      signature uploaded. These also exist as repo-level invariants but
+   *      we check here first to return precise 4xx slugs.
+   *   2. Atomic submit via repo.submitSigner (row-conditional UPDATE).
+   *   3. Append `signed` event.
+   *   4. If this was the last signer: append `all_signed` event and enqueue
+   *      a `seal` job (the worker picks it up in Phase 3e).
+   *
+   * Returns `{ status: 'submitted', envelope_status }`. Controller clears the
+   * session cookie on success — further /sign/* calls from this signer will
+   * 401 until a new /sign/start (impossible since their token can only
+   * activate when signer is !signed/declined, which is no longer true).
+   */
+  async submit(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<{ status: 'submitted'; envelope_status: Envelope['status'] }> {
+    if (signer.tc_accepted_at === null) {
+      throw new PreconditionFailedException('tc_required');
+    }
+    // Required fields for THIS signer must all be filled.
+    const myFields = envelope.fields.filter((f) => f.signer_id === signer.id);
+    const hasSignatureField = myFields.some((f) => f.kind === 'signature' || f.kind === 'initials');
+    if (!hasSignatureField) {
+      // Data-integrity guard — envelopes.service.send already enforces this
+      // at send time, but if something slipped through, 412 is the right
+      // precondition failure.
+      throw new PreconditionFailedException('signature_required');
+    }
+    const unfilledRequired = myFields.filter(
+      (f) => f.required && f.kind !== 'signature' && f.kind !== 'initials' && f.filled_at === null,
+    );
+    if (unfilledRequired.length > 0) {
+      throw new UnprocessableEntityException('missing_fields');
+    }
+
+    const submitted = await this.repo.submitSigner(signer.id, ip, userAgent);
+    if (!submitted) {
+      // Race or missing signature — re-read to tell the user why.
+      const fresh = await this.repo.findByIdWithAll(envelope.id);
+      const freshSigner = fresh?.signers.find((s) => s.id === signer.id);
+      if (!fresh || fresh.status !== 'awaiting_others') {
+        throw new GoneException('envelope_terminal');
+      }
+      if (freshSigner?.signed_at) throw new ConflictException('already_signed');
+      if (freshSigner?.declined_at) throw new ConflictException('already_declined');
+      // No signature image yet.
+      throw new PreconditionFailedException('signature_required');
+    }
+
+    await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'signed',
+      ip,
+      user_agent: userAgent,
+      metadata: {},
+    });
+
+    if (submitted.all_signed) {
+      await this.repo.appendEvent({
+        envelope_id: envelope.id,
+        actor_kind: 'system',
+        event_type: 'all_signed',
+        metadata: {},
+      });
+      await this.repo.enqueueJob(envelope.id, 'seal');
+    }
+
+    return { status: 'submitted', envelope_status: submitted.envelope_status };
   }
 
   /**

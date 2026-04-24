@@ -515,4 +515,106 @@ describe('Signing — /sign/start (e2e)', () => {
       expect(res.status).toBe(400);
     });
   });
+
+  describe('POST /sign/submit', () => {
+    let TINY_PNG: Buffer;
+    beforeAll(async () => {
+      TINY_PNG = await sharp({
+        create: {
+          width: 50,
+          height: 50,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+    });
+
+    /** Complete the whole signer flow: accept terms, upload signature, then
+     *  the test verifies /sign/submit behavior. */
+    async function prepareReadyForSubmit(): Promise<{
+      envId: string;
+      signerId: string;
+      cookie: string;
+    }> {
+      const ctx = await startSessionAndGetCookie();
+      await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', ctx.cookie)
+        .expect(204);
+      await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', ctx.cookie)
+        .field('format', 'drawn')
+        .attach('image', TINY_PNG, { filename: 's.png', contentType: 'image/png' })
+        .expect(200);
+      return ctx;
+    }
+
+    it('412 tc_required when TC not accepted', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie);
+      expect(res.status).toBe(412);
+      expect(res.body).toEqual({ error: 'tc_required' });
+    });
+
+    it('412 signature_required when no signature uploaded', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', cookie)
+        .expect(204);
+      const res = await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie);
+      expect(res.status).toBe(412);
+      expect(res.body).toEqual({ error: 'signature_required' });
+    });
+
+    it('happy path — transitions to sealing, enqueues seal job, clears cookie', async () => {
+      const { envId, signerId, cookie } = await prepareReadyForSubmit();
+
+      const res = await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        status: 'submitted',
+        envelope_status: 'sealing',
+      });
+
+      // Session cookie cleared (Max-Age=0).
+      const setCookie = res.headers['set-cookie'] as unknown as string[] | string;
+      const cookieStr = Array.isArray(setCookie) ? setCookie[0]! : setCookie;
+      expect(cookieStr).toMatch(/Max-Age=0/i);
+
+      // Envelope status flipped.
+      const env = envelopesRepo.envelopes.get(envId)!;
+      expect(env.status).toBe('sealing');
+
+      // Events: signed + all_signed
+      const signerEvents = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.signer_id === signerId,
+      );
+      expect(signerEvents.some((e) => e.event_type === 'signed')).toBe(true);
+
+      const allSigned = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.event_type === 'all_signed',
+      );
+      expect(allSigned).toHaveLength(1);
+
+      // Seal job queued.
+      const jobs = envelopesRepo.jobs.filter((j) => j.envelope_id === envId);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.kind).toBe('seal');
+    });
+
+    it('rejects re-submit after cookie cleared → 401', async () => {
+      const { cookie } = await prepareReadyForSubmit();
+      await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie).expect(200);
+      // Session cookie cleared server-side, but the cookie header in our client
+      // is unchanged. The guard finds the envelope now in 'sealing' state and
+      // rejects with 410.
+      const second = await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie);
+      expect(second.status).toBe(410);
+      expect(second.body).toEqual({ error: 'envelope_terminal' });
+    });
+  });
 });

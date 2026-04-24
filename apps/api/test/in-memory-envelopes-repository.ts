@@ -38,6 +38,9 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.envelopes.clear();
     this.events.length = 0;
     this.shortCodes.clear();
+    this.signerTokenHashes.clear();
+    this.signerMeta.clear();
+    this.jobs.length = 0;
   }
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
@@ -315,7 +318,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   private readonly signerMeta = new Map<
     string,
-    { signing_ip?: string | null; signing_user_agent?: string | null }
+    Partial<SetSignerSignatureInput> & {
+      signing_ip?: string | null;
+      signing_user_agent?: string | null;
+    }
   >();
   async fillField(
     field_id: string,
@@ -371,8 +377,53 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const meta = this.signerMeta.get(signer_id);
     return meta as typeof meta & SetSignerSignatureInput;
   }
-  async submitSigner(): Promise<SubmitResult | null> {
-    throw new Error('not_implemented_in_fake');
+  async submitSigner(
+    signer_id: string,
+    ip: string | null,
+    user_agent: string | null,
+  ): Promise<SubmitResult | null> {
+    for (const env of this.envelopes.values()) {
+      const idx = env.signers.findIndex((s) => s.id === signer_id);
+      if (idx < 0) continue;
+      const current = env.signers[idx]!;
+      if (env.status !== 'awaiting_others') return null;
+      if (current.signed_at !== null || current.declined_at !== null) return null;
+      // Pre-conditions enforced by the repo in the PG implementation: the
+      // signer must have both tc_accepted_at and signature_format set.
+      const meta = this.signerMeta.get(signer_id);
+      if (current.tc_accepted_at === null) return null;
+      if (!meta || !meta.signature_format) return null;
+
+      const now = new Date().toISOString();
+      const signedSigner: EnvelopeSigner = {
+        ...current,
+        signed_at: now,
+        status: 'completed',
+      };
+      const signers = [...env.signers];
+      signers[idx] = signedSigner;
+      this.signerMeta.set(signer_id, {
+        ...meta,
+        signing_ip: ip,
+        signing_user_agent: user_agent,
+      });
+
+      const allSigned = signers.every((s) => s.signed_at !== null);
+      const nextEnv: Envelope = {
+        ...env,
+        signers,
+        status: allSigned ? 'sealing' : env.status,
+        updated_at: now,
+      };
+      this.envelopes.set(env.id, nextEnv);
+
+      return {
+        signer: signedSigner,
+        all_signed: allSigned,
+        envelope_status: nextEnv.status,
+      };
+    }
+    return null;
   }
   async declineSigner(): Promise<Envelope | null> {
     throw new Error('not_implemented_in_fake');
@@ -397,8 +448,18 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return event;
   }
 
-  async enqueueJob(): Promise<string> {
-    throw new Error('not_implemented_in_fake');
+  readonly jobs: Array<{ id: string; envelope_id: string; kind: 'seal' | 'audit_only' }> = [];
+
+  async enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string> {
+    // Mirror PG's ON CONFLICT (envelope_id) DO UPDATE — one live job per envelope.
+    const existing = this.jobs.find((j) => j.envelope_id === envelope_id);
+    if (existing) {
+      existing.kind = kind;
+      return existing.id;
+    }
+    const id = randomUUID();
+    this.jobs.push({ id, envelope_id, kind });
+    return id;
   }
 
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
