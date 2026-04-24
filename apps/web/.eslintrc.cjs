@@ -119,6 +119,38 @@ module.exports = {
             ],
             message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
           },
+          // Signer surface isolation — the public /sign/* flow must not
+          // import any Supabase-aware code or the authenticated apiClient.
+          // This makes a future split into a dedicated `apps/sign` package
+          // purely mechanical, and prevents the recipient bundle from
+          // accidentally pulling sender auth code.
+          {
+            target: [
+              './src/features/signing',
+              './src/pages/SigningEntryPage',
+              './src/pages/SigningPrepPage',
+              './src/pages/SigningFillPage',
+              './src/pages/SigningReviewPage',
+              './src/pages/SigningDonePage',
+              './src/pages/SigningDeclinedPage',
+              './src/components/RecipientHeader',
+              './src/components/DocumentPageCanvas',
+              './src/components/SignerField',
+              './src/components/SignatureCapture',
+              './src/components/FieldInputDrawer',
+              './src/components/ReviewList',
+              './src/components/ProgressBar',
+            ],
+            from: [
+              './src/lib/supabase',
+              './src/providers/AuthProvider',
+              './src/providers/AppStateProvider',
+              './src/features/contacts',
+              './src/lib/api/apiClient',
+            ],
+            message:
+              'Signer-surface code must not depend on sender/Supabase modules — use signApiClient + features/signing only.',
+          },
           // L0-L3 (styles + components) must not import from L4 pages.
           {
             target: ['./src/styles', './src/components'],
