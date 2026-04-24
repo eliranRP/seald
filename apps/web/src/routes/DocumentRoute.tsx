@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DocumentPage } from '../pages/DocumentPage';
+import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
@@ -250,7 +251,12 @@ export function DocumentRoute() {
       .finally(() => navigate('/signin', { replace: true }));
   }, [signOut, navigate]);
 
-  if (!doc) return null;
+  if (!doc) {
+    // No local draft under this id — the user deep-linked (or came from the
+    // dashboard) to a server-side envelope. Render the read-only detail view
+    // instead of the authoring editor; the editor requires the raw File.
+    return <EnvelopeDetailPage />;
+  }
 
   const navMode = !user && guest ? 'guest' : 'authed';
   const sendInFlight = sendEnvelope.phase !== 'idle' && sendEnvelope.phase !== 'error';
