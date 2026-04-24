@@ -473,8 +473,17 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   getDeclineReason(signer_id: string): string | null | undefined {
     return this.declineReasons.get(signer_id);
   }
-  async expireEnvelopes(): Promise<readonly string[]> {
-    throw new Error('not_implemented_in_fake');
+  async expireEnvelopes(now: Date, limit: number): Promise<readonly string[]> {
+    const transitioned: string[] = [];
+    const iso = new Date().toISOString();
+    for (const env of this.envelopes.values()) {
+      if (transitioned.length >= limit) break;
+      if (env.status !== 'awaiting_others') continue;
+      if (Date.parse(env.expires_at) >= now.getTime()) continue;
+      this.envelopes.set(env.id, { ...env, status: 'expired', updated_at: iso });
+      transitioned.push(env.id);
+    }
+    return transitioned;
   }
 
   async appendEvent(input: EventInput): Promise<EnvelopeEvent> {
