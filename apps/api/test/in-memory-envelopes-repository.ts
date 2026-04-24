@@ -318,17 +318,58 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     { signing_ip?: string | null; signing_user_agent?: string | null }
   >();
   async fillField(
-    _field_id: string,
-    _signer_id: string,
-    _value: SignerFieldFillInput,
+    field_id: string,
+    signer_id: string,
+    value: SignerFieldFillInput,
   ): Promise<EnvelopeField | null> {
-    throw new Error('not_implemented_in_fake');
+    for (const env of this.envelopes.values()) {
+      const idx = env.fields.findIndex((f) => f.id === field_id);
+      if (idx < 0) continue;
+      const field = env.fields[idx]!;
+      if (field.signer_id !== signer_id) return null;
+      const updated: EnvelopeField = {
+        ...field,
+        value_text: value.value_text ?? null,
+        value_boolean: value.value_boolean ?? null,
+        filled_at: new Date().toISOString(),
+      };
+      const fields = [...env.fields];
+      fields[idx] = updated;
+      this.envelopes.set(env.id, { ...env, fields });
+      return updated;
+    }
+    return null;
   }
+
   async setSignerSignature(
-    _signer_id: string,
-    _input: SetSignerSignatureInput,
+    signer_id: string,
+    input: SetSignerSignatureInput,
   ): Promise<EnvelopeSigner> {
-    throw new Error('not_implemented_in_fake');
+    for (const env of this.envelopes.values()) {
+      const idx = env.signers.findIndex((s) => s.id === signer_id);
+      if (idx < 0) continue;
+      const signer = env.signers[idx]!;
+      // Fixture tracks the internal signature_* fields in a side-map.
+      this.signerMeta.set(signer_id, {
+        ...(this.signerMeta.get(signer_id) ?? {}),
+        ...input,
+      });
+      const next = { ...env, signers: [...env.signers] };
+      next.signers[idx] = { ...signer };
+      this.envelopes.set(env.id, next);
+      return signer;
+    }
+    throw new Error('signer_not_found');
+  }
+
+  /** Test-only: inspect the internal signer meta captured by setSignerSignature. */
+  getSignerInternalMeta(
+    signer_id: string,
+  ):
+    | (SetSignerSignatureInput & { signing_ip?: string | null; signing_user_agent?: string | null })
+    | undefined {
+    const meta = this.signerMeta.get(signer_id);
+    return meta as typeof meta & SetSignerSignatureInput;
   }
   async submitSigner(): Promise<SubmitResult | null> {
     throw new Error('not_implemented_in_fake');

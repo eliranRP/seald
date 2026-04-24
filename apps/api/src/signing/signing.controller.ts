@@ -1,8 +1,27 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Req,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
+import { FillFieldDto } from './dto/fill-field.dto';
+import { SignatureMetaDto } from './dto/signature-meta.dto';
 import { StartSessionDto } from './dto/start-session.dto';
 import { SignerSession } from './signer-session.decorator';
 import { SignerSessionGuard, type SignerSessionContext } from './signer-session.guard';
@@ -84,6 +103,53 @@ export class SigningController {
     const ip = extractClientIp(req);
     const ua = req.headers['user-agent'] ?? null;
     await this.svc.acceptTerms(session.envelope, session.signer, ip, ua);
+  }
+
+  @Post('fields/:field_id')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(200)
+  async fillField(
+    @SignerSession() session: SignerSessionContext,
+    @Param('field_id', ParseUUIDPipe) field_id: string,
+    @Body() dto: FillFieldDto,
+    @Req() req: Request,
+  ): Promise<EnvelopeField> {
+    return this.svc.fillField(
+      session.envelope,
+      session.signer,
+      field_id,
+      {
+        ...(dto.value_text !== undefined ? { value_text: dto.value_text } : {}),
+        ...(dto.value_boolean !== undefined ? { value_boolean: dto.value_boolean } : {}),
+      },
+      extractClientIp(req),
+      req.headers['user-agent'] ?? null,
+    );
+  }
+
+  @Post('signature')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(200)
+  @UseInterceptors(
+    FileInterceptor('image', {
+      // 1 MB hard cap at middleware; service enforces 512 KB with a proper slug.
+      limits: { fileSize: 1 * 1024 * 1024, files: 1 },
+    }),
+  )
+  async signature(
+    @SignerSession() session: SignerSessionContext,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() meta: SignatureMetaDto,
+  ): Promise<EnvelopeSigner> {
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('image_unreadable');
+    }
+    return this.svc.setSignature(session.envelope, session.signer, file.buffer, {
+      format: meta.format,
+      font: meta.font ?? null,
+      stroke_count: meta.stroke_count ?? null,
+      source_filename: meta.source_filename ?? null,
+    });
   }
 }
 

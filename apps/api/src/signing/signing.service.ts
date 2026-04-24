@@ -1,14 +1,31 @@
 import {
+  BadRequestException,
   ConflictException,
   GoneException,
   Injectable,
+  NotFoundException,
+  PayloadTooLargeException,
   UnauthorizedException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import type { Envelope, EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
+import sharp from 'sharp';
+import type { SignatureFormat } from 'shared';
+import type {
+  Envelope,
+  EnvelopeField,
+  EnvelopeSigner,
+  SetSignerSignatureInput,
+} from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
 import { SignerSessionService } from './signer-session.service';
 import { SigningTokenService } from './signing-token.service';
+
+const MAX_SIGNATURE_BYTES = 512 * 1024; // 512 KB
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const JPEG_MAGIC = Buffer.from([0xff, 0xd8, 0xff]);
+const SIGNATURE_TARGET_WIDTH = 600;
+const SIGNATURE_TARGET_HEIGHT = 200;
 
 export interface StartSessionResult {
   readonly envelope_id: string;
@@ -190,6 +207,116 @@ export class SigningService {
         metadata: {},
       });
     }
+  }
+
+  /**
+   * Fill a non-signature field (date / text / checkbox / email). Enforces:
+   *   - field exists in envelope + belongs to THIS signer (else 404)
+   *   - field is not a signature/initials kind (those use /sign/signature)
+   *   - payload shape matches field kind (text vs boolean)
+   */
+  async fillField(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    field_id: string,
+    body: { value_text?: string; value_boolean?: boolean },
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<EnvelopeField> {
+    const field = envelope.fields.find((f) => f.id === field_id);
+    if (!field) throw new NotFoundException('field_not_found');
+    if (field.signer_id !== signer.id) throw new NotFoundException('field_not_found');
+    if (field.kind === 'signature' || field.kind === 'initials') {
+      throw new BadRequestException('wrong_field_kind');
+    }
+
+    // Kind → expected payload shape. Service is authoritative; DTO is a
+    // defense-in-depth first pass.
+    if (field.kind === 'checkbox') {
+      if (typeof body.value_boolean !== 'boolean') {
+        throw new BadRequestException('wrong_field_kind');
+      }
+    } else if (typeof body.value_text !== 'string') {
+      throw new BadRequestException('wrong_field_kind');
+    }
+
+    const updated = await this.repo.fillField(field_id, signer.id, {
+      value_text: body.value_text ?? null,
+      value_boolean: body.value_boolean ?? null,
+    });
+    if (!updated) throw new NotFoundException('field_not_found');
+
+    await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'field_filled',
+      ip,
+      user_agent: userAgent,
+      metadata: { field_id, kind: field.kind },
+    });
+
+    return updated;
+  }
+
+  /**
+   * Accept a signature image (PNG or JPEG), normalize via sharp to a
+   * canonical 600×200 PNG, upload to `{envelope_id}/signatures/{signer_id}.png`,
+   * and stamp signer.signature_format + signature_image_path.
+   *
+   * All three capture modes (drawn/typed/upload) converge on the same
+   * canonical artifact — the worker's burn-in pass (Phase 3e) then draws
+   * this single PNG at every signature field assigned to this signer.
+   */
+  async setSignature(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    image: Buffer,
+    meta: {
+      format: SignatureFormat;
+      font?: string | null;
+      stroke_count?: number | null;
+      source_filename?: string | null;
+    },
+  ): Promise<EnvelopeSigner> {
+    if (image.length === 0) {
+      throw new BadRequestException('image_unreadable');
+    }
+    if (image.length > MAX_SIGNATURE_BYTES) {
+      throw new PayloadTooLargeException('image_too_large');
+    }
+    const isPng =
+      image.length >= PNG_MAGIC.length && image.subarray(0, PNG_MAGIC.length).equals(PNG_MAGIC);
+    const isJpeg =
+      image.length >= JPEG_MAGIC.length && image.subarray(0, JPEG_MAGIC.length).equals(JPEG_MAGIC);
+    if (!isPng && !isJpeg) {
+      throw new UnsupportedMediaTypeException('image_not_png_or_jpeg');
+    }
+
+    let canonical: Buffer;
+    try {
+      canonical = await sharp(image)
+        .resize(SIGNATURE_TARGET_WIDTH, SIGNATURE_TARGET_HEIGHT, {
+          fit: 'inside',
+          withoutEnlargement: false,
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer();
+    } catch {
+      throw new BadRequestException('image_unreadable');
+    }
+
+    const path = `${envelope.id}/signatures/${signer.id}.png`;
+    await this.storage.upload(path, canonical, 'image/png');
+
+    const input: SetSignerSignatureInput = {
+      signature_format: meta.format,
+      signature_image_path: path,
+      signature_font: meta.font ?? null,
+      signature_stroke_count: meta.stroke_count ?? null,
+      signature_source_filename: meta.source_filename ?? null,
+    };
+    return this.repo.setSignerSignature(signer.id, input);
   }
 }
 

@@ -1,6 +1,7 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PDFDocument } from 'pdf-lib';
+import sharp from 'sharp';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
@@ -350,6 +351,168 @@ describe('Signing — /sign/start (e2e)', () => {
           e.envelope_id === envId && e.signer_id === signerId && e.event_type === 'tc_accepted',
       ).length;
       expect(tcCount).toBe(1);
+    });
+  });
+
+  describe('POST /sign/fields/:field_id', () => {
+    async function placeDateField(envId: string, signerId: string): Promise<string> {
+      const env = envelopesRepo.envelopes.get(envId)!;
+      const dateField = {
+        id: '55555555-5555-4555-8555-555555555555',
+        signer_id: signerId,
+        kind: 'date' as const,
+        page: 1,
+        x: 0.3,
+        y: 0.3,
+        width: null,
+        height: null,
+        required: true,
+        link_id: null,
+        value_text: null,
+        value_boolean: null,
+        filled_at: null,
+      };
+      envelopesRepo.envelopes.set(envId, {
+        ...env,
+        fields: [...env.fields, dateField],
+      });
+      return dateField.id;
+    }
+
+    it('fills a text field and records a field_filled event', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+      const dateFieldId = await placeDateField(envId, signerId);
+
+      const res = await request(app.getHttpServer())
+        .post(`/sign/fields/${dateFieldId}`)
+        .set('Cookie', cookie)
+        .send({ value_text: '2026-04-24' });
+      expect(res.status).toBe(200);
+      expect(res.body.value_text).toBe('2026-04-24');
+      expect(res.body.filled_at).not.toBeNull();
+
+      const events = envelopesRepo.events.filter(
+        (e) =>
+          e.envelope_id === envId && e.signer_id === signerId && e.event_type === 'field_filled',
+      );
+      expect(events).toHaveLength(1);
+    });
+
+    it('rejects filling a signature field via this endpoint → 400 wrong_field_kind', async () => {
+      const { envId, cookie } = await startSessionAndGetCookie();
+      const env = envelopesRepo.envelopes.get(envId)!;
+      const signatureField = env.fields[0]!;
+
+      const res = await request(app.getHttpServer())
+        .post(`/sign/fields/${signatureField.id}`)
+        .set('Cookie', cookie)
+        .send({ value_text: 'hi' });
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'wrong_field_kind' });
+    });
+
+    it('rejects filling a field owned by another signer → 404 field_not_found', async () => {
+      const { envId, cookie } = await startSessionAndGetCookie();
+      const env = envelopesRepo.envelopes.get(envId)!;
+      const foreignField = {
+        id: '66666666-6666-4666-8666-666666666666',
+        signer_id: '77777777-7777-4777-8777-777777777777',
+        kind: 'date' as const,
+        page: 1,
+        x: 0.5,
+        y: 0.5,
+        width: null,
+        height: null,
+        required: true,
+        link_id: null,
+        value_text: null,
+        value_boolean: null,
+        filled_at: null,
+      };
+      envelopesRepo.envelopes.set(envId, { ...env, fields: [...env.fields, foreignField] });
+
+      const res = await request(app.getHttpServer())
+        .post(`/sign/fields/${foreignField.id}`)
+        .set('Cookie', cookie)
+        .send({ value_text: 'hi' });
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({ error: 'field_not_found' });
+    });
+  });
+
+  describe('POST /sign/signature', () => {
+    let TINY_PNG: Buffer;
+    beforeAll(async () => {
+      // Deterministic 50×50 white PNG — generated via sharp itself so it's
+      // guaranteed to round-trip cleanly through the server's sharp call.
+      TINY_PNG = await sharp({
+        create: {
+          width: 50,
+          height: 50,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+    });
+
+    it('accepts a valid PNG, normalizes via sharp, stamps signer metadata', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+
+      const res = await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookie)
+        .field('format', 'drawn')
+        .field('stroke_count', '42')
+        .attach('image', TINY_PNG, { filename: 's.png', contentType: 'image/png' });
+      expect(res.status).toBe(200);
+
+      const storagePath = `${envId}/signatures/${signerId}.png`;
+      expect(storage.allPaths()).toContain(storagePath);
+      const stored = storage.get(storagePath)!;
+      expect(stored.contentType).toBe('image/png');
+      expect(stored.bytes.length).toBeGreaterThan(0);
+      expect(stored.bytes.equals(TINY_PNG)).toBe(false); // sharp re-encoded it
+
+      const meta = envelopesRepo.getSignerInternalMeta(signerId);
+      expect(meta?.signature_format).toBe('drawn');
+      expect(meta?.signature_image_path).toBe(storagePath);
+      expect(meta?.signature_stroke_count).toBe(42);
+    });
+
+    it('rejects non-PNG/JPEG bytes with 415 image_not_png_or_jpeg', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookie)
+        .field('format', 'drawn')
+        .attach('image', Buffer.from('definitely not an image'), {
+          filename: 'fake.png',
+          contentType: 'image/png',
+        });
+      expect(res.status).toBe(415);
+      expect(res.body).toEqual({ error: 'image_not_png_or_jpeg' });
+    });
+
+    it('rejects missing file with 400 image_unreadable', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookie)
+        .field('format', 'drawn');
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'image_unreadable' });
+    });
+
+    it('rejects invalid format enum with 400', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookie)
+        .field('format', 'not-a-real-format')
+        .attach('image', TINY_PNG, { filename: 's.png', contentType: 'image/png' });
+      expect(res.status).toBe(400);
     });
   });
 });
