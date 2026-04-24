@@ -140,8 +140,13 @@ h1 em {
 h1 a,
 h1 a[href],
 p a[href^='mailto:'],
+.from-line a,
 .from-line a[href],
 .muted a[href^='mailto:'],
+.signer-email a,
+.signer-email a[href],
+.signer-name a,
+.signer-name a[href],
 .no-autolink {
   color: inherit !important;
   text-decoration: none !important;

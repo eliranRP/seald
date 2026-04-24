@@ -55,6 +55,40 @@ export function buildSignerListHtml(
   if (signers.length === 0) return '';
   const highlight = options?.highlightEmail?.toLowerCase();
 
+  // Gmail namespace-prefixes every class in the shared <style> block
+  // but also strips some class declarations during its render pass —
+  // avatars end up invisible (white letter on white bg, no amber
+  // background) and status pills lose their color. Inline the critical
+  // paints on each element so the rendering is deterministic in Gmail,
+  // Outlook, Apple Mail, and webmail clones alike.
+  const AVATAR_STYLE = (status: SignerFragment['status']): string => {
+    const bg = avatarBgFor(status);
+    return (
+      'display:inline-block;' +
+      'width:28px;height:28px;line-height:28px;' +
+      'border-radius:9999px;' +
+      `background:${bg};` +
+      'color:#FFFFFF !important;' +
+      'font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;' +
+      'font-size:11px;font-weight:700;' +
+      'text-align:center;vertical-align:middle;' +
+      'text-decoration:none;flex-shrink:0;'
+    );
+  };
+  const STATUS_STYLE = (status: SignerFragment['status']): string => {
+    const { bg, fg } = statusPillColors(status);
+    return (
+      'font-family:JetBrains Mono,ui-monospace,monospace;' +
+      'font-size:10px;font-weight:600;letter-spacing:0.05em;' +
+      'text-transform:uppercase;' +
+      'padding:3px 8px;border-radius:9999px;' +
+      `background:${bg};color:${fg};`
+    );
+  };
+  const SIGNER_EMAIL_STYLE =
+    'color:#64748B !important;font-size:12px;margin-top:1px;' +
+    'text-decoration:none !important;pointer-events:none;';
+
   const rows = signers
     .map((s) => {
       const initials = initialsOf(s.name);
@@ -67,12 +101,15 @@ export function buildSignerListHtml(
         : '';
       return (
         `<div class="signer-row">` +
-        `<span class="avatar ${avatarClass}">${escapeHtml(initials)}</span>` +
+        `<span class="avatar ${avatarClass}" style="${AVATAR_STYLE(s.status)}">${escapeHtml(initials)}</span>` +
         `<div class="signer-meta">` +
         `<div class="signer-name">${escapeHtml(s.name)}${nameSuffix}</div>` +
-        `<div class="signer-email">${escapeHtml(s.email)}</div>` +
+        // Wrap the email in an explicit <span> with inline styles.
+        // Gmail still auto-wraps `<a href="mailto:">` around bare
+        // emails, so we also neutralize the mailto inside.
+        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}">${escapeHtml(s.email)}</div>` +
         `</div>` +
-        `<span class="signer-status ${statusClass}">${escapeHtml(statusLabel)}</span>` +
+        `<span class="signer-status ${statusClass}" style="${STATUS_STYLE(s.status)}">${escapeHtml(statusLabel)}</span>` +
         `</div>`
       );
     })
@@ -186,6 +223,42 @@ function avatarClassFor(status: SignerFragment['status']): string {
     case 'expired':
     default:
       return 'avatar-slate';
+  }
+}
+
+/** Inline background color so Gmail can't strip the amber/green/slate
+ *  ring that the status semantic depends on. Mirrors the `.avatar-*`
+ *  classes in `_email.css`. */
+function avatarBgFor(status: SignerFragment['status']): string {
+  switch (status) {
+    case 'signed':
+      return '#10B981';
+    case 'pending':
+      return '#F59E0B';
+    case 'waiting':
+    case 'expired':
+      return '#64748B';
+    case 'declined':
+      return '#EF4444';
+    default:
+      return '#4F46E5';
+  }
+}
+
+/** Background + foreground color pair for the status pill. Mirrors the
+ *  `.status-*` classes in `_email.css`. */
+function statusPillColors(status: SignerFragment['status']): { bg: string; fg: string } {
+  switch (status) {
+    case 'signed':
+      return { bg: '#ECFDF5', fg: '#047857' };
+    case 'pending':
+      return { bg: '#FEF3C7', fg: '#92400E' };
+    case 'declined':
+      return { bg: '#FEE2E2', fg: '#991B1B' };
+    case 'expired':
+    case 'waiting':
+    default:
+      return { bg: '#F1F5F9', fg: '#475569' };
   }
 }
 

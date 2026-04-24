@@ -1,12 +1,30 @@
 import { writeFileSync } from 'node:fs';
+import { buildSignerListHtml, buildTimelineHtml } from '../src/email/template-fragments';
 import { TemplateService } from '../src/email/template.service';
 
 const svc = new TemplateService();
 svc.onModuleInit();
 
+// Exercise the bare-email sender path — this is the case Gmail
+// auto-links into a giant blue mailto. If the rendered output shows a
+// normal bold text line, our reset is working.
+const recipientEmail = 'eliranazulay@gmail.com';
+
+const signerListHtml = buildSignerListHtml(
+  [
+    { name: 'Eliran', email: 'eliranazulay@gmail.com', status: 'pending' },
+    { name: 'Maya Raskin', email: 'maya@northwind.co', status: 'signed', completedLabel: 'Apr 22' },
+  ],
+  { highlightEmail: recipientEmail },
+);
+
+const timelineHtml = buildTimelineHtml([
+  { label: 'Envelope sent by Eliran', at: 'Apr 21, 2026 · 10:42 AM UTC' },
+  { label: 'Maya Raskin signed', at: 'Apr 22, 2026 · 2:18 PM UTC' },
+  { label: 'Envelope sealed and audit trail locked', at: 'Apr 24, 2026 · 9:07 AM UTC' },
+]);
+
 const vars = {
-  // Deliberately pass an email as the display name so the render
-  // exercises Gmail/iOS auto-link reset for bare-email senders.
   sender_name: 'eliranazulay@gmail.com',
   sender_email: 'eliranazulay@gmail.com',
   envelope_title: 'SEED test envelope',
@@ -26,6 +44,8 @@ const vars = {
   expires_at_readable: 'in 4 days',
   total_signers: 3,
   signed_count: 1,
+  signer_list_html: signerListHtml,
+  timeline_html: timelineHtml,
 };
 
 const kinds = [

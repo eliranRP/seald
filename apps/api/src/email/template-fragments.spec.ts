@@ -78,7 +78,7 @@ describe('buildSignerListHtml', () => {
     // must not appear anywhere inside a signer field on the rendered
     // output (the `class="..."` quotes are template-owned, so check the
     // signer-email span content specifically).
-    expect(html).toMatch(/<div class="signer-email">[^"]*evil&quot;/);
+    expect(html).toMatch(/<div class="signer-email"[^>]*>[^"]*evil&quot;/);
   });
 });
 
