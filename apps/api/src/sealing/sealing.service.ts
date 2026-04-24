@@ -5,6 +5,11 @@ import QRCode from 'qrcode';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
+import {
+  buildSignerListHtmlFromSigners,
+  buildTimelineHtml,
+  type TimelineEventFragment,
+} from '../email/template-fragments';
 import type { Envelope, EnvelopeEvent, EnvelopeField } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
@@ -95,6 +100,33 @@ export class SealingService {
     // appended — but we have the envelope-level payload now, so we can fan
     // out without another read.
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+
+    // Pre-render the signer roster + event timeline fragments once per
+    // envelope — loop-free template engine means iteration has to happen
+    // here. The timeline is derived from the signers (sent → each signed
+    // → sealed) without another event-log query.
+    const signerListHtml = buildSignerListHtmlFromSigners(updated.signers);
+    const timelineEvents: TimelineEventFragment[] = [];
+    if (envelope.sent_at !== null) {
+      timelineEvents.push({
+        label: `Envelope sent by ${envelope.sender_name ?? envelope.sender_email ?? 'the sender'}`,
+        at: formatIsoForTimeline(envelope.sent_at),
+      });
+    }
+    for (const s of updated.signers) {
+      if (s.signed_at !== null) {
+        timelineEvents.push({
+          label: `${s.name} signed`,
+          at: formatIsoForTimeline(s.signed_at),
+        });
+      }
+    }
+    timelineEvents.push({
+      label: 'Envelope sealed and audit trail locked',
+      at: formatIsoForTimeline(new Date().toISOString()),
+    });
+    const timelineHtml = buildTimelineHtml(timelineEvents);
+
     for (const signer of updated.signers) {
       if (signer.signed_at === null) continue; // defensive — all should be signed
       await this.outboundEmails.insert({
@@ -111,6 +143,8 @@ export class SealingService {
           audit_url: `${publicUrl}/verify/${envelope.short_code}#audit`,
           verify_url: `${publicUrl}/verify/${envelope.short_code}`,
           public_url: publicUrl,
+          signer_list_html: signerListHtml,
+          timeline_html: timelineHtml,
         },
       });
     }
@@ -310,4 +344,30 @@ function defaultHeight(kind: EnvelopeField['kind']): number {
 
 function sha256Hex(buf: Buffer): string {
   return createHash('sha256').update(buf).digest('hex');
+}
+
+/** "2026-04-22T14:18:07.000Z" → "Apr 22, 2026 · 02:18 PM UTC". Matches the
+ *  design-kit `.timeline time` format. */
+function formatIsoForTimeline(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const h = d.getUTCHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  const ampm = h < 12 ? 'AM' : 'PM';
+  return `${months[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} · ${pad(h12)}:${pad(d.getUTCMinutes())} ${ampm} UTC`;
 }

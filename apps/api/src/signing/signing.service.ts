@@ -16,6 +16,7 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { Inject } from '@nestjs/common';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
+import { buildTimelineHtml, type TimelineEventFragment } from '../email/template-fragments';
 import type {
   Envelope,
   EnvelopeField,
@@ -401,6 +402,31 @@ export class SigningService {
     // appropriate withdrawal email.
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
     const others = updated.signers.filter((s) => s.id !== signer.id);
+
+    // Pre-render a single timeline for the `withdrawn_after_sign` kind:
+    // (sent → each who signed → withdrawn pending). Rendered once even if
+    // multiple recipients share it.
+    const withdrawnTimelineHtml = (() => {
+      const events: TimelineEventFragment[] = [];
+      if (envelope.sent_at !== null) {
+        events.push({
+          label: `Envelope sent by ${envelope.sender_name ?? envelope.sender_email ?? 'the sender'}`,
+          at: formatUtc(envelope.sent_at),
+        });
+      }
+      for (const s of updated.signers) {
+        if (s.signed_at !== null) {
+          events.push({ label: `${s.name} signed`, at: formatUtc(s.signed_at) });
+        }
+      }
+      events.push({
+        label: `Envelope withdrawn by ${signer.name}`,
+        at: formatUtc(new Date().toISOString()),
+        pending: true,
+      });
+      return buildTimelineHtml(events);
+    })();
+
     for (const other of others) {
       await this.repo.appendEvent({
         envelope_id: envelope.id,
@@ -423,6 +449,7 @@ export class SigningService {
           envelope_title: envelope.title,
           signed_at_readable: wasSigned ? formatUtc(other.signed_at!) : '',
           public_url: publicUrl,
+          ...(wasSigned ? { timeline_html: withdrawnTimelineHtml } : {}),
         },
       });
     }

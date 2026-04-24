@@ -20,6 +20,7 @@ import {
   DuplicateOutboundEmailError,
   OutboundEmailsRepository,
 } from '../email/outbound-emails.repository';
+import { buildSignerListHtmlFromSigners } from '../email/template-fragments';
 import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
@@ -482,6 +483,13 @@ export class EnvelopesService {
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
     const signUrl = `${publicUrl}/sign/${envelope_id}?t=${token}`;
     const verifyUrl = `${publicUrl}/verify/code/${envelope.short_code}`;
+    // Pre-render the per-signer roster block — the template engine is
+    // loop-free, so iteration has to happen here. Highlight the row for
+    // this reminder's recipient with "(that's you)".
+    const signerListHtml = buildSignerListHtmlFromSigners(envelope.signers, {
+      highlightEmail: signer.email,
+    });
+
     await this.outboundEmails.insert({
       envelope_id,
       signer_id,
@@ -498,6 +506,7 @@ export class EnvelopesService {
         short_code: envelope.short_code,
         expires_at_readable: formatExpiresAt(envelope.expires_at),
         public_url: publicUrl,
+        signer_list_html: signerListHtml,
       },
     });
   }
