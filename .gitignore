@@ -24,3 +24,9 @@ apps/*/coverage
 apps/*/.env
 apps/*/.env.local
 .superpowers/
+
+# Signing secrets — dev .p12 certs live here; production uses the SSL.com AATL
+# cloud HSM provider, which never puts private keys on disk.
+# Never commit anything from secrets/. Rotate any key that ever lands in git.
+apps/*/secrets/
+secrets/
