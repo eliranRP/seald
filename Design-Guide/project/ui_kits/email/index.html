@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sealed — Email templates</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  html, body { margin:0; padding:0; background:var(--ink-50); color:var(--fg-2); font-family:var(--font-sans); }
+  .page { max-width:1320px; margin:0 auto; padding:48px 32px 120px; }
+  .hero { margin-bottom:40px; display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  h1 { font-family:var(--font-serif); font-size:44px; font-weight:500; letter-spacing:-0.02em; color:var(--fg-1); margin:0 0 10px; }
+  .sub { font-size:15px; color:var(--fg-3); max-width:640px; line-height:1.65; margin:0; }
+  .tag { display:inline-block; padding:4px 10px; border-radius:999px; background:var(--indigo-50); color:var(--indigo-700); font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; margin-bottom:14px; }
+
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap:24px; }
+  .card { background:#fff; border:1px solid var(--border-1); border-radius:18px; overflow:hidden; box-shadow:var(--shadow-sm); display:flex; flex-direction:column; }
+  .card-head { padding:16px 18px; border-bottom:1px solid var(--border-1); display:flex; align-items:center; gap:12px; }
+  .dot { width:8px; height:8px; border-radius:999px; flex-shrink:0; }
+  .card-title { font-weight:600; color:var(--fg-1); font-size:14px; font-family:var(--font-mono); letter-spacing:-0.01em; }
+  .card-kind { margin-left:auto; font-size:11px; font-weight:600; letter-spacing:0.06em; color:var(--fg-3); text-transform:uppercase; }
+  .frame { position:relative; background:var(--ink-100); padding:18px; border-bottom:1px solid var(--border-1); }
+  .frame iframe { width:100%; height:560px; border:none; background:#fff; border-radius:10px; display:block; box-shadow:0 4px 14px rgba(11,18,32,.06); }
+  .card-foot { padding:14px 18px; display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--fg-3); }
+  .card-foot a { color:var(--indigo-600); font-weight:600; text-decoration:none; font-family:var(--font-mono); }
+  .legend { display:flex; gap:18px; margin:0 0 24px; font-size:12px; color:var(--fg-3); flex-wrap:wrap; }
+  .legend span { display:inline-flex; align-items:center; gap:6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hero">
+    <div>
+      <span class="tag">Transactional email</span>
+      <h1>Sealed email templates</h1>
+      <p class="sub">Every system email sent through the Sealed pipeline, matching the <code style="font-family:var(--font-mono);font-size:13px;">apps/api/src/email/templates</code> folder. Each template uses the same masthead, footer, and trust footer; status is signalled by a top accent bar, a kicker tag, and contextual CTA colors.</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:#4F46E5;"></span> Action requested</span>
+    <span><span class="dot" style="background:#F59E0B;"></span> Reminder / warning</span>
+    <span><span class="dot" style="background:#10B981;"></span> Success</span>
+    <span><span class="dot" style="background:#EF4444;"></span> Declined</span>
+    <span><span class="dot" style="background:#64748B;"></span> Neutral state change</span>
+  </div>
+
+  <div class="grid">
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#4F46E5;"></span><span class="card-title">invite</span><span class="card-kind">To signer</span></div>
+      <div class="frame"><iframe src="invite.html" title="invite"></iframe></div>
+      <div class="card-foot"><span>Signature requested — the entry point</span><a href="invite.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#F59E0B;"></span><span class="card-title">reminder</span><span class="card-kind">To signer</span></div>
+      <div class="frame"><iframe src="reminder.html" title="reminder"></iframe></div>
+      <div class="card-foot"><span>Nudge — envelope still pending</span><a href="reminder.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#10B981;"></span><span class="card-title">completed</span><span class="card-kind">To all parties</span></div>
+      <div class="frame"><iframe src="completed.html" title="completed"></iframe></div>
+      <div class="card-foot"><span>Fully executed with signed PDF attached</span><a href="completed.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#EF4444;"></span><span class="card-title">declined_to_sender</span><span class="card-kind">To sender</span></div>
+      <div class="frame"><iframe src="declined_to_sender.html" title="declined_to_sender"></iframe></div>
+      <div class="card-foot"><span>Signer declined with reason</span><a href="declined_to_sender.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#64748B;"></span><span class="card-title">expired_to_sender</span><span class="card-kind">To sender</span></div>
+      <div class="frame"><iframe src="expired_to_sender.html" title="expired_to_sender"></iframe></div>
+      <div class="card-foot"><span>Envelope expired — invite to resend</span><a href="expired_to_sender.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#64748B;"></span><span class="card-title">expired_to_signer</span><span class="card-kind">To signer</span></div>
+      <div class="frame"><iframe src="expired_to_signer.html" title="expired_to_signer"></iframe></div>
+      <div class="card-foot"><span>Link expired — reach out to sender</span><a href="expired_to_signer.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#64748B;"></span><span class="card-title">withdrawn_to_signer</span><span class="card-kind">To signer</span></div>
+      <div class="frame"><iframe src="withdrawn_to_signer.html" title="withdrawn_to_signer"></iframe></div>
+      <div class="card-foot"><span>Sender withdrew before you signed</span><a href="withdrawn_to_signer.html" target="_blank">Open →</a></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><span class="dot" style="background:#F59E0B;"></span><span class="card-title">withdrawn_after_sign</span><span class="card-kind">To signer</span></div>
+      <div class="frame"><iframe src="withdrawn_after_sign.html" title="withdrawn_after_sign"></iframe></div>
+      <div class="card-foot"><span>Withdrawn after you already signed</span><a href="withdrawn_after_sign.html" target="_blank">Open →</a></div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

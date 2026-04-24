@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Sealed — All signatures collected</title>
+<title>Sealed — Envelope withdrawn after you signed</title>
 <style>
 /* Sealed — Shared email template styles.
    Inline this as a <style> tag in each template (most mail clients strip <link>).
@@ -325,7 +325,7 @@ p {
 <body>
 <div class="wrap">
   <div class="card">
-    <div class="accent accent-success"></div>
+    <div class="accent accent-amber"></div>
     <div class="masthead">
       <span class="mark"><svg width="18" height="18" viewBox="0 0 28 28"><path d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z" fill="#fff"/></svg></span>
       <span class="wordmark">Sealed</span>
@@ -333,38 +333,23 @@ p {
     </div>
     <div class="body">
 
-      <span class="kicker kicker-success">Complete · Fully executed</span>
-      <h1>All signatures collected on <em>SEED test envelope</em>.</h1>
-      <p>Everyone has signed. The executed PDF is attached and permanently stored in your Sealed library.</p>
+      <span class="kicker kicker-amber">Withdrawn after signing · Your copy remains</span>
+      <h1>Heads up — <em>SEED test envelope</em> was withdrawn after you signed.</h1>
+      <p>Eliran Azulay withdrew this envelope on <b>Apr 24, 2026 at 3:12 PM UTC</b>. Because you had already signed, we've preserved an immutable record of your signed copy and the event is logged in the audit trail.</p>
 
-      <div class="signers">
-        <div class="signer-row">
-          <span class="avatar avatar-success">EA</span>
-          <div class="signer-meta">
-            <div class="signer-name">Eliran Azulay</div>
-            <div class="signer-email">sender@seald.dev</div>
-          </div>
-          <span class="signer-status status-signed">Signed · Apr 22</span>
-        </div>
-        <div class="signer-row">
-          <span class="avatar avatar-success">MR</span>
-          <div class="signer-meta">
-            <div class="signer-name">Maya Raskin</div>
-            <div class="signer-email">maya@northwind.co</div>
-          </div>
-          <span class="signer-status status-signed">Signed · Apr 24</span>
-        </div>
+      <div class="callout callout-amber">
+        <svg class="callout-icon" viewBox="0 0 20 20" fill="none" stroke="#92400E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 L18 17 H2 Z"/><path d="M10 8 V12 M10 14 V14.5"/></svg>
+        <div><b>What this means:</b> the envelope will not proceed to full execution. Any other signers that hadn't yet signed will not be asked to. Your copy and the audit trail are retained for 7 years per Sealed's retention policy.</div>
       </div>
 
       <ul class="timeline">
         <li>Envelope sent by Eliran Azulay<time>Apr 21, 2026 · 10:42 AM UTC</time></li>
-        <li>Eliran Azulay signed<time>Apr 22, 2026 · 2:18 PM UTC</time></li>
-        <li>Maya Raskin signed<time>Apr 24, 2026 · 9:07 AM UTC</time></li>
-        <li>Envelope sealed and audit trail locked<time>Apr 24, 2026 · 9:07 AM UTC</time></li>
+        <li>Maya Raskin signed<time>Apr 23, 2026 · 4:55 PM UTC</time></li>
+        <li class="pending">Envelope withdrawn by Eliran Azulay<time>Apr 24, 2026 · 3:12 PM UTC</time></li>
       </ul>
 
-      <div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">
-        <a href="#" class="cta cta-success" style="margin:0;">Download signed PDF</a>
+      <div style="display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;">
+        <a href="#" class="cta cta-primary" style="margin:0;">Download your signed copy</a>
         <a href="#" class="cta-ghost">View audit trail</a>
       </div>
       <div class="verify">

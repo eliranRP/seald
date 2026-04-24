@@ -10,9 +10,15 @@
 <script type="text/babel" src="../_shared/components.jsx"></script>
 <script type="text/babel" src="../signing_app/Screens.jsx"></script>
 <script type="text/babel" src="./Dashboard.jsx"></script>
+<script type="text/babel" src="./EnvelopeDetail.jsx"></script>
 <script type="text/babel">
-  const { useEffect } = React;
-  function Root(){ useEffect(()=>{ if(window.lucide) window.lucide.createIcons(); },[]); return <Dashboard/>; }
+  const { useEffect, useState } = React;
+  function Root(){
+    const [open, setOpen] = useState(null);
+    useEffect(()=>{ if(window.lucide) window.lucide.createIcons(); }, [open]);
+    if (open) return <EnvelopeDetail doc={open} onBack={()=>setOpen(null)}/>;
+    return <Dashboard onOpen={setOpen}/>;
+  }
   ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
 </script>
 </body></html>

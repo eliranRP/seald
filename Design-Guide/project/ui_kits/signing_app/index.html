@@ -22,6 +22,7 @@
   <script type="text/babel" src="./Screens.jsx"></script>
   <script type="text/babel" src="./Auth.jsx"></script>
   <script type="text/babel" src="./RecipientFlow.jsx"></script>
+  <script type="text/babel" src="./SendingScreen.jsx"></script>
   <script type="text/babel">
     const { useState, useEffect } = React;
     const AUTH_PAGES = ['signin','signup','forgot','check-email'];
@@ -29,9 +30,9 @@
     const RECIPIENT_PAGES = ['r-email','r-prep','r-fill','r-review','r-done'];
     function App(){
       const [page, setPage] = useState(() => {
-        // Force recipient flow on next reload by clearing stale page
+        // Land on the new sending-loader screen on first open
         const saved = localStorage.getItem('sealed.page');
-        if (!saved || saved === 'signin') return 'r-email';
+        if (!saved || saved === 'signin' || saved === 'r-email') return 'sending';
         return saved;
       });
       const [guest, setGuest] = useState(() => localStorage.getItem('sealed.guest') === '1');
@@ -85,7 +86,8 @@
                 {!guest && page !== 'place' && <LeftRail active={page==='upload'?'drafts':'sent'}/>}
                 <div style={{flex:1, minWidth:0}}>
                   {page==='upload' && <UploadScreen onNext={()=>setPage('place')}/>}
-                  {page==='place' && <PlaceFieldsScreen contacts={guest?guestContacts:contacts} setContacts={guest?setGuestContacts:setContacts} onNext={()=>setPage('sign')} onBack={()=>guest?skipAuth():setPage('upload')} guest={guest}/>}
+                  {page==='place' && <PlaceFieldsScreen contacts={guest?guestContacts:contacts} setContacts={guest?setGuestContacts:setContacts} onNext={()=>setPage('sending')} onBack={()=>guest?skipAuth():setPage('upload')} guest={guest}/>}
+                  {page==='sending' && <SendingScreen signers={(guest?guestContacts:contacts).slice(0,3)} fieldCount={3} onDone={()=>setPage('sent')} onCancel={()=>setPage('place')}/>}
                   {page==='sign' && <SignScreen onDone={()=>setPage('sent')} onBack={()=>setPage('place')}/>}
                   {page==='sent' && <SentScreen onReset={()=>setPage(guest?'place':'upload')} guest={guest} onSignUp={()=>goAuth('signup')}/>}
                 </div>
@@ -98,7 +100,7 @@
               {guest ? 'guest' : 'auth'}
             </button>
             <div style={{width:1, background:'var(--border-1)', margin:'4px 2px'}}/>
-            {['signin','signup','upload','place','sign','sent','contacts','r-email','r-prep','r-fill','r-review','r-done'].map(s=>(
+            {['signin','signup','upload','place','sending','sign','sent','contacts','r-email','r-prep','r-fill','r-review','r-done'].map(s=>(
               <button key={s} className={page===s?'on':''} onClick={()=>setPage(s)}>{s}</button>
             ))}
           </div>
