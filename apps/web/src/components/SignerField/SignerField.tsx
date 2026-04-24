@@ -40,6 +40,12 @@ function deriveTone(filled: boolean, active: boolean, required: boolean): Tone {
   return 'neutral';
 }
 
+/** A signature field's `value` is either the TYPED name for `format='typed'`
+ *  or a URL (blob/data/http) pointing at the captured PNG for drawn/upload. */
+function isImageUrl(v: string): boolean {
+  return v.startsWith('blob:') || v.startsWith('data:') || /^https?:\/\//.test(v);
+}
+
 /**
  * L2 component — absolute-positioned in-doc field the recipient taps to fill.
  *
@@ -76,16 +82,30 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
   let inner: React.ReactNode = null;
   if (filled && previewNode) {
     inner = previewNode;
-  } else if (filled && kind === 'signature') {
-    inner = (
-      <SignatureMark name={typeof value === 'string' ? value : ''} size={Math.max(16, h - 18)} />
-    );
-  } else if (filled && kind === 'initials') {
-    inner = (
-      <InitialScript $size={Math.max(18, h - 18)}>
-        {typeof value === 'string' ? value : ''}
-      </InitialScript>
-    );
+  } else if (filled && (kind === 'signature' || kind === 'initials')) {
+    // `value` for a filled signature/initials carries either the TYPED
+    // name (format='typed') or a blob/data/http URL pointing at the
+    // captured drawing/upload. Distinguish by shape so we don't try to
+    // render "blob:http://…" in a handwritten font.
+    const v = typeof value === 'string' ? value : '';
+    if (isImageUrl(v)) {
+      inner = (
+        <img
+          src={v}
+          alt={kind === 'signature' ? 'Signature' : 'Initials'}
+          style={{
+            maxHeight: Math.max(16, h - 8),
+            maxWidth: '100%',
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
+      );
+    } else if (kind === 'signature') {
+      inner = <SignatureMark name={v} size={Math.max(16, h - 18)} />;
+    } else {
+      inner = <InitialScript $size={Math.max(18, h - 18)}>{v}</InitialScript>;
+    }
   } else if (kind === 'checkbox') {
     const checked = value === true;
     inner = (
