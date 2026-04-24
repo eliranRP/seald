@@ -52,7 +52,20 @@
         </svg>
         <div>
           Any signing link from a previous Sealed email for this envelope is no longer active. If
-          you expected to sign this and believe this is an error, please contact {{sender_name}}
+          you expected to sign this and believe this is an error, please contact
+          <a
+            href="mailto:{{sender_name}}"
+            style="
+              display: inline-block;
+              color: inherit;
+              font-weight: inherit;
+              font-family: inherit;
+              font-size: inherit;
+              text-decoration: none;
+              pointer-events: none;
+            "
+            >{{sender_name}}</a
+          >
           directly.
         </div>
       </div>
@@ -65,7 +78,21 @@
         </div>
       </div>
       <p class="muted">
-        If you expect a new version, {{sender_name}} will send a fresh invitation from Sealed.
+        If you expect a new version,
+        <a
+          href="mailto:{{sender_name}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_name}}</a
+        >
+        will send a fresh invitation from Sealed.
       </p>
       <div class="verify">
         Verify this document at any time using its reference code: <code>{{short_code}}</code><br />

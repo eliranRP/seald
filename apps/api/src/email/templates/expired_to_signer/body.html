@@ -27,12 +27,38 @@
       <span class="kicker kicker-slate">Signing link expired</span>
       <h1>The signing link for <em>{{envelope_title}}</em> has expired.</h1>
       <p>
-        {{sender_name}} asked for your signature but the link expired on {{expired_at_readable}}
-        before it could be completed. No action is required from you right now.
+        <a
+          href="mailto:{{sender_email}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_name}}</a
+        >
+        asked for your signature but the link expired on {{expired_at_readable}} before it could be
+        completed. No action is required from you right now.
       </p>
       <p class="muted">
-        If you still intend to sign this document, reply to {{sender_name}} and ask them to send a
-        new invitation — they can do it with one click.
+        If you still intend to sign this document, reply to
+        <a
+          href="mailto:{{sender_email}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_name}}</a
+        >
+        and ask them to send a new invitation — they can do it with one click.
       </p>
       <div class="doc">
         <div class="doc-thumb"><i></i><i></i><i></i><i></i><i></i></div>

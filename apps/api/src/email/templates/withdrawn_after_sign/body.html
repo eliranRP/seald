@@ -27,9 +27,22 @@
       <span class="kicker kicker-amber">Withdrawn after signing · Your copy remains</span>
       <h1>Heads up — <em>{{envelope_title}}</em> was withdrawn after you signed.</h1>
       <p>
-        {{sender_name}} withdrew this envelope on <b>{{signed_at_readable}}</b>. Because you had
-        already signed, we've preserved an immutable record of your signed copy and the event is
-        logged in the audit trail.
+        <a
+          href="mailto:{{sender_name}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_name}}</a
+        >
+        withdrew this envelope on <b>{{signed_at_readable}}</b>. Because you had already signed,
+        we've preserved an immutable record of your signed copy and the event is logged in the audit
+        trail.
       </p>
 
       <div class="callout callout-amber">

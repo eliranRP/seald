@@ -60,7 +60,33 @@
       >
       <p class="muted">
         This signing link is unique to you. Please don't forward this email — if someone else needs
-        to sign, ask {{sender_name}} ({{sender_email}}) to send them a separate invitation.
+        to sign, ask
+        <a
+          href="mailto:{{sender_email}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_name}}</a
+        >
+        (<a
+          href="mailto:{{sender_email}}"
+          style="
+            display: inline-block;
+            color: inherit;
+            font-weight: inherit;
+            font-family: inherit;
+            font-size: inherit;
+            text-decoration: none;
+            pointer-events: none;
+          "
+          >{{sender_email}}</a
+        >) to send them a separate invitation.
       </p>
       <div class="paste">
         Prefer to paste the link? Copy:<br />

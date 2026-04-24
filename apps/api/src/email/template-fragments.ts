@@ -141,10 +141,41 @@ export function buildTimelineHtml(events: ReadonlyArray<TimelineEventFragment>):
     .map((e) => {
       const liClass = e.pending === true ? ' class="pending"' : '';
       const timeHtml = e.at.length > 0 ? `<time>${escapeHtml(e.at)}</time>` : '';
-      return `<li${liClass}>${escapeHtml(e.label)}${timeHtml}</li>`;
+      return `<li${liClass}>${protectEmailsInLabel(e.label)}${timeHtml}</li>`;
     })
     .join('');
   return `<ul class="timeline">${items}</ul>`;
+}
+
+/**
+ * HTML-escape a label AND auto-wrap any bare email address in an
+ * inline-styled anchor so Gmail's auto-linker leaves it alone. Timeline
+ * labels like "Envelope sent by eliranazulay@gmail.com" would otherwise
+ * get blue-underlined by Gmail's mailto auto-wrap.
+ *
+ * RFC 5322 is not supported in full — this targets the shape Gmail's
+ * auto-linker uses (`local@domain.tld`). Addresses that appear inside a
+ * dynamic value will still be caught because `escapeHtml` runs first on
+ * the non-email segments, preserving user-controlled content safely.
+ */
+function protectEmailsInLabel(label: string): string {
+  const EMAIL = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+  const parts = label.split(EMAIL);
+  return parts
+    .map((part, i) => {
+      // Odd indices are the captured emails; even indices are the
+      // surrounding text that still needs escaping.
+      if (i % 2 === 1) {
+        const escaped = escapeHtml(part);
+        return (
+          `<a href="mailto:${escaped}" style="display:inline-block;color:inherit;font-weight:inherit;font-family:inherit;font-size:inherit;text-decoration:none;pointer-events:none;">` +
+          escaped +
+          `</a>`
+        );
+      }
+      return escapeHtml(part);
+    })
+    .join('');
 }
 
 // --- mappers ---------------------------------------------------------------
