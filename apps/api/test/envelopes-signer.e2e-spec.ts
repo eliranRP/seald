@@ -619,6 +619,20 @@ describe('Signing — /sign/start (e2e)', () => {
   });
 
   describe('POST /sign/decline', () => {
+    let TINY_PNG: Buffer;
+    beforeAll(async () => {
+      TINY_PNG = await sharp({
+        create: {
+          width: 50,
+          height: 50,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
+    });
+
     /** Build a 2-signer sent envelope and return cookies for both. Used for
      *  the cascade-email test below. */
     async function buildTwoSignerSent(): Promise<{
@@ -782,6 +796,74 @@ describe('Signing — /sign/start (e2e)', () => {
         .send({ envelope_id: envId, token: signerB.plaintextToken });
       expect(res.status).toBe(410);
       expect(res.body).toEqual({ error: 'envelope_terminal' });
+    });
+
+    it('multi-signer: happy path — both sign, envelope seals only after the last', async () => {
+      const { envId, signerA, signerB } = await buildTwoSignerSent();
+
+      // Signer A: accept terms, set signature, submit.
+      await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', signerA.cookie)
+        .expect(204);
+      await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', signerA.cookie)
+        .field('format', 'drawn')
+        .attach('image', TINY_PNG, { filename: 'a.png', contentType: 'image/png' })
+        .expect(200);
+      const submitA = await request(app.getHttpServer())
+        .post('/sign/submit')
+        .set('Cookie', signerA.cookie);
+      expect(submitA.status).toBe(200);
+      // After the first signer, envelope still awaiting_others.
+      expect(submitA.body.envelope_status).toBe('awaiting_others');
+      expect(envelopesRepo.envelopes.get(envId)!.status).toBe('awaiting_others');
+      // No seal job yet.
+      expect(envelopesRepo.jobs.filter((j) => j.envelope_id === envId)).toHaveLength(0);
+
+      // Signer B: exchange their token for a fresh cookie, then complete.
+      const startedB = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: envId, token: signerB.plaintextToken })
+        .expect(200);
+      const setCookieB = startedB.headers['set-cookie'] as unknown as string[] | string;
+      const cookieB = (Array.isArray(setCookieB) ? setCookieB[0]! : setCookieB).split(';')[0]!;
+      await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', cookieB)
+        .expect(204);
+      await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookieB)
+        .field('format', 'drawn')
+        .attach('image', TINY_PNG, { filename: 'b.png', contentType: 'image/png' })
+        .expect(200);
+      const submitB = await request(app.getHttpServer())
+        .post('/sign/submit')
+        .set('Cookie', cookieB);
+      expect(submitB.status).toBe(200);
+      expect(submitB.body.envelope_status).toBe('sealing');
+
+      // all_signed fires exactly once at the transition.
+      const allSigned = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.event_type === 'all_signed',
+      );
+      expect(allSigned).toHaveLength(1);
+
+      // Both signers have a `signed` event.
+      const signedEvents = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.event_type === 'signed',
+      );
+      expect(signedEvents).toHaveLength(2);
+      expect(new Set(signedEvents.map((e) => e.signer_id))).toEqual(
+        new Set([signerA.id, signerB.id]),
+      );
+
+      // Seal job enqueued exactly once.
+      const jobs = envelopesRepo.jobs.filter((j) => j.envelope_id === envId);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.kind).toBe('seal');
     });
 
     it('rejects decline after envelope already declined → 410', async () => {
