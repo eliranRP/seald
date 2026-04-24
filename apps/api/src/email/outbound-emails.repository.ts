@@ -58,6 +58,35 @@ export abstract class OutboundEmailsRepository {
     envelope_id: string,
     signer_id: string,
   ): Promise<OutboundEmailRow | null>;
+
+  /**
+   * Atomically claim one due email (status in pending|failed, scheduled_for
+   * <= now, attempts < max_attempts). Flips status to `sending` and bumps
+   * `attempts` so concurrent workers never pick the same row.
+   *
+   * Uses `for update skip locked` so multiple dispatchers can run in
+   * parallel without fighting over rows. Returns null when the queue is
+   * empty.
+   */
+  abstract claimNext(now: Date): Promise<OutboundEmailRow | null>;
+
+  /** Mark a claimed row as delivered. */
+  abstract markSent(id: string, provider_id: string, sent_at: Date): Promise<void>;
+
+  /**
+   * Mark a claimed row as failed. When `final=true` the row stays `failed`
+   * indefinitely; when `final=false` the row flips back to `pending` with
+   * a future `scheduled_for` (caller computes exponential backoff) so the
+   * drain loop can retry later.
+   */
+  abstract markFailed(
+    id: string,
+    args: {
+      readonly error: string;
+      readonly final: boolean;
+      readonly nextAttemptAt?: Date;
+    },
+  ): Promise<void>;
 }
 
 /**

@@ -412,6 +412,15 @@ class FakeOutbound extends OutboundEmailsRepository {
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
   }
+  async claimNext(): Promise<OutboundEmailRow | null> {
+    return null;
+  }
+  async markSent(): Promise<void> {
+    /* unused by service-level tests */
+  }
+  async markFailed(): Promise<void> {
+    /* unused by service-level tests */
+  }
 }
 
 /** Stub storage — service-level tests don't exercise uploadOriginal. */

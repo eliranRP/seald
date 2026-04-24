@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EmailDispatcherService, type FlushResult } from '../email/email-dispatcher.service';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 
 /**
@@ -23,6 +24,7 @@ import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 export class CronController {
   constructor(
     private readonly repo: EnvelopesRepository,
+    private readonly emailDispatcher: EmailDispatcherService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -52,6 +54,24 @@ export class CronController {
       });
     }
     return { expired_count: ids.length, envelope_ids: [...ids] };
+  }
+
+  /**
+   * POST /internal/cron/flush-emails
+   *
+   * Drains the `outbound_emails` queue: claims up to 50 due rows, renders
+   * each template, hands to the configured `EmailSender`, and marks rows
+   * `sent` / `pending` (retry with backoff) / `failed` as appropriate.
+   *
+   * Intended to be invoked once per minute by a host cron timer. Safe to
+   * run concurrently with itself — the claim is atomic via
+   * `for update skip locked`.
+   */
+  @Post('flush-emails')
+  @HttpCode(200)
+  async flushEmails(@Headers('x-cron-secret') secret: string | undefined): Promise<FlushResult> {
+    this.assertSecret(secret);
+    return this.emailDispatcher.flushOnce(50);
   }
 
   private assertSecret(provided: string | undefined): void {

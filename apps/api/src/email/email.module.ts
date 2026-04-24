@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EmailDispatcherService } from './email-dispatcher.service';
 import { EmailSender } from './email-sender';
 import { LoggingEmailSender } from './logging-email-sender';
 import { OutboundEmailsRepository } from './outbound-emails.repository';
@@ -21,6 +22,7 @@ import { TemplateService } from './template.service';
 @Module({
   providers: [
     TemplateService,
+    EmailDispatcherService,
     { provide: OutboundEmailsRepository, useClass: OutboundEmailsPgRepository },
     {
       provide: EmailSender,
@@ -39,6 +41,6 @@ import { TemplateService } from './template.service';
       },
     },
   ],
-  exports: [EmailSender, TemplateService, OutboundEmailsRepository],
+  exports: [EmailSender, TemplateService, OutboundEmailsRepository, EmailDispatcherService],
 })
 export class EmailModule {}

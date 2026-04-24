@@ -58,6 +58,14 @@ export class LoggingEmailSender extends EmailSender {
     }
 
     this.log.log(`email[${safeKind}] → ${msg.to.email} — "${msg.subject}"`);
+    // Surface any sign/verify URL embedded in the plain-text body so the
+    // demo flow doesn't require a real mailbox. Looks for the first line
+    // that matches http(s)://…/sign/… or …/verify/… or ?t=…
+    const urlMatch = msg.text.match(/https?:\/\/\S+/g) ?? [];
+    const signUrl = urlMatch.find((u) => u.includes('/sign/') || u.includes('?t=')) ?? null;
+    if (signUrl) {
+      this.log.log(`email[${safeKind}] sign URL: ${signUrl}`);
+    }
     return { providerId: `logging-${msg.idempotencyKey}` };
   }
 }

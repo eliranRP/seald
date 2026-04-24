@@ -76,4 +76,62 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
   }
+
+  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+    const nowIso = now.toISOString();
+    const due = this.rows
+      .filter(
+        (r) =>
+          (r.status === 'pending' || r.status === 'failed') &&
+          r.scheduled_for <= nowIso &&
+          r.attempts < r.max_attempts,
+      )
+      .sort((a, b) => (a.scheduled_for < b.scheduled_for ? -1 : 1));
+    const picked = due[0];
+    if (!picked) return null;
+    const idx = this.rows.findIndex((r) => r.id === picked.id);
+    const updated: OutboundEmailRow = {
+      ...picked,
+      status: 'sending',
+      attempts: picked.attempts + 1,
+    };
+    this.rows[idx] = updated;
+    return updated;
+  }
+
+  async markSent(id: string, provider_id: string, sent_at: Date): Promise<void> {
+    const idx = this.rows.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const row = this.rows[idx]!;
+    this.rows[idx] = {
+      ...row,
+      status: 'sent',
+      provider_id,
+      sent_at: sent_at.toISOString(),
+      last_error: null,
+    };
+  }
+
+  async markFailed(
+    id: string,
+    args: {
+      readonly error: string;
+      readonly final: boolean;
+      readonly nextAttemptAt?: Date;
+    },
+  ): Promise<void> {
+    const idx = this.rows.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const row = this.rows[idx]!;
+    if (args.final) {
+      this.rows[idx] = { ...row, status: 'failed', last_error: args.error };
+      return;
+    }
+    this.rows[idx] = {
+      ...row,
+      status: 'pending',
+      last_error: args.error,
+      ...(args.nextAttemptAt ? { scheduled_for: args.nextAttemptAt.toISOString() } : {}),
+    };
+  }
 }

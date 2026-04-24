@@ -15,7 +15,8 @@
     "test:e2e": "jest --config test/jest-e2e.json",
     "storage:init": "node scripts/ensure-storage-bucket.mjs",
     "smoke:upload": "node scripts/smoke-upload.mjs",
-    "seed:signer": "ts-node --transpile-only scripts/seed-signer.ts"
+    "seed:signer": "ts-node --transpile-only scripts/seed-signer.ts",
+    "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",

@@ -135,8 +135,73 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .executeTakeFirst();
     return row ? toDomain(row as unknown as Record<string, unknown>) : null;
   }
+
+  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+    // Atomic claim: pick the oldest due row with available attempts, flip its
+    // status to `sending`, bump attempts. The sub-select uses
+    // `for update skip locked` so concurrent dispatchers don't contend.
+    const result = await sql<Record<string, unknown>>`
+      update public.outbound_emails
+      set status = 'sending',
+          attempts = attempts + 1
+      where id = (
+        select id from public.outbound_emails
+        where status in ('pending', 'failed')
+          and scheduled_for <= ${now.toISOString()}
+          and attempts < max_attempts
+        order by scheduled_for asc, created_at asc
+        for update skip locked
+        limit 1
+      )
+      returning *
+    `.execute(this.db);
+    const row = result.rows[0];
+    return row ? toDomain(row) : null;
+  }
+
+  async markSent(id: string, provider_id: string, sent_at: Date): Promise<void> {
+    await this.db
+      .updateTable('outbound_emails')
+      .set({
+        status: 'sent',
+        provider_id,
+        sent_at: sent_at.toISOString(),
+        last_error: null,
+      })
+      .where('id', '=', id)
+      .execute();
+  }
+
+  async markFailed(
+    id: string,
+    args: {
+      readonly error: string;
+      readonly final: boolean;
+      readonly nextAttemptAt?: Date;
+    },
+  ): Promise<void> {
+    // Cap `last_error` at a reasonable length — DB column is `text` (no
+    // limit) but we don't want huge stack traces crowding the audit log.
+    const safeError = args.error.length > 500 ? `${args.error.slice(0, 497)}…` : args.error;
+    if (args.final) {
+      await this.db
+        .updateTable('outbound_emails')
+        .set({ status: 'failed', last_error: safeError })
+        .where('id', '=', id)
+        .execute();
+      return;
+    }
+    await this.db
+      .updateTable('outbound_emails')
+      .set({
+        status: 'pending',
+        last_error: safeError,
+        ...(args.nextAttemptAt ? { scheduled_for: args.nextAttemptAt.toISOString() } : {}),
+      })
+      .where('id', '=', id)
+      .execute();
+  }
 }
 
-// Reference so ts doesn't complain about unused sql import in future additions
-void sql;
+// Reference so ts doesn't complain about unused Row import in future additions
 void (null as unknown as Row);
