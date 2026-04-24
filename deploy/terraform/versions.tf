@@ -1,6 +1,11 @@
 terraform {
   required_version = ">= 1.6.0"
 
+  # State backend. Actual bucket / key / region / lock-table come from
+  # `terraform init -backend-config=…` in CI. For local-only usage run
+  # `terraform init -backend=false` and state lands in the working dir.
+  backend "s3" {}
+
   required_providers {
     aws = {
       source  = "hashicorp/aws"

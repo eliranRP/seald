@@ -1,0 +1,69 @@
+name: Deploy (SSH pull + compose up)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to check out on the host'
+        required: true
+        default: 'develop'
+  workflow_run:
+    workflows: ['Build + push image']
+    types: [completed]
+    branches: [main]
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+# ---------------------------------------------------------------
+# SSH-based deploy. The workflow:
+#   1. Opens an SSH session to the EC2 host using DEPLOY_SSH_KEY.
+#   2. cds into /opt/seald, fetches + checks out the requested ref.
+#   3. Runs `docker compose pull && docker compose up -d` so the host
+#      picks up the new GHCR image (or rebuilds locally if the host is
+#      building from source). Migrations run automatically via the
+#      entrypoint.
+#   4. Polls /health until it returns 200 or times out.
+#
+# Only triggered manually OR after the Docker workflow succeeds on main,
+# so nothing deploys to prod from a pending PR.
+# ---------------------------------------------------------------
+
+jobs:
+  ssh_deploy:
+    name: Pull + compose up on EC2
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 12m
+          script: |
+            set -euo pipefail
+            cd /opt/seald
+            git fetch --all --tags
+            git checkout "${{ inputs.ref || 'main' }}"
+            git pull --ff-only || true
+            docker compose pull || true
+            docker compose up -d --build
+            # Health probe — 30 retries, 2s interval = up to 60s.
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:3000/health >/dev/null; then
+                echo "✓ /health OK after ${i} tries"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "✗ /health never came up" >&2
+            docker compose logs --tail=200 api
+            exit 1
