@@ -231,8 +231,6 @@ function Content() {
       setError(null);
       setActiveFieldId(field.id);
       const uiKind = toUiKind(field);
-      // Scroll to field so it's visible before any drawer opens / auto-apply fires.
-      scrollToField(field);
       if (uiKind === 'checkbox') {
         try {
           await fillField(field.id, { value_boolean: !fieldIsFilled(field) });
@@ -284,13 +282,15 @@ function Content() {
     [envelopeId, fillField, navigate, setSignature],
   );
 
+  // "Next field" / jump-to-next-zone: scroll + highlight only. We
+  // deliberately do NOT open a drawer or auto-apply a remembered
+  // signature here — that's reserved for an explicit tap on the field
+  // itself. Navigation should never mutate document state.
   const handleNext = useCallback(() => {
     if (!nextField) return;
     scrollToField(nextField);
-    handleFieldClick(nextField).catch(() => {
-      /* surfaced by handleFieldClick's own error state */
-    });
-  }, [handleFieldClick, nextField]);
+    setActiveFieldId(nextField.id);
+  }, [nextField]);
 
   const handleTextApply = useCallback(
     async (value: string): Promise<void> => {
