@@ -132,10 +132,13 @@ jobs:
             fi
             ln -sfn "dist.${STAMP}" "apps/web/dist"
 
-            # Ensure the caddy volume mount resolves; docker compose
-            # follows the symlink at mount time so a simple reload is
-            # enough for subsequent deploys.
-            sudo docker compose up -d caddy
+            # Docker resolves bind-mounted symlinks at container
+            # START time, not per-request. The `apps/web/dist ->
+            # dist.<STAMP>` symlink therefore requires a container
+            # recreate for each new bundle — a plain `up -d` would
+            # keep the stale mount. `--force-recreate` restarts the
+            # caddy container in ~1s with the fresh mount.
+            sudo docker compose up -d --force-recreate caddy
 
             # Clean bundles older than 3 deploys (keep rolling history).
             ls -1dt apps/web/dist.2* 2>/dev/null | tail -n +4 | xargs -r rm -rf
