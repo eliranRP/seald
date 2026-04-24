@@ -16,6 +16,7 @@
 #        APP_PUBLIC_URL          https://seald.nromomentum.com
 #        CORS_ORIGIN             same as APP_PUBLIC_URL
 #        CADDY_DOMAIN            api.seald.nromomentum.com
+#        WEB_DOMAIN              seald.nromomentum.com  (static SPA)
 #   2. docker compose up -d
 #   3. Cron: 'curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" \
 #            http://localhost:3000/internal/cron/expire' every 15 min.
@@ -58,8 +59,14 @@ services:
       - "443:443/udp"
     environment:
       CADDY_DOMAIN: ${CADDY_DOMAIN:-api.seald.nromomentum.com}
+      WEB_DOMAIN: ${WEB_DOMAIN:-seald.nromomentum.com}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Static SPA bundle. CI (`deploy-web.yml`) populates this
+      # directory on the host before restarting the stack; Caddy
+      # file-serves it at {$WEB_DOMAIN}. Read-only to prevent the
+      # server from modifying build artifacts.
+      - ./apps/web/dist:/srv/web:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

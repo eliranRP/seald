@@ -37,3 +37,38 @@
 		format console
 	}
 }
+
+# ---------------------------------------------------------------------
+# Static SPA frontend. The GitHub Actions `deploy-web.yml` workflow
+# builds `apps/web` with Vite and drops the result into
+# `/opt/seald/apps/web/dist/` on the host; this block mounts that
+# directory read-only and serves it with an SPA fallback (react-router
+# needs every unmatched path to hit `/index.html`).
+#
+# Long-cache static assets, no-cache the HTML shell so new deploys are
+# picked up on next navigation.
+# ---------------------------------------------------------------------
+{$WEB_DOMAIN} {
+	encode zstd gzip
+	root * /srv/web
+
+	# Never cache the entry shell so clients pick up new asset hashes
+	# on the next navigation without a hard refresh.
+	@html path / /index.html
+	header @html Cache-Control "no-cache, no-store, must-revalidate"
+
+	# Vite emits every JS/CSS/image with a content hash in the
+	# filename; those are safe to cache aggressively.
+	@hashedAssets path_regexp ^/assets/
+	header @hashedAssets Cache-Control "public, max-age=31536000, immutable"
+
+	# SPA routing: any path that isn't an existing file falls through
+	# to /index.html so react-router can hydrate.
+	try_files {path} /index.html
+	file_server
+
+	log {
+		output stdout
+		format console
+	}
+}

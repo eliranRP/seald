@@ -1,0 +1,195 @@
+name: Deploy Web (Vite build + SSH rsync)
+
+on:
+  # Direct push-to-main deploy. Triggered only when something under
+  # `apps/web/`, `packages/shared/`, or the shared root configs changes
+  # — the API has its own deploy workflow that handles `apps/api/`.
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to build + deploy'
+        required: true
+        default: 'main'
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+# ---------------------------------------------------------------
+# Build the SPA in CI (Vite) and ship the resulting `apps/web/dist/`
+# to the existing EC2 host over SCP. The stack's Caddy container
+# mounts `/opt/seald/apps/web/dist:/srv/web:ro` and serves it at
+# `{$WEB_DOMAIN}` with an SPA fallback. No container rebuild needed
+# for static-only changes.
+#
+# Secrets used (already present for the API deploy):
+#   DEPLOY_SSH_HOST       EC2 DNS name
+#   DEPLOY_SSH_USER       ssh user (usually `ubuntu`)
+#   DEPLOY_SSH_KEY        private key authorised on the host
+#
+# Build-time secrets (new — must be added before first run):
+#   VITE_API_BASE_URL           https://api.seald.nromomentum.com
+#   VITE_SUPABASE_URL           https://<project>.supabase.co
+#   VITE_SUPABASE_PUBLISHABLE_KEY  Supabase anon/publishable key
+# ---------------------------------------------------------------
+
+jobs:
+  build_and_deploy:
+    name: Vite build + SSH deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out the requested ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared package
+        run: pnpm --filter shared build
+
+      - name: Build the web SPA
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: pnpm --filter web build
+
+      - name: Pack dist/
+        run: |
+          cd apps/web
+          tar -czf /tmp/web-dist.tar.gz -C dist .
+          ls -lh /tmp/web-dist.tar.gz
+
+      - name: Upload bundle to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          source: /tmp/web-dist.tar.gz
+          target: /tmp
+          strip_components: 1
+
+      - name: Install bundle + reload Caddy
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 5m
+          script: |
+            set -euo pipefail
+            cd /opt/seald
+
+            # Atomic-ish swap: extract to a staging dir, then rename.
+            # Caddy file_server tolerates the swap because it opens files
+            # per-request (not per-startup).
+            STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+            STAGE="apps/web/dist.${STAMP}"
+            mkdir -p "${STAGE}"
+            tar -xzf /tmp/web-dist.tar.gz -C "${STAGE}"
+
+            # Sanity — /index.html must exist in the new bundle.
+            test -s "${STAGE}/index.html" || { echo "no index.html in bundle" >&2; rm -rf "${STAGE}"; exit 1; }
+
+            # Swap into place + keep one generation of backup for rollback.
+            if [ -e "apps/web/dist" ] && [ ! -L "apps/web/dist" ]; then
+              mv "apps/web/dist" "apps/web/dist.prev.${STAMP}" || true
+            fi
+            ln -sfn "dist.${STAMP}" "apps/web/dist"
+
+            # Ensure the caddy volume mount resolves; docker compose
+            # follows the symlink at mount time so a simple reload is
+            # enough for subsequent deploys.
+            sudo docker compose up -d caddy
+
+            # Clean bundles older than 3 deploys (keep rolling history).
+            ls -1dt apps/web/dist.2* 2>/dev/null | tail -n +4 | xargs -r rm -rf
+
+            # Remove the staging tarball.
+            rm -f /tmp/web-dist.tar.gz
+
+      - name: Smoke test — index shell loads from ${{ secrets.WEB_DOMAIN }}
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ secrets.WEB_DOMAIN }}"
+          if [ -z "${DOMAIN}" ]; then
+            # Fallback to the known production domain if the secret isn't
+            # set. The workflow doesn't fail hard — we just log.
+            DOMAIN="seald.nromomentum.com"
+          fi
+          echo "Probing https://${DOMAIN}/"
+          # Accept up to 60s for Caddy's ACME to settle on first deploy.
+          for i in $(seq 1 30); do
+            code="$(curl -sS -o /tmp/body -w '%{http_code}' "https://${DOMAIN}/" || true)"
+            if [ "$code" = "200" ] && grep -qi 'seald' /tmp/body; then
+              echo "OK — ${DOMAIN} served index shell (200, contains 'Seald')"
+              exit 0
+            fi
+            echo "  try ${i}: code=${code}"
+            sleep 2
+          done
+          echo "Smoke test failed — last body:" >&2
+          head -c 2000 /tmp/body >&2
+          exit 1
+
+      - name: Verify the deployed SPA points at the production API
+        run: |
+          set -euo pipefail
+          DOMAIN="${{ secrets.WEB_DOMAIN }}"
+          [ -z "${DOMAIN}" ] && DOMAIN="seald.nromomentum.com"
+          EXPECTED="${{ secrets.VITE_API_BASE_URL }}"
+          [ -z "${EXPECTED}" ] && EXPECTED="https://api.seald.nromomentum.com"
+
+          echo "Fetching any JS asset + grepping for '${EXPECTED}'"
+          # Pull index.html, extract the first bundled JS asset path, grep it.
+          curl -sS "https://${DOMAIN}/" | \
+            grep -oE '/assets/[^"]+\.js' | head -1 | \
+            while read path; do
+              full="https://${DOMAIN}${path}"
+              echo "  checking ${full}"
+              if curl -sS "${full}" | grep -qF "${EXPECTED}"; then
+                echo "OK — built asset references ${EXPECTED}"
+                exit 0
+              else
+                echo "  ${EXPECTED} not found in ${path}" >&2
+                exit 1
+              fi
+            done
+
+      - name: Verify the production API is reachable
+        run: |
+          set -euo pipefail
+          EXPECTED="${{ secrets.VITE_API_BASE_URL }}"
+          [ -z "${EXPECTED}" ] && EXPECTED="https://api.seald.nromomentum.com"
+          echo "GET ${EXPECTED}/health"
+          curl -fsS "${EXPECTED}/health" | grep -q '"status":"ok"'
+          echo "OK — API /health returned status ok"

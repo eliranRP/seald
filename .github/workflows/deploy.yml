@@ -13,6 +13,10 @@ on:
       - '**/*.md'
       - 'deploy/terraform/**'
       - '.github/workflows/terraform.yml'
+      # The web SPA has its own deploy workflow (deploy-web.yml). Pure
+      # frontend changes shouldn't trigger an API container rebuild.
+      - 'apps/web/**'
+      - '.github/workflows/deploy-web.yml'
   workflow_dispatch:
     inputs:
       ref:
