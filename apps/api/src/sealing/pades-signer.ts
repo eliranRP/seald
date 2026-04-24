@@ -5,6 +5,8 @@ import { P12Signer } from '@signpdf/signer-p12';
 import { SignPdf } from '@signpdf/signpdf';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { P12TsaSigner } from './p12-tsa-signer';
+import { TsaClient } from './tsa-client';
 
 /**
  * Port for applying a PAdES (PDF Advanced Electronic Signatures) signature
@@ -53,8 +55,9 @@ export class P12PadesSigner extends PadesSigner {
   private readonly logger = new Logger(P12PadesSigner.name);
   private readonly p12Bytes: Buffer;
   private readonly passphrase: string;
+  private readonly tsa: TsaClient | null;
 
-  constructor(@Inject(APP_ENV) env: AppEnv) {
+  constructor(@Inject(APP_ENV) env: AppEnv, tsa: TsaClient | null) {
     super();
     const path = env.PDF_SIGNING_LOCAL_P12_PATH;
     const pass = env.PDF_SIGNING_LOCAL_P12_PASS;
@@ -71,7 +74,10 @@ export class P12PadesSigner extends PadesSigner {
       );
     }
     this.passphrase = pass;
-    this.logger.log(`P12 keypair loaded from ${path} (${this.p12Bytes.length} bytes)`);
+    this.tsa = tsa;
+    this.logger.log(
+      `P12 keypair loaded from ${path} (${this.p12Bytes.length} bytes); TSA ${this.tsa ? 'enabled' : 'disabled'}`,
+    );
   }
 
   async sign(pdf: Buffer): Promise<Buffer> {
@@ -81,9 +87,16 @@ export class P12PadesSigner extends PadesSigner {
       contactInfo: 'seald',
       name: 'Seald',
       location: 'Seald',
+      // 16 KB handles sha256 + cert chain + TSA TST comfortably.
       signatureLength: 16384,
     });
-    const signer = new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
+
+    // With TSA → PAdES-B-T (full cryptographic chain-of-custody including
+    // trusted time attestation). Without TSA → PAdES-B-B (signature only).
+    // Production deploys MUST configure PDF_SIGNING_TSA_URL.
+    const signer = this.tsa
+      ? new P12TsaSigner(this.p12Bytes, this.passphrase, this.tsa)
+      : new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
     const signed = await new SignPdf().sign(withPlaceholder, signer);
     return signed;
   }

@@ -6,6 +6,7 @@ import { EmailModule } from '../email/email.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { NoopPadesSigner, P12PadesSigner, PadesSigner } from './pades-signer';
 import { SealingService } from './sealing.service';
+import { TsaClient } from './tsa-client';
 import { WorkerService } from './worker.service';
 
 /**
@@ -28,9 +29,10 @@ import { WorkerService } from './worker.service';
   providers: [
     SealingService,
     WorkerService,
+    TsaClient,
     {
       provide: PadesSigner,
-      useFactory: (env: AppEnv) => {
+      useFactory: (env: AppEnv, tsa: TsaClient) => {
         const logger = new Logger('SealingModule');
         const p12Path = env.PDF_SIGNING_LOCAL_P12_PATH;
         if (
@@ -39,17 +41,20 @@ import { WorkerService } from './worker.service';
           env.PDF_SIGNING_LOCAL_P12_PASS &&
           existsSync(p12Path)
         ) {
-          logger.log(`PadesSigner: P12PadesSigner (p12=${p12Path})`);
-          return new P12PadesSigner(env);
+          const tsaReady = tsa.configured;
+          logger.log(
+            `PadesSigner: P12PadesSigner (p12=${p12Path}; TSA=${tsaReady ? 'enabled, PAdES-B-T' : 'disabled, PAdES-B-B only'})`,
+          );
+          return new P12PadesSigner(env, tsaReady ? tsa : null);
         }
         logger.warn(
           'PadesSigner: NoopPadesSigner (PDF_SIGNING_LOCAL_P12_* unset or file missing — sealed.pdf will have burn-in + sha256 but no CMS signature)',
         );
         return new NoopPadesSigner();
       },
-      inject: [APP_ENV],
+      inject: [APP_ENV, TsaClient],
     },
   ],
-  exports: [SealingService, PadesSigner],
+  exports: [SealingService, PadesSigner, TsaClient],
 })
 export class SealingModule {}
