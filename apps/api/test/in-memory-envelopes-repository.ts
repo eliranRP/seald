@@ -161,6 +161,21 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return this.events.filter((e) => e.envelope_id === envelope_id);
   }
 
+  async listSignerAuditDetails(envelope_id: string) {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return [];
+    return env.signers.map((s) => {
+      const meta = this.signerMeta.get(s.id);
+      return {
+        signer_id: s.id,
+        signature_format: meta?.signature_format ?? null,
+        signature_font: meta?.signature_font ?? null,
+        verification_checks: ['email'] as ReadonlyArray<string>,
+        signing_ip: null as string | null,
+      };
+    });
+  }
+
   async updateDraftMetadata(
     owner_id: string,
     envelope_id: string,

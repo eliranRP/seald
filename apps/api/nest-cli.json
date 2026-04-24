@@ -4,7 +4,10 @@
   "sourceRoot": "src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "assets": [{ "include": "email/templates/**/*", "outDir": "dist/src" }],
+    "assets": [
+      { "include": "email/templates/**/*", "outDir": "dist/src" },
+      { "include": "sealing/fonts/**/*.ttf", "outDir": "dist/src" }
+    ],
     "watchAssets": true
   }
 }

@@ -26,6 +26,7 @@ import {
   type SetOriginalFileInput,
   type ClaimedJob,
   type SetSignerSignatureInput,
+  type SignerAuditDetail,
   type SignerFieldFillInput,
   type SubmitResult,
   type UpdateDraftMetadataPatch,
@@ -373,6 +374,21 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .orderBy('id', 'asc')
       .execute();
     return rows.map(toEventDomain);
+  }
+
+  async listSignerAuditDetails(envelope_id: string): Promise<ReadonlyArray<SignerAuditDetail>> {
+    const rows = await this.db
+      .selectFrom('envelope_signers')
+      .select(['id', 'signature_format', 'signature_font', 'verification_checks', 'signing_ip'])
+      .where('envelope_id', '=', envelope_id)
+      .execute();
+    return rows.map((r) => ({
+      signer_id: r.id,
+      signature_format: r.signature_format,
+      signature_font: r.signature_font,
+      verification_checks: r.verification_checks ?? [],
+      signing_ip: r.signing_ip,
+    }));
   }
 
   // Decode helper exposed for the service layer — keeps base64 format internal

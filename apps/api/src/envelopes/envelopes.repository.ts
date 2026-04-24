@@ -88,6 +88,21 @@ export interface ClaimedJob {
   readonly max_attempts: number;
 }
 
+/**
+ * Per-signer data that the audit PDF renderer needs but that we deliberately
+ * exclude from the public wire contract (EnvelopeSigner). Exposed via a
+ * dedicated port so the domain Signer stays narrow while the server-side
+ * audit artifact can render signature format, verification checks, and the
+ * signing IP captured at submit time.
+ */
+export interface SignerAuditDetail {
+  readonly signer_id: string;
+  readonly signature_format: SignatureFormat | null;
+  readonly signature_font: string | null;
+  readonly verification_checks: ReadonlyArray<string>;
+  readonly signing_ip: string | null;
+}
+
 export interface ListOptions {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit: number; // 1..100
@@ -165,6 +180,15 @@ export abstract class EnvelopesRepository {
   ): Promise<{ envelope: Envelope; signer: EnvelopeSigner } | null>;
   abstract listByOwner(owner_id: string, opts: ListOptions): Promise<ListResult>;
   abstract listEventsForEnvelope(envelope_id: string): Promise<ReadonlyArray<EnvelopeEvent>>;
+
+  /**
+   * Returns the per-signer metadata needed by the audit PDF renderer
+   * (signature format, verification checks, signing IP). Kept separate from
+   * findByIdWithAll so the domain Signer shape — used by the public wire
+   * contract — does not leak these fields. Order is unspecified; callers
+   * should key by signer_id.
+   */
+  abstract listSignerAuditDetails(envelope_id: string): Promise<ReadonlyArray<SignerAuditDetail>>;
 
   // Draft composition
   abstract updateDraftMetadata(

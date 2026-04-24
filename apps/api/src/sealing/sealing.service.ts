@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import QRCode from 'qrcode';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
@@ -10,9 +9,10 @@ import {
   buildTimelineHtml,
   type TimelineEventFragment,
 } from '../email/template-fragments';
-import type { Envelope, EnvelopeEvent, EnvelopeField } from '../envelopes/envelope.entity';
+import type { Envelope, EnvelopeField } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
+import { buildAuditPdf } from './audit-pdf';
 import { PadesSigner } from './pades-signer';
 
 /**
@@ -70,8 +70,17 @@ export class SealingService {
     const sealedPath = `${envelope_id}/sealed.pdf`;
     await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
 
-    const events = await this.repo.listEventsForEnvelope(envelope_id);
-    const auditBytes = await this.buildAuditPdf(envelope, events, sealedSha);
+    const [events, signerDetails] = await Promise.all([
+      this.repo.listEventsForEnvelope(envelope_id),
+      this.repo.listSignerAuditDetails(envelope_id),
+    ]);
+    const auditBytes = await buildAuditPdf({
+      envelope,
+      events,
+      signerDetails,
+      sealedSha256: sealedSha,
+      publicUrl: this.env.APP_PUBLIC_URL,
+    });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
 
@@ -154,9 +163,17 @@ export class SealingService {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new Error(`envelope_not_found:${envelope_id}`);
 
-    const events = await this.repo.listEventsForEnvelope(envelope_id);
-    // No sealed sha to reference — pass empty.
-    const auditBytes = await this.buildAuditPdf(envelope, events, null);
+    const [events, signerDetails] = await Promise.all([
+      this.repo.listEventsForEnvelope(envelope_id),
+      this.repo.listSignerAuditDetails(envelope_id),
+    ]);
+    const auditBytes = await buildAuditPdf({
+      envelope,
+      events,
+      signerDetails,
+      sealedSha256: null,
+      publicUrl: this.env.APP_PUBLIC_URL,
+    });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
     await this.repo.setAuditFile(envelope_id, auditPath);
@@ -247,82 +264,6 @@ export class SealingService {
     // "Expected xref at NaN". PDF readers handle both fine, so the only
     // cost is a slightly larger file on disk.
     const out = await pdf.save({ useObjectStreams: false });
-    return Buffer.from(out);
-  }
-
-  /**
-   * Single-page audit PDF: envelope meta + event timeline + QR code to the
-   * public verify URL. Designed to be standalone — any subsequent forensic
-   * review only needs this one file.
-   */
-  private async buildAuditPdf(
-    envelope: Envelope,
-    events: ReadonlyArray<EnvelopeEvent>,
-    sealedSha: string | null,
-  ): Promise<Buffer> {
-    const pdf = await PDFDocument.create();
-    const page = pdf.addPage([612, 792]); // US Letter
-    const helv = await pdf.embedFont(StandardFonts.Helvetica);
-    const helvBold = await pdf.embedFont(StandardFonts.HelveticaBold);
-    const margin = 50;
-    let cursorY = 792 - margin;
-
-    const line = (text: string, size = 10, bold = false): void => {
-      page.drawText(text, {
-        x: margin,
-        y: cursorY,
-        size,
-        font: bold ? helvBold : helv,
-        color: rgb(0, 0, 0),
-      });
-      cursorY -= size + 4;
-    };
-
-    line('Seald — Audit Trail', 18, true);
-    cursorY -= 6;
-    line(envelope.title, 12, true);
-    line(`Reference: ${envelope.short_code}`, 10);
-    line(`Status: ${envelope.status}`, 10);
-    line(`Created: ${envelope.created_at}`, 10);
-    if (envelope.completed_at) line(`Completed: ${envelope.completed_at}`, 10);
-    if (sealedSha) line(`Sealed SHA-256: ${sealedSha}`, 8);
-    if (envelope.original_sha256) line(`Original SHA-256: ${envelope.original_sha256}`, 8);
-
-    cursorY -= 8;
-    line('Signers', 12, true);
-    for (const s of envelope.signers) {
-      line(`• ${s.name} <${s.email}> — ${s.status}`, 10);
-    }
-
-    cursorY -= 8;
-    line('Events', 12, true);
-    for (const ev of events) {
-      if (cursorY < margin + 30) break; // MVP: single page, truncate if overflow
-      line(`[${ev.created_at}] ${ev.event_type} (${ev.actor_kind})`, 9);
-    }
-
-    // QR code at bottom-right.
-    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
-    const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 0, width: 200 });
-    const qrBytes = Buffer.from(qrDataUrl.split(',')[1]!, 'base64');
-    const qrImg = await pdf.embedPng(qrBytes);
-    const qrSize = 100;
-    page.drawImage(qrImg, {
-      x: 612 - margin - qrSize,
-      y: margin,
-      width: qrSize,
-      height: qrSize,
-    });
-    page.drawText(`Verify: ${verifyUrl}`, {
-      x: margin,
-      y: margin + 8,
-      size: 8,
-      font: helv,
-      color: rgb(0.3, 0.3, 0.3),
-    });
-
-    const out = await pdf.save();
     return Buffer.from(out);
   }
 }
