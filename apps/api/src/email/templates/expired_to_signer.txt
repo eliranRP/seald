@@ -1,0 +1,10 @@
+The signing request expired.
+
+The signing window for "{{envelope_title}}" from {{sender_name}} closed
+on {{expired_at_readable}}. You no longer need to take action on this
+document.
+
+If {{sender_name}} would like you to sign, they can send a fresh request
+from their dashboard.
+
+Sent via Seald · {{public_url}}

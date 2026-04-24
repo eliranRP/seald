@@ -1,0 +1,38 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{envelope_title}} expired without all signatures</mj-title>
+    <mj-preview>The signing window closed — resend to try again</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" />
+      <mj-text font-size="15px" line-height="1.5" color="#1f2937" />
+      <mj-button background-color="#111827" color="#ffffff" font-weight="600" border-radius="6px" />
+    </mj-attributes>
+    <mj-style>
+      .muted { color: #6b7280; font-size: 13px; }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#f3f4f6">
+    <mj-section background-color="#ffffff" padding="32px 24px">
+      <mj-column>
+        <mj-text font-size="20px" font-weight="600" color="#111827">Seald</mj-text>
+        <mj-spacer height="24px" />
+        <mj-text font-size="18px" font-weight="600">{{envelope_title}} expired</mj-text>
+        <mj-spacer height="12px" />
+        <mj-text>
+          The signing window for this request closed on {{expired_at_readable}} before all parties signed.
+          Of {{total_signers}} signers, {{signed_count}} had completed by the deadline.
+        </mj-text>
+        <mj-spacer height="20px" />
+        <mj-button href="{{dashboard_url}}" padding="12px 24px">Open in dashboard</mj-button>
+        <mj-spacer height="16px" />
+        <mj-text css-class="muted">
+          To try again, open the dashboard and choose <em>Duplicate</em>. The original expired request
+          is retained with its audit trail.
+        </mj-text>
+        <mj-spacer height="24px" />
+        <mj-text css-class="muted">Sent via Seald · {{public_url}}</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

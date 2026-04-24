@@ -1,0 +1,14 @@
+Reminder: {{sender_name}} is still waiting for your signature on:
+
+  {{envelope_title}}
+
+Review and sign:
+  {{sign_url}}
+
+This request expires on {{expires_at_readable}}. If you've already
+signed, please ignore this email.
+
+Verify this document with reference code {{short_code}}:
+  {{verify_url}}
+
+Sent via Seald · {{public_url}}

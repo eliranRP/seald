@@ -1,0 +1,16 @@
+{{envelope_title}} was declined.
+
+{{decliner_name}} ({{decliner_email}}) declined to sign on
+{{declined_at_readable}}. The request has been canceled — no further
+action is needed from the other parties.
+
+Reason provided:
+
+  {{decline_reason}}
+
+To resend with changes, open the dashboard and choose "Duplicate".
+The original declined request is retained as audit evidence.
+
+  Open dashboard: {{dashboard_url}}
+
+Sent via Seald · {{public_url}}

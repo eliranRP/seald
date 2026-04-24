@@ -1,0 +1,10 @@
+The signing request was withdrawn.
+
+The signing request from {{sender_name}} for "{{envelope_title}}"
+has been withdrawn. You don't need to take any further action on this
+document.
+
+If you expected to sign this and believe this is an error, please
+contact {{sender_name}} directly.
+
+Sent via Seald · {{public_url}}

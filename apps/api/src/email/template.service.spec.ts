@@ -8,8 +8,64 @@ describe('TemplateService', () => {
     svc.onModuleInit();
   });
 
-  it('loads the invite template at module init', () => {
-    expect(svc.kinds()).toContain('invite');
+  it('loads all 8 phase-3c templates at module init', () => {
+    const kinds = svc.kinds();
+    for (const expected of [
+      'invite',
+      'reminder',
+      'completed',
+      'declined_to_sender',
+      'withdrawn_to_signer',
+      'withdrawn_after_sign',
+      'expired_to_sender',
+      'expired_to_signer',
+    ]) {
+      expect(kinds).toContain(expected);
+    }
+  });
+
+  describe('every template is a self-contained MJML doc', () => {
+    const commonVars = {
+      sender_name: 'Ada Lovelace',
+      sender_email: 'ada@example.com',
+      envelope_title: 'NDA v1',
+      sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+      verify_url: 'https://seald.nromomentum.com/verify/code/abcde12345',
+      short_code: 'abcde12345xyz',
+      public_url: 'https://seald.nromomentum.com',
+      sealed_url: 'https://seald.nromomentum.com/sealed/abc',
+      audit_url: 'https://seald.nromomentum.com/audit/abc',
+      dashboard_url: 'https://seald.nromomentum.com/dashboard',
+      decliner_name: 'Bob Byte',
+      decliner_email: 'bob@example.com',
+      decline_reason: 'Terms need revision',
+      declined_at_readable: '2026-04-24 09:00 UTC',
+      signed_at_readable: '2026-04-24 08:00 UTC',
+      expired_at_readable: '2026-05-24 00:00 UTC',
+      expires_at_readable: '2026-05-24 00:00 UTC',
+      total_signers: 3,
+      signed_count: 1,
+    };
+
+    it.each([
+      'invite',
+      'reminder',
+      'completed',
+      'declined_to_sender',
+      'withdrawn_to_signer',
+      'withdrawn_after_sign',
+      'expired_to_sender',
+      'expired_to_signer',
+    ] as const)('%s renders to valid HTML + non-empty text + subject', (kind) => {
+      const out = svc.render(kind, commonVars);
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.text.length).toBeGreaterThan(20);
+      expect(out.subject.length).toBeGreaterThan(5);
+      // Every placeholder must resolve — no raw {{…}} in any of the three parts.
+      expect(out.html).not.toMatch(/\{\{[^}]+\}\}/);
+      expect(out.text).not.toMatch(/\{\{[^}]+\}\}/);
+      expect(out.subject).not.toMatch(/\{\{[^}]+\}\}/);
+    });
   });
 
   describe('render — invite', () => {

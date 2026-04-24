@@ -1,0 +1,34 @@
+<mjml>
+  <mj-head>
+    <mj-title>{{envelope_title}} was withdrawn</mj-title>
+    <mj-preview>You no longer need to take action on this document</mj-preview>
+    <mj-attributes>
+      <mj-all font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" />
+      <mj-text font-size="15px" line-height="1.5" color="#1f2937" />
+    </mj-attributes>
+    <mj-style>
+      .muted { color: #6b7280; font-size: 13px; }
+    </mj-style>
+  </mj-head>
+
+  <mj-body background-color="#f3f4f6">
+    <mj-section background-color="#ffffff" padding="32px 24px">
+      <mj-column>
+        <mj-text font-size="20px" font-weight="600" color="#111827">Seald</mj-text>
+        <mj-spacer height="24px" />
+        <mj-text font-size="18px" font-weight="600">The signing request was withdrawn</mj-text>
+        <mj-spacer height="12px" />
+        <mj-text>
+          The signing request from <strong>{{sender_name}}</strong> for <strong>{{envelope_title}}</strong>
+          has been withdrawn. You don't need to take any further action on this document.
+        </mj-text>
+        <mj-spacer height="16px" />
+        <mj-text css-class="muted">
+          If you expected to sign this and believe this is an error, please contact {{sender_name}} directly.
+        </mj-text>
+        <mj-spacer height="24px" />
+        <mj-text css-class="muted">Sent via Seald · {{public_url}}</mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>

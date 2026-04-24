@@ -1,0 +1,12 @@
+{{envelope_title}} expired.
+
+The signing window for this request closed on {{expired_at_readable}}
+before all parties signed. Of {{total_signers}} signers, {{signed_count}}
+had completed by the deadline.
+
+To try again, open the dashboard and choose "Duplicate". The original
+expired request is retained with its audit trail.
+
+  Open dashboard: {{dashboard_url}}
+
+Sent via Seald · {{public_url}}

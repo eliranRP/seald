@@ -1,0 +1,14 @@
+{{envelope_title}} is signed and sealed.
+
+All parties have signed. The sealed PDF has been produced with a
+tamper-evident signature and an audit trail documenting every step
+of the process.
+
+Download:
+  Sealed document: {{sealed_url}}
+  Audit trail:     {{audit_url}}
+
+Verify this document with reference code {{short_code}}:
+  {{verify_url}}
+
+Sent via Seald · {{public_url}}

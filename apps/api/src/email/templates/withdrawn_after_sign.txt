@@ -1,0 +1,12 @@
+The request was withdrawn after you signed.
+
+You signed "{{envelope_title}}" on {{signed_at_readable}}. Before all
+parties completed, the request was withdrawn by another party.
+
+Your signature was recorded in the audit trail, but the FINAL SEALED
+DOCUMENT WAS NOT CREATED. The original request is retained as legal
+evidence of your submission.
+
+If you have questions, please contact {{sender_name}} directly.
+
+Sent via Seald · {{public_url}}
