@@ -1,0 +1,1384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Audit trail — UNCONDITIONAL FINAL WAIVER</title>
+<link rel="stylesheet" href="colors_and_type.css" />
+<style>
+  /* ===== Page setup — US Letter, print-ready ===== */
+  @page {
+    size: Letter;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #E8ECF2;
+    font-family: var(--font-sans);
+    color: var(--fg-1);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .deck {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 0;
+    gap: 24px;
+  }
+
+  /* ===== Page ===== */
+  .page {
+    width: 8.5in;
+    height: 11in;
+    background: var(--paper);
+    position: relative;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.06), 0 24px 56px rgba(15,23,42,0.08);
+    overflow: hidden;
+    color: var(--fg-1);
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Inner content lives here, in standard margins */
+  .page-body {
+    flex: 1;
+    min-height: 0;
+    padding: 0.5in 0.6in 0 0.6in;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow: hidden;
+  }
+
+  /* ===== Top header bar — hairline brand strip ===== */
+  .page-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-1);
+    flex: 0 0 auto;
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .brand-mark {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+  }
+  .brand-word {
+    font-family: var(--font-serif);
+    font-size: 15pt;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink-900);
+    line-height: 1;
+  }
+  .brand-eyebrow {
+    font-family: var(--font-sans);
+    font-size: 8pt;
+    font-weight: 600;
+    color: var(--fg-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .brand-eyebrow-sep {
+    margin: 0 8px;
+    color: var(--ink-300);
+  }
+
+  /* ===== Hero / title block on page 1 ===== */
+  .hero {
+    padding: 2px 0 4px 0;
+  }
+  .hero-kicker {
+    font-family: var(--font-sans);
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    margin-bottom: 6px;
+  }
+  .hero-title {
+    font-family: var(--font-serif);
+    font-size: 26pt;
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink-900);
+    margin: 0 0 6px 0;
+  }
+  .hero-title .script {
+    font-family: var(--font-script);
+    font-weight: 600;
+    color: var(--indigo-600);
+    font-size: 28pt;
+    position: relative;
+    padding: 0 4px;
+  }
+  .hero-subtitle {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    line-height: 1.5;
+    color: var(--fg-2);
+    max-width: 6.2in;
+    margin: 0;
+  }
+  .hero-subtitle em {
+    font-style: italic;
+    color: var(--ink-700);
+  }
+
+  /* ===== Section heading ===== */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-top: 2px;
+  }
+  .section-num {
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    color: var(--indigo-600);
+    letter-spacing: 0.04em;
+  }
+  .section-title {
+    font-family: var(--font-serif);
+    font-size: 13pt;
+    font-weight: 500;
+    color: var(--ink-900);
+    letter-spacing: -0.01em;
+  }
+  .section-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--border-1);
+    margin-left: 6px;
+    transform: translateY(-3px);
+  }
+
+  /* ===== Data list — document evidence ===== */
+  .datagrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .datacell {
+    padding: 9px 14px;
+    border-right: 1px solid var(--border-1);
+    border-bottom: 1px solid var(--border-1);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 44px;
+    justify-content: center;
+  }
+  .datagrid .datacell:nth-child(2n) { border-right: none; }
+  .datagrid .datacell:nth-last-child(-n+2) { border-bottom: none; }
+
+  .datacell .dc-label {
+    font-family: var(--font-sans);
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    font-weight: 600;
+  }
+  .datacell .dc-value {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    color: var(--ink-900);
+    font-weight: 500;
+    line-height: 1.3;
+  }
+  .datacell .dc-value.mono {
+    font-family: var(--font-mono);
+    font-size: 8.5pt;
+    font-weight: 400;
+    word-break: break-all;
+  }
+  .dc-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .check-dot {
+    width: 14px; height: 14px;
+    border-radius: 999px;
+    background: var(--success-500);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    flex: 0 0 auto;
+  }
+  .check-dot svg { width: 9px; height: 9px; stroke: #fff; stroke-width: 3; fill: none; }
+
+  /* ===== Hash block ===== */
+  .hash-block {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .hash-card {
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-md);
+    padding: 9px 14px;
+    background: var(--ink-50);
+  }
+  .hash-row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-family: var(--font-sans);
+  }
+  .hash-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    font-weight: 600;
+    flex: 0 0 auto;
+    min-width: 155px;
+  }
+  .hash-type .type-dot {
+    width: 7px; height: 7px; border-radius: 999px;
+    background: var(--ink-400);
+  }
+  .hash-type.is-signed .type-dot { background: var(--success-500); }
+  .hash-filename {
+    font-size: 10pt;
+    color: var(--ink-900);
+    font-weight: 500;
+  }
+  .hash-filename .pages {
+    color: var(--fg-3);
+    font-weight: 400;
+  }
+  .hash-value {
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: var(--ink-700);
+    word-break: break-all;
+    line-height: 1.4;
+  }
+
+  /* ===== Verify / QR card ===== */
+  .verify {
+    display: grid;
+    grid-template-columns: 1fr 88px;
+    gap: 18px;
+    align-items: center;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    padding: 12px 18px;
+    background: linear-gradient(180deg, var(--ink-50), var(--paper));
+    margin-top: 0;
+  }
+  .verify-body .v-eyebrow {
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--indigo-600);
+    margin-bottom: 6px;
+  }
+  .verify-body .v-title {
+    font-family: var(--font-serif);
+    font-size: 12pt;
+    font-weight: 500;
+    color: var(--ink-900);
+    margin: 0 0 4px 0;
+    letter-spacing: -0.01em;
+  }
+  .verify-body .v-copy {
+    font-size: 9pt;
+    color: var(--fg-2);
+    line-height: 1.45;
+    margin: 0 0 6px 0;
+  }
+  .verify-fields {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 12px;
+    row-gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 8.5pt;
+    color: var(--ink-700);
+  }
+  .verify-fields .k {
+    color: var(--fg-3);
+    letter-spacing: 0.06em;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    font-family: var(--font-sans);
+    font-weight: 600;
+    align-self: center;
+  }
+  .verify-fields .v { word-break: break-all; }
+
+  .qr {
+    width: 88px; height: 88px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-sm);
+    padding: 6px;
+    background: var(--paper);
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    grid-template-rows: repeat(13, 1fr);
+    gap: 1px;
+  }
+  .qr i { background: var(--ink-900); border-radius: 1px; }
+  .qr .b { background: transparent; }
+
+  /* ===== Footer ===== */
+  .page-footer {
+    flex: 0 0 auto;
+    padding: 10px 0.6in 14px 0.6in;
+    border-top: 1px solid var(--border-1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-sans);
+    font-size: 8pt;
+    color: var(--fg-3);
+    letter-spacing: 0.01em;
+  }
+  .page-footer .foot-brand {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .page-footer .foot-brand strong {
+    color: var(--ink-900);
+    font-family: var(--font-serif);
+    font-weight: 500;
+    font-size: 9pt;
+  }
+  .page-footer .foot-id {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: var(--fg-3);
+  }
+  .page-footer .foot-num {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: var(--ink-700);
+  }
+  .page-footer .foot-num .cur {
+    color: var(--ink-900);
+    font-weight: 500;
+  }
+
+  /* ===== Page 2 — Participants ===== */
+  .p2-intro {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    color: var(--fg-2);
+    line-height: 1.5;
+    margin: 0;
+    max-width: 6.2in;
+  }
+
+  .participant {
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    background: var(--paper);
+  }
+  .participant + .participant { margin-top: 10px; }
+
+  .p-head {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+    padding: 10px 16px 10px 16px;
+    border-bottom: 1px solid var(--border-1);
+    background: var(--ink-50);
+  }
+  .p-identity { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .p-role {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--indigo-700);
+    margin-bottom: 4px;
+  }
+  .p-role .role-dot {
+    width: 6px; height: 6px; border-radius: 999px;
+    background: var(--indigo-600);
+  }
+  .p-role.is-signer .role-dot { background: var(--success-500); }
+  .p-role.is-signer { color: var(--success-700); }
+
+  .p-name {
+    font-family: var(--font-serif);
+    font-size: 13pt;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--ink-900);
+    line-height: 1.2;
+  }
+  .p-contact {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    color: var(--fg-2);
+    margin-top: 2px;
+  }
+  .p-contact .dot {
+    margin: 0 6px;
+    color: var(--ink-300);
+  }
+
+  .p-signature {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 220px;
+  }
+  .p-sig-label {
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .p-sig-mark {
+    font-family: var(--font-script);
+    font-size: 20pt;
+    color: var(--ink-900);
+    line-height: 1;
+    padding: 0 4px 2px 4px;
+    border-bottom: 1.5px solid var(--ink-400);
+    min-width: 180px;
+    text-align: center;
+  }
+  .p-sig-meta {
+    font-family: var(--font-mono);
+    font-size: 7.5pt;
+    color: var(--fg-3);
+    letter-spacing: 0.02em;
+  }
+
+  .p-meta {
+    padding: 8px 16px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    border-bottom: 1px solid var(--border-1);
+  }
+  .p-meta .m {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .p-meta .m-label {
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .p-meta .m-value {
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    color: var(--ink-900);
+    font-weight: 500;
+  }
+  .p-meta .m-value.mono {
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    font-weight: 400;
+    word-break: break-all;
+  }
+  .p-meta .m-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 2px 4px;
+    border-radius: 999px;
+    background: var(--indigo-50);
+    color: var(--indigo-700);
+    font-weight: 600;
+    font-size: 8.5pt;
+  }
+  .p-meta .m-check .d {
+    width: 10px; height: 10px; border-radius: 999px;
+    background: var(--indigo-600);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .p-meta .m-check .d::after {
+    content: "";
+    width: 4px; height: 2px;
+    border-left: 1.5px solid #fff;
+    border-bottom: 1.5px solid #fff;
+    transform: translate(0,-1px) rotate(-45deg);
+  }
+  .check-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+
+  /* Event table */
+  .p-events { padding: 0; }
+  .evt-head {
+    display: grid;
+    grid-template-columns: 1.5fr 1.4fr 1.6fr;
+    gap: 0;
+    padding: 7px 16px 6px 16px;
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fg-3);
+    border-bottom: 1px solid var(--border-1);
+    background: var(--ink-50);
+  }
+  .evt-row {
+    display: grid;
+    grid-template-columns: 1.5fr 1.4fr 1.6fr;
+    gap: 0;
+    padding: 7px 16px;
+    align-items: center;
+    border-bottom: 1px solid var(--border-1);
+  }
+  .evt-row:last-child { border-bottom: none; }
+  .evt-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    color: var(--ink-900);
+    font-weight: 500;
+  }
+  .evt-ico {
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--ink-150);
+    color: var(--ink-700);
+    flex: 0 0 auto;
+  }
+  .evt-ico svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 1.75; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .evt-ico.is-sent { background: var(--ink-150); color: var(--ink-700); }
+  .evt-ico.is-view { background: var(--info-50); color: var(--info-700); }
+  .evt-ico.is-sign { background: var(--success-50); color: var(--success-700); }
+  .evt-ico.is-create { background: var(--indigo-50); color: var(--indigo-700); }
+
+  .evt-ip {
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    color: var(--ink-700);
+  }
+  .evt-ip.is-dim { color: var(--fg-4); }
+  .evt-ts {
+    font-family: var(--font-mono);
+    font-size: 9pt;
+    color: var(--ink-700);
+  }
+
+  /* Timeline callout at bottom of page 2 */
+  .p2-trust {
+    margin-top: auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-lg);
+    background: var(--paper);
+    overflow: hidden;
+  }
+  .trust-cell {
+    padding: 10px 12px;
+    border-right: 1px solid var(--border-1);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .trust-cell:last-child { border-right: none; }
+  .trust-ico {
+    width: 20px; height: 20px;
+    color: var(--indigo-600);
+    margin-bottom: 4px;
+  }
+  .trust-ico svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 1.75; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .trust-label {
+    font-size: 7.5pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fg-3);
+  }
+  .trust-value {
+    font-family: var(--font-sans);
+    font-size: 10pt;
+    color: var(--ink-900);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .trust-sub {
+    font-family: var(--font-sans);
+    font-size: 8.5pt;
+    color: var(--fg-3);
+    line-height: 1.4;
+  }
+
+  /* ===== Page 3 — Terms ===== */
+  .terms-intro {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    color: var(--fg-2);
+    line-height: 1.5;
+    max-width: 6.2in;
+    margin: 0;
+  }
+  .terms-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+    margin-top: 2px;
+  }
+  .term {
+    padding: 7px 0;
+    border-bottom: 1px solid var(--border-1);
+    break-inside: avoid;
+  }
+  .term-name {
+    font-family: var(--font-sans);
+    font-size: 9pt;
+    font-weight: 700;
+    color: var(--ink-900);
+    letter-spacing: -0.005em;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .term-name .num {
+    font-family: var(--font-mono);
+    font-size: 8pt;
+    color: var(--indigo-600);
+    font-weight: 500;
+  }
+  .term-body {
+    font-family: var(--font-sans);
+    font-size: 8.5pt;
+    color: var(--fg-2);
+    line-height: 1.45;
+  }
+  .term-body .sub {
+    margin-top: 3px;
+    padding-left: 10px;
+    border-left: 2px solid var(--ink-200);
+  }
+  .term-body .sub-item {
+    display: block;
+    margin-top: 2px;
+  }
+  .term-body .sub-item b {
+    font-weight: 600;
+    color: var(--ink-900);
+  }
+
+  .terms-links {
+    margin-top: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border-1);
+    border-radius: var(--r-md);
+    background: var(--ink-50);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .terms-links h4 {
+    font-family: var(--font-sans);
+    font-size: 8pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fg-3);
+    margin: 0 0 4px 0;
+  }
+  .terms-links a {
+    font-family: var(--font-sans);
+    font-size: 9.5pt;
+    color: var(--ink-900);
+    font-weight: 500;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .terms-links a .arr { color: var(--indigo-600); font-weight: 700; }
+  .terms-links a .url {
+    font-family: var(--font-mono);
+    font-size: 8.5pt;
+    color: var(--fg-3);
+    font-weight: 400;
+  }
+
+  /* ===== Watermark seal on page 1 ===== */
+  .seal {
+    position: absolute;
+    right: 0.5in;
+    top: 1.4in;
+    width: 86px;
+    height: 86px;
+    border-radius: 999px;
+    border: 1.5px solid var(--indigo-200);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--indigo-600);
+    font-family: var(--font-serif);
+  }
+  .seal::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1px solid var(--indigo-100);
+    border-radius: 999px;
+  }
+  .seal-center {
+    text-align: center;
+    line-height: 1.1;
+  }
+  .seal-center .s1 {
+    font-family: var(--font-script);
+    font-size: 17pt;
+    color: var(--indigo-700);
+    display: block;
+    line-height: 1;
+  }
+  .seal-center .s2 {
+    font-family: var(--font-sans);
+    font-size: 6pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--indigo-600);
+    display: block;
+    margin-top: 3px;
+  }
+  .seal-ring {
+    position: absolute;
+    inset: -2px;
+    border-radius: 999px;
+  }
+
+  /* ===== Print ===== */
+  @media print {
+    html, body { background: #fff; }
+    .deck { padding: 0; gap: 0; }
+    .page {
+      box-shadow: none;
+      margin: 0;
+      page-break-after: always;
+    }
+    .page:last-child { page-break-after: auto; }
+  }
+
+</style>
+</head>
+<body class="sealed">
+
+<div class="deck">
+
+  <!-- ============================================================
+       PAGE 1 — Document evidence and access
+       ============================================================ -->
+  <section class="page">
+    <div class="page-body">
+
+      <!-- Header -->
+      <div class="page-header">
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="" />
+          <span class="brand-word">Sealed</span>
+        </div>
+        <div>
+          <span class="brand-eyebrow">Audit trail</span>
+          <span class="brand-eyebrow-sep">·</span>
+          <span class="brand-eyebrow" style="color: var(--ink-700);">Attestation of signing</span>
+        </div>
+      </div>
+
+      <!-- Decorative seal -->
+      <div class="seal" aria-hidden="true">
+        <div class="seal-center">
+          <span class="s1">Sealed</span>
+          <span class="s2">Verified</span>
+        </div>
+      </div>
+
+      <!-- Hero -->
+      <div class="hero">
+        <div class="hero-kicker">Request 33B9416B · Completed Mar 11, 2026</div>
+        <h1 class="hero-title">This document is <span class="script">sealed</span>.</h1>
+        <p class="hero-subtitle">
+          The audit trail on these pages links each signatory to the signed document and records the evidence
+          we collected along the way — identity, consent, timestamps, and a <em>cryptographic fingerprint</em> of
+          the file before and after signing. Definitions for every field are on the last page.
+        </p>
+      </div>
+
+      <!-- Section: Document evidence -->
+      <div class="section-head">
+        <span class="section-num">01</span>
+        <span class="section-title">Document evidence and access</span>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="datagrid">
+        <div class="datacell">
+          <span class="dc-label">Proposer</span>
+          <span class="dc-value">Ops Ops</span>
+        </div>
+        <div class="datacell">
+          <span class="dc-label">Proposer email</span>
+          <span class="dc-value mono">ops@nromomentum.com</span>
+        </div>
+
+        <div class="datacell">
+          <span class="dc-label">Created</span>
+          <span class="dc-value">Mar 11, 2026&nbsp;·&nbsp;8:59:03 PM UTC</span>
+        </div>
+        <div class="datacell">
+          <span class="dc-label">Completed</span>
+          <span class="dc-value">Mar 11, 2026&nbsp;·&nbsp;9:21:25 PM UTC</span>
+        </div>
+
+        <div class="datacell">
+          <span class="dc-label">Origin IP address</span>
+          <span class="dc-value mono">200.114.112.140</span>
+        </div>
+        <div class="datacell">
+          <span class="dc-label">Request identifier</span>
+          <span class="dc-value mono">33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+        </div>
+
+        <div class="datacell">
+          <span class="dc-label">Digital signature</span>
+          <span class="dc-value">
+            <span class="dc-inline">
+              <span class="check-dot"><svg viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" /></svg></span>
+              Enabled · eIDAS qualified timestamp
+            </span>
+          </span>
+        </div>
+        <div class="datacell">
+          <span class="dc-label">Delivery mode</span>
+          <span class="dc-value">Parallel</span>
+        </div>
+
+        <div class="datacell">
+          <span class="dc-label">Signers</span>
+          <span class="dc-value">1 of 1 completed</span>
+        </div>
+        <div class="datacell">
+          <span class="dc-label">Validators · Witnesses</span>
+          <span class="dc-value">0 · 0</span>
+        </div>
+      </div>
+
+      <!-- Section: Document hashes -->
+      <div class="section-head">
+        <span class="section-num">02</span>
+        <span class="section-title">Cryptographic fingerprint (SHA-256)</span>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="hash-block">
+        <div class="hash-card">
+          <div class="hash-row">
+            <span class="hash-type"><span class="type-dot"></span>Original document</span>
+            <span class="hash-filename">UNCONDITIONAL FINAL WAIVER — 11.03.2026.pdf <span class="pages">· 7 pages</span></span>
+          </div>
+          <div class="hash-value">a2e35edd7a531f4928f7f56c4b4e33674a0939f9a120359185e24a0c55f675ee</div>
+        </div>
+        <div class="hash-card">
+          <div class="hash-row">
+            <span class="hash-type is-signed"><span class="type-dot"></span>Signed document</span>
+            <span class="hash-filename">UNCONDITIONAL FINAL WAIVER — 11.03.2026 (signed).pdf <span class="pages">· 7 pages</span></span>
+          </div>
+          <div class="hash-value">7a8afa33b5b077e0486f08fc301e6865caf7b8ea0ea256505df80ea6034c1261</div>
+        </div>
+      </div>
+
+      <!-- Section: Verify -->
+      <div class="verify">
+        <div class="verify-body">
+          <div class="v-eyebrow">Verify this document</div>
+          <div class="v-title">Scan or visit to confirm authenticity</div>
+          <p class="v-copy">
+            If this audit trail is printed, scan the code or type the URL below to confirm the signature is
+            valid and the file has not been altered since it was sealed.
+          </p>
+          <div class="verify-fields">
+            <span class="k">URL</span>
+            <span class="v">sealed.app/verify/33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+            <span class="k">Code</span>
+            <span class="v">qyHWxhRGhmzjJ</span>
+          </div>
+        </div>
+        <div class="qr" id="qr"></div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="page-footer">
+      <span class="foot-brand"><img class="brand-mark" style="width:14px;height:14px" src="assets/logo-mark.svg" alt="" /><strong>Sealed</strong>&nbsp;·&nbsp;Audit trail issued by Sealed, Inc.</span>
+      <span class="foot-id">Req&nbsp;33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+      <span class="foot-num"><span class="cur">01</span> &nbsp;/&nbsp; 04</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PAGE 2 — Participants
+       ============================================================ -->
+  <section class="page">
+    <div class="page-body">
+
+      <!-- Header -->
+      <div class="page-header">
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="" />
+          <span class="brand-word">Sealed</span>
+        </div>
+        <div>
+          <span class="brand-eyebrow">Audit trail</span>
+          <span class="brand-eyebrow-sep">·</span>
+          <span class="brand-eyebrow" style="color: var(--ink-700);">Participants</span>
+        </div>
+      </div>
+
+      <!-- Section head -->
+      <div class="section-head">
+        <span class="section-num">03</span>
+        <span class="section-title">Participants and events</span>
+        <span class="section-rule"></span>
+      </div>
+      <p class="p2-intro">
+        Each table below records the major events for every participant in the signing process — the actions
+        they took, the IP address they took them from, and the time those actions were stamped by our servers.
+        Roles and event types are defined on the last page.
+      </p>
+
+      <!-- Participant 1 — Proposer -->
+      <div class="participant">
+        <div class="p-head">
+          <div class="p-identity">
+            <span class="p-role"><span class="role-dot"></span>Proposer</span>
+            <span class="p-name">Ops Ops</span>
+            <span class="p-contact">ops@nromomentum.com</span>
+          </div>
+          <div class="p-signature" style="justify-content:center;">
+            <span class="p-sig-label">Initiated the request</span>
+            <span class="p-sig-meta">Verified via account authentication</span>
+          </div>
+        </div>
+        <div class="p-meta">
+          <div class="m">
+            <span class="m-label">Verification checks</span>
+            <div class="check-list">
+              <span class="m-check"><span class="d"></span>Email</span>
+              <span class="m-check"><span class="d"></span>Account</span>
+            </div>
+          </div>
+          <div class="m">
+            <span class="m-label">Role</span>
+            <span class="m-value">Proposer</span>
+          </div>
+          <div class="m">
+            <span class="m-label">Identifier</span>
+            <span class="m-value mono">—</span>
+          </div>
+        </div>
+
+        <div class="p-events">
+          <div class="evt-head">
+            <span>Action</span>
+            <span>IP address</span>
+            <span>Timestamp (UTC)</span>
+          </div>
+          <div class="evt-row">
+            <span class="evt-action">
+              <span class="evt-ico is-create"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+              Created
+            </span>
+            <span class="evt-ip">200.114.112.140</span>
+            <span class="evt-ts">Mar 11, 2026 · 8:59:03 PM</span>
+          </div>
+          <div class="evt-row">
+            <span class="evt-action">
+              <span class="evt-ico is-sent"><svg viewBox="0 0 24 24"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4 20-7Z"/></svg></span>
+              Sent for signature
+            </span>
+            <span class="evt-ip">200.114.112.140</span>
+            <span class="evt-ts">Mar 11, 2026 · 8:59:04 PM</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Participant 2 — Signatory -->
+      <div class="participant">
+        <div class="p-head">
+          <div class="p-identity">
+            <span class="p-role is-signer"><span class="role-dot"></span>Signatory</span>
+            <span class="p-name">Benjamin Antonio Perez</span>
+            <span class="p-contact">bapstarremodelingllc502@gmail.com<span class="dot">·</span>Phone on file</span>
+          </div>
+          <div class="p-signature">
+            <span class="p-sig-label">Signature</span>
+            <span class="p-sig-mark">Benjamin A. Perez</span>
+            <span class="p-sig-meta">Text format · Drawn at 9:21:22 PM UTC</span>
+          </div>
+        </div>
+        <div class="p-meta">
+          <div class="m">
+            <span class="m-label">Verification checks</span>
+            <div class="check-list">
+              <span class="m-check"><span class="d"></span>Email</span>
+            </div>
+          </div>
+          <div class="m">
+            <span class="m-label">Signature format</span>
+            <span class="m-value">Text</span>
+          </div>
+          <div class="m">
+            <span class="m-label">Signer identifier</span>
+            <span class="m-value mono">16C9FDEF-4785-4D9D-AD95-E47B6AE960B9</span>
+          </div>
+        </div>
+
+        <div class="p-events">
+          <div class="evt-head">
+            <span>Action</span>
+            <span>IP address</span>
+            <span>Timestamp (UTC)</span>
+          </div>
+          <div class="evt-row">
+            <span class="evt-action">
+              <span class="evt-ico is-sent"><svg viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2Z"/><polyline points="22,6 12,13 2,6"/></svg></span>
+              Sent
+            </span>
+            <span class="evt-ip is-dim">—</span>
+            <span class="evt-ts">Mar 11, 2026 · 8:59:04 PM</span>
+          </div>
+          <div class="evt-row">
+            <span class="evt-action">
+              <span class="evt-ico is-view"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+              Viewed
+            </span>
+            <span class="evt-ip">4.28.55.97</span>
+            <span class="evt-ts">Mar 11, 2026 · 9:20:50 PM</span>
+          </div>
+          <div class="evt-row">
+            <span class="evt-action">
+              <span class="evt-ico is-sign"><svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></span>
+              Signed
+            </span>
+            <span class="evt-ip">4.28.55.97</span>
+            <span class="evt-ts">Mar 11, 2026 · 9:21:22 PM</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trust bar -->
+      <div class="p2-trust">
+        <div class="trust-cell">
+          <div class="trust-ico"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><polyline points="9,12 11,14 15,10"/></svg></div>
+          <span class="trust-label">Integrity</span>
+          <span class="trust-value">Verified</span>
+          <span class="trust-sub">SHA-256 hash matches the sealed document.</span>
+        </div>
+        <div class="trust-cell">
+          <div class="trust-ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <span class="trust-label">Timestamp</span>
+          <span class="trust-value">eIDAS qualified</span>
+          <span class="trust-sub">Issued by a trusted service provider.</span>
+        </div>
+        <div class="trust-cell">
+          <div class="trust-ico"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+          <span class="trust-label">Storage</span>
+          <span class="trust-value">Encrypted at rest</span>
+          <span class="trust-sub">AES-256. Retrieved on verification only.</span>
+        </div>
+        <div class="trust-cell">
+          <div class="trust-ico"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <span class="trust-label">Completion</span>
+          <span class="trust-value">22m 22s</span>
+          <span class="trust-sub">From created to sealed.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-footer">
+      <span class="foot-brand"><img class="brand-mark" style="width:14px;height:14px" src="assets/logo-mark.svg" alt="" /><strong>Sealed</strong>&nbsp;·&nbsp;Audit trail issued by Sealed, Inc.</span>
+      <span class="foot-id">Req&nbsp;33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+      <span class="foot-num"><span class="cur">02</span> &nbsp;/&nbsp; 04</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PAGE 3 — Terms & definitions
+       ============================================================ -->
+  <section class="page">
+    <div class="page-body">
+
+      <div class="page-header">
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="" />
+          <span class="brand-word">Sealed</span>
+        </div>
+        <div>
+          <span class="brand-eyebrow">Audit trail</span>
+          <span class="brand-eyebrow-sep">·</span>
+          <span class="brand-eyebrow" style="color: var(--ink-700);">Terms & definitions</span>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <span class="section-num">04</span>
+        <span class="section-title">Terms used in this document</span>
+        <span class="section-rule"></span>
+      </div>
+      <p class="terms-intro">
+        The following definitions explain every field and event recorded in this audit trail. This glossary is
+        provided so the document can stand alone as a record of legal evidence in any subsequent proceeding.
+      </p>
+
+      <div class="terms-grid">
+
+        <div class="term">
+          <div class="term-name"><span class="num">01</span>Audit trail</div>
+          <div class="term-body">Also referred to as an attestation. A document that details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">02</span>Request</div>
+          <div class="term-body">The process of preparing a document to be signed by one or more people.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">03</span>Proposer</div>
+          <div class="term-body">The person — name and email address — who prepared the document and initiated the signature request.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">04</span>IP address</div>
+          <div class="term-body">A unique address that identifies a device on the internet or a local network and can provide context as to the whereabouts of the signer.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">05</span>Request identifier</div>
+          <div class="term-body">The unique reference number of the sealed document. With this ID, anyone can look up the document on <span class="mono" style="font-family:var(--font-mono);font-size:0.95em;">sealed.app/verify</span>, validate its authenticity, and obtain the audit trail and the original file.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">06</span>Signatory identifier</div>
+          <div class="term-body">The unique identifier of the individual who signed the document. The UUID is linked only to the signature in the document referenced by the request ID on this audit trail.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">07</span>Digital signature</div>
+          <div class="term-body">An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded eIDAS qualified timestamp. Validity is revoked if the document is tampered with after signing.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">08</span>Verification check</div>
+          <div class="term-body">
+            Additional guarantees of identity the requester may enable for each signer. They include:
+            <div class="sub">
+              <span class="sub-item"><b>Email.</b> The recipient's email is validated via a unique link.</span>
+              <span class="sub-item"><b>Access code.</b> The signer is given a distinct code to open the document.</span>
+              <span class="sub-item"><b>SMS.</b> A code is sent via text message prior to signing.</span>
+              <span class="sub-item"><b>ID verification.</b> The signer presents a government-issued ID.</span>
+              <span class="sub-item"><b>Account.</b> The signer is authenticated against a Sealed account.</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <div class="page-footer">
+      <span class="foot-brand"><img class="brand-mark" style="width:14px;height:14px" src="assets/logo-mark.svg" alt="" /><strong>Sealed</strong>&nbsp;·&nbsp;Audit trail issued by Sealed, Inc.</span>
+      <span class="foot-id">Req&nbsp;33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+      <span class="foot-num"><span class="cur">03</span> &nbsp;/&nbsp; 04</span>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PAGE 4 — Terms & definitions (continued)
+       ============================================================ -->
+  <section class="page">
+    <div class="page-body">
+
+      <div class="page-header">
+        <div class="brand">
+          <img class="brand-mark" src="assets/logo-mark.svg" alt="" />
+          <span class="brand-word">Sealed</span>
+        </div>
+        <div>
+          <span class="brand-eyebrow">Audit trail</span>
+          <span class="brand-eyebrow-sep">·</span>
+          <span class="brand-eyebrow" style="color: var(--ink-700);">Terms & definitions (continued)</span>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <span class="section-num">05</span>
+        <span class="section-title">Signature formats, events, and references</span>
+        <span class="section-rule"></span>
+      </div>
+
+      <div class="terms-grid">
+
+        <div class="term">
+          <div class="term-name"><span class="num">09</span>Signature format</div>
+          <div class="term-body">The visual style of the signature on the document. It can be <b>typed</b> (text), <b>drawn</b> by hand, or <b>uploaded</b> as an image.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">10</span>Events</div>
+          <div class="term-body">
+            Major actions taken by each participant.
+            <div class="sub">
+              <span class="sub-item"><b>Sent.</b> The email request has been sent to the participant.</span>
+              <span class="sub-item"><b>Viewed.</b> The participant has accepted the Terms and Privacy Policy and viewed the document.</span>
+              <span class="sub-item"><b>Signed.</b> The signer has signed the document.</span>
+              <span class="sub-item"><b>Validated.</b> The validator has validated the document.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">11</span>Participant</div>
+          <div class="term-body">
+            Anyone involved in the signing process. Roles:
+            <div class="sub">
+              <span class="sub-item"><b>Signatory.</b> Required to sign the document.</span>
+              <span class="sub-item"><b>Validator.</b> Given authority to read, validate, or reject before the signature process is finalized.</span>
+              <span class="sub-item"><b>Witness.</b> Acknowledges the agreement took place. Does not interfere but can track and download.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">12</span>Qualified timestamp</div>
+          <div class="term-body">A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an eIDAS trusted service provider.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">13</span>Hash (SHA-256)</div>
+          <div class="term-body">A combination of letters and numbers generated by a cryptographic algorithm to produce a unique value that depends on the contents of the file. SHA-256 is the algorithm used here.</div>
+        </div>
+
+        <div class="term">
+          <div class="term-name"><span class="num">14</span>Delivery mode</div>
+          <div class="term-body"><b>Parallel.</b> All signers receive the request simultaneously. <b>Sequential.</b> Signers receive it in a defined order.</div>
+        </div>
+
+      </div>
+
+      <div class="terms-links">
+        <h4>Reference</h4>
+        <a href="#"><span class="arr">→</span>Sealed signature user guide<span class="url">sealed.app/help/guides</span></a>
+        <a href="#"><span class="arr">→</span>Sealed terms and conditions<span class="url">sealed.app/help/terms</span></a>
+        <a href="#"><span class="arr">→</span>Sealed signature privacy notice<span class="url">sealed.app/help/privacy</span></a>
+      </div>
+
+      <p class="terms-intro" style="margin-top:14px;font-size:9pt;color:var(--fg-3);font-style:italic;">
+        This audit trail was issued by Sealed, Inc. For questions, contact <span style="font-family:var(--font-mono);font-size:0.95em;">support@sealed.app</span>. The document on file is authoritative — this attestation describes what we observed during signing and the cryptographic evidence we retained.
+      </p>
+
+    </div>
+
+    <div class="page-footer">
+      <span class="foot-brand"><img class="brand-mark" style="width:14px;height:14px" src="assets/logo-mark.svg" alt="" /><strong>Sealed</strong>&nbsp;·&nbsp;Audit trail issued by Sealed, Inc.</span>
+      <span class="foot-id">Req&nbsp;33B9416B-AD2A-4F83-9CB2-69F87AA1655C</span>
+      <span class="foot-num"><span class="cur">04</span> &nbsp;/&nbsp; 04</span>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Build a decorative QR-like square (not a functional QR — just an editorial graphic).
+  // Deterministic pseudo-random pattern seeded from the request ID.
+  (function(){
+    const el = document.getElementById('qr');
+    if(!el) return;
+    const size = 13;
+    const seed = "33B9416B-AD2A-4F83-9CB2-69F87AA1655C";
+    let hash = 0;
+    for(let i=0;i<seed.length;i++){ hash = ((hash<<5) - hash + seed.charCodeAt(i))|0; }
+    function rand(i){
+      hash = (hash * 1103515245 + 12345 + i*7) | 0;
+      return ((hash >>> 16) & 0x7fff) / 0x7fff;
+    }
+    const grid = [];
+    for(let r=0;r<size;r++){
+      grid[r] = [];
+      for(let c=0;c<size;c++){
+        grid[r][c] = rand(r*size+c) > 0.52 ? 1 : 0;
+      }
+    }
+    // Position patterns (corners) — 3 of them, each a 3x3 filled square with 1 cell inset padding
+    function stamp(r0,c0){
+      for(let r=0;r<3;r++){
+        for(let c=0;c<3;c++){
+          const onEdge = r===0||r===2||c===0||c===2 || (r===1 && c===1);
+          grid[r0+r][c0+c] = onEdge ? 1 : 0;
+        }
+      }
+      // clear ring around
+      for(let r=-1;r<=3;r++){
+        for(let c=-1;c<=3;c++){
+          if(r===-1||r===3||c===-1||c===3){
+            const R=r0+r, C=c0+c;
+            if(R>=0&&R<size&&C>=0&&C<size) grid[R][C]=0;
+          }
+        }
+      }
+    }
+    stamp(0,0); stamp(0,size-3); stamp(size-3,0);
+
+    for(let r=0;r<size;r++){
+      for(let c=0;c<size;c++){
+        const cell = document.createElement('i');
+        if(!grid[r][c]) cell.className='b';
+        el.appendChild(cell);
+      }
+    }
+  })();
+</script>
+
+</body>
+</html>
