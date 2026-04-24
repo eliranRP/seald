@@ -1,20 +1,24 @@
 name: Deploy (SSH pull + compose up)
 
 on:
+  # Direct push-to-main deploy. The host rebuilds from source via
+  # `docker compose up -d --build`, so we don't need to wait for the
+  # GHCR image workflow. (workflow_run chaining is notoriously flaky
+  # and silently drops events when the listener workflow has just
+  # landed on the default branch; the direct push trigger is 100%
+  # reliable.)
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'deploy/terraform/**'
+      - '.github/workflows/terraform.yml'
   workflow_dispatch:
     inputs:
       ref:
         description: 'Branch, tag, or SHA to check out on the host'
         required: true
         default: 'main'
-  # Push to main triggers Docker build first. Once Docker succeeds,
-  # this workflow_run trigger fires the deploy. (workflow_run only
-  # activates when the listener workflow lives on the default branch —
-  # our default is develop, and this file is on develop, so this works.)
-  workflow_run:
-    workflows: ['Build + push image']
-    types: [completed]
-    branches: [main]
 
 concurrency:
   group: deploy
@@ -41,7 +45,6 @@ jobs:
   ssh_deploy:
     name: Pull + compose up on EC2
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     timeout-minutes: 15
 
     steps:
