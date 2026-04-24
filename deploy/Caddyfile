@@ -1,0 +1,39 @@
+# Caddy reverse proxy for Seald API.
+#
+# Auto-HTTPS via Let's Encrypt (ACME) using the CADDY_DOMAIN env var. Caddy
+# handles certificate issuance + renewal with zero config beyond the domain.
+#
+# Forwarded-For:
+#   Caddy sets X-Forwarded-For + X-Real-IP automatically. The API honors
+#   X-Forwarded-For for audit-log IP capture (see extractClientIp in
+#   signing.controller.ts); anything else (host/proto headers) is
+#   handled by Caddy's reverse_proxy defaults.
+
+{$CADDY_DOMAIN} {
+	encode zstd gzip
+
+	# Block the internal cron surface from hitting the public edge — it's
+	# only supposed to be called loopback-to-loopback on the host.
+	@internal path /internal/*
+	handle @internal {
+		respond 404
+	}
+
+	# Block Prometheus metrics from the public edge. METRICS_SECRET
+	# gates them at the app layer too, but defense-in-depth.
+	@metrics path /metrics
+	handle @metrics {
+		respond 404
+	}
+
+	reverse_proxy api:3000 {
+		header_up Host {host}
+		# Don't forward the container's upstream hop header; Caddy rewrites X-F-F.
+		header_up -X-Forwarded-Host
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

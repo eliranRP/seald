@@ -1,0 +1,67 @@
+# Single-node deploy template for Seald.
+#
+# Runs the API + in-process worker behind Caddy (auto-HTTPS + reverse
+# proxy). Postgres and Storage live in Supabase so we don't provision
+# them here.
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in:
+#        DATABASE_URL            Supabase postgres connection string
+#        SUPABASE_URL            https://<project>.supabase.co
+#        SUPABASE_SERVICE_ROLE_KEY
+#        SIGNER_SESSION_SECRET   32+ chars, crypto random
+#        CRON_SECRET             32+ chars, crypto random
+#        METRICS_SECRET          32+ chars, crypto random
+#        RESEND_API_KEY          if EMAIL_PROVIDER=resend
+#        APP_PUBLIC_URL          https://seald.nromomentum.com
+#        CORS_ORIGIN             same as APP_PUBLIC_URL
+#        CADDY_DOMAIN            api.seald.nromomentum.com
+#   2. docker compose up -d
+#   3. Cron: 'curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" \
+#            http://localhost:3000/internal/cron/expire' every 15 min.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      WORKER_ENABLED: "true"
+      NODE_OPTIONS: --enable-source-maps
+    env_file:
+      - .env
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Drop Linux caps we don't need — sharp/pdf-lib are pure userland.
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-api.seald.nromomentum.com}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  caddy_data:
+  caddy_config:

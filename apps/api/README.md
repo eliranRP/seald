@@ -140,3 +140,76 @@ Error bodies are always `{ "error": "<string>" }`.
 | Repository only (pg-mem) | `pnpm --filter api test -- --testPathPattern contacts.repository.pg` | in-memory Postgres                                     |
 | Service only             | `pnpm --filter api test -- --testPathPattern contacts.service`       | fake repo                                              |
 | E2E                      | `pnpm --filter api test:e2e`                                         | in-memory repo, real Nest HTTP pipeline                |
+
+## Signer flow (`/sign/*`)
+
+All routes except `POST /sign/start` require the `seald_sign` session
+cookie (HttpOnly, SameSite=Lax, 30-min TTL). The cookie is issued on
+`/sign/start` in exchange for the 43-char URL token from the invite
+email.
+
+| Verb | Path                 | Purpose                                                                                                    |
+| ---- | -------------------- | ---------------------------------------------------------------------------------------------------------- |
+| POST | `/sign/start`        | Hash token, look up signer, mint session JWT. No auth header needed.                                       |
+| GET  | `/sign/me`           | Redacted view scoped to the signer (other signers' names masked).                                          |
+| GET  | `/sign/pdf`          | 302 → 90-second signed URL for the original PDF.                                                           |
+| POST | `/sign/accept-terms` | Idempotent. Stamps `tc_accepted_at` + `viewed_at`.                                                         |
+| POST | `/sign/fields/:id`   | Fill a non-signature field (date/text/email/checkbox).                                                     |
+| POST | `/sign/signature`    | Multipart PNG/JPEG → sharp-normalized 600×200 PNG. 512 KB cap.                                             |
+| POST | `/sign/submit`       | Final commit. Transitions to `sealing` if last signer; enqueues `seal` job.                                |
+| POST | `/sign/decline`      | Terminal for the envelope. Cascades `withdrawn_*` emails + `session_invalidated_by_decline` to co-signers. |
+
+## Sealing pipeline (background worker)
+
+Triggered by submit/decline. The in-process worker (`WORKER_ENABLED=true`)
+claims jobs via `SELECT … FOR UPDATE SKIP LOCKED`:
+
+- `seal` — load original.pdf, burn-in signatures + field values, hand
+  to `PadesSigner` (currently `NoopPadesSigner`; real PAdES is a tracked
+  follow-up once a production P12 keypair is provisioned), compute
+  sealed_sha256, generate audit.pdf (event timeline + verify QR),
+  upload both, flip envelope to `completed`, emit `sealed` event, queue
+  `completed` emails.
+- `audit_only` — for terminal declined/expired envelopes. Produces only
+  audit.pdf; no sealing, no completed emails.
+
+Failures append a `job_failed` audit event and reschedule with
+exponential backoff up to `max_attempts` (default 5).
+
+## Public verify + cron
+
+| Verb | Path                    | Auth                                   | Purpose                                                                                                                            |
+| ---- | ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| GET  | `/verify/:short_code`   | None                                   | Public tamper check: envelope meta, signer list, redacted events, 5-min signed URLs for sealed.pdf/audit.pdf.                      |
+| POST | `/internal/cron/expire` | `X-Cron-Secret` header = `CRON_SECRET` | Flip overdue `awaiting_others` envelopes to `expired`; enqueue audit_only; emit `expired` event. Call every ~15 min via host cron. |
+
+## Deploying (single-node)
+
+Everything needed for a production single-node deploy lives at the repo
+root: `Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`. Supabase
+provides Postgres + Storage.
+
+```bash
+# On the deploy host (e.g. t4g.small spot + EIP):
+git clone <repo> /opt/seald && cd /opt/seald
+cp apps/api/.env.example apps/api/.env
+# Fill in SUPABASE_*, SIGNER_SESSION_SECRET, CRON_SECRET, METRICS_SECRET,
+# RESEND_API_KEY, APP_PUBLIC_URL, CORS_ORIGIN, CADDY_DOMAIN.
+docker compose up -d --build
+```
+
+Caddy handles automatic HTTPS via Let's Encrypt against `CADDY_DOMAIN`.
+The API listens on `:3000` inside the compose network; Caddy terminates
+TLS on `:443` and proxies to it. `/internal/*` and `/metrics` are
+blocked at the edge.
+
+Host cron (optional; the worker already drains jobs):
+
+```cron
+*/15 * * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/expire >/dev/null
+```
+
+Migrations (`apps/api/db/migrations/*.sql`) run against the Supabase DB
+before first boot — currently via `psql` with the service-role
+connection string. Wiring these into the container entrypoint is a
+tracked follow-up.
