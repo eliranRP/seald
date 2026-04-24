@@ -33,6 +33,20 @@ resource "godaddy_domain_record" "a_records" {
     ttl  = var.godaddy_record_ttl
   }
 
+  # Seald Web SPA -> same EIP. Caddy multiplexes on the Host header
+  # and serves the static bundle from `/srv/web` (see deploy/Caddyfile
+  # and docker-compose.yml). Emitted only when godaddy_web_subdomain
+  # is non-empty.
+  dynamic "record" {
+    for_each = var.godaddy_web_subdomain != "" ? [1] : []
+    content {
+      type = "A"
+      name = var.godaddy_web_subdomain
+      data = aws_eip.api.public_ip
+      ttl  = var.godaddy_record_ttl
+    }
+  }
+
   # Additional zone co-tenants. Declared at module scope so any future
   # TF edit (e.g. seald subdomain change) doesn't clobber them.
   dynamic "record" {

@@ -86,6 +86,12 @@ variable "godaddy_subdomain" {
   default     = "api.seald"
 }
 
+variable "godaddy_web_subdomain" {
+  description = "Optional second subdomain pointed at the same EIP — used for the web SPA (e.g. 'seald' -> seald.<domain>). Set to empty string to skip."
+  type        = string
+  default     = "seald"
+}
+
 variable "godaddy_record_ttl" {
   description = "DNS TTL in seconds for the Seald A record. 600 is a good default - short enough to retry fast if you ever need to move."
   type        = number
