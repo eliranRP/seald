@@ -99,6 +99,13 @@ export function buildSignerListHtml(
     'font-size:12px;font-weight:400;' +
     'text-decoration:none !important;pointer-events:none;';
 
+  // Row layout — table, not flex. Gmail's mobile client drops flex
+  // `gap`, doesn't always constrain middle columns on tight viewports,
+  // and Outlook desktop falls back to Word's legacy engine which
+  // doesn't understand flex at all. A three-column table renders
+  // identically in every client and auto-sizes without overflow
+  // artifacts (the 360px mobile Gmail screenshot showed the email
+  // text bleeding under the status pill before this change).
   const rows = signers
     .map((s) => {
       const initials = initialsOf(s.name);
@@ -107,29 +114,41 @@ export function buildSignerListHtml(
       const statusLabel = statusLabelFor(s.status, s.completedLabel);
       const isSelf = highlight !== undefined && s.email.toLowerCase() === highlight;
       const nameSuffix = isSelf
-        ? ' <span style="color:#64748B;font-weight:400;">(that\'s you)</span>'
+        ? ' <span style="color:#64748B;font-weight:400;white-space:nowrap;">(that\'s you)</span>'
         : '';
+      // Layout: 2-column row (avatar | name + email + pill). Keeping
+      // the pill under the email instead of in its own right column
+      // lets the whole row shrink to any viewport width without the
+      // pill falling off-screen on mobile Gmail (tested at 360px).
       return (
-        `<div class="signer-row">` +
+        `<tr class="signer-row">` +
+        `<td style="padding:12px 12px 12px 14px;width:28px;vertical-align:top;line-height:0;">` +
         `<span class="avatar ${avatarClass}" style="${AVATAR_STYLE(s.status)}">${escapeHtml(initials)}</span>` +
-        `<div class="signer-meta">` +
-        `<div class="signer-name">${escapeHtml(s.name)}${nameSuffix}</div>` +
+        `</td>` +
+        `<td class="signer-meta" style="padding:10px 14px 12px 0;vertical-align:top;font-family:Inter,-apple-system,Segoe UI,Arial,sans-serif;">` +
+        `<div class="signer-name" style="font-weight:600;color:#0B1220;font-size:13px;line-height:1.35;overflow-wrap:anywhere;">${escapeHtml(s.name)}${nameSuffix}</div>` +
         // Pre-wrap in an inline-styled anchor so Gmail skips its
-        // auto-linker (it only wraps bare emails, not already-linked
-        // ones). Even if a client still adds its own <a> around, the
-        // inner anchor's `display: inline-block` breaks the underline
-        // inheritance.
-        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}">` +
+        // auto-linker. `display: inline-block` on the anchor breaks
+        // `text-decoration` inheritance so any parent underline
+        // doesn't reach inside.
+        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}overflow-wrap:anywhere;">` +
         `<a href="mailto:${escapeHtml(s.email)}" style="${SIGNER_EMAIL_ANCHOR_STYLE}">${escapeHtml(s.email)}</a>` +
         `</div>` +
-        `</div>` +
+        `<div style="margin-top:8px;">` +
         `<span class="signer-status ${statusClass}" style="${STATUS_STYLE(s.status)}">${escapeHtml(statusLabel)}</span>` +
-        `</div>`
+        `</div>` +
+        `</td>` +
+        `</tr>`
       );
     })
     .join('');
 
-  return `<div class="signers">${rows}</div>`;
+  return (
+    `<table role="presentation" class="signers" cellspacing="0" cellpadding="0" border="0" ` +
+    `style="margin:18px 0 14px;border:1px solid #E2E8F0;border-radius:12px;border-collapse:separate;width:100%;">` +
+    rows +
+    `</table>`
+  );
 }
 
 /**

@@ -10,7 +10,9 @@ describe('buildSignerListHtml', () => {
       { name: 'Ada Lovelace', email: 'ada@example.com', status: 'signed' },
       { name: 'Bob Byte', email: 'bob@example.com', status: 'pending' },
     ]);
-    expect(html).toMatch(/<div class="signers">/);
+    // Roster is table-based (see buildSignerListHtml comment) so
+    // mobile Gmail reliably constrains the status pill column.
+    expect(html).toMatch(/<table role="presentation" class="signers"/);
     expect(html).toMatch(/AL/); // Ada Lovelace initials
     expect(html).toMatch(/BB/); // Bob Byte initials
     expect(html).toContain('Ada Lovelace');
