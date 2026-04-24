@@ -1,4 +1,4 @@
-# GoDaddy DNS — optional. Only configured when var.godaddy_enabled = true.
+# GoDaddy DNS - optional. Only configured when var.godaddy_enabled = true.
 #
 # The provider block is unconditional (Terraform requires it even if no
 # resources use the provider), but every resource is gated on
@@ -8,7 +8,7 @@
 # Heads-up: the `n3integration/godaddy` provider is community-maintained.
 # GoDaddy itself does not publish an official Terraform provider and
 # rate-limits their API aggressively. If the record update fails with a
-# 429, wait a few minutes and re-apply — the state is idempotent.
+# 429, wait a few minutes and re-apply - the state is idempotent.
 
 provider "godaddy" {
   key    = var.godaddy_api_key

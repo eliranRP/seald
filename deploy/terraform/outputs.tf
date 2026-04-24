@@ -8,23 +8,30 @@ output "ssh_command" {
   value       = "ssh ubuntu@${aws_eip.api.public_ip}"
 }
 
-output "godaddy_dns_instructions" {
-  description = "DNS setup instructions. If godaddy_enabled is true, Terraform already wrote the A record for you. If false, paste this into the GoDaddy DNS dashboard after apply."
-  value = var.godaddy_enabled ? <<-EOT
+locals {
+  dns_managed_msg = <<-EOT
     ✓ GoDaddy A record managed by Terraform:
         ${var.godaddy_subdomain}.${var.godaddy_domain}  A  ${aws_eip.api.public_ip}  TTL ${var.godaddy_record_ttl}s
-    Propagation: ~1-2 minutes. Verify with: dig ${var.godaddy_subdomain}.${var.godaddy_domain} +short
-    EOT : <<-EOT
+    Propagation: ~1-2 minutes. Verify with:
+      dig ${var.godaddy_subdomain}.${var.godaddy_domain} +short
+  EOT
+
+  dns_manual_msg = <<-EOT
     Manual DNS setup (godaddy_enabled = false):
-    1. Log into GoDaddy → "My Products" → select your domain → "DNS".
-    2. Add / edit the A record:
-         Type : A
-         Name : api           (or whatever matches CADDY_DOMAIN)
-         Data : ${aws_eip.api.public_ip}
-         TTL  : 600
+    1. Log into GoDaddy -> My Products -> select your domain -> DNS.
+    2. Add/edit A record:
+         Type: A
+         Name: api   (or whatever matches CADDY_DOMAIN)
+         Data: ${aws_eip.api.public_ip}
+         TTL : 600
     3. Wait ~1-2 minutes for propagation.
     4. On the host: fill apps/api/.env (CADDY_DOMAIN=api.<your-domain>),
        then `docker compose up -d --build`. Caddy issues the Let's
-       Encrypt cert automatically on the first HTTPS hit.
+       Encrypt cert on the first HTTPS hit.
   EOT
+}
+
+output "godaddy_dns_instructions" {
+  description = "DNS setup instructions. If godaddy_enabled is true, Terraform already wrote the A record for you. If false, paste the EIP into the GoDaddy DNS dashboard after apply."
+  value       = var.godaddy_enabled ? local.dns_managed_msg : local.dns_manual_msg
 }

@@ -61,7 +61,7 @@ variable "godaddy_enabled" {
 }
 
 variable "godaddy_api_key" {
-  description = "GoDaddy API key. Generate at https://developer.godaddy.com/keys. Production tier only — you must have 10+ domains OR a Discount Domain Club membership."
+  description = "GoDaddy API key. Generate at https://developer.godaddy.com/keys. Production tier only - you must have 10+ domains OR a Discount Domain Club membership."
   type        = string
   default     = ""
   sensitive   = true
@@ -81,13 +81,13 @@ variable "godaddy_domain" {
 }
 
 variable "godaddy_subdomain" {
-  description = "Subdomain to point at the EIP (e.g. api → api.nromomentum.com). Use @ for apex, though HTTPS on apex has extra DNS CAA considerations."
+  description = "Subdomain to point at the EIP (e.g. api -> api.nromomentum.com). Use @ for apex, though HTTPS on apex has extra DNS CAA considerations."
   type        = string
   default     = "api"
 }
 
 variable "godaddy_record_ttl" {
-  description = "DNS TTL in seconds for the A record. 600 is a good default — short enough to retry fast if you ever need to move."
+  description = "DNS TTL in seconds for the A record. 600 is a good default - short enough to retry fast if you ever need to move."
   type        = number
   default     = 600
 }
