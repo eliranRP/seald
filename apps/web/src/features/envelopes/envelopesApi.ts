@@ -155,25 +155,33 @@ export async function listEnvelopeEvents(
   return data;
 }
 
+export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit';
+
 export interface EnvelopeDownloadUrl {
   readonly url: string;
-  readonly kind: 'sealed' | 'original';
+  readonly kind: EnvelopeDownloadKind;
 }
 
 /**
- * Returns a short-lived (5 min) signed URL pointing at the sealed PDF
- * when the envelope is complete, or the original upload otherwise.
- * The caller is expected to redirect / anchor-click into `url` to
- * trigger an actual browser download.
+ * Returns a short-lived (5 min) signed URL for one of the envelope's
+ * PDF artifacts. `kind`:
+ *   - omitted → sealed if available, else original (the default CTA).
+ *   - `'sealed'`   → the sealed signed-by-all artifact.
+ *   - `'original'` → the uploaded PDF.
+ *   - `'audit'`    → the audit-trail PDF produced by the sealing job.
+ *
+ * Callers open `url` in a new tab (or anchor-click it) to trigger the
+ * download.
  */
 export async function getEnvelopeDownloadUrl(
   id: string,
+  kind?: EnvelopeDownloadKind,
   signal?: AbortSignal,
 ): Promise<EnvelopeDownloadUrl> {
-  const { data } = await apiClient.get<EnvelopeDownloadUrl>(
-    `/envelopes/${id}/download`,
-    configWithSignal(signal),
-  );
+  const base = configWithSignal(signal) ?? {};
+  const params = kind !== undefined ? { ...(base.params ?? {}), kind } : base.params;
+  const config = params !== undefined ? { ...base, params } : base;
+  const { data } = await apiClient.get<EnvelopeDownloadUrl>(`/envelopes/${id}/download`, config);
   return data;
 }
 

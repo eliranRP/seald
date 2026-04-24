@@ -324,6 +324,7 @@ export function EnvelopeDetailPage() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [remindInFlight, setRemindInFlight] = useState(false);
   const [downloadInFlight, setDownloadInFlight] = useState(false);
+  const [auditInFlight, setAuditInFlight] = useState(false);
 
   const envelope = q.data;
   const events = ev.data?.events ?? [];
@@ -335,46 +336,60 @@ export function EnvelopeDetailPage() {
 
   const handleBack = useCallback(() => navigate('/documents'), [navigate]);
 
-  const handleViewAudit = useCallback(() => {
-    if (!envelope) return;
-    // The public verify page lives under /verify/code/<short_code>. Open
-    // in a new tab so the sender doesn't lose context.
-    window.open(`/verify/code/${envelope.short_code}`, '_blank', 'noopener,noreferrer');
-  }, [envelope]);
+  // Shared fetch + open-in-new-tab flow for every PDF artifact (envelope
+  // PDF, audit trail). Popup-blocker workaround: synchronously open a
+  // blank tab before the network call, then point it at the signed URL
+  // once we have one. If the request fails we close the stub tab.
+  const openArtifact = useCallback(
+    async (kind: 'sealed' | 'original' | 'audit' | undefined, friendly: string): Promise<void> => {
+      if (!envelope) return;
+      const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+      try {
+        const { url } = await getEnvelopeDownloadUrl(envelope.id, kind);
+        if (win) {
+          win.opener = null;
+          win.location.href = url;
+        } else {
+          // Popup blocked — fall back to same-tab navigation rather than
+          // silently losing the download.
+          window.location.href = url;
+        }
+        setToast({ kind: 'success', text: `${friendly} opened in a new tab.` });
+      } catch (err) {
+        if (win) win.close();
+        const msg = err instanceof Error ? err.message : 'Download failed.';
+        setToast({
+          kind: 'danger',
+          text: /file_not_ready/.test(msg)
+            ? `The ${friendly.toLowerCase()} has not been produced for this envelope yet.`
+            : msg,
+        });
+      }
+    },
+    [envelope],
+  );
 
   const handleDownload = useCallback(async () => {
     if (!envelope) return;
     setDownloadInFlight(true);
     setToast(null);
     try {
-      const { url, kind } = await getEnvelopeDownloadUrl(envelope.id);
-      // Programmatic anchor click — honours the server's
-      // `Content-Disposition: attachment` when the signed URL carries
-      // it, otherwise the browser opens the PDF inline which is also a
-      // reasonable default for a preview.
-      const a = document.createElement('a');
-      a.href = url;
-      a.rel = 'noopener noreferrer';
-      a.download = `${envelope.short_code}-${kind}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setToast({
-        kind: 'success',
-        text: kind === 'sealed' ? 'Downloading sealed PDF…' : 'Downloading original PDF…',
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Download failed.';
-      setToast({
-        kind: 'danger',
-        text: /file_not_ready/.test(msg)
-          ? 'The PDF has not been attached to this envelope yet.'
-          : msg,
-      });
+      await openArtifact(undefined, 'PDF');
     } finally {
       setDownloadInFlight(false);
     }
-  }, [envelope]);
+  }, [envelope, openArtifact]);
+
+  const handleViewAudit = useCallback(async () => {
+    if (!envelope) return;
+    setAuditInFlight(true);
+    setToast(null);
+    try {
+      await openArtifact('audit', 'Audit trail');
+    } finally {
+      setAuditInFlight(false);
+    }
+  }, [envelope, openArtifact]);
 
   const handleSendReminder = useCallback(async () => {
     if (!envelope) return;
@@ -611,8 +626,14 @@ export function EnvelopeDetailPage() {
                   This envelope uses eIDAS-qualified signatures. Every event is timestamped and
                   cryptographically sealed.
                 </Muted>
-                <AuditAction type="button" onClick={handleViewAudit}>
-                  View full audit trail <ArrowRight size={12} />
+                <AuditAction
+                  type="button"
+                  onClick={handleViewAudit}
+                  disabled={auditInFlight}
+                  aria-busy={auditInFlight}
+                >
+                  {auditInFlight ? 'Opening audit trail…' : 'Download audit trail'}
+                  <ArrowRight size={12} />
                 </AuditAction>
               </div>
             </AuditCallout>

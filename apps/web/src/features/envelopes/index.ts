@@ -35,6 +35,7 @@ export {
 } from './envelopesApi';
 export type {
   Envelope,
+  EnvelopeDownloadKind,
   EnvelopeDownloadUrl,
   EnvelopeEvent,
   EnvelopeEventType,

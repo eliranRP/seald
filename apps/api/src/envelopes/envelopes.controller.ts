@@ -182,17 +182,28 @@ export class EnvelopesController {
   }
 
   /**
-   * Short-lived signed URL for downloading the envelope PDF. Returns the
-   * sealed artifact once the envelope is complete, else the original
-   * upload. Clients redirect the browser to `url` (e.g. via an invisible
-   * anchor click) to trigger the download.
+   * Short-lived signed URL for downloading an envelope artifact.
+   *
+   * `?kind=sealed|original|audit` picks which file. When the query is
+   * omitted the service falls back to "sealed if available, else
+   * original" — the sensible default for a generic "Download PDF" CTA.
+   *
+   * Clients redirect the browser to `url` (new tab or anchor click) to
+   * trigger the download.
    */
   @Get(':id/download')
   download(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ url: string; kind: 'sealed' | 'original' }> {
-    return this.svc.getDownloadUrl(user.id, id);
+    @Query('kind') kind?: string,
+  ): Promise<{ url: string; kind: 'sealed' | 'original' | 'audit' }> {
+    let resolved: 'sealed' | 'original' | 'audit' | undefined;
+    if (kind === 'sealed' || kind === 'original' || kind === 'audit') {
+      resolved = kind;
+    } else if (kind !== undefined) {
+      throw new BadRequestException('invalid_kind');
+    }
+    return this.svc.getDownloadUrl(user.id, id, resolved);
   }
 }
 
