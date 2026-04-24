@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,8 +11,12 @@ import {
   Post,
   Put,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Express } from 'express';
 import { ENVELOPE_STATUSES } from 'shared';
 import type { Envelope } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
@@ -75,6 +80,30 @@ export class EnvelopesController {
   @HttpCode(204)
   remove(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.svc.deleteDraft(user.id, id);
+  }
+
+  @Post(':id/upload')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // 30 MB hard cap at the middleware layer — the service enforces the real
+      // 25 MB limit with a proper `file_too_large` slug. This headroom keeps
+      // the connection from being reset mid-upload for requests just over spec.
+      limits: { fileSize: 30 * 1024 * 1024, files: 1, fields: 0 },
+    }),
+  )
+  async upload(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ): Promise<{ pages: number; sha256: string }> {
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException('file_required');
+    }
+    const envelope = await this.svc.uploadOriginal(user.id, id, file.buffer);
+    return {
+      pages: envelope.original_pages ?? 0,
+      sha256: envelope.original_sha256 ?? '',
+    };
   }
 
   @Post(':id/signers')

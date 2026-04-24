@@ -1,15 +1,20 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
   Inject,
   Injectable,
   NotFoundException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
 } from '@nestjs/common';
+import { PDFDocument } from 'pdf-lib';
 import { ENVELOPE_STATUSES } from 'shared';
 import type { Envelope as WireEnvelope } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { ContactsRepository } from '../contacts/contacts.repository';
+import { StorageService } from '../storage/storage.service';
 import type {
   CreateFieldInput,
   EnvelopeEvent,
@@ -26,6 +31,9 @@ import {
   ShortCodeCollisionError,
 } from './envelopes.repository';
 import { generateShortCode } from './short-code';
+
+const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB per spec §3.1
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
 
 type Envelope = WireEnvelope;
 type EnvelopeStatus = Envelope['status'];
@@ -48,6 +56,7 @@ export class EnvelopesService {
   constructor(
     private readonly repo: EnvelopesRepository,
     private readonly contactsRepo: ContactsRepository,
+    private readonly storage: StorageService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -164,6 +173,47 @@ export class EnvelopesService {
       metadata: { bytes_hash: input.sha256, pages: input.pages },
     });
     return updated;
+  }
+
+  /**
+   * Full upload pipeline: validate magic bytes, size, and PDF parsability;
+   * compute SHA-256; upload to Storage at `{envelope_id}/original.pdf`;
+   * record in DB via setOriginalFile.
+   *
+   * Called by the controller after Multer has buffered the multipart body.
+   * Validations are duplicated here (the controller also enforces) because the
+   * service is the authority — keeps the data layer correct even if a future
+   * caller bypasses the controller.
+   */
+  async uploadOriginal(owner_id: string, id: string, body: Buffer): Promise<Envelope> {
+    // Gate ownership + draft status BEFORE touching storage.
+    const envelope = await this.repo.findByIdForOwner(owner_id, id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+
+    if (body.length > MAX_PDF_BYTES) throw new PayloadTooLargeException('file_too_large');
+    if (body.length < PDF_MAGIC.length || !body.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
+      throw new UnsupportedMediaTypeException('file_not_pdf');
+    }
+
+    let pages: number;
+    try {
+      const doc = await PDFDocument.load(body, {
+        updateMetadata: false,
+        ignoreEncryption: false,
+        throwOnInvalidObject: true,
+      });
+      pages = doc.getPageCount();
+    } catch {
+      throw new BadRequestException('file_unreadable');
+    }
+    if (pages <= 0) throw new BadRequestException('file_unreadable');
+
+    const sha256 = createHash('sha256').update(body).digest('hex');
+    const file_path = `${envelope.id}/original.pdf`;
+    await this.storage.upload(file_path, body, 'application/pdf');
+
+    return this.setOriginalFile(owner_id, id, { file_path, sha256, pages });
   }
 
   async addSigner(

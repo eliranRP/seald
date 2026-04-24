@@ -6,6 +6,7 @@ import {
   type CreateContactInput,
   type UpdateContactPatch,
 } from '../contacts/contacts.repository';
+import { StorageService } from '../storage/storage.service';
 import type {
   AddSignerInput,
   CreateDraftInput,
@@ -331,17 +332,38 @@ const TEST_ENV = {
   PRIVACY_VERSION: '2026-04-24',
 } as unknown as AppEnv;
 
+/** Stub storage — service-level tests don't exercise uploadOriginal. */
+class FakeStorage extends StorageService {
+  async upload() {
+    /* no-op */
+  }
+  async download() {
+    return Buffer.alloc(0);
+  }
+  async remove() {
+    /* no-op */
+  }
+  async createSignedUrl() {
+    return 'https://example.invalid/signed';
+  }
+  async exists() {
+    return false;
+  }
+}
+
 describe('EnvelopesService', () => {
   const OWNER = 'user-1';
   const OTHER = 'user-2';
   let repo: FakeEnvelopesRepo;
   let contacts: FakeContactsRepo;
+  let storage: FakeStorage;
   let svc: EnvelopesService;
 
   beforeEach(() => {
     repo = new FakeEnvelopesRepo();
     contacts = new FakeContactsRepo();
-    svc = new EnvelopesService(repo, contacts, TEST_ENV);
+    storage = new FakeStorage();
+    svc = new EnvelopesService(repo, contacts, storage, TEST_ENV);
   });
 
   describe('createDraft', () => {
