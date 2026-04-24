@@ -5,9 +5,11 @@ import {
   Bell,
   CheckCircle,
   Clock,
-  Download,
   Eye,
+  FileCheck2,
+  FileText,
   FilePlus,
+  Package,
   PencilRuler,
   PenTool,
   Send,
@@ -25,6 +27,8 @@ import { Avatar } from '../../components/Avatar';
 import { Badge } from '../../components/Badge';
 import type { BadgeTone } from '../../components/Badge/Badge.types';
 import { Button } from '../../components/Button';
+import { DownloadMenu } from '../../components/DownloadMenu';
+import type { DownloadMenuItem } from '../../components/DownloadMenu';
 import { ExitConfirmDialog } from '../../components/ExitConfirmDialog';
 import { Skeleton } from '../../components/Skeleton';
 import {
@@ -323,7 +327,7 @@ export function EnvelopeDetailPage() {
   const [toast, setToast] = useState<ActionToast | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [remindInFlight, setRemindInFlight] = useState(false);
-  const [downloadInFlight, setDownloadInFlight] = useState(false);
+  const [downloadInFlight, setDownloadInFlight] = useState<string | null>(null);
   const [auditInFlight, setAuditInFlight] = useState(false);
 
   const envelope = q.data;
@@ -392,16 +396,58 @@ export function EnvelopeDetailPage() {
     [envelope],
   );
 
-  const handleDownload = useCallback(async () => {
-    if (!envelope) return;
-    setDownloadInFlight(true);
-    setToast(null);
-    try {
-      await openArtifact(undefined, 'PDF');
-    } finally {
-      setDownloadInFlight(false);
-    }
-  }, [envelope, openArtifact]);
+  const handleDownload = useCallback(
+    async (kind: string) => {
+      if (!envelope) return;
+      if (kind !== 'sealed' && kind !== 'original' && kind !== 'audit' && kind !== 'bundle') {
+        return;
+      }
+      setDownloadInFlight(kind);
+      setToast(null);
+      try {
+        if (kind === 'bundle') {
+          // No server-side zip bundler yet — fire sealed + audit in
+          // parallel and anchor-click each URL into its own new tab.
+          // Anchor clicks don't need a synchronously-opened stub tab,
+          // so popup blockers don't fire on the second one.
+          try {
+            const [sealed, audit] = await Promise.all([
+              getEnvelopeDownloadUrl(envelope.id, 'sealed'),
+              getEnvelopeDownloadUrl(envelope.id, 'audit'),
+            ]);
+            for (const { url } of [sealed, audit]) {
+              const a = document.createElement('a');
+              a.href = url;
+              a.target = '_blank';
+              a.rel = 'noopener noreferrer';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }
+            setToast({
+              kind: 'success',
+              text: 'Sealed PDF and audit trail opened in new tabs.',
+            });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Download failed.';
+            setToast({
+              kind: 'danger',
+              text: /file_not_ready/.test(msg)
+                ? 'The sealed artifacts have not been produced yet.'
+                : msg,
+            });
+          }
+        } else {
+          const friendly =
+            kind === 'sealed' ? 'Sealed PDF' : kind === 'audit' ? 'Audit trail' : 'Original PDF';
+          await openArtifact(kind, friendly);
+        }
+      } finally {
+        setDownloadInFlight(null);
+      }
+    },
+    [envelope, openArtifact],
+  );
 
   const handleViewAudit = useCallback(async () => {
     if (!envelope) return;
@@ -515,6 +561,47 @@ export function EnvelopeDetailPage() {
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
   const hasPending = envelope.signers.some((s) => s.signed_at === null && s.declined_at === null);
 
+  const originalAvailable = envelope.original_pages !== null;
+  const downloadItems: ReadonlyArray<DownloadMenuItem> = [
+    {
+      kind: 'original',
+      icon: FileText,
+      title: 'Original PDF',
+      description: 'The document as uploaded — no signatures, no fields.',
+      meta: originalAvailable
+        ? `${envelope.original_pages ?? 0} pages`
+        : 'Upload the PDF to this draft first.',
+      available: originalAvailable,
+      primaryLabel: 'original',
+    },
+    {
+      kind: 'sealed',
+      icon: FileCheck2,
+      title: 'Sealed PDF',
+      description: 'Final signed document with all fields filled and certificate page.',
+      meta: isComplete ? 'Signed + audit-stamped' : 'Available once all signers complete',
+      available: isComplete,
+      recommended: isComplete,
+      primaryLabel: 'sealed PDF',
+    },
+    {
+      kind: 'audit',
+      icon: ShieldCheck,
+      title: 'Audit trail',
+      description: 'Cryptographic event log — IPs, timestamps, hashes.',
+      meta: isComplete ? 'PDF' : 'Produced when the envelope is sealed',
+      available: isComplete,
+    },
+    {
+      kind: 'bundle',
+      icon: Package,
+      title: 'Full package',
+      description: 'Sealed PDF + audit trail bundled together.',
+      meta: isComplete ? 'Sealed + audit in separate tabs' : 'Available once sealed',
+      available: isComplete,
+    },
+  ];
+
   return (
     <Wrap>
       <Inner>
@@ -540,15 +627,11 @@ export function EnvelopeDetailPage() {
             </HeadMeta>
           </HeadText>
           <HeadActions>
-            <Button
-              variant="secondary"
-              iconLeft={Download}
-              onClick={handleDownload}
-              loading={downloadInFlight}
-              title="Downloads the sealed PDF if available, otherwise the original upload."
-            >
-              Download PDF
-            </Button>
+            <DownloadMenu
+              items={downloadItems}
+              onSelect={handleDownload}
+              inFlight={downloadInFlight}
+            />
             <Button
               variant="secondary"
               iconLeft={Bell}
