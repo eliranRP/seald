@@ -9,5 +9,6 @@ import { ContactsService } from './contacts.service';
   imports: [AuthModule],
   controllers: [ContactsController],
   providers: [ContactsService, { provide: ContactsRepository, useClass: ContactsPgRepository }],
+  exports: [ContactsRepository],
 })
 export class ContactsModule {}
