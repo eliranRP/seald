@@ -260,6 +260,214 @@ export const StagePanel = styled(Panel)`
   min-height: 420px;
 `;
 
+/* ---- Right-side stage animation ------------------------------------- */
+
+export const stageScan = keyframes`
+  0%   { top: 10px; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 140px; opacity: 0; }
+`;
+
+export const stageShimmer = keyframes`
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 0.7; }
+`;
+
+export const StageFrame = styled.div`
+  position: relative;
+  width: 240px;
+  height: 280px;
+`;
+
+export const StageBg = styled.div`
+  position: absolute;
+  inset: -40px;
+  pointer-events: none;
+  opacity: 0.5;
+  background: radial-gradient(
+    400px 160px at 50% 50%,
+    ${({ theme }) => theme.color.indigo[50]},
+    transparent 70%
+  );
+`;
+
+export const StagePdf = styled.div<{ $collapsed: boolean; $hidden: boolean }>`
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 156px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.bg.surface};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  padding: 14px 12px;
+  box-sizing: border-box;
+  transition:
+    transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 400ms;
+  transform: ${({ $collapsed }) =>
+    $collapsed ? 'translate(-50%, 36px) scale(0.8) rotate(-3deg)' : 'translate(-50%, 0)'};
+  opacity: ${({ $hidden }) => ($hidden ? 0 : 1)};
+  z-index: 2;
+  overflow: hidden;
+`;
+
+export const StagePdfLine = styled.div<{ $w: string; $bold?: boolean }>`
+  height: 2px;
+  width: ${({ $w }) => $w};
+  background: ${({ theme, $bold }) => ($bold ? theme.color.ink[200] : theme.color.ink[100])};
+  border-radius: 1px;
+  margin-bottom: 5px;
+`;
+
+export const StagePdfSig = styled.div`
+  margin-top: 18px;
+  height: 16px;
+  border: 1.5px dashed ${({ theme }) => theme.color.indigo[500]};
+  border-radius: ${({ theme }) => theme.radius.xs};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-style: italic;
+  color: ${({ theme }) => theme.color.indigo[600]};
+  font-size: 10px;
+  letter-spacing: 0.04em;
+`;
+
+export const StageScanLine = styled.div`
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    ${({ theme }) => theme.color.indigo[600]},
+    transparent
+  );
+  box-shadow: 0 0 10px rgba(79, 70, 229, 0.7);
+  animation: ${stageScan} 1.1s ease-in-out infinite;
+`;
+
+export const StageEnvelope = styled.div<{
+  $visible: boolean;
+  $state: 'entered' | 'sealed' | 'flying';
+}>`
+  position: absolute;
+  left: 50%;
+  top: 40px;
+  width: 160px;
+  height: 110px;
+  transition: all 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transform: ${({ $state, $visible }) =>
+    !$visible
+      ? 'translate(-50%, 0) scale(0.9)'
+      : $state === 'flying'
+        ? 'translate(-50%, 160px) scale(0.6)'
+        : $state === 'sealed'
+          ? 'translate(-50%, 28px) scale(1)'
+          : 'translate(-50%, 28px) scale(1)'};
+  z-index: 3;
+`;
+
+export const StageSeal = styled.g<{ $visible: boolean }>`
+  transform-origin: 80px 70px;
+  transform: ${({ $visible }) => ($visible ? 'scale(1)' : 'scale(0)')};
+  transition: transform 500ms cubic-bezier(0.5, 1.8, 0.5, 1);
+`;
+
+export const StageShimmer = styled.rect`
+  animation: ${stageShimmer} 1.4s ease-in-out infinite;
+`;
+
+export const StageAudit = styled.div<{ $visible: boolean }>`
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.fg[1]};
+  color: ${({ theme }) => theme.color.bg.surface};
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  transition: opacity 400ms;
+  white-space: nowrap;
+`;
+
+export const StageSignerRow = styled.div`
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  height: 80px;
+`;
+
+export const StageSignerTile = styled.div<{ $visible: boolean; $delivered: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: ${({ $visible }) => ($visible ? 1 : 0.4)};
+  transform: ${({ $delivered }) => ($delivered ? 'translateY(0)' : 'translateY(8px)')};
+  transition:
+    transform 360ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 360ms;
+`;
+
+export const StageSignerAvatar = styled.div<{ $delivered: boolean }>`
+  width: 38px;
+  height: 38px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.bg.surface};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  border: 2px solid
+    ${({ theme, $delivered }) => ($delivered ? theme.color.success[500] : theme.color.border[1])};
+  box-shadow: ${({ $delivered }) => ($delivered ? '0 0 0 4px rgba(16, 185, 129, 0.18)' : 'none')};
+  transition:
+    box-shadow 280ms ease,
+    border-color 280ms ease;
+  position: relative;
+`;
+
+export const StageSignerCheck = styled.span`
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.success[500]};
+  border: 2px solid ${({ theme }) => theme.color.bg.surface};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.color.bg.surface};
+`;
+
+export const StageSignerName = styled.div`
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
 export const SignerRow = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.space[5]};

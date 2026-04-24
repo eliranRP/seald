@@ -990,6 +990,24 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     return this.findByIdWithAll(envelope_id);
   }
 
+  async getFilePaths(envelope_id: string): Promise<{
+    readonly original_file_path: string | null;
+    readonly sealed_file_path: string | null;
+    readonly audit_file_path: string | null;
+  } | null> {
+    const row = await this.db
+      .selectFrom('envelopes')
+      .select(['original_file_path', 'sealed_file_path', 'audit_file_path'])
+      .where('id', '=', envelope_id)
+      .executeTakeFirst();
+    if (!row) return null;
+    return {
+      original_file_path: row.original_file_path,
+      sealed_file_path: row.sealed_file_path,
+      audit_file_path: row.audit_file_path,
+    };
+  }
+
   // ---------- Internal helpers ----------
 
   private async loadSigners(envelope_id: string): Promise<ReadonlyArray<SignerRow>> {

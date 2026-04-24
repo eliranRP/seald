@@ -180,6 +180,20 @@ export class EnvelopesController {
   ): Promise<{ events: ReadonlyArray<EnvelopeEvent> }> {
     return this.svc.listEvents(user.id, id).then((events) => ({ events }));
   }
+
+  /**
+   * Short-lived signed URL for downloading the envelope PDF. Returns the
+   * sealed artifact once the envelope is complete, else the original
+   * upload. Clients redirect the browser to `url` (e.g. via an invisible
+   * anchor click) to trigger the download.
+   */
+  @Get(':id/download')
+  download(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{ url: string; kind: 'sealed' | 'original' }> {
+    return this.svc.getDownloadUrl(user.id, id);
+  }
 }
 
 const STATUS_SET = new Set<string>(ENVELOPE_STATUSES);

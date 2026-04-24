@@ -232,6 +232,62 @@ export const AuditCallout = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.color.fg[2]};
   line-height: 1.55;
+  & strong {
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+`;
+
+export const Muted = styled.div`
+  color: ${({ theme }) => theme.color.fg[2]};
+  margin-top: ${({ theme }) => theme.space[1]};
+  line-height: 1.55;
+`;
+
+export const AuditAction = styled.button`
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[1]};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: 12px;
+  margin-top: ${({ theme }) => theme.space[2]};
+  cursor: pointer;
+  &:hover {
+    color: ${({ theme }) => theme.color.indigo[800]};
+  }
+  &:focus-visible {
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+    border-radius: ${({ theme }) => theme.radius.sm};
+  }
+`;
+
+export const StatusToast = styled.div<{ $kind: 'success' | 'danger' }>`
+  margin: 0 0 ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
+  background: ${({ theme, $kind }) =>
+    $kind === 'danger' ? theme.color.danger[50] : theme.color.success[50]};
+  color: ${({ theme, $kind }) =>
+    $kind === 'danger' ? theme.color.danger[700] : theme.color.success[700]};
+  border: 1px solid
+    ${({ theme, $kind }) =>
+      $kind === 'danger' ? theme.color.danger[500] : theme.color.success[500]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: 13px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+`;
+
+export const ErrorBanner = StatusToast;
+
+export const NotFoundHint = styled.div`
+  margin-top: ${({ theme }) => theme.space[3]};
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: 14px;
+`;
+
+export const SignersEmpty = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const SignerList = styled.ul`

@@ -155,6 +155,46 @@ export async function listEnvelopeEvents(
   return data;
 }
 
+export interface EnvelopeDownloadUrl {
+  readonly url: string;
+  readonly kind: 'sealed' | 'original';
+}
+
+/**
+ * Returns a short-lived (5 min) signed URL pointing at the sealed PDF
+ * when the envelope is complete, or the original upload otherwise.
+ * The caller is expected to redirect / anchor-click into `url` to
+ * trigger an actual browser download.
+ */
+export async function getEnvelopeDownloadUrl(
+  id: string,
+  signal?: AbortSignal,
+): Promise<EnvelopeDownloadUrl> {
+  const { data } = await apiClient.get<EnvelopeDownloadUrl>(
+    `/envelopes/${id}/download`,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+/**
+ * Re-sends the signing invite to a single signer, rotating their token
+ * so any previous link goes dead. Backend enforces a 1-per-hour throttle
+ * per (envelope, signer) pair; a 429 surfaces as a
+ * `remind_throttled` slug.
+ */
+export async function remindEnvelopeSigner(
+  envelopeId: string,
+  signerId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await apiClient.post<void>(
+    `/envelopes/${envelopeId}/signers/${signerId}/remind`,
+    undefined,
+    configWithSignal(signal),
+  );
+}
+
 export async function createEnvelope(
   input: { readonly title: string },
   signal?: AbortSignal,

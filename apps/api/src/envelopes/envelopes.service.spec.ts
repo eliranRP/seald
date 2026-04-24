@@ -356,6 +356,10 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     throw new Error('not_implemented_in_fake');
   }
 
+  async getFilePaths(): Promise<never> {
+    throw new Error('not_implemented_in_fake');
+  }
+
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
     try {
       const decoded = Buffer.from(cursor, 'base64url').toString('utf8');

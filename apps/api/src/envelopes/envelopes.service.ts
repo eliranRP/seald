@@ -167,6 +167,31 @@ export class EnvelopesService {
     throw new ConflictException('envelope_not_draft');
   }
 
+  /**
+   * Issues a short-lived signed URL so the sender can download the PDF.
+   * Prefers the sealed artifact when it exists (post-completion) and
+   * falls back to the original upload (drafts / in-flight envelopes).
+   *
+   * Throws `file_not_ready` when the envelope has not had any file
+   * stamped yet (e.g. a draft that was created but never uploaded).
+   */
+  async getDownloadUrl(
+    owner_id: string,
+    id: string,
+  ): Promise<{ readonly url: string; readonly kind: 'sealed' | 'original' }> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const paths = await this.repo.getFilePaths(id);
+    if (!paths) throw new NotFoundException('envelope_not_found');
+    const kind: 'sealed' | 'original' = paths.sealed_file_path !== null ? 'sealed' : 'original';
+    const path = kind === 'sealed' ? paths.sealed_file_path : paths.original_file_path;
+    if (path === null) throw new BadRequestException('file_not_ready');
+    // 5-minute TTL — enough for the browser to start a download even on
+    // a slow link, short enough that a copied URL won't linger.
+    const url = await this.storage.createSignedUrl(path, 300);
+    return { url, kind };
+  }
+
   async deleteDraft(owner_id: string, id: string): Promise<void> {
     const deleted = await this.repo.deleteDraft(owner_id, id);
     if (deleted) return;

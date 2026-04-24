@@ -267,6 +267,17 @@ export abstract class EnvelopesRepository {
    */
   abstract setAuditFile(envelope_id: string, audit_file_path: string): Promise<Envelope | null>;
 
+  /**
+   * Returns the Storage paths stamped on the envelope row. Used by the
+   * download endpoint to hand the client a signed URL. `null` on any
+   * component means that artifact hasn't been produced yet.
+   */
+  abstract getFilePaths(envelope_id: string): Promise<{
+    readonly original_file_path: string | null;
+    readonly sealed_file_path: string | null;
+    readonly audit_file_path: string | null;
+  } | null>;
+
   // Cursor helper — decode the opaque cursor returned by listByOwner. Throws
   // InvalidCursorError on malformed input. Lives on the port so the service
   // layer doesn't need to know the cursor encoding format.

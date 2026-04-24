@@ -630,6 +630,20 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   // here for test assertions.
   readonly sealedPaths = new Map<string, string>();
   readonly auditPaths = new Map<string, string>();
+  readonly originalPaths = new Map<string, string>();
+
+  async getFilePaths(envelope_id: string): Promise<{
+    readonly original_file_path: string | null;
+    readonly sealed_file_path: string | null;
+    readonly audit_file_path: string | null;
+  } | null> {
+    if (!this.envelopes.has(envelope_id)) return null;
+    return {
+      original_file_path: this.originalPaths.get(envelope_id) ?? null,
+      sealed_file_path: this.sealedPaths.get(envelope_id) ?? null,
+      audit_file_path: this.auditPaths.get(envelope_id) ?? null,
+    };
+  }
 
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
     try {

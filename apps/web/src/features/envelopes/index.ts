@@ -23,6 +23,8 @@ export {
   listEnvelopes,
   getEnvelope,
   listEnvelopeEvents,
+  getEnvelopeDownloadUrl,
+  remindEnvelopeSigner,
   createEnvelope,
   uploadEnvelopeFile,
   addEnvelopeSigner,
@@ -33,6 +35,7 @@ export {
 } from './envelopesApi';
 export type {
   Envelope,
+  EnvelopeDownloadUrl,
   EnvelopeEvent,
   EnvelopeEventType,
   EnvelopeEventsResponse,
