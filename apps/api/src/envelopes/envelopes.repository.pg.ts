@@ -24,6 +24,7 @@ import {
   type EnvelopeListItem,
   type SendDraftInput,
   type SetOriginalFileInput,
+  type ClaimedJob,
   type SetSignerSignatureInput,
   type SignerFieldFillInput,
   type SubmitResult,
@@ -833,6 +834,124 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .returning(['id'])
       .executeTakeFirstOrThrow();
     return row.id;
+  }
+
+  async claimNextJob(): Promise<ClaimedJob | null> {
+    // SKIP LOCKED so a second worker racing this SELECT jumps past the row
+    // the first worker is about to claim. The raw CTE is the cleanest way
+    // to express this in Kysely without a roundtrip.
+    const result = await sql<{
+      id: string;
+      envelope_id: string;
+      kind: 'seal' | 'audit_only';
+      attempts: number;
+      max_attempts: number;
+    }>`
+      with next_job as (
+        select id from envelope_jobs
+        where status in ('pending', 'failed')
+          and scheduled_for <= now()
+          and attempts < max_attempts
+        order by scheduled_for asc
+        limit 1
+        for update skip locked
+      )
+      update envelope_jobs j
+      set status = 'running',
+          attempts = j.attempts + 1,
+          started_at = now(),
+          last_error = null
+      from next_job
+      where j.id = next_job.id
+      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts
+    `.execute(this.db);
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      envelope_id: row.envelope_id,
+      kind: row.kind,
+      attempts: row.attempts,
+      max_attempts: row.max_attempts,
+    };
+  }
+
+  async finishJob(job_id: string): Promise<void> {
+    await this.db
+      .updateTable('envelope_jobs')
+      .set({ status: 'done', finished_at: new Date().toISOString() })
+      .where('id', '=', job_id)
+      .execute();
+  }
+
+  async failJob(job_id: string, error: string): Promise<void> {
+    // If attempts < max_attempts, reset to pending with exponential backoff
+    // (2^attempts minutes, capped). Otherwise terminal failed.
+    const current = await this.db
+      .selectFrom('envelope_jobs')
+      .select(['attempts', 'max_attempts'])
+      .where('id', '=', job_id)
+      .executeTakeFirst();
+    if (!current) return;
+    const trimmed = error.length > 2000 ? error.slice(0, 2000) : error;
+    if (current.attempts >= current.max_attempts) {
+      await this.db
+        .updateTable('envelope_jobs')
+        .set({
+          status: 'failed',
+          last_error: trimmed,
+          finished_at: new Date().toISOString(),
+        })
+        .where('id', '=', job_id)
+        .execute();
+      return;
+    }
+    const delayMs = Math.min(Math.pow(2, current.attempts) * 60_000, 10 * 60_000);
+    const scheduledFor = new Date(Date.now() + delayMs).toISOString();
+    await this.db
+      .updateTable('envelope_jobs')
+      .set({
+        status: 'pending',
+        last_error: trimmed,
+        scheduled_for: scheduledFor,
+      })
+      .where('id', '=', job_id)
+      .execute();
+  }
+
+  async transitionToSealed(
+    envelope_id: string,
+    input: { sealed_file_path: string; sealed_sha256: string; audit_file_path: string },
+  ): Promise<Envelope | null> {
+    return this.db.transaction().execute(async (trx) => {
+      const updated = await trx
+        .updateTable('envelopes')
+        .set({
+          status: 'completed',
+          sealed_file_path: input.sealed_file_path,
+          sealed_sha256: input.sealed_sha256,
+          audit_file_path: input.audit_file_path,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .where('id', '=', envelope_id)
+        .where('status', '=', 'sealing')
+        .returning(['id'])
+        .executeTakeFirst();
+      if (!updated) return null;
+      return this.findByIdWithAllTrx(trx, envelope_id);
+    });
+  }
+
+  async setAuditFile(envelope_id: string, audit_file_path: string): Promise<Envelope | null> {
+    const updated = await this.db
+      .updateTable('envelopes')
+      .set({ audit_file_path, updated_at: new Date().toISOString() })
+      .where('id', '=', envelope_id)
+      .returning(['id'])
+      .executeTakeFirst();
+    if (!updated) return null;
+    return this.findByIdWithAll(envelope_id);
   }
 
   // ---------- Internal helpers ----------

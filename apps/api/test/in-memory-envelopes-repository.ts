@@ -42,6 +42,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.signerMeta.clear();
     this.jobs.length = 0;
     this.declineReasons.clear();
+    this.sealedPaths.clear();
+    this.auditPaths.clear();
   }
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
@@ -491,19 +493,120 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return event;
   }
 
-  readonly jobs: Array<{ id: string; envelope_id: string; kind: 'seal' | 'audit_only' }> = [];
+  readonly jobs: Array<{
+    id: string;
+    envelope_id: string;
+    kind: 'seal' | 'audit_only';
+    status: 'pending' | 'running' | 'done' | 'failed';
+    attempts: number;
+    max_attempts: number;
+    last_error: string | null;
+    scheduled_for: string;
+  }> = [];
 
   async enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string> {
     // Mirror PG's ON CONFLICT (envelope_id) DO UPDATE — one live job per envelope.
     const existing = this.jobs.find((j) => j.envelope_id === envelope_id);
+    const now = new Date().toISOString();
     if (existing) {
       existing.kind = kind;
+      existing.status = 'pending';
+      existing.attempts = 0;
+      existing.last_error = null;
+      existing.scheduled_for = now;
       return existing.id;
     }
     const id = randomUUID();
-    this.jobs.push({ id, envelope_id, kind });
+    this.jobs.push({
+      id,
+      envelope_id,
+      kind,
+      status: 'pending',
+      attempts: 0,
+      max_attempts: 5,
+      last_error: null,
+      scheduled_for: now,
+    });
     return id;
   }
+
+  async claimNextJob(): Promise<import('../src/envelopes/envelopes.repository').ClaimedJob | null> {
+    const now = Date.now();
+    const candidate = this.jobs.find(
+      (j) =>
+        (j.status === 'pending' || j.status === 'failed') &&
+        Date.parse(j.scheduled_for) <= now &&
+        j.attempts < j.max_attempts,
+    );
+    if (!candidate) return null;
+    candidate.status = 'running';
+    candidate.attempts += 1;
+    candidate.last_error = null;
+    return {
+      id: candidate.id,
+      envelope_id: candidate.envelope_id,
+      kind: candidate.kind,
+      attempts: candidate.attempts,
+      max_attempts: candidate.max_attempts,
+    };
+  }
+
+  async finishJob(job_id: string): Promise<void> {
+    const j = this.jobs.find((x) => x.id === job_id);
+    if (j) j.status = 'done';
+  }
+
+  async failJob(job_id: string, error: string): Promise<void> {
+    const j = this.jobs.find((x) => x.id === job_id);
+    if (!j) return;
+    const trimmed = error.length > 2000 ? error.slice(0, 2000) : error;
+    if (j.attempts >= j.max_attempts) {
+      j.status = 'failed';
+      j.last_error = trimmed;
+      return;
+    }
+    j.status = 'pending';
+    j.last_error = trimmed;
+    j.scheduled_for = new Date(
+      Date.now() + Math.min(Math.pow(2, j.attempts) * 60_000, 10 * 60_000),
+    ).toISOString();
+  }
+
+  async transitionToSealed(
+    envelope_id: string,
+    input: { sealed_file_path: string; sealed_sha256: string; audit_file_path: string },
+  ): Promise<Envelope | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return null;
+    if (env.status !== 'sealing') return null;
+    const now = new Date().toISOString();
+    const next: Envelope = {
+      ...env,
+      status: 'completed',
+      sealed_sha256: input.sealed_sha256,
+      completed_at: now,
+      updated_at: now,
+    };
+    this.envelopes.set(envelope_id, next);
+    this.sealedPaths.set(envelope_id, input.sealed_file_path);
+    this.auditPaths.set(envelope_id, input.audit_file_path);
+    return next;
+  }
+
+  async setAuditFile(envelope_id: string, audit_file_path: string): Promise<Envelope | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return null;
+    const now = new Date().toISOString();
+    const next: Envelope = { ...env, updated_at: now };
+    this.envelopes.set(envelope_id, next);
+    this.auditPaths.set(envelope_id, audit_file_path);
+    return next;
+  }
+
+  // Paths aren't on the Envelope domain type (redacted), so we stash them
+  // here for test assertions.
+  readonly sealedPaths = new Map<string, string>();
+  readonly auditPaths = new Map<string, string>();
 
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
     try {

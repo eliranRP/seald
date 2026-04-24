@@ -330,6 +330,21 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async enqueueJob(): Promise<string> {
     throw new Error('not_implemented_in_fake');
   }
+  async claimNextJob(): Promise<never> {
+    throw new Error('not_implemented_in_fake');
+  }
+  async finishJob(): Promise<void> {
+    throw new Error('not_implemented_in_fake');
+  }
+  async failJob(): Promise<void> {
+    throw new Error('not_implemented_in_fake');
+  }
+  async transitionToSealed(): Promise<never> {
+    throw new Error('not_implemented_in_fake');
+  }
+  async setAuditFile(): Promise<never> {
+    throw new Error('not_implemented_in_fake');
+  }
 
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
     try {

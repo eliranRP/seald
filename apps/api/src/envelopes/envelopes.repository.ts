@@ -76,6 +76,14 @@ export interface SubmitResult {
   readonly envelope_status: EnvelopeStatus;
 }
 
+export interface ClaimedJob {
+  readonly id: string;
+  readonly envelope_id: string;
+  readonly kind: 'seal' | 'audit_only';
+  readonly attempts: number;
+  readonly max_attempts: number;
+}
+
 export interface ListOptions {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit: number; // 1..100
@@ -210,6 +218,40 @@ export abstract class EnvelopesRepository {
 
   // Jobs
   abstract enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string>;
+
+  /**
+   * Atomically claim the next pending job. Uses SELECT FOR UPDATE SKIP LOCKED
+   * semantics in PG so multiple workers don't double-process a row. Returns
+   * null when no pending work. `started_at` is set, `attempts` is incremented,
+   * status flips `pending`|`failed` → `running`.
+   */
+  abstract claimNextJob(): Promise<ClaimedJob | null>;
+
+  /** Mark a claimed job done. Idempotent — callers should always call on success. */
+  abstract finishJob(job_id: string): Promise<void>;
+
+  /**
+   * Mark a claimed job failed. If attempts < max_attempts, flips back to
+   * `pending` with a delayed `scheduled_for` (exponential backoff); otherwise
+   * terminal `failed`. `last_error` is always recorded.
+   */
+  abstract failJob(job_id: string, error: string): Promise<void>;
+
+  /**
+   * Row-conditional transition envelope.status = 'sealing' → 'sealed'. Stamps
+   * sealed_file_path, sealed_sha256, audit_file_path, completed_at. Returns
+   * the updated envelope, or null if the row was not in sealing (e.g. raced).
+   */
+  abstract transitionToSealed(
+    envelope_id: string,
+    input: { sealed_file_path: string; sealed_sha256: string; audit_file_path: string },
+  ): Promise<Envelope | null>;
+
+  /**
+   * For audit_only jobs (envelope already in a terminal status like
+   * 'declined' or 'expired'). Sets audit_file_path without status change.
+   */
+  abstract setAuditFile(envelope_id: string, audit_file_path: string): Promise<Envelope | null>;
 
   // Cursor helper — decode the opaque cursor returned by listByOwner. Throws
   // InvalidCursorError on malformed input. Lives on the port so the service
