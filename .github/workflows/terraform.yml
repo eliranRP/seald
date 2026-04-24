@@ -68,6 +68,11 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
+      # TF_VAR_aws_region MUST mirror AWS_REGION so Terraform deploys to
+      # the same region the state bucket + instance live in. Without this
+      # the module uses its variables.tf default (us-east-1) and creates
+      # duplicate infra — we already got bitten by this once.
+      TF_VAR_aws_region: ${{ secrets.AWS_REGION }}
       TF_VAR_ssh_pubkey: ${{ secrets.SSH_PUBKEY }}
       # Enable managed GoDaddy DNS whenever the credentials are present. If
       # the account tier can't use the production API, flip to false here
