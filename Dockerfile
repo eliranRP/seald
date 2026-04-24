@@ -25,8 +25,9 @@ COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
 # apps/web is excluded from the API image since we only serve API traffic
 # from the container. The web app deploys separately (Vercel / static host).
+ENV HUSKY=0
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter api... --filter shared
+    pnpm install --frozen-lockfile --ignore-scripts --filter api... --filter shared
 
 # -------- 3. build: compile shared + api --------
 FROM deps AS build
@@ -38,7 +39,7 @@ RUN pnpm --filter shared build && pnpm --filter api build
 # -------- 4. prune: drop devDeps --------
 FROM deps AS prune
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --prod --filter api... --filter shared
+    pnpm install --frozen-lockfile --ignore-scripts --prod --filter api... --filter shared
 
 # -------- 5. runtime --------
 FROM node:20-bookworm-slim AS runtime
