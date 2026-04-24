@@ -84,8 +84,8 @@ function EnvelopeDetail({ doc, onBack }){
               <span>Sent {doc.date}</span>
             </div>
           </div>
-          <div style={{display:'flex',gap:10, flexShrink:0}}>
-            <Button variant="secondary" icon="download">Download PDF</Button>
+          <div style={{display:'flex',gap:10, flexShrink:0, position:'relative'}}>
+            <DownloadMenu doc={doc}/>
             <Button variant="secondary" icon="bell">Send reminder</Button>
             {doc.status!=='emerald' && <Button variant="secondary" icon="x">Withdraw</Button>}
           </div>
@@ -234,3 +234,185 @@ function EnvelopeDetail({ doc, onBack }){
 }
 
 Object.assign(window, { EnvelopeDetail });
+
+/* =======================================================================
+   DownloadMenu — split-button dropdown with 4 package options
+   ======================================================================= */
+function DownloadMenu({ doc }){
+  const [open, setOpen] = useState(false);
+  const [downloading, setDownloading] = useState(null); // key of item being "downloaded"
+  const anchorRef = useRef(null);
+  const menuRef = useRef(null);
+
+  const sealed = doc.status === 'emerald';
+
+  const items = [
+    {
+      key: 'original',
+      icon: 'file',
+      title: 'Original PDF',
+      desc: 'The document as uploaded — no signatures, no fields.',
+      meta: '4 pages · 214 KB',
+      available: true,
+    },
+    {
+      key: 'sealed',
+      icon: 'file-check-2',
+      title: 'Sealed PDF',
+      desc: 'Final signed document with all fields filled and certificate page.',
+      meta: sealed ? '5 pages · 312 KB · eIDAS QES' : 'Available once all signers complete',
+      available: sealed,
+      recommended: sealed,
+    },
+    {
+      key: 'audit',
+      icon: 'shield-check',
+      title: 'Audit trail',
+      desc: 'Cryptographic event log — IPs, timestamps, hashes.',
+      meta: 'PDF · 2 pages',
+      available: true,
+    },
+    {
+      key: 'bundle',
+      icon: 'package',
+      title: 'Full package',
+      desc: 'Sealed PDF + audit trail bundled together.',
+      meta: sealed ? '.zip · 428 KB' : 'Available once sealed',
+      available: sealed,
+    },
+  ];
+
+  // Click-outside close
+  useEffect(()=>{
+    if (!open) return;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target) && !anchorRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return ()=> document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const pickPrimary = () => items.find(i => i.recommended) || items[0];
+
+  const fakeDownload = (key) => {
+    setDownloading(key);
+    setTimeout(()=>{ setDownloading(null); setOpen(false); }, 1400);
+  };
+
+  const primary = pickPrimary();
+
+  return (
+    <div ref={anchorRef} style={{position:'relative', display:'inline-flex'}}>
+      {/* Split button: primary action + chevron */}
+      <button
+        onClick={()=> fakeDownload(primary.key)}
+        style={{
+          background:'#fff', border:'1px solid var(--border-1)',
+          borderRight:'none', borderRadius:'10px 0 0 10px',
+          padding:'9px 14px', fontSize:13, fontWeight:600, color:'var(--fg-1)',
+          cursor:'pointer', display:'inline-flex', alignItems:'center', gap:8,
+          fontFamily:'var(--font-sans)',
+        }}>
+        <Icon name={downloading===primary.key ? 'loader-2' : 'download'} size={14}
+              style={{color:'var(--indigo-600)', animation: downloading===primary.key ? 'spin 900ms linear infinite' : 'none'}}/>
+        Download {primary.key==='sealed' ? 'sealed PDF' : primary.key==='original' ? 'original' : 'PDF'}
+      </button>
+      <button
+        onClick={()=> setOpen(v=>!v)}
+        style={{
+          background: open ? 'var(--ink-100)' : '#fff',
+          border:'1px solid var(--border-1)',
+          borderRadius:'0 10px 10px 0',
+          padding:'9px 10px', cursor:'pointer', display:'inline-flex', alignItems:'center',
+          fontFamily:'var(--font-sans)',
+        }}>
+        <Icon name="chevron-down" size={14} style={{color:'var(--fg-2)', transform: open?'rotate(180deg)':'none', transition:'transform 160ms'}}/>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div ref={menuRef} style={{
+          position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:50,
+          width:360, background:'#fff', border:'1px solid var(--border-1)',
+          borderRadius:14, boxShadow:'var(--shadow-lg)', padding:8,
+          animation:'sealed-menu-in 160ms cubic-bezier(.2,.8,.2,1)',
+        }}>
+          <div style={{padding:'8px 10px 6px', fontSize:11, fontWeight:600,
+                       letterSpacing:'0.08em', color:'var(--fg-3)', textTransform:'uppercase'}}>
+            Download
+          </div>
+          {items.map(it => {
+            const disabled = !it.available;
+            const isLoading = downloading === it.key;
+            return (
+              <button
+                key={it.key}
+                disabled={disabled}
+                onClick={()=> fakeDownload(it.key)}
+                style={{
+                  display:'flex', gap:12, alignItems:'flex-start', width:'100%',
+                  background: isLoading ? 'var(--indigo-50)' : 'transparent',
+                  border:'none', textAlign:'left', padding:'10px 10px',
+                  borderRadius:10, cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled ? 0.55 : 1,
+                  fontFamily:'var(--font-sans)',
+                  transition:'background 140ms',
+                }}
+                onMouseEnter={e=>{ if(!disabled && !isLoading) e.currentTarget.style.background='var(--ink-50)'; }}
+                onMouseLeave={e=>{ if(!isLoading) e.currentTarget.style.background='transparent'; }}
+              >
+                <div style={{
+                  width:36, height:36, borderRadius:9, flexShrink:0,
+                  background: it.recommended ? 'var(--indigo-50)' : 'var(--ink-50)',
+                  border:`1px solid ${it.recommended ? 'var(--indigo-200)' : 'var(--border-1)'}`,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                }}>
+                  <Icon name={isLoading ? 'loader-2' : it.icon} size={16}
+                        style={{color: it.recommended ? 'var(--indigo-600)' : 'var(--fg-2)',
+                                animation: isLoading ? 'spin 900ms linear infinite' : 'none'}}/>
+                </div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <span style={{fontSize:13, fontWeight:600, color:'var(--fg-1)'}}>{it.title}</span>
+                    {it.recommended && (
+                      <span style={{fontSize:10, fontWeight:700, letterSpacing:'0.04em',
+                                    padding:'2px 6px', borderRadius:4,
+                                    background:'var(--indigo-600)', color:'#fff'}}>RECOMMENDED</span>
+                    )}
+                    {disabled && (
+                      <span style={{fontSize:10, fontWeight:600, letterSpacing:'0.04em',
+                                    padding:'2px 6px', borderRadius:4,
+                                    background:'var(--ink-100)', color:'var(--fg-3)'}}>LOCKED</span>
+                    )}
+                  </div>
+                  <div style={{fontSize:12, color:'var(--fg-3)', marginTop:2, lineHeight:1.45}}>{it.desc}</div>
+                  <div style={{fontSize:11, color:'var(--fg-4)', fontFamily:'var(--font-mono)', marginTop:4}}>
+                    {isLoading ? 'Preparing…' : it.meta}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+
+          <div style={{padding:'10px 10px 4px', borderTop:'1px solid var(--border-1)', marginTop:6,
+                       fontSize:11, color:'var(--fg-4)', lineHeight:1.5, display:'flex', gap:8, alignItems:'flex-start'}}>
+            <Icon name="info" size={12} style={{color:'var(--fg-4)', marginTop:2, flexShrink:0}}/>
+            <span>All downloads include SHA-256 verification. The audit trail can be independently verified using the envelope reference code.</span>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes sealed-menu-in {
+          from { opacity: 0; transform: translateY(-4px) scale(.98); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+}

@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Sealed — Favicon</title>
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--ink-50);font-family:var(--font-sans);color:var(--fg-2);}
+  .page{padding:32px;max-width:980px;margin:0 auto}
+  h2{font-family:var(--font-serif);font-weight:500;letter-spacing:-0.02em;font-size:22px;margin:0 0 4px;color:var(--fg-1)}
+  .sub{color:var(--fg-3);font-size:13px;margin-bottom:20px}
+  .row{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap;margin-bottom:28px}
+  .tile{background:#fff;border:1px solid var(--border-1);border-radius:14px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:var(--shadow-sm)}
+  .label{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+  .chrome{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px 999px 0 0;background:#fff;border:1px solid var(--border-1);border-bottom:none;font-size:12px;color:var(--fg-2);max-width:260px}
+  .chrome .dot{width:8px;height:8px;border-radius:999px;background:var(--ink-200)}
+  .chrome img{width:14px;height:14px;border-radius:3px}
+  .dock{display:flex;gap:14px;align-items:center;background:linear-gradient(180deg,#1F2937,#0B1220);padding:16px 22px;border-radius:20px;box-shadow:var(--shadow-lg)}
+  .dock img{width:52px;height:52px;border-radius:12px;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+  .ios{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff}
+  .ios img{width:60px;height:60px;border-radius:14px;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+  .ios .nm{font-size:11px;color:rgba(255,255,255,.9)}
+  .ios.bg{background:linear-gradient(135deg,#64748B,#0B1220);padding:20px;border-radius:16px}
+</style>
+</head>
+<body>
+<div class="page">
+  <h2>Favicon & app icons</h2>
+  <div class="sub">The Sealed mark — a signature-quill flourish on indigo 600. Rounded tile; padding tuned so it reads at 16×16.</div>
+
+  <div class="row">
+    <div class="tile">
+      <img src="../favicon-16.png" width="16" height="16" style="image-rendering:pixelated">
+      <div class="label">16 × 16</div>
+    </div>
+    <div class="tile">
+      <img src="../favicon-32.png" width="32" height="32">
+      <div class="label">32 × 32</div>
+    </div>
+    <div class="tile">
+      <img src="../favicon-48.png" width="48" height="48">
+      <div class="label">48 × 48</div>
+    </div>
+    <div class="tile">
+      <img src="../favicon-64.png" width="64" height="64">
+      <div class="label">64 × 64 (svg)</div>
+    </div>
+    <div class="tile">
+      <img src="../apple-touch-icon.png" width="96" height="96" style="border-radius:20px">
+      <div class="label">Apple touch · 180</div>
+    </div>
+    <div class="tile">
+      <img src="../icon-512.png" width="128" height="128" style="border-radius:28px">
+      <div class="label">PWA · 512 maskable</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:8px">In context</h2>
+  <div class="sub">How it reads in the browser tab and on a home-screen tile.</div>
+
+  <div class="row">
+    <div style="display:flex;flex-direction:column">
+      <div class="chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <img src="../favicon-16.png">
+        <span>Sealed — Signing App</span>
+      </div>
+      <div style="height:120px;background:#fff;border:1px solid var(--border-1);border-radius:0 14px 14px 14px;width:260px"></div>
+    </div>
+
+    <div class="ios bg">
+      <img src="../apple-touch-icon.png">
+      <div class="nm">Sealed</div>
+    </div>
+
+    <div class="dock">
+      <img src="../favicon-64.png">
+      <img src="../favicon-64.png" style="opacity:.6">
+      <img src="../favicon-64.png" style="opacity:.35">
+    </div>
+  </div>
+</div>
+</body>
+</html>

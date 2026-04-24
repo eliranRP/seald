@@ -1,4 +1,9 @@
 <!doctype html><html><head><meta charset="utf-8"><title>Sealed — Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="../../favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="manifest" href="../../site.webmanifest">
+<meta name="theme-color" content="#4F46E5">
 <link rel="stylesheet" href="../../colors_and_type.css">
 <style>html,body{margin:0;padding:0;background:var(--ink-50);}#root{font-family:var(--font-sans);color:var(--fg-2);}</style>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -14,7 +19,8 @@
 <script type="text/babel">
   const { useEffect, useState } = React;
   function Root(){
-    const [open, setOpen] = useState(null);
+    // Start on an envelope detail so the new download menu is visible
+    const [open, setOpen] = useState(() => DOCS.find(d => d.status==='emerald') || DOCS[2]);
     useEffect(()=>{ if(window.lucide) window.lucide.createIcons(); }, [open]);
     if (open) return <EnvelopeDetail doc={open} onBack={()=>setOpen(null)}/>;
     return <Dashboard onOpen={setOpen}/>;
