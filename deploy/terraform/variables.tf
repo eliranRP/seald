@@ -81,13 +81,40 @@ variable "godaddy_domain" {
 }
 
 variable "godaddy_subdomain" {
-  description = "Subdomain to point at the EIP (e.g. api -> api.nromomentum.com). Use @ for apex, though HTTPS on apex has extra DNS CAA considerations."
+  description = "Subdomain to point at the EIP. Supports nested forms like 'api.seald' -> api.seald.<domain>. Use @ for apex (HTTPS on apex has extra CAA considerations)."
   type        = string
-  default     = "api"
+  default     = "api.seald"
 }
 
 variable "godaddy_record_ttl" {
-  description = "DNS TTL in seconds for the A record. 600 is a good default - short enough to retry fast if you ever need to move."
+  description = "DNS TTL in seconds for the Seald A record. 600 is a good default - short enough to retry fast if you ever need to move."
   type        = number
   default     = 600
+}
+
+variable "extra_a_records" {
+  description = <<-EOT
+    Additional A records that should coexist on the GoDaddy zone
+    alongside Seald's api.seald record. Required because the
+    n3integration/godaddy provider replaces every A record on apply;
+    anything not listed here (or under godaddy_subdomain) is DELETED.
+
+    Shape: list<object({ name = string, data = string, ttl = optional(number) })>
+
+    Default ships with n8n.nromomentum.com -> the known n8n EIP so a
+    stock `terraform apply` doesn't clobber the n8n service sharing
+    this zone.
+  EOT
+  type = list(object({
+    name = string
+    data = string
+    ttl  = optional(number, 3600)
+  }))
+  default = [
+    {
+      name = "n8n"
+      data = "3.23.247.245" # EIP of the NRO n8n instance
+      ttl  = 3600
+    },
+  ]
 }

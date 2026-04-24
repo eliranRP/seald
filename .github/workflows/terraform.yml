@@ -4,9 +4,12 @@ on:
   pull_request:
     branches: [develop, main]
     paths: ['deploy/terraform/**', '.github/workflows/terraform.yml']
+  # Push to main with Terraform changes → auto-apply. We gate on the
+  # paths filter so an unrelated commit doesn't needlessly touch infra,
+  # and the S3 state backend's lock prevents two concurrent applies.
   push:
     branches: [main]
-    paths: ['deploy/terraform/**']
+    paths: ['deploy/terraform/**', '.github/workflows/terraform.yml']
   workflow_dispatch:
     inputs:
       action:
@@ -73,7 +76,9 @@ jobs:
       TF_VAR_godaddy_api_key: ${{ secrets.GODADDY_API_KEY }}
       TF_VAR_godaddy_api_secret: ${{ secrets.GODADDY_API_SECRET }}
       TF_VAR_godaddy_domain: ${{ secrets.GODADDY_DOMAIN }}
-      TF_VAR_godaddy_subdomain: api
+      # Writes an A record at api.seald.<GODADDY_DOMAIN>, e.g.
+      # api.seald.nromomentum.com → the EIP.
+      TF_VAR_godaddy_subdomain: api.seald
 
     defaults:
       run:
@@ -125,8 +130,14 @@ jobs:
               body,
             });
 
+      # Auto-apply fires in two cases:
+      #   - Manual dispatch with action=apply
+      #   - Push to main with a change under deploy/terraform/**
+      # Pull requests and branch dispatches only plan.
       - name: Terraform apply
-        if: github.event.inputs.action == 'apply'
+        if: >-
+          github.event.inputs.action == 'apply'
+          || (github.event_name == 'push' && github.ref == 'refs/heads/main')
         run: terraform apply -auto-approve -no-color
 
       - name: Terraform destroy
