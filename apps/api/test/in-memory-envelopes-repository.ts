@@ -41,6 +41,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.signerTokenHashes.clear();
     this.signerMeta.clear();
     this.jobs.length = 0;
+    this.declineReasons.clear();
   }
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
@@ -425,8 +426,50 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     }
     return null;
   }
-  async declineSigner(): Promise<Envelope | null> {
-    throw new Error('not_implemented_in_fake');
+  async declineSigner(
+    signer_id: string,
+    reason: string | null,
+    ip: string | null,
+    user_agent: string | null,
+  ): Promise<Envelope | null> {
+    for (const env of this.envelopes.values()) {
+      const idx = env.signers.findIndex((s) => s.id === signer_id);
+      if (idx < 0) continue;
+      const current = env.signers[idx]!;
+      if (env.status !== 'awaiting_others') return null;
+      if (current.declined_at !== null || current.signed_at !== null) return null;
+      const now = new Date().toISOString();
+      const declinedSigner: EnvelopeSigner = {
+        ...current,
+        declined_at: now,
+        status: 'declined',
+      };
+      const signers = [...env.signers];
+      signers[idx] = declinedSigner;
+      this.signerMeta.set(signer_id, {
+        ...(this.signerMeta.get(signer_id) ?? {}),
+        signing_ip: ip,
+        signing_user_agent: user_agent,
+      });
+      const next: Envelope = {
+        ...env,
+        signers,
+        status: 'declined',
+        updated_at: now,
+      };
+      this.envelopes.set(env.id, next);
+      // Fixture doesn't surface decline_reason on the domain type — stash it
+      // in the meta side-map for audit-event payloads.
+      this.declineReasons.set(signer_id, reason);
+      return next;
+    }
+    return null;
+  }
+
+  private readonly declineReasons = new Map<string, string | null>();
+
+  getDeclineReason(signer_id: string): string | null | undefined {
+    return this.declineReasons.get(signer_id);
   }
   async expireEnvelopes(): Promise<readonly string[]> {
     throw new Error('not_implemented_in_fake');

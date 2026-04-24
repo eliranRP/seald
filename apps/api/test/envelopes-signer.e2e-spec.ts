@@ -617,4 +617,184 @@ describe('Signing — /sign/start (e2e)', () => {
       expect(second.body).toEqual({ error: 'envelope_terminal' });
     });
   });
+
+  describe('POST /sign/decline', () => {
+    /** Build a 2-signer sent envelope and return cookies for both. Used for
+     *  the cascade-email test below. */
+    async function buildTwoSignerSent(): Promise<{
+      envId: string;
+      signerA: { id: string; cookie: string; email: string };
+      signerB: { id: string; email: string; plaintextToken: string };
+    }> {
+      const auth = { Authorization: `Bearer ${tokenA}` };
+      const contactA = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const contactB = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Bob',
+        email: 'bob@example.com',
+        color: '#445566',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth)
+        .send({ title: 'Two-signer' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth)
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const sA = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth)
+        .send({ contact_id: contactA.id });
+      const sB = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth)
+        .send({ contact_id: contactB.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth)
+        .send({
+          fields: [
+            { signer_id: sA.body.id, kind: 'signature', page: 1, x: 0.1, y: 0.1, required: true },
+            { signer_id: sB.body.id, kind: 'signature', page: 1, x: 0.3, y: 0.1, required: true },
+          ],
+        });
+      await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
+
+      const invites = outbound.rows.filter((r) => r.kind === 'invite');
+      const inviteA = invites.find((r) => r.signer_id === sA.body.id)!;
+      const inviteB = invites.find((r) => r.signer_id === sB.body.id)!;
+      const tokA = /\?t=([A-Za-z0-9_-]{43})/.exec(String(inviteA.payload.sign_url))![1]!;
+      const tokB = /\?t=([A-Za-z0-9_-]{43})/.exec(String(inviteB.payload.sign_url))![1]!;
+
+      const startedA = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: env.body.id, token: tokA })
+        .expect(200);
+      const setCookie = startedA.headers['set-cookie'] as unknown as string[] | string;
+      const cookieStr = Array.isArray(setCookie) ? setCookie[0]! : setCookie;
+      const cookieA = cookieStr.split(';')[0]!;
+
+      return {
+        envId: env.body.id,
+        signerA: { id: sA.body.id, cookie: cookieA, email: 'ada@example.com' },
+        signerB: { id: sB.body.id, email: 'bob@example.com', plaintextToken: tokB },
+      };
+    }
+
+    it('happy path — single signer declines, envelope goes to declined, cookie cleared, audit_only enqueued', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+
+      const res = await request(app.getHttpServer())
+        .post('/sign/decline')
+        .set('Cookie', cookie)
+        .send({ reason: 'Not comfortable with terms' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ status: 'declined', envelope_status: 'declined' });
+
+      // Cookie cleared.
+      const setCookie = res.headers['set-cookie'] as unknown as string[] | string;
+      const cookieStr = Array.isArray(setCookie) ? setCookie[0]! : setCookie;
+      expect(cookieStr).toMatch(/Max-Age=0/i);
+
+      // Envelope terminal.
+      const env = envelopesRepo.envelopes.get(envId)!;
+      expect(env.status).toBe('declined');
+
+      // `declined` event with metadata about reason presence/length (not content).
+      const declined = envelopesRepo.events.filter(
+        (e) => e.envelope_id === envId && e.event_type === 'declined',
+      );
+      expect(declined).toHaveLength(1);
+      expect(declined[0]!.signer_id).toBe(signerId);
+      expect(declined[0]!.metadata).toMatchObject({
+        reason_provided: true,
+        reason_length: 'Not comfortable with terms'.length,
+      });
+
+      // Reason stashed in the fixture's side-map (decline_reason column in PG).
+      expect(envelopesRepo.getDeclineReason(signerId)).toBe('Not comfortable with terms');
+
+      // audit_only job queued (no seal).
+      const jobs = envelopesRepo.jobs.filter((j) => j.envelope_id === envId);
+      expect(jobs).toHaveLength(1);
+      expect(jobs[0]!.kind).toBe('audit_only');
+    });
+
+    it('decline without reason still succeeds; reason_provided=false in event metadata', async () => {
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .post('/sign/decline')
+        .set('Cookie', cookie)
+        .send({});
+      expect(res.status).toBe(200);
+      const declined = envelopesRepo.events.find(
+        (e) => e.envelope_id === envId && e.event_type === 'declined' && e.signer_id === signerId,
+      )!;
+      expect(declined.metadata).toMatchObject({ reason_provided: false, reason_length: 0 });
+    });
+
+    it('rejects reason longer than 500 chars (DTO MaxLength)', async () => {
+      const { cookie } = await startSessionAndGetCookie();
+      const res = await request(app.getHttpServer())
+        .post('/sign/decline')
+        .set('Cookie', cookie)
+        .send({ reason: 'x'.repeat(501) });
+      expect(res.status).toBe(400);
+    });
+
+    it('multi-signer: other signer gets withdrawn_to_signer email + session_invalidated_by_decline event', async () => {
+      const { envId, signerA, signerB } = await buildTwoSignerSent();
+
+      await request(app.getHttpServer())
+        .post('/sign/decline')
+        .set('Cookie', signerA.cookie)
+        .send({ reason: 'changed my mind' })
+        .expect(200);
+
+      // session_invalidated_by_decline event for signer B.
+      const invalidated = envelopesRepo.events.filter(
+        (e) =>
+          e.envelope_id === envId &&
+          e.event_type === 'session_invalidated_by_decline' &&
+          e.signer_id === signerB.id,
+      );
+      expect(invalidated).toHaveLength(1);
+      expect(invalidated[0]!.metadata).toMatchObject({ cause_signer_id: signerA.id });
+
+      // Withdrawn email queued to the non-signed co-signer.
+      const withdraw = outbound.rows.filter(
+        (r) =>
+          r.envelope_id === envId && r.signer_id === signerB.id && r.kind === 'withdrawn_to_signer',
+      );
+      expect(withdraw).toHaveLength(1);
+      expect(withdraw[0]!.to_email).toBe(signerB.email);
+
+      // Signer B's token exchange now 410s (envelope terminal).
+      const res = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: envId, token: signerB.plaintextToken });
+      expect(res.status).toBe(410);
+      expect(res.body).toEqual({ error: 'envelope_terminal' });
+    });
+
+    it('rejects decline after envelope already declined → 410', async () => {
+      const { envId, cookie } = await startSessionAndGetCookie();
+      const e = envelopesRepo.envelopes.get(envId)!;
+      envelopesRepo.envelopes.set(envId, { ...e, status: 'declined' });
+      const res = await request(app.getHttpServer())
+        .post('/sign/decline')
+        .set('Cookie', cookie)
+        .send({});
+      // Guard short-circuits before service; 410 envelope_terminal.
+      expect(res.status).toBe(410);
+      expect(res.body).toEqual({ error: 'envelope_terminal' });
+    });
+  });
 });

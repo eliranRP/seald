@@ -12,6 +12,10 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
+import { APP_ENV } from '../config/config.module';
+import type { AppEnv } from '../config/env.schema';
+import { Inject } from '@nestjs/common';
+import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import type {
   Envelope,
   EnvelopeField,
@@ -83,6 +87,8 @@ export class SigningService {
     private readonly tokens: SigningTokenService,
     private readonly session: SignerSessionService,
     private readonly storage: StorageService,
+    private readonly outboundEmails: OutboundEmailsRepository,
+    @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
   async startSession(envelope_id: string, token: string): Promise<StartSessionResult> {
@@ -339,6 +345,97 @@ export class SigningService {
   }
 
   /**
+   * Terminal decline — any signer declining aborts the whole envelope
+   * (parallel-mode MVP). Flow:
+   *
+   *   1. repo.declineSigner atomically: signer.declined_at + envelope.status
+   *      = 'declined'. Returns null on lost race → map to 4xx via re-read.
+   *   2. Append `declined` event carrying the reason in metadata.
+   *   3. For every OTHER signer:
+   *      - if they had not signed yet: kind='withdrawn_to_signer' email
+   *      - if they had signed: kind='withdrawn_after_sign' email
+   *      - session_invalidated_by_decline event for audit
+   *   4. Enqueue an audit_only job so the worker (Phase 3e) still produces
+   *      an audit.pdf documenting what happened.
+   *
+   * Sender email (kind='declined_to_sender') is NOT enqueued here: the
+   * envelope domain type doesn't carry sender_email and we don't want a
+   * Supabase admin lookup in the hot path. The sender will see the status
+   * change via their dashboard; a follow-up task threads sender_email onto
+   * the envelope row at send time.
+   */
+  async decline(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    reason: string | null,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<{ status: 'declined'; envelope_status: Envelope['status'] }> {
+    const updated = await this.repo.declineSigner(signer.id, reason, ip, userAgent);
+    if (!updated) {
+      const fresh = await this.repo.findByIdWithAll(envelope.id);
+      const freshSigner = fresh?.signers.find((s) => s.id === signer.id);
+      if (!fresh || fresh.status !== 'awaiting_others') {
+        throw new GoneException('envelope_terminal');
+      }
+      if (freshSigner?.signed_at) throw new ConflictException('already_signed');
+      if (freshSigner?.declined_at) throw new ConflictException('already_declined');
+      throw new GoneException('envelope_terminal');
+    }
+
+    // Audit event. reason lives on signer row (decline_reason column) and is
+    // referenced by the audit PDF; we store length/presence in the event
+    // metadata so the sender's event stream shows it without leaking the
+    // reason to other signers' views.
+    const declinedEvent = await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'declined',
+      ip,
+      user_agent: userAgent,
+      metadata: {
+        reason_provided: reason !== null && reason.length > 0,
+        reason_length: reason?.length ?? 0,
+      },
+    });
+
+    // Session-invalidation audit event for every other signer, plus the
+    // appropriate withdrawal email.
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const others = updated.signers.filter((s) => s.id !== signer.id);
+    for (const other of others) {
+      await this.repo.appendEvent({
+        envelope_id: envelope.id,
+        signer_id: other.id,
+        actor_kind: 'system',
+        event_type: 'session_invalidated_by_decline',
+        metadata: { cause_signer_id: signer.id },
+      });
+
+      const wasSigned = other.signed_at !== null;
+      await this.outboundEmails.insert({
+        envelope_id: envelope.id,
+        signer_id: other.id,
+        kind: wasSigned ? 'withdrawn_after_sign' : 'withdrawn_to_signer',
+        to_email: other.email,
+        to_name: other.name,
+        source_event_id: declinedEvent.id,
+        payload: {
+          sender_name: 'The document sender',
+          envelope_title: envelope.title,
+          signed_at_readable: wasSigned ? formatUtc(other.signed_at!) : '',
+          public_url: publicUrl,
+        },
+      });
+    }
+
+    await this.repo.enqueueJob(envelope.id, 'audit_only');
+
+    return { status: 'declined', envelope_status: updated.status };
+  }
+
+  /**
    * Accept a signature image (PNG or JPEG), normalize via sharp to a
    * canonical 600×200 PNG, upload to `{envelope_id}/signatures/{signer_id}.png`,
    * and stamp signer.signature_format + signature_image_path.
@@ -409,6 +506,17 @@ function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
   if (signer.declined_at !== null) {
     throw new ConflictException('already_declined');
   }
+}
+
+/** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
+function formatUtc(iso: string): string {
+  const d = new Date(iso);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
 }
 
 /** "Ada Lovelace" → "A***e L***e" so co-signer names don't fully leak. */

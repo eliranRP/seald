@@ -20,6 +20,7 @@ import type { Request, Response } from 'express';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
+import { DeclineDto } from './dto/decline.dto';
 import { FillFieldDto } from './dto/fill-field.dto';
 import { SignatureMetaDto } from './dto/signature-meta.dto';
 import { StartSessionDto } from './dto/start-session.dto';
@@ -143,6 +144,36 @@ export class SigningController {
     );
     // Clear the session cookie — the session is no longer usable since the
     // signer has submitted. Any subsequent /sign/* call 401s.
+    res.setHeader(
+      'Set-Cookie',
+      serializeCookie(SIGNER_SESSION_COOKIE, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: this.env.NODE_ENV === 'production',
+        path: '/sign',
+        maxAge: 0,
+      }),
+    );
+    return result;
+  }
+
+  @Post('decline')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(200)
+  async decline(
+    @SignerSession() session: SignerSessionContext,
+    @Body() dto: DeclineDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ status: 'declined'; envelope_status: string }> {
+    const result = await this.svc.decline(
+      session.envelope,
+      session.signer,
+      dto.reason ?? null,
+      extractClientIp(req),
+      req.headers['user-agent'] ?? null,
+    );
+    // Clear session cookie — envelope is terminal, every /sign/* now 401/410s.
     res.setHeader(
       'Set-Cookie',
       serializeCookie(SIGNER_SESSION_COOKIE, '', {
