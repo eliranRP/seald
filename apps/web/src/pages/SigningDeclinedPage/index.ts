@@ -1,0 +1,1 @@
+export { SigningDeclinedPage } from './SigningDeclinedPage';

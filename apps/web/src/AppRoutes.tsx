@@ -1,5 +1,7 @@
-import { Route, Routes } from 'react-router-dom';
+import { Suspense, lazy } from 'react';
+import { Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
+import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
 import { RequireAuthOrGuest } from './layout/RequireAuthOrGuest';
 import { RedirectWhenAuthed } from './layout/RedirectWhenAuthed';
@@ -16,18 +18,48 @@ import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { UploadRoute } from './routes/UploadRoute';
 import { DocumentRoute } from './routes/DocumentRoute';
+import { RequireSignerSession } from './features/signing/RequireSignerSession';
+import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
+
+// Code-split every signing page so recipients don't pay for the sender
+// bundle's Supabase / react-pdf weight on initial load.
+const SigningEntryPage = lazy(() =>
+  import('./pages/SigningEntryPage').then((m) => ({ default: m.SigningEntryPage })),
+);
+const SigningPrepPage = lazy(() =>
+  import('./pages/SigningPrepPage').then((m) => ({ default: m.SigningPrepPage })),
+);
+const SigningFillPage = lazy(() =>
+  import('./pages/SigningFillPage').then((m) => ({ default: m.SigningFillPage })),
+);
+const SigningReviewPage = lazy(() =>
+  import('./pages/SigningReviewPage').then((m) => ({ default: m.SigningReviewPage })),
+);
+const SigningDonePage = lazy(() =>
+  import('./pages/SigningDonePage').then((m) => ({ default: m.SigningDonePage })),
+);
+const SigningDeclinedPage = lazy(() =>
+  import('./pages/SigningDeclinedPage').then((m) => ({ default: m.SigningDeclinedPage })),
+);
+
+/**
+ * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
+ * signer-scoped error boundary. Recipients only download signing modules
+ * on demand; render-time errors don't drag the sender app down with them.
+ */
+function SigningRouteRoot() {
+  return (
+    <SigningErrorBoundary>
+      <Suspense fallback={<AuthLoadingScreen />}>
+        <Outlet />
+      </Suspense>
+    </SigningErrorBoundary>
+  );
+}
 
 /**
  * The routed tree without a `Router` wrapper — so tests can mount the app
  * with a `MemoryRouter` to drive navigation through `initialEntries`.
- *
- * Route groups:
- *  - `RedirectWhenAuthed` — auth surfaces (signin/signup/forgot/check-email).
- *    Signed-in users can't reach these; they bounce back to `/documents`.
- *  - `RequireAuthOrGuest` — the sign-a-PDF flow. Guests can use this without
- *    an account; anonymous visitors are routed to `/signin`.
- *  - `RequireAuth` — dashboard, signers, email previews. Guests are sent to
- *    `/document/new` (their allowed surface); anonymous to `/signin`.
  */
 export function AppRoutes() {
   return (
@@ -39,20 +71,29 @@ export function AppRoutes() {
         <Route path="/check-email" element={<CheckEmailPage />} />
       </Route>
 
-      {/* OAuth landing — always renders and decides navigation itself. */}
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
-
-      {/* Developer-only auth debug surface — no guard. */}
       <Route path="/debug/auth" element={<DebugAuthPage />} />
 
-      {/* Sign-a-PDF flow: signed-in or guest. */}
+      {/* Public recipient signing flow. Entry, done, and declined are
+          accessible without a live session; prep / fill / review require the
+          `seald_sign` cookie set by /sign/start. */}
+      <Route element={<SigningRouteRoot />}>
+        <Route path="/sign/:envelopeId" element={<SigningEntryPage />} />
+        <Route element={<RequireSignerSession />}>
+          <Route path="/sign/:envelopeId/prep" element={<SigningPrepPage />} />
+          <Route path="/sign/:envelopeId/fill" element={<SigningFillPage />} />
+          <Route path="/sign/:envelopeId/review" element={<SigningReviewPage />} />
+        </Route>
+        <Route path="/sign/:envelopeId/done" element={<SigningDonePage />} />
+        <Route path="/sign/:envelopeId/declined" element={<SigningDeclinedPage />} />
+      </Route>
+
       <Route element={<RequireAuthOrGuest />}>
         <Route path="/document/new" element={<UploadRoute />} />
         <Route path="/document/:id" element={<DocumentRoute />} />
         <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
       </Route>
 
-      {/* Authed-only surfaces under the shared AppShell chrome. */}
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
@@ -62,7 +103,6 @@ export function AppRoutes() {
         </Route>
       </Route>
 
-      {/* Landing + catch-all resolve based on current auth state. */}
       <Route index element={<RootLanding />} />
       <Route path="*" element={<RootLanding />} />
     </Routes>
