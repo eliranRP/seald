@@ -88,6 +88,16 @@ export function buildSignerListHtml(
   const SIGNER_EMAIL_STYLE =
     'color:#64748B !important;font-size:12px;margin-top:1px;' +
     'text-decoration:none !important;pointer-events:none;';
+  // An anchor wrapper is the most reliable way to defeat Gmail's
+  // auto-linker: if the email is already inside an <a>, Gmail won't
+  // re-wrap it with its own blue/underlined mailto. `display:
+  // inline-block` on the <b> / <a> breaks `text-decoration`
+  // inheritance so any parent underline stops at the boundary.
+  const SIGNER_EMAIL_ANCHOR_STYLE =
+    'display:inline-block;color:#64748B !important;' +
+    'font-family:Inter,-apple-system,BlinkMacSystemFont,Segoe UI,Arial,sans-serif;' +
+    'font-size:12px;font-weight:400;' +
+    'text-decoration:none !important;pointer-events:none;';
 
   const rows = signers
     .map((s) => {
@@ -104,10 +114,14 @@ export function buildSignerListHtml(
         `<span class="avatar ${avatarClass}" style="${AVATAR_STYLE(s.status)}">${escapeHtml(initials)}</span>` +
         `<div class="signer-meta">` +
         `<div class="signer-name">${escapeHtml(s.name)}${nameSuffix}</div>` +
-        // Wrap the email in an explicit <span> with inline styles.
-        // Gmail still auto-wraps `<a href="mailto:">` around bare
-        // emails, so we also neutralize the mailto inside.
-        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}">${escapeHtml(s.email)}</div>` +
+        // Pre-wrap in an inline-styled anchor so Gmail skips its
+        // auto-linker (it only wraps bare emails, not already-linked
+        // ones). Even if a client still adds its own <a> around, the
+        // inner anchor's `display: inline-block` breaks the underline
+        // inheritance.
+        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}">` +
+        `<a href="mailto:${escapeHtml(s.email)}" style="${SIGNER_EMAIL_ANCHOR_STYLE}">${escapeHtml(s.email)}</a>` +
+        `</div>` +
         `</div>` +
         `<span class="signer-status ${statusClass}" style="${STATUS_STYLE(s.status)}">${escapeHtml(statusLabel)}</span>` +
         `</div>`

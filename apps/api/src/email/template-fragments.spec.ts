@@ -78,7 +78,12 @@ describe('buildSignerListHtml', () => {
     // must not appear anywhere inside a signer field on the rendered
     // output (the `class="..."` quotes are template-owned, so check the
     // signer-email span content specifically).
-    expect(html).toMatch(/<div class="signer-email"[^>]*>[^"]*evil&quot;/);
+    // The attacker's raw `"` must never appear inside a signer-email
+    // text node — it has to arrive as `&quot;` instead. The anchor's
+    // own `href="mailto:..."` quotes are allowed.
+    expect(html).toMatch(/>evil&quot;\s*onmouseover=&quot;x</);
+    // And it must not appear as a bare attribute opener.
+    expect(html).not.toMatch(/evil"\s*onmouseover=/);
   });
 });
 
