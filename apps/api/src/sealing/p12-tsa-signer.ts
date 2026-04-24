@@ -1,7 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Signer } from '@signpdf/utils';
 import forge from 'node-forge';
-import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { TsaClient } from './tsa-client';
 

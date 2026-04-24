@@ -9,7 +9,6 @@ import type { Envelope, EnvelopeEvent, EnvelopeField } from '../envelopes/envelo
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
 import { PadesSigner } from './pades-signer';
-import { TsaClient } from './tsa-client';
 
 /**
  * Sealing pipeline for terminal envelopes. Invoked by the worker when a

@@ -1,12 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
 import { P12Signer } from '@signpdf/signer-p12';
 import { SignPdf } from '@signpdf/signpdf';
-import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { P12TsaSigner } from './p12-tsa-signer';
-import { TsaClient } from './tsa-client';
+import type { TsaClient } from './tsa-client';
 
 /**
  * Port for applying a PAdES (PDF Advanced Electronic Signatures) signature
@@ -57,7 +56,9 @@ export class P12PadesSigner extends PadesSigner {
   private readonly passphrase: string;
   private readonly tsa: TsaClient | null;
 
-  constructor(@Inject(APP_ENV) env: AppEnv, tsa: TsaClient | null) {
+  // Instantiated via useFactory in SealingModule, not via Nest DI —
+  // hence no @Inject() decorator here.
+  constructor(env: AppEnv, tsa: TsaClient | null) {
     super();
     const path = env.PDF_SIGNING_LOCAL_P12_PATH;
     const pass = env.PDF_SIGNING_LOCAL_P12_PASS;

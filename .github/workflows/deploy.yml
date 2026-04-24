@@ -6,7 +6,11 @@ on:
       ref:
         description: 'Branch, tag, or SHA to check out on the host'
         required: true
-        default: 'develop'
+        default: 'main'
+  # Push to main triggers Docker build first. Once Docker succeeds,
+  # this workflow_run trigger fires the deploy. (workflow_run only
+  # activates when the listener workflow lives on the default branch —
+  # our default is develop, and this file is on develop, so this works.)
   workflow_run:
     workflows: ['Build + push image']
     types: [completed]
@@ -15,6 +19,9 @@ on:
 concurrency:
   group: deploy
   cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 # ---------------------------------------------------------------
 # SSH-based deploy. The workflow:
@@ -51,19 +58,29 @@ jobs:
           script: |
             set -euo pipefail
             cd /opt/seald
-            git fetch --all --tags
-            git checkout "${{ inputs.ref || 'main' }}"
+
+            # For workflow_run (push to main), inputs.ref is unset →
+            # fall through to 'main'. For dispatch, honour the provided
+            # ref input.
+            REF="${{ inputs.ref || 'main' }}"
+            echo "Deploying ref=$REF"
+
+            git fetch --all --tags --prune
+            git checkout "$REF"
             git pull --ff-only || true
-            docker compose pull || true
-            docker compose up -d --build
-            # Health probe — 30 retries, 2s interval = up to 60s.
+            sudo docker compose pull || true
+            sudo docker compose up -d --build
+
+            # Health probe: api:3000 is exposed only on the docker
+            # network. Probe via the caddy container so we exercise
+            # the real reverse-proxy path too.
             for i in $(seq 1 30); do
-              if curl -fsS http://localhost:3000/health >/dev/null; then
-                echo "✓ /health OK after ${i} tries"
+              if sudo docker exec seald-caddy-1 wget -qO- http://api:3000/health | grep -q '"status":"ok"'; then
+                echo "/health OK after ${i} tries"
                 exit 0
               fi
               sleep 2
             done
-            echo "✗ /health never came up" >&2
-            docker compose logs --tail=200 api
+            echo "/health never came up" >&2
+            sudo docker compose logs --tail=200 api
             exit 1

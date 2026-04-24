@@ -11,6 +11,12 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Silence the Sep 2026 Node 20 deprecation notice from GitHub by
+# opting every step into Node 24 up-front. Harmless now, and skips the
+# runtime bump when June 2 2026 flips the default.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   # ---------------------------------------------------------------
   # Install once per SHA; every downstream job restores the cached
@@ -86,7 +92,10 @@ jobs:
         run: pnpm --filter shared build
 
       - name: Unit tests
-        run: pnpm --filter api test -- --ci --runInBand
+        # jest auto-detects CI=true from GHA; --runInBand is the default
+        # when CI=true, so no extra flags needed. The previous `-- --ci
+        # --runInBand` was being forwarded as test-name filters by pnpm.
+        run: pnpm --filter api test
 
   # ---------------------------------------------------------------
   # E2E tests — includes the PAdES + PAdES-B-T suites that shell out
@@ -112,7 +121,7 @@ jobs:
         run: pnpm --filter shared build
 
       - name: E2E tests
-        run: pnpm --filter api test:e2e -- --ci --runInBand
+        run: pnpm --filter api test:e2e
 
       - name: Upload sealed-PDF artifacts for review
         if: always()
