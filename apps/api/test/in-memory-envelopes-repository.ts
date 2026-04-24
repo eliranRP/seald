@@ -81,11 +81,28 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return [...this.envelopes.values()].find((e) => e.short_code === short_code) ?? null;
   }
 
-  async findSignerByAccessTokenHash(): Promise<{
-    envelope: Envelope;
-    signer: EnvelopeSigner;
-  } | null> {
-    throw new Error('not_implemented_in_fake');
+  // e2e fixtures persist access_token_hash in a side map since the domain
+  // signer shape doesn't expose it.
+  private readonly signerTokenHashes = new Map<string, string>(); // signer_id -> hash
+
+  async findSignerByAccessTokenHash(
+    hash: string,
+  ): Promise<{ envelope: Envelope; signer: EnvelopeSigner } | null> {
+    for (const [signerId, storedHash] of this.signerTokenHashes) {
+      if (storedHash === hash) {
+        for (const env of this.envelopes.values()) {
+          const signer = env.signers.find((s) => s.id === signerId);
+          if (signer) return { envelope: env, signer };
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Test-only helper: stamp a plaintext-hash pair so the e2e can exercise
+   *  /sign/start without going through the send flow. */
+  setSignerTokenHash(signer_id: string, hash: string): void {
+    this.signerTokenHashes.set(signer_id, hash);
   }
 
   async listByOwner(owner_id: string, opts: ListOptions): Promise<ListResult> {
@@ -226,29 +243,27 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   }): Promise<Envelope | null> {
     const e = this.envelopes.get(input.envelope_id);
     if (!e || e.status !== 'draft') return null;
-    const hashMap = new Map(input.signer_tokens.map((t) => [t.signer_id, t.access_token_hash]));
     const now = new Date().toISOString();
-    const signers = e.signers.map(
-      (s) => (hashMap.has(s.id) ? { ...s } : s), // domain Signer type doesn't expose access_token_hash; internal-only
-    );
+    // Stamp the hashes in our side map so findSignerByAccessTokenHash resolves.
+    for (const t of input.signer_tokens) {
+      this.signerTokenHashes.set(t.signer_id, t.access_token_hash);
+    }
     const next: Envelope = {
       ...e,
       status: 'awaiting_others',
       sent_at: now,
-      signers,
       updated_at: now,
     };
     this.envelopes.set(input.envelope_id, next);
     return next;
   }
-  async rotateSignerAccessToken(signer_id: string, _new_hash: string): Promise<boolean> {
+  async rotateSignerAccessToken(signer_id: string, new_hash: string): Promise<boolean> {
     for (const env of this.envelopes.values()) {
       const signer = env.signers.find((s) => s.id === signer_id);
       if (!signer) continue;
       if (env.status !== 'awaiting_others') return false;
       if (signer.signed_at !== null || signer.declined_at !== null) return false;
-      // In-memory we don't model the access_token_hash field (domain signer
-      // doesn't expose it); the write is a no-op from the outside.
+      this.signerTokenHashes.set(signer_id, new_hash);
       return true;
     }
     return false;
