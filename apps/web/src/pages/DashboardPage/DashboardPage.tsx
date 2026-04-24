@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { ChevronRight, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge } from '../../components/Badge';
 import type { BadgeTone } from '../../components/Badge/Badge.types';
@@ -8,11 +8,16 @@ import { DocThumb } from '../../components/DocThumb';
 import { EmptyState } from '../../components/EmptyState';
 import { FilterTabs } from '../../components/FilterTabs';
 import { PageHeader } from '../../components/PageHeader';
+import { SignerProgressBar } from '../../components/SignerProgressBar';
+import type { SignerProgressBarEntry } from '../../components/SignerProgressBar';
+import { SignerStack } from '../../components/SignerStack';
+import type { SignerStackEntry, SignerStackStatus } from '../../components/SignerStack';
 import { Skeleton } from '../../components/Skeleton';
 import { StatCard } from '../../components/StatCard';
 import { useEnvelopesQuery } from '../../features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '../../features/envelopes';
 import {
+  ChevronCell,
   DateCell,
   DocCell,
   DocCode,
@@ -20,8 +25,8 @@ import {
   HeaderSlot,
   Inner,
   Main,
-  RecipientCell,
-  RecipientLabel,
+  ProgressCell,
+  SignersCell,
   StatGrid,
   TableHead,
   TableRow,
@@ -42,12 +47,6 @@ interface FilterDef {
   readonly matches: (d: EnvelopeListItem) => boolean;
 }
 
-/**
- * Backend emits `draft | awaiting_others | sealing | completed | declined |
- * expired | canceled`. For the sender-facing dashboard we collapse this into
- * the five-tab taxonomy the UI was designed around. "Awaiting you" stays
- * visible but never matches (until co-signing ships).
- */
 const FILTERS: ReadonlyArray<FilterDef> = [
   { id: 'all', label: 'All', matches: () => true },
   { id: 'you', label: 'Awaiting you', matches: () => false },
@@ -87,6 +86,61 @@ function formatDate(iso: string | null): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
 }
 
+/**
+ * Map backend `SignerUiStatus` + envelope state → the narrower UI
+ * status the SignerStack / SignerProgressBar components render. Note:
+ * `awaiting-you` is sender-only and not reachable without co-signing,
+ * so we fall back to `pending` for the "waiting-on-a-signer" case.
+ */
+function toStackStatus(
+  envelope: EnvelopeListItem,
+  signer: EnvelopeListItem['signers'][number],
+): SignerStackStatus {
+  if (signer.status === 'completed') return 'signed';
+  if (signer.status === 'declined') return 'declined';
+  if (envelope.status === 'draft') return 'draft';
+  // Both 'awaiting' and 'viewing' collapse to 'pending' today.
+  return 'pending';
+}
+
+function toStackEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerStackEntry> {
+  return envelope.signers.map((s) => ({
+    id: s.id,
+    name: s.name,
+    email: s.email,
+    status: toStackStatus(envelope, s),
+  }));
+}
+
+function toBarEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerProgressBarEntry> {
+  return envelope.signers.map((s) => ({
+    id: s.id,
+    status: toStackStatus(envelope, s),
+  }));
+}
+
+/**
+ * Median turnaround (in hours) between sent_at and completed_at across
+ * completed envelopes. Format as "1.8d" when ≥ 24h, "14h" otherwise,
+ * "—" when no completed envelopes are in the list.
+ */
+function formatTurnaround(list: ReadonlyArray<EnvelopeListItem>): string {
+  const hours: number[] = [];
+  for (const d of list) {
+    if (d.status !== 'completed' || !d.sent_at || !d.completed_at) continue;
+    const sent = new Date(d.sent_at).getTime();
+    const done = new Date(d.completed_at).getTime();
+    if (Number.isNaN(sent) || Number.isNaN(done) || done <= sent) continue;
+    hours.push((done - sent) / (1000 * 60 * 60));
+  }
+  if (hours.length === 0) return '—';
+  hours.sort((a, b) => a - b);
+  const mid = Math.floor(hours.length / 2);
+  const median = hours.length % 2 === 0 ? (hours[mid - 1]! + hours[mid]!) / 2 : hours[mid]!;
+  if (median >= 24) return `${(median / 24).toFixed(1)}d`;
+  return `${Math.round(median)}h`;
+}
+
 interface RenderDocumentsBodyArgs {
   readonly loading: boolean;
   readonly rowsForSkeleton: boolean;
@@ -106,15 +160,19 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
             <Skeleton width={80} />
           </div>
         </DocCell>
-        <RecipientCell>
-          <Skeleton variant="circle" width={24} height={24} />
-          <Skeleton width={120} />
-        </RecipientCell>
+        <SignersCell>
+          <Skeleton variant="rect" width={120} height={28} />
+        </SignersCell>
+        <ProgressCell>
+          <Skeleton variant="rect" width={140} height={6} />
+        </ProgressCell>
         <Skeleton variant="rect" width={110} height={22} />
         <DateCell>
           <Skeleton width={90} />
         </DateCell>
-        <Skeleton variant="rect" width={24} height={24} />
+        <ChevronCell>
+          <Skeleton variant="rect" width={16} height={16} />
+        </ChevronCell>
       </TableRow>
     ));
   }
@@ -135,22 +193,28 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
           <DocCode>{d.short_code}</DocCode>
         </div>
       </DocCell>
-      <RecipientCell>
-        <RecipientLabel>—</RecipientLabel>
-      </RecipientCell>
+      <SignersCell>
+        <SignerStack signers={toStackEntries(d)} aria-label={`${d.title} signers`} />
+      </SignersCell>
+      <ProgressCell>
+        <SignerProgressBar signers={toBarEntries(d)} aria-label={`${d.title} progress`} />
+      </ProgressCell>
       <div>
         <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
       </div>
       <DateCell>{formatDate(d.updated_at)}</DateCell>
-      <div aria-hidden />
+      <ChevronCell aria-hidden>
+        <ChevronRight size={16} />
+      </ChevronCell>
     </TableRow>
   ));
 }
 
 /**
- * L4 page — the sender dashboard / inbox view listing every envelope the
- * user has created. Pulls from the live `/envelopes` endpoint via
- * React-Query; no hardcoded seed data.
+ * L4 page — the sender dashboard / inbox view listing every envelope
+ * the user has created. Pulls from the live `/envelopes` endpoint,
+ * which now embeds a signers snippet per item so we can render the
+ * multi-signer `SignerStack` + `SignerProgressBar` without N+1 fetches.
  */
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -164,11 +228,8 @@ export function DashboardPage() {
 
   const handleSelectTab = useCallback(
     (id: FilterId): void => {
-      if (id === 'all') {
-        setSearchParams({});
-      } else {
-        setSearchParams({ filter: id });
-      }
+      if (id === 'all') setSearchParams({});
+      else setSearchParams({ filter: id });
     },
     [setSearchParams],
   );
@@ -187,6 +248,7 @@ export function DashboardPage() {
   }, [envelopes, tab]);
 
   const stats = useMemo(() => {
+    const awaitingYou = 0; // placeholder until co-signing ships
     const awaitingOthers = envelopes.filter(
       (d) => d.status === 'awaiting_others' || d.status === 'sealing',
     ).length;
@@ -196,16 +258,15 @@ export function DashboardPage() {
       const now = new Date();
       return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
     }).length;
-    const drafts = envelopes.filter((d) => d.status === 'draft').length;
     return [
-      { label: 'Drafts', value: drafts.toString(), tone: 'indigo' as const },
+      { label: 'Awaiting you', value: awaitingYou.toString(), tone: 'indigo' as const },
       { label: 'Awaiting others', value: awaitingOthers.toString(), tone: 'amber' as const },
       {
         label: 'Completed this month',
         value: completedThisMonth.toString(),
         tone: 'emerald' as const,
       },
-      { label: 'Total', value: envelopes.length.toString(), tone: 'neutral' as const },
+      { label: 'Avg. turnaround', value: formatTurnaround(envelopes), tone: 'neutral' as const },
     ];
   }, [envelopes]);
 
@@ -249,7 +310,8 @@ export function DashboardPage() {
         <TableShell>
           <TableHead role="row">
             <div>Document</div>
-            <div>Recipient</div>
+            <div>Signers</div>
+            <div>Progress</div>
             <div>Status</div>
             <div>Date</div>
             <div aria-hidden />

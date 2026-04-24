@@ -34,7 +34,8 @@ export const TableShell = styled.div`
   overflow: hidden;
 `;
 
-const GRID = '1.3fr 1fr 180px 120px 56px';
+/** Kit spec: Document · Signers · Progress · Status · Date · chevron */
+const GRID = '1.3fr 1.5fr 1fr 180px 100px 60px';
 
 export const TableHead = styled.div`
   display: grid;
@@ -47,6 +48,7 @@ export const TableHead = styled.div`
   letter-spacing: 0.08em;
   color: ${({ theme }) => theme.color.fg[3]};
   text-transform: uppercase;
+  gap: ${({ theme }) => theme.space[4]};
 `;
 
 export const TableRow = styled.button`
@@ -55,6 +57,7 @@ export const TableRow = styled.button`
   display: grid;
   width: 100%;
   grid-template-columns: ${GRID};
+  gap: ${({ theme }) => theme.space[4]};
   padding: ${({ theme }) => `${theme.space[4]} ${theme.space[5]}`};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
   align-items: center;
@@ -94,23 +97,27 @@ export const DocCode = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
 `;
 
-export const RecipientCell = styled.div`
+export const SignersCell = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.space[2]};
   align-items: center;
   min-width: 0;
 `;
 
-export const RecipientLabel = styled.span`
-  font-size: 13px;
-  color: ${({ theme }) => theme.color.fg[2]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+export const ProgressCell = styled.div`
+  display: flex;
+  align-items: center;
+  min-width: 0;
 `;
 
 export const DateCell = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.color.fg[3]};
   font-family: ${({ theme }) => theme.font.mono};
+`;
+
+export const ChevronCell = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  color: ${({ theme }) => theme.color.fg[3]};
 `;

@@ -188,6 +188,23 @@ export const DeclineRequestSchema = z.object({
 export type DeclineRequest = z.infer<typeof DeclineRequestSchema>;
 
 // Response DTOs
+
+/**
+ * Narrow signer projection embedded on each list item. The full Signer
+ * shape carries fields (viewed_at, tc_accepted_at, etc.) that the
+ * dashboard doesn't render — keeping this slim keeps the list response
+ * small and avoids leaking unnecessary per-signer state.
+ */
+export const EnvelopeListSignerSnippetSchema = z.object({
+  id: uuid,
+  name: z.string().min(1).max(200),
+  email: z.string().email(),
+  color: hexColor,
+  status: z.enum(SIGNER_UI_STATUSES),
+  signed_at: iso.nullable(),
+});
+export type EnvelopeListSignerSnippet = z.infer<typeof EnvelopeListSignerSnippetSchema>;
+
 export const EnvelopeListItemSchema = EnvelopeSchema.pick({
   id: true,
   title: true,
@@ -199,6 +216,8 @@ export const EnvelopeListItemSchema = EnvelopeSchema.pick({
   expires_at: true,
   created_at: true,
   updated_at: true,
+}).extend({
+  signers: z.array(EnvelopeListSignerSnippetSchema),
 });
 export type EnvelopeListItem = z.infer<typeof EnvelopeListItemSchema>;
 

@@ -94,6 +94,15 @@ export interface ListOptions {
   readonly cursor?: { readonly updated_at: string; readonly id: string } | null;
 }
 
+export interface EnvelopeListSignerSnippet {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly color: string;
+  readonly status: import('shared').SignerUiStatus;
+  readonly signed_at: string | null;
+}
+
 export interface EnvelopeListItem {
   readonly id: string;
   readonly title: string;
@@ -105,6 +114,7 @@ export interface EnvelopeListItem {
   readonly expires_at: string;
   readonly created_at: string;
   readonly updated_at: string;
+  readonly signers: ReadonlyArray<EnvelopeListSignerSnippet>;
 }
 
 export interface ListResult {

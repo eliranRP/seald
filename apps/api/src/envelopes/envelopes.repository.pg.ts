@@ -180,7 +180,7 @@ function toEventDomain(row: EventRow): EnvelopeEvent {
   };
 }
 
-function toListItem(row: EnvelopeRow): EnvelopeListItem {
+function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): EnvelopeListItem {
   return {
     id: row.id,
     title: row.title,
@@ -192,6 +192,14 @@ function toListItem(row: EnvelopeRow): EnvelopeListItem {
     expires_at: toIsoReq(row.expires_at),
     created_at: toIsoReq(row.created_at),
     updated_at: toIsoReq(row.updated_at),
+    signers: signerRows.map((s) => ({
+      id: s.id,
+      name: s.name,
+      email: s.email,
+      color: s.color,
+      status: deriveSignerStatus(s),
+      signed_at: toIso(s.signed_at),
+    })),
   };
 }
 
@@ -330,7 +338,27 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     const rows = await q.execute();
     const hasMore = rows.length > opts.limit;
     const page = hasMore ? rows.slice(0, opts.limit) : rows;
-    const items = page.map(toListItem);
+
+    // Fetch signers for the returned envelopes in a single query and group
+    // client-side. Dashboard renders SignerStack per row; without this the
+    // UI would fan out to N+1 envelope reads.
+    const envelopeIds = page.map((r) => r.id);
+    const signerRows = envelopeIds.length
+      ? await this.db
+          .selectFrom('envelope_signers')
+          .selectAll()
+          .where('envelope_id', 'in', envelopeIds)
+          .orderBy('signing_order', 'asc')
+          .execute()
+      : [];
+    const signersByEnvelope = new Map<string, SignerRow[]>();
+    for (const s of signerRows) {
+      const arr = signersByEnvelope.get(s.envelope_id) ?? [];
+      arr.push(s);
+      signersByEnvelope.set(s.envelope_id, arr);
+    }
+
+    const items = page.map((row) => toListItem(row, signersByEnvelope.get(row.id) ?? []));
     const last = page[page.length - 1];
     const next_cursor = hasMore && last ? encodeCursor(toIsoReq(last.updated_at), last.id) : null;
     return { items, next_cursor };

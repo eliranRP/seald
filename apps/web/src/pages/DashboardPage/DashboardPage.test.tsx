@@ -20,6 +20,16 @@ vi.mock('../../lib/api/apiClient', () => {
       expires_at: '2030-01-01T00:00:00Z',
       created_at: '2026-04-01T00:00:00Z',
       updated_at: '2026-04-01T00:00:00Z',
+      signers: [
+        {
+          id: 's1',
+          name: 'Ada Lovelace',
+          email: 'ada@example.com',
+          color: '#4F46E5',
+          status: 'awaiting',
+          signed_at: null,
+        },
+      ],
     },
     {
       id: 'env-offer',
@@ -32,6 +42,16 @@ vi.mock('../../lib/api/apiClient', () => {
       expires_at: '2030-01-01T00:00:00Z',
       created_at: '2026-03-10T00:00:00Z',
       updated_at: '2026-03-11T00:00:00Z',
+      signers: [
+        {
+          id: 's2',
+          name: 'M. Chen',
+          email: 'chen@example.com',
+          color: '#10B981',
+          status: 'completed',
+          signed_at: '2026-03-11T00:00:00Z',
+        },
+      ],
     },
     {
       id: 'env-vendor',
@@ -44,6 +64,7 @@ vi.mock('../../lib/api/apiClient', () => {
       expires_at: '2030-01-01T00:00:00Z',
       created_at: '2026-04-02T00:00:00Z',
       updated_at: '2026-04-02T00:00:00Z',
+      signers: [],
     },
   ];
   return {

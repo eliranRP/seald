@@ -166,6 +166,14 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       expires_at: e.expires_at,
       created_at: e.created_at,
       updated_at: e.updated_at,
+      signers: e.signers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        color: s.color,
+        status: s.status,
+        signed_at: s.signed_at,
+      })),
     }));
     const next =
       page.length === opts.limit && items.length > opts.limit
