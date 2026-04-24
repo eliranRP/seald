@@ -34,6 +34,7 @@ const TEST_ENV: AppEnv = {
   PDF_SIGNING_PROVIDER: 'local',
   PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
   ENVELOPE_RETENTION_YEARS: 7,
+  WORKER_ENABLED: false,
 };
 
 const USER_A = '00000000-0000-0000-0000-00000000000a';

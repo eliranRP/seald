@@ -27,6 +27,7 @@ const TEST_ENV: AppEnv = {
   PDF_SIGNING_PROVIDER: 'local',
   PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
   ENVELOPE_RETENTION_YEARS: 7,
+  WORKER_ENABLED: false,
 };
 
 const PROTECTED_ROUTES = [

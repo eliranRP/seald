@@ -49,6 +49,16 @@ export const envSchema = z
     PDF_SIGNING_TSA_URL: z.string().url().default('https://freetsa.org/tsr'),
 
     ENVELOPE_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
+
+    /**
+     * Enables the in-process background worker (poll envelope_jobs, seal
+     * PDFs, send completed emails). Defaults to false so tests don't race
+     * the worker; production deploys set WORKER_ENABLED=true explicitly
+     * (the single-node docker-compose template does this by default). A
+     * horizontally-scaled deploy can run dedicated worker nodes while
+     * keeping API nodes worker-disabled.
+     */
+    WORKER_ENABLED: z.coerce.boolean().default(false),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'test') {
