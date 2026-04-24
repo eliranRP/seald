@@ -186,8 +186,19 @@ exponential backoff up to `max_attempts` (default 5).
 ## Deploying (single-node)
 
 Everything needed for a production single-node deploy lives at the repo
-root: `Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`. Supabase
-provides Postgres + Storage.
+root: `Dockerfile`, `docker-compose.yml`, `deploy/Caddyfile`, and
+`deploy/terraform/` for host provisioning. Supabase provides Postgres +
+Storage.
+
+### Host (Terraform)
+
+`deploy/terraform/` provisions an EC2 spot instance + EIP + security
+group inside your default VPC. See `deploy/terraform/README.md` for
+variable setup. DNS is manual: after `terraform apply`, paste the
+outputted EIP into your GoDaddy DNS dashboard as an A record pointing
+at your API subdomain.
+
+### App
 
 ```bash
 # On the deploy host (e.g. t4g.small spot + EIP):
