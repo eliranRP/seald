@@ -336,27 +336,50 @@ export function EnvelopeDetailPage() {
 
   const handleBack = useCallback(() => navigate('/documents'), [navigate]);
 
-  // Shared fetch + open-in-new-tab flow for every PDF artifact (envelope
-  // PDF, audit trail). Popup-blocker workaround: synchronously open a
-  // blank tab before the network call, then point it at the signed URL
-  // once we have one. If the request fails we close the stub tab.
+  // Shared fetch + open-in-new-tab flow for every PDF artifact. Two
+  // subtleties worth knowing:
+  //   * `window.open(..., 'noopener')` returns null in every modern
+  //     browser. We want a window ref so we can point it at the signed
+  //     URL once the API responds — so we `open` without noopener and
+  //     zero out `.opener` ourselves immediately after assigning the
+  //     location. Net effect matches the `noopener` contract.
+  //   * The window has to be opened *synchronously* from the click so
+  //     the browser treats it as user-initiated. If we awaited first,
+  //     the popup blocker would reject it on Safari/Firefox.
   const openArtifact = useCallback(
     async (kind: 'sealed' | 'original' | 'audit' | undefined, friendly: string): Promise<void> => {
       if (!envelope) return;
-      const win = window.open('about:blank', '_blank', 'noopener,noreferrer');
+      const win = window.open('about:blank', '_blank');
       try {
         const { url } = await getEnvelopeDownloadUrl(envelope.id, kind);
-        if (win) {
-          win.opener = null;
+        if (win && !win.closed) {
+          try {
+            win.opener = null;
+          } catch {
+            /* cross-origin after navigation — ignore. */
+          }
           win.location.href = url;
+          setToast({ kind: 'success', text: `${friendly} opened in a new tab.` });
         } else {
-          // Popup blocked — fall back to same-tab navigation rather than
-          // silently losing the download.
-          window.location.href = url;
+          // Popup blocked. Fall back to an anchor-element click, which
+          // keeps the current tab on the page and (for browsers that
+          // preview PDFs inline) opens the download in a new tab via
+          // `target="_blank"`. This is the safest fallback that never
+          // hijacks the current tab.
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setToast({
+            kind: 'success',
+            text: `${friendly} ready — check your browser if nothing opened (allow popups for this site).`,
+          });
         }
-        setToast({ kind: 'success', text: `${friendly} opened in a new tab.` });
       } catch (err) {
-        if (win) win.close();
+        if (win && !win.closed) win.close();
         const msg = err instanceof Error ? err.message : 'Download failed.';
         setToast({
           kind: 'danger',
@@ -626,15 +649,26 @@ export function EnvelopeDetailPage() {
                   This envelope uses eIDAS-qualified signatures. Every event is timestamped and
                   cryptographically sealed.
                 </Muted>
-                <AuditAction
-                  type="button"
-                  onClick={handleViewAudit}
-                  disabled={auditInFlight}
-                  aria-busy={auditInFlight}
-                >
-                  {auditInFlight ? 'Opening audit trail…' : 'Download audit trail'}
-                  <ArrowRight size={12} />
-                </AuditAction>
+                {/* The audit PDF is produced by the sealing job, so it
+                    only exists once the envelope is completed. Hide the
+                    download control entirely for non-terminal envelopes
+                    so the user never clicks into a file_not_ready. */}
+                {isComplete ? (
+                  <AuditAction
+                    type="button"
+                    onClick={handleViewAudit}
+                    disabled={auditInFlight}
+                    aria-busy={auditInFlight}
+                  >
+                    {auditInFlight ? 'Opening audit trail…' : 'Download audit trail'}
+                    <ArrowRight size={12} />
+                  </AuditAction>
+                ) : (
+                  <Muted>
+                    The audit trail PDF will be available once every signer has signed and the
+                    envelope is sealed.
+                  </Muted>
+                )}
               </div>
             </AuditCallout>
           </Sidebar>
