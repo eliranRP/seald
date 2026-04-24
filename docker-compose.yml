@@ -30,6 +30,9 @@ services:
       NODE_ENV: production
       PORT: 3000
       WORKER_ENABLED: "true"
+      # Set to "1" on additional API nodes so only one instance runs
+      # migrations. Single-node deploys leave this unset.
+      SKIP_MIGRATIONS: "${SKIP_MIGRATIONS:-0}"
       NODE_OPTIONS: --enable-source-maps
     env_file:
       - .env

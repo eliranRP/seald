@@ -45,9 +45,10 @@ FROM node:20-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     NODE_OPTIONS="--enable-source-maps"
 # dumb-init for clean SIGTERM propagation → lets the worker's OnModuleDestroy
-# run before the container dies mid-seal.
+# run before the container dies mid-seal. postgresql-client is the psql
+# binary used by scripts/migrate.sh at container boot.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates dumb-init \
+ && apt-get install -y --no-install-recommends ca-certificates dumb-init postgresql-client \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin seald
 WORKDIR /app
@@ -60,11 +61,12 @@ COPY --from=build --chown=seald:seald /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=seald:seald /app/apps/api/package.json ./apps/api/package.json
 # Email templates are loaded from disk at runtime (MJML → HTML render).
 COPY --from=build --chown=seald:seald /app/apps/api/src/email/templates ./apps/api/dist/email/templates
-# DB migrations — worker container runs them before starting.
+# DB migrations — entrypoint runs them idempotently on every boot.
 COPY --from=build --chown=seald:seald /app/apps/api/db ./apps/api/db
+COPY --chown=seald:seald apps/api/scripts/migrate.sh apps/api/scripts/entrypoint.sh ./apps/api/scripts/
+RUN chmod +x /app/apps/api/scripts/migrate.sh /app/apps/api/scripts/entrypoint.sh
 
 USER seald
 EXPOSE 3000
 WORKDIR /app/apps/api
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "dist/main.js"]
+ENTRYPOINT ["dumb-init", "--", "/app/apps/api/scripts/entrypoint.sh"]

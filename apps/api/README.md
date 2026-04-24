@@ -209,7 +209,8 @@ Host cron (optional; the worker already drains jobs):
 */15 * * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/expire >/dev/null
 ```
 
-Migrations (`apps/api/db/migrations/*.sql`) run against the Supabase DB
-before first boot — currently via `psql` with the service-role
-connection string. Wiring these into the container entrypoint is a
-tracked follow-up.
+Migrations (`apps/api/db/migrations/*.sql`) apply automatically on every
+container boot via `scripts/entrypoint.sh` → `scripts/migrate.sh`. The
+script tracks applied filenames in a `schema_migrations` ledger table so
+re-runs are a no-op. Set `SKIP_MIGRATIONS=1` on API-only nodes in
+horizontally-scaled deploys where one dedicated node owns migrations.
