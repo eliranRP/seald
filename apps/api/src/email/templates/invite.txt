@@ -1,0 +1,15 @@
+{{sender_name}} ({{sender_email}}) sent you a document to review and sign:
+
+  {{envelope_title}}
+
+Review and sign here:
+  {{sign_url}}
+
+This signing link is unique to you. Please don't forward this email — if
+someone else needs to sign, ask {{sender_name}} to send them a separate
+invitation.
+
+Verify this document at any time using reference code {{short_code}}:
+  {{verify_url}}
+
+Sent via Seald · {{public_url}}

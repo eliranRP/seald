@@ -3,6 +3,7 @@ import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from './config/config.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DbModule } from './db/db.module';
+import { EmailModule } from './email/email.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
 import { StorageModule } from './storage/storage.module';
@@ -12,6 +13,7 @@ import { StorageModule } from './storage/storage.module';
     ConfigModule,
     DbModule,
     StorageModule,
+    EmailModule,
     AuthModule,
     HealthModule,
     ContactsModule,

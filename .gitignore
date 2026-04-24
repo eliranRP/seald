@@ -30,3 +30,8 @@ apps/*/.env.local
 # Never commit anything from secrets/. Rotate any key that ever lands in git.
 apps/*/secrets/
 secrets/
+
+# Dev-only mail output — LoggingEmailSender writes rendered HTML/txt here.
+# Open in a browser to preview transactional email without sending real mail.
+.seald-mail/
+apps/*/.seald-mail/
