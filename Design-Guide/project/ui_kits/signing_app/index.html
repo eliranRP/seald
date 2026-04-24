@@ -21,12 +21,19 @@
   <script type="text/babel" src="../_shared/components.jsx"></script>
   <script type="text/babel" src="./Screens.jsx"></script>
   <script type="text/babel" src="./Auth.jsx"></script>
+  <script type="text/babel" src="./RecipientFlow.jsx"></script>
   <script type="text/babel">
     const { useState, useEffect } = React;
     const AUTH_PAGES = ['signin','signup','forgot','check-email'];
     const GUEST_ALLOWED = ['place','sign','sent']; // guest can only touch the sign-a-pdf flow
+    const RECIPIENT_PAGES = ['r-email','r-prep','r-fill','r-review','r-done'];
     function App(){
-      const [page, setPage] = useState(() => localStorage.getItem('sealed.page') || 'signin');
+      const [page, setPage] = useState(() => {
+        // Force recipient flow on next reload by clearing stale page
+        const saved = localStorage.getItem('sealed.page');
+        if (!saved || saved === 'signin') return 'r-email';
+        return saved;
+      });
       const [guest, setGuest] = useState(() => localStorage.getItem('sealed.guest') === '1');
       const [contacts, setContacts] = useContacts();
       const [guestContacts, setGuestContacts] = useState(() => {
@@ -39,6 +46,7 @@
       useEffect(()=>{ if(window.lucide) window.lucide.createIcons(); });
 
       const isAuth = AUTH_PAGES.includes(page);
+      const isRecipient = RECIPIENT_PAGES.includes(page);
 
       // Guest guard: if guest somehow lands on a non-allowed screen, bounce to place
       useEffect(()=>{
@@ -50,7 +58,13 @@
 
       return (
         <div data-screen-label={`Signing App — ${guest?'guest · ':''}${page}`}>
-          {isAuth ? (
+          {isRecipient ? (
+            <RecipientFlow
+              stage={page.replace('r-','')}
+              onStage={(s)=>setPage('r-'+s)}
+              onExit={()=>setPage(guest?'place':'upload')}
+            />
+          ) : isAuth ? (
             <AuthScreen mode={page} onMode={(m)=>setPage(m)} onAuthed={()=>{ setGuest(false); setPage('upload'); }} onSkip={skipAuth}/>
           ) : page==='contacts' ? (
             <>
@@ -84,7 +98,7 @@
               {guest ? 'guest' : 'auth'}
             </button>
             <div style={{width:1, background:'var(--border-1)', margin:'4px 2px'}}/>
-            {['signin','signup','upload','place','sign','sent','contacts'].map(s=>(
+            {['signin','signup','upload','place','sign','sent','contacts','r-email','r-prep','r-fill','r-review','r-done'].map(s=>(
               <button key={s} className={page===s?'on':''} onClick={()=>setPage(s)}>{s}</button>
             ))}
           </div>
