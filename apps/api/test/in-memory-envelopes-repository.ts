@@ -241,6 +241,19 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.envelopes.set(input.envelope_id, next);
     return next;
   }
+  async rotateSignerAccessToken(signer_id: string, _new_hash: string): Promise<boolean> {
+    for (const env of this.envelopes.values()) {
+      const signer = env.signers.find((s) => s.id === signer_id);
+      if (!signer) continue;
+      if (env.status !== 'awaiting_others') return false;
+      if (signer.signed_at !== null || signer.declined_at !== null) return false;
+      // In-memory we don't model the access_token_hash field (domain signer
+      // doesn't expose it); the write is a no-op from the outside.
+      return true;
+    }
+    return false;
+  }
+
   async recordSignerViewed(): Promise<EnvelopeSigner> {
     throw new Error('not_implemented_in_fake');
   }

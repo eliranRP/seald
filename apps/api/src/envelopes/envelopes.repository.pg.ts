@@ -482,6 +482,43 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     });
   }
 
+  async rotateSignerAccessToken(
+    signer_id: string,
+    new_access_token_hash: string,
+  ): Promise<boolean> {
+    // Guarded: only rotate when the parent envelope is 'awaiting_others' and
+    // the signer has neither signed nor declined. Two-step look-before-update
+    // so we can condition on the parent's status without pg-mem's JOIN quirks.
+    return this.db.transaction().execute(async (trx) => {
+      const signer = await trx
+        .selectFrom('envelope_signers')
+        .select(['id', 'envelope_id', 'signed_at', 'declined_at'])
+        .where('id', '=', signer_id)
+        .executeTakeFirst();
+      if (!signer) return false;
+      if (signer.signed_at !== null || signer.declined_at !== null) return false;
+
+      const envelope = await trx
+        .selectFrom('envelopes')
+        .select(['status'])
+        .where('id', '=', signer.envelope_id)
+        .executeTakeFirst();
+      if (!envelope || envelope.status !== 'awaiting_others') return false;
+
+      const res = await trx
+        .updateTable('envelope_signers')
+        .set({
+          access_token_hash: new_access_token_hash,
+          access_token_sent_at: new Date().toISOString(),
+        })
+        .where('id', '=', signer_id)
+        .where('signed_at', 'is', null)
+        .where('declined_at', 'is', null)
+        .executeTakeFirst();
+      return (res?.numUpdatedRows ?? 0n) > 0n;
+    });
+  }
+
   async recordSignerViewed(
     signer_id: string,
     ip: string | null,

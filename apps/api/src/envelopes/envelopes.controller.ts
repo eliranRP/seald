@@ -117,6 +117,18 @@ export class EnvelopesController {
     return this.svc.send(user.id, id, { email: user.email });
   }
 
+  @Post(':id/signers/:signer_id/remind')
+  @HttpCode(202)
+  async remindSigner(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('signer_id', ParseUUIDPipe) signer_id: string,
+  ): Promise<{ status: 'queued' }> {
+    if (!user.email) throw new BadRequestException('sender_email_missing');
+    await this.svc.remindSigner(user.id, id, signer_id, { email: user.email });
+    return { status: 'queued' };
+  }
+
   @Post(':id/signers')
   addSigner(
     @CurrentUser() user: AuthUser,

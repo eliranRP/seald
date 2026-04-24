@@ -165,6 +165,18 @@ export abstract class EnvelopesRepository {
 
   // Send + lifecycle
   abstract sendDraft(input: SendDraftInput): Promise<Envelope | null>;
+
+  /**
+   * Rotate a signer's access_token_hash (reminder path). Guards at the SQL
+   * level: only updates when the parent envelope is `awaiting_others` AND
+   * the signer has neither signed nor declined yet. Returns false when any
+   * of those preconditions are violated — the service maps to an
+   * appropriate 4xx response.
+   */
+  abstract rotateSignerAccessToken(
+    signer_id: string,
+    new_access_token_hash: string,
+  ): Promise<boolean>;
   abstract recordSignerViewed(
     signer_id: string,
     ip: string | null,

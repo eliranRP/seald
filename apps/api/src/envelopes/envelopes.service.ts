@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   NotFoundException,
@@ -410,4 +412,100 @@ export class EnvelopesService {
 
     return sent;
   }
+
+  /**
+   * Manually re-send the signing invite to a single signer. Rotates the
+   * signer's access_token_hash so the new email carries a fresh token —
+   * any prior link is dead the moment this succeeds. Throttled to at most
+   * 1 reminder per signer per hour via the outbound_emails audit trail.
+   *
+   * Sender identity (name/email) is pulled from the JWT and threaded into
+   * the reminder template, same shape as the original invite. Controller
+   * returns 202 Accepted (asynchronous in nature — email delivery is the
+   * worker's job).
+   */
+  async remindSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    sender: { readonly email: string; readonly name?: string | null },
+  ): Promise<void> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') {
+      throw new ConflictException('envelope_terminal');
+    }
+
+    const signer = envelope.signers.find((s) => s.id === signer_id);
+    if (!signer) throw new NotFoundException('envelope_not_found');
+    if (signer.signed_at !== null) throw new ConflictException('already_signed');
+    if (signer.declined_at !== null) throw new ConflictException('already_declined');
+
+    // Throttle: 1 invite/reminder per hour per (envelope, signer).
+    const recent = await this.outboundEmails.findLastInviteOrReminder(envelope_id, signer_id);
+    if (recent) {
+      const ageMs = Date.now() - new Date(recent.created_at).getTime();
+      if (ageMs < 60 * 60 * 1000) {
+        throw new HttpException('remind_throttled', HttpStatus.TOO_MANY_REQUESTS);
+      }
+    }
+
+    // Rotate the token atomically. If rotation fails (e.g., a concurrent
+    // sign/decline landed), map to the right 4xx.
+    const token = this.tokens.generate();
+    const rotated = await this.repo.rotateSignerAccessToken(signer_id, this.tokens.hash(token));
+    if (!rotated) {
+      // Re-read to differentiate what race we lost.
+      const fresh = await this.repo.findByIdForOwner(owner_id, envelope_id);
+      const freshSigner = fresh?.signers.find((s) => s.id === signer_id);
+      if (!fresh || fresh.status !== 'awaiting_others') {
+        throw new ConflictException('envelope_terminal');
+      }
+      if (freshSigner?.signed_at) throw new ConflictException('already_signed');
+      if (freshSigner?.declined_at) throw new ConflictException('already_declined');
+      throw new ConflictException('envelope_terminal');
+    }
+
+    // Audit event first so its id anchors the outbound_emails row.
+    const event = await this.repo.appendEvent({
+      envelope_id,
+      signer_id,
+      actor_kind: 'sender',
+      event_type: 'reminder_sent',
+      metadata: {},
+    });
+
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const signUrl = `${publicUrl}/sign/${envelope_id}?t=${token}`;
+    const verifyUrl = `${publicUrl}/verify/code/${envelope.short_code}`;
+    await this.outboundEmails.insert({
+      envelope_id,
+      signer_id,
+      kind: 'reminder',
+      to_email: signer.email,
+      to_name: signer.name,
+      source_event_id: event.id,
+      payload: {
+        sender_name: sender.name ?? sender.email,
+        sender_email: sender.email,
+        envelope_title: envelope.title,
+        sign_url: signUrl,
+        verify_url: verifyUrl,
+        short_code: envelope.short_code,
+        expires_at_readable: formatExpiresAt(envelope.expires_at),
+        public_url: publicUrl,
+      },
+    });
+  }
+}
+
+function formatExpiresAt(iso: string): string {
+  // e.g., "2026-05-24 14:30 UTC" — deliberate over-simplification; templates
+  // render this verbatim so consistency matters more than i18n for MVP.
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return (
+    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
+    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`
+  );
 }

@@ -53,6 +53,7 @@ const PROTECTED_ROUTES = [
   ['POST', `/envelopes/${ENV_ID}/upload`],
   ['POST', `/envelopes/${ENV_ID}/send`],
   ['POST', `/envelopes/${ENV_ID}/signers`],
+  ['POST', `/envelopes/${ENV_ID}/signers/${SGN_ID}/remind`],
   ['DELETE', `/envelopes/${ENV_ID}/signers/${SGN_ID}`],
   ['PUT', `/envelopes/${ENV_ID}/fields`],
   ['GET', `/envelopes/${ENV_ID}/events`],
@@ -736,6 +737,128 @@ describe('Envelopes — sender draft flow (e2e)', () => {
         .delete(`/envelopes/${envId}`)
         .set(auth(tokenA));
       expect(del.status).toBe(409);
+    });
+  });
+
+  describe('POST /envelopes/:id/signers/:signer_id/remind', () => {
+    async function buildSentEnvelope(): Promise<{ envId: string; signerId: string }> {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Remind me' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(tokenA))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(tokenA))
+        .send({
+          fields: [
+            {
+              signer_id: signer.body.id,
+              kind: 'signature',
+              page: 1,
+              x: 0.1,
+              y: 0.1,
+              required: true,
+            },
+          ],
+        });
+      await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth(tokenA));
+      return { envId: env.body.id, signerId: signer.body.id };
+    }
+
+    it('throttles reminder within 1 hour of the invite → 429 remind_throttled', async () => {
+      const { envId, signerId } = await buildSentEnvelope();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/signers/${signerId}/remind`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(429);
+      expect(res.body).toEqual({ error: 'remind_throttled' });
+    });
+
+    it('succeeds when the last invite/reminder is older than 1 hour — returns 202, enqueues reminder', async () => {
+      const { envId, signerId } = await buildSentEnvelope();
+      // Age the outbound rows by rewriting created_at — simulates "more than 1 hour ago".
+      for (const row of outbound.rows) {
+        (row as { created_at: string }).created_at = new Date(
+          Date.now() - 65 * 60 * 1000,
+        ).toISOString();
+      }
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/signers/${signerId}/remind`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(202);
+      expect(res.body).toEqual({ status: 'queued' });
+
+      const reminders = outbound.rows.filter((r) => r.kind === 'reminder');
+      expect(reminders).toHaveLength(1);
+      expect(reminders[0]!.to_email).toBe('ada@example.com');
+      // Reminder carries a fresh token — the rotated one
+      expect(String(reminders[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      expect(String(reminders[0]!.payload.envelope_title)).toBe('Remind me');
+      expect(String(reminders[0]!.payload.expires_at_readable)).toMatch(
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
+      );
+
+      // An audit event was written alongside.
+      const events = await request(app.getHttpServer())
+        .get(`/envelopes/${envId}/events`)
+        .set(auth(tokenA));
+      expect(
+        events.body.events.filter((e: { event_type: string }) => e.event_type === 'reminder_sent'),
+      ).toHaveLength(1);
+    });
+
+    it('409 envelope_terminal when envelope is still draft (never sent)', async () => {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Draft' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers/${signer.body.id}/remind`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({ error: 'envelope_terminal' });
+    });
+
+    it('404 envelope_not_found on unknown signer for an owned envelope', async () => {
+      const { envId } = await buildSentEnvelope();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/signers/22222222-2222-4222-8222-2222222200ff/remind`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(404);
+    });
+
+    it('cross-owner reminder → 404 envelope_not_found', async () => {
+      const { envId, signerId } = await buildSentEnvelope();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/signers/${signerId}/remind`)
+        .set(auth(tokenB));
+      expect(res.status).toBe(404);
     });
   });
 });

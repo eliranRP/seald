@@ -423,6 +423,90 @@ describe('EnvelopesPgRepository — sendDraft', () => {
   });
 });
 
+describe('EnvelopesPgRepository — rotateSignerAccessToken', () => {
+  let handle: PgMemHandle;
+  let repo: EnvelopesPgRepository;
+  let ownerId: string;
+
+  beforeEach(async () => {
+    handle = createPgMemDb();
+    repo = new EnvelopesPgRepository(handle.db);
+    ownerId = await seedUser(handle);
+  });
+  afterEach(async () => {
+    await handle.close();
+  });
+
+  async function buildAwaitingEnvelope(): Promise<{ envelopeId: string; signerId: string }> {
+    const e = await repo.createDraft(draftInput(ownerId));
+    const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#111111' });
+    await repo.sendDraft({
+      envelope_id: e.id,
+      signer_tokens: [{ signer_id: s.id, access_token_hash: 'a'.repeat(64) }],
+    });
+    return { envelopeId: e.id, signerId: s.id };
+  }
+
+  it('rotates the access_token_hash and bumps access_token_sent_at', async () => {
+    const { signerId } = await buildAwaitingEnvelope();
+    const newHash = 'b'.repeat(64);
+    const ok = await repo.rotateSignerAccessToken(signerId, newHash);
+    expect(ok).toBe(true);
+    const row = await handle.db
+      .selectFrom('envelope_signers')
+      .selectAll()
+      .where('id', '=', signerId)
+      .executeTakeFirstOrThrow();
+    expect(row.access_token_hash).toBe(newHash);
+    expect(row.access_token_sent_at).not.toBeNull();
+  });
+
+  it('returns false when the signer has already signed', async () => {
+    const { signerId } = await buildAwaitingEnvelope();
+    await handle.db
+      .updateTable('envelope_signers')
+      .set({
+        tc_accepted_at: new Date().toISOString(),
+        signature_format: 'typed',
+        signed_at: new Date().toISOString(),
+      })
+      .where('id', '=', signerId)
+      .execute();
+    const ok = await repo.rotateSignerAccessToken(signerId, 'c'.repeat(64));
+    expect(ok).toBe(false);
+  });
+
+  it('returns false when the signer has declined', async () => {
+    const { signerId } = await buildAwaitingEnvelope();
+    await handle.db
+      .updateTable('envelope_signers')
+      .set({ declined_at: new Date().toISOString(), decline_reason: 'nope' })
+      .where('id', '=', signerId)
+      .execute();
+    const ok = await repo.rotateSignerAccessToken(signerId, 'c'.repeat(64));
+    expect(ok).toBe(false);
+  });
+
+  it('returns false when the envelope is not awaiting_others', async () => {
+    const { envelopeId, signerId } = await buildAwaitingEnvelope();
+    await handle.db
+      .updateTable('envelopes')
+      .set({ status: 'declined' })
+      .where('id', '=', envelopeId)
+      .execute();
+    const ok = await repo.rotateSignerAccessToken(signerId, 'c'.repeat(64));
+    expect(ok).toBe(false);
+  });
+
+  it('returns false for an unknown signer', async () => {
+    const ok = await repo.rotateSignerAccessToken(
+      '11111111-1111-4111-8111-111111111111',
+      'c'.repeat(64),
+    );
+    expect(ok).toBe(false);
+  });
+});
+
 describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', () => {
   let handle: PgMemHandle;
   let repo: EnvelopesPgRepository;
