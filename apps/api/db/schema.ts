@@ -67,6 +67,8 @@ export interface EnvelopesTable {
   sealed_file_path: string | null;
   sealed_sha256: string | null;
   audit_file_path: string | null;
+  sender_email: string | null;
+  sender_name: string | null;
   tc_version: string;
   privacy_version: string;
   sent_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;

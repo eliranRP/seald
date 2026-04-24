@@ -60,6 +60,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       original_pages: null,
       original_sha256: null,
       sealed_sha256: null,
+      sender_email: null,
+      sender_name: null,
       sent_at: null,
       completed_at: null,
       expires_at: input.expires_at,
@@ -247,6 +249,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   async sendDraft(input: {
     readonly envelope_id: string;
     readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
+    readonly sender_email: string;
+    readonly sender_name: string | null;
   }): Promise<Envelope | null> {
     const e = this.envelopes.get(input.envelope_id);
     if (!e || e.status !== 'draft') return null;
@@ -258,6 +262,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const next: Envelope = {
       ...e,
       status: 'awaiting_others',
+      sender_email: input.sender_email,
+      sender_name: input.sender_name,
       sent_at: now,
       updated_at: now,
     };

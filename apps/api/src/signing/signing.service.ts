@@ -355,14 +355,11 @@ export class SigningService {
    *      - if they had not signed yet: kind='withdrawn_to_signer' email
    *      - if they had signed: kind='withdrawn_after_sign' email
    *      - session_invalidated_by_decline event for audit
-   *   4. Enqueue an audit_only job so the worker (Phase 3e) still produces
+   *   4. If the envelope carries sender_email (set at send time), enqueue
+   *      a `declined_to_sender` email so the sender isn't surprised by the
+   *      status flip in their dashboard.
+   *   5. Enqueue an audit_only job so the worker (Phase 3e) still produces
    *      an audit.pdf documenting what happened.
-   *
-   * Sender email (kind='declined_to_sender') is NOT enqueued here: the
-   * envelope domain type doesn't carry sender_email and we don't want a
-   * Supabase admin lookup in the hot path. The sender will see the status
-   * change via their dashboard; a follow-up task threads sender_email onto
-   * the envelope row at send time.
    */
   async decline(
     envelope: Envelope,
@@ -422,9 +419,32 @@ export class SigningService {
         to_name: other.name,
         source_event_id: declinedEvent.id,
         payload: {
-          sender_name: 'The document sender',
+          sender_name: envelope.sender_name ?? envelope.sender_email ?? 'The document sender',
           envelope_title: envelope.title,
           signed_at_readable: wasSigned ? formatUtc(other.signed_at!) : '',
+          public_url: publicUrl,
+        },
+      });
+    }
+
+    // Sender-facing withdrawal email. sender_email was stamped at send time
+    // (see EnvelopesService.send → sendDraft). Defensive guard — pre-0004
+    // envelopes won't carry it and we skip rather than fail the decline.
+    if (envelope.sender_email) {
+      await this.outboundEmails.insert({
+        envelope_id: envelope.id,
+        signer_id: null,
+        kind: 'declined_to_sender',
+        to_email: envelope.sender_email,
+        to_name: envelope.sender_name ?? envelope.sender_email,
+        source_event_id: declinedEvent.id,
+        payload: {
+          sender_name: envelope.sender_name ?? envelope.sender_email,
+          envelope_title: envelope.title,
+          signer_name: signer.name,
+          signer_email: signer.email,
+          reason_provided: reason !== null && reason.length > 0,
+          reason: reason ?? '',
           public_url: publicUrl,
         },
       });

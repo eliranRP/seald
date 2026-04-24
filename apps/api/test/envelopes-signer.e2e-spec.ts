@@ -740,6 +740,20 @@ describe('Signing — /sign/start (e2e)', () => {
       const jobs = envelopesRepo.jobs.filter((j) => j.envelope_id === envId);
       expect(jobs).toHaveLength(1);
       expect(jobs[0]!.kind).toBe('audit_only');
+
+      // declined_to_sender email queued (sender_email was stamped at send time).
+      const senderEmails = outbound.rows.filter(
+        (r) => r.envelope_id === envId && r.kind === 'declined_to_sender',
+      );
+      expect(senderEmails).toHaveLength(1);
+      expect(senderEmails[0]!.to_email).toBe('sender@example.com');
+      expect(senderEmails[0]!.payload).toMatchObject({
+        envelope_title: 'Sign me',
+        signer_name: 'Ada',
+        signer_email: 'ada@example.com',
+        reason_provided: true,
+        reason: 'Not comfortable with terms',
+      });
     });
 
     it('decline without reason still succeeds; reason_provided=false in event metadata', async () => {

@@ -144,6 +144,8 @@ function toEnvelopeDomain(
     original_pages: envelope.original_pages,
     original_sha256: envelope.original_sha256,
     sealed_sha256: envelope.sealed_sha256,
+    sender_email: envelope.sender_email,
+    sender_name: envelope.sender_name,
     sent_at: toIso(envelope.sent_at),
     completed_at: toIso(envelope.completed_at),
     expires_at: toIsoReq(envelope.expires_at),
@@ -467,7 +469,13 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const now = new Date().toISOString();
       const res = await trx
         .updateTable('envelopes')
-        .set({ status: 'awaiting_others', sent_at: now, updated_at: now })
+        .set({
+          status: 'awaiting_others',
+          sent_at: now,
+          updated_at: now,
+          sender_email: input.sender_email,
+          sender_name: input.sender_name,
+        })
         .where('id', '=', input.envelope_id)
         .where('status', '=', 'draft')
         .executeTakeFirst();

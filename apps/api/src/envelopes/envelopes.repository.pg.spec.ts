@@ -399,6 +399,8 @@ describe('EnvelopesPgRepository — sendDraft', () => {
         { signer_id: s1.id, access_token_hash: h1 },
         { signer_id: s2.id, access_token_hash: h2 },
       ],
+      sender_email: 'sender@example.com',
+      sender_name: 'Sender',
     });
     expect(sent?.status).toBe('awaiting_others');
     expect(sent?.sent_at).not.toBeNull();
@@ -418,7 +420,12 @@ describe('EnvelopesPgRepository — sendDraft', () => {
       .set({ status: 'awaiting_others' })
       .where('id', '=', e.id)
       .execute();
-    const got = await repo.sendDraft({ envelope_id: e.id, signer_tokens: [] });
+    const got = await repo.sendDraft({
+      envelope_id: e.id,
+      signer_tokens: [],
+      sender_email: 'sender@example.com',
+      sender_name: 'Sender',
+    });
     expect(got).toBeNull();
   });
 });
@@ -443,6 +450,8 @@ describe('EnvelopesPgRepository — rotateSignerAccessToken', () => {
     await repo.sendDraft({
       envelope_id: e.id,
       signer_tokens: [{ signer_id: s.id, access_token_hash: 'a'.repeat(64) }],
+      sender_email: 'sender@example.com',
+      sender_name: 'Sender',
     });
     return { envelopeId: e.id, signerId: s.id };
   }

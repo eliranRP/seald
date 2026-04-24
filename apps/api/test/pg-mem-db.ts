@@ -114,6 +114,11 @@ export function createPgMemDb(): PgMemHandle {
     .replace(/alter table public\.\w+ enable row level security;/g, '');
   mem.public.none(patched0003);
 
+  // 0004 adds sender_email + sender_name columns — plain alter, no pg-mem
+  // shims needed. Load as-is.
+  const migration0004Path = resolve(__dirname, '../db/migrations/0004_envelope_sender.sql');
+  mem.public.none(readFileSync(migration0004Path, 'utf8'));
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });

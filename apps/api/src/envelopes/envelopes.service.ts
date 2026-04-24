@@ -355,13 +355,17 @@ export class EnvelopesService {
       };
     });
 
-    // Atomic status flip + per-signer hash stamping.
+    // Atomic status flip + per-signer hash stamping. Sender identity is
+    // persisted here so the decline/withdrawal flow can email the sender
+    // without a privileged auth.users lookup.
     const sent = await this.repo.sendDraft({
       envelope_id,
       signer_tokens: signerTokens.map((t) => ({
         signer_id: t.signer_id,
         access_token_hash: t.access_token_hash,
       })),
+      sender_email: sender.email,
+      sender_name: sender.name ?? null,
     });
     if (!sent) {
       // Lost the race — another concurrent call transitioned status.

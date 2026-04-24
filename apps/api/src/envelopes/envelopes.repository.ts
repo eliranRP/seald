@@ -55,6 +55,10 @@ export interface CreateFieldInput {
 export interface SendDraftInput {
   readonly envelope_id: string;
   readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
+  /** Persisted on the envelope row so SigningService.decline can enqueue
+   *  the withdrawal email to the sender without an auth.users lookup. */
+  readonly sender_email: string;
+  readonly sender_name: string | null;
 }
 
 export interface SignerFieldFillInput {

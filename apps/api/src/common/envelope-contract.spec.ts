@@ -26,6 +26,8 @@ describe('envelope-contract', () => {
     original_pages: null,
     original_sha256: null,
     sealed_sha256: null,
+    sender_email: null,
+    sender_name: null,
     sent_at: null,
     completed_at: null,
     expires_at: '2026-05-24T00:00:00.000Z',

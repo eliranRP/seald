@@ -104,6 +104,8 @@ export const EnvelopeSchema = z.object({
   original_pages: z.number().int().positive().nullable(),
   original_sha256: sha256.nullable(),
   sealed_sha256: sha256.nullable(),
+  sender_email: z.string().email().nullable(),
+  sender_name: z.string().min(1).nullable(),
   sent_at: iso.nullable(),
   completed_at: iso.nullable(),
   expires_at: iso,
