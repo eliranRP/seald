@@ -106,6 +106,17 @@ export class EnvelopesController {
     };
   }
 
+  @Post(':id/send')
+  send(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<Envelope> {
+    if (!user.email) {
+      // The sender's display identity is threaded into the invite email's
+      // "From: <name>" line, so we need at least the email claim. Supabase
+      // JWTs for Google OAuth always carry email; this guard is defensive.
+      throw new BadRequestException('sender_email_missing');
+    }
+    return this.svc.send(user.id, id, { email: user.email });
+  }
+
   @Post(':id/signers')
   addSigner(
     @CurrentUser() user: AuthUser,

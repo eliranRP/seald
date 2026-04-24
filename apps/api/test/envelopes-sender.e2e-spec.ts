@@ -8,10 +8,12 @@ import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter
 import { APP_ENV } from '../src/config/config.module';
 import type { AppEnv } from '../src/config/env.schema';
 import { ContactsRepository } from '../src/contacts/contacts.repository';
+import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
 import { StorageService } from '../src/storage/storage.service';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
 
@@ -49,6 +51,7 @@ const PROTECTED_ROUTES = [
   ['PATCH', `/envelopes/${ENV_ID}`],
   ['DELETE', `/envelopes/${ENV_ID}`],
   ['POST', `/envelopes/${ENV_ID}/upload`],
+  ['POST', `/envelopes/${ENV_ID}/send`],
   ['POST', `/envelopes/${ENV_ID}/signers`],
   ['DELETE', `/envelopes/${ENV_ID}/signers/${SGN_ID}`],
   ['PUT', `/envelopes/${ENV_ID}/fields`],
@@ -60,6 +63,7 @@ describe('Envelopes — sender auth contract (e2e)', () => {
   let envelopesRepo: InMemoryEnvelopesRepository;
   let contactsRepo: InMemoryContactsRepository;
   let storage: InMemoryStorageService;
+  let outbound: InMemoryOutboundEmailsRepository;
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
 
   beforeAll(async () => {
@@ -67,6 +71,7 @@ describe('Envelopes — sender auth contract (e2e)', () => {
     envelopesRepo = new InMemoryEnvelopesRepository();
     contactsRepo = new InMemoryContactsRepository();
     storage = new InMemoryStorageService();
+    outbound = new InMemoryOutboundEmailsRepository();
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -79,6 +84,8 @@ describe('Envelopes — sender auth contract (e2e)', () => {
       .useValue(contactsRepo)
       .overrideProvider(StorageService)
       .useValue(storage)
+      .overrideProvider(OutboundEmailsRepository)
+      .useValue(outbound)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -93,6 +100,7 @@ describe('Envelopes — sender auth contract (e2e)', () => {
     envelopesRepo.reset();
     contactsRepo.reset();
     storage.reset();
+    outbound.reset();
   });
   afterAll(async () => {
     await app.close();
@@ -113,6 +121,7 @@ describe('Envelopes — sender draft flow (e2e)', () => {
   let envelopesRepo: InMemoryEnvelopesRepository;
   let contactsRepo: InMemoryContactsRepository;
   let storage: InMemoryStorageService;
+  let outbound: InMemoryOutboundEmailsRepository;
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
   let tokenB: string;
@@ -123,6 +132,7 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     envelopesRepo = new InMemoryEnvelopesRepository();
     contactsRepo = new InMemoryContactsRepository();
     storage = new InMemoryStorageService();
+    outbound = new InMemoryOutboundEmailsRepository();
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -135,6 +145,8 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       .useValue(contactsRepo)
       .overrideProvider(StorageService)
       .useValue(storage)
+      .overrideProvider(OutboundEmailsRepository)
+      .useValue(outbound)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -145,8 +157,8 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     await app.init();
 
     const signOpts = { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE };
-    tokenA = await tk.sign({ sub: USER_A }, signOpts);
-    tokenB = await tk.sign({ sub: USER_B }, signOpts);
+    tokenA = await tk.sign({ sub: USER_A, email: 'sender-a@example.com' }, signOpts);
+    tokenB = await tk.sign({ sub: USER_B, email: 'sender-b@example.com' }, signOpts);
 
     // Produce a small but structurally-valid PDF for upload tests.
     const doc = await PDFDocument.create();
@@ -159,6 +171,7 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     envelopesRepo.reset();
     contactsRepo.reset();
     storage.reset();
+    outbound.reset();
   });
   afterAll(async () => {
     await app.close();
@@ -523,5 +536,206 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       .get(`/envelopes/${env.body.id}/events`)
       .set(auth(tokenB));
     expect(blocked.status).toBe(404);
+  });
+
+  describe('POST /envelopes/:id/send', () => {
+    async function buildCompleteDraft(): Promise<{ envId: string; signerId: string }> {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Ready to send' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(tokenA))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(tokenA))
+        .send({
+          fields: [
+            {
+              signer_id: signer.body.id,
+              kind: 'signature',
+              page: 1,
+              x: 0.1,
+              y: 0.1,
+              required: true,
+            },
+          ],
+        });
+      return { envId: env.body.id, signerId: signer.body.id };
+    }
+
+    it('transitions draft → awaiting_others, enqueues one invite per signer, writes sent events', async () => {
+      const { envId, signerId } = await buildCompleteDraft();
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('awaiting_others');
+      expect(res.body.sent_at).toBeTruthy();
+
+      // Exactly one invite queued for the one signer.
+      const queued = outbound.rows.filter((r) => r.envelope_id === envId);
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.kind).toBe('invite');
+      expect(queued[0]!.signer_id).toBe(signerId);
+      expect(queued[0]!.to_email).toBe('ada@example.com');
+      expect(queued[0]!.payload).toMatchObject({
+        envelope_title: 'Ready to send',
+        short_code: res.body.short_code,
+      });
+      // Token is NOT hashed in the payload — it's embedded in the sign_url.
+      expect(String(queued[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+
+      // sent event present per signer.
+      const eventsRes = await request(app.getHttpServer())
+        .get(`/envelopes/${envId}/events`)
+        .set(auth(tokenA));
+      const sentEvents = eventsRes.body.events.filter(
+        (e: { event_type: string }) => e.event_type === 'sent',
+      );
+      expect(sentEvents).toHaveLength(1);
+    });
+
+    it('rejects with 400 file_required when no PDF uploaded', async () => {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'No file' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(tokenA))
+        .send({
+          fields: [
+            {
+              signer_id: signer.body.id,
+              kind: 'signature',
+              page: 1,
+              x: 0.1,
+              y: 0.1,
+              required: true,
+            },
+          ],
+        });
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/send`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'file_required' });
+    });
+
+    it('rejects with 400 no_signers when signer list is empty', async () => {
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'No signers' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(tokenA))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/send`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'no_signers' });
+    });
+
+    it('rejects with 400 signer_without_signature_field when a signer has no required sig field', async () => {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Bad fields' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(tokenA))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+      // Date field only — no signature/initials for this signer.
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(tokenA))
+        .send({
+          fields: [
+            { signer_id: signer.body.id, kind: 'date', page: 1, x: 0.1, y: 0.1, required: true },
+          ],
+        });
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/send`)
+        .set(auth(tokenA));
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'signer_without_signature_field' });
+    });
+
+    it('rejects with 409 envelope_not_draft on re-send', async () => {
+      const { envId } = await buildCompleteDraft();
+      const first = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(tokenA));
+      expect(first.status).toBe(201);
+
+      const second = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(tokenA));
+      expect(second.status).toBe(409);
+      expect(second.body).toEqual({ error: 'envelope_not_draft' });
+    });
+
+    it('cross-owner send → 404 envelope_not_found', async () => {
+      const { envId } = await buildCompleteDraft();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(tokenB));
+      expect(res.status).toBe(404);
+    });
+
+    it('once sent, further draft mutations (patch/delete/signers/fields/upload) return 409', async () => {
+      const { envId } = await buildCompleteDraft();
+      await request(app.getHttpServer()).post(`/envelopes/${envId}/send`).set(auth(tokenA));
+
+      const patch = await request(app.getHttpServer())
+        .patch(`/envelopes/${envId}`)
+        .set(auth(tokenA))
+        .send({ title: 'new' });
+      expect(patch.status).toBe(409);
+
+      const del = await request(app.getHttpServer())
+        .delete(`/envelopes/${envId}`)
+        .set(auth(tokenA));
+      expect(del.status).toBe(409);
+    });
   });
 });

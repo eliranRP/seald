@@ -6,6 +6,12 @@ import {
   type CreateContactInput,
   type UpdateContactPatch,
 } from '../contacts/contacts.repository';
+import {
+  type InsertOutboundEmailInput,
+  OutboundEmailsRepository,
+  type OutboundEmailRow,
+} from '../email/outbound-emails.repository';
+import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
   AddSignerInput,
@@ -332,6 +338,54 @@ const TEST_ENV = {
   PRIVACY_VERSION: '2026-04-24',
 } as unknown as AppEnv;
 
+/** Minimal in-memory outbox for service tests. */
+class FakeOutbound extends OutboundEmailsRepository {
+  rows: OutboundEmailRow[] = [];
+  async insert(input: InsertOutboundEmailInput): Promise<OutboundEmailRow> {
+    const row: OutboundEmailRow = {
+      id: `em_${this.rows.length + 1}`,
+      envelope_id: input.envelope_id ?? null,
+      signer_id: input.signer_id ?? null,
+      kind: input.kind,
+      to_email: input.to_email,
+      to_name: input.to_name,
+      payload: { ...input.payload },
+      status: 'pending',
+      attempts: 0,
+      max_attempts: input.max_attempts ?? 8,
+      scheduled_for: input.scheduled_for ?? new Date().toISOString(),
+      sent_at: null,
+      last_error: null,
+      provider_id: null,
+      source_event_id: input.source_event_id ?? null,
+      created_at: new Date().toISOString(),
+    };
+    this.rows.push(row);
+    return row;
+  }
+  async insertMany(
+    inputs: readonly InsertOutboundEmailInput[],
+  ): Promise<readonly OutboundEmailRow[]> {
+    const out: OutboundEmailRow[] = [];
+    for (const i of inputs) out.push(await this.insert(i));
+    return out;
+  }
+  async listByEnvelope(envelope_id: string): Promise<readonly OutboundEmailRow[]> {
+    return this.rows.filter((r) => r.envelope_id === envelope_id);
+  }
+  async findLastInviteOrReminder(envelope_id: string, signer_id: string) {
+    const match = this.rows
+      .filter(
+        (r) =>
+          r.envelope_id === envelope_id &&
+          r.signer_id === signer_id &&
+          (r.kind === 'invite' || r.kind === 'reminder'),
+      )
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+    return match[0] ?? null;
+  }
+}
+
 /** Stub storage — service-level tests don't exercise uploadOriginal. */
 class FakeStorage extends StorageService {
   async upload() {
@@ -357,13 +411,17 @@ describe('EnvelopesService', () => {
   let repo: FakeEnvelopesRepo;
   let contacts: FakeContactsRepo;
   let storage: FakeStorage;
+  let outbound: FakeOutbound;
+  let tokens: SigningTokenService;
   let svc: EnvelopesService;
 
   beforeEach(() => {
     repo = new FakeEnvelopesRepo();
     contacts = new FakeContactsRepo();
     storage = new FakeStorage();
-    svc = new EnvelopesService(repo, contacts, storage, TEST_ENV);
+    outbound = new FakeOutbound();
+    tokens = new SigningTokenService();
+    svc = new EnvelopesService(repo, contacts, storage, outbound, tokens, TEST_ENV);
   });
 
   describe('createDraft', () => {

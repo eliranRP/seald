@@ -14,6 +14,11 @@ import type { Envelope as WireEnvelope } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { ContactsRepository } from '../contacts/contacts.repository';
+import {
+  DuplicateOutboundEmailError,
+  OutboundEmailsRepository,
+} from '../email/outbound-emails.repository';
+import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
   CreateFieldInput,
@@ -57,6 +62,8 @@ export class EnvelopesService {
     private readonly repo: EnvelopesRepository,
     private readonly contactsRepo: ContactsRepository,
     private readonly storage: StorageService,
+    private readonly outboundEmails: OutboundEmailsRepository,
+    private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -285,5 +292,122 @@ export class EnvelopesService {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     return this.repo.listEventsForEnvelope(envelope_id);
+  }
+
+  /**
+   * Transition an envelope from `draft` to `awaiting_others`, generate +
+   * hash per-signer tokens, write `sent` events, and enqueue `invite` emails.
+   *
+   * The four writes are sequenced (not one DB transaction). The
+   * `repo.sendDraft` call is atomic and row-conditional, so the status flip
+   * is safe. If the subsequent event-append or email-enqueue fails, the
+   * envelope is in `awaiting_others` but missing some audit/email rows — the
+   * sender can fix by hitting the `remind` endpoint (Task 15) which writes
+   * a fresh reminder email.
+   *
+   * Idempotent: re-calling `send` on an already-sent envelope short-circuits
+   * at the first `repo.sendDraft` call (returns null because status isn't
+   * `draft`), and returns the current envelope unchanged.
+   */
+  async send(
+    owner_id: string,
+    envelope_id: string,
+    sender: { readonly email: string; readonly name?: string | null },
+  ): Promise<Envelope> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+
+    // Invariants — fail before we generate tokens.
+    if (!envelope.original_sha256 || !envelope.original_pages) {
+      throw new BadRequestException('file_required');
+    }
+    if (envelope.signers.length === 0) {
+      throw new BadRequestException('no_signers');
+    }
+    if (envelope.fields.length === 0) {
+      throw new BadRequestException('no_fields');
+    }
+    const signersWithSigField = new Set<string>();
+    for (const f of envelope.fields) {
+      if ((f.kind === 'signature' || f.kind === 'initials') && f.required) {
+        signersWithSigField.add(f.signer_id);
+      }
+    }
+    for (const s of envelope.signers) {
+      if (!signersWithSigField.has(s.id)) {
+        throw new BadRequestException('signer_without_signature_field');
+      }
+    }
+
+    // Generate one plaintext token per signer + its hash. Plaintext is held
+    // in memory for the email enqueue step; only the hash persists in DB.
+    const signerTokens = envelope.signers.map((s) => {
+      const token = this.tokens.generate();
+      return {
+        signer_id: s.id,
+        signer_email: s.email,
+        signer_name: s.name,
+        plaintext_token: token,
+        access_token_hash: this.tokens.hash(token),
+      };
+    });
+
+    // Atomic status flip + per-signer hash stamping.
+    const sent = await this.repo.sendDraft({
+      envelope_id,
+      signer_tokens: signerTokens.map((t) => ({
+        signer_id: t.signer_id,
+        access_token_hash: t.access_token_hash,
+      })),
+    });
+    if (!sent) {
+      // Lost the race — another concurrent call transitioned status.
+      throw new ConflictException('envelope_not_draft');
+    }
+
+    // Audit events + outbound emails. Best-effort — per-signer independent.
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    for (const t of signerTokens) {
+      // Append the `sent` event first so its id can be the source_event_id.
+      const event = await this.repo.appendEvent({
+        envelope_id,
+        signer_id: t.signer_id,
+        actor_kind: 'system',
+        event_type: 'sent',
+        metadata: {},
+      });
+
+      const signUrl = `${publicUrl}/sign/${envelope_id}?t=${t.plaintext_token}`;
+      const verifyUrl = `${publicUrl}/verify/code/${envelope.short_code}`;
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id: t.signer_id,
+          kind: 'invite',
+          to_email: t.signer_email,
+          to_name: t.signer_name,
+          source_event_id: event.id,
+          payload: {
+            sender_name: sender.name ?? sender.email,
+            sender_email: sender.email,
+            envelope_title: envelope.title,
+            sign_url: signUrl,
+            verify_url: verifyUrl,
+            short_code: envelope.short_code,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        if (err instanceof DuplicateOutboundEmailError) {
+          // Idempotent — the row already existed for this (envelope, signer,
+          // invite, source_event_id). Treat as success.
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    return sent;
   }
 }
