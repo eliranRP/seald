@@ -1,28 +1,49 @@
 <div class="wrap">
   <div class="card">
     <div class="accent accent-danger"></div>
-    <div class="masthead">
-      <span
-        class="mark"
-        style="
-          display: inline-block;
-          width: 28px;
-          height: 28px;
-          border-radius: 7px;
-          background: #4f46e5;
-          color: #ffffff;
-          font-family: Georgia, 'Source Serif 4', serif;
-          font-weight: 600;
-          font-size: 16px;
-          text-align: center;
-          line-height: 28px;
-          vertical-align: middle;
-          text-decoration: none;
-        "
-        >S</span
-      >
-      <span class="wordmark">Sealed</span>
-    </div>
+    <table
+      role="presentation"
+      class="masthead"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
+    >
+      <tr>
+        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
+          <img
+            src="https://seald.nromomentum.com/apple-touch-icon.png"
+            alt="Sealed"
+            width="28"
+            height="28"
+            style="
+              display: block;
+              width: 28px;
+              height: 28px;
+              border-radius: 7px;
+              border: 0;
+              outline: none;
+            "
+          />
+        </td>
+        <td
+          style="
+            padding: 20px 28px 20px 10px;
+            vertical-align: middle;
+            font-family:
+              Source Serif 4,
+              Georgia,
+              serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #0b1220;
+            letter-spacing: -0.01em;
+          "
+        >
+          Sealed
+        </td>
+      </tr>
+    </table>
     <div class="body">
       <span class="kicker kicker-danger">Declined · Action needed</span>
       <h1><em>{{envelope_title}}</em> was declined.</h1>
@@ -54,13 +75,83 @@
         <div><b>Reason given:</b> {{decline_reason}}</div>
       </div>
 
-      <div class="doc">
-        <div class="doc-thumb"><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="doc-meta">
-          <div class="doc-title">{{envelope_title}}</div>
-          <div class="doc-id">Ref {{short_code}}</div>
-        </div>
-      </div>
+      <table
+        role="presentation"
+        class="doc"
+        cellspacing="0"
+        cellpadding="0"
+        border="0"
+        style="
+          margin: 22px 0 10px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          width: 100%;
+          border-collapse: separate;
+        "
+      >
+        <tr>
+          <td
+            style="padding: 16px 0 16px 16px; width: 58px; vertical-align: middle; line-height: 0"
+          >
+            <table
+              role="presentation"
+              cellspacing="0"
+              cellpadding="0"
+              border="0"
+              style="
+                width: 44px;
+                height: 56px;
+                background: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 4px;
+                border-collapse: separate;
+              "
+            >
+              <tr>
+                <td style="padding: 6px">
+                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 82%"></div>
+                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 70%"></div>
+                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 88%"></div>
+                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 60%"></div>
+                  <div style="height: 2px; background: #e2e8f0; margin: 0; width: 76%"></div>
+                </td>
+              </tr>
+            </table>
+          </td>
+          <td style="padding: 16px 16px 16px 14px; vertical-align: middle">
+            <div
+              style="
+                font-family:
+                  Inter,
+                  -apple-system,
+                  Segoe UI,
+                  Arial,
+                  sans-serif;
+                font-weight: 600;
+                font-size: 15px;
+                color: #0b1220;
+                line-height: 1.35;
+              "
+            >
+              {{envelope_title}}
+            </div>
+            <div
+              style="
+                font-family:
+                  JetBrains Mono,
+                  ui-monospace,
+                  monospace;
+                font-size: 12px;
+                color: #64748b;
+                margin-top: 3px;
+              "
+            >
+              Ref {{short_code}}
+            </div>
+          </td>
+        </tr>
+      </table>
 
       <div style="display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap">
         <a
