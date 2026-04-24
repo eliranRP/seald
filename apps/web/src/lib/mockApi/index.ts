@@ -1,22 +1,10 @@
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import { SEED_CONTACTS } from './data/contacts';
 import { SEED_DOCUMENTS } from './data/documents';
-import { getEmailPreviewSeed } from './data/emailPreview';
 import { SEED_USER } from './data/user';
-import type { AppDocument, AppUser, EmailPreviewContent, EmailPreviewVariant } from './types';
+import type { AppDocument, AppUser } from './types';
 
-export type {
-  AppDocument,
-  AppUser,
-  DocumentSigner,
-  DocumentStatus,
-  EmailPreviewCompletedContent,
-  EmailPreviewContent,
-  EmailPreviewDocument,
-  EmailPreviewRequestContent,
-  EmailPreviewSigner,
-  EmailPreviewVariant,
-} from './types';
+export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from './types';
 
 export { SIGNER_COLOR_PALETTE } from './data/palette';
 export type { SignerColor } from './data/palette';
@@ -44,8 +32,4 @@ export function fetchContacts(): Promise<ReadonlyArray<AddSignerContact>> {
 
 export function fetchDocuments(): Promise<ReadonlyArray<AppDocument>> {
   return delay(SEED_DOCUMENTS);
-}
-
-export function fetchEmailPreview(variant: EmailPreviewVariant): Promise<EmailPreviewContent> {
-  return delay(getEmailPreviewSeed(variant));
 }

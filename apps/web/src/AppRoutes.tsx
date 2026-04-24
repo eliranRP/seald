@@ -9,7 +9,6 @@ import { RootLanding } from './layout/RootLanding';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
-import { EmailPreviewPage } from './pages/EmailPreviewPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
@@ -98,8 +97,6 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
           <Route path="/signers" element={<ContactsPage />} />
-          <Route path="/email/request" element={<EmailPreviewPage variant="request" />} />
-          <Route path="/email/completed" element={<EmailPreviewPage variant="completed" />} />
         </Route>
       </Route>
 

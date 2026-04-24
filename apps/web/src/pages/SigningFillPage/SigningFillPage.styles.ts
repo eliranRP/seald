@@ -81,14 +81,47 @@ export const DeclineBtn = styled.button`
   cursor: pointer;
 `;
 
-export const PagesStack = styled.div`
+/**
+ * Center column: document canvas on the left, pages rail on the right.
+ * `overflow: auto` on the scroll container so rail stays pinned while pages scroll.
+ */
+export const Center = styled.div`
   flex: 1;
+  display: flex;
+  min-height: 0;
+`;
+
+export const CenterScroll = styled.div`
+  flex: 1;
+  min-width: 0;
   overflow: auto;
+  position: relative;
+  display: flex;
+  justify-content: center;
   padding: 24px 0 80px;
+`;
+
+export const PagesStack = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 20px;
+  /* Zoom is applied via an inline transform from SigningFillPage; this
+     sets the origin so pages grow downward from the top rather than
+     from the center (keeps the top-of-doc anchored while scrolling). */
+  transform-origin: top center;
+  will-change: transform;
+`;
+
+export const RailSlot = styled.aside`
+  flex: 0 0 auto;
+  border-left: 1px solid ${({ theme }) => theme.color.border[1]};
+  background: ${({ theme }) => theme.color.paper};
+  padding: 16px 10px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 `;
 
 export const ErrorBanner = styled.div`

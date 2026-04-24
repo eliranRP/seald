@@ -1,4 +1,4 @@
-import { CheckCircle2, Eye, LayoutList } from 'lucide-react';
+import { CheckCircle2, LayoutList } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '../../components/Avatar';
 import { Button } from '../../components/Button';
@@ -137,9 +137,6 @@ export function SentConfirmationPage() {
         </div>
 
         <Actions>
-          <Button variant="secondary" iconLeft={Eye} onClick={() => navigate('/email/request')}>
-            Preview email
-          </Button>
           <Button variant="primary" iconLeft={LayoutList} onClick={() => navigate('/documents')}>
             Back to documents
           </Button>
