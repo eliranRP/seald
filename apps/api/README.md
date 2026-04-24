@@ -67,9 +67,56 @@ Forward-only. Mistakes are fixed by authoring a new numbered migration.
 
 ### Tables
 
-| Table      | Owner scoping                                       | Notes                                                                                                                           |
-| ---------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `contacts` | `owner_id → auth.users.id` (cascade on user delete) | RLS enabled, no policies. Backend is the sole gate (connects as the admin role which bypasses RLS). Unique `(owner_id, email)`. |
+| Table                 | Owner scoping                                       | Notes                                                                                                                                                                   |
+| --------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `contacts`            | `owner_id → auth.users.id` (cascade on user delete) | RLS enabled, no policies. Backend is the sole gate (connects as the admin role which bypasses RLS). Unique `(owner_id, email)`.                                         |
+| `envelopes`           | `owner_id → auth.users.id` (cascade on user delete) | Signing request root. State machine: draft → awaiting_others → sealing → completed, plus declined / expired / canceled.                                                 |
+| `envelope_signers`    | via parent envelope                                 | Snapshot of contact name/email/color at send time. Holds per-signer access_token_hash (SHA-256 of URL token), signature image path, and IP/UA captured at sign/decline. |
+| `envelope_fields`     | via parent envelope                                 | Placements with normalized `[0,1]` coordinates top-left origin; worker flips to PDF native bottom-left at seal time.                                                    |
+| `envelope_events`     | via parent envelope                                 | Append-only audit stream (created/sent/viewed/tc_accepted/signed/declined/sealed/…). Renders into audit.pdf.                                                            |
+| `envelope_jobs`       | 1:1 with envelope                                   | Postgres-backed queue for worker (FOR UPDATE SKIP LOCKED). Kind = seal or audit_only. Retries with exponential backoff.                                                 |
+| `outbound_emails`     | via envelope + signer                               | Email outbox. Unique (envelope_id, signer_id, kind, source_event_id) for at-most-once send.                                                                             |
+| `idempotency_records` | `(user_id, idempotency_key)`                        | 24h TTL. Stores prior response for replay on repeated mutating calls.                                                                                                   |
+| `email_webhooks`      | none                                                | Stub for Resend bounce/delivery events — processor is post-MVP.                                                                                                         |
+
+## Storage
+
+Signing artifacts live in a **private** Supabase Storage bucket named `envelopes`:
+
+```
+envelopes/
+  {envelope_id}/
+    original.pdf                    ← uploaded by sender
+    signatures/{signer_id}.png      ← canonical signature image (600×200 PNG)
+    sealed.pdf                      ← output from worker after all signers sign
+    audit.pdf                       ← audit trail PDF (always produced)
+```
+
+All reads happen via short-lived signed URLs issued by the backend — no public paths.
+
+### Bucket setup (idempotent)
+
+The bucket is provisioned by a bootstrap script. Run this once per environment (dev, staging, prod) before the first upload:
+
+```bash
+pnpm --filter api storage:init
+```
+
+Required env:
+
+| Var                         | Example                                     | Notes                                               |
+| --------------------------- | ------------------------------------------- | --------------------------------------------------- |
+| `SUPABASE_URL`              | `https://<project-ref>.supabase.co`         | Same URL used for auth.                             |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJ…` (service_role JWT, not the anon key) | Treat as secret — `.env` only, never in git.        |
+| `STORAGE_BUCKET`            | `envelopes`                                 | Override only if you need per-env bucket isolation. |
+
+The script is safe to re-run: if the bucket already exists it prints its current config and exits 0. If it doesn't exist, it creates with these settings:
+
+- `public: false` — downloads only via signed URL
+- `file_size_limit: 50 MB` — headroom over the 25 MB PDF cap to fit sealed + audit PDFs
+- `allowed_mime_types: null` — per-endpoint validation (magic bytes) enforces PDF for originals and PNG for signatures
+
+Configuration is encoded in `apps/api/scripts/ensure-storage-bucket.mjs` — modifying bucket policy means editing that script and re-running, giving a reviewable diff.
 
 ## Contacts API
 
