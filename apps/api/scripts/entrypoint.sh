@@ -12,4 +12,4 @@ else
   echo "entrypoint: SKIP_MIGRATIONS=1, skipping migrate.sh"
 fi
 
-exec node /app/apps/api/dist/main.js
+exec node /app/apps/api/dist/src/main.js
