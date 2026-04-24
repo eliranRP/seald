@@ -207,7 +207,12 @@ export class SealingService {
       }
     }
 
-    const out = await pdf.save();
+    // useObjectStreams:false → writes a classic `xref` table instead of
+    // compressed object streams. @signpdf/placeholder-plain can only parse
+    // the classic form; if we leave the default (true), it crashes with
+    // "Expected xref at NaN". PDF readers handle both fine, so the only
+    // cost is a slightly larger file on disk.
+    const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
 

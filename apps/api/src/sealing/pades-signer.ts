@@ -1,16 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { readFileSync } from 'node:fs';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
+import { P12Signer } from '@signpdf/signer-p12';
+import { SignPdf } from '@signpdf/signpdf';
+import { APP_ENV } from '../config/config.module';
+import type { AppEnv } from '../config/env.schema';
 
 /**
  * Port for applying a PAdES (PDF Advanced Electronic Signatures) signature
- * to a burned-in PDF. In the production deploy this will be implemented by
- * a `@signpdf/signpdf`-backed adapter loading a P12 keypair from an env var,
- * optionally with a TSA (RFC 3161) timestamp round-trip.
+ * to a burned-in PDF. Two implementations:
  *
- * For the MVP the default implementation is a passthrough — the sealed
- * PDF has the signature burn-in and a computable sha256, but no embedded
- * CMS signature dictionary. This is enough for the verify endpoint to
- * compare artifact hashes; proper cryptographic chain-of-custody is a
- * tracked follow-up.
+ *   P12PadesSigner — the real deal. Reads a PKCS#12 keypair from disk,
+ *     injects a signature placeholder into the PDF, and signs with CMS
+ *     (detached PKCS#7). The result has a /Sig dictionary that Adobe
+ *     Reader, preview tools, and PDF verifiers will recognise.
+ *
+ *   NoopPadesSigner — passthrough. Used when PDF_SIGNING_LOCAL_P12_PATH
+ *     is absent (e.g. test environments, pre-provisioning). The sealed
+ *     PDF still has the burn-in + a sha256; just no crypto chain.
+ *
+ * Selection happens in SealingModule via the PADES_SIGNER factory
+ * provider — at runtime it picks based on env presence.
  */
 @Injectable()
 export abstract class PadesSigner {
@@ -22,5 +32,59 @@ export class NoopPadesSigner extends PadesSigner {
   async sign(pdf: Buffer): Promise<Buffer> {
     // Intentional passthrough. See class comment on PadesSigner for why.
     return pdf;
+  }
+}
+
+/**
+ * Reads a P12 keypair at construction time (fail fast on bad config) and
+ * caches the buffer + password. Each `sign()` call adds a signature
+ * placeholder via @signpdf/placeholder-plain and hands the PDF to
+ * SignPdf + P12Signer for CMS detached signing.
+ *
+ * Notes on the placeholder step:
+ *   - The PDF must NOT already contain a signed /AcroForm; pdf-lib's
+ *     output is a plain PDF so this holds.
+ *   - signatureLength reserves bytes in /Contents for the eventual
+ *     PKCS#7 blob. 16384 is generous enough for a sha256 signature with
+ *     a small chain + (eventually) a timestamp token.
+ */
+@Injectable()
+export class P12PadesSigner extends PadesSigner {
+  private readonly logger = new Logger(P12PadesSigner.name);
+  private readonly p12Bytes: Buffer;
+  private readonly passphrase: string;
+
+  constructor(@Inject(APP_ENV) env: AppEnv) {
+    super();
+    const path = env.PDF_SIGNING_LOCAL_P12_PATH;
+    const pass = env.PDF_SIGNING_LOCAL_P12_PASS;
+    if (!path || !pass) {
+      throw new Error(
+        'P12PadesSigner requires PDF_SIGNING_LOCAL_P12_PATH + PDF_SIGNING_LOCAL_P12_PASS',
+      );
+    }
+    try {
+      this.p12Bytes = readFileSync(path);
+    } catch (err) {
+      throw new Error(
+        `P12PadesSigner: cannot read P12 at ${path}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    this.passphrase = pass;
+    this.logger.log(`P12 keypair loaded from ${path} (${this.p12Bytes.length} bytes)`);
+  }
+
+  async sign(pdf: Buffer): Promise<Buffer> {
+    const withPlaceholder = plainAddPlaceholder({
+      pdfBuffer: pdf,
+      reason: 'Signed and sealed by Seald',
+      contactInfo: 'seald',
+      name: 'Seald',
+      location: 'Seald',
+      signatureLength: 16384,
+    });
+    const signer = new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
+    const signed = await new SignPdf().sign(withPlaceholder, signer);
+    return signed;
   }
 }

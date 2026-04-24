@@ -35,3 +35,8 @@ secrets/
 # Open in a browser to preview transactional email without sending real mail.
 .seald-mail/
 apps/*/.seald-mail/
+
+# PAdES signing test outputs — open in Preview/Adobe Reader to confirm the
+# signature banner renders on sealed.pdf.
+test-output/
+apps/*/test-output/
