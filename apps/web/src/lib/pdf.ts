@@ -50,7 +50,11 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
       try {
         const task =
           typeof source === 'string'
-            ? getDocument({ url: source })
+            ? // No credentials: the signing flow's PDF URL is a Supabase
+              // signed URL with auth baked in; sending credentials here
+              // would trip the origin's CORS (Supabase storage doesn't
+              // emit Access-Control-Allow-Credentials).
+              getDocument({ url: source })
             : getDocument({ data: new Uint8Array(await source.arrayBuffer()) });
         loaded = await task.promise;
         if (cancelled) {

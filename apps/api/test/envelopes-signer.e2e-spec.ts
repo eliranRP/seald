@@ -308,16 +308,19 @@ describe('Signing — /sign/start (e2e)', () => {
   });
 
   describe('GET /sign/pdf', () => {
-    it('redirects to a signed URL for the original.pdf', async () => {
+    it('returns a 90-second signed URL for the original.pdf as JSON', async () => {
+      // We return JSON (not a 302) so pdf.js can fetch the signed URL in
+      // a fresh no-credentials request — a browser-followed redirect
+      // with `withCredentials: true` trips Supabase's CORS (it doesn't
+      // emit Access-Control-Allow-Credentials on storage responses).
       const { envId, cookie } = await startSessionAndGetCookie();
-      const res = await request(app.getHttpServer())
-        .get('/sign/pdf')
-        .set('Cookie', cookie)
-        .redirects(0);
-      expect(res.status).toBe(302);
-      const location = res.headers['location'] as string;
-      expect(location).toContain(`${envId}%2Foriginal.pdf`);
-      expect(location).toContain('token=');
+      const res = await request(app.getHttpServer()).get('/sign/pdf').set('Cookie', cookie);
+      expect(res.status).toBe(200);
+      expect(typeof res.body.url).toBe('string');
+      // In-memory StorageService URL-encodes the `/` when building test
+      // signed URLs; Supabase proper uses a literal `/`. Accept either.
+      expect(res.body.url).toMatch(new RegExp(`${envId}(/|%2F)original\\.pdf`));
+      expect(res.body.url).toContain('token=');
     });
   });
 

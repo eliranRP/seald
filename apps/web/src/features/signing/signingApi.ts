@@ -164,6 +164,17 @@ export async function decline(reason?: string, signal?: AbortSignal): Promise<De
   return data;
 }
 
-export function getPdfUrl(): string {
-  return `${signApiClient.defaults.baseURL ?? ''}/sign/pdf`;
+/**
+ * Fetch a fresh 90-second signed URL for the envelope's original PDF.
+ * The caller should pass this straight to pdf.js's `getDocument` WITHOUT
+ * `withCredentials`: the URL already encodes its own auth token, and
+ * Supabase storage doesn't emit `Access-Control-Allow-Credentials`, so
+ * an unnecessary credentials flag would trip browser CORS.
+ */
+export async function getPdfSignedUrl(signal?: AbortSignal): Promise<string> {
+  const { data } = await signApiClient.get<{ readonly url: string }>(
+    '/sign/pdf',
+    configWithSignal(signal),
+  );
+  return data.url;
 }

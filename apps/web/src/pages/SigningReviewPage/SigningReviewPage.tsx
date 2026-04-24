@@ -122,14 +122,41 @@ function defaultLabel(kind: ReviewFieldKind): string {
   return m[kind];
 }
 
+/** True when the string looks like a URL that should render as an image
+ *  rather than be displayed as text. Covers the three shapes we use:
+ *  - `blob:…` — optimistic preview for a just-uploaded signature
+ *  - `data:…` — base64-encoded signature preview
+ *  - `http(s)://…` — server-provided signed URL */
+function looksLikeUrl(s: string): boolean {
+  return s.startsWith('blob:') || s.startsWith('data:') || /^https?:\/\//.test(s);
+}
+
 function toReviewItem(f: SignMeField): ReviewItem {
   const kind = toUiKind(f);
   const label = f.link_id && f.link_id !== 'name' ? f.link_id : defaultLabel(kind);
   let preview: React.ReactNode = '—';
-  if (kind === 'checkbox') preview = f.value_boolean ? '✓ Checked' : '—';
-  else if (kind === 'signature' && f.value_text)
-    preview = <SignatureMark name={f.value_text} size={22} />;
-  else if (typeof f.value_text === 'string') preview = f.value_text;
+  if (kind === 'checkbox') {
+    preview = f.value_boolean ? '✓ Checked' : '—';
+  } else if (kind === 'signature' || kind === 'initials') {
+    // value_text for signature/initials fields carries either a blob URL
+    // (optimistic preview from uploadSignature.onMutate) or the typed
+    // name for a 'typed' signature format. Distinguish by shape so the
+    // review card shows a real image preview instead of dumping the
+    // blob URL as handwritten text.
+    if (typeof f.value_text === 'string' && looksLikeUrl(f.value_text)) {
+      preview = (
+        <img
+          src={f.value_text}
+          alt="Signature"
+          style={{ height: 32, maxWidth: 180, objectFit: 'contain' }}
+        />
+      );
+    } else if (f.value_text) {
+      preview = <SignatureMark name={f.value_text} size={22} />;
+    }
+  } else if (typeof f.value_text === 'string') {
+    preview = f.value_text;
+  }
   return { id: f.id, kind, label, page: f.page, valuePreview: preview };
 }
 

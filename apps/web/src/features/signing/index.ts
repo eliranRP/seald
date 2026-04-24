@@ -19,7 +19,7 @@ export {
   uploadSignature,
   submit,
   decline,
-  getPdfUrl,
+  getPdfSignedUrl,
 } from './signingApi';
 export type {
   FieldKind,

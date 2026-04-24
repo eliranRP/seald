@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, Check } from 'lucide-react';
 import { DocumentPageCanvas } from '../../components/DocumentPageCanvas';
@@ -11,7 +11,7 @@ import { SignatureCapture } from '../../components/SignatureCapture';
 import type { SignatureCaptureResult } from '../../components/SignatureCapture';
 import { SignerField } from '../../components/SignerField';
 import type { SignerFieldKind } from '../../components/SignerField';
-import { SigningSessionProvider, getPdfUrl, useSigningSession } from '../../features/signing';
+import { SigningSessionProvider, getPdfSignedUrl, useSigningSession } from '../../features/signing';
 import type { SignMeField } from '../../features/signing';
 import {
   ActionBar,
@@ -119,7 +119,30 @@ function Content() {
   const [busy, setBusy] = useState(false);
 
   const totalPages = envelope?.original_pages ?? 1;
-  const pdfSrc = getPdfUrl();
+  // Signed URL expires after 90s — refetch when the envelope identity
+  // changes (practically: once per signing session). pdf.js then loads
+  // the URL with no credentials (auth is in the URL itself), sidestepping
+  // the Supabase/browser cross-origin-credentials CORS failure we'd hit
+  // by redirect-following /sign/pdf.
+  const [pdfSrc, setPdfSrc] = useState<string | null>(null);
+  const envelopeIdForPdf = envelope?.id;
+  useEffect(() => {
+    if (!envelopeIdForPdf) {
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = await getPdfSignedUrl();
+        if (!cancelled) setPdfSrc(url);
+      } catch {
+        /* DocumentPageCanvas renders a graceful placeholder on null. */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [envelopeIdForPdf]);
 
   const fieldsByPage = useMemo(() => {
     const byPage = new Map<number, SignMeField[]>();
@@ -291,7 +314,7 @@ function Content() {
               pageNum={p}
               totalPages={totalPages}
               title={envelope.title}
-              pdfSrc={pdfSrc}
+              pdfSrc={pdfSrc ?? undefined}
               width={CANVAS_WIDTH}
             >
               {pageFields.map((f) => {

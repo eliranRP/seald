@@ -86,12 +86,16 @@ export class SigningController {
 
   @Get('pdf')
   @UseGuards(SignerSessionGuard)
-  async pdf(
-    @SignerSession() session: SignerSessionContext,
-    @Res({ passthrough: true }) res: Response,
-  ): Promise<void> {
+  async pdf(@SignerSession() session: SignerSessionContext): Promise<{ readonly url: string }> {
+    // Return the signed URL as JSON rather than 302-redirecting. pdf.js
+    // fetches the document with `withCredentials: true` so it can carry
+    // the signer-session cookie to /sign/pdf; but Supabase's storage
+    // signed-URL endpoint does NOT return `Access-Control-Allow-
+    // Credentials: true`, so a browser-followed redirect aborts as CORS.
+    // Handing the URL to the client lets it fetch the PDF in a fresh
+    // no-credentials request — the signed URL already encodes auth.
     const url = await this.svc.getOriginalPdfSignedUrl(session.envelope);
-    res.redirect(302, url);
+    return { url };
   }
 
   @Post('accept-terms')

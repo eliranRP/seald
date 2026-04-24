@@ -3,6 +3,7 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailDispatcherService } from './email-dispatcher.service';
 import { EmailSender } from './email-sender';
+import { EmailWorkerService } from './email-worker.service';
 import { LoggingEmailSender } from './logging-email-sender';
 import { OutboundEmailsRepository } from './outbound-emails.repository';
 import { OutboundEmailsPgRepository } from './outbound-emails.repository.pg';
@@ -23,6 +24,7 @@ import { TemplateService } from './template.service';
   providers: [
     TemplateService,
     EmailDispatcherService,
+    EmailWorkerService,
     { provide: OutboundEmailsRepository, useClass: OutboundEmailsPgRepository },
     {
       provide: EmailSender,
