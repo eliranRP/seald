@@ -42,5 +42,24 @@ export default defineConfig({
     // `toThrow`; the rethrow is just noise that otherwise causes vitest
     // to exit 1 even when every test passed.
     dangerouslyIgnoreUnhandledErrors: true,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html', 'lcov'],
+      include: ['src/**/*.{ts,tsx}'],
+      // Exclude generated/style/test scaffolding so coverage signals what
+      // production code is actually exercised by the suite.
+      exclude: [
+        '**/node_modules/**',
+        'dist/**',
+        '.storybook/**',
+        'src/**/*.stories.{ts,tsx}',
+        'src/**/*.styles.{ts,tsx}',
+        'src/**/*.types.ts',
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+        'src/**/__index-smoke.test.ts',
+        '**/*.d.ts',
+      ],
+    },
   },
 });
