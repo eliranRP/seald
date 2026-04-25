@@ -210,6 +210,7 @@ export class SigningController {
       throw new BadRequestException('image_unreadable');
     }
     return this.svc.setSignature(session.envelope, session.signer, file.buffer, {
+      kind: meta.kind ?? 'signature',
       format: meta.format,
       font: meta.font ?? null,
       stroke_count: meta.stroke_count ?? null,

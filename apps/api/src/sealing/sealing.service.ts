@@ -11,6 +11,7 @@ import {
 } from '../email/template-fragments';
 import type { Envelope, EnvelopeField } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
 import { buildAuditPdf } from './audit-pdf';
 import { PadesSigner } from './pades-signer';
@@ -209,14 +210,35 @@ export class SealingService {
       const signerFields = fieldsBySigner.get(signer.id) ?? [];
       if (signerFields.length === 0) continue;
 
-      // Fetch + embed the signer's signature image once if they have any
-      // signature/initials fields.
-      const hasSigField = signerFields.some((f) => f.kind === 'signature' || f.kind === 'initials');
+      // Fetch + embed the signer's signature and initials images
+      // independently. Either may be missing on legacy envelopes (initials
+      // were uploaded into the signature slot before the storage split, so
+      // pre-migration submissions only have a single signature image). We
+      // tolerate missing artifacts and fall back, rather than aborting the
+      // seal — a half-rendered page is strictly better than no PDF at all.
+      const hasSignatureField = signerFields.some((f) => f.kind === 'signature');
+      const hasInitialsField = signerFields.some((f) => f.kind === 'initials');
+
       let sigImg: Awaited<ReturnType<typeof pdf.embedPng>> | null = null;
-      if (hasSigField) {
-        const sigPath = `${envelope.id}/signatures/${signer.id}.png`;
-        const sigBytes = await this.storage.download(sigPath);
-        sigImg = await pdf.embedPng(sigBytes);
+      if (hasSignatureField || hasInitialsField) {
+        sigImg = await tryEmbedPng(
+          pdf,
+          this.storage,
+          signatureStoragePath(envelope.id, signer.id, 'signature'),
+        );
+      }
+
+      let initialsImg: Awaited<ReturnType<typeof pdf.embedPng>> | null = null;
+      if (hasInitialsField) {
+        initialsImg = await tryEmbedPng(
+          pdf,
+          this.storage,
+          signatureStoragePath(envelope.id, signer.id, 'initials'),
+        );
+        // Legacy fallback: pre-0005 envelopes only ever stored one image.
+        // Render it for both kinds rather than leaving the initials slot
+        // blank.
+        if (!initialsImg) initialsImg = sigImg;
       }
 
       for (const f of signerFields) {
@@ -231,10 +253,12 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
-        if (f.kind === 'signature' || f.kind === 'initials') {
+        if (f.kind === 'signature') {
           if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
+        } else if (f.kind === 'initials') {
+          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Simple box + checkmark if true.
+          // Outline first.
           page.drawRectangle({
             x,
             y,
@@ -244,11 +268,31 @@ export class SealingService {
             borderWidth: 0.5,
           });
           if (f.value_boolean === true) {
-            page.drawText('X', {
-              x: x + w * 0.2,
-              y: y + h * 0.2,
-              size: Math.min(w, h) * 0.7,
-              font: helvetica,
+            // Real vector checkmark (✓). pdf-lib's StandardFonts.Helvetica
+            // is a WinAnsi font — U+2713 is not encoded — so prior code
+            // that called drawText('X', ...) rendered the literal letter
+            // X instead of a tick. Draw two line segments forming the
+            // canonical down-stroke + up-stroke shape, scaled to fit
+            // inside the box with a small inset.
+            const inset = Math.min(w, h) * 0.18;
+            const innerW = w - inset * 2;
+            const innerH = h - inset * 2;
+            const left = x + inset;
+            const bottom = y + inset;
+            const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
+            // Down-stroke: upper-left corner (left, bottom + 0.6 * h) →
+            // lower-middle pivot (left + 0.4 * w, bottom + 0.15 * h).
+            page.drawLine({
+              start: { x: left, y: bottom + innerH * 0.6 },
+              end: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
+              thickness: stroke,
+              color: rgb(0, 0, 0),
+            });
+            // Up-stroke: pivot → upper-right corner.
+            page.drawLine({
+              start: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
+              end: { x: left + innerW, y: bottom + innerH * 0.95 },
+              thickness: stroke,
               color: rgb(0, 0, 0),
             });
           }
@@ -293,6 +337,25 @@ function defaultHeight(kind: EnvelopeField['kind']): number {
 
 function sha256Hex(buf: Buffer): string {
   return createHash('sha256').update(buf).digest('hex');
+}
+
+/**
+ * Embed a PNG from object storage if it exists; resolve to null on any
+ * not-found-shaped error. Used by the burn-in to make missing initials
+ * artifacts non-fatal — legacy envelopes only have a single image and we
+ * still need to seal them.
+ */
+async function tryEmbedPng(
+  pdf: PDFDocument,
+  storage: StorageService,
+  path: string,
+): Promise<Awaited<ReturnType<typeof pdf.embedPng>> | null> {
+  try {
+    const bytes = await storage.download(path);
+    return await pdf.embedPng(bytes);
+  } catch {
+    return null;
+  }
 }
 
 /** "2026-04-22T14:18:07.000Z" → "Apr 22, 2026 · 02:18 PM UTC". Matches the

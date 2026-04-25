@@ -22,9 +22,11 @@ import type {
   EnvelopeField,
   EnvelopeSigner,
   SetSignerSignatureInput,
+  SignatureKind,
 } from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
+import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
 import { SigningTokenService } from './signing-token.service';
 
@@ -484,18 +486,27 @@ export class SigningService {
 
   /**
    * Accept a signature image (PNG or JPEG), normalize via sharp to a
-   * canonical 600×200 PNG, upload to `{envelope_id}/signatures/{signer_id}.png`,
-   * and stamp signer.signature_format + signature_image_path.
+   * canonical 600×200 PNG, upload to a deterministic path that depends on
+   * the capture *kind*, and stamp the matching column set on the signer
+   * row (signature_* for full signatures, initials_* for initials).
    *
-   * All three capture modes (drawn/typed/upload) converge on the same
-   * canonical artifact — the worker's burn-in pass (Phase 3e) then draws
-   * this single PNG at every signature field assigned to this signer.
+   * Storage paths:
+   *   - kind='signature' → `{envelope_id}/signatures/{signer_id}.png`
+   *   - kind='initials'  → `{envelope_id}/signatures/{signer_id}-initials.png`
+   *
+   * Before this split the two captures shared a single path/column pair,
+   * which meant the second upload silently overwrote the first and the
+   * worker burn-in rendered the same image at every signature/initials
+   * field. Old envelopes that already submitted only carry the signature
+   * artifact — the burn-in falls back to the signature image when the
+   * initials artifact is absent so legacy state still seals correctly.
    */
   async setSignature(
     envelope: Envelope,
     signer: EnvelopeSigner,
     image: Buffer,
     meta: {
+      kind?: SignatureKind;
       format: SignatureFormat;
       font?: string | null;
       stroke_count?: number | null;
@@ -529,10 +540,12 @@ export class SigningService {
       throw new BadRequestException('image_unreadable');
     }
 
-    const path = `${envelope.id}/signatures/${signer.id}.png`;
+    const kind: SignatureKind = meta.kind ?? 'signature';
+    const path = signatureStoragePath(envelope.id, signer.id, kind);
     await this.storage.upload(path, canonical, 'image/png');
 
     const input: SetSignerSignatureInput = {
+      kind,
       signature_format: meta.format,
       signature_image_path: path,
       signature_font: meta.font ?? null,
@@ -542,6 +555,11 @@ export class SigningService {
     return this.repo.setSignerSignature(signer.id, input);
   }
 }
+
+// Re-exported here so existing callers that imported the helper from this
+// module before the helper moved to ./signature-paths keep working. New
+// imports should target ./signature-paths directly.
+export { signatureStoragePath } from './signature-paths';
 
 function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
   if (envelope.status !== 'awaiting_others') {

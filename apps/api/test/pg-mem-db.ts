@@ -119,6 +119,10 @@ export function createPgMemDb(): PgMemHandle {
   const migration0004Path = resolve(__dirname, '../db/migrations/0004_envelope_sender.sql');
   mem.public.none(readFileSync(migration0004Path, 'utf8'));
 
+  // 0005 adds initials_image_path + initials_format columns — plain alter.
+  const migration0005Path = resolve(__dirname, '../db/migrations/0005_signer_initials.sql');
+  mem.public.none(readFileSync(migration0005Path, 'utf8'));
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });

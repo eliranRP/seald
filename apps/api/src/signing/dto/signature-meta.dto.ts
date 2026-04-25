@@ -11,9 +11,22 @@ import { SIGNATURE_FORMATS, type SignatureFormat } from 'shared';
  * explicit `@Type(() => Number)` to survive the class-transformer pass before
  * @IsInt runs.
  */
+const SIGNATURE_KINDS = ['signature', 'initials'] as const;
+type SignatureKind = (typeof SIGNATURE_KINDS)[number];
+
 export class SignatureMetaDto {
   @IsIn(SIGNATURE_FORMATS as unknown as string[])
   readonly format!: SignatureFormat;
+
+  /**
+   * Discriminates whether the upload is the signer's full signature or
+   * just their initials. Optional for backward compatibility with older
+   * web clients that only ever uploaded one image — server treats the
+   * absent field as 'signature' to preserve prior behaviour.
+   */
+  @IsOptional()
+  @IsIn(SIGNATURE_KINDS as unknown as string[])
+  readonly kind?: SignatureKind;
 
   @IsOptional()
   @IsString()

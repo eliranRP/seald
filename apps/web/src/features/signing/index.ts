@@ -31,6 +31,7 @@ export type {
   SignMeSigner,
   SignatureFormat,
   SignatureInput,
+  SignatureKind,
   SignerRole,
   SignerUiStatus,
   StartSessionInput,

@@ -353,6 +353,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     Partial<SetSignerSignatureInput> & {
       signing_ip?: string | null;
       signing_user_agent?: string | null;
+      // Mirrors the new initials_* columns added in migration 0005 — only
+      // populated when setSignerSignature is called with kind='initials'.
+      initials_format?: SetSignerSignatureInput['signature_format'] | null;
+      initials_image_path?: string | null;
     }
   >();
   async fillField(
@@ -387,11 +391,23 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       const idx = env.signers.findIndex((s) => s.id === signer_id);
       if (idx < 0) continue;
       const signer = env.signers[idx]!;
-      // Fixture tracks the internal signature_* fields in a side-map.
-      this.signerMeta.set(signer_id, {
-        ...(this.signerMeta.get(signer_id) ?? {}),
-        ...input,
-      });
+      // Mirror the PG branch: kind='initials' writes the initials_* mirror
+      // columns; everything else writes the signature_* columns. We always
+      // remember `signature_format` somewhere so the submitSigner gate
+      // (which requires signature_format !== null) still passes for
+      // initials-only flows used by the burn-in unit tests.
+      const prev = this.signerMeta.get(signer_id) ?? {};
+      const isInitials = input.kind === 'initials';
+      this.signerMeta.set(
+        signer_id,
+        isInitials
+          ? {
+              ...prev,
+              initials_format: input.signature_format,
+              initials_image_path: input.signature_image_path,
+            }
+          : { ...prev, ...input },
+      );
       const next = { ...env, signers: [...env.signers] };
       next.signers[idx] = { ...signer };
       this.envelopes.set(env.id, next);
