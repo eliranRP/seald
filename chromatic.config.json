@@ -1,0 +1,9 @@
+{
+  "$schema": "https://www.chromatic.com/config-file.schema.json",
+  "projectId": "Project:eliranRP/seald",
+  "buildScriptName": "build-storybook",
+  "storybookBaseDir": "apps/web",
+  "exitZeroOnChanges": true,
+  "onlyChanged": true,
+  "skip": "main"
+}

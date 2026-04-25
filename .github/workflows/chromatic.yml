@@ -1,0 +1,67 @@
+name: Chromatic
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
+  workflow_dispatch:
+
+concurrency:
+  group: chromatic-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  chromatic:
+    name: Chromatic visual regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Chromatic needs full git history for TurboSnap (onlyChanged).
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build shared
+        run: pnpm --filter shared build
+      - name: Run Chromatic
+        uses: chromaui/action@v11
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          workingDir: apps/web
+          buildScriptName: build-storybook
+          exitZeroOnChanges: true
+          autoAcceptChanges: main
+          onlyChanged: true

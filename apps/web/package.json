@@ -14,7 +14,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "chromatic": "chromatic --exit-zero-on-changes --build-script-name=build-storybook",
+    "chromatic:ci": "chromatic --exit-zero-on-changes --build-script-name=build-storybook --auto-accept-changes=main"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
@@ -46,6 +48,7 @@
     "@typescript-eslint/parser": "7.18.0",
     "@vitejs/plugin-react-swc": "3.7.0",
     "@vitest/coverage-v8": "2.1.2",
+    "chromatic": "^16.6.0",
     "eslint": "8.57.1",
     "eslint-config-airbnb": "19.0.4",
     "eslint-config-airbnb-typescript": "18.0.0",
