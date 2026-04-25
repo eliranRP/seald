@@ -125,14 +125,14 @@ jobs:
           cat "$DEST/_redirects"
 
       - name: Ensure Cloudflare Pages project exists
-        # Idempotent. Wrangler `pages deploy` won't auto-create the project
-        # with our scoped API token, so we GET the project — if missing,
-        # POST to create it. Production branch is `main`.
-        #
-        # Note: CF's Pages API returns HTTP 400 with error code 7003
-        # ("Could not route to /accounts/.../pages/projects/<name>") for a
-        # non-existent project, not 404. We treat both as "create it",
-        # and only fail on truly unexpected statuses.
+        # The CLOUDFLARE_API_TOKEN secret can deploy to existing Pages
+        # projects but lacks `Account → Cloudflare Pages → Edit` scope
+        # to enumerate or create them via the projects API. The user
+        # created the `seald-landing` project manually in the dashboard
+        # on 2026-04-25, so this step is now a soft-check that exits 0
+        # if the API is gated and lets `wrangler pages deploy` (which
+        # uses a different deploy-only endpoint) handle the actual push.
+        if: false  # disabled: project exists, see commit body
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -213,6 +213,13 @@ jobs:
         # domain into `initializing` until CF sees the matching CNAME
         # that the terraform workflow provisioned (godaddy.tf →
         # seald.nromomentum.com CNAME → seald-landing.pages.dev).
+        #
+        # Soft-fails because the current CLOUDFLARE_API_TOKEN scope
+        # can deploy but cannot list/attach domains. After the user
+        # rotates the token to include `Pages: Edit`, this step will
+        # succeed. Until then, attach the domain once via the CF
+        # dashboard and re-runs of this workflow are no-ops.
+        continue-on-error: true
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
