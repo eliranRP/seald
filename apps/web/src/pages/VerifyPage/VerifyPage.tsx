@@ -330,7 +330,7 @@ function SignerStatusIcon({ status }: { readonly status: VerifySigner['status'] 
       </svg>
     );
   }
-  if (status === 'signed') {
+  if (status === 'completed') {
     return (
       <svg
         viewBox="0 0 24 24"
@@ -386,7 +386,7 @@ interface SignersFactProps {
 }
 
 function SignersFact({ signers }: SignersFactProps) {
-  const signed = signers.filter((s) => s.status === 'signed').length;
+  const signed = signers.filter((s) => s.status === 'completed').length;
   const declined = signers.some((s) => s.status === 'declined');
   return (
     <Fact>
@@ -425,7 +425,7 @@ function VerifyContent({ data }: VerifyContentProps) {
   const view = useMemo(() => deriveView(data.envelope), [data.envelope]);
   const sealed = data.envelope.status === 'completed';
   const signersAll = data.signers.length;
-  const signersDone = data.signers.filter((s) => s.status === 'signed').length;
+  const signersDone = data.signers.filter((s) => s.status === 'completed').length;
   const reqId = `REQ ${data.envelope.id.toUpperCase()}`;
 
   return (

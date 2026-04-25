@@ -8,15 +8,20 @@
  * IDs, raw IPs, or other internal fields here.
  */
 
+// Canonical from packages/shared/src/envelope-contract.ts. Drift here
+// would silently break filters (e.g. "X of Y signed" rendered as 0/Y
+// when the API returns 'completed' but FE filters for 'signed').
 export type VerifyEnvelopeStatus =
   | 'draft'
-  | 'sent'
+  | 'awaiting_others'
+  | 'sealing'
   | 'completed'
   | 'declined'
   | 'expired'
   | 'canceled';
 
-export type VerifySignerStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'declined';
+// Canonical SIGNER_UI_STATUSES from envelope-contract.ts.
+export type VerifySignerStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
 
 export type VerifyEventActorKind = 'sender' | 'signer' | 'system';
 

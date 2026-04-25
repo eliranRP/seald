@@ -65,7 +65,7 @@ const SIGNED_PAYLOAD: VerifyResponse = {
       name: 'Ops Ops',
       email: 'ops@nromomentum.com',
       role: 'signer',
-      status: 'signed',
+      status: 'completed',
       signed_at: '2026-04-25T21:20:55Z',
       declined_at: null,
     },
@@ -74,7 +74,7 @@ const SIGNED_PAYLOAD: VerifyResponse = {
       name: 'Maya Johansson',
       email: 'maya@harriswesthold.com',
       role: 'signer',
-      status: 'signed',
+      status: 'completed',
       signed_at: '2026-04-25T21:21:05Z',
       declined_at: null,
     },
@@ -236,6 +236,20 @@ describe('VerifyPage', () => {
     expect(screen.getByText('Maya Johansson')).toBeInTheDocument();
     expect(screen.getByText('ops@nromomentum.com')).toBeInTheDocument();
     expect(screen.getByText('maya@harriswesthold.com')).toBeInTheDocument();
+  });
+
+  // Regression for the "0 of 1 signed" prod bug. The API emits the
+  // canonical signer status `'completed'` (per SIGNER_UI_STATUSES in
+  // shared), but the FE used to filter for the legacy `'signed'`
+  // string — so the count always rendered 0 even when every signer
+  // had finished. Asserting the rendered text catches future drift.
+  it('counts canonical "completed" signers in the X of Y badge', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText('2 of 2 signed')).toBeInTheDocument();
+    });
   });
 
   it('renders both SHA-256 hashes via accessible labels', async () => {
