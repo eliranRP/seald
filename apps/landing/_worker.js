@@ -37,11 +37,14 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (isSpaRoute(url.pathname)) {
-      // Server-side rewrite: fetch /app.html via the assets binding
-      // but keep the original URL in the response so the client's
-      // address bar doesn't change.
+      // Server-side rewrite. Fetch `/app` (NOT `/app.html`) via the
+      // assets binding: CF Pages auto-strips `.html` from served
+      // paths, and that strip happens even inside env.ASSETS.fetch —
+      // requesting `/app.html` returns a 308 to `/app` which would
+      // leak back to the client and change the address bar. Hitting
+      // `/app` directly skips the strip and returns the SPA HTML.
       const rewritten = new URL(request.url);
-      rewritten.pathname = '/app.html';
+      rewritten.pathname = '/app';
       return env.ASSETS.fetch(new Request(rewritten.toString(), request));
     }
     return env.ASSETS.fetch(request);
