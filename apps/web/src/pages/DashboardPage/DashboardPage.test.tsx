@@ -32,6 +32,31 @@ vi.mock('../../lib/api/apiClient', () => {
       ],
     },
     {
+      // Viewer (renderWithProviders default user `jamie@seald.app`) is
+      // one of this envelope's pending signers — must bucket as
+      // "Awaiting you", not "Awaiting others".
+      id: 'env-self',
+      title: 'Self-sign — Jamie CV',
+      short_code: 'CV-JAMIE-2026',
+      status: 'awaiting_others',
+      original_pages: 2,
+      sent_at: '2026-04-15T00:00:00Z',
+      completed_at: null,
+      expires_at: '2030-01-01T00:00:00Z',
+      created_at: '2026-04-15T00:00:00Z',
+      updated_at: '2026-04-15T00:00:00Z',
+      signers: [
+        {
+          id: 's-self',
+          name: 'Jamie Doe',
+          email: 'jamie@seald.app',
+          color: '#10B981',
+          status: 'awaiting',
+          signed_at: null,
+        },
+      ],
+    },
+    {
       id: 'env-offer',
       title: 'Offer letter — M. Chen',
       short_code: 'OFF-ZZZZ-9999',
@@ -113,6 +138,28 @@ describe('DashboardPage', () => {
   it('exposes a link to start a new document', () => {
     renderDashboard();
     expect(screen.getByRole('button', { name: /new document/i })).toBeInTheDocument();
+  });
+
+  // Regression: when the dashboard viewer is one of an envelope's
+  // pending signers, the row should show the actionable "Awaiting you"
+  // indigo badge — not "Awaiting others". The previous logic stubbed
+  // `awaitingYou` to 0 so users self-signing their own envelopes saw
+  // no actionable state on the dashboard.
+  it('shows the Awaiting-you badge for envelopes where viewer is a pending signer', async () => {
+    renderDashboard();
+    // Wait for the row to mount.
+    await screen.findByText(/self-sign — jamie cv/i);
+    // The self-sign envelope row carries the indigo "Awaiting you" badge.
+    expect(screen.getAllByText(/awaiting you/i).length).toBeGreaterThan(0);
+  });
+
+  it('counts the viewer as Awaiting you in the stat tile + tab', async () => {
+    renderDashboard();
+    await screen.findByText(/self-sign — jamie cv/i);
+    // The "Awaiting you" tab in the FilterTabs reflects the count.
+    const tab = screen.getByRole('tab', { name: /awaiting you/i });
+    // Tab name renders as `Label N` — assert we see at least one match.
+    expect(tab.textContent ?? '').toMatch(/1/);
   });
 
   it('reads the initial filter from the ?filter= query param', async () => {

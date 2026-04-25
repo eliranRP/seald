@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { StatCard } from '@/components/StatCard';
 import { useEnvelopesQuery } from '@/features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   ChevronCell,
   DateCell,
@@ -48,17 +49,38 @@ interface FilterDef {
   readonly matches: (d: EnvelopeListItem) => boolean;
 }
 
-const FILTERS: ReadonlyArray<FilterDef> = [
-  { id: 'all', label: 'All', matches: () => true },
-  { id: 'you', label: 'Awaiting you', matches: () => false },
-  {
-    id: 'others',
-    label: 'Awaiting others',
-    matches: (d) => d.status === 'awaiting_others' || d.status === 'sealing',
-  },
-  { id: 'completed', label: 'Completed', matches: (d) => d.status === 'completed' },
-  { id: 'drafts', label: 'Drafts', matches: (d) => d.status === 'draft' },
-];
+// Returns true when the dashboard viewer is one of the envelope's signers
+// AND that signer hasn't completed/declined yet AND the envelope is still
+// open. Lets the dashboard correctly bucket envelopes the viewer needs to
+// sign themselves (was previously stubbed `() => false` because the
+// dashboard pre-dated co-signing — when a sender adds themselves as a
+// signer, those envelopes were mis-bucketed under "Awaiting others").
+function isAwaitingYou(envelope: EnvelopeListItem, viewerEmail: string | null): boolean {
+  if (!viewerEmail) return false;
+  if (envelope.status !== 'awaiting_others' && envelope.status !== 'sealing') return false;
+  const v = viewerEmail.toLowerCase();
+  return envelope.signers.some(
+    (s) => s.email.toLowerCase() === v && s.status !== 'completed' && s.status !== 'declined',
+  );
+}
+
+function buildFilters(viewerEmail: string | null): ReadonlyArray<FilterDef> {
+  return [
+    { id: 'all', label: 'All', matches: () => true },
+    { id: 'you', label: 'Awaiting you', matches: (d) => isAwaitingYou(d, viewerEmail) },
+    {
+      id: 'others',
+      label: 'Awaiting others',
+      // Mutually exclusive with 'you' so a single envelope only lands in
+      // one bucket. Awaiting-you takes precedence (it's actionable).
+      matches: (d) =>
+        (d.status === 'awaiting_others' || d.status === 'sealing') &&
+        !isAwaitingYou(d, viewerEmail),
+    },
+    { id: 'completed', label: 'Completed', matches: (d) => d.status === 'completed' },
+    { id: 'drafts', label: 'Drafts', matches: (d) => d.status === 'draft' },
+  ];
+}
 
 const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
@@ -149,10 +171,11 @@ interface RenderDocumentsBodyArgs {
   readonly rowsForSkeleton: boolean;
   readonly filtered: ReadonlyArray<EnvelopeListItem>;
   readonly navigate: (path: string) => void;
+  readonly viewerEmail: string | null;
 }
 
 function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.Element[] {
-  const { loading, rowsForSkeleton, filtered, navigate } = args;
+  const { loading, rowsForSkeleton, filtered, navigate, viewerEmail } = args;
   if (loading && rowsForSkeleton) {
     return Array.from({ length: 6 }, (_, i) => (
       <TableRow key={`sk-${i}`} as="div" aria-hidden>
@@ -203,7 +226,14 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
         <SignerProgressBar signers={toBarEntries(d)} aria-label={`${d.title} progress`} />
       </ProgressCell>
       <div>
-        <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+        {/* If the dashboard viewer is one of this envelope's pending
+            signers, show the actionable "Awaiting you" indigo badge
+            instead of the generic amber "Awaiting others". */}
+        {isAwaitingYou(d, viewerEmail) ? (
+          <Badge tone="indigo">Awaiting you</Badge>
+        ) : (
+          <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
+        )}
       </div>
       <DateCell>{formatDate(d.updated_at)}</DateCell>
       <ChevronCell aria-hidden>
@@ -229,6 +259,12 @@ export function DashboardPage() {
   const envelopes: ReadonlyArray<EnvelopeListItem> = useMemo(() => q.data?.items ?? [], [q.data]);
   const documentsLoading = q.isPending;
 
+  // Viewer email drives the "Awaiting you" predicate so envelopes the user
+  // is themselves a signer on are bucketed correctly.
+  const { user } = useAuth();
+  const viewerEmail = user?.email ?? null;
+  const filters = useMemo(() => buildFilters(viewerEmail), [viewerEmail]);
+
   const handleSelectTab = useCallback(
     (id: FilterId): void => {
       if (id === 'all') setSearchParams({});
@@ -239,21 +275,24 @@ export function DashboardPage() {
 
   const counts = useMemo(() => {
     const byFilter = new Map<FilterId, number>();
-    FILTERS.forEach((f) => {
+    filters.forEach((f) => {
       byFilter.set(f.id, envelopes.filter(f.matches).length);
     });
     return byFilter;
-  }, [envelopes]);
+  }, [envelopes, filters]);
 
   const filtered = useMemo(() => {
-    const match = FILTERS.find((f) => f.id === tab) ?? FILTERS[0]!;
+    const match = filters.find((f) => f.id === tab) ?? filters[0]!;
     return envelopes.filter(match.matches);
-  }, [envelopes, tab]);
+  }, [envelopes, filters, tab]);
 
   const stats = useMemo(() => {
-    const awaitingYou = 0; // placeholder until co-signing ships
+    const awaitingYou = envelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
+    // Mutually exclusive with awaitingYou so the totals don't double-count.
     const awaitingOthers = envelopes.filter(
-      (d) => d.status === 'awaiting_others' || d.status === 'sealing',
+      (d) =>
+        (d.status === 'awaiting_others' || d.status === 'sealing') &&
+        !isAwaitingYou(d, viewerEmail),
     ).length;
     const completedThisMonth = envelopes.filter((d) => {
       if (d.status !== 'completed') return false;
@@ -271,11 +310,11 @@ export function DashboardPage() {
       },
       { label: 'Avg. turnaround', value: formatTurnaround(envelopes), tone: 'neutral' as const },
     ];
-  }, [envelopes]);
+  }, [envelopes, viewerEmail]);
 
   const tabItems = useMemo(
-    () => FILTERS.map((f) => ({ id: f.id, label: f.label, count: counts.get(f.id) ?? 0 })),
-    [counts],
+    () => filters.map((f) => ({ id: f.id, label: f.label, count: counts.get(f.id) ?? 0 })),
+    [counts, filters],
   );
 
   return (
@@ -324,6 +363,7 @@ export function DashboardPage() {
             rowsForSkeleton: envelopes.length === 0,
             filtered,
             navigate,
+            viewerEmail,
           })}
         </TableShell>
       </Inner>
