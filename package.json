@@ -11,7 +11,9 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api start:dev",
+    "dev:landing": "pnpm --filter landing dev",
     "build": "pnpm -r build",
+    "build:landing": "pnpm --filter landing build",
     "lint": "pnpm -r lint",
     "typecheck": "tsc -b",
     "typecheck:recursive": "pnpm -r typecheck",

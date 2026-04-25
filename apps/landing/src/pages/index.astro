@@ -1,0 +1,25 @@
+---
+// index.astro — composes the marketing landing page.
+import BaseLayout from '@/layouts/BaseLayout.astro';
+import Header from '@/components/Header.astro';
+import Hero from '@/components/Hero.astro';
+import ValueProps from '@/components/ValueProps.astro';
+import HowItWorks from '@/components/HowItWorks.astro';
+import TrustStrip from '@/components/TrustStrip.astro';
+import CTASection from '@/components/CTASection.astro';
+import Footer from '@/components/Footer.astro';
+---
+<BaseLayout
+  title="Sealed — Put your name to it."
+  description="Sealed is a quieter way to sign, send, and store documents — built for the contracts you actually care about. EU-grade PAdES seals, RFC 3161 timestamps, audit trail on every page."
+>
+  <Header />
+  <main>
+    <Hero />
+    <ValueProps />
+    <HowItWorks />
+    <TrustStrip />
+    <CTASection />
+  </main>
+  <Footer />
+</BaseLayout>

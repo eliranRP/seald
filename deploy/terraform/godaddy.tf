@@ -61,3 +61,30 @@ resource "godaddy_domain_record" "a_records" {
 
   depends_on = [aws_eip.api]
 }
+
+# ---------------------------------------------------------------
+# Cloudflare Pages CNAME for the marketing landing page.
+#
+# The Astro landing site (apps/landing/) is built and deployed by
+# .github/workflows/deploy-landing.yml to a Cloudflare Pages project
+# named `seald-landing`, which is reachable at the auto-generated
+# `seald-landing.pages.dev` URL. To serve it from
+# `seald-landing.nromomentum.com` we need a CNAME on the GoDaddy zone.
+#
+# Note: the n3integration/godaddy provider creates one resource per
+# record TYPE. The A-records resource above and this CNAME resource
+# manage disjoint sets, so they don't clobber each other.
+# ---------------------------------------------------------------
+
+resource "godaddy_domain_record" "cname_records" {
+  count = var.godaddy_enabled && var.godaddy_landing_subdomain != "" ? 1 : 0
+
+  domain = var.godaddy_domain
+
+  record {
+    type = "CNAME"
+    name = var.godaddy_landing_subdomain
+    data = var.godaddy_landing_cname_target
+    ttl  = var.godaddy_record_ttl
+  }
+}

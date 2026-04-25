@@ -92,6 +92,27 @@ variable "godaddy_web_subdomain" {
   default     = "seald"
 }
 
+variable "godaddy_landing_subdomain" {
+  description = <<-EOT
+    Subdomain to point at the Cloudflare Pages project that hosts the
+    marketing landing page (Astro, apps/landing/). A CNAME is created
+    pointing this name -> godaddy_landing_cname_target. Set to empty
+    string to skip the CNAME entirely (e.g. while spinning up).
+  EOT
+  type        = string
+  default     = "seald-landing"
+}
+
+variable "godaddy_landing_cname_target" {
+  description = <<-EOT
+    CNAME target for the landing-page subdomain. Defaults to the
+    auto-generated Cloudflare Pages hostname for the `seald-landing`
+    project. If you rename the Pages project, update this.
+  EOT
+  type        = string
+  default     = "seald-landing.pages.dev"
+}
+
 variable "godaddy_record_ttl" {
   description = "DNS TTL in seconds for the Seald A record. 600 is a good default - short enough to retry fast if you ever need to move."
   type        = number
