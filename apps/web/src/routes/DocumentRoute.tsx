@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DocumentPage } from '../pages/DocumentPage';
 import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
@@ -116,15 +116,92 @@ export function DocumentRoute() {
     [doc, updateDocument],
   );
 
-  const hasUnsavedWork = Boolean(doc && doc.fields.length > 0 && doc.status === 'draft');
+  // "Unsaved work" covers anything the user composed and hasn't sent —
+  // placed fields OR attached signers. The previous check was fields-only,
+  // which let users lose an entire signer roster by clicking Back without
+  // any prompt. While the doc is a draft and the editor is open, we treat
+  // the session itself as unsaved.
+  const hasUnsavedWork = Boolean(
+    doc && doc.status === 'draft' && (doc.fields.length > 0 || doc.signers.length > 0),
+  );
+
+  // Captures the post-confirm destination. '/documents' for the in-app
+  // Back button, 'back' for a popstate-driven (browser back) intercept.
+  const [pendingNav, setPendingNav] = useState<string | null>(null);
+
+  // Intercept browser-level navigations that bypass react-router (Cmd+R
+  // refresh, tab close, hard back to a different origin) via the native
+  // beforeunload event. Browsers ignore the returnValue text and show a
+  // generic "Leave site?" prompt — the only signal we need to send is
+  // that returnValue is set. Listener is gated on hasUnsavedWork so it
+  // doesn't fire on a clean dashboard.
+  useEffect(() => {
+    if (!hasUnsavedWork) return undefined;
+    const handler = (e: BeforeUnloadEvent): void => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+    };
+  }, [hasUnsavedWork]);
+
+  // Intercept the in-app browser back/forward via popstate. We can't use
+  // react-router's `useBlocker` because the app mounts <BrowserRouter>,
+  // not the data router that useBlocker requires. The pattern: push a
+  // "guard" history entry on top of the editor URL while there's unsaved
+  // work, so the next back-press fires popstate while keeping us on the
+  // editor route. On popstate, we open the confirm dialog and re-push
+  // the guard so the user stays on the editor until they confirm.
+  useEffect(() => {
+    if (!hasUnsavedWork) return undefined;
+    // Push a sentinel state on top of the current URL.
+    window.history.pushState({ docGuard: true }, '');
+    const handler = (): void => {
+      // User pressed browser back/forward. The browser already popped
+      // our sentinel; the URL is still the editor (because the sentinel
+      // had the same pathname). Show the dialog and re-push the
+      // sentinel so cancel keeps the user in place.
+      setPendingNav('back');
+      setExitOpen(true);
+      window.history.pushState({ docGuard: true }, '');
+    };
+    window.addEventListener('popstate', handler);
+    return () => {
+      window.removeEventListener('popstate', handler);
+    };
+  }, [hasUnsavedWork]);
 
   const handleBackClick = useCallback(() => {
     if (hasUnsavedWork) {
+      setPendingNav('/documents');
       setExitOpen(true);
       return;
     }
     navigate('/documents');
   }, [hasUnsavedWork, navigate]);
+
+  const handleExitConfirm = useCallback(() => {
+    setExitOpen(false);
+    if (pendingNav === 'back') {
+      // popstate intercept — we re-pushed a sentinel during the popstate
+      // handler. To actually leave, navigate to the dashboard rather than
+      // calling history.back() (which would just re-trigger our handler).
+      setPendingNav(null);
+      navigate('/documents');
+      return;
+    }
+    if (pendingNav) {
+      navigate(pendingNav);
+      setPendingNav(null);
+    }
+  }, [navigate, pendingNav]);
+
+  const handleExitCancel = useCallback(() => {
+    setExitOpen(false);
+    setPendingNav(null);
+  }, []);
 
   const handleSend = useCallback(async () => {
     if (!doc || !doc.file) return;
@@ -255,11 +332,8 @@ export function DocumentRoute() {
       />
       <ExitConfirmDialog
         open={exitOpen}
-        onConfirm={() => {
-          setExitOpen(false);
-          navigate('/documents');
-        }}
-        onCancel={() => setExitOpen(false)}
+        onConfirm={handleExitConfirm}
+        onCancel={handleExitCancel}
       />
       <SendingOverlay
         open={sendInFlight || Boolean(sendError)}
