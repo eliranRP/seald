@@ -129,6 +129,11 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # Use npm (not pnpm) to install wrangler so the action doesn't
+          # try `pnpm add wrangler` at the workspace root, which fails
+          # with ERR_PNPM_ADDING_TO_ROOT in this monorepo.
+          packageManager: npm
+          wranglerVersion: '3.90.0'
           # The landing project also serves the SPA — single deployment
           # under the canonical seald.nromomentum.com domain.
           command: pages deploy apps/landing/dist --project-name=seald-landing --branch=main

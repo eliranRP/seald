@@ -93,11 +93,18 @@ describe('Verify endpoint (e2e)', () => {
     await app.close();
   });
 
+  let seedCounter = 0;
   async function seedEnvelope(): Promise<{ readonly id: string; readonly short_code: string }> {
+    // Each test gets a unique short_code so multiple it() blocks don't
+    // collide in the in-memory repo. Format keeps the 13-char width
+    // (`vrfy_e2e_NN` -> 13 chars when zero-padded to 4 digits + 'v').
+    seedCounter += 1;
+    const n = String(seedCounter).padStart(4, '0');
+    const short_code = `vrfy_e2e_${n}`; // 13 chars
     const draft = await envelopesRepo.createDraft({
       owner_id: USER_A,
       title: 'Verify e2e test envelope',
-      short_code: 'verify_e2e_01', // exactly 13 chars
+      short_code,
       tc_version: TEST_ENV.TC_VERSION,
       privacy_version: TEST_ENV.PRIVACY_VERSION,
       expires_at: new Date(Date.now() + 86_400_000).toISOString(),
