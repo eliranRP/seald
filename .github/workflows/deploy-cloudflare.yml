@@ -1,0 +1,134 @@
+name: Deploy (Cloudflare Pages — landing + SPA merged)
+
+# Builds the marketing landing page (Astro) AND the React SPA, then
+# merges them into a single Cloudflare Pages deployment so they share
+# the canonical `seald.nromomentum.com` domain. The landing page owns
+# the `/` index; every SPA route (signin, signup, /sign, /verify, /document,
+# /documents, etc.) is rewritten to `/app.html` via Cloudflare's
+# `_redirects` file. The SPA's own `index.html` is renamed to `app.html`
+# during the merge so it doesn't clobber the landing's index.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'apps/landing/**'
+      - 'packages/shared/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/deploy-cloudflare.yml'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to build + deploy'
+        required: true
+        default: 'main'
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  build_and_deploy:
+    name: Build (landing + SPA) + Cloudflare Pages deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter shared build
+
+      - name: Build SPA
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: pnpm --filter web build
+
+      - name: Build landing
+        run: pnpm --filter landing build
+
+      - name: Merge SPA into landing dist
+        # The landing's index.html owns `/`. The SPA's index.html is
+        # renamed to `app.html` during merge; Cloudflare's `_redirects`
+        # rewrites every SPA route to that file (200 = client-side
+        # rewrite, URL stays the same in the address bar).
+        run: |
+          set -euo pipefail
+          DEST=apps/landing/dist
+          SPA=apps/web/dist
+
+          test -s "$SPA/index.html" || { echo "no SPA index.html in $SPA"; exit 1; }
+          test -s "$DEST/index.html" || { echo "no landing index.html in $DEST"; exit 1; }
+
+          # Copy every SPA file into the landing dist EXCEPT its index.html
+          # (which would otherwise overwrite the landing's `/` page).
+          rsync -a --exclude='index.html' "$SPA/" "$DEST/"
+
+          # Drop the SPA's HTML shell as `app.html` so _redirects can
+          # rewrite to it.
+          cp "$SPA/index.html" "$DEST/app.html"
+
+          # Write _redirects covering every SPA route. The trailing
+          # rule keeps `/` unmatched so Astro's index.html serves the
+          # marketing page.
+          cat > "$DEST/_redirects" <<'REDIRECTS'
+          /signin           /app.html  200
+          /signup           /app.html  200
+          /forgot-password  /app.html  200
+          /check-email      /app.html  200
+          /auth/*           /app.html  200
+          /debug/*          /app.html  200
+          /verify/*         /app.html  200
+          /sign/*           /app.html  200
+          /document/*       /app.html  200
+          /documents        /app.html  200
+          /signers          /app.html  200
+          /contacts         /app.html  200
+          REDIRECTS
+
+          echo "----- merged dist -----"
+          ls -la "$DEST/"
+          echo "----- _redirects -----"
+          cat "$DEST/_redirects"
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The landing project also serves the SPA — single deployment
+          # under the canonical seald.nromomentum.com domain.
+          command: pages deploy apps/landing/dist --project-name=seald-landing --branch=main

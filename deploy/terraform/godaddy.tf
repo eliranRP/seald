@@ -33,19 +33,10 @@ resource "godaddy_domain_record" "a_records" {
     ttl  = var.godaddy_record_ttl
   }
 
-  # Seald Web SPA -> same EIP. Caddy multiplexes on the Host header
-  # and serves the static bundle from `/srv/web` (see deploy/Caddyfile
-  # and docker-compose.yml). Emitted only when godaddy_web_subdomain
-  # is non-empty.
-  dynamic "record" {
-    for_each = var.godaddy_web_subdomain != "" ? [1] : []
-    content {
-      type = "A"
-      name = var.godaddy_web_subdomain
-      data = aws_eip.api.public_ip
-      ttl  = var.godaddy_record_ttl
-    }
-  }
+  # Seald Web (landing + SPA) is now served by Cloudflare Pages —
+  # see the cname_records resource below. This block previously
+  # pointed seald.nromomentum.com → EIP for the EC2 Caddy SPA, but
+  # that path was retired on 2026-04-25.
 
   # Additional zone co-tenants. Declared at module scope so any future
   # TF edit (e.g. seald subdomain change) doesn't clobber them.
@@ -63,13 +54,13 @@ resource "godaddy_domain_record" "a_records" {
 }
 
 # ---------------------------------------------------------------
-# Cloudflare Pages CNAME for the marketing landing page.
+# Cloudflare Pages CNAME for the canonical web surface.
 #
-# The Astro landing site (apps/landing/) is built and deployed by
-# .github/workflows/deploy-landing.yml to a Cloudflare Pages project
-# named `seald-landing`, which is reachable at the auto-generated
-# `seald-landing.pages.dev` URL. To serve it from
-# `seald-landing.nromomentum.com` we need a CNAME on the GoDaddy zone.
+# `seald.nromomentum.com` now resolves to the Cloudflare Pages
+# project `seald-landing` (auto-named `seald-landing.pages.dev`),
+# which holds the merged build of the Astro landing page (`/`) and
+# the React SPA (every other route, via `_redirects`). Built +
+# deployed by `.github/workflows/deploy-cloudflare.yml`.
 #
 # Note: the n3integration/godaddy provider creates one resource per
 # record TYPE. The A-records resource above and this CNAME resource
@@ -77,14 +68,14 @@ resource "godaddy_domain_record" "a_records" {
 # ---------------------------------------------------------------
 
 resource "godaddy_domain_record" "cname_records" {
-  count = var.godaddy_enabled && var.godaddy_landing_subdomain != "" ? 1 : 0
+  count = var.godaddy_enabled && var.godaddy_web_subdomain != "" ? 1 : 0
 
   domain = var.godaddy_domain
 
   record {
     type = "CNAME"
-    name = var.godaddy_landing_subdomain
-    data = var.godaddy_landing_cname_target
+    name = var.godaddy_web_subdomain
+    data = var.godaddy_web_cname_target
     ttl  = var.godaddy_record_ttl
   }
 }

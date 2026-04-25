@@ -145,3 +145,41 @@ https://www.chromatic.com/manage?appId=eliranRP/seald and run:
 ```sh
 printf '<new-token>' | gh secret set CHROMATIC_PROJECT_TOKEN -R eliranRP/seald --body -
 ```
+
+## Web hosting (Cloudflare Pages, single domain)
+
+`seald.nromomentum.com` serves both the **Astro landing page** (at `/`)
+and the **React SPA** (every other route — `/signin`, `/signup`,
+`/sign/*`, `/verify/*`, `/document/*`, `/documents`, `/contacts`,
+`/signers`, `/auth/*`, `/debug/*`).
+
+Architecture:
+- DNS: GoDaddy CNAME `seald` → `seald-landing.pages.dev`
+- Cloudflare Pages project: `seald-landing`
+- Build: `.github/workflows/deploy-cloudflare.yml` runs on push to main
+  with paths under `apps/web/**` or `apps/landing/**`. It builds both,
+  merges them (rename SPA `index.html` → `app.html`), writes a
+  `_redirects` manifest covering every SPA route, and deploys.
+- API stays on the EC2 Caddy at `api.seald.nromomentum.com`. The web
+  block was removed from `deploy/Caddyfile` on 2026-04-25.
+
+Required GH secrets (already provisioned):
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `VITE_API_BASE_URL` — `https://api.seald.nromomentum.com`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+Manual user actions on first deploy:
+1. Run `terraform apply` from `deploy/terraform/` (with `var.godaddy_enabled=true`)
+   to flip the DNS record. Old A record (EC2) is replaced by CNAME.
+2. In Cloudflare Pages dashboard, attach the custom domain
+   `seald.nromomentum.com` to the `seald-landing` project.
+3. (Optional) Paste real Cloudflare Web Analytics token into
+   `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`.
+4. (Optional) Replace `apps/landing/public/google-site-verification.html`
+   with the real GSC token file.
+
+When extending: any new SPA route must be added to the `_redirects`
+block in `.github/workflows/deploy-cloudflare.yml`, otherwise CF Pages
+will 404 it.

@@ -87,27 +87,21 @@ variable "godaddy_subdomain" {
 }
 
 variable "godaddy_web_subdomain" {
-  description = "Optional second subdomain pointed at the same EIP — used for the web SPA (e.g. 'seald' -> seald.<domain>). Set to empty string to skip."
+  description = <<-EOT
+    Subdomain for the canonical web surface (landing + SPA, hosted on
+    Cloudflare Pages via the seald-landing project). A CNAME is created
+    pointing this name -> godaddy_web_cname_target. Set to empty string
+    to skip the CNAME (e.g. during DNS migration).
+  EOT
   type        = string
   default     = "seald"
 }
 
-variable "godaddy_landing_subdomain" {
+variable "godaddy_web_cname_target" {
   description = <<-EOT
-    Subdomain to point at the Cloudflare Pages project that hosts the
-    marketing landing page (Astro, apps/landing/). A CNAME is created
-    pointing this name -> godaddy_landing_cname_target. Set to empty
-    string to skip the CNAME entirely (e.g. while spinning up).
-  EOT
-  type        = string
-  default     = "seald-landing"
-}
-
-variable "godaddy_landing_cname_target" {
-  description = <<-EOT
-    CNAME target for the landing-page subdomain. Defaults to the
-    auto-generated Cloudflare Pages hostname for the `seald-landing`
-    project. If you rename the Pages project, update this.
+    CNAME target for the web subdomain. Defaults to the auto-generated
+    Cloudflare Pages hostname for the `seald-landing` project. If you
+    rename the Pages project, update this.
   EOT
   type        = string
   default     = "seald-landing.pages.dev"

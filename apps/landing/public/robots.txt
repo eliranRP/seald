@@ -1,4 +1,18 @@
 User-agent: *
 Allow: /
+# Block the SPA surface from indexing — it's authenticated and the
+# routes are dynamic. Only the landing root gets indexed.
+Disallow: /signin
+Disallow: /signup
+Disallow: /forgot-password
+Disallow: /check-email
+Disallow: /auth/
+Disallow: /debug/
+Disallow: /sign/
+Disallow: /verify/
+Disallow: /document/
+Disallow: /documents
+Disallow: /signers
+Disallow: /contacts
 
-Sitemap: https://seald-landing.nromomentum.com/sitemap-index.xml
+Sitemap: https://seald.nromomentum.com/sitemap.xml

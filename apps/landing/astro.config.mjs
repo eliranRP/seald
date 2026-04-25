@@ -1,23 +1,21 @@
 // Astro config for the Sealed marketing landing page.
 //
-// Deployment target: Cloudflare Pages (static).
-// Hostname:          https://seald-landing.nromomentum.com
-//
-// Notes:
-// - `output: 'static'` keeps the build a plain set of HTML/CSS/JS files
-//   that Cloudflare Pages serves directly. No SSR adapter is needed.
-// - @astrojs/sitemap auto-generates /sitemap-index.xml + /sitemap-0.xml
-//   from the page list at build time. The robots.txt in /public links
-//   to it.
-// - `site` is required for sitemap + canonical URLs; keep it in sync
-//   with the Cloudflare Pages custom domain.
+// Deployment target: Cloudflare Pages (static), merged with the React
+// SPA at the canonical seald.nromomentum.com domain. The deploy
+// workflow (`.github/workflows/deploy-cloudflare.yml`) builds Astro
+// here, builds the SPA, then merges them under apps/landing/dist/
+// before pushing to CF Pages.
 
 import { defineConfig } from 'astro/config';
-import sitemap from '@astrojs/sitemap';
 import { fileURLToPath } from 'node:url';
 
+// Sitemap is hand-authored at apps/landing/public/sitemap.xml — the
+// landing surface only ships one indexable URL (`/`), which makes
+// @astrojs/sitemap (which crashes on a 1-page site under Astro 4.16)
+// overkill anyway.
+
 export default defineConfig({
-  site: 'https://seald-landing.nromomentum.com',
+  site: 'https://seald.nromomentum.com',
   output: 'static',
   trailingSlash: 'never',
   build: {
@@ -25,7 +23,6 @@ export default defineConfig({
     assets: 'assets',
   },
   compressHTML: true,
-  integrations: [sitemap()],
   vite: {
     build: {
       cssCodeSplit: false,
