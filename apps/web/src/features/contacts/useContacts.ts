@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { createContact, deleteContact, listContacts, updateContactApi } from './contactsApi';
 import type { CreateContactInput, UpdateContactInput } from './contactsApi';
 

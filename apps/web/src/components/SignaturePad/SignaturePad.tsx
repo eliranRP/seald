@@ -1,6 +1,6 @@
 import { useCallback, useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { SignatureValue } from '../../types/sealdTypes';
+import type { SignatureValue } from '@/types/sealdTypes';
 import { DrawMode } from './modes/DrawMode/DrawMode';
 import { TypeMode } from './modes/TypeMode/TypeMode';
 import { UploadMode } from './modes/UploadMode/UploadMode';

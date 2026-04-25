@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type { PDFDocumentProxy } from '../../lib/pdf';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 
 export interface PdfPageViewProps extends HTMLAttributes<HTMLDivElement> {
   /** Parsed PDF document — obtain from `usePdfDocument(source)`. */

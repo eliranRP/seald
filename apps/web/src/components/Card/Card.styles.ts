@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import type { SealdTheme } from '../../styles/theme';
+import type { SealdTheme } from '@/styles/theme';
 
 export const CardRoot = styled.div<{
   $elevated: boolean;

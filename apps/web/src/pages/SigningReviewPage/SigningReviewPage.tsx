@@ -2,13 +2,13 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { Info, PenTool } from 'lucide-react';
-import { Icon } from '../../components/Icon';
-import { RecipientHeader } from '../../components/RecipientHeader';
-import { ReviewList } from '../../components/ReviewList';
-import type { ReviewItem, ReviewFieldKind } from '../../components/ReviewList';
-import { SignatureMark } from '../../components/SignatureMark';
-import { SigningSessionProvider, useSigningSession } from '../../features/signing';
-import type { SignMeField } from '../../features/signing';
+import { Icon } from '@/components/Icon';
+import { RecipientHeader } from '@/components/RecipientHeader';
+import { ReviewList } from '@/components/ReviewList';
+import type { ReviewItem, ReviewFieldKind } from '@/components/ReviewList';
+import { SignatureMark } from '@/components/SignatureMark';
+import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import type { SignMeField } from '@/features/signing';
 
 const Page = styled.div`
   min-height: 100vh;

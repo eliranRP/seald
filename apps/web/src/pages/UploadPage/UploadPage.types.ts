@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { NavBarMode, NavBarUser } from '../../components/NavBar/NavBar.types';
+import type { NavBarMode, NavBarUser } from '@/components/NavBar/NavBar.types';
 
 /**
  * Error codes emitted when a file fails validation before `onFileSelected`

@@ -1,5 +1,5 @@
 import type { DragEvent, HTMLAttributes, ReactNode } from 'react';
-import type { FieldKind } from '../../types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 
 export interface FieldPaletteProps extends HTMLAttributes<HTMLElement> {
   readonly kinds?: ReadonlyArray<FieldKind> | undefined;

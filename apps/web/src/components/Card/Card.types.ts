@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { SealdTheme } from '../../styles/theme';
+import type { SealdTheme } from '@/styles/theme';
 
 export interface CardProps extends HTMLAttributes<HTMLElement> {
   readonly elevated?: boolean | undefined;

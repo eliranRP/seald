@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthShell } from '../../components/AuthShell';
-import { AuthForm } from '../../components/AuthForm';
-import type { AuthFormMode } from '../../components/AuthForm/AuthForm.types';
-import { pathForAuthMode } from '../../layout/authPaths';
+import { AuthShell } from '@/components/AuthShell';
+import { AuthForm } from '@/components/AuthForm';
+import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
+import { pathForAuthMode } from '@/layout/authPaths';
 
 /**
  * L4 page — `/forgot-password`. After a successful submit, routes the user

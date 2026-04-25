@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { reportSignerEvent } from '../../features/signing';
-import * as api from '../../features/signing/signingApi';
+import { reportSignerEvent } from '@/features/signing';
+import * as api from '@/features/signing/signingApi';
 import { Body, Card, MailtoLink, Page, Spinner, Title } from './SigningEntryPage.styles';
 
 /**

@@ -1,8 +1,8 @@
 import { forwardRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import { Check, PenTool, Calendar, Type, Square, Mail } from 'lucide-react';
+import type { FieldKind } from '@/types/sealdTypes';
 import { Icon } from '../Icon';
-import type { FieldKind } from '../../types/sealdTypes';
 import type { SignatureFieldProps } from './SignatureField.types';
 import { FieldRoot } from './SignatureField.styles';
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button } from '../../components/Button';
-import { apiClient } from '../../lib/api/apiClient';
-import { supabase } from '../../lib/supabase/supabaseClient';
+import { Button } from '@/components/Button';
+import { apiClient } from '@/lib/api/apiClient';
+import { supabase } from '@/lib/supabase/supabaseClient';
 import { Actions, Card, Result, Status, Title, Wrap } from './DebugAuthPage.styles';
 
 /**

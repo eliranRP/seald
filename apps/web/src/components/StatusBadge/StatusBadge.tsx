@@ -1,6 +1,6 @@
+import type { SignerStatus } from '@/types/sealdTypes';
 import { Badge } from '../Badge';
 import type { BadgeTone } from '../Badge';
-import type { SignerStatus } from '../../types/sealdTypes';
 import type { StatusBadgeProps } from './StatusBadge.types';
 
 export const STATUS_BADGE_MAP: Readonly<

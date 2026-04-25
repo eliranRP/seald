@@ -1,11 +1,11 @@
 import { Check, LayoutList, ShieldCheck } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Avatar } from '../../components/Avatar';
-import { Button } from '../../components/Button';
-import { DocThumb } from '../../components/DocThumb';
-import { Skeleton } from '../../components/Skeleton';
-import { useEnvelopeQuery } from '../../features/envelopes';
-import { useAppState } from '../../providers/AppStateProvider';
+import { Avatar } from '@/components/Avatar';
+import { Button } from '@/components/Button';
+import { DocThumb } from '@/components/DocThumb';
+import { Skeleton } from '@/components/Skeleton';
+import { useEnvelopeQuery } from '@/features/envelopes';
+import { useAppState } from '@/providers/AppStateProvider';
 import {
   Actions,
   AuditBadge,

@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Mail } from 'lucide-react';
-import { Avatar } from '../../components/Avatar';
-import { Icon } from '../../components/Icon';
-import { RecipientHeader } from '../../components/RecipientHeader';
-import { SigningSessionProvider, useSigningSession } from '../../features/signing';
+import { Avatar } from '@/components/Avatar';
+import { Icon } from '@/components/Icon';
+import { RecipientHeader } from '@/components/RecipientHeader';
+import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import {
   Checkbox,
   Chip,

@@ -1,5 +1,5 @@
 import type { HTMLAttributes, MouseEvent as ReactMouseEvent, RefObject } from 'react';
-import type { FieldKind } from '../../types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 
 export interface PlacedFieldSigner {
   readonly id: string;

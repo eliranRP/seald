@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthShell } from '../../components/AuthShell';
-import { AuthForm } from '../../components/AuthForm';
-import type { AuthFormMode } from '../../components/AuthForm/AuthForm.types';
-import { pathForAuthMode } from '../../layout/authPaths';
-import { useAuth } from '../../providers/AuthProvider';
+import { AuthShell } from '@/components/AuthShell';
+import { AuthForm } from '@/components/AuthForm';
+import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
+import { pathForAuthMode } from '@/layout/authPaths';
+import { useAuth } from '@/providers/AuthProvider';
 
 /**
  * L4 page — `/signup`. Handles three post-submit outcomes:

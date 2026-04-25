@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, Check } from 'lucide-react';
-import { DocumentPageCanvas } from '../../components/DocumentPageCanvas';
-import { FieldInputDrawer } from '../../components/FieldInputDrawer';
-import type { FieldInputKind } from '../../components/FieldInputDrawer';
-import { Icon } from '../../components/Icon';
-import { PageThumbRail } from '../../components/PageThumbRail';
-import { PageToolbar } from '../../components/PageToolbar';
-import { ProgressBar } from '../../components/ProgressBar';
-import { RecipientHeader } from '../../components/RecipientHeader';
-import { SignatureCapture } from '../../components/SignatureCapture';
-import type { SignatureCaptureResult } from '../../components/SignatureCapture';
-import { SignerField } from '../../components/SignerField';
-import type { SignerFieldKind } from '../../components/SignerField';
-import { SigningSessionProvider, getPdfSignedUrl, useSigningSession } from '../../features/signing';
-import type { SignMeField } from '../../features/signing';
+import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
+import { FieldInputDrawer } from '@/components/FieldInputDrawer';
+import type { FieldInputKind } from '@/components/FieldInputDrawer';
+import { Icon } from '@/components/Icon';
+import { PageThumbRail } from '@/components/PageThumbRail';
+import { PageToolbar } from '@/components/PageToolbar';
+import { ProgressBar } from '@/components/ProgressBar';
+import { RecipientHeader } from '@/components/RecipientHeader';
+import { SignatureCapture } from '@/components/SignatureCapture';
+import type { SignatureCaptureResult } from '@/components/SignatureCapture';
+import { SignerField } from '@/components/SignerField';
+import type { SignerFieldKind } from '@/components/SignerField';
+import { SigningSessionProvider, getPdfSignedUrl, useSigningSession } from '@/features/signing';
+import type { SignMeField } from '@/features/signing';
 import {
   ActionBar,
   Center,

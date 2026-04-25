@@ -1,21 +1,21 @@
 import { useCallback, useMemo } from 'react';
 import { ChevronRight, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Badge } from '../../components/Badge';
-import type { BadgeTone } from '../../components/Badge/Badge.types';
-import { Button } from '../../components/Button';
-import { DocThumb } from '../../components/DocThumb';
-import { EmptyState } from '../../components/EmptyState';
-import { FilterTabs } from '../../components/FilterTabs';
-import { PageHeader } from '../../components/PageHeader';
-import { SignerProgressBar } from '../../components/SignerProgressBar';
-import type { SignerProgressBarEntry } from '../../components/SignerProgressBar';
-import { SignerStack } from '../../components/SignerStack';
-import type { SignerStackEntry, SignerStackStatus } from '../../components/SignerStack';
-import { Skeleton } from '../../components/Skeleton';
-import { StatCard } from '../../components/StatCard';
-import { useEnvelopesQuery } from '../../features/envelopes';
-import type { EnvelopeListItem, EnvelopeStatus } from '../../features/envelopes';
+import { Badge } from '@/components/Badge';
+import type { BadgeTone } from '@/components/Badge/Badge.types';
+import { Button } from '@/components/Button';
+import { DocThumb } from '@/components/DocThumb';
+import { EmptyState } from '@/components/EmptyState';
+import { FilterTabs } from '@/components/FilterTabs';
+import { PageHeader } from '@/components/PageHeader';
+import { SignerProgressBar } from '@/components/SignerProgressBar';
+import type { SignerProgressBarEntry } from '@/components/SignerProgressBar';
+import { SignerStack } from '@/components/SignerStack';
+import type { SignerStackEntry, SignerStackStatus } from '@/components/SignerStack';
+import { Skeleton } from '@/components/Skeleton';
+import { StatCard } from '@/components/StatCard';
+import { useEnvelopesQuery } from '@/features/envelopes';
+import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
 import {
   ChevronCell,
   DateCell,

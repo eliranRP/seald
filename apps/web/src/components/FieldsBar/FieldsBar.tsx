@@ -2,10 +2,10 @@ import { forwardRef } from 'react';
 import type { DragEvent, KeyboardEvent } from 'react';
 import { Calendar, CheckSquare, Mail, PenTool, Plus, TextCursorInput, Type } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { seald } from '@/styles/theme';
+import { FIELD_KINDS } from '@/types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 import { Button } from '../Button';
-import { seald } from '../../styles/theme';
-import { FIELD_KINDS } from '../../types/sealdTypes';
-import type { FieldKind } from '../../types/sealdTypes';
 import type { FieldsBarProps, FieldsBarSigner } from './FieldsBar.types';
 import {
   AddSignerSlot,

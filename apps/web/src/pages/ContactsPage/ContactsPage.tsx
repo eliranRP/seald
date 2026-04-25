@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
-import { Avatar } from '../../components/Avatar';
-import { Button } from '../../components/Button';
-import { EmptyState } from '../../components/EmptyState';
-import { PageHeader } from '../../components/PageHeader';
-import { Skeleton } from '../../components/Skeleton';
-import { TextField } from '../../components/TextField';
-import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
-import { useAppState } from '../../providers/AppStateProvider';
-import { ExitConfirmDialog } from '../../components/ExitConfirmDialog';
+import { Avatar } from '@/components/Avatar';
+import { Button } from '@/components/Button';
+import { EmptyState } from '@/components/EmptyState';
+import { PageHeader } from '@/components/PageHeader';
+import { Skeleton } from '@/components/Skeleton';
+import { TextField } from '@/components/TextField';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
+import { useAppState } from '@/providers/AppStateProvider';
+import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import {
   ActionsCell,
   DialogBackdrop,

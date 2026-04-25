@@ -1,11 +1,11 @@
 import { useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { AuthShell } from '../../components/AuthShell';
-import { AuthForm } from '../../components/AuthForm';
-import type { AuthFormMode } from '../../components/AuthForm/AuthForm.types';
-import { pathForAuthMode } from '../../layout/authPaths';
-import { useAuth } from '../../providers/AuthProvider';
+import { AuthShell } from '@/components/AuthShell';
+import { AuthForm } from '@/components/AuthForm';
+import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
+import { pathForAuthMode } from '@/layout/authPaths';
+import { useAuth } from '@/providers/AuthProvider';
 
 const ErrorBanner = styled.div`
   background: ${({ theme }) => theme.color.danger[50]};

@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type { FieldKind } from '../../types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 
 /** Placeholder chip representing a signer's field on a (future) PDF page. */
 export interface SignatureFieldProps extends HTMLAttributes<HTMLDivElement> {

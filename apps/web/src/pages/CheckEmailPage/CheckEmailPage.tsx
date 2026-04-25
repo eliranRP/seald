@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MailCheck } from 'lucide-react';
-import { AuthShell } from '../../components/AuthShell';
-import { Icon } from '../../components/Icon';
-import { useAuth } from '../../providers/AuthProvider';
+import { AuthShell } from '@/components/AuthShell';
+import { Icon } from '@/components/Icon';
+import { useAuth } from '@/providers/AuthProvider';
 import { Actions, Body, IconBadge, Primary, Secondary, Title, Wrap } from './CheckEmailPage.styles';
 
 /**

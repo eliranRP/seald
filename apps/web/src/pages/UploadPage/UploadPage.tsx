@@ -1,8 +1,8 @@
 import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
-import { Button } from '../../components/Button';
-import { NavBar } from '../../components/NavBar';
+import { Button } from '@/components/Button';
+import { NavBar } from '@/components/NavBar';
 import type { UploadPageErrorCode, UploadPageProps } from './UploadPage.types';
 import {
   Actions,

@@ -1,13 +1,13 @@
 import { forwardRef, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { useAuth } from '@/providers/AuthProvider';
 import { Icon } from '../Icon';
 import { TextField } from '../TextField';
 import { PasswordField } from '../PasswordField';
 import { PasswordStrengthMeter } from '../PasswordStrengthMeter';
 import { GoogleButton } from '../GoogleButton';
 import { Divider } from '../Divider';
-import { useAuth } from '../../providers/AuthProvider';
 import type { AuthFormProps } from './AuthForm.types';
 import { scorePassword } from './passwordStrength';
 import {

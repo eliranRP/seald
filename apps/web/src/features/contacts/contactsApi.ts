@@ -1,6 +1,6 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
-import { apiClient } from '../../lib/api/apiClient';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
+import { apiClient } from '@/lib/api/apiClient';
 
 /**
  * Shape the API returns for a single contact. Mirrors the Nest

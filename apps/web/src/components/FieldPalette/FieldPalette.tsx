@@ -10,9 +10,9 @@ import {
   Type,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { seald } from '../../styles/theme';
-import { FIELD_KINDS } from '../../types/sealdTypes';
-import type { FieldKind } from '../../types/sealdTypes';
+import { seald } from '@/styles/theme';
+import { FIELD_KINDS } from '@/types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 import type { FieldPaletteProps } from './FieldPalette.types';
 import {
   HintCard,

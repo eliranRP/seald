@@ -1,5 +1,5 @@
 import type { DragEvent, HTMLAttributes } from 'react';
-import type { FieldKind } from '../../types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 
 export type FieldsBarSigner = {
   readonly id: string;

@@ -1,5 +1,5 @@
 import type { HTMLAttributes, MouseEvent } from 'react';
-import type { Signer } from '../../types/sealdTypes';
+import type { Signer } from '@/types/sealdTypes';
 
 /** Single-row display of a signer + status. Consumer wraps in <ul>. */
 export interface SignerRowProps extends HTMLAttributes<HTMLDivElement> {

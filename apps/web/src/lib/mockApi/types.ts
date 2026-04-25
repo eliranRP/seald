@@ -1,4 +1,4 @@
-import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
+import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 
 /**
  * Domain types that a real server would return. Kept in the mock API package

@@ -19,19 +19,16 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { ActivityTimeline } from '../../components/ActivityTimeline';
-import type {
-  ActivityTimelineEvent,
-  ActivityTimelineTone,
-} from '../../components/ActivityTimeline';
-import { Avatar } from '../../components/Avatar';
-import { Badge } from '../../components/Badge';
-import type { BadgeTone } from '../../components/Badge/Badge.types';
-import { Button } from '../../components/Button';
-import { DownloadMenu } from '../../components/DownloadMenu';
-import type { DownloadMenuItem } from '../../components/DownloadMenu';
-import { ExitConfirmDialog } from '../../components/ExitConfirmDialog';
-import { Skeleton } from '../../components/Skeleton';
+import { ActivityTimeline } from '@/components/ActivityTimeline';
+import type { ActivityTimelineEvent, ActivityTimelineTone } from '@/components/ActivityTimeline';
+import { Avatar } from '@/components/Avatar';
+import { Badge } from '@/components/Badge';
+import type { BadgeTone } from '@/components/Badge/Badge.types';
+import { Button } from '@/components/Button';
+import { DownloadMenu } from '@/components/DownloadMenu';
+import type { DownloadMenuItem } from '@/components/DownloadMenu';
+import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
+import { Skeleton } from '@/components/Skeleton';
 import {
   ENVELOPES_KEY,
   ENVELOPE_EVENTS_KEY,
@@ -40,14 +37,9 @@ import {
   remindEnvelopeSigner,
   useEnvelopeEventsQuery,
   useEnvelopeQuery,
-} from '../../features/envelopes';
-import { useDeleteEnvelopeMutation } from '../../features/envelopes/useEnvelopes';
-import type {
-  Envelope,
-  EnvelopeEvent,
-  EnvelopeStatus,
-  SignerUiStatus,
-} from '../../features/envelopes';
+} from '@/features/envelopes';
+import { useDeleteEnvelopeMutation } from '@/features/envelopes/useEnvelopes';
+import type { Envelope, EnvelopeEvent, EnvelopeStatus, SignerUiStatus } from '@/features/envelopes';
 import {
   Actions,
   AuditAction,

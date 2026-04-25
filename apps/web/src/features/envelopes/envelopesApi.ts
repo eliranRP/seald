@@ -1,6 +1,6 @@
 import type { AxiosRequestConfig } from 'axios';
 import type { EnvelopeListItem } from 'shared';
-import { apiClient } from '../../lib/api/apiClient';
+import { apiClient } from '@/lib/api/apiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 

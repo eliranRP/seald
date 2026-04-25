@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
-import { usePdfDocument } from '../../lib/pdf';
+import { usePdfDocument } from '@/lib/pdf';
 import type { DocumentPageCanvasProps } from './DocumentPageCanvas.types';
 import {
   FieldLayer,

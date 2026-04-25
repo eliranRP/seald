@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { invariant } from '../../lib/invariant';
-import type { SignatureValue } from '../../types/sealdTypes';
+import { invariant } from '@/lib/invariant';
+import type { SignatureValue } from '@/types/sealdTypes';
 
 export type SignaturePadStatus = 'idle' | 'active' | 'complete';
 

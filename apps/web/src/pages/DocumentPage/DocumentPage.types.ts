@@ -1,10 +1,10 @@
 import type { HTMLAttributes } from 'react';
-import type { NavBarMode, NavBarUser } from '../../components/NavBar/NavBar.types';
-import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
-import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
-import type { PlacePagesMode } from '../../components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
-import type { FieldKind } from '../../types/sealdTypes';
-import type { PDFDocumentProxy } from '../../lib/pdf';
+import type { NavBarMode, NavBarUser } from '@/components/NavBar/NavBar.types';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
+import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
+import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
+import type { FieldKind } from '@/types/sealdTypes';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 
 /** A signer as seen by the DocumentPage workspace — superset of the per-component shapes. */
 export interface DocumentPageSigner {

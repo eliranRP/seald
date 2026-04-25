@@ -185,6 +185,20 @@ module.exports = {
           'Do not use React.FC/React.VFC/React.FunctionComponent — declare props explicitly.',
       },
     ],
+    // Lock in rule 1.6 — once an import has to climb two or more levels
+    // it should use the `@/*` alias instead. Same-dir (`./Foo`) and
+    // parent-dir (`../sibling`) imports remain idiomatic and are allowed.
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          {
+            group: ['../../*', '../../../*', '../../../../*'],
+            message: 'Use @/* path alias instead of deep relative imports (rule 1.6).',
+          },
+        ],
+      },
+    ],
   },
   overrides: [
     {
@@ -209,6 +223,9 @@ module.exports = {
         'import/no-extraneous-dependencies': 'off',
         'react/jsx-props-no-spreading': 'off',
         'import/no-default-export': 'off',
+        // Tests + stories migrate to `@/*` in a separate worktree — disable
+        // the deep-relative guard here so this commit doesn't churn them.
+        'no-restricted-imports': 'off',
       },
     },
     {

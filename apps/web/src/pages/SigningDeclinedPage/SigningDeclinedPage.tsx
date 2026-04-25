@@ -2,8 +2,8 @@ import { useMemo } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { XCircle } from 'lucide-react';
-import { Icon } from '../../components/Icon';
-import { readDoneSnapshot } from '../../features/signing';
+import { Icon } from '@/components/Icon';
+import { readDoneSnapshot } from '@/features/signing';
 
 const Page = styled.div`
   min-height: 100vh;

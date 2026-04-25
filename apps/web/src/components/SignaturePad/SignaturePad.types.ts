@@ -1,4 +1,4 @@
-import type { SignatureValue } from '../../types/sealdTypes';
+import type { SignatureValue } from '@/types/sealdTypes';
 
 export type SignaturePadMode = 'type' | 'draw' | 'upload';
 

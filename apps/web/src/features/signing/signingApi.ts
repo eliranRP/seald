@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios';
-import { signApiClient } from '../../lib/api/signApiClient';
+import { signApiClient } from '@/lib/api/signApiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 

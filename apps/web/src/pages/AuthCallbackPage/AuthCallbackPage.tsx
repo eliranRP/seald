@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AuthLoadingScreen } from '../../layout/AuthLoadingScreen';
-import { useAuth } from '../../providers/AuthProvider';
+import { AuthLoadingScreen } from '@/layout/AuthLoadingScreen';
+import { useAuth } from '@/providers/AuthProvider';
 
 /**
  * L4 page — `/auth/callback`. Supabase redirects back here after an OAuth

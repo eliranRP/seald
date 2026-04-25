@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { Bookmark, CheckCircle2, FileText, Folder, Inbox, Send, UploadCloud } from 'lucide-react';
+import { seald } from '@/styles/theme';
 import { Button } from '../Button';
-import { seald } from '../../styles/theme';
 import type { SideBarFolder, SideBarNavItem, SideBarProps } from './SideBar.types';
 import {
   Aside,

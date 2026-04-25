@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { PDFDocumentProxy } from '../../lib/pdf';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 
 export interface DocumentCanvasProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   readonly title?: string | undefined;

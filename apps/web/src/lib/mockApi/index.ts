@@ -1,4 +1,4 @@
-import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { SEED_CONTACTS } from './data/contacts';
 import { SEED_DOCUMENTS } from './data/documents';
 import { SEED_USER } from './data/user';

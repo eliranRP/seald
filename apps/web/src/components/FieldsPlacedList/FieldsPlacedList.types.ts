@@ -1,5 +1,5 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { FieldKind } from '../../types/sealdTypes';
+import type { FieldKind } from '@/types/sealdTypes';
 
 export interface FieldsPlacedListSigner {
   readonly id: string;

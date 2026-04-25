@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useParams } from 'react-router-dom';
-import { AuthLoadingScreen } from '../../layout/AuthLoadingScreen';
+import { AuthLoadingScreen } from '@/layout/AuthLoadingScreen';
 import { useSignMeQuery } from './useSigning';
 
 interface ApiErrorLike extends Error {
