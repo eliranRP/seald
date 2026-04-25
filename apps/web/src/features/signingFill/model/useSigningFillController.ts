@@ -206,9 +206,13 @@ export function useSigningFillController({
       lastByKindRef.current[kind] = result;
       try {
         // Drop undefined optional fields so `exactOptionalPropertyTypes` is happy.
+        // `kind` is essential — without it the backend writes both signature
+        // and initials uploads to the same path and the burn-in pipeline
+        // ends up rendering the same image at every field placement.
         await setSignature(id, {
           blob: result.blob,
           format: result.format,
+          kind,
           ...(result.font !== undefined ? { font: result.font } : {}),
           ...(result.stroke_count !== undefined ? { stroke_count: result.stroke_count } : {}),
           ...(result.source_filename !== undefined

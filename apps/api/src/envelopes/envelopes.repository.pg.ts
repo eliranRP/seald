@@ -663,15 +663,25 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     signer_id: string,
     input: SetSignerSignatureInput,
   ): Promise<EnvelopeSigner> {
+    // Branch on capture kind so initials no longer clobber the signature
+    // image (or vice versa). When kind is omitted we treat it as
+    // 'signature' to preserve the legacy single-column behaviour.
+    const isInitials = input.kind === 'initials';
+    const patch = isInitials
+      ? {
+          initials_format: input.signature_format,
+          initials_image_path: input.signature_image_path,
+        }
+      : {
+          signature_format: input.signature_format,
+          signature_image_path: input.signature_image_path,
+          signature_font: input.signature_font ?? null,
+          signature_stroke_count: input.signature_stroke_count ?? null,
+          signature_source_filename: input.signature_source_filename ?? null,
+        };
     const row = await this.db
       .updateTable('envelope_signers')
-      .set({
-        signature_format: input.signature_format,
-        signature_image_path: input.signature_image_path,
-        signature_font: input.signature_font ?? null,
-        signature_stroke_count: input.signature_stroke_count ?? null,
-        signature_source_filename: input.signature_source_filename ?? null,
-      })
+      .set(patch)
       .where('id', '=', signer_id)
       .returningAll()
       .executeTakeFirstOrThrow();

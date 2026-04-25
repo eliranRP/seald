@@ -111,6 +111,13 @@ export interface EnvelopeSignersTable {
   signature_stroke_count: number | null;
   signature_source_filename: string | null;
 
+  // Initials capture is a *separate* artifact from the signature. Both
+  // columns are nullable so legacy rows (pre-migration 0005) still work —
+  // the burn-in falls back to signature_image_path when initials_image_path
+  // is null. See migration 0005_signer_initials.sql.
+  initials_format: SignatureFormatDb | null;
+  initials_image_path: string | null;
+
   created_at: ColumnType<Date, string | undefined, never>;
 }
 

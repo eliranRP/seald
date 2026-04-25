@@ -66,7 +66,18 @@ export interface SignerFieldFillInput {
   readonly value_boolean?: boolean | null;
 }
 
+/**
+ * `kind` discriminates the *capture target*, not the storage shape — both
+ * variants share the same input columns. When `kind === 'initials'` the
+ * adapter writes `initials_image_path` + `initials_format` instead of
+ * `signature_image_path` + `signature_format` so a signer's drawn signature
+ * and drawn initials no longer clobber each other on disk. Default
+ * `'signature'` keeps the legacy single-image flow working untouched.
+ */
+export type SignatureKind = 'signature' | 'initials';
+
 export interface SetSignerSignatureInput {
+  readonly kind?: SignatureKind;
   readonly signature_format: SignatureFormat;
   readonly signature_image_path: string;
   readonly signature_font?: string | null;

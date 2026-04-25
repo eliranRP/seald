@@ -69,9 +69,18 @@ export interface StartSessionResponse {
 
 export type FillValue = { readonly value_text: string } | { readonly value_boolean: boolean };
 
+export type SignatureKind = 'signature' | 'initials';
+
 export interface SignatureInput {
   readonly blob: Blob;
   readonly format: SignatureFormat;
+  /**
+   * Discriminates whether the upload is the signer's full signature or
+   * just their initials. Server defaults to 'signature' when absent so
+   * older clients still work; new code should always pass it explicitly
+   * because both kinds otherwise share a storage path on the backend.
+   */
+  readonly kind?: SignatureKind;
   readonly font?: string;
   readonly stroke_count?: number;
   readonly source_filename?: string;
@@ -133,6 +142,7 @@ export async function uploadSignature(
   const fd = new FormData();
   fd.append('image', input.blob, input.source_filename ?? 'signature.png');
   fd.append('format', input.format);
+  if (input.kind !== undefined) fd.append('kind', input.kind);
   if (input.font !== undefined) fd.append('font', input.font);
   if (input.stroke_count !== undefined) fd.append('stroke_count', String(input.stroke_count));
   if (input.source_filename !== undefined) fd.append('source_filename', input.source_filename);
