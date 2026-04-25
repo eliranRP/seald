@@ -38,15 +38,16 @@ export const RemoveLinkedCopiesDialog = forwardRef<HTMLDivElement, RemoveLinkedC
     const titleId = useId();
     const radioName = useId();
     // Default to the safer scope — removing just the page the user is on.
-    // Reset to this default every time the dialog opens so a previous "All
-    // pages" selection doesn't silently carry over into a later removal.
     const [scope, setScope] = useState<RemoveLinkedScope>('only-this');
-    useEffect((): void => {
-      if (open) setScope('only-this');
-    }, [open]);
 
+    // Single open-lifecycle effect (rule 4.4 — one responsibility per
+    // useEffect). On open: reset scope to the safe default so a previous
+    // "All pages" selection doesn't silently carry over, AND wire the
+    // Escape-key listener; both concerns share the same dependency
+    // (`open`) and lifetime, so they belong together.
     useEffect((): (() => void) | undefined => {
       if (!open) return undefined;
+      setScope('only-this');
       const handleKey = (e: KeyboardEvent): void => {
         if (e.key === 'Escape') onCancel();
       };
