@@ -29,7 +29,7 @@ interface UseDocumentZoomNavArgs {
 }
 
 interface UseDocumentZoomNavReturn {
-  readonly scrollAreaRef: React.RefObject<HTMLDivElement>;
+  readonly scrollAreaRef: React.RefObject<HTMLDivElement | null>;
   readonly zoom: number;
   readonly currentPage: number;
   readonly zoomIn: () => void;

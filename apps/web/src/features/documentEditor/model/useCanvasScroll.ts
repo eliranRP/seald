@@ -18,7 +18,7 @@ interface UseCanvasScrollReturn {
   readonly setCurrentPage: React.Dispatch<React.SetStateAction<number>>;
   readonly visiblePages: ReadonlySet<number>;
   readonly paperSize: PaperSize;
-  readonly canvasScrollRef: React.RefObject<HTMLDivElement>;
+  readonly canvasScrollRef: React.RefObject<HTMLDivElement | null>;
   readonly canvasRefsRef: React.MutableRefObject<Map<number, HTMLDivElement | null>>;
   readonly pageWrapRefsRef: React.MutableRefObject<Map<number, HTMLDivElement | null>>;
   readonly setCanvasRefForPage: (p: number) => (el: HTMLDivElement | null) => void;
