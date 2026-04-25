@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, KeyboardEvent, ReactNode } from 'react';
-import { Button } from '../../../Button';
+import { Button } from '@/components/Button';
 import {
   Actions,
   DropZone,

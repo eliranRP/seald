@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { fireEvent, screen } from '@testing-library/react';
-import { renderWithTheme } from '../../../../test/renderWithTheme';
+import { renderWithTheme } from '@/test/renderWithTheme';
 import { UploadMode } from './UploadMode';
 
 type FileReaderLike = {

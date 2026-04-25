@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
-import { renderWithTheme } from '../../../../test/renderWithTheme';
+import { renderWithTheme } from '@/test/renderWithTheme';
 import { TypeMode } from './TypeMode';
 
 describe('TypeMode', () => {

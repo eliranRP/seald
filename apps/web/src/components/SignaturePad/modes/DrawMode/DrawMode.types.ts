@@ -1,4 +1,4 @@
-import type { SignatureValue } from '../../../../types/sealdTypes';
+import type { SignatureValue } from '@/types/sealdTypes';
 
 export interface DrawModeProps {
   readonly onCommit: (value: Extract<SignatureValue, { kind: 'drawn' }>) => void;

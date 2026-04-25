@@ -1,4 +1,4 @@
-import type { AddSignerContact } from '../../../components/AddSignerDropdown/AddSignerDropdown.types';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 
 export const SEED_CONTACTS: ReadonlyArray<AddSignerContact> = [
   { id: 'c1', name: 'Eliran Azulay', email: 'eliran@azulay.co', color: '#F472B6' },

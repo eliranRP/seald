@@ -1,4 +1,4 @@
-import type { SignatureValue } from '../../../../types/sealdTypes';
+import type { SignatureValue } from '@/types/sealdTypes';
 
 export interface UploadModeProps {
   /** Called when a valid image file has been read into a data URL. */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { TextField } from '../../../TextField';
+import { TextField } from '@/components/TextField';
 import { Preview, Wrap } from './TypeMode.styles';
 import type { TypeModeProps } from './TypeMode.types';
 

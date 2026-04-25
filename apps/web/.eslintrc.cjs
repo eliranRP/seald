@@ -22,7 +22,18 @@ module.exports = {
     'plugin:import/typescript',
     'prettier',
   ],
-  settings: { react: { version: 'detect' } },
+  settings: {
+    react: { version: 'detect' },
+    // Teach eslint-plugin-import about the TS path-alias `@/*` declared in
+    // tsconfig.json so `import { ... } from '@/components/Button'` resolves
+    // for `import/no-unresolved` and `import/extensions`.
+    'import/resolver': {
+      typescript: {
+        project: ['./tsconfig.json', './tsconfig.node.json'],
+      },
+      node: true,
+    },
+  },
   rules: {
     'import/prefer-default-export': 'off',
     'import/no-default-export': 'error',

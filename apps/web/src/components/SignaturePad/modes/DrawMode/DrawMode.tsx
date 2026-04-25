@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as RP } from 'react';
 import { useTheme } from 'styled-components';
-import { Button } from '../../../Button';
+import { Button } from '@/components/Button';
 import { Canvas, Row, Actions, SrOnly, Wrap } from './DrawMode.styles';
 import type { DrawModeProps } from './DrawMode.types';
 

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor } from '@testing-library/react';
-import { renderWithTheme } from '../../../../test/renderWithTheme';
+import { renderWithTheme } from '@/test/renderWithTheme';
 import { DrawMode } from './DrawMode';
 
 class PointerEventPolyfill extends MouseEvent {

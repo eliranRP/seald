@@ -1,4 +1,4 @@
-import type { SignatureValue } from '../../../../types/sealdTypes';
+import type { SignatureValue } from '@/types/sealdTypes';
 
 export interface TypeModeProps {
   /** Called when the user commits a non-empty name. */

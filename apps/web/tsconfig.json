@@ -21,7 +21,11 @@
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": false,
     "noEmit": true,
-    "types": ["vitest/globals", "@testing-library/jest-dom", "node"]
+    "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["src", ".storybook/**/*"]
 }

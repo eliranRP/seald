@@ -1,4 +1,5 @@
 /// <reference types="vitest" />
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { visualizer } from 'rollup-plugin-visualizer';
@@ -21,6 +22,13 @@ export default defineConfig({
         ]
       : []),
   ],
+  resolve: {
+    alias: {
+      // Mirrors `paths` in tsconfig.json. Prefer `@/feature/...` over deep
+      // relative imports — see react-best-practices skill rule 1.6.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
+  },
   server: { port: 5173, strictPort: true },
   test: {
     globals: true,
