@@ -38,7 +38,10 @@ import {
   useEnvelopeEventsQuery,
   useEnvelopeQuery,
 } from '@/features/envelopes';
-import { useDeleteEnvelopeMutation } from '@/features/envelopes/useEnvelopes';
+import {
+  useCancelEnvelopeMutation,
+  useDeleteEnvelopeMutation,
+} from '@/features/envelopes/useEnvelopes';
 import type { Envelope, EnvelopeEvent, EnvelopeStatus, SignerUiStatus } from '@/features/envelopes';
 import {
   Actions,
@@ -301,9 +304,13 @@ interface ActionToast {
  *   - Send reminder — fans out `POST /envelopes/:id/signers/:sid/remind`
  *     across every signer still waiting. 429s (1/hour throttle) aggregate
  *     into the toast; a partial-success is reported.
- *   - Withdraw — for DRAFT envelopes only (the backend currently supports
- *     `deleteDraft` but has no sent-envelope cancel). Hidden for other
- *     statuses so the control doesn't bait a click that can't complete.
+ *   - Withdraw — visible on `draft`, `awaiting_others`, and `sealing`
+ *     envelopes. Drafts route through `deleteDraft` (no email side-effects);
+ *     sent envelopes hit `POST /envelopes/:id/cancel`, which flips the
+ *     status to `canceled`, revokes pending access tokens, and fans out
+ *     `withdrawn_to_signer` / `withdrawn_after_sign` notifications.
+ *     Terminal envelopes (completed / declined / expired / canceled) hide
+ *     the control so the user doesn't bait a click that can't complete.
  *   - Breadcrumb Documents — navigates to `/documents`.
  *   - View audit trail — opens `/verify/:short_code` in a new tab,
  *     the public verify page sealed into every outbound email.
@@ -315,6 +322,7 @@ export function EnvelopeDetailPage() {
   const q = useEnvelopeQuery(id ?? '', Boolean(id));
   const ev = useEnvelopeEventsQuery(id ?? '', Boolean(id));
   const deleteEnvelope = useDeleteEnvelopeMutation();
+  const cancelEnvelope = useCancelEnvelopeMutation();
 
   const [toast, setToast] = useState<ActionToast | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -495,10 +503,30 @@ export function EnvelopeDetailPage() {
   const handleConfirmWithdraw = useCallback(() => {
     if (!envelope) return;
     setWithdrawOpen(false);
-    deleteEnvelope.mutate(envelope.id, {
+    // Drafts: hard-delete (no signers were ever notified). Sent envelopes
+    // (awaiting_others / sealing): the cancel mutation flips the status to
+    // `canceled` server-side and fans out the withdrawal emails. Terminal
+    // statuses don't even render the button so we don't branch for them.
+    if (envelope.status === 'draft') {
+      deleteEnvelope.mutate(envelope.id, {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
+          navigate('/documents');
+        },
+        onError: (err) => {
+          setToast({
+            kind: 'danger',
+            text: err instanceof Error ? err.message : 'Could not withdraw this envelope.',
+          });
+        },
+      });
+      return;
+    }
+    cancelEnvelope.mutate(envelope.id, {
       onSuccess: () => {
-        qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
-        navigate('/documents');
+        // Stay on the page so the user sees the timeline pick up the
+        // `canceled` event + signer status updates.
+        setToast({ kind: 'success', text: 'Envelope withdrawn. Signers were notified.' });
       },
       onError: (err) => {
         setToast({
@@ -507,7 +535,7 @@ export function EnvelopeDetailPage() {
         });
       },
     });
-  }, [envelope, deleteEnvelope, qc, navigate]);
+  }, [envelope, deleteEnvelope, cancelEnvelope, qc, navigate]);
 
   if (q.isPending) {
     return (
@@ -640,12 +668,14 @@ export function EnvelopeDetailPage() {
             >
               Send reminder
             </Button>
-            {envelope.status === 'draft' ? (
+            {envelope.status === 'draft' ||
+            envelope.status === 'awaiting_others' ||
+            envelope.status === 'sealing' ? (
               <Button
                 variant="secondary"
                 iconLeft={X}
                 onClick={() => setWithdrawOpen(true)}
-                loading={deleteEnvelope.isPending}
+                loading={deleteEnvelope.isPending || cancelEnvelope.isPending}
               >
                 Withdraw
               </Button>
@@ -753,9 +783,13 @@ export function EnvelopeDetailPage() {
       <ExitConfirmDialog
         open={withdrawOpen}
         title="Withdraw this envelope?"
-        description="This draft will be permanently removed. The action cannot be undone."
+        description={
+          envelope.status === 'draft'
+            ? 'This draft will be permanently removed. The action cannot be undone.'
+            : `Your signer${envelope.signers.length === 1 ? '' : 's'} will be notified that the request is canceled. This cannot be undone.`
+        }
         confirmLabel="Withdraw"
-        cancelLabel="Keep draft"
+        cancelLabel={envelope.status === 'draft' ? 'Keep draft' : 'Keep envelope'}
         onConfirm={handleConfirmWithdraw}
         onCancel={() => setWithdrawOpen(false)}
       />

@@ -826,6 +826,74 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     });
   }
 
+  async cancelEnvelope(
+    envelope_id: string,
+    owner_id: string,
+  ): Promise<{
+    readonly envelope: Envelope;
+    readonly notifiedSignerIds: ReadonlyArray<string>;
+    readonly alreadySignedSignerIds: ReadonlyArray<string>;
+  } | null> {
+    return this.db.transaction().execute(async (trx) => {
+      // Lock the envelope row first so a concurrent /decline or /submit
+      // can't race the status flip mid-transaction. pg-mem ignores FOR
+      // UPDATE but real Postgres respects it; the row-conditional UPDATE
+      // below is the actual safety net for either backend.
+      const env = await trx
+        .selectFrom('envelopes')
+        .selectAll()
+        .where('id', '=', envelope_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!env) return null;
+      if (env.owner_id !== owner_id) return null;
+      if (env.status !== 'awaiting_others' && env.status !== 'sealing') return null;
+
+      const now = new Date().toISOString();
+      const updated = await trx
+        .updateTable('envelopes')
+        .set({ status: 'canceled', updated_at: now })
+        .where('id', '=', envelope_id)
+        .where('owner_id', '=', owner_id)
+        .where('status', 'in', ['awaiting_others', 'sealing'])
+        .executeTakeFirst();
+      if ((updated?.numUpdatedRows ?? 0n) === 0n) return null;
+
+      // Revoke pending access tokens. Signers who've already signed or
+      // declined keep their token history intact for the audit PDF.
+      await trx
+        .updateTable('envelope_signers')
+        .set({ access_token_hash: null })
+        .where('envelope_id', '=', envelope_id)
+        .where('signed_at', 'is', null)
+        .where('declined_at', 'is', null)
+        .execute();
+
+      const signerRows = await trx
+        .selectFrom('envelope_signers')
+        .select(['id', 'signed_at', 'declined_at'])
+        .where('envelope_id', '=', envelope_id)
+        .execute();
+      const notifiedSignerIds: string[] = [];
+      const alreadySignedSignerIds: string[] = [];
+      for (const s of signerRows) {
+        if (s.signed_at !== null) {
+          alreadySignedSignerIds.push(s.id);
+        } else if (s.declined_at === null) {
+          // Pending (not signed, not declined) — they need the
+          // "withdrawn_to_signer" notification.
+          notifiedSignerIds.push(s.id);
+        }
+        // Already-declined signers get nothing — the decline flow already
+        // notified them via session_invalidated_by_decline.
+      }
+
+      const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
+      if (!envelope) return null;
+      return { envelope, notifiedSignerIds, alreadySignedSignerIds };
+    });
+  }
+
   async expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>> {
     // pg-mem does not support UPDATE ... LIMIT, so we select-then-update.
     // On real Postgres this is also safe: the SELECT lists candidates and

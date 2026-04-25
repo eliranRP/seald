@@ -20,7 +20,11 @@ import {
   DuplicateOutboundEmailError,
   OutboundEmailsRepository,
 } from '../email/outbound-emails.repository';
-import { buildSignerListHtmlFromSigners } from '../email/template-fragments';
+import {
+  buildSignerListHtmlFromSigners,
+  buildTimelineHtml,
+  type TimelineEventFragment,
+} from '../email/template-fragments';
 import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
@@ -474,6 +478,148 @@ export class EnvelopesService {
   }
 
   /**
+   * Sender-initiated cancel ("withdraw") of a sent envelope. Mirrors
+   * SigningService.decline on the sender side: atomically flip the
+   * envelope to `canceled`, revoke pending access tokens, fan out the
+   * pre-staged `withdrawn_to_signer` / `withdrawn_after_sign` emails,
+   * and enqueue an `audit_only` job so the timeline + audit PDF reflect
+   * the terminal state.
+   *
+   * Allowed transitions: `awaiting_others` | `sealing` → `canceled`.
+   * `draft` keeps the existing `deleteDraft` flow (no email side-effects)
+   * and any terminal status (`completed` / `declined` / `expired` /
+   * `canceled`) is rejected with 409.
+   */
+  async cancel(
+    owner_id: string,
+    envelope_id: string,
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+  ): Promise<{ readonly status: 'canceled'; readonly envelope_status: 'canceled' }> {
+    const result = await this.repo.cancelEnvelope(envelope_id, owner_id);
+    if (!result) {
+      // Disambiguate: not the owner's row → 404; otherwise terminal → 409.
+      const fresh = await this.repo.findByIdForOwner(owner_id, envelope_id);
+      if (!fresh) throw new NotFoundException('envelope_not_found');
+      throw new ConflictException('envelope_terminal');
+    }
+
+    const { envelope, notifiedSignerIds, alreadySignedSignerIds } = result;
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
+    const senderDisplay = envelope.sender_name ?? envelope.sender_email ?? 'The document sender';
+
+    // Sender's own audit event for the cancel action.
+    const canceledEvent = await this.repo.appendEvent({
+      envelope_id,
+      actor_kind: 'sender',
+      event_type: 'canceled',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: {
+        notified_signer_count: notifiedSignerIds.length,
+        already_signed_signer_count: alreadySignedSignerIds.length,
+      },
+    });
+
+    // Pre-render a single timeline for the `withdrawn_after_sign` kind:
+    // (sent → each who signed → withdrawn pending). One render even if
+    // multiple recipients share it.
+    const withdrawnTimelineHtml = ((): string => {
+      const events: TimelineEventFragment[] = [];
+      if (envelope.sent_at !== null) {
+        events.push({
+          label: `Envelope sent by ${senderDisplay}`,
+          at: formatUtc(envelope.sent_at),
+        });
+      }
+      for (const s of envelope.signers) {
+        if (s.signed_at !== null) {
+          events.push({ label: `${s.name} signed`, at: formatUtc(s.signed_at) });
+        }
+      }
+      events.push({
+        label: `Envelope withdrawn by ${senderDisplay}`,
+        at: formatUtc(new Date().toISOString()),
+        pending: true,
+      });
+      return buildTimelineHtml(events);
+    })();
+
+    // Pending signers — withdrawn_to_signer + session_invalidated_by_cancel.
+    for (const signerId of notifiedSignerIds) {
+      const signer = envelope.signers.find((s) => s.id === signerId);
+      if (!signer) continue;
+
+      await this.repo.appendEvent({
+        envelope_id,
+        signer_id: signerId,
+        actor_kind: 'system',
+        event_type: 'session_invalidated_by_cancel',
+        metadata: {},
+      });
+
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id: signerId,
+          kind: 'withdrawn_to_signer',
+          to_email: signer.email,
+          to_name: signer.name,
+          source_event_id: canceledEvent.id,
+          payload: {
+            sender_name: senderDisplay,
+            envelope_title: envelope.title,
+            short_code: envelope.short_code,
+            verify_url: verifyUrl,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        if (err instanceof DuplicateOutboundEmailError) continue;
+        throw err;
+      }
+    }
+
+    // Signers who'd already completed before cancel — withdrawn_after_sign.
+    // They keep their copy + the audit retains their submission as legal
+    // evidence; no session-invalidation event because their session was
+    // already terminal (`signed_at` was set).
+    for (const signerId of alreadySignedSignerIds) {
+      const signer = envelope.signers.find((s) => s.id === signerId);
+      if (!signer || signer.signed_at === null) continue;
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id: signerId,
+          kind: 'withdrawn_after_sign',
+          to_email: signer.email,
+          to_name: signer.name,
+          source_event_id: canceledEvent.id,
+          payload: {
+            sender_name: senderDisplay,
+            envelope_title: envelope.title,
+            signed_at_readable: formatUtc(signer.signed_at),
+            short_code: envelope.short_code,
+            verify_url: verifyUrl,
+            public_url: publicUrl,
+            timeline_html: withdrawnTimelineHtml,
+          },
+        });
+      } catch (err) {
+        if (err instanceof DuplicateOutboundEmailError) continue;
+        throw err;
+      }
+    }
+
+    // Audit-only seal job — produces the audit PDF for the canceled
+    // envelope. Mirrors the decline path so the artifact set is consistent
+    // across terminal statuses.
+    await this.repo.enqueueJob(envelope_id, 'audit_only');
+
+    return { status: 'canceled', envelope_status: 'canceled' };
+  }
+
+  /**
    * Manually re-send the signing invite to a single signer. Rotates the
    * signer's access_token_hash so the new email carries a fresh token —
    * any prior link is dead the moment this succeeds. Throttled to at most
@@ -566,6 +712,17 @@ export class EnvelopesService {
       },
     });
   }
+}
+
+/** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
+function formatUtc(iso: string): string {
+  const d = new Date(iso);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mi = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
 }
 
 function formatExpiresAt(iso: string): string {

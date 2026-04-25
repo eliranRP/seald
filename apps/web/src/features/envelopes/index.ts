@@ -12,6 +12,7 @@ export {
   usePlaceEnvelopeFieldsMutation,
   useSendEnvelopeMutation,
   useDeleteEnvelopeMutation,
+  useCancelEnvelopeMutation,
 } from './useEnvelopes';
 export type {
   UploadFileArgs,
@@ -32,8 +33,10 @@ export {
   placeEnvelopeFields,
   sendEnvelope,
   deleteEnvelope,
+  cancelEnvelope,
 } from './envelopesApi';
 export type {
+  CancelEnvelopeResponse,
   Envelope,
   EnvelopeDownloadKind,
   EnvelopeDownloadUrl,

@@ -166,6 +166,7 @@ export interface EventInput {
     | 'canceled'
     | 'reminder_sent'
     | 'session_invalidated_by_decline'
+    | 'session_invalidated_by_cancel'
     | 'job_failed'
     | 'retention_deleted';
   readonly ip?: string | null;
@@ -260,6 +261,30 @@ export abstract class EnvelopesRepository {
     ip: string | null,
     user_agent: string | null,
   ): Promise<Envelope | null>;
+
+  /**
+   * Sender-initiated cancel. Atomically flips an envelope from
+   * `awaiting_others` or `sealing` → `canceled` and revokes any pending
+   * signer access tokens (NULLs `access_token_hash` so a previously-sent
+   * `/sign/start` request returns 401). Returns null when the row is
+   * missing, owner mismatch, or status was not in the cancelable set —
+   * the service re-reads to disambiguate 404 vs 409.
+   *
+   * Returned signer-id splits drive the email fan-out:
+   *   - `notifiedSignerIds` — signers who hadn't signed yet → enqueue
+   *      `withdrawn_to_signer` (link is dead, no action needed).
+   *   - `alreadySignedSignerIds` — signers who completed before cancel
+   *      → enqueue `withdrawn_after_sign` (their copy + audit retained).
+   */
+  abstract cancelEnvelope(
+    envelope_id: string,
+    owner_id: string,
+  ): Promise<{
+    readonly envelope: Envelope;
+    readonly notifiedSignerIds: ReadonlyArray<string>;
+    readonly alreadySignedSignerIds: ReadonlyArray<string>;
+  } | null>;
+
   abstract expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>>;
 
   // Audit

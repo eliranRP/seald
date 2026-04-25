@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EnvelopeListItem } from 'shared';
 import type {
+  CancelEnvelopeResponse,
   Envelope,
   EnvelopeEventsResponse,
   EnvelopeField,
@@ -11,6 +12,7 @@ import type {
 } from './envelopesApi';
 import {
   addEnvelopeSigner,
+  cancelEnvelope,
   createEnvelope,
   deleteEnvelope,
   getEnvelope,
@@ -148,6 +150,28 @@ export function useDeleteEnvelopeMutation() {
     mutationFn: (id) => deleteEnvelope(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
+    },
+  });
+}
+
+/**
+ * Sender-initiated cancel ("withdraw") of a sent envelope. Mirrors
+ * `useDeleteEnvelopeMutation` but targets the `/cancel` endpoint —
+ * use this for `awaiting_others` / `sealing` envelopes; the delete-draft
+ * mutation handles `draft`.
+ */
+export function useCancelEnvelopeMutation() {
+  const qc = useQueryClient();
+  return useMutation<CancelEnvelopeResponse, Error, string>({
+    mutationFn: (id) => cancelEnvelope(id),
+    onSuccess: (_res, id) => {
+      // Invalidate both the list and the detail query so the UI re-pulls
+      // the canonical `canceled` status. Don't optimistically setQueryData
+      // — the API also recomputes signers.access_token_hash side-effects
+      // and we want the next read to round-trip.
+      qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
+      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(id) });
+      qc.invalidateQueries({ queryKey: ENVELOPE_EVENTS_KEY(id) });
     },
   });
 }

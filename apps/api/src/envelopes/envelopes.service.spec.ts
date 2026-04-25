@@ -329,6 +329,28 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async declineSigner(): Promise<Envelope | null> {
     throw new Error('not_implemented_in_fake');
   }
+  async cancelEnvelope(
+    envelope_id: string,
+    owner_id: string,
+  ): Promise<{
+    readonly envelope: Envelope;
+    readonly notifiedSignerIds: readonly string[];
+    readonly alreadySignedSignerIds: readonly string[];
+  } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return null;
+    if (env.owner_id !== owner_id) return null;
+    if (env.status !== 'awaiting_others' && env.status !== 'sealing') return null;
+    const notifiedSignerIds: string[] = [];
+    const alreadySignedSignerIds: string[] = [];
+    for (const s of env.signers) {
+      if (s.signed_at !== null) alreadySignedSignerIds.push(s.id);
+      else if (s.declined_at === null) notifiedSignerIds.push(s.id);
+    }
+    const next: Envelope = { ...env, status: 'canceled', updated_at: new Date().toISOString() };
+    this.envelopes.set(envelope_id, next);
+    return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
   async expireEnvelopes(): Promise<readonly string[]> {
     throw new Error('not_implemented_in_fake');
   }
@@ -349,8 +371,10 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     return event;
   }
 
-  async enqueueJob(): Promise<string> {
-    throw new Error('not_implemented_in_fake');
+  jobs: Array<{ readonly envelope_id: string; readonly kind: 'seal' | 'audit_only' }> = [];
+  async enqueueJob(envelope_id: string, kind: 'seal' | 'audit_only'): Promise<string> {
+    this.jobs.push({ envelope_id, kind });
+    return `job_${this.jobs.length}`;
   }
   async claimNextJob(): Promise<never> {
     throw new Error('not_implemented_in_fake');
@@ -388,6 +412,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
 const TEST_ENV = {
   TC_VERSION: '2026-04-24',
   PRIVACY_VERSION: '2026-04-24',
+  APP_PUBLIC_URL: 'http://localhost:5173',
 } as unknown as AppEnv;
 
 /** Minimal in-memory outbox for service tests. */
@@ -748,6 +773,145 @@ describe('EnvelopesService', () => {
     it('404 on cross-owner', async () => {
       const e = await svc.createDraft(OWNER, { title: 'X' });
       await expect(svc.listEvents(OTHER, e.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('cancel', () => {
+    /**
+     * Stamp a sent envelope with the given per-signer state and force the
+     * status flip — we exercise `cancel` directly here without going
+     * through the full draft → upload → addSigner → send pipeline (those
+     * are covered by the e2e specs).
+     */
+    function setupSentEnvelope(args: {
+      readonly status?: 'awaiting_others' | 'sealing' | 'completed' | 'canceled';
+      readonly signers: ReadonlyArray<{
+        readonly id: string;
+        readonly name: string;
+        readonly email: string;
+        readonly signed_at?: string | null;
+        readonly declined_at?: string | null;
+      }>;
+    }): { readonly id: string } {
+      const id = `env_${repo.envelopes.size + 1}`;
+      const now = new Date().toISOString();
+      const env: Envelope = {
+        id,
+        owner_id: OWNER,
+        title: 'Sent envelope',
+        short_code: 'AAAA-BBBB-CCC',
+        status: args.status ?? 'awaiting_others',
+        delivery_mode: 'parallel',
+        original_pages: 1,
+        original_sha256: 'a'.repeat(64),
+        sealed_sha256: null,
+        sender_email: 'sender@example.com',
+        sender_name: 'Sender Name',
+        sent_at: now,
+        completed_at: null,
+        expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        tc_version: '2026-04-24',
+        privacy_version: '2026-04-24',
+        signers: args.signers.map((s) => ({
+          id: s.id,
+          email: s.email,
+          name: s.name,
+          color: '#112233',
+          role: 'signatory',
+          signing_order: 1,
+          status:
+            s.signed_at != null ? 'completed' : s.declined_at != null ? 'declined' : 'awaiting',
+          viewed_at: null,
+          tc_accepted_at: null,
+          signed_at: s.signed_at ?? null,
+          declined_at: s.declined_at ?? null,
+        })),
+        fields: [],
+        created_at: now,
+        updated_at: now,
+      };
+      repo.envelopes.set(id, env);
+      return { id };
+    }
+
+    it('flips awaiting_others → canceled, records canceled event, fans out withdrawn_to_signer + audit_only job', async () => {
+      const { id } = setupSentEnvelope({
+        signers: [
+          { id: 's1', name: 'Ada', email: 'ada@x.com' },
+          { id: 's2', name: 'Bea', email: 'bea@x.com' },
+        ],
+      });
+
+      const res = await svc.cancel(OWNER, id);
+
+      expect(res).toEqual({ status: 'canceled', envelope_status: 'canceled' });
+      expect(repo.envelopes.get(id)?.status).toBe('canceled');
+
+      const types = repo.events.filter((e) => e.envelope_id === id).map((e) => e.event_type);
+      expect(types).toContain('canceled');
+      expect(types.filter((t) => t === 'session_invalidated_by_cancel')).toHaveLength(2);
+
+      const queued = outbound.rows.filter((r) => r.envelope_id === id);
+      expect(queued).toHaveLength(2);
+      expect(queued.every((r) => r.kind === 'withdrawn_to_signer')).toBe(true);
+      expect(queued.map((r) => r.to_email).sort()).toEqual(['ada@x.com', 'bea@x.com']);
+      expect(queued[0]!.payload).toMatchObject({
+        envelope_title: 'Sent envelope',
+        sender_name: 'Sender Name',
+      });
+
+      expect(repo.jobs).toEqual([{ envelope_id: id, kind: 'audit_only' }]);
+    });
+
+    it('routes already-signed signers to withdrawn_after_sign and pending signers to withdrawn_to_signer', async () => {
+      const signedAt = new Date().toISOString();
+      const { id } = setupSentEnvelope({
+        status: 'sealing',
+        signers: [
+          { id: 's1', name: 'Ada', email: 'ada@x.com', signed_at: signedAt },
+          { id: 's2', name: 'Bea', email: 'bea@x.com' },
+        ],
+      });
+
+      await svc.cancel(OWNER, id);
+
+      const queued = outbound.rows.filter((r) => r.envelope_id === id);
+      const byEmail = new Map(queued.map((r) => [r.to_email, r]));
+      expect(byEmail.get('ada@x.com')?.kind).toBe('withdrawn_after_sign');
+      expect(byEmail.get('bea@x.com')?.kind).toBe('withdrawn_to_signer');
+      expect(byEmail.get('ada@x.com')?.payload).toMatchObject({
+        signed_at_readable: expect.stringMatching(/UTC$/),
+      });
+      const sessionInvals = repo.events.filter(
+        (e) => e.event_type === 'session_invalidated_by_cancel',
+      );
+      expect(sessionInvals).toHaveLength(1);
+      expect(sessionInvals[0]?.signer_id).toBe('s2');
+    });
+
+    it('404 envelope_not_found when caller is not the owner', async () => {
+      const { id } = setupSentEnvelope({
+        signers: [{ id: 's1', name: 'Ada', email: 'ada@x.com' }],
+      });
+      await expect(svc.cancel(OTHER, id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('409 envelope_terminal when the envelope is already completed', async () => {
+      const { id } = setupSentEnvelope({
+        status: 'completed',
+        signers: [
+          { id: 's1', name: 'Ada', email: 'ada@x.com', signed_at: new Date().toISOString() },
+        ],
+      });
+      await expect(svc.cancel(OWNER, id)).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('409 envelope_terminal when the envelope is already canceled (idempotency guard)', async () => {
+      const { id } = setupSentEnvelope({
+        status: 'canceled',
+        signers: [{ id: 's1', name: 'Ada', email: 'ada@x.com' }],
+      });
+      await expect(svc.cancel(OWNER, id)).rejects.toBeInstanceOf(ConflictException);
     });
   });
 });

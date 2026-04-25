@@ -44,6 +44,7 @@ export type VerifyEventType =
   | 'canceled'
   | 'reminder_sent'
   | 'session_invalidated_by_decline'
+  | 'session_invalidated_by_cancel'
   | 'job_failed'
   | 'retention_deleted';
 

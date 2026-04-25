@@ -135,6 +135,24 @@ export class EnvelopesController {
     );
   }
 
+  /**
+   * Sender-initiated cancel ("withdraw") of a sent envelope. Allowed only
+   * on `awaiting_others` and `sealing` — terminal statuses surface as 409.
+   * On success the envelope flips to `canceled`, pending access tokens are
+   * revoked, and withdrawal emails fan out to every still-relevant signer.
+   */
+  @Post(':id/cancel')
+  cancel(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ): Promise<{ status: 'canceled'; envelope_status: 'canceled' }> {
+    return this.svc.cancel(user.id, id, {
+      ip: extractClientIp(req),
+      user_agent: req.headers['user-agent'] ?? null,
+    });
+  }
+
   @Post(':id/signers/:signer_id/remind')
   @HttpCode(202)
   async remindSigner(

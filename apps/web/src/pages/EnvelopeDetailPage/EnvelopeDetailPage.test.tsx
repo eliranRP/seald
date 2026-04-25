@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { render, screen, type RenderResult } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ReactElement, ReactNode } from 'react';
@@ -21,6 +22,7 @@ import { apiClient } from '../../lib/api/apiClient';
 import { EnvelopeDetailPage } from './EnvelopeDetailPage';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+const post = apiClient.post as unknown as ReturnType<typeof vi.fn>;
 
 function renderAt(id: string): RenderResult {
   const qc = new QueryClient({
@@ -45,7 +47,54 @@ function renderAt(id: string): RenderResult {
 
 beforeEach(() => {
   get.mockReset();
+  post.mockReset();
 });
+
+interface EnvelopeMockOverrides {
+  readonly status?: string;
+  readonly signers?: ReadonlyArray<Record<string, unknown>>;
+}
+
+function mockEnvelope(overrides: EnvelopeMockOverrides = {}): void {
+  const defaultSigner = {
+    id: 's1',
+    email: 'maya@example.com',
+    name: 'Maya Raskin',
+    color: '#10B981',
+    role: 'signatory',
+    signing_order: 1,
+    status: 'awaiting',
+    viewed_at: null,
+    tc_accepted_at: null,
+    signed_at: null,
+    declined_at: null,
+  };
+  get.mockImplementation((url: string) => {
+    if (url.endsWith('/events')) {
+      return Promise.resolve({ data: { events: [] }, status: 200 });
+    }
+    return Promise.resolve({
+      data: {
+        id: 'env-1',
+        owner_id: 'u',
+        title: 'Master Services Agreement',
+        short_code: 'MSA-ABCD-1234',
+        status: overrides.status ?? 'awaiting_others',
+        original_pages: 4,
+        expires_at: '2030-01-01T00:00:00Z',
+        tc_version: '1',
+        privacy_version: '1',
+        sent_at: '2026-04-01T00:00:00Z',
+        completed_at: null,
+        signers: overrides.signers ?? [defaultSigner],
+        fields: [],
+        created_at: '2026-04-01T00:00:00Z',
+        updated_at: '2026-04-01T00:00:00Z',
+      },
+      status: 200,
+    });
+  });
+}
 
 describe('EnvelopeDetailPage', () => {
   it('renders envelope title, short code, and signer list on success', async () => {
@@ -118,5 +167,61 @@ describe('EnvelopeDetailPage', () => {
     get.mockImplementationOnce(() => new Promise(() => {}));
     const { container } = renderAt('env-pending');
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it('shows the Withdraw button on awaiting_others envelopes and calls cancel on confirm', async () => {
+    mockEnvelope({ status: 'awaiting_others' });
+    post.mockResolvedValue({
+      data: { status: 'canceled', envelope_status: 'canceled' },
+      status: 201,
+    });
+
+    renderAt('env-1');
+    const user = userEvent.setup();
+
+    const withdraw = await screen.findByRole('button', { name: /withdraw/i });
+    await user.click(withdraw);
+
+    // Dialog opens with sent-mode copy. The dialog's confirm action also
+    // reads "Withdraw" — disambiguate by waiting for the dialog title.
+    expect(
+      await screen.findByRole('heading', { name: /withdraw this envelope\?/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/will be notified that the request is canceled/i)).toBeInTheDocument();
+
+    const confirmButtons = screen.getAllByRole('button', { name: /^withdraw$/i });
+    // The dialog confirm is the last "Withdraw" button rendered (header
+    // button is first); click that one to fire the mutation.
+    const dialogConfirm = confirmButtons[confirmButtons.length - 1];
+    expect(dialogConfirm).toBeDefined();
+    await user.click(dialogConfirm!);
+
+    expect(post).toHaveBeenCalledWith('/envelopes/env-1/cancel', undefined, expect.anything());
+  });
+
+  it('hides the Withdraw button on completed envelopes', async () => {
+    mockEnvelope({
+      status: 'completed',
+      signers: [
+        {
+          id: 's1',
+          email: 'maya@example.com',
+          name: 'Maya Raskin',
+          color: '#10B981',
+          role: 'signatory',
+          signing_order: 1,
+          status: 'completed',
+          viewed_at: '2026-04-01T00:00:00Z',
+          tc_accepted_at: '2026-04-01T00:00:00Z',
+          signed_at: '2026-04-01T00:01:00Z',
+          declined_at: null,
+        },
+      ],
+    });
+
+    renderAt('env-1');
+
+    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /withdraw/i })).toBeNull();
   });
 });

@@ -123,6 +123,19 @@ export function createPgMemDb(): PgMemHandle {
   const migration0005Path = resolve(__dirname, '../db/migrations/0005_signer_initials.sql');
   mem.public.none(readFileSync(migration0005Path, 'utf8'));
 
+  // 0006 adds 'session_invalidated_by_cancel' to the event_type enum.
+  // pg-mem treats enums as plain text columns once the create-type runs, so
+  // ALTER TYPE ... ADD VALUE is a no-op against the in-memory schema; we
+  // load it for parity with real Postgres + so any future enum-aware
+  // pg-mem release picks the new value up automatically.
+  const migration0006Path = resolve(__dirname, '../db/migrations/0006_event_type_cancel.sql');
+  try {
+    mem.public.none(readFileSync(migration0006Path, 'utf8'));
+  } catch {
+    // pg-mem may not implement ALTER TYPE ADD VALUE — safe to ignore;
+    // its enum check is text-based so the inserts still work.
+  }
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
