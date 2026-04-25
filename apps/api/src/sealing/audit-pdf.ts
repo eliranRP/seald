@@ -162,7 +162,7 @@ const PAGE_H = 792;
 const M_X = 43.2;
 const M_TOP = 36;
 const CONTENT_W = PAGE_W - M_X * 2;
-const FOOTER_H = 40;
+const FOOTER_H = 48;
 const CONTENT_BOTTOM = FOOTER_H + 12; // where body content must stop
 
 // ---------------------------------------------------------------------------
@@ -430,16 +430,22 @@ function drawHeader(
   drawHRule(page, M_X, ruleY, CONTENT_W);
 }
 
+/**
+ * Footer layout: two stacked rows so the long Req UUID never collides
+ * with the brand identity or page number. Top row has the brand mark
+ * (left) and page number (right). Bottom row has the Req id centered.
+ * 16pt above the bottom edge keeps a visible bottom padding.
+ */
 function drawFooter(page: PDFPage, ctx: RenderCtx, pageNum: number): void {
-  const yTop = FOOTER_H + 4;
-  // Rule above
-  drawHRule(page, M_X, yTop + 10, CONTENT_W);
+  const ruleY = FOOTER_H + 6;
+  drawHRule(page, M_X, ruleY, CONTENT_W);
 
-  // Left: brand mark + "Sealed · Audit trail issued by Sealed, Inc."
+  // Top row — brand mark on the left, page number on the right.
+  const topY = ruleY - 12;
   const markSize = 10;
   drawRoundedRect(page, {
     x: M_X,
-    y: yTop - markSize / 2 - 2,
+    y: topY - markSize / 2 - 2,
     width: markSize,
     height: markSize,
     radius: 2,
@@ -447,38 +453,27 @@ function drawFooter(page: PDFPage, ctx: RenderCtx, pageNum: number): void {
   });
   drawTextTop(page, 'S', {
     x: M_X + 2,
-    y: yTop + 2,
+    y: topY + 2,
     font: ctx.fonts.script,
     size: 10,
     color: C.paper,
   });
   drawTextTop(page, 'Sealed', {
     x: M_X + markSize + 5,
-    y: yTop + 2,
+    y: topY + 2,
     font: ctx.fonts.serifMedium,
     size: 9,
     color: C.ink900,
   });
-  drawTextTop(page, '·  Audit trail issued by Sealed, Inc.', {
-    x: M_X + markSize + 5 + textWidth(ctx.fonts.serifMedium, 'Sealed', 9) + 4,
-    y: yTop + 2,
+  const sealedW = textWidth(ctx.fonts.serifMedium, 'Sealed', 9);
+  drawTextTop(page, '· Audit trail', {
+    x: M_X + markSize + 5 + sealedW + 5,
+    y: topY + 2,
     font: ctx.fonts.sans,
     size: 8,
     color: C.ink500,
   });
 
-  // Center: request id (mono)
-  const reqLabel = `Req  ${ctx.envelope.id.toUpperCase()}`;
-  const reqWidth = textWidth(ctx.fonts.mono, reqLabel, 8);
-  drawTextTop(page, reqLabel, {
-    x: PAGE_W / 2 - reqWidth / 2,
-    y: yTop + 2,
-    font: ctx.fonts.mono,
-    size: 8,
-    color: C.ink500,
-  });
-
-  // Right: "01  /  04" — current page bold, total muted
   const total = pad2(ctx.totalPages);
   const cur = pad2(pageNum);
   const sepText = '  /  ';
@@ -488,24 +483,35 @@ function drawFooter(page: PDFPage, ctx: RenderCtx, pageNum: number): void {
   const rightX = PAGE_W - M_X - (curW + sepW + totalW);
   drawTextTop(page, cur, {
     x: rightX,
-    y: yTop + 2,
+    y: topY + 2,
     font: ctx.fonts.mono,
     size: 8,
     color: C.ink900,
   });
   drawTextTop(page, sepText, {
     x: rightX + curW,
-    y: yTop + 2,
+    y: topY + 2,
     font: ctx.fonts.mono,
     size: 8,
     color: C.ink500,
   });
   drawTextTop(page, total, {
     x: rightX + curW + sepW,
-    y: yTop + 2,
+    y: topY + 2,
     font: ctx.fonts.mono,
     size: 8,
     color: C.ink700,
+  });
+
+  // Bottom row — full Req UUID, centered. 16pt above the page bottom.
+  const reqLabel = `Req  ${ctx.envelope.id.toUpperCase()}`;
+  const reqWidth = textWidth(ctx.fonts.mono, reqLabel, 7.5);
+  drawTextTop(page, reqLabel, {
+    x: PAGE_W / 2 - reqWidth / 2,
+    y: 22,
+    font: ctx.fonts.mono,
+    size: 7.5,
+    color: C.ink500,
   });
 }
 
@@ -1160,7 +1166,7 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
 
 function drawParticipantCard(page: PDFPage, ctx: RenderCtx, y: number, p: ParticipantData): number {
   const { fonts } = ctx;
-  const headH = 56;
+  const headH = 68;
   const metaH = 46;
   const evtHeadH = 24;
   const evtRowH = 22;
@@ -1236,26 +1242,28 @@ function drawParticipantCard(page: PDFPage, ctx: RenderCtx, y: number, p: Partic
       size: 7.5,
       color: C.ink500,
     });
-    // Script signature
-    const sigSize = 18;
+    // Script signature. Caveat has noticeable descenders, so we leave a
+    // 7pt gap between the baseline and the underline rule and another 6pt
+    // before the mono meta line so the row reads cleanly.
+    const sigSize = 20;
     const sigW = Math.min(textWidth(fonts.script, p.signatureText, sigSize), 220);
     const sigX = rightX - Math.max(sigW, 180);
+    const sigTopY = y - padY - 16;
     drawTextTop(page, p.signatureText, {
       x: sigX,
-      y: y - padY - 16,
+      y: sigTopY,
       font: fonts.script,
       size: sigSize,
       color: C.ink900,
       maxWidth: 220,
     });
-    // Underline (baseline)
-    drawHRule(page, sigX, y - padY - 16 - sigSize, Math.max(sigW, 180), C.ink400);
-    // Meta
+    const underlineY = sigTopY - sigSize - 7;
+    drawHRule(page, sigX, underlineY, Math.max(sigW, 180), C.ink400);
     if (p.signatureMeta) {
       const metaW = textWidth(fonts.mono, p.signatureMeta, 7.5);
       drawTextTop(page, p.signatureMeta, {
         x: rightX - metaW,
-        y: y - padY - 16 - sigSize - 4,
+        y: underlineY - 6,
         font: fonts.mono,
         size: 7.5,
         color: C.ink500,
@@ -1449,9 +1457,16 @@ function drawCheckChipDot(page: PDFPage, x: number, yTop: number): void {
   });
 }
 
+/**
+ * Event-row icon. Drawn as primitive vector strokes (lines / circles) so
+ * the rendering doesn't depend on the embedded font shipping particular
+ * Unicode glyphs — the prior implementation used '✓ ◎ ＋ ✕ →' which
+ * Inter / Source Serif do not all carry, leaving the row blank in the
+ * PDF when the glyph index is missing in the subset.
+ */
 function drawEventIcon(
   page: PDFPage,
-  { fonts }: RenderCtx,
+  _ctx: RenderCtx,
   kind: ParticipantEvent['kind'],
   x: number,
   yTop: number,
@@ -1480,26 +1495,84 @@ function drawEventIcon(
   const cx = x + size / 2;
   const cy = yTop - size / 2;
   page.drawCircle({ x: cx, y: cy, size: size / 2, color: bg });
-  // Glyph — single character from mono/sans font as a compact icon
-  const glyph =
-    kind === 'sign'
-      ? '✓'
-      : kind === 'view'
-        ? '◎'
-        : kind === 'create'
-          ? '＋'
-          : kind === 'decline'
-            ? '✕'
-            : '→';
-  const glyphSize = 9;
-  const gw = textWidth(fonts.sansBold, glyph, glyphSize);
-  drawTextTop(page, glyph, {
-    x: cx - gw / 2,
-    y: cy + glyphSize / 2 + 1,
-    font: fonts.sansBold,
-    size: glyphSize,
-    color: fg,
-  });
+
+  const stroke = 1.4;
+  const r = size * 0.28; // glyph half-extent
+  if (kind === 'sign') {
+    // Checkmark: down-left → bottom → up-right
+    page.drawLine({
+      start: { x: cx - r, y: cy + r * 0.1 },
+      end: { x: cx - r * 0.2, y: cy - r * 0.55 },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx - r * 0.2, y: cy - r * 0.55 },
+      end: { x: cx + r * 0.95, y: cy + r * 0.7 },
+      thickness: stroke,
+      color: fg,
+    });
+  } else if (kind === 'view') {
+    // Eye: outer almond + inner pupil. Approx with ellipse-via-circles:
+    // a horizontal pill ring and a small filled dot.
+    page.drawEllipse({
+      x: cx,
+      y: cy,
+      xScale: r * 1.05,
+      yScale: r * 0.62,
+      borderColor: fg,
+      borderWidth: stroke,
+    });
+    page.drawCircle({ x: cx, y: cy, size: r * 0.35, color: fg });
+  } else if (kind === 'create') {
+    // Plus
+    page.drawLine({
+      start: { x: cx - r, y: cy },
+      end: { x: cx + r, y: cy },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx, y: cy - r },
+      end: { x: cx, y: cy + r },
+      thickness: stroke,
+      color: fg,
+    });
+  } else if (kind === 'decline') {
+    // X
+    page.drawLine({
+      start: { x: cx - r * 0.8, y: cy - r * 0.8 },
+      end: { x: cx + r * 0.8, y: cy + r * 0.8 },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx - r * 0.8, y: cy + r * 0.8 },
+      end: { x: cx + r * 0.8, y: cy - r * 0.8 },
+      thickness: stroke,
+      color: fg,
+    });
+  } else {
+    // 'sent' / generic — paper-plane (right-pointing arrow, two strokes)
+    page.drawLine({
+      start: { x: cx - r, y: cy },
+      end: { x: cx + r * 0.85, y: cy },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx + r * 0.85, y: cy },
+      end: { x: cx + r * 0.25, y: cy + r * 0.55 },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx + r * 0.85, y: cy },
+      end: { x: cx + r * 0.25, y: cy - r * 0.55 },
+      thickness: stroke,
+      color: fg,
+    });
+  }
 }
 
 function drawTrustBar(page: PDFPage, ctx: RenderCtx, yBase: number): void {
@@ -1848,18 +1921,14 @@ function drawReferenceLinks(page: PDFPage, { fonts }: RenderCtx, y: number): num
     { label: 'Sealed signature privacy notice', url: 'sealed.app/help/privacy' },
   ];
   let linkY = y - padY - 18;
+  // Arrow drawn as primitive strokes (Inter doesn't carry "→" in its
+  // subset, so a glyph would render as tofu).
+  const arrowWidth = 12;
   for (const link of links) {
-    const arrow = '→';
-    const arrowW = textWidth(fonts.sansBold, arrow, 10);
-    drawTextTop(page, arrow, {
-      x: M_X + padX,
-      y: linkY,
-      font: fonts.sansBold,
-      size: 10,
-      color: C.indigo600,
-    });
+    drawArrowRight(page, M_X + padX, linkY - 4, arrowWidth, C.indigo600);
+    const labelX = M_X + padX + arrowWidth + 8;
     drawTextTop(page, link.label, {
-      x: M_X + padX + arrowW + 8,
+      x: labelX,
       y: linkY,
       font: fonts.sansBold,
       size: 9.5,
@@ -1867,7 +1936,7 @@ function drawReferenceLinks(page: PDFPage, { fonts }: RenderCtx, y: number): num
     });
     const labelW = textWidth(fonts.sansBold, link.label, 9.5);
     drawTextTop(page, link.url, {
-      x: M_X + padX + arrowW + 8 + labelW + 12,
+      x: labelX + labelW + 12,
       y: linkY,
       font: fonts.mono,
       size: 8.5,
@@ -1876,6 +1945,31 @@ function drawReferenceLinks(page: PDFPage, { fonts }: RenderCtx, y: number): num
     linkY -= 16;
   }
   return y - h;
+}
+
+/** Right-pointing arrow: a horizontal stroke with two head strokes.
+ *  `yMid` is the vertical center of the arrow body. */
+function drawArrowRight(page: PDFPage, x: number, yMid: number, width: number, color: Color): void {
+  const stroke = 1.4;
+  const headSize = Math.min(width * 0.4, 5);
+  page.drawLine({
+    start: { x, y: yMid },
+    end: { x: x + width, y: yMid },
+    thickness: stroke,
+    color,
+  });
+  page.drawLine({
+    start: { x: x + width, y: yMid },
+    end: { x: x + width - headSize, y: yMid + headSize * 0.7 },
+    thickness: stroke,
+    color,
+  });
+  page.drawLine({
+    start: { x: x + width, y: yMid },
+    end: { x: x + width - headSize, y: yMid - headSize * 0.7 },
+    thickness: stroke,
+    color,
+  });
 }
 
 // ---------------------------------------------------------------------------

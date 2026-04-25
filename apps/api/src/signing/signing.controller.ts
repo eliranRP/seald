@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
+import { extractClientIp } from '../common/extract-client-ip';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
@@ -215,15 +216,4 @@ export class SigningController {
       source_filename: meta.source_filename ?? null,
     });
   }
-}
-
-function extractClientIp(req: Request): string | null {
-  // X-Forwarded-For is set by Caddy in prod; socket.remoteAddress is the
-  // raw peer in dev. We trust the first entry since the proxy is ours.
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length > 0) {
-    const first = xff.split(',')[0]?.trim();
-    if (first) return first;
-  }
-  return req.socket?.remoteAddress ?? null;
 }

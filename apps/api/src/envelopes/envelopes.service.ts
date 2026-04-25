@@ -70,7 +70,11 @@ export class EnvelopesService {
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
-  async createDraft(owner_id: string, dto: { title: string }): Promise<Envelope> {
+  async createDraft(
+    owner_id: string,
+    dto: { title: string },
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+  ): Promise<Envelope> {
     const expires_at = new Date(
       Date.now() + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
     ).toISOString();
@@ -85,6 +89,8 @@ export class EnvelopesService {
       envelope_id: envelope.id,
       actor_kind: 'sender',
       event_type: 'created',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
       metadata: {},
     });
     return envelope;
@@ -361,6 +367,7 @@ export class EnvelopesService {
     owner_id: string,
     envelope_id: string,
     sender: { readonly email: string; readonly name?: string | null },
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
   ): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -427,6 +434,8 @@ export class EnvelopesService {
         signer_id: t.signer_id,
         actor_kind: 'system',
         event_type: 'sent',
+        ip: audit.ip,
+        user_agent: audit.user_agent,
         metadata: {},
       });
 

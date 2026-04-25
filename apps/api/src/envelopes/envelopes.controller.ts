@@ -11,17 +11,19 @@ import {
   Post,
   Put,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 import { ENVELOPE_STATUSES } from 'shared';
 import type { Envelope } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { extractClientIp } from '../common/extract-client-ip';
 import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
@@ -42,8 +44,15 @@ export class EnvelopesController {
   constructor(private readonly svc: EnvelopesService) {}
 
   @Post()
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateEnvelopeDto): Promise<Envelope> {
-    return this.svc.createDraft(user.id, dto);
+  create(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateEnvelopeDto,
+    @Req() req: Request,
+  ): Promise<Envelope> {
+    return this.svc.createDraft(user.id, dto, {
+      ip: extractClientIp(req),
+      user_agent: req.headers['user-agent'] ?? null,
+    });
   }
 
   @Get()
@@ -107,14 +116,23 @@ export class EnvelopesController {
   }
 
   @Post(':id/send')
-  send(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<Envelope> {
+  send(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ): Promise<Envelope> {
     if (!user.email) {
       // The sender's display identity is threaded into the invite email's
       // "From: <name>" line, so we need at least the email claim. Supabase
       // JWTs for Google OAuth always carry email; this guard is defensive.
       throw new BadRequestException('sender_email_missing');
     }
-    return this.svc.send(user.id, id, { email: user.email });
+    return this.svc.send(
+      user.id,
+      id,
+      { email: user.email },
+      { ip: extractClientIp(req), user_agent: req.headers['user-agent'] ?? null },
+    );
   }
 
   @Post(':id/signers/:signer_id/remind')
