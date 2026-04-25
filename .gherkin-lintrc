@@ -1,0 +1,36 @@
+{
+  "no-unnamed-features": "on",
+  "no-files-without-scenarios": "on",
+  "allowed-tags": [
+    "on",
+    {
+      "tags": [
+        "@smoke",
+        "@regression",
+        "@auth",
+        "@sender",
+        "@signer",
+        "@chromium-only",
+        "@fixme"
+      ]
+    }
+  ],
+  "no-trailing-spaces": "on",
+  "no-empty-file": "on",
+  "indentation": [
+    "on",
+    {
+      "Feature": 0,
+      "Background": 2,
+      "Scenario": 2,
+      "Step": 4,
+      "Examples": 4,
+      "example": 6,
+      "given": 4,
+      "when": 4,
+      "then": 4,
+      "and": 4,
+      "but": 4
+    }
+  ]
+}

@@ -15,6 +15,10 @@
     "build": "pnpm -r build",
     "build:landing": "pnpm --filter landing build",
     "lint": "pnpm -r lint",
+    "lint:workflows": "actionlint",
+    "lint:gherkin": "gherkin-lint 'apps/web/e2e/features/**/*.feature'",
+    "lint:spelling": "cspell lint --no-progress --no-must-find-files --no-gitignore '.github/workflows/**/*.yml' 'apps/web/e2e/features/**/*.feature' 'apps/web/src/**/*.{ts,tsx}' 'apps/api/src/**/*.ts' 'packages/shared/src/**/*.ts'",
+    "lint:all": "pnpm lint:workflows && pnpm lint:gherkin && pnpm lint:spelling && pnpm -r lint",
     "typecheck": "tsc -b",
     "typecheck:recursive": "pnpm -r typecheck",
     "test": "pnpm -r test",
@@ -22,6 +26,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "cspell": "^10",
+    "gherkin-lint": "^4.2.4",
     "husky": "9.1.6",
     "lint-staged": "15.2.10",
     "prettier": "3.3.3",

@@ -1,0 +1,96 @@
+name: Lint Meta
+
+# Catches surface-level breakage that the regular CI doesn't:
+#   - GH Actions workflow YAML (actionlint) — bad refs, expression syntax,
+#     runner/shell errors, the column-0 Unicode bug from run 24935104725
+#   - Cucumber .feature files (gherkin-lint) — tag taxonomy, indentation,
+#     missing scenarios
+#   - Cross-tree typos (cspell) — workflows + features + ts/tsx source
+#
+# All three jobs run in parallel; none depends on the others. The whole
+# matrix completes well under 90s so the PR feedback loop stays snappy.
+
+on:
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
+  workflow_dispatch:
+
+concurrency:
+  group: lint-meta-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  lint-workflows:
+    name: actionlint (workflow YAML)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run actionlint
+        # The Go binary is fast and self-contained — no Node setup needed.
+        # actionlint auto-detects every .github/workflows/*.yml file.
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+  lint-gherkin:
+    name: gherkin-lint (.feature files)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install root deps
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run gherkin-lint
+        run: pnpm lint:gherkin
+
+  lint-spelling:
+    name: cspell (typo check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install root deps
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Run cspell
+        run: pnpm lint:spelling
