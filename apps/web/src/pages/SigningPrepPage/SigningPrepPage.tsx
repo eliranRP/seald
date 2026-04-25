@@ -104,7 +104,7 @@ function Content() {
           You&apos;ve been asked to sign <em>{envelope.title}</em>.
         </Hero>
         <Subhero>
-          Confirm your details below and we&apos;ll walk you through each field. No Sealed account
+          Confirm your details below and we&apos;ll walk you through each field. No Seald account
           required.
         </Subhero>
 
@@ -129,7 +129,7 @@ function Content() {
               aria-label="Agree to electronic signatures"
             />
             <span>
-              I agree to use electronic signatures and to be bound by Sealed&apos;s Consumer
+              I agree to use electronic signatures and to be bound by Seald&apos;s Consumer
               Disclosure.
             </span>
           </TosRow>

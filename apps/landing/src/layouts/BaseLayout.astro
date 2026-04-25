@@ -23,8 +23,8 @@ export interface Props {
 }
 
 const {
-  title = 'Sealed — Put your name to it.',
-  description = 'Sealed is a quieter way to sign, send, and store documents — built for the contracts you actually care about. EU-grade PAdES seals, RFC 3161 timestamps, audit trail on every page.',
+  title = 'Seald — Put your name to it.',
+  description = 'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. EU-grade PAdES seals, RFC 3161 timestamps, audit trail on every page.',
   canonical,
   // Default OG image is shipped as SVG to keep the build dependency-free.
   // Twitter and most platforms accept SVG; if you want maximum reach,
@@ -45,7 +45,7 @@ const ogImageUrl = new URL(ogImage, siteUrl).toString();
 const organizationLd = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
-  name: 'Sealed',
+  name: 'Seald',
   url: siteUrl.toString(),
   logo: new URL('/icon-512.png', siteUrl).toString(),
   description,
@@ -55,7 +55,7 @@ const organizationLd = {
 const websiteLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'Sealed',
+  name: 'Seald',
   url: siteUrl.toString(),
   inLanguage: 'en',
 };
@@ -63,7 +63,7 @@ const websiteLd = {
 const softwareLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'Sealed',
+  name: 'Seald',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web, iOS, Android',
   description,
@@ -96,7 +96,7 @@ const softwareLd = {
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Sealed" />
+    <meta property="og:site_name" content="Seald" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />

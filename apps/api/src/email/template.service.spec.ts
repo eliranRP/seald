@@ -138,4 +138,74 @@ describe('TemplateService', () => {
       expect(() => svc.render('not_a_real_kind' as never, {})).toThrow(/unknown template kind/);
     });
   });
+
+  // Regression: the brand wordmark in every email template must spell
+  // "Seald" (no trailing -e). The English verb "sealed" is allowed elsewhere
+  // in copy (e.g. "Sealed document: …" in completed/body.txt referring to
+  // the past-tense action), but the brand wordmark in the masthead, footer,
+  // and subject prefix must use the correct spelling.
+  describe('brand spelling — wordmark says "Seald"', () => {
+    const vars = {
+      sender_name: 'Ada',
+      sender_email: 'ada@example.com',
+      envelope_title: 'NDA v1',
+      sign_url: 'https://seald.nromomentum.com/sign/abc',
+      verify_url: 'https://seald.nromomentum.com/verify/abcde',
+      short_code: 'abcde12345xyz',
+      public_url: 'https://seald.nromomentum.com',
+      sealed_url: 'https://seald.nromomentum.com/sealed/abc',
+      audit_url: 'https://seald.nromomentum.com/audit/abc',
+      dashboard_url: 'https://seald.nromomentum.com/dashboard',
+      decliner_name: 'Bob',
+      decliner_email: 'bob@example.com',
+      decline_reason: 'x',
+      declined_at_readable: 'd',
+      signed_at_readable: 's',
+      expired_at_readable: 'e',
+      expires_at_readable: 'x',
+      total_signers: 1,
+      signed_count: 0,
+    };
+
+    it.each([
+      'invite',
+      'reminder',
+      'completed',
+      'declined_to_sender',
+      'withdrawn_to_signer',
+      'withdrawn_after_sign',
+      'expired_to_sender',
+      'expired_to_signer',
+    ] as const)('%s renders the "Seald" brand wordmark in body and subject', (kind) => {
+      const out = svc.render(kind, vars);
+      // Body must contain the brand wordmark wrapped in the footer <strong>
+      // exactly as "Seald" (no trailing -e). The legacy misspelling
+      // "<strong …>Sealed</strong>" must not appear anywhere.
+      expect(out.html).toContain('>Seald</strong>');
+      expect(out.html).not.toContain('>Sealed</strong>');
+      // Brand+company misspelling and subject-prefix misspelling must not appear.
+      expect(out.html).not.toContain('Sealed,'); // brand+company misspelling
+      expect(out.html).not.toContain('Sealed —'); // subject-prefix misspelling
+      // Subject prefix must be "Seald — …", never "Sealed — …".
+      expect(out.subject).not.toMatch(/^Sealed —/);
+    });
+
+    it('completed body.txt keeps the verb "Sealed document:" (past-tense action label)', () => {
+      const out = svc.render('completed', vars);
+      // This is the verb usage referring to "the document that was sealed",
+      // not the brand. The verb keeps its trailing -e.
+      expect(out.text).toContain('Sealed document:');
+    });
+
+    it('TITLES default falls back to "Seald — kind"', () => {
+      // Spot-check via a known kind: 'invite' should resolve to a title that
+      // starts with the brand "Seald" (no trailing -e).
+      const out = svc.render('invite', vars);
+      // Subject is overridden by subject.txt for invite, but the prettyTitle
+      // fallback would be used for unknown kinds. The `TITLES` map for known
+      // kinds is asserted indirectly: render output for invite uses subject.txt.
+      expect(out.subject).toContain('Ada');
+      expect(out.subject).not.toMatch(/Sealed/);
+    });
+  });
 });

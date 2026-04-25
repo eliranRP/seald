@@ -924,8 +924,8 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
   return (
     <Document
       title={`Audit trail — ${props.envelope.title}`}
-      author="Sealed"
-      creator="Sealed"
+      author="Seald"
+      creator="Seald"
       subject={`Audit trail for ${props.envelope.short_code}`}
     >
       <Page size="LETTER" style={styles.page}>
@@ -977,9 +977,9 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>
-          This audit trail was issued by Sealed, Inc. For questions, contact support@sealed.app. The
-          document on file is authoritative — this attestation describes what we observed during
-          signing and the cryptographic evidence we retained.
+          This audit trail was issued by Seald, Inc. For questions, contact
+          support@seald.nromomentum.com. The document on file is authoritative — this attestation
+          describes what we observed during signing and the cryptographic evidence we retained.
         </Text>
         <PageFooter ctx={ctx} />
       </Page>
@@ -1038,7 +1038,7 @@ function PageHeader({ suffix }: { suffix: string }): React.ReactElement {
         <View style={styles.brandMarkWrap}>
           <SealdMark size={18} />
         </View>
-        <Text style={styles.brandWord}>Sealed</Text>
+        <Text style={styles.brandWord}>Seald</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
         <Text style={styles.eyebrow}>Audit trail</Text>
@@ -1057,8 +1057,8 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
           <View style={styles.footerBrandMarkWrap}>
             <SealdMark size={10} />
           </View>
-          <Text style={styles.footerBrandWord}>Sealed</Text>
-          <Text style={styles.footerCaption}>· Audit trail issued by Sealed, Inc.</Text>
+          <Text style={styles.footerBrandWord}>Seald</Text>
+          <Text style={styles.footerCaption}>· Audit trail issued by Seald, Inc.</Text>
         </View>
         {/* react-pdf 4.5 has a known issue where a Text with a `render`
             callback collapses its parent row when paired with `fixed`.
@@ -1416,7 +1416,7 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
   {
     num: '05',
     name: 'Request identifier',
-    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on sealed.app/verify, validate its authenticity, and obtain the audit trail and the original file.',
+    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the original file.',
   },
   {
     num: '06',
@@ -1437,7 +1437,7 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
       { k: 'Access code', v: 'The signer is given a distinct code to open the document.' },
       { k: 'SMS', v: 'A code is sent via text message prior to signing.' },
       { k: 'ID verification', v: 'The signer presents a government-issued ID.' },
-      { k: 'Account', v: 'The signer is authenticated against a Sealed account.' },
+      { k: 'Account', v: 'The signer is authenticated against a Seald account.' },
     ],
   },
 ];
@@ -1530,9 +1530,9 @@ function TermsGrid({ terms }: { terms: ReadonlyArray<TermDef> }): React.ReactEle
 
 function ReferenceLinks(): React.ReactElement {
   const links = [
-    { label: 'Sealed signature user guide', url: 'sealed.app/help/guides' },
-    { label: 'Sealed terms and conditions', url: 'sealed.app/help/terms' },
-    { label: 'Sealed signature privacy notice', url: 'sealed.app/help/privacy' },
+    { label: 'Seald signature user guide', url: 'seald.nromomentum.com/help/guides' },
+    { label: 'Seald terms and conditions', url: 'seald.nromomentum.com/help/terms' },
+    { label: 'Seald signature privacy notice', url: 'seald.nromomentum.com/help/privacy' },
   ];
   return (
     <View style={styles.refsCard}>

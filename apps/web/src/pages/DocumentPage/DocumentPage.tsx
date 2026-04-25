@@ -272,7 +272,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
         color: 'inherit',
       }}
     >
-      Sealed
+      Seald
     </button>
   ) : undefined;
 

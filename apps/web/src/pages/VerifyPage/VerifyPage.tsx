@@ -572,7 +572,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 <Globe aria-hidden />
                 Verification URL
               </FactKey>
-              <FactVal $mono>seald.app/verify/{data.envelope.short_code}</FactVal>
+              <FactVal $mono>seald.nromomentum.com/verify/{data.envelope.short_code}</FactVal>
               <Tag $tone="neutral">Public</Tag>
             </Fact>
           </Facts>
@@ -595,7 +595,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 />
               </IntegrityText>
             </IntegrityInner>
-            <IntegrityMeta>Sealed Inc. · trust cert RSA-4096</IntegrityMeta>
+            <IntegrityMeta>Seald, Inc. · trust cert RSA-4096</IntegrityMeta>
           </Integrity>
 
           <Timeline>
@@ -632,7 +632,7 @@ function VerifyContent({ data }: VerifyContentProps) {
 
         <Footer>
           <FooterLeft>
-            <span>Verification by Sealed, Inc.</span>
+            <span>Verification by Seald, Inc.</span>
           </FooterLeft>
           <FooterRight>
             <span>

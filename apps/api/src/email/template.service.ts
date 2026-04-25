@@ -177,18 +177,18 @@ ${fragment}
 }
 
 const TITLES: Record<string, string> = {
-  invite: "Sealed — You've been asked to sign",
-  reminder: 'Sealed — Reminder: signature still needed',
-  completed: 'Sealed — Envelope complete',
-  declined_to_sender: 'Sealed — Request declined',
-  withdrawn_to_signer: 'Sealed — Request withdrawn',
-  withdrawn_after_sign: 'Sealed — Envelope withdrawn after signing',
-  expired_to_sender: 'Sealed — Envelope expired',
-  expired_to_signer: 'Sealed — Signing window closed',
+  invite: "Seald — You've been asked to sign",
+  reminder: 'Seald — Reminder: signature still needed',
+  completed: 'Seald — Envelope complete',
+  declined_to_sender: 'Seald — Request declined',
+  withdrawn_to_signer: 'Seald — Request withdrawn',
+  withdrawn_after_sign: 'Seald — Envelope withdrawn after signing',
+  expired_to_sender: 'Seald — Envelope expired',
+  expired_to_signer: 'Seald — Signing window closed',
 };
 
 function prettyTitle(kind: string): string {
-  return TITLES[kind] ?? `Sealed — ${kind}`;
+  return TITLES[kind] ?? `Seald — ${kind}`;
 }
 
 const VAR_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;

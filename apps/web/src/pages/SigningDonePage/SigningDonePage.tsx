@@ -173,7 +173,7 @@ export function SigningDonePage() {
         <IconBadge>
           <Icon icon={CheckCircle2} size={42} />
         </IconBadge>
-        <Hero>Sealed.</Hero>
+        <Hero>Seald.</Hero>
         <Body>
           Your signature has been recorded. We&apos;ve sent a signed copy to{' '}
           <b style={{ color: 'inherit' }}>{snap.recipient_email}</b>
@@ -198,7 +198,7 @@ export function SigningDonePage() {
             <Icon icon={Sparkles} size={11} />
             Free forever
           </UpsellChip>
-          <UpsellTitle>Keep this signed copy in your Sealed library.</UpsellTitle>
+          <UpsellTitle>Keep this signed copy in your Seald library.</UpsellTitle>
           <UpsellBody>
             Create a free account to save this document, request signatures from others, and access
             your full signing history.

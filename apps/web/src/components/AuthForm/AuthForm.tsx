@@ -203,7 +203,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
               onChange={(e) => setAgreed(e.target.checked)}
               aria-label="Agree to Terms of Service and Privacy Policy"
             />
-            <span>I agree to Sealed&apos;s Terms of Service and Privacy Policy.</span>
+            <span>I agree to Seald&apos;s Terms of Service and Privacy Policy.</span>
           </TosRow>
         )}
 
@@ -229,7 +229,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
       <Footer>
         {mode === 'signin' && (
           <>
-            New to Sealed?{' '}
+            New to Seald?{' '}
             <button type="button" className="link" onClick={() => onSwitchMode?.('signup')}>
               Create an account
             </button>
