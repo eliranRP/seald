@@ -31,6 +31,13 @@ export default defineConfig({
   },
   server: { port: 5173, strictPort: true },
   build: {
+    // Vite 5.4.21 ships an esbuild that flags top-level destructuring inside
+    // CJS-wrapped modules (axios, supabase-js, semver, styled-components
+    // template literals, etc.) as untransformable for the default `'modules'`
+    // target — even though ES2020 has supported destructuring since 2017. All
+    // browsers in our baseline (chrome87+/safari14+/firefox78+/edge88+) parse
+    // it natively, so skip the down-leveling pass entirely.
+    target: 'esnext',
     rollupOptions: {
       output: {
         // Split heavy vendor libs into their own chunks so the dashboard /
