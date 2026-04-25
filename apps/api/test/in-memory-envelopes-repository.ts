@@ -518,6 +518,35 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   getDeclineReason(signer_id: string): string | null | undefined {
     return this.declineReasons.get(signer_id);
   }
+  async cancelEnvelope(
+    envelope_id: string,
+    owner_id: string,
+  ): Promise<{
+    readonly envelope: Envelope;
+    readonly notifiedSignerIds: readonly string[];
+    readonly alreadySignedSignerIds: readonly string[];
+  } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return null;
+    if (env.owner_id !== owner_id) return null;
+    if (env.status !== 'awaiting_others' && env.status !== 'sealing') return null;
+    const now = new Date().toISOString();
+    const notifiedSignerIds: string[] = [];
+    const alreadySignedSignerIds: string[] = [];
+    for (const s of env.signers) {
+      if (s.signed_at !== null) {
+        alreadySignedSignerIds.push(s.id);
+      } else if (s.declined_at === null) {
+        notifiedSignerIds.push(s.id);
+        // Revoke pending token so /sign/start with the old hash 401s.
+        this.signerTokenHashes.delete(s.id);
+      }
+    }
+    const next: Envelope = { ...env, status: 'canceled', updated_at: now };
+    this.envelopes.set(envelope_id, next);
+    return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
+
   async expireEnvelopes(now: Date, limit: number): Promise<readonly string[]> {
     const transitioned: string[] = [];
     const iso = new Date().toISOString();

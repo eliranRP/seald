@@ -163,6 +163,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   canceled: 'Envelope canceled',
   reminder_sent: 'Reminder sent',
   session_invalidated_by_decline: 'Session invalidated',
+  session_invalidated_by_cancel: 'Session invalidated (cancel)',
   job_failed: 'Sealing job failed',
   retention_deleted: 'Document retention expired',
 };

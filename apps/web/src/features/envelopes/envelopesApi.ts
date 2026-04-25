@@ -125,6 +125,7 @@ export type EnvelopeEventType =
   | 'canceled'
   | 'reminder_sent'
   | 'session_invalidated_by_decline'
+  | 'session_invalidated_by_cancel'
   | 'job_failed'
   | 'retention_deleted';
 
@@ -275,4 +276,26 @@ export async function sendEnvelope(id: string, signal?: AbortSignal): Promise<En
 
 export async function deleteEnvelope(id: string, signal?: AbortSignal): Promise<void> {
   await apiClient.delete(`/envelopes/${id}`, configWithSignal(signal));
+}
+
+export interface CancelEnvelopeResponse {
+  readonly status: 'canceled';
+  readonly envelope_status: 'canceled';
+}
+
+/**
+ * Sender-initiated cancel ("withdraw") of a sent envelope. Allowed only on
+ * `awaiting_others` / `sealing`; terminal statuses surface as 409. Use the
+ * delete-draft flow for `draft` envelopes.
+ */
+export async function cancelEnvelope(
+  id: string,
+  signal?: AbortSignal,
+): Promise<CancelEnvelopeResponse> {
+  const { data } = await apiClient.post<CancelEnvelopeResponse>(
+    `/envelopes/${id}/cancel`,
+    undefined,
+    configWithSignal(signal),
+  );
+  return data;
 }
