@@ -7,8 +7,9 @@ ignore the AI-specific sections.
 ## Branch + push conventions
 
 - Default branch: **`main`**. Day-to-day commits go directly to `main`.
-- The repo also has a `develop` branch, but it has fallen behind — treat
-  `main` as the source of truth.
+- A `develop` branch is kept in sync with `main` (fast-forwarded after every
+  release-grade batch). Any branch protection rules referencing `develop`
+  continue to work.
 - Direct push to `main` is allowed for committers; CI is the gate.
 
 ## CI gates (`.github/workflows/ci.yml`)
