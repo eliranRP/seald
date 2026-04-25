@@ -65,6 +65,14 @@ jobs:
         working-directory: apps/web
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          # Dummy values so the Storybook build's `supabaseClient.ts` and
+          # `signApiClient.ts` don't throw at module load. Mirrors the
+          # equivalent values supplied to vitest in vite.config.ts. None
+          # of these reach a real network — Storybook stories don't make
+          # auth/network calls, the env check is just module-load defensive.
+          VITE_API_BASE_URL: 'http://localhost:3000'
+          VITE_SUPABASE_URL: 'http://localhost:54321'
+          VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test'
         run: |
           pnpm exec chromatic \
             --project-token="$CHROMATIC_PROJECT_TOKEN" \
