@@ -68,6 +68,7 @@ describe('SelectSignersPopover', () => {
     const { getByTestId } = renderWithTheme(
       <SelectSignersPopover open signers={SIGNERS} onApply={vi.fn()} onCancel={onCancel} />,
     );
+    // no semantic role: backdrop is a transparent click-target (rule 4.6 escape hatch)
     await userEvent.click(getByTestId('select-signers-backdrop'));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });

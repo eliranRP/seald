@@ -40,6 +40,7 @@ describe('TypeMode', () => {
     renderWithTheme(<TypeMode onCommit={vi.fn()} onCancel={vi.fn()} />);
     const input = screen.getByLabelText(/type your name/i);
     await userEvent.type(input, 'Jamie');
+    // no semantic role: preview is aria-hidden decorative text (rule 4.6 escape hatch)
     expect(screen.getByTestId('type-mode-preview')).toHaveTextContent('Jamie');
   });
 });

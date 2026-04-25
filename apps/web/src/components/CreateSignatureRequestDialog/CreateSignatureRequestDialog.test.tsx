@@ -155,6 +155,7 @@ describe('CreateSignatureRequestDialog', () => {
     );
     await user.click(getByRole('button', { name: /cancel/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
+    // no semantic role: it's a click-blocking backdrop (rule 4.6 escape hatch)
     await user.click(getByTestId('create-signature-request-backdrop'));
     expect(onCancel).toHaveBeenCalledTimes(2);
     await user.keyboard('{Escape}');

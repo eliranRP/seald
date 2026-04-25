@@ -13,6 +13,7 @@ describe('PasswordStrengthMeter', () => {
     expect(root).toHaveAttribute('aria-valuemin', '0');
     expect(root).toHaveAttribute('aria-valuemax', '4');
     expect(getByText('Too short')).toBeInTheDocument();
+    // no semantic role: bars are decorative segments under the progressbar root (rule 4.6 escape hatch)
     const bars = getAllByTestId('password-strength-bar');
     expect(bars).toHaveLength(4);
     const filled = bars.filter((b) => b.getAttribute('data-filled') === 'true');

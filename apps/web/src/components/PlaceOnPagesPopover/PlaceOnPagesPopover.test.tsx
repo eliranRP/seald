@@ -163,6 +163,7 @@ describe('PlaceOnPagesPopover', () => {
         onCancel={onCancel}
       />,
     );
+    // no semantic role: backdrop is a transparent click-target (rule 4.6 escape hatch)
     fireEvent.click(getByTestId('place-on-pages-backdrop'));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });

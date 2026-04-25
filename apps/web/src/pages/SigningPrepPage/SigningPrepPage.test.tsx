@@ -69,6 +69,7 @@ describe('SigningPrepPage', () => {
       expect(post).toHaveBeenCalledWith('/sign/accept-terms', undefined, expect.any(Object));
     });
     await waitFor(() => {
+      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}/fill`);
     });
   });

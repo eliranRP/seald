@@ -41,13 +41,13 @@ describe('DocumentCanvas', () => {
   });
 
   it('renders children inside the paper', () => {
-    const { getByTestId, getByRole } = renderWithTheme(
+    const { getByText, getByRole } = renderWithTheme(
       <DocumentCanvas currentPage={1} totalPages={3}>
-        <div data-testid="child-field">field</div>
+        <div>child-field-content</div>
       </DocumentCanvas>,
     );
     const root = getByRole('document');
-    const child = getByTestId('child-field');
+    const child = getByText('child-field-content');
     expect(root.contains(child)).toBe(true);
   });
 

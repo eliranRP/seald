@@ -55,6 +55,7 @@ describe('UploadMode', () => {
   it('rejects files over maxBytes and does not commit', () => {
     const onCommit = vi.fn();
     renderWithTheme(<UploadMode onCommit={onCommit} onCancel={vi.fn()} maxBytes={10} />);
+    // no semantic role: hidden file input has no accessible role (rule 4.6 escape hatch)
     const input = screen.getByTestId('upload-mode-input') as HTMLInputElement;
     const bigFile = new File(['x'.repeat(20)], 'big.png', { type: 'image/png' });
     fireEvent.change(input, { target: { files: [bigFile] } });

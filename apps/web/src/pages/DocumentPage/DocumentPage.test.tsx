@@ -369,6 +369,7 @@ describe('DocumentPage', () => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 400, clientY: 200 }));
     });
     // The live marquee rectangle renders during the drag.
+    // no semantic role: decorative selection rectangle overlay (rule 4.6 escape hatch)
     expect(screen.getByTestId('canvas-marquee')).toBeInTheDocument();
     act(() => {
       window.dispatchEvent(new MouseEvent('mouseup'));
@@ -393,6 +394,7 @@ describe('DocumentPage', () => {
     fireEvent.click(sig);
     fireEvent.click(date, { shiftKey: true });
     // Group toolbar appears with the selection count + bulk actions.
+    // no semantic role: floating overlay div (rule 4.6 escape hatch)
     expect(screen.getByTestId('group-toolbar')).toBeInTheDocument();
     expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /delete selected fields/i }));
@@ -742,6 +744,7 @@ describe('DocumentPage', () => {
     renderPage({ initialFields: fields });
     // No boundary with just one field selected.
     fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    // no semantic role: dashed bounding-box overlay is decorative (rule 4.6 escape hatch)
     expect(screen.queryByTestId('group-boundary')).not.toBeInTheDocument();
     // Shift-click adds the second field — now the boundary appears.
     fireEvent.click(screen.getByRole('group', { name: /date field for/i }), { shiftKey: true });

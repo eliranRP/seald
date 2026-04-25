@@ -36,6 +36,7 @@ describe('GoogleButton', () => {
     await userEvent.click(getByRole('button'));
     expect(onClick).not.toHaveBeenCalled();
     expect(getByRole('button')).toHaveAttribute('aria-busy', 'true');
+    // no semantic role: spinner is decorative (aria-hidden) — rule 4.6 escape hatch
     expect(getByTestId('google-button-spinner')).toBeInTheDocument();
   });
 

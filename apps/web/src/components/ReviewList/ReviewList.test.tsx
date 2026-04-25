@@ -41,13 +41,13 @@ describe('ReviewList', () => {
         kind: 'text',
         label: 'Custom',
         page: 1,
-        valuePreview: <span data-testid="custom">node</span>,
+        valuePreview: <span>custom-preview-node</span>,
       },
     ];
-    const { getByText, getByTestId } = renderWithTheme(<ReviewList items={items} />);
+    const { getByText } = renderWithTheme(<ReviewList items={items} />);
     expect(getByText('hello')).toBeInTheDocument();
     expect(getByText('42')).toBeInTheDocument();
-    expect(getByTestId('custom')).toBeInTheDocument();
+    expect(getByText('custom-preview-node')).toBeInTheDocument();
   });
 
   it('renders "Page X" for each item', () => {

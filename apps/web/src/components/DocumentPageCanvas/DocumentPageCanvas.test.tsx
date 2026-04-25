@@ -13,14 +13,12 @@ describe('DocumentPageCanvas', () => {
   });
 
   it('renders children inside the field layer', () => {
-    const { getByTestId } = renderWithTheme(
+    const { getByText } = renderWithTheme(
       <DocumentPageCanvas pageNum={1} totalPages={1}>
-        <span data-testid="field-child" style={{ position: 'absolute', left: 10, top: 10 }}>
-          x
-        </span>
+        <span style={{ position: 'absolute', left: 10, top: 10 }}>field-layer-child</span>
       </DocumentPageCanvas>,
     );
-    expect(getByTestId('field-child')).toBeInTheDocument();
+    expect(getByText('field-layer-child')).toBeInTheDocument();
   });
 
   it('adds data-r-page for scroll targeting', () => {

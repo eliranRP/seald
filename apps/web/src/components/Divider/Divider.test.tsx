@@ -35,6 +35,7 @@ describe('Divider', () => {
     const { getByTestId } = renderWithTheme(
       <Divider data-testid="divider" className="custom" label="or" />,
     );
+    // testid intentional: this test asserts data-* prop forwarding (rule 4.6 escape hatch)
     const el = getByTestId('divider');
     expect(el).toHaveClass('custom');
   });

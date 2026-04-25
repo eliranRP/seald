@@ -78,10 +78,10 @@ describe('FieldPalette', () => {
   });
 
   it('custom hint ReactNode replaces the default hint', () => {
-    const { getByTestId, queryByText } = renderWithTheme(
-      <FieldPalette hint={<div data-testid="custom-hint">Custom</div>} />,
+    const { getByText, queryByText } = renderWithTheme(
+      <FieldPalette hint={<div>Custom hint content</div>} />,
     );
-    expect(getByTestId('custom-hint')).toBeDefined();
+    expect(getByText('Custom hint content')).toBeInTheDocument();
     expect(queryByText(/Drag a field onto the page/)).toBeNull();
   });
 

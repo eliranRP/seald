@@ -12,10 +12,10 @@ describe('SealdThemeProvider', () => {
   it('injects the Seald theme so styled children can read theme.*', () => {
     render(
       <SealdThemeProvider>
-        <Probe data-testid="probe">ok</Probe>
+        <Probe>theme-probe-ok</Probe>
       </SealdThemeProvider>,
     );
-    const el = screen.getByTestId('probe');
+    const el = screen.getByText('theme-probe-ok');
     expect(el).toBeInTheDocument();
     const style = window.getComputedStyle(el);
     expect(style.fontFamily).toContain('Inter');
