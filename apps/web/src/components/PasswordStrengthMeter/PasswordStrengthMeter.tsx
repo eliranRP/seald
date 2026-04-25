@@ -32,10 +32,6 @@ export const PasswordStrengthMeter = forwardRef<HTMLDivElement, PasswordStrength
           {Array.from({ length: BAR_COUNT }, (_, i) => {
             const filled = i < level;
             return (
-              // Decorative fixed-position list — bars represent the 4 strength
-              // levels (0..3) and never reorder, so index IS the natural
-              // identity here (rule 4.3 escape hatch).
-              // eslint-disable-next-line react/no-array-index-key
               <Bar
                 key={i}
                 $filled={filled}

@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react-swc';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -30,20 +30,7 @@ export default defineConfig({
     },
   },
   server: { port: 5173, strictPort: true },
-  // Vite 5.4.21 ships an esbuild that flags top-level destructuring inside
-  // CJS-wrapped modules (axios, supabase-js, semver, styled-components
-  // template literals, etc.) as untransformable for the default `'modules'`
-  // target — even though ES2020 has supported destructuring since 2017. All
-  // browsers in our baseline (chrome87+/safari14+/firefox78+/edge88+) parse
-  // it natively, so skip the down-leveling pass entirely. Three knobs:
-  //   - build.target: production rollup output
-  //   - esbuild.target: per-module transform during dev + build
-  //   - optimizeDeps.esbuildOptions.target: dev-mode dep prebundling (the
-  //     one Playwright's `vite dev` server hits before any build runs)
-  esbuild: { target: 'esnext' },
-  optimizeDeps: { esbuildOptions: { target: 'esnext' } },
   build: {
-    target: 'esnext',
     rollupOptions: {
       output: {
         // Split heavy vendor libs into their own chunks so the dashboard /

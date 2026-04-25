@@ -52,7 +52,6 @@ describe('SigningDonePage', () => {
     });
     renderDone();
     await waitFor(() => {
-      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}`);
     });
   });
@@ -69,7 +68,6 @@ describe('SigningDonePage', () => {
     renderDone();
     await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
     await waitFor(() => {
-      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe('/signup');
     });
   });

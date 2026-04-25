@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { FieldsPlacedList } from './FieldsPlacedList';
 import type { FieldsPlacedListItem, FieldsPlacedListSigner } from './FieldsPlacedList.types';
 

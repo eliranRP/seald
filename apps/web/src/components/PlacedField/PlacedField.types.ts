@@ -43,7 +43,7 @@ export interface PlacedFieldProps extends RootAttrs {
   readonly selected?: boolean | undefined;
   readonly inGroup?: boolean | undefined;
   readonly isDragging?: boolean | undefined;
-  readonly canvasRef?: RefObject<HTMLElement> | undefined;
+  readonly canvasRef?: RefObject<HTMLElement | null> | undefined;
   readonly onSelect?: ((e: ReactMouseEvent<HTMLDivElement>) => void) | undefined;
   readonly onOpenSignerPopover?: ((e: ReactMouseEvent<HTMLElement>) => void) | undefined;
   readonly onOpenPagesPopover?: ((e: ReactMouseEvent<HTMLElement>) => void) | undefined;

@@ -17,7 +17,17 @@ export interface SupabaseMockOptions {
   } | null;
 }
 
-export function createSupabaseMock(options: SupabaseMockOptions = {}) {
+// Explicit `unknown` return-type: vitest 4's `vi.fn` inference references
+// internal `.pnpm/@vitest+spy/...` paths, which TS rejects as non-portable
+// without an inline annotation. Tests destructure the fields they need;
+// `unknown` is honest about how opaque the structure is at the boundary.
+export function createSupabaseMock(options: SupabaseMockOptions = {}): {
+  readonly supabase: { readonly auth: Record<string, unknown> };
+  readonly setKeepSignedIn: (...args: ReadonlyArray<unknown>) => void;
+  readonly getKeepSignedIn: () => boolean;
+  readonly KEEP_SIGNED_IN_STORAGE_KEY: string;
+  readonly __listeners: Set<(event: string, session: unknown) => void>;
+} {
   const initialSession = options.initialSession ?? null;
   const listeners = new Set<(event: string, session: unknown) => void>();
 

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { PlaceOnPagesPopover } from './PlaceOnPagesPopover';
 import type { PlacePagesMode } from './PlaceOnPagesPopover.types';
 

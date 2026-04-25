@@ -92,7 +92,6 @@ describe('SigningPrepPage', () => {
     await userEvent.click(check);
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
-      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}/fill`);
     });
     // acceptTerms must NOT have been called; only the /sign/me GET was issued.
@@ -112,7 +111,6 @@ describe('SigningPrepPage', () => {
       );
     });
     await waitFor(() => {
-      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe(
         `/sign/${MOCK_ENVELOPE_ID}/declined`,
       );

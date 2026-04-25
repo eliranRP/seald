@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import type { JSX } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { SignersPanelProps, SignersPanelSigner } from './SignersPanel.types';
 import {

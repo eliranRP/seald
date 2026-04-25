@@ -87,10 +87,6 @@ export const DocumentCanvas = forwardRef<HTMLDivElement, DocumentCanvasProps>((p
           </DocMeta>
           <HeaderGap />
           {rows.map((i) => (
-            // Decorative aria-hidden placeholder rows — width is a pure
-            // function of position and rows never reorder, so index IS the
-            // natural identity here (rule 4.3 escape hatch).
-            // eslint-disable-next-line react/no-array-index-key
             <ContentRow key={i} $widthPct={computeRowWidthPct(i)} aria-hidden />
           ))}
           {shouldShowSignatureLines ? (

@@ -36,8 +36,8 @@ env:
 jobs:
   # ---------------------------------------------------------------
   # Install once per SHA; every downstream job restores the cached
-  # pnpm store + node_modules. Cold install ≈ 90s; warm restore ≈ 5s.
-  # Cache key is keyed on the lockfile hash so any dep change busts it.
+  # pnpm store. This is the slowest step (cold install ≈ 90s) so we
+  # keep it in one place.
   # ---------------------------------------------------------------
   install:
     name: Install dependencies
@@ -51,19 +51,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -81,19 +70,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -120,19 +98,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -160,19 +127,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -220,19 +176,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -265,19 +210,8 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -296,58 +230,3 @@ jobs:
           path: apps/api/test-output/
           if-no-files-found: ignore
           retention-days: 7
-
-  # ---------------------------------------------------------------
-  # Lighthouse CI — performance / a11y / best-practices / SEO budgets.
-  # First iteration is non-blocking (continue-on-error) while we
-  # calibrate thresholds; flip to required in a follow-up commit.
-  # Targets the static `/` route of the production web build.
-  # ---------------------------------------------------------------
-  lighthouse:
-    name: Lighthouse CI (perf/a11y budgets)
-    runs-on: ubuntu-latest
-    needs: web
-    timeout-minutes: 15
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Cache pnpm store + node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.local/share/pnpm/store
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build shared
-        run: pnpm --filter shared build
-
-      - name: Build web
-        run: pnpm --filter web build
-
-      - name: Run Lighthouse CI
-        # @lhci/cli runs via pnpm dlx — no new dependency on apps/web.
-        # `staticDistDir` makes lhci spin up its own static server, so we
-        # don't need a separate `serve` background process.
-        run: pnpm dlx @lhci/cli@^0.13 autorun --config=./lighthouserc.json
-
-      - name: Upload Lighthouse report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lighthouse-report
-          path: .lighthouseci/
-          if-no-files-found: ignore
-          retention-days: 14

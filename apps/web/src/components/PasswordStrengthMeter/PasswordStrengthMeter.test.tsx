@@ -37,7 +37,6 @@ describe('PasswordStrengthMeter', () => {
 
   it('fills the correct number of bars for level={3}', () => {
     const { getAllByTestId } = renderWithTheme(<PasswordStrengthMeter level={3} />);
-    // no semantic role: bars are decorative segments under the progressbar root (rule 4.6 escape hatch)
     const bars = getAllByTestId('password-strength-bar');
     const filled = bars.filter((b) => b.getAttribute('data-filled') === 'true');
     expect(filled).toHaveLength(3);
@@ -45,7 +44,6 @@ describe('PasswordStrengthMeter', () => {
 
   it('fills all 4 bars at level={4}', () => {
     const { getAllByTestId } = renderWithTheme(<PasswordStrengthMeter level={4} />);
-    // no semantic role: bars are decorative segments under the progressbar root (rule 4.6 escape hatch)
     const bars = getAllByTestId('password-strength-bar');
     const filled = bars.filter((b) => b.getAttribute('data-filled') === 'true');
     expect(filled).toHaveLength(4);

@@ -1,5 +1,5 @@
 import { Component } from 'react';
-import type { ErrorInfo, ReactNode } from 'react';
+import type { ErrorInfo, JSX, ReactNode } from 'react';
 import { Button } from '@/components/Button';
 import { reportError } from '@/lib/observability';
 import { Actions, Message, Panel, Shell, Title } from './ErrorBoundary.styles';

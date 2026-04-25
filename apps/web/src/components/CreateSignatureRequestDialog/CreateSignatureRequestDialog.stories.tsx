@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { CreateSignatureRequestDialog } from './CreateSignatureRequestDialog';
 import type { CreateSignatureRequestDialogSigner } from './CreateSignatureRequestDialog.types';
 import type { AddSignerContact } from '../AddSignerDropdown';
