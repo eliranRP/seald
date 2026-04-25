@@ -170,15 +170,18 @@ Required GH secrets (already provisioned):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-Manual user actions on first deploy:
-1. Run `terraform apply` from `deploy/terraform/` (with `var.godaddy_enabled=true`)
-   to flip the DNS record. Old A record (EC2) is replaced by CNAME.
-2. In Cloudflare Pages dashboard, attach the custom domain
-   `seald.nromomentum.com` to the `seald-landing` project.
-3. (Optional) Paste real Cloudflare Web Analytics token into
-   `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`.
-4. (Optional) Replace `apps/landing/public/google-site-verification.html`
-   with the real GSC token file.
+First-deploy workflow (fully automated):
+1. **DNS** — `gh workflow run terraform.yml --ref main -f action=apply`
+   flips `seald.nromomentum.com` from A record (EC2) to CNAME → CF Pages.
+2. **Domain attach** — happens automatically inside the
+   `Deploy (Cloudflare Pages — landing + SPA merged)` workflow on every
+   push to main. The job calls the Cloudflare Pages API to attach
+   `seald.nromomentum.com` to the `seald-landing` project; idempotent so
+   subsequent runs are no-ops.
+3. **Optional polish** — paste the real Cloudflare Web Analytics token
+   into `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`,
+   replace `apps/landing/public/google-site-verification.html` with the
+   real GSC token file. Both ship with placeholders.
 
 When extending: any new SPA route must be added to the `_redirects`
 block in `.github/workflows/deploy-cloudflare.yml`, otherwise CF Pages

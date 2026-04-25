@@ -125,15 +125,48 @@ jobs:
           cat "$DEST/_redirects"
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          # Use npm (not pnpm) to install wrangler so the action doesn't
-          # try `pnpm add wrangler` at the workspace root, which fails
-          # with ERR_PNPM_ADDING_TO_ROOT in this monorepo.
-          packageManager: npm
-          wranglerVersion: '3.90.0'
-          # The landing project also serves the SPA — single deployment
-          # under the canonical seald.nromomentum.com domain.
-          command: pages deploy apps/landing/dist --project-name=seald-landing --branch=main
+        # The official cloudflare/wrangler-action@v3 fails in this pnpm
+        # monorepo: with packageManager=pnpm it errors ERR_PNPM_ADDING_TO_ROOT,
+        # and with packageManager=npm its internal `npm i wrangler@<ver>`
+        # crashes with "Cannot read properties of null (reading 'matches')"
+        # because npm chokes on the pnpm-managed root. We invoke wrangler
+        # directly via `pnpm dlx`, which sidesteps both installers.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          pnpm dlx wrangler@3.90.0 pages deploy apps/landing/dist \
+            --project-name=seald-landing \
+            --branch=main
+
+      - name: Attach custom domain to Cloudflare Pages project
+        # Idempotent. If the domain is already attached, the API returns
+        # the existing record and we early-out. New attaches put the
+        # domain into `initializing` until CF sees the matching CNAME
+        # that the terraform workflow provisioned (godaddy.tf →
+        # seald.nromomentum.com CNAME → seald-landing.pages.dev).
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          DOMAIN="seald.nromomentum.com"
+          PROJECT="seald-landing"
+          API="https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/${PROJECT}/domains"
+
+          existing=$(curl -fsS \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${API}" | jq -r --arg d "${DOMAIN}" \
+              '.result[]? | select(.name == $d) | .name')
+
+          if [ "${existing}" = "${DOMAIN}" ]; then
+            echo "✓ ${DOMAIN} already attached to ${PROJECT}"
+          else
+            echo "→ Attaching ${DOMAIN} to ${PROJECT}"
+            curl -fsS -X POST \
+              -H "Authorization: Bearer ${CF_API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              "${API}" \
+              -d "{\"name\":\"${DOMAIN}\"}" | jq -r '.result.name // .errors'
+          fi
