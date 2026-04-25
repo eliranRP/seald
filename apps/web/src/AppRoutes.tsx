@@ -49,6 +49,13 @@ const SigningDeclinedPage = lazy(() =>
   import('./pages/SigningDeclinedPage').then((m) => ({ default: m.SigningDeclinedPage })),
 );
 
+// Public, unauthenticated verification surface. Lazy-loaded so the
+// dashboard / sign-in entry bundle stays slim — verify.tsx pulls a chunk
+// of styled-components + lucide icons that no other route uses (rule 2.5).
+const VerifyPage = lazy(() =>
+  import('./pages/VerifyPage').then((m) => ({ default: m.VerifyPage })),
+);
+
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
  * signer-scoped error boundary. Recipients only download signing modules
@@ -80,6 +87,17 @@ export function AppRoutes() {
 
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/debug/auth" element={<DebugAuthPage />} />
+
+      {/* Public verify surface. Anyone with a 13-char short_code can pull
+          the envelope's metadata + audit timeline. No auth gate. */}
+      <Route
+        path="/verify/:shortCode"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <VerifyPage />
+          </Suspense>
+        }
+      />
 
       {/* Public recipient signing flow. Entry, done, and declined are
           accessible without a live session; prep / fill / review require the
