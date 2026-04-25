@@ -30,6 +30,38 @@ export default defineConfig({
     },
   },
   server: { port: 5173, strictPort: true },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy vendor libs into their own chunks so the dashboard /
+        // sign-in entry doesn't ship the PDF + Supabase + styled-components
+        // payload upfront. Function form so it works for both bare specifiers
+        // and absolute node_modules paths Rollup hands us.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdf';
+          if (
+            id.includes('node_modules/react-router-dom') ||
+            id.includes('node_modules/react-router/') ||
+            /node_modules\/react-dom\//.test(id) ||
+            /node_modules\/react\//.test(id) ||
+            /node_modules\/scheduler\//.test(id)
+          ) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/styled-components')) return 'vendor-styled';
+          if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
+          if (
+            id.includes('node_modules/@tanstack/react-query') ||
+            id.includes('node_modules/axios')
+          ) {
+            return 'vendor-data';
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

@@ -15,10 +15,18 @@ import { SignUpPage } from './pages/SignUpPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
-import { UploadRoute } from './routes/UploadRoute';
-import { DocumentRoute } from './routes/DocumentRoute';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
+
+// Code-split the authoring routes — they pull in pdfjs-dist via usePdfDocument
+// + the editor canvas, which dwarfs every other chunk. Pushing them behind
+// React.lazy keeps that weight off the dashboard / sign-in entry bundle.
+const UploadRoute = lazy(() =>
+  import('./routes/UploadRoute').then((m) => ({ default: m.UploadRoute })),
+);
+const DocumentRoute = lazy(() =>
+  import('./routes/DocumentRoute').then((m) => ({ default: m.DocumentRoute })),
+);
 
 // Code-split every signing page so recipients don't pay for the sender
 // bundle's Supabase / react-pdf weight on initial load.
@@ -88,8 +96,22 @@ export function AppRoutes() {
       </Route>
 
       <Route element={<RequireAuthOrGuest />}>
-        <Route path="/document/new" element={<UploadRoute />} />
-        <Route path="/document/:id" element={<DocumentRoute />} />
+        <Route
+          path="/document/new"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <UploadRoute />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/document/:id"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <DocumentRoute />
+            </Suspense>
+          }
+        />
         <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
       </Route>
 
