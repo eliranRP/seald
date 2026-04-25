@@ -36,8 +36,8 @@ env:
 jobs:
   # ---------------------------------------------------------------
   # Install once per SHA; every downstream job restores the cached
-  # pnpm store. This is the slowest step (cold install ≈ 90s) so we
-  # keep it in one place.
+  # pnpm store + node_modules. Cold install ≈ 90s; warm restore ≈ 5s.
+  # Cache key is keyed on the lockfile hash so any dep change busts it.
   # ---------------------------------------------------------------
   install:
     name: Install dependencies
@@ -53,6 +53,17 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -72,6 +83,17 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -101,6 +123,17 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -129,6 +162,17 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
@@ -179,6 +223,17 @@ jobs:
           node-version: 20
           cache: pnpm
 
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+
       - name: Install
         run: pnpm install --frozen-lockfile
 
@@ -212,6 +267,17 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
 
       - name: Install
         run: pnpm install --frozen-lockfile
