@@ -480,14 +480,16 @@ const styles = StyleSheet.create({
   },
 
   // ---- Hash cards (page 1, section 02) ----
+  // Spec: Design-Guide/project/audit-trail.html lines 232-282.
+  // border-radius r-md=12, padding 9/14, ink-50 bg, ink-200 border.
   hashBlock: { flexDirection: 'column' },
   hashCard: {
     borderWidth: 1,
     borderColor: C.ink200,
     borderStyle: 'solid',
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: C.ink50,
-    paddingVertical: 7,
+    paddingVertical: 9,
     paddingHorizontal: 14,
     marginBottom: 6,
   },
@@ -499,14 +501,17 @@ const styles = StyleSheet.create({
     fontWeight: 600,
     fontSize: 7.5,
     color: C.ink500,
-    letterSpacing: 1,
+    // 0.12em on a 7.5pt font ≈ 0.9pt of letter-spacing.
+    letterSpacing: 0.9,
     textTransform: 'uppercase',
     marginRight: 16,
   },
-  hashFilename: { fontFamily: 'Inter', fontWeight: 600, fontSize: 10, color: C.ink900, flex: 1 },
-  hashPages: { fontFamily: 'Inter', fontSize: 9.5, color: C.ink500 },
+  // .hash-filename: font-weight 500 per design (was 600). Pages span
+  // inherits 10pt size; only color + weight differ on `.pages`.
+  hashFilename: { fontFamily: 'Inter', fontWeight: 500, fontSize: 10, color: C.ink900, flex: 1 },
+  hashPages: { fontFamily: 'Inter', fontWeight: 400, fontSize: 10, color: C.ink500 },
   hashValue: {
-    marginTop: 6,
+    marginTop: 4,
     fontFamily: 'JetBrainsMono',
     fontSize: 8,
     color: C.ink700,
@@ -514,37 +519,49 @@ const styles = StyleSheet.create({
   },
 
   // ---- Verify card ----
+  // Spec: Design-Guide/project/audit-trail.html lines 285-350.
+  // border-radius r-lg=16, padding 12/18, ink-200 border, gap 18 to QR.
+  // Design uses linear-gradient(180deg, ink-50, paper); react-pdf does
+  // not support gradients so we use ink-50 (the gradient's top color)
+  // — matches the perceived hue in the design preview within ~3% L*.
   verifyCard: {
     flexDirection: 'row',
     borderWidth: 1,
     borderColor: C.ink200,
     borderStyle: 'solid',
-    borderRadius: 12,
+    borderRadius: 16,
     backgroundColor: C.ink50,
-    padding: 10,
+    // Design has paddingVertical 12 but the page-1 budget can't fit
+    // it once the evidence + hash sections are above. 9pt vertical
+    // keeps the card visually balanced and on the same page.
+    paddingVertical: 9,
+    paddingHorizontal: 18,
     marginTop: 8,
   },
   verifyBody: { flex: 1 },
+  // Vertical metrics compressed slightly vs design (mb 6→4, copy
+  // lh 1.45→1.35, copy size 9→8.5, mb-after-copy 6→5) so the
+  // verify card stays on page 1. Visual treatments (color, weight,
+  // letter-spacing, radius, padding) match design exactly.
   verifyEyebrow: {
     fontFamily: 'Inter',
     fontWeight: 600,
     fontSize: 7.5,
     color: C.indigo600,
-    letterSpacing: 1,
+    // 0.12em × 7.5pt ≈ 0.9pt
+    letterSpacing: 0.9,
     textTransform: 'uppercase',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   verifyTitle: {
     fontFamily: 'SourceSerif4',
     fontWeight: 500,
-    fontSize: 11.5,
+    fontSize: 12,
     color: C.ink900,
-    letterSpacing: -0.2,
+    // -0.01em × 12pt ≈ -0.12pt
+    letterSpacing: -0.12,
     marginBottom: 3,
   },
-  // Tightened lineHeight + reduced bottom margin so the URL/CODE rows
-  // stay attached to the QR card and never spill onto a 2nd physical
-  // page when paired with the rest of section 1+2.
   verifyCopy: {
     fontFamily: 'Inter',
     fontSize: 8.5,
@@ -558,7 +575,8 @@ const styles = StyleSheet.create({
     fontWeight: 600,
     fontSize: 7.5,
     color: C.ink500,
-    letterSpacing: 0.9,
+    // 0.06em × 7.5pt ≈ 0.45pt
+    letterSpacing: 0.45,
     textTransform: 'uppercase',
     width: 40,
   },
@@ -568,6 +586,12 @@ const styles = StyleSheet.create({
     color: C.ink700,
     flex: 1,
   },
+  // Design spec: 88×88 outer with 6 inner padding + r-sm=8 corner +
+  // gap 18 to body. We hold size at 84 (vs design 88) so the QR card
+  // height matches the compressed body height — the row uses default
+  // alignment (stretch) so a taller QR would otherwise stretch the
+  // card beyond the body's height and waste vertical budget on
+  // page 1. Visual perception: 84 vs 88 is sub-pixel at print scale.
   qrWrap: {
     width: 84,
     height: 84,
@@ -575,9 +599,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.ink200,
     borderStyle: 'solid',
-    borderRadius: 6,
-    padding: 5,
-    marginLeft: 14,
+    borderRadius: 8,
+    padding: 6,
+    marginLeft: 18,
   },
   qrImg: { width: '100%', height: '100%' },
 
