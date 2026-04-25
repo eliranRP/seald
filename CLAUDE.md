@@ -107,3 +107,38 @@ deploy/
 
 Path alias `@/*` applies to `apps/web/src/*` only (configured in
 `apps/web/tsconfig.json` + `apps/web/vite.config.ts`).
+
+## Visual regression (Chromatic)
+
+Every Storybook story is diffed against the last accepted baseline; baselines
+auto-accept on `main`, PRs surface diffs in Chromatic's UI for review.
+
+### Run locally
+
+Set the token in your shell only — never commit it:
+
+```sh
+CHROMATIC_PROJECT_TOKEN=<token> pnpm --filter web chromatic
+```
+
+Get the token from https://www.chromatic.com/manage?appId=eliranRP/seald.
+A placeholder lives in `apps/web/.env.local.example`.
+
+### CI
+
+`.github/workflows/chromatic.yml` runs on every PR and every push to
+`main`/`develop` (doc-only paths skipped). It:
+
+1. Reads `CHROMATIC_PROJECT_TOKEN` from GitHub Actions secrets.
+2. Builds Storybook (`pnpm --filter web build-storybook` via the action).
+3. Uploads snapshots; TurboSnap (`onlyChanged: true`) skips unchanged stories.
+4. On `main`, accepts changes automatically (new baseline).
+   On PRs, diffs are surfaced at https://chromatic.com — a reviewer must
+   accept in the Chromatic UI to update the baseline.
+
+### REQUIRED user action
+
+Until the repo secret exists, the Chromatic CI job will fail. Add
+`CHROMATIC_PROJECT_TOKEN` (value provided by the Chromatic project owner) at:
+
+https://github.com/eliranRP/seald/settings/secrets/actions/new
