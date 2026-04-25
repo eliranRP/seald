@@ -3,8 +3,24 @@ name: CI
 on:
   pull_request:
     branches: [develop, main]
+    # Skip CI for changes that can't break the build/tests. Anything that
+    # touches code, configs, lockfiles, or workflow YAML still triggers CI.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   push:
     branches: [develop, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   workflow_dispatch:
 
 concurrency:
@@ -96,6 +112,32 @@ jobs:
         # when CI=true, so no extra flags needed. The previous `-- --ci
         # --runInBand` was being forwarded as test-name filters by pnpm.
         run: pnpm --filter api test
+
+  # ---------------------------------------------------------------
+  # Web unit tests — Vitest + RTL. Caught a regression in the
+  # SigningEntryPage error-state mapping that the API jobs miss.
+  # ---------------------------------------------------------------
+  web:
+    name: Web unit tests
+    runs-on: ubuntu-latest
+    needs: install
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter shared build
+
+      - name: Web tests
+        run: pnpm --filter web test
 
   # ---------------------------------------------------------------
   # E2E tests — includes the PAdES + PAdES-B-T suites that shell out
