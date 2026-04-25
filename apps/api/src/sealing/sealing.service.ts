@@ -70,6 +70,12 @@ export class SealingService {
     const sealedPath = `${envelope_id}/sealed.pdf`;
     await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
 
+    // The sealed file's page count differs from original_pages because
+    // burn-in appends the cover/signature page. Surface it to the audit
+    // PDF so the "Signed document" hash card reflects reality.
+    const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
+    const sealedPages = sealedPdfDoc.getPageCount();
+
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),
       this.repo.listSignerAuditDetails(envelope_id),
@@ -79,6 +85,7 @@ export class SealingService {
       events,
       signerDetails,
       sealedSha256: sealedSha,
+      sealedPages,
       publicUrl: this.env.APP_PUBLIC_URL,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
@@ -172,6 +179,7 @@ export class SealingService {
       events,
       signerDetails,
       sealedSha256: null,
+      sealedPages: null,
       publicUrl: this.env.APP_PUBLIC_URL,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
