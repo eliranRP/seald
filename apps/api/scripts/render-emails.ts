@@ -29,7 +29,7 @@ const vars = {
   sender_email: 'eliranazulay@gmail.com',
   envelope_title: 'SEED test envelope',
   sign_url: 'https://sealed.app/sign/96c64f23-0522-4d01-88fa-6f428a626cf2',
-  verify_url: 'https://sealed.app/verify/code/FKXWAxpdWChG9',
+  verify_url: 'https://sealed.app/verify/FKXWAxpdWChG9',
   short_code: 'FKXWAxpdWChG9',
   public_url: 'https://sealed.app',
   sealed_url: 'https://sealed.app/sealed/abc',

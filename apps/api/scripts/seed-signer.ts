@@ -180,7 +180,7 @@ async function main(): Promise<void> {
     const sentEventId = evRows.rows.find((r) => r.event_type === 'sent')?.id ?? null;
 
     const signerUrl = `${publicUrl}/sign/${envelopeId}?t=${token}`;
-    const verifyUrl = `${publicUrl}/verify/code/${shortCode}`;
+    const verifyUrl = `${publicUrl}/verify/${shortCode}`;
 
     // 6. Enqueue the invite email so `pnpm flush:emails` has something to
     //    push through Resend. Mirrors the payload schema EnvelopesService

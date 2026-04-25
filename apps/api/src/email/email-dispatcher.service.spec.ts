@@ -44,7 +44,7 @@ function inviteRow(overrides: Partial<InsertOutboundEmailInput> = {}): InsertOut
       sender_email: 'eliran@seald.app',
       envelope_title: 'MSA',
       sign_url: 'http://localhost:5173/sign/env-1?t=abc',
-      verify_url: 'http://localhost:5173/verify/code/ABC123',
+      verify_url: 'http://localhost:5173/verify/ABC123',
       short_code: 'ABC123',
       public_url: 'http://localhost:5173',
     },

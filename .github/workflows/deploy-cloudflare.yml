@@ -104,42 +104,29 @@ jobs:
           # Write _redirects covering every SPA route. The trailing
           # rule keeps `/` unmatched so Astro's index.html serves the
           # marketing page.
-          cat > "$DEST/_redirects" <<'REDIRECTS'
-          /signin           /app.html  200
-          /signup           /app.html  200
-          /forgot-password  /app.html  200
-          /check-email      /app.html  200
-          /auth/*           /app.html  200
-          /debug/*          /app.html  200
-          /verify/*         /app.html  200
-          /sign/*           /app.html  200
-          /document/*       /app.html  200
-          /documents        /app.html  200
-          /signers          /app.html  200
-          /contacts         /app.html  200
-          REDIRECTS
+          # Cloudflare's _redirects parser requires rules at column 0 —
+          # indented rules are silently dropped. Use printf with explicit
+          # newlines so the YAML block scalar's indentation doesn't bleed
+          # into the file contents.
+          printf '%s\n' \
+            '/signin           /app.html  200' \
+            '/signup           /app.html  200' \
+            '/forgot-password  /app.html  200' \
+            '/check-email      /app.html  200' \
+            '/auth/*           /app.html  200' \
+            '/debug/*          /app.html  200' \
+            '/verify/*         /app.html  200' \
+            '/sign/*           /app.html  200' \
+            '/document/*       /app.html  200' \
+            '/documents        /app.html  200' \
+            '/signers          /app.html  200' \
+            '/contacts         /app.html  200' \
+            > "$DEST/_redirects"
 
           echo "----- merged dist -----"
           ls -la "$DEST/"
           echo "----- _redirects -----"
           cat "$DEST/_redirects"
-
-      - name: Verify Cloudflare token + diagnostics
-        env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          echo "Token length: $(echo -n "$CF_API_TOKEN" | wc -c)"
-          echo "Token prefix: ${CF_API_TOKEN:0:5}..."
-          echo "Account ID: ${CF_ACCOUNT_ID}"
-          echo "--- /user/tokens/verify ---"
-          curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
-            "https://api.cloudflare.com/client/v4/user/tokens/verify" | head -c 400
-          echo
-          echo "--- GET project ---"
-          curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
-            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/seald-landing" | head -c 400
-          echo
 
       - name: Ensure Cloudflare Pages project exists
         # Idempotent. Wrangler pages deploy fails 7003 if the project

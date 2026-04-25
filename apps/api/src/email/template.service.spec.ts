@@ -30,7 +30,7 @@ describe('TemplateService', () => {
       sender_email: 'ada@example.com',
       envelope_title: 'NDA v1',
       sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
-      verify_url: 'https://seald.nromomentum.com/verify/code/abcde12345',
+      verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
       short_code: 'abcde12345xyz',
       public_url: 'https://seald.nromomentum.com',
       sealed_url: 'https://seald.nromomentum.com/sealed/abc',
@@ -74,7 +74,7 @@ describe('TemplateService', () => {
       sender_email: 'ada@example.com',
       envelope_title: 'NDA v1',
       sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
-      verify_url: 'https://seald.nromomentum.com/verify/code/abcde12345',
+      verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
       short_code: 'abcde12345xyz',
       public_url: 'https://seald.nromomentum.com',
     };

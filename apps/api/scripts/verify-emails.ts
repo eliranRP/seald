@@ -44,7 +44,7 @@ interface Scenario {
 const baseEmail = 'eliranazulay@gmail.com';
 const publicUrl = 'https://seald.nromomentum.com';
 const signUrl = `${publicUrl}/sign/efe107a9-61a5-4e83-b362-abc57658fe64?t=2OtCHtOSwg1MvNqBJKdtGq0Cgsa2QqUoHKAe_TbvQlY`;
-const verifyUrl = `${publicUrl}/verify/code/FKXWAxpdWChG9`;
+const verifyUrl = `${publicUrl}/verify/FKXWAxpdWChG9`;
 const dashboardUrl = `${publicUrl}/dashboard`;
 const audit = `${publicUrl}/audit/abc`;
 const sealed = `${publicUrl}/sealed/abc`;

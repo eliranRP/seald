@@ -440,7 +440,8 @@ export class EnvelopesService {
       });
 
       const signUrl = `${publicUrl}/sign/${envelope_id}?t=${t.plaintext_token}`;
-      const verifyUrl = `${publicUrl}/verify/code/${envelope.short_code}`;
+      // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
+      const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
       try {
         await this.outboundEmails.insert({
           envelope_id,
@@ -536,7 +537,8 @@ export class EnvelopesService {
 
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
     const signUrl = `${publicUrl}/sign/${envelope_id}?t=${token}`;
-    const verifyUrl = `${publicUrl}/verify/code/${envelope.short_code}`;
+    // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
+    const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
     // Pre-render the per-signer roster block — the template engine is
     // loop-free, so iteration has to happen here. Highlight the row for
     // this reminder's recipient with "(that's you)".
