@@ -84,3 +84,15 @@ if (typeof (globalThis as { ResizeObserver?: unknown }).ResizeObserver === 'unde
   (globalThis as { ResizeObserver: unknown }).ResizeObserver = StubResizeObserver;
 }
 /* eslint-enable class-methods-use-this */
+
+// jsdom doesn't implement Element.scrollTo / window.scrollTo. PageThumbRail's
+// debounced auto-scroll fires on a 120ms timeout that runs *after* the test
+// completes, surfacing as an "Unhandled Errors" entry that fails the suite
+// even though every test passes. A no-op stub is sufficient — no test asserts
+// on scroll position.
+if (typeof Element.prototype.scrollTo !== 'function') {
+  Element.prototype.scrollTo = function noopScrollTo(): void {};
+}
+if (typeof window.scrollTo !== 'function') {
+  window.scrollTo = ((): void => {}) as typeof window.scrollTo;
+}

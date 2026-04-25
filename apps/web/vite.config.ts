@@ -36,6 +36,15 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    // Provide deterministic dummy env values for the test run so module-load
+    // guards in `signApiClient` / `supabaseClient` don't throw in CI where
+    // `.env.local` isn't present. Tests that exercise these clients install
+    // their own MSW/axios mocks; the values never reach a real network.
+    env: {
+      VITE_API_BASE_URL: 'http://localhost:3000',
+      VITE_SUPABASE_URL: 'http://localhost:54321',
+      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
+    },
     // React 18's invokeGuardedCallback rethrows caught errors as window
     // 'error' events for devtools visibility. Tests that intentionally
     // trip invariants (e.g. useSignaturePadValue) already assert via
