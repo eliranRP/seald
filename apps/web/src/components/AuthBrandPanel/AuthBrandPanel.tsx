@@ -49,7 +49,7 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
             </g>
           </svg>
         </WordmarkMark>
-        <span>Sealed</span>
+        <span>Seald</span>
       </Wordmark>
 
       <Heading>
@@ -63,7 +63,7 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
 
       <Testimonial>
         <Quote>
-          &ldquo;We moved our entire contract workflow onto Sealed in a weekend. Our clients finish
+          &ldquo;We moved our entire contract workflow onto Seald in a weekend. Our clients finish
           signing before our sales calls end.&rdquo;
         </Quote>
         <AuthorRow>

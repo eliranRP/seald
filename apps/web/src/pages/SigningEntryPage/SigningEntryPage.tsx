@@ -173,7 +173,7 @@ export function SigningEntryPage() {
           <>
             <Title>{copy.title}</Title>
             <Body>{copy.body}</Body>
-            <MailtoLink href="mailto:support@seald.app" rel="noreferrer">
+            <MailtoLink href="mailto:support@seald.nromomentum.com" rel="noreferrer">
               Contact support
             </MailtoLink>
           </>

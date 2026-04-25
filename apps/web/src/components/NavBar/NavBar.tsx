@@ -117,7 +117,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
       <LogoMark>
         <SealedMark />
       </LogoMark>
-      <DefaultWordmark>Sealed</DefaultWordmark>
+      <DefaultWordmark>Seald</DefaultWordmark>
     </>
   );
 

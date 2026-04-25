@@ -18,7 +18,7 @@ describe('AuthBrandPanel', () => {
   it('renders the testimonial quote', () => {
     renderWithTheme(<AuthBrandPanel />);
     expect(
-      screen.getByText(/moved our entire contract workflow onto Sealed in a weekend/i),
+      screen.getByText(/moved our entire contract workflow onto Seald in a weekend/i),
     ).toBeInTheDocument();
   });
 

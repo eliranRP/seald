@@ -1,4 +1,8 @@
-/* Sealed — Shared email template styles.
+/* Seald — Shared email template styles.
+   Brand spelling note: the wordmark is "Seald" (no trailing -e), matching the
+   repo (seald), domain (seald.nromomentum.com), and root package
+   (seald-monorepo). The English verb "sealed" (e.g. "the document was sealed")
+   is unrelated and keeps its trailing -e wherever it appears.
    Inline this as a <style> tag in each template (most mail clients strip <link>).
    Keep selectors simple; no modern pseudo-classes, no CSS vars — Gmail/Outlook hostile. */
 

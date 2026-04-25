@@ -4,5 +4,5 @@
     <path d="M22 6 L 24 4 C 25 3, 26.5 3, 27.5 4 L 28 4.5 C 29 5.5, 29 7, 28 8 L 26 10 Z" fill="#C7D2FE"></path>
     <path d="M2 30 C 10 28, 20 28, 30 30" stroke="#FFFFFF" stroke-width="1.75" stroke-linecap="round" fill="none" opacity="0.85"></path>
   </g>
-  <text x="42" y="27" font-family="&#39;Source Serif 4&#39;, Georgia, serif" font-size="22" font-weight="500" fill="#FFFFFF" letter-spacing="-0.5">Sealed</text>
+  <text x="42" y="27" font-family="&#39;Source Serif 4&#39;, Georgia, serif" font-size="22" font-weight="500" fill="#FFFFFF" letter-spacing="-0.5">Seald</text>
 </svg>

@@ -267,7 +267,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                     color: 'inherit',
                   }}
                 >
-                  Sealed
+                  Seald
                 </button>
               ),
             }

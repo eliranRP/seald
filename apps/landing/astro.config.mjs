@@ -1,4 +1,4 @@
-// Astro config for the Sealed marketing landing page.
+// Astro config for the Seald marketing landing page.
 //
 // Deployment target: Cloudflare Pages (static), merged with the React
 // SPA at the canonical seald.nromomentum.com domain. The deploy

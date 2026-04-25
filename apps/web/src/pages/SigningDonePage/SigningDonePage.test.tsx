@@ -28,7 +28,7 @@ describe('SigningDonePage', () => {
       timestamp: '2026-04-24T00:00:00Z',
     });
     renderDone();
-    expect(screen.getByRole('heading', { name: /sealed\./i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /seald\./i })).toBeInTheDocument();
     expect(screen.getByText(/maya@example\.com/i)).toBeInTheDocument();
     expect(screen.getByText(/eliran azulay/i)).toBeInTheDocument();
   });

@@ -107,7 +107,7 @@ test.describe('signing flow', () => {
     //   - drive the FieldInputDrawer to "Continue" → /review
     //   - mock /sign/submit and seed the doneSnapshot sessionStorage
     //     so SigningDonePage doesn't bounce
-    //   - assert the "Sealed." success heading
+    //   - assert the "Seald." success heading
     // The fill page mounts pdf.js and a multi-page canvas, so the
     // selectors there are heavier — left for a follow-up commit.
   });
