@@ -173,28 +173,43 @@ describe('App routing', () => {
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
+  // The dialog opens asynchronously: UploadRoute waits for `usePdfDocument`
+  // to report numPages > 0 OR for a 3s defensive fallback. Under jsdom the
+  // mocked PDF blob can't be parsed by pdfjs-dist, so we always hit the
+  // fallback — which is why these tests use a longer findBy timeout.
+  const DIALOG_TIMEOUT = { timeout: 5000 };
+
   it('opens the Create signature request dialog immediately after a PDF is chosen', async () => {
     renderApp(['/document/new']);
     const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(
-      screen.getByRole('dialog', { name: /create your signature request/i }),
+      await screen.findByRole('dialog', { name: /create your signature request/i }, DIALOG_TIMEOUT),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
   });
 
-  it('cancelling the dialog stays on the upload page and discards picked signers', async () => {
-    renderApp(['/document/new']);
-    const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [makePdf()] } });
-    fireEvent.click(screen.getByRole('button', { name: /add receiver/i }));
-    fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
-    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
-    fireEvent.change(input, { target: { files: [makePdf()] } });
-    expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
-    expect(screen.queryAllByRole('button', { name: /remove receiver/i })).toHaveLength(0);
-  });
+  // This test crosses the 3s defensive fallback twice (initial open + reopen),
+  // so the per-test timeout is raised above the default 5s.
+  it(
+    'cancelling the dialog stays on the upload page and discards picked signers',
+    { timeout: 12_000 },
+    async () => {
+      renderApp(['/document/new']);
+      const input1 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
+      fireEvent.change(input1, { target: { files: [makePdf()] } });
+      fireEvent.click(await screen.findByRole('button', { name: /add receiver/i }, DIALOG_TIMEOUT));
+      fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+      expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+      // After cancel, UploadPage remounts the Dropzone (status flips back to
+      // 'idle'), so the file input is a fresh DOM node — re-query it.
+      const input2 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
+      fireEvent.change(input2, { target: { files: [makePdf()] } });
+      expect(await screen.findByRole('button', { name: /apply/i }, DIALOG_TIMEOUT)).toBeDisabled();
+      expect(screen.queryAllByRole('button', { name: /remove receiver/i })).toHaveLength(0);
+    },
+  );
 
   it('Signers page lists seed contacts', async () => {
     renderApp(['/signers']);

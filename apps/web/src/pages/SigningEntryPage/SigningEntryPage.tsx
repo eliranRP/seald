@@ -25,6 +25,17 @@ import { Body, Card, MailtoLink, Page, Spinner, Title } from './SigningEntryPage
  */
 const inflight = new Map<string, Promise<api.StartSessionResponse>>();
 
+/**
+ * Test-only escape hatch to drain the module-level dedupe cache between
+ * tests. The cache is a deliberate runtime feature (it survives StrictMode
+ * remounts) but in test environments it leaks between cases that share the
+ * same envelope_id + token, so call this in `beforeEach` to ensure each
+ * test starts with a clean slate.
+ */
+export function resetInflightForTests(): void {
+  inflight.clear();
+}
+
 type EntryState = 'loading' | 'invalid' | 'burned' | 'not-found' | 'rate-limit' | 'generic';
 
 interface ApiErrorLike extends Error {
@@ -126,7 +137,14 @@ export function SigningEntryPage() {
         if (cancelled) return;
         // Drop the shared promise so a retry (manual reload) can re-POST.
         inflight.delete(key);
-        navigate(`/sign/${envelopeId}`, { replace: true });
+        // Strip `?t=` from the URL without notifying React Router — using
+        // navigate() here would re-fire this effect with token=null and
+        // override the error state below with 'invalid'. A bare DOM-level
+        // replaceState scrubs the token from history without triggering
+        // the router.
+        if (typeof window !== 'undefined' && token !== null) {
+          window.history.replaceState(null, '', `/sign/${envelopeId}`);
+        }
         setState(mapError(err as ApiErrorLike));
       },
     );

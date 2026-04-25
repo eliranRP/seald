@@ -28,5 +28,11 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     include: ['src/**/*.test.{ts,tsx}'],
+    // React 18's invokeGuardedCallback rethrows caught errors as window
+    // 'error' events for devtools visibility. Tests that intentionally
+    // trip invariants (e.g. useSignaturePadValue) already assert via
+    // `toThrow`; the rethrow is just noise that otherwise causes vitest
+    // to exit 1 even when every test passed.
+    dangerouslyIgnoreUnhandledErrors: true,
   },
 });

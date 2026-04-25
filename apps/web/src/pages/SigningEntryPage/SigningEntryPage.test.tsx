@@ -10,7 +10,7 @@ vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 // eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';
 // eslint-disable-next-line import/first
-import { SigningEntryPage } from './SigningEntryPage';
+import { SigningEntryPage, resetInflightForTests } from './SigningEntryPage';
 
 const post = signApiClient.post as unknown as ReturnType<typeof vi.fn>;
 
@@ -18,6 +18,10 @@ const TOKEN = 'a'.repeat(43);
 
 beforeEach(() => {
   post.mockReset();
+  // The page caches startSession promises in a module-level Map to dedupe
+  // StrictMode double-invocation. Drain it between tests so each case
+  // observes its own mockResolvedValueOnce / mockRejectedValueOnce.
+  resetInflightForTests();
   window.history.replaceState(null, '', '/');
 });
 

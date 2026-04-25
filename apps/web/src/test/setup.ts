@@ -40,3 +40,47 @@ if (!window.matchMedia) {
     }),
   });
 }
+
+// jsdom doesn't implement IntersectionObserver. Components that observe page
+// visibility (e.g. SigningFillPage's scroll-spy on currentPage) crash on
+// `new IntersectionObserver(...)` during effect mount. Provide an inert stub
+// — tests that need to assert intersection behaviour should override per-test.
+// `class-methods-use-this` is disabled inside the stubs because the no-op
+// observer methods deliberately don't reference instance state.
+/* eslint-disable class-methods-use-this */
+if (
+  typeof (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver === 'undefined'
+) {
+  class StubIntersectionObserver {
+    readonly root: Element | null = null;
+
+    readonly rootMargin: string = '';
+
+    readonly thresholds: ReadonlyArray<number> = [];
+
+    observe(): void {}
+
+    unobserve(): void {}
+
+    disconnect(): void {}
+
+    takeRecords(): ReadonlyArray<unknown> {
+      return [];
+    }
+  }
+  (globalThis as { IntersectionObserver: unknown }).IntersectionObserver = StubIntersectionObserver;
+}
+
+// jsdom doesn't implement ResizeObserver either; same defensive stub for any
+// component that uses it for layout adaptation.
+if (typeof (globalThis as { ResizeObserver?: unknown }).ResizeObserver === 'undefined') {
+  class StubResizeObserver {
+    observe(): void {}
+
+    unobserve(): void {}
+
+    disconnect(): void {}
+  }
+  (globalThis as { ResizeObserver: unknown }).ResizeObserver = StubResizeObserver;
+}
+/* eslint-enable class-methods-use-this */
