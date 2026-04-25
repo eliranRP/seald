@@ -23,6 +23,23 @@ import { SigningDeclinedPage } from '../pages/SigningDeclinedPage';
  * seald-specific fixtures (rule 1.3) + every Page Object as a per-scenario
  * instance (rule 4.6). Steps in `e2e/steps/*.ts` import this `test` and
  * pass it to `createBdd(test)` to get the typed Given/When/Then bindings.
+ *
+ * Fixture composition order (Playwright resolves these on demand, but the
+ * intended dependency graph is):
+ *   1. `page` (Playwright built-in) — shared by every wrapper below.
+ *   2. `fixedNow` → installs deterministic Date / performance overrides via
+ *      `page.addInitScript`, MUST run before any navigation.
+ *   3. `mockedApi` → installs a single `page.route(...)` interceptor before
+ *      any request leaves the browser; reset between scenarios.
+ *   4. `seededUser` → seeds Supabase auth state into localStorage (still via
+ *      `addInitScript`, so it lands before app code runs).
+ *   5. `signedEnvelope` → builds on `mockedApi` to register the per-scenario
+ *      sign-flow stubs.
+ *   6. `…Page` Page Objects → bare wrappers around `page`, side-effect free.
+ *
+ * Steps that need the timeline frozen, mocks ready, and a seeded user
+ * should request all four fixtures in their `Given` clause; Playwright's
+ * fixture resolver guarantees they're set up in the order above.
  */
 type Fixtures = {
   mockedApi: MockedApi;

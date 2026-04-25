@@ -8,11 +8,13 @@ export class ForgotPasswordPage {
   }
 
   async requestReset(email: string): Promise<void> {
-    await this.page.getByLabel(/email/i).fill(email);
-    await this.page.getByRole('button', { name: /send|reset/i }).click();
+    await this.page.getByRole('textbox', { name: /email/i }).fill(email);
+    await this.page.getByRole('button', { name: /send reset link/i }).click();
   }
 
   async expectConfirmationVisible(): Promise<void> {
-    await expect(this.page.getByText(/check your (email|inbox)/i)).toBeVisible();
+    // Confirmation lives at `/check-email?mode=reset` — the page redirects
+    // there on submit success.
+    await expect(this.page.getByRole('heading', { name: /check your email/i })).toBeVisible();
   }
 }

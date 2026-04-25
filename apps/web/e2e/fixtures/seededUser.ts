@@ -1,13 +1,20 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Deterministic auth state injected into the SPA's storage layer before
- * navigation, mimicking what Supabase would persist after sign-in. Backed
- * by storage seeding (rule 1.3 / 5.4) — never hits a real backend.
+ * Deterministic Supabase auth state injected into the SPA's storage layer
+ * before navigation. Mimics what `@supabase/supabase-js@v2` would persist
+ * after a successful sign-in. Backed entirely by storage seeding — never
+ * hits a real backend.
  *
- * The shape mirrors the Supabase v2 client's local-storage key. Tests that
- * rely on a specific user identity should use `signInAs(user)` rather than
- * mutating storage directly so the contract stays in one place.
+ * The dual-storage `supabaseClient` reads/writes a v2 storage key derived
+ * from the project ref segment of the URL. With our test URL of
+ * `http://127.0.0.1:54321` the v2 client computes the key as
+ * `sb-127-auth-token` (see `getStorageKey` in @supabase/auth-js). We seed
+ * BOTH that key AND the `sb-test-auth-token` legacy key so any future env
+ * change keeps the fixture working.
+ *
+ * Tests that need a different identity should call `signInAs(user)` rather
+ * than mutating storage directly so the contract stays in one place.
  */
 export type SeededUser = {
   id: string;
@@ -15,11 +22,20 @@ export type SeededUser = {
   fullName: string;
 };
 
+// Hardcoded id keeps fixture output deterministic — no `crypto.randomUUID`
+// churn between runs.
 export const DEFAULT_SEEDED_USER: SeededUser = {
-  id: 'usr_seeded_alice',
+  id: '00000000-0000-4000-8000-000000000a11',
   email: 'alice@example.com',
   fullName: 'Alice Example',
 };
+
+// Default frozen issue / expiry timestamps. We push expiry far past
+// `fixedNow` so Supabase's auto-refresh never fires during a test run
+// (the auth-js client schedules a refresh 60s before expiry; we want
+// every scenario to finish well before that).
+const ISSUED_AT = Math.floor(new Date('2026-04-25T10:00:00Z').getTime() / 1000);
+const EXPIRES_AT = ISSUED_AT + 60 * 60 * 24 * 30; // 30 days
 
 export class SeededUserFixture {
   constructor(private readonly page: Page) {}
@@ -28,25 +44,46 @@ export class SeededUserFixture {
     const session = {
       access_token: 'test-access-token',
       refresh_token: 'test-refresh-token',
-      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      token_type: 'bearer',
+      expires_in: EXPIRES_AT - ISSUED_AT,
+      expires_at: EXPIRES_AT,
+      provider_token: null,
+      provider_refresh_token: null,
       user: {
         id: user.id,
+        aud: 'authenticated',
+        role: 'authenticated',
         email: user.email,
-        user_metadata: { full_name: user.fullName },
+        email_confirmed_at: new Date(ISSUED_AT * 1000).toISOString(),
+        phone: '',
+        confirmed_at: new Date(ISSUED_AT * 1000).toISOString(),
+        last_sign_in_at: new Date(ISSUED_AT * 1000).toISOString(),
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: { full_name: user.fullName, name: user.fullName },
+        identities: [],
+        created_at: new Date(ISSUED_AT * 1000).toISOString(),
+        updated_at: new Date(ISSUED_AT * 1000).toISOString(),
       },
     };
     await this.page.addInitScript((s) => {
-      window.localStorage.setItem('seald.auth.session', JSON.stringify(s));
-      // Generic Supabase fallback key — covers older clients that look
-      // here first. Either path resolves to the same seeded session.
-      window.localStorage.setItem('sb-test-auth-token', JSON.stringify(s));
+      // Supabase v2 storage keys we might be hit under (project-derived
+      // first, then a few legacy fallbacks the dual-storage adapter
+      // recognises).
+      const value = JSON.stringify(s);
+      window.localStorage.setItem('sb-127-auth-token', value);
+      window.localStorage.setItem('sb-test-auth-token', value);
+      window.localStorage.setItem('seald.auth.session', value);
+      // The "keep signed in" preference must be set so the adapter writes
+      // to localStorage on subsequent token refreshes.
+      window.localStorage.setItem('sealed.keepSignedIn', '1');
     }, session);
   }
 
   async signOut(): Promise<void> {
     await this.page.addInitScript(() => {
-      window.localStorage.removeItem('seald.auth.session');
+      window.localStorage.removeItem('sb-127-auth-token');
       window.localStorage.removeItem('sb-test-auth-token');
+      window.localStorage.removeItem('seald.auth.session');
     });
   }
 }

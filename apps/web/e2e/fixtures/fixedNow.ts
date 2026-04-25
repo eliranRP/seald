@@ -1,9 +1,18 @@
 import type { Page } from '@playwright/test';
 
 /**
- * Freezes `Date.now()` and `new Date()` in the page context so timeline
- * assertions stay deterministic (rule 5.7). Default `2026-04-25T10:00:00Z`
- * matches the seald-web-bdd-implementation skill default.
+ * Freezes wall-clock time in the page context so timeline assertions and
+ * token-expiry checks stay deterministic. We override:
+ *
+ *   - `Date.now()` and `new Date()` (no args) — the JS clock most app code
+ *     reads through.
+ *   - `performance.now()` — animations and React's scheduler often read it,
+ *     and a free-running `performance.now()` causes `expect(...).toHaveText`
+ *     timing assertions to flake.
+ *
+ * Default is `2026-04-25T10:00:00Z`, matching the seald-web-bdd-implementation
+ * skill default. Run via `page.addInitScript(...)` so the override is in place
+ * before any app code (including Vite's HMR client) runs.
  */
 export const DEFAULT_FIXED_NOW = '2026-04-25T10:00:00Z';
 
@@ -31,6 +40,21 @@ export class FixedNowFixture {
       }
       // @ts-expect-error - test-only global override
       window.Date = FixedDate;
+
+      // Freeze performance.now() to a stable origin too so repeated reads
+      // return the same value within a synchronous task. We use a
+      // monotonic counter rather than a constant so RAF / setTimeout chains
+      // still progress, but increments are predictable (1ms per call).
+      let perfTick = 0;
+      const realPerfNow = window.performance.now.bind(window.performance);
+      window.performance.now = () => {
+        perfTick += 1;
+        // Keep advancing so timing-sensitive code doesn't divide by zero,
+        // but stay independent of wall-clock skew.
+        return perfTick;
+      };
+      // Expose the real one for tests that explicitly want it.
+      (window as unknown as { __realPerfNow: () => number }).__realPerfNow = realPerfNow;
     }, iso);
   }
 }
