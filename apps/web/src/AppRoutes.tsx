@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react';
+import type { ReactNode } from 'react';
 import { Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
@@ -6,6 +7,7 @@ import { RequireAuth } from './layout/RequireAuth';
 import { RequireAuthOrGuest } from './layout/RequireAuthOrGuest';
 import { RedirectWhenAuthed } from './layout/RedirectWhenAuthed';
 import { RootLanding } from './layout/RootLanding';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
@@ -48,6 +50,20 @@ const SigningDonePage = lazy(() =>
 const SigningDeclinedPage = lazy(() =>
   import('./pages/SigningDeclinedPage').then((m) => ({ default: m.SigningDeclinedPage })),
 );
+
+/**
+ * Wraps a single lazy route in an ErrorBoundary + Suspense. Rule 2.5 / 4.5:
+ * a chunk-load failure (offline, stale deploy) would otherwise blank the
+ * page; the boundary surfaces a recoverable "Try again" panel and reports
+ * to Sentry through the observability seam.
+ */
+function LazyRoute({ children }: { readonly children: ReactNode }) {
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<AuthLoadingScreen />}>{children}</Suspense>
+    </ErrorBoundary>
+  );
+}
 
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
@@ -99,17 +115,17 @@ export function AppRoutes() {
         <Route
           path="/document/new"
           element={
-            <Suspense fallback={<AuthLoadingScreen />}>
+            <LazyRoute>
               <UploadRoute />
-            </Suspense>
+            </LazyRoute>
           }
         />
         <Route
           path="/document/:id"
           element={
-            <Suspense fallback={<AuthLoadingScreen />}>
+            <LazyRoute>
               <DocumentRoute />
-            </Suspense>
+            </LazyRoute>
           }
         />
         <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
