@@ -20,17 +20,27 @@ export type VerifySignerStatus = 'pending' | 'sent' | 'viewed' | 'signed' | 'dec
 
 export type VerifyEventActorKind = 'sender' | 'signer' | 'system';
 
+// Mirrors `EVENT_TYPES` from packages/shared/src/envelope-contract.ts.
+// The verify response is a public projection of EnvelopeEvent, so this
+// MUST stay in lockstep with the API enum or describeEvent() will look
+// up an undefined label and crash render. Tests in VerifyPage.test.tsx
+// exercise every value to catch drift.
 export type VerifyEventType =
   | 'created'
   | 'sent'
   | 'viewed'
-  | 'consented'
+  | 'tc_accepted'
+  | 'field_filled'
   | 'signed'
-  | 'declined'
+  | 'all_signed'
   | 'sealed'
+  | 'declined'
   | 'expired'
   | 'canceled'
-  | 'reminded';
+  | 'reminder_sent'
+  | 'session_invalidated_by_decline'
+  | 'job_failed'
+  | 'retention_deleted';
 
 export interface VerifyEnvelope {
   readonly id: string;

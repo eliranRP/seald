@@ -143,6 +143,89 @@ describe('VerifyPage', () => {
     ).not.toHaveLength(0);
   });
 
+  // Regression for the prod blank-page bug: the API emits `tc_accepted`,
+  // `field_filled`, `all_signed`, `reminder_sent` event types. The FE's
+  // EVENT_LABEL map was missing these; describeEvent then crashed on
+  // `EVENT_LABEL[ev.event_type].toLowerCase()` and React un-mounted the
+  // entire VerifyPage tree. Asserting the heading still renders catches
+  // any future drift between canonical EVENT_TYPES and the FE map.
+  it('renders without crashing when the timeline includes every canonical event type', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      events: [
+        {
+          id: 'e1',
+          actor_kind: 'sender',
+          event_type: 'created',
+          signer_id: null,
+          created_at: '2026-04-25T21:20:50Z',
+        },
+        {
+          id: 'e2',
+          actor_kind: 'system',
+          event_type: 'sent',
+          signer_id: 's1',
+          created_at: '2026-04-25T21:20:51Z',
+        },
+        {
+          id: 'e3',
+          actor_kind: 'signer',
+          event_type: 'viewed',
+          signer_id: 's1',
+          created_at: '2026-04-25T21:20:52Z',
+        },
+        {
+          id: 'e4',
+          actor_kind: 'signer',
+          event_type: 'tc_accepted',
+          signer_id: 's1',
+          created_at: '2026-04-25T21:20:53Z',
+        },
+        {
+          id: 'e5',
+          actor_kind: 'signer',
+          event_type: 'field_filled',
+          signer_id: 's1',
+          created_at: '2026-04-25T21:20:54Z',
+        },
+        {
+          id: 'e6',
+          actor_kind: 'signer',
+          event_type: 'signed',
+          signer_id: 's1',
+          created_at: '2026-04-25T21:20:55Z',
+        },
+        {
+          id: 'e7',
+          actor_kind: 'system',
+          event_type: 'all_signed',
+          signer_id: null,
+          created_at: '2026-04-25T21:21:05Z',
+        },
+        {
+          id: 'e8',
+          actor_kind: 'system',
+          event_type: 'sealed',
+          signer_id: null,
+          created_at: '2026-04-25T21:21:08Z',
+        },
+        {
+          id: 'e9',
+          actor_kind: 'system',
+          event_type: 'reminder_sent',
+          signer_id: 's2',
+          created_at: '2026-04-25T21:21:10Z',
+        },
+      ],
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+    ).toBeInTheDocument();
+  });
+
   it('renders all signer names and emails', async () => {
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');

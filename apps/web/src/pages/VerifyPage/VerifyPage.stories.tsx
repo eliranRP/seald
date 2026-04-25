@@ -84,7 +84,7 @@ const COMPLETED: VerifyResponse = {
     {
       id: 'e3',
       actor_kind: 'signer',
-      event_type: 'consented',
+      event_type: 'tc_accepted',
       signer_id: 's1',
       created_at: '2026-04-25T21:20:55Z',
     },

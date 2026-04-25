@@ -122,17 +122,28 @@ function formatTimelineTime(iso: string): { readonly date: string; readonly time
   return { date, time };
 }
 
+// Exhaustive map: VerifyEvent['event_type'] is a closed union, so
+// TypeScript will fail compilation if a new value is added to the
+// canonical EVENT_TYPES enum without a label here. That guard is
+// the *only* defense against another blank-page bug — describeEvent
+// calls .toLowerCase() on the looked-up value, which crashes if the
+// key is missing. Keep this map in lockstep with VerifyEventType.
 const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   created: 'Document created',
   sent: 'Envelope sent',
   viewed: 'Document viewed',
-  consented: 'Consent recorded',
+  tc_accepted: 'Terms accepted',
+  field_filled: 'Field filled',
   signed: 'Signature captured',
-  declined: 'Signing declined',
+  all_signed: 'All signers complete',
   sealed: 'Document sealed',
+  declined: 'Signing declined',
   expired: 'Envelope expired',
   canceled: 'Envelope canceled',
-  reminded: 'Reminder sent',
+  reminder_sent: 'Reminder sent',
+  session_invalidated_by_decline: 'Session invalidated',
+  job_failed: 'Sealing job failed',
+  retention_deleted: 'Document retention expired',
 };
 
 interface DerivedView {
@@ -287,10 +298,19 @@ function actorLabel(ev: VerifyEvent, signers: ReadonlyArray<VerifySigner>): stri
 }
 
 function toneFor(eventType: VerifyEvent['event_type']): 'warn' | 'success' | 'indigo' {
-  if (eventType === 'declined' || eventType === 'expired' || eventType === 'canceled') {
+  if (
+    eventType === 'declined' ||
+    eventType === 'expired' ||
+    eventType === 'canceled' ||
+    eventType === 'job_failed' ||
+    eventType === 'retention_deleted' ||
+    eventType === 'session_invalidated_by_decline'
+  ) {
     return 'warn';
   }
-  if (eventType === 'sealed' || eventType === 'signed') return 'success';
+  if (eventType === 'sealed' || eventType === 'signed' || eventType === 'all_signed') {
+    return 'success';
+  }
   return 'indigo';
 }
 
