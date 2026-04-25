@@ -127,11 +127,13 @@ function toBarEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerProgressB
 function formatTurnaround(list: ReadonlyArray<EnvelopeListItem>): string {
   const hours: number[] = [];
   for (const d of list) {
-    if (d.status !== 'completed' || !d.sent_at || !d.completed_at) continue;
-    const sent = new Date(d.sent_at).getTime();
-    const done = new Date(d.completed_at).getTime();
-    if (Number.isNaN(sent) || Number.isNaN(done) || done <= sent) continue;
-    hours.push((done - sent) / (1000 * 60 * 60));
+    if (d.status === 'completed' && d.sent_at && d.completed_at) {
+      const sent = new Date(d.sent_at).getTime();
+      const done = new Date(d.completed_at).getTime();
+      if (!Number.isNaN(sent) && !Number.isNaN(done) && done > sent) {
+        hours.push((done - sent) / (1000 * 60 * 60));
+      }
+    }
   }
   if (hours.length === 0) return '—';
   hours.sort((a, b) => a - b);

@@ -1,4 +1,33 @@
-import styled, { css, keyframes } from 'styled-components';
+import styled, { css, keyframes, type DefaultTheme } from 'styled-components';
+
+type StepState = 'done' | 'active' | 'pending';
+
+function stepDotBg(theme: DefaultTheme, state: StepState): string {
+  if (state === 'done') return theme.color.success[50];
+  if (state === 'active') return theme.color.indigo[50];
+  return theme.color.bg.sunken;
+}
+
+function stepDotBorder(theme: DefaultTheme, state: StepState): string {
+  if (state === 'done') return theme.color.success[500];
+  if (state === 'active') return theme.color.indigo[600];
+  return theme.color.border[1];
+}
+
+function stepDotFg(theme: DefaultTheme, state: StepState): string {
+  if (state === 'done') return theme.color.success[500];
+  if (state === 'active') return theme.color.indigo[600];
+  return theme.color.fg[4];
+}
+
+type EnvelopeState = 'entered' | 'sealed' | 'flying';
+
+function envelopeTransform(state: EnvelopeState, visible: boolean): string {
+  if (!visible) return 'translate(-50%, 0) scale(0.9)';
+  if (state === 'flying') return 'translate(-50%, 160px) scale(0.6)';
+  // 'sealed' and 'entered' both render at the same anchored spot today.
+  return 'translate(-50%, 28px) scale(1)';
+}
 
 const shine = keyframes`
   0%   { transform: translateX(-40px); }
@@ -163,25 +192,9 @@ export const StepDot = styled.div<{ $state: 'done' | 'active' | 'pending' }>`
   align-items: center;
   justify-content: center;
   position: relative;
-  background: ${({ theme, $state }) =>
-    $state === 'done'
-      ? theme.color.success[50]
-      : $state === 'active'
-        ? theme.color.indigo[50]
-        : theme.color.bg.sunken};
-  border: 1.5px solid
-    ${({ theme, $state }) =>
-      $state === 'done'
-        ? theme.color.success[500]
-        : $state === 'active'
-          ? theme.color.indigo[600]
-          : theme.color.border[1]};
-  color: ${({ theme, $state }) =>
-    $state === 'done'
-      ? theme.color.success[500]
-      : $state === 'active'
-        ? theme.color.indigo[600]
-        : theme.color.fg[4]};
+  background: ${({ theme, $state }) => stepDotBg(theme, $state)};
+  border: 1.5px solid ${({ theme, $state }) => stepDotBorder(theme, $state)};
+  color: ${({ theme, $state }) => stepDotFg(theme, $state)};
 
   ${({ $state }) =>
     $state === 'active' &&
@@ -366,14 +379,7 @@ export const StageEnvelope = styled.div<{
   height: 110px;
   transition: all 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
   opacity: ${({ $visible }) => ($visible ? 1 : 0)};
-  transform: ${({ $state, $visible }) =>
-    !$visible
-      ? 'translate(-50%, 0) scale(0.9)'
-      : $state === 'flying'
-        ? 'translate(-50%, 160px) scale(0.6)'
-        : $state === 'sealed'
-          ? 'translate(-50%, 28px) scale(1)'
-          : 'translate(-50%, 28px) scale(1)'};
+  transform: ${({ $state, $visible }) => envelopeTransform($state, $visible)};
   z-index: 3;
 `;
 

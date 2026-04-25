@@ -1,4 +1,10 @@
-import styled, { css, keyframes } from 'styled-components';
+import styled, { css, keyframes, type DefaultTheme } from 'styled-components';
+
+function loaderStepDotBg(theme: DefaultTheme, done: boolean, active: boolean): string {
+  if (done) return theme.color.success[500];
+  if (active) return theme.color.indigo[600];
+  return theme.color.ink[200];
+}
 
 export const Shell = styled.div`
   display: flex;
@@ -260,8 +266,7 @@ export const LoaderStepDot = styled.span<{ $active: boolean; $done: boolean }>`
   width: 10px;
   height: 10px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme, $done, $active }) =>
-    $done ? theme.color.success[500] : $active ? theme.color.indigo[600] : theme.color.ink[200]};
+  background: ${({ theme, $done, $active }) => loaderStepDotBg(theme, $done, $active)};
   flex-shrink: 0;
   transition: background 200ms ease;
 `;

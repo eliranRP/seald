@@ -1,4 +1,19 @@
-import styled from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
+
+function progressFillBg(theme: DefaultTheme, complete: boolean, declined: boolean): string {
+  if (complete) return theme.color.success[500];
+  if (declined) return theme.color.danger[500];
+  return theme.color.indigo[600];
+}
+
+type StatTone = 'success' | 'warn' | 'danger' | undefined;
+
+function progressStatColor(theme: DefaultTheme, tone: StatTone): string {
+  if (tone === 'warn') return theme.color.warn[500];
+  if (tone === 'success') return theme.color.success[500];
+  if (tone === 'danger') return theme.color.danger[500];
+  return theme.color.fg[1];
+}
 
 export const Wrap = styled.div`
   min-height: 100vh;
@@ -133,12 +148,7 @@ interface FillProps {
 export const ProgressFill = styled.div<FillProps>`
   height: 100%;
   width: ${({ $pct }) => `${$pct}%`};
-  background: ${({ theme, $complete, $declined }) =>
-    $complete
-      ? theme.color.success[500]
-      : $declined
-        ? theme.color.danger[500]
-        : theme.color.indigo[600]};
+  background: ${({ theme, $complete, $declined }) => progressFillBg(theme, $complete, $declined)};
   border-radius: ${({ theme }) => theme.radius.pill};
   transition: width 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
 `;
@@ -158,14 +168,7 @@ export const ProgressStatValue = styled.div<{ $tone?: 'success' | 'warn' | 'dang
   font-family: ${({ theme }) => theme.font.serif};
   font-size: 24px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme, $tone }) =>
-    $tone === 'warn'
-      ? theme.color.warn[500]
-      : $tone === 'success'
-        ? theme.color.success[500]
-        : $tone === 'danger'
-          ? theme.color.danger[500]
-          : theme.color.fg[1]};
+  color: ${({ theme, $tone }) => progressStatColor(theme, $tone)};
   line-height: 1.1;
 `;
 

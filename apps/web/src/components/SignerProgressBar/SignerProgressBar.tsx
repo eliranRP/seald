@@ -8,7 +8,7 @@ import { Segment, Track } from './SignerProgressBar.styles';
  * draft stays transparent so the bar reads "N done of M total".
  */
 export const SignerProgressBar = forwardRef<HTMLDivElement, SignerProgressBarProps>(
-  function SignerProgressBar(props, ref) {
+  (props, ref) => {
     const { signers, ...rest } = props;
     const total = signers.length;
     const signed = signers.filter((s) => s.status === 'signed').length;

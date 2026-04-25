@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { ActivityTimeline } from '../../components/ActivityTimeline';
 import type {
   ActivityTimelineEvent,
@@ -47,7 +48,6 @@ import type {
   EnvelopeStatus,
   SignerUiStatus,
 } from '../../features/envelopes';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   Actions,
   AuditAction,
@@ -331,7 +331,7 @@ export function EnvelopeDetailPage() {
   const [auditInFlight, setAuditInFlight] = useState(false);
 
   const envelope = q.data;
-  const events = ev.data?.events ?? [];
+  const events = useMemo(() => ev.data?.events ?? [], [ev.data]);
 
   const timelineEvents = useMemo(
     () => (envelope ? eventsToTimeline(envelope, events) : []),
@@ -438,8 +438,10 @@ export function EnvelopeDetailPage() {
             });
           }
         } else {
-          const friendly =
-            kind === 'sealed' ? 'Sealed PDF' : kind === 'audit' ? 'Audit trail' : 'Original PDF';
+          let friendly: string;
+          if (kind === 'sealed') friendly = 'Sealed PDF';
+          else if (kind === 'audit') friendly = 'Audit trail';
+          else friendly = 'Original PDF';
           await openArtifact(kind, friendly);
         }
       } finally {
@@ -638,13 +640,11 @@ export function EnvelopeDetailPage() {
               onClick={handleSendReminder}
               loading={remindInFlight}
               disabled={!hasPending || isTerminal}
-              title={
-                isTerminal
-                  ? 'This envelope is closed — no reminders to send.'
-                  : !hasPending
-                    ? 'Every signer has already signed or declined.'
-                    : undefined
-              }
+              title={(() => {
+                if (isTerminal) return 'This envelope is closed — no reminders to send.';
+                if (!hasPending) return 'Every signer has already signed or declined.';
+                return undefined;
+              })()}
             >
               Send reminder
             </Button>

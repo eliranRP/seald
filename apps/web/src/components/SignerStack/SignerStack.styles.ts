@@ -35,7 +35,7 @@ export const Avatar = styled.span<{ $status: SignerStackStatus }>`
   height: 28px;
   border-radius: ${({ theme }) => theme.radius.pill};
   background: ${({ theme }) => theme.color.indigo[600]};
-  color: #ffffff;
+  color: ${({ theme }) => theme.color.paper};
   display: inline-flex;
   align-items: center;
   justify-content: center;

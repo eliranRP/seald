@@ -65,6 +65,62 @@ function matchesAccept(file: File, accept: string): boolean {
   });
 }
 
+/* ---- Internal ---- */
+
+const ANALYZING_STEPS: ReadonlyArray<string> = [
+  'Reading PDF bytes',
+  'Extracting pages',
+  'Detecting fillable regions',
+  'Preparing canvas',
+];
+
+function AnalyzingLoader({ fileName }: { readonly fileName?: string | undefined }): JSX.Element {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    // Cycle through steps; the caller is responsible for unmounting
+    // the loader once the real async work finishes — we don't try to
+    // sync with actual progress (which is already complete by the
+    // time jsdom / a real browser renders a big PDF).
+    const id = window.setInterval(() => {
+      setActiveStep((n) => (n + 1) % ANALYZING_STEPS.length);
+    }, 650);
+    return () => window.clearInterval(id);
+  }, []);
+
+  return (
+    <LoaderCard role="status" aria-live="polite">
+      <LoaderPage aria-hidden>
+        <LoaderLine $width="70%" />
+        <LoaderLine $width="90%" />
+        <LoaderLine $width="82%" />
+        <LoaderLine $width="76%" />
+        <LoaderLine $width="60%" />
+        <LoaderLine $width="85%" />
+        <LoaderLine $width="72%" />
+        <LoaderScan />
+      </LoaderPage>
+      <LoaderTitle>Analyzing your document</LoaderTitle>
+      <LoaderSubtitle>
+        {fileName !== undefined && fileName.length > 0 ? fileName : 'Looking for signature fields…'}
+      </LoaderSubtitle>
+      <LoaderProgress aria-hidden />
+      <LoaderSteps>
+        {ANALYZING_STEPS.map((label, i) => {
+          const active = i === activeStep;
+          const done = i < activeStep;
+          return (
+            <LoaderStep key={label} $active={active}>
+              <LoaderStepDot $active={active} $done={done} aria-hidden />
+              {label}
+            </LoaderStep>
+          );
+        })}
+      </LoaderSteps>
+    </LoaderCard>
+  );
+}
+
 export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, ref) => {
   const {
     onFileSelected,
@@ -266,59 +322,3 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
 });
 
 UploadPage.displayName = 'UploadPage';
-
-/* ---- Internal ---- */
-
-const ANALYZING_STEPS: ReadonlyArray<string> = [
-  'Reading PDF bytes',
-  'Extracting pages',
-  'Detecting fillable regions',
-  'Preparing canvas',
-];
-
-function AnalyzingLoader({ fileName }: { readonly fileName?: string | undefined }): JSX.Element {
-  const [activeStep, setActiveStep] = useState(0);
-
-  useEffect(() => {
-    // Cycle through steps; the caller is responsible for unmounting
-    // the loader once the real async work finishes — we don't try to
-    // sync with actual progress (which is already complete by the
-    // time jsdom / a real browser renders a big PDF).
-    const id = window.setInterval(() => {
-      setActiveStep((n) => (n + 1) % ANALYZING_STEPS.length);
-    }, 650);
-    return () => window.clearInterval(id);
-  }, []);
-
-  return (
-    <LoaderCard role="status" aria-live="polite">
-      <LoaderPage aria-hidden>
-        <LoaderLine $width="70%" />
-        <LoaderLine $width="90%" />
-        <LoaderLine $width="82%" />
-        <LoaderLine $width="76%" />
-        <LoaderLine $width="60%" />
-        <LoaderLine $width="85%" />
-        <LoaderLine $width="72%" />
-        <LoaderScan />
-      </LoaderPage>
-      <LoaderTitle>Analyzing your document</LoaderTitle>
-      <LoaderSubtitle>
-        {fileName !== undefined && fileName.length > 0 ? fileName : 'Looking for signature fields…'}
-      </LoaderSubtitle>
-      <LoaderProgress aria-hidden />
-      <LoaderSteps>
-        {ANALYZING_STEPS.map((label, i) => {
-          const active = i === activeStep;
-          const done = i < activeStep;
-          return (
-            <LoaderStep key={label} $active={active}>
-              <LoaderStepDot $active={active} $done={done} aria-hidden />
-              {label}
-            </LoaderStep>
-          );
-        })}
-      </LoaderSteps>
-    </LoaderCard>
-  );
-}
