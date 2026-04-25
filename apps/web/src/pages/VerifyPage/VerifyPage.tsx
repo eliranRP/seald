@@ -97,10 +97,31 @@ function shortHash(hash: string | null): string {
   return `${hash.slice(0, 32)}\n${hash.slice(32)}`;
 }
 
+// Card subtitle: "Sealed Apr 25, 2026" — date only, per design
+// (Design-Guide/project/verify-flow.html line 590).
+function formatShortDate(iso: string | null): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+// Sealed-at fact row: "Apr 25, 2026 · 21:21 UTC" — short date + HH:MM,
+// per design (Design-Guide/project/verify-flow.html line 645).
 function formatDateTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
-  return `${d.toUTCString().replace(' GMT', ' UTC')}`;
+  const date = formatShortDate(iso);
+  const time = d.toLocaleTimeString('en-US', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+  return `${date} · ${time} UTC`;
 }
 
 function formatTimelineTime(iso: string): { readonly date: string; readonly time: string } {
@@ -426,7 +447,11 @@ function VerifyContent({ data }: VerifyContentProps) {
   const sealed = data.envelope.status === 'completed';
   const signersAll = data.signers.length;
   const signersDone = data.signers.filter((s) => s.status === 'completed').length;
-  const reqId = `REQ ${data.envelope.id.toUpperCase()}`;
+  // REQ id format per Design-Guide/project/verify-flow.html line 586:
+  // "REQ 804A6C00-2AD9-4590" — first two UUID groups, uppercased. Full
+  // UUID is overkill for a header-line ID and pushes the metadata onto
+  // a second line on narrow viewports.
+  const reqId = `REQ ${data.envelope.id.split('-').slice(0, 2).join('-').toUpperCase()}`;
 
   return (
     <Page $variant={view.variant}>
@@ -458,7 +483,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   {data.envelope.completed_at ? (
                     <>
                       <span className="sep" aria-hidden />
-                      <span>Sealed {formatDateTime(data.envelope.completed_at)}</span>
+                      <span>Sealed {formatShortDate(data.envelope.completed_at)}</span>
                     </>
                   ) : null}
                 </DocSub>
