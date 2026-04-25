@@ -6,6 +6,11 @@ module.exports = {
     ecmaVersion: 'latest',
     sourceType: 'module',
     ecmaFeatures: { jsx: true },
+    // Both tsconfigs are listed so @typescript-eslint/parser can resolve
+    // src/* (via tsconfig.json) AND vite.config.ts (via tsconfig.node.json).
+    // The two are also linked via TypeScript project references — see
+    // tsconfig.json's `references` array — which is why the import resolver
+    // below uses a single `configFile` + `references: 'auto'`.
     project: ['./tsconfig.json', './tsconfig.node.json'],
     tsconfigRootDir: __dirname,
   },
@@ -27,9 +32,17 @@ module.exports = {
     // Teach eslint-plugin-import about the TS path-alias `@/*` declared in
     // tsconfig.json so `import { ... } from '@/components/Button'` resolves
     // for `import/no-unresolved` and `import/extensions`.
+    // Single `configFile` + `references: 'auto'` lets the resolver follow
+    // the TS project references graph (tsconfig.json -> tsconfig.node.json
+    // + shared) so vite.config.ts still resolves, without triggering
+    // `eslint-import-resolver-typescript`'s "Multiple projects found"
+    // warning that an array of `project` paths produces.
     'import/resolver': {
       typescript: {
-        project: ['./tsconfig.json', './tsconfig.node.json'],
+        tsconfig: {
+          configFile: './tsconfig.json',
+          references: 'auto',
+        },
       },
       node: true,
     },

@@ -1,19 +1,24 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "composite": true,
     "module": "commonjs",
     "moduleResolution": "node",
     "declaration": true,
+    "declarationMap": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "outDir": "./dist",
+    "rootDir": "./",
     "baseUrl": "./",
     "incremental": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "strictNullChecks": true,
     "noFallthroughCasesInSwitch": false,
     "target": "ES2022",
     "lib": ["ES2022"],
     "jsx": "react"
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*", "test/**/*", "db/**/*"],
+  "references": [{ "path": "../../packages/shared/tsconfig.build.json" }]
 }

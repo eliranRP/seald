@@ -1,5 +1,11 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo/tsconfig.tsbuildinfo",
+    "outDir": "./node_modules/.cache/tsc-web",
+    "declaration": true,
+    "declarationMap": true,
     "target": "ES2022",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
@@ -20,12 +26,15 @@
     "noUnusedParameters": true,
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": false,
-    "noEmit": true,
     "types": ["vitest/globals", "@testing-library/jest-dom", "node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", ".storybook/**/*"]
+  "include": ["src", ".storybook/**/*"],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "../../packages/shared/tsconfig.build.json" }
+  ]
 }

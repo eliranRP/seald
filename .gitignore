@@ -46,3 +46,4 @@ apps/*/test-output/
 apps/*/test-results/
 apps/*/playwright-report/
 apps/*/playwright/.cache/
+.claude/
