@@ -56,12 +56,19 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build shared
         run: pnpm --filter shared build
+      # Chromatic via direct CLI — mirrors the local invocation that
+      # initialized the project. The chromaui/action@v11 wrapper kept
+      # failing auth with `INTERNAL_SERVER_ERROR: No app with code '***'
+      # found` despite the secret value being correct; bypassing the
+      # wrapper resolves it.
       - name: Run Chromatic
-        uses: chromaui/action@v11
-        with:
-          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
-          workingDir: apps/web
-          buildScriptName: build-storybook
-          exitZeroOnChanges: true
-          autoAcceptChanges: main
-          onlyChanged: true
+        working-directory: apps/web
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+        run: |
+          pnpm exec chromatic \
+            --project-token="$CHROMATIC_PROJECT_TOKEN" \
+            --build-script-name=build-storybook \
+            --exit-zero-on-changes \
+            --auto-accept-changes=main \
+            --only-changed
