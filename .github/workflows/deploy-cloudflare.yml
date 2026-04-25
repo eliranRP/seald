@@ -161,12 +161,20 @@ jobs:
 
           if [ "${missing}" = "1" ]; then
             echo "→ Creating project ${PROJECT}"
-            curl -fsS -X POST \
+            create_status=$(curl -sS -o /tmp/cf-create.json -w '%{http_code}' \
+              -X POST \
               -H "Authorization: Bearer ${CF_API_TOKEN}" \
               -H "Content-Type: application/json" \
               "${API}" \
-              -d "{\"name\":\"${PROJECT}\",\"production_branch\":\"main\"}" \
-              | jq -r '.result.name // .errors'
+              -d "{\"name\":\"${PROJECT}\",\"production_branch\":\"main\"}")
+            echo "POST status: ${create_status}"
+            cat /tmp/cf-create.json
+            echo
+            if ! jq -e '.success == true' /tmp/cf-create.json >/dev/null; then
+              echo "✗ Project creation failed"
+              exit 1
+            fi
+            jq -r '.result.name' /tmp/cf-create.json
           fi
 
       - name: Deploy to Cloudflare Pages
