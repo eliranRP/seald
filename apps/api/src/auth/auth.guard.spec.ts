@@ -3,9 +3,13 @@ import { AuthGuard } from './auth.guard';
 import { SupabaseJwtStrategy } from './supabase-jwt.strategy';
 import type { AuthUser } from './auth-user';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mockContext(headers: Record<string, string | undefined>, req: any = {}): ExecutionContext {
-  const request = { headers, ...req };
+type RequestStub = { user?: AuthUser } & Record<string, unknown>;
+
+function mockContext(
+  headers: Record<string, string | undefined>,
+  req: RequestStub = {},
+): ExecutionContext {
+  const request: RequestStub = { headers, ...req };
   return {
     switchToHttp: () => ({ getRequest: () => request }),
   } as unknown as ExecutionContext;
@@ -39,8 +43,7 @@ describe('AuthGuard', () => {
 
   it('delegates to strategy and populates request.user', async () => {
     const user: AuthUser = { id: 'u1', email: 'a@b.com', provider: 'google' };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const req: any = { headers: { authorization: 'Bearer abc.def.ghi' } };
+    const req: RequestStub = { headers: { authorization: 'Bearer abc.def.ghi' } };
     const { guard } = makeGuard(async (t) => {
       expect(t).toBe('abc.def.ghi');
       return user;

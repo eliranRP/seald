@@ -86,8 +86,11 @@ export class P12TsaSigner extends Signer {
     p7.sign({ detached: true });
 
     // ---- 3. Extract encryptedDigest + get TST from TSA ----
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const signerInfos = (p7 as any).signers as Array<{ signature: string }>;
+    // node-forge's typings don't expose the `signers` property even though
+    // it exists at runtime. Bridge through `unknown` (per react-best-
+    // practices skill rule 3.2 — prefer unknown + narrowing over `any`).
+    const signerInfos = (p7 as unknown as { signers: ReadonlyArray<{ signature: string }> })
+      .signers;
     const encryptedDigest = Buffer.from(signerInfos[0]!.signature, 'binary');
     this.logger.log(
       `requesting TSA timestamp for encryptedDigest (${encryptedDigest.length} bytes)`,

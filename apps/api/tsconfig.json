@@ -13,7 +13,7 @@
     "noFallthroughCasesInSwitch": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "target": "ES2022",
     "lib": ["ES2022"],
     "jsx": "react"
