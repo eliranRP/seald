@@ -66,6 +66,7 @@ describe('UploadMode', () => {
   it('rejects unsupported MIME types and does not commit', () => {
     const onCommit = vi.fn();
     renderWithTheme(<UploadMode onCommit={onCommit} onCancel={vi.fn()} />);
+    // no semantic role: hidden file input has no accessible role (rule 4.6 escape hatch)
     const input = screen.getByTestId('upload-mode-input') as HTMLInputElement;
     const pdf = new File(['%PDF-1.4'], 'sig.pdf', { type: 'application/pdf' });
     fireEvent.change(input, { target: { files: [pdf] } });
@@ -76,6 +77,7 @@ describe('UploadMode', () => {
   it('commits a valid PNG via the hidden input change event', () => {
     const onCommit = vi.fn();
     renderWithTheme(<UploadMode onCommit={onCommit} onCancel={vi.fn()} />);
+    // no semantic role: hidden file input has no accessible role (rule 4.6 escape hatch)
     const input = screen.getByTestId('upload-mode-input') as HTMLInputElement;
     const png = new File(['abc'], 'sig.png', { type: 'image/png' });
     fireEvent.change(input, { target: { files: [png] } });
@@ -129,6 +131,7 @@ describe('UploadMode', () => {
 
     const onCommit = vi.fn();
     renderWithTheme(<UploadMode onCommit={onCommit} onCancel={vi.fn()} />);
+    // no semantic role: hidden file input has no accessible role (rule 4.6 escape hatch)
     const input = screen.getByTestId('upload-mode-input') as HTMLInputElement;
     const png = new File(['abc'], 'sig.png', { type: 'image/png' });
     fireEvent.change(input, { target: { files: [png] } });
