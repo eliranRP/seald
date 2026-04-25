@@ -171,7 +171,31 @@ jobs:
             cat /tmp/cf-create.json
             echo
             if ! jq -e '.success == true' /tmp/cf-create.json >/dev/null; then
-              echo "✗ Project creation failed"
+              cat <<'BANNER'
+
+══════════════════════════════════════════════════════════════════════
+  Cloudflare Pages project auto-create FAILED.
+
+  Your CLOUDFLARE_API_TOKEN secret lacks `Account → Cloudflare Pages
+  → Edit` scope. CF returns 400/7003 for both GET-by-name AND
+  POST-create on /accounts/{id}/pages/projects when the token can
+  only deploy (not enumerate or create) projects.
+
+  ONE-TIME FIX (30 seconds, then fully automated forever):
+    1. Open https://dash.cloudflare.com/?to=/:account/pages
+    2. Click "Create a project" → "Direct upload"
+    3. Project name: seald-landing
+    4. Production branch: main
+    5. Click "Create project" (no upload needed; wrangler will deploy
+       on the next push)
+
+  OR, regenerate the token with the "Edit Cloudflare Workers"
+  template (which includes Pages: Edit), update the GH secret via:
+    printf '<new-token>' | gh secret set CLOUDFLARE_API_TOKEN \
+      -R eliranRP/seald --body -
+
+══════════════════════════════════════════════════════════════════════
+BANNER
               exit 1
             fi
             jq -r '.result.name' /tmp/cf-create.json

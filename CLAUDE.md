@@ -170,15 +170,29 @@ Required GH secrets (already provisioned):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-First-deploy workflow (fully automated):
-1. **DNS** — `gh workflow run terraform.yml --ref main -f action=apply`
+First-deploy workflow:
+
+1. **One-time** — create the Cloudflare Pages project. The token in the
+   GH secret can deploy to an existing project but lacks `Pages: Edit`
+   scope to enumerate/create. Open the dashboard:
+   https://dash.cloudflare.com/?to=/:account/pages → Create a project →
+   Direct upload → name `seald-landing`, production branch `main`,
+   no upload (wrangler will fill it on the next push). 30 seconds.
+   Alternative: regenerate the token via the "Edit Cloudflare Workers"
+   template (includes Pages: Edit), then `gh secret set
+   CLOUDFLARE_API_TOKEN`. The deploy workflow will then auto-create
+   the project on its next run with no human action needed.
+
+2. **DNS** — `gh workflow run terraform.yml --ref main -f action=apply`
    flips `seald.nromomentum.com` from A record (EC2) to CNAME → CF Pages.
-2. **Domain attach** — happens automatically inside the
+
+3. **Domain attach** — happens automatically inside the
    `Deploy (Cloudflare Pages — landing + SPA merged)` workflow on every
    push to main. The job calls the Cloudflare Pages API to attach
    `seald.nromomentum.com` to the `seald-landing` project; idempotent so
    subsequent runs are no-ops.
-3. **Optional polish** — paste the real Cloudflare Web Analytics token
+
+4. **Optional polish** — paste the real Cloudflare Web Analytics token
    into `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`,
    replace `apps/landing/public/google-site-verification.html` with the
    real GSC token file. Both ship with placeholders.
