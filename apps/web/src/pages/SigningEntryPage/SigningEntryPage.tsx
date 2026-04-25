@@ -44,7 +44,11 @@ interface ApiErrorLike extends Error {
 
 function mapError(err: ApiErrorLike): EntryState {
   if (err.status === 400) return 'invalid';
-  if (err.status === 401 || err.status === 410) return 'burned';
+  // 401 invalid_token, 410 envelope_terminal, 409 already_signed/declined
+  // (from assertStillSignable). All four mean "this link won't sign anything"
+  // from the user's perspective, so the same copy ("already been used") is
+  // the most useful message.
+  if (err.status === 401 || err.status === 409 || err.status === 410) return 'burned';
   if (err.status === 404) return 'not-found';
   if (err.status === 429) return 'rate-limit';
   return 'generic';

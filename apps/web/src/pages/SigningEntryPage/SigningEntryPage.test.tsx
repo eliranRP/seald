@@ -105,6 +105,24 @@ describe('SigningEntryPage', () => {
     expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
   });
 
+  // 409 covers the API's `ConflictException('already_signed')` and
+  // `already_declined` paths from `assertStillSignable`. Without this
+  // mapping the user sees "Something went wrong" — which was the bug
+  // reported on a re-clicked signing link.
+  it('maps 409 already_signed to the burned-link state', async () => {
+    const err = Object.assign(new Error('already_signed'), { status: 409 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
+  });
+
+  it('maps 409 already_declined to the burned-link state', async () => {
+    const err = Object.assign(new Error('already_declined'), { status: 409 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
+  });
+
   it('maps 404 to the not-found state', async () => {
     const err = Object.assign(new Error('envelope_not_found'), { status: 404 });
     post.mockRejectedValueOnce(err);
