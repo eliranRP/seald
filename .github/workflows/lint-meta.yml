@@ -63,9 +63,11 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node
+        # cspell@10 requires >=22.18.0; gherkin-lint is fine on 22 too,
+        # so we use Node 22 LTS for both jobs.
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install root deps
@@ -84,9 +86,11 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
       - name: Setup Node
+        # cspell@10 requires Node >=22.18.0 — Node 20 is rejected with
+        # "Unsupported NodeJS version".
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install root deps
