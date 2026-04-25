@@ -124,6 +124,23 @@ jobs:
           echo "----- _redirects -----"
           cat "$DEST/_redirects"
 
+      - name: Verify Cloudflare token + diagnostics
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          echo "Token length: $(echo -n "$CF_API_TOKEN" | wc -c)"
+          echo "Token prefix: ${CF_API_TOKEN:0:5}..."
+          echo "Account ID: ${CF_ACCOUNT_ID}"
+          echo "--- /user/tokens/verify ---"
+          curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify" | head -c 400
+          echo
+          echo "--- GET project ---"
+          curl -sS -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/pages/projects/seald-landing" | head -c 400
+          echo
+
       - name: Ensure Cloudflare Pages project exists
         # Idempotent. Wrangler pages deploy fails 7003 if the project
         # is missing; this step GETs and POSTs only on missing.
