@@ -40,3 +40,9 @@ apps/*/.seald-mail/
 # signature banner renders on sealed.pdf.
 test-output/
 apps/*/test-output/
+
+# Playwright browser artifacts (apps/web e2e). The HTML report is uploaded
+# as a CI artifact; the trace/video output is kept on retry only.
+apps/*/test-results/
+apps/*/playwright-report/
+apps/*/playwright/.cache/

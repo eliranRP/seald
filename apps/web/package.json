@@ -13,6 +13,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
@@ -29,6 +31,7 @@
     "styled-components": "6.1.13"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@storybook/addon-a11y": "8.3.5",
     "@storybook/addon-essentials": "8.3.5",
     "@storybook/addon-themes": "8.3.5",

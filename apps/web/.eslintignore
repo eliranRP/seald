@@ -5,3 +5,9 @@ storybook-static
 coverage
 .vite
 !.storybook
+
+# Playwright e2e — separate tsconfig, runs outside the main React build.
+e2e
+playwright.config.ts
+playwright-report
+test-results
