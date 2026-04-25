@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { PageThumbStripProps } from './PageThumbStrip.types';
 import { FieldDot, Nav, Thumb } from './PageThumbStrip.styles';
@@ -23,10 +23,12 @@ export const PageThumbStrip = forwardRef<HTMLElement, PageThumbStripProps>((prop
     ...rest
   } = props;
 
-  const fieldPageSet = useMemo<ReadonlySet<number>>(
-    () => new Set(pagesWithFields ?? []),
-    [pagesWithFields],
-  );
+  // Per skill rule 2.4 (no unjustified memoization): both `fieldPageSet` and
+  // `pages` are O(N) on a small N (totalPages, typically <50) and not passed
+  // to memoized children, so we let React rebuild them on each render rather
+  // than carry the dependency-tracking overhead.
+  const fieldPageSet: ReadonlySet<number> = new Set(pagesWithFields ?? []);
+  const pages: ReadonlyArray<number> = Array.from({ length: totalPages }, (_, i) => i + 1);
 
   // Keep the active thumb in view when the strip overflows (long docs). Without
   // this, a user on page 25 of 30 wouldn't see which thumb is selected because
@@ -39,11 +41,6 @@ export const PageThumbStrip = forwardRef<HTMLElement, PageThumbStripProps>((prop
       el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }, [currentPage]);
-
-  const pages = useMemo<ReadonlyArray<number>>(
-    () => Array.from({ length: totalPages }, (_, i) => i + 1),
-    [totalPages],
-  );
 
   const handleKeyDown = (e: KeyboardEvent<HTMLElement>): void => {
     if (totalPages < 1) {
