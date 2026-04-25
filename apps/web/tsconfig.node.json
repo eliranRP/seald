@@ -1,11 +1,16 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo/tsconfig.node.tsbuildinfo",
+    "outDir": "./node_modules/.cache/tsc-node",
+    "declaration": true,
+    "declarationMap": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "skipLibCheck": true,
-    "noEmit": true,
     "types": ["node"]
   },
   "include": ["vite.config.ts"]
