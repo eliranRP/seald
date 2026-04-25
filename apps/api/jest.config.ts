@@ -7,6 +7,14 @@ const config: Config = {
   roots: ['<rootDir>/src', '<rootDir>/test'],
   testRegex: '.*\\.spec\\.tsx?$',
   transform: {
+    // yoga-layout (transitive dep of @react-pdf/renderer used by
+    // audit-pdf.tsx) ships an ESM-only bundle that uses `import.meta.url`
+    // and `export default`. ts-jest's CJS output can't handle either, so
+    // we rewrite that single file with a tiny regex transformer before
+    // ts-jest runs over the rest of the workspace. Order matters: the
+    // first matching key wins, so the yoga rule must come before the
+    // generic ts/js rule.
+    'yoga-wasm-base64-esm\\.js$': '<rootDir>/test/yoga-import-meta-transformer.cjs',
     '^.+\\.(t|j)sx?$': 'ts-jest',
   },
   // The audit-pdf renderer pulls in a deep graph of ESM-only deps via

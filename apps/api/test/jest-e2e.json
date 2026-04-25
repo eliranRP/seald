@@ -3,5 +3,11 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": "\\.e2e-spec\\.ts$",
-  "transform": { "^.+\\.(t|j)sx?$": "ts-jest" }
+  "transform": {
+    "yoga-wasm-base64-esm\\.js$": "<rootDir>/yoga-import-meta-transformer.cjs",
+    "^.+\\.(t|j)sx?$": "ts-jest"
+  },
+  "transformIgnorePatterns": [
+    "node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib))"
+  ]
 }
