@@ -63,6 +63,7 @@ describe('SigningDeclinedPage', () => {
     });
     renderDeclined();
     await waitFor(() => {
+      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}`);
     });
   });
