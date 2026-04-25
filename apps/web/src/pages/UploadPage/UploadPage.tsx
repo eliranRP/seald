@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { ChangeEvent, DragEvent, MouseEvent } from 'react';
+import type { ChangeEvent, DragEvent, JSX, MouseEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { NavBar } from '@/components/NavBar';

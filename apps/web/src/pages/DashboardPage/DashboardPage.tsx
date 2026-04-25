@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import type { JSX } from 'react';
 import { ChevronRight, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/Badge';

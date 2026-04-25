@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import type { JSX } from 'react';
 import { CollapsibleRail } from './CollapsibleRail';
 import type { CollapsibleRailProps, CollapsibleRailSide } from './CollapsibleRail.types';
 import { seald } from '../../styles/theme';
