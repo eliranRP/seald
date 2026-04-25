@@ -173,13 +173,15 @@ describe('App routing', () => {
   it('clicking "New document" on the Dashboard navigates to the upload flow', async () => {
     renderApp(['/documents']);
     fireEvent.click(await screen.findByRole('button', { name: /new document/i }));
-    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+    // UploadRoute is React.lazy() so the chunk loads asynchronously after
+    // navigation — use findBy to await it.
+    expect(await screen.findByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
   it('clicking the Sign NavBar tab navigates to /document/new', async () => {
     renderApp(['/documents']);
     fireEvent.click(await screen.findByRole('button', { name: /^sign$/i }));
-    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
   // With the `vi.mock('./lib/pdf', ...)` at the top of this file,
