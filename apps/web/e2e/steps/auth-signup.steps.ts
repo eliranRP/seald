@@ -4,8 +4,29 @@ import { test } from '../fixtures/test';
 const { Given, When, Then } = createBdd(test);
 
 Given('the signup API will succeed', async ({ mockedApi }) => {
-  mockedApi.on('POST', /\/api\/auth\/signup$/, {
-    json: { ok: true, user: { id: 'usr_new', email: 'casey@example.com' } },
+  // Real flow: SPA calls supabase.auth.signUp(), POST to
+  // `<VITE_SUPABASE_URL>/auth/v1/signup`. We respond with `session: null`
+  // (Supabase requires email confirmation), which triggers
+  // `onNeedsEmailConfirmation` → navigate to `/check-email`.
+  const issuedAt = Math.floor(new Date('2026-04-25T10:00:00Z').getTime() / 1000);
+  mockedApi.on('POST', /\/auth\/v1\/signup/, {
+    json: {
+      user: {
+        id: '00000000-0000-4000-8000-000000000c45',
+        aud: 'authenticated',
+        role: 'authenticated',
+        email: 'casey@example.com',
+        email_confirmed_at: null,
+        confirmed_at: null,
+        last_sign_in_at: null,
+        app_metadata: { provider: 'email', providers: ['email'] },
+        user_metadata: { name: 'Casey New' },
+        identities: [],
+        created_at: new Date(issuedAt * 1000).toISOString(),
+        updated_at: new Date(issuedAt * 1000).toISOString(),
+      },
+      session: null,
+    },
   });
 });
 

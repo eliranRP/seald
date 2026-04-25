@@ -8,23 +8,28 @@ export class ContactsPage {
   }
 
   async expectVisible(): Promise<void> {
-    await expect(this.page.getByRole('heading', { name: /signers|contacts/i })).toBeVisible();
+    await expect(this.page.getByRole('button', { name: /^add signer$/i })).toBeVisible();
   }
 
   async addContact(name: string, email: string): Promise<void> {
-    await this.page.getByRole('button', { name: /add (signer|contact)/i }).click();
-    await this.page.getByLabel(/name/i).fill(name);
-    await this.page.getByLabel(/email/i).fill(email);
-    await this.page.getByRole('button', { name: /save/i }).click();
+    // The page-header "Add signer" button opens an aria-labelled dialog
+    // with Name + Email TextFields and an "Add signer" submit button.
+    await this.page
+      .getByRole('button', { name: /^add signer$/i })
+      .first()
+      .click();
+    const dialog = this.page.getByRole('dialog', { name: /add signer/i });
+    await dialog.getByRole('textbox', { name: /^name$/i }).fill(name);
+    await dialog.getByRole('textbox', { name: /^email$/i }).fill(email);
+    await dialog.getByRole('button', { name: /^add signer$/i }).click();
   }
 
   async deleteContact(name: string): Promise<void> {
-    const row = this.page.getByRole('row', { name: new RegExp(name, 'i') });
-    await row.getByRole('button', { name: /delete|remove/i }).click();
-    await this.page.getByRole('button', { name: /confirm/i }).click();
+    await this.page.getByRole('button', { name: new RegExp(`^delete ${name}$`, 'i') }).click();
+    await this.page.getByRole('button', { name: /confirm|delete/i }).click();
   }
 
   async expectContactVisible(name: string): Promise<void> {
-    await expect(this.page.getByText(new RegExp(name, 'i'))).toBeVisible();
+    await expect(this.page.getByText(new RegExp(name, 'i')).first()).toBeVisible();
   }
 }

@@ -8,11 +8,25 @@ export class DashboardPage {
   }
 
   async expectVisible(): Promise<void> {
-    await expect(this.page.getByRole('heading', { name: /documents/i })).toBeVisible();
+    await expect(
+      this.page.getByRole('heading', { name: /everything you've sent|documents/i }),
+    ).toBeVisible();
   }
 
   async filterBy(status: string): Promise<void> {
-    await this.page.getByRole('tab', { name: new RegExp(status, 'i') }).click();
+    // Dashboard tabs: All / Awaiting you / Awaiting others / Completed /
+    // Drafts. "awaiting" alone is ambiguous; map common shorthands to the
+    // right tab so scenarios stay declarative.
+    const map: Record<string, RegExp> = {
+      awaiting: /awaiting others/i,
+      'awaiting others': /awaiting others/i,
+      'awaiting you': /awaiting you/i,
+      completed: /^completed$/i,
+      drafts: /^drafts$/i,
+      all: /^all$/i,
+    };
+    const pattern = map[status.toLowerCase()] ?? new RegExp(status, 'i');
+    await this.page.getByRole('tab', { name: pattern }).click();
   }
 
   async openEnvelope(title: string): Promise<void> {
