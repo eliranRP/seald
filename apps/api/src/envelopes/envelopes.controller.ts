@@ -17,7 +17,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Express, Request } from 'express';
+import type { Request } from 'express';
 import { ENVELOPE_STATUSES } from 'shared';
 import type { Envelope } from 'shared';
 import type { AuthUser } from '../auth/auth-user';

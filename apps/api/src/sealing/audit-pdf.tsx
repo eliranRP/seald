@@ -1571,7 +1571,6 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
 }
 
 function buildProposerParticipant(ctx: RenderCtx): ParticipantData {
-  const env = ctx.envelope;
   const proposer = deriveProposer(ctx);
   const events: ParticipantEvent[] = [];
   const createdEvent = ctx.events.find((e) => e.event_type === 'created');

@@ -11,9 +11,6 @@
     "incremental": true,
     "strictNullChecks": true,
     "noFallthroughCasesInSwitch": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitAny": true,
     "target": "ES2022",
     "lib": ["ES2022"],
     "jsx": "react"
