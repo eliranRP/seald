@@ -1,29 +1,27 @@
 import { defineConfig, devices } from '@playwright/test';
+import { defineBddConfig } from 'playwright-bdd';
 
-/**
- * Playwright config for apps/web e2e.
- *
- * The signing flow has 593 vitest unit tests but no end-to-end browser
- * coverage. This config boots the existing Vite dev server (port 5173)
- * and runs the Chromium project against it. The first spec mocks the
- * `/sign/*` API at the network layer (page.route) so we exercise the
- * React state machine without standing up the Nest backend.
- *
- * CI parity: only Chromium is configured. We rely on Vitest + RTL for
- * the breadth of behaviour and use Playwright purely for the user-facing
- * happy paths that vitest can't cover.
- */
+// playwright-bdd compiles e2e/features/*.feature into spec files in the
+// gitignored output dir below, then Playwright runs them like any other
+// test. See `cucumber-react-bdd` skill rule 1.1.
+const testDir = defineBddConfig({
+  features: 'e2e/features/**/*.feature',
+  steps: ['e2e/steps/**/*.ts', 'e2e/fixtures/**/*.ts'],
+  outputDir: 'e2e/.bdd',
+});
+
 export default defineConfig({
-  testDir: './e2e',
+  testDir,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  reporter: process.env.CI ? [['github'], ['html']] : 'list',
+  workers: process.env.CI ? 2 : undefined,
+  reporter: [['list'], ['html', { outputFolder: 'playwright-report', open: 'never' }]],
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
-    video: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
   projects: [
     {
@@ -32,17 +30,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm --filter web dev',
-    port: 5173,
+    // The Vite dev server only serves the SPA bundle. All `/api/*` and
+    // `/sign/*` traffic is mocked at `page.route()` (rule 3.5).
+    command: 'pnpm dev --host 127.0.0.1 --port 5173',
+    url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    // The dev server reads VITE_API_BASE_URL (signApiClient throws if
-    // missing). Anything matching the page.route glob will be mocked, so
-    // the value is arbitrary as long as it's a valid URL.
-    env: {
-      VITE_API_BASE_URL: 'http://localhost:3000',
-      VITE_SUPABASE_URL: 'http://localhost:54321',
-      VITE_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test',
-    },
   },
 });

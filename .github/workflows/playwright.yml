@@ -70,3 +70,54 @@ jobs:
           path: apps/web/playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+  # ---------------------------------------------------------------
+  # BDD-driven Playwright suite (playwright-bdd). PRs run the @smoke
+  # subset for fast feedback; main pushes run the full suite. See
+  # apps/web/e2e/features/*.feature for the scenario inventory and
+  # ~/.claude/skills/web-bdd-implementation/SKILL.md for the playbook.
+  # ---------------------------------------------------------------
+  bdd-e2e:
+    name: BDD e2e (web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Cache pnpm store + node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pnpm/store
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build shared
+        run: pnpm --filter shared build
+      - name: Install Chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run BDD smoke (PR)
+        if: github.event_name == 'pull_request'
+        run: pnpm --filter web bdd -- --grep @smoke
+
+      - name: Run BDD full suite (push to main/develop)
+        if: github.event_name != 'pull_request'
+        run: pnpm --filter web bdd
+
+      - name: Upload BDD Playwright HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bdd-playwright-report
+          path: apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
