@@ -291,6 +291,7 @@
     "accessors",
     "namespace",
     "namespaces",
+    "navigations",
     "iframe",
     "iframes",
     "datasource",

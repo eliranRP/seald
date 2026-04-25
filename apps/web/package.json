@@ -17,6 +17,8 @@
     "e2e:ui": "playwright test --ui",
     "bdd:gen": "bddgen",
     "bdd": "bddgen && playwright test",
+    "bdd:smoke": "bddgen && playwright test --grep @smoke",
+    "bdd:full": "bddgen && playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "chromatic": "chromatic --exit-zero-on-changes --build-script-name=build-storybook",

@@ -106,12 +106,15 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Run BDD smoke (PR)
+        # Dedicated scripts (bdd:smoke / bdd:full) avoid `pnpm … -- --grep`
+        # which passes `--` to playwright as a literal file pattern,
+        # producing "No tests found".
         if: github.event_name == 'pull_request'
-        run: pnpm --filter web bdd -- --grep @smoke
+        run: pnpm --filter web bdd:smoke
 
       - name: Run BDD full suite (push to main/develop)
         if: github.event_name != 'pull_request'
-        run: pnpm --filter web bdd
+        run: pnpm --filter web bdd:full
 
       - name: Upload BDD Playwright HTML report
         if: always()
