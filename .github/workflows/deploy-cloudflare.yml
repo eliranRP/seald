@@ -82,9 +82,18 @@ jobs:
 
       - name: Merge SPA into landing dist
         # The landing's index.html owns `/`. The SPA's index.html is
-        # renamed to `app.html` during merge; Cloudflare's `_redirects`
-        # rewrites every SPA route to that file (200 = client-side
-        # rewrite, URL stays the same in the address bar).
+        # renamed to `app.html` during merge; a Pages `_worker.js`
+        # rewrites every SPA route to that file server-side so the URL
+        # bar stays on `/signin`, `/sign/<id>`, etc.
+        #
+        # Why a worker and not `_redirects` 200 rewrites:
+        # CF Pages docs explicitly state that 200-status rewrites in
+        # `_redirects` are NOT supported — they get coerced to 308
+        # redirects. We tested this: `/signin /app.html 200` produced
+        # a 308 to `/app` (CF also strips `.html` from served paths),
+        # which broke the email CTA flow because the SPA loaded at
+        # `/app` instead of `/sign/<id>` and routed to the dashboard.
+        # A `_worker.js` is the supported escape hatch.
         run: |
           set -euo pipefail
           DEST=apps/landing/dist
@@ -97,36 +106,18 @@ jobs:
           # (which would otherwise overwrite the landing's `/` page).
           rsync -a --exclude='index.html' "$SPA/" "$DEST/"
 
-          # Drop the SPA's HTML shell as `app.html` so _redirects can
-          # rewrite to it.
+          # Drop the SPA's HTML shell as `app.html`. The worker fetches
+          # this file via the ASSETS binding for any SPA route.
           cp "$SPA/index.html" "$DEST/app.html"
 
-          # Write _redirects covering every SPA route. The trailing
-          # rule keeps `/` unmatched so Astro's index.html serves the
-          # marketing page.
-          # Cloudflare's _redirects parser requires rules at column 0 —
-          # indented rules are silently dropped. Use printf with explicit
-          # newlines so the YAML block scalar's indentation doesn't bleed
-          # into the file contents.
-          printf '%s\n' \
-            '/signin           /app.html  200' \
-            '/signup           /app.html  200' \
-            '/forgot-password  /app.html  200' \
-            '/check-email      /app.html  200' \
-            '/auth/*           /app.html  200' \
-            '/debug/*          /app.html  200' \
-            '/verify/*         /app.html  200' \
-            '/sign/*           /app.html  200' \
-            '/document/*       /app.html  200' \
-            '/documents        /app.html  200' \
-            '/signers          /app.html  200' \
-            '/contacts         /app.html  200' \
-            > "$DEST/_redirects"
+          # Copy the Pages worker (server-side SPA rewriter). See
+          # apps/landing/_worker.js for the implementation.
+          cp apps/landing/_worker.js "$DEST/_worker.js"
 
           echo "----- merged dist -----"
           ls -la "$DEST/"
-          echo "----- _redirects -----"
-          cat "$DEST/_redirects"
+          echo "----- _worker.js -----"
+          cat "$DEST/_worker.js"
 
       - name: Ensure Cloudflare Pages project exists
         # Idempotent. Wrangler pages deploy fails 7003 if the project
