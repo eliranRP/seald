@@ -5,7 +5,11 @@ import { defineBddConfig } from 'playwright-bdd';
 // gitignored `e2e/.bdd/` output, then Playwright picks them up alongside
 // hand-written specs in `e2e/*.spec.ts`. See `cucumber-react-bdd` skill
 // rule 1.1.
-defineBddConfig({
+//
+// `defineBddConfig` returns the resolved output dir; Playwright's BDD project
+// uses it as `testDir` so workers can locate the saved env config. Hand-
+// written `.spec.ts` files live under `./e2e` and run as a sibling project.
+const bddTestDir = defineBddConfig({
   features: 'e2e/features/**/*.feature',
   steps: ['e2e/steps/**/*.ts', 'e2e/fixtures/**/*.ts'],
   outputDir: 'e2e/.bdd',
@@ -28,6 +32,13 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      testDir: './e2e',
+      testIgnore: ['**/.bdd/**'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'chromium-bdd',
+      testDir: bddTestDir,
       use: { ...devices['Desktop Chrome'] },
     },
   ],
