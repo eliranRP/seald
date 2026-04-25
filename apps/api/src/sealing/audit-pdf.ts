@@ -1047,7 +1047,7 @@ interface ParticipantData {
 }
 
 interface ParticipantEvent {
-  readonly kind: 'create' | 'sent' | 'view' | 'sign' | 'decline' | 'generic';
+  readonly kind: 'create' | 'sent' | 'envelope' | 'view' | 'sign' | 'decline' | 'generic';
   readonly action: string;
   readonly ip: string;
   readonly at: string;
@@ -1095,8 +1095,12 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   const events: ParticipantEvent[] = [];
   const sentEvent = ctx.events.find((e) => e.event_type === 'sent');
   if (sentEvent) {
+    // Signer's perspective: an envelope arrived. The proposer-side card
+    // already uses the paper-plane glyph for "Sent for signature"; the
+    // signer side uses an inbox/envelope to make the difference visible
+    // — same pattern the design HTML uses (envelope SVG vs paper-plane).
     events.push({
-      kind: 'sent',
+      kind: 'envelope',
       action: 'Sent',
       ip: sentEvent.ip ?? '—',
       at: formatDateTimeShort(sentEvent.created_at),
@@ -1458,11 +1462,19 @@ function drawCheckChipDot(page: PDFPage, x: number, yTop: number): void {
 }
 
 /**
- * Event-row icon. Drawn as primitive vector strokes (lines / circles) so
- * the rendering doesn't depend on the embedded font shipping particular
+ * Event-row icon. Drawn as primitive vector strokes / SVG paths so the
+ * rendering doesn't depend on the embedded font shipping particular
  * Unicode glyphs — the prior implementation used '✓ ◎ ＋ ✕ →' which
- * Inter / Source Serif do not all carry, leaving the row blank in the
- * PDF when the glyph index is missing in the subset.
+ * Inter / Source Serif do not all carry, leaving the row blank when the
+ * glyph index is missing in the subset.
+ *
+ * Color treatment matches the design HTML's `.evt-ico.is-*` classes:
+ *   create     → indigo-50 fill / indigo-700 stroke
+ *   sent       → ink-150 fill / ink-700 stroke (paper-plane, proposer)
+ *   envelope   → ink-150 fill / ink-700 stroke (envelope, signer side)
+ *   view       → info-50 fill / info-700 stroke (eye)
+ *   sign       → success-50 fill / success-700 stroke (pen / signature)
+ *   decline    → ink-150 fill / ink-700 stroke (X)
  */
 function drawEventIcon(
   page: PDFPage,
@@ -1471,61 +1483,26 @@ function drawEventIcon(
   x: number,
   yTop: number,
 ): void {
-  const bg =
-    kind === 'sign'
-      ? C.success50
-      : kind === 'view'
-        ? C.info50
-        : kind === 'create'
-          ? C.indigo50
-          : kind === 'decline'
-            ? C.ink150
-            : C.ink150;
-  const fg =
-    kind === 'sign'
-      ? C.success700
-      : kind === 'view'
-        ? C.info700
-        : kind === 'create'
-          ? C.indigo700
-          : kind === 'decline'
-            ? C.ink700
-            : C.ink700;
-  const size = 18;
+  const palette: Record<ParticipantEvent['kind'], { bg: Color; fg: Color }> = {
+    sign: { bg: C.success50, fg: C.success700 },
+    view: { bg: C.info50, fg: C.info700 },
+    create: { bg: C.indigo50, fg: C.indigo700 },
+    sent: { bg: C.ink150, fg: C.ink700 },
+    envelope: { bg: C.ink150, fg: C.ink700 },
+    decline: { bg: C.ink150, fg: C.ink700 },
+    generic: { bg: C.ink150, fg: C.ink700 },
+  };
+  const { bg, fg } = palette[kind];
+  const size = 20;
   const cx = x + size / 2;
   const cy = yTop - size / 2;
   page.drawCircle({ x: cx, y: cy, size: size / 2, color: bg });
 
   const stroke = 1.4;
-  const r = size * 0.28; // glyph half-extent
-  if (kind === 'sign') {
-    // Checkmark: down-left → bottom → up-right
-    page.drawLine({
-      start: { x: cx - r, y: cy + r * 0.1 },
-      end: { x: cx - r * 0.2, y: cy - r * 0.55 },
-      thickness: stroke,
-      color: fg,
-    });
-    page.drawLine({
-      start: { x: cx - r * 0.2, y: cy - r * 0.55 },
-      end: { x: cx + r * 0.95, y: cy + r * 0.7 },
-      thickness: stroke,
-      color: fg,
-    });
-  } else if (kind === 'view') {
-    // Eye: outer almond + inner pupil. Approx with ellipse-via-circles:
-    // a horizontal pill ring and a small filled dot.
-    page.drawEllipse({
-      x: cx,
-      y: cy,
-      xScale: r * 1.05,
-      yScale: r * 0.62,
-      borderColor: fg,
-      borderWidth: stroke,
-    });
-    page.drawCircle({ x: cx, y: cy, size: r * 0.35, color: fg });
-  } else if (kind === 'create') {
-    // Plus
+  const r = size * 0.28; // glyph half-extent — keeps a small breathing margin
+
+  if (kind === 'create') {
+    // Plus — matches Lucide's "plus" icon.
     page.drawLine({
       start: { x: cx - r, y: cy },
       end: { x: cx + r, y: cy },
@@ -1538,41 +1515,133 @@ function drawEventIcon(
       thickness: stroke,
       color: fg,
     });
-  } else if (kind === 'decline') {
-    // X
-    page.drawLine({
-      start: { x: cx - r * 0.8, y: cy - r * 0.8 },
-      end: { x: cx + r * 0.8, y: cy + r * 0.8 },
-      thickness: stroke,
-      color: fg,
-    });
-    page.drawLine({
-      start: { x: cx - r * 0.8, y: cy + r * 0.8 },
-      end: { x: cx + r * 0.8, y: cy - r * 0.8 },
-      thickness: stroke,
-      color: fg,
-    });
-  } else {
-    // 'sent' / generic — paper-plane (right-pointing arrow, two strokes)
-    page.drawLine({
-      start: { x: cx - r, y: cy },
-      end: { x: cx + r * 0.85, y: cy },
-      thickness: stroke,
-      color: fg,
-    });
-    page.drawLine({
-      start: { x: cx + r * 0.85, y: cy },
-      end: { x: cx + r * 0.25, y: cy + r * 0.55 },
-      thickness: stroke,
-      color: fg,
-    });
-    page.drawLine({
-      start: { x: cx + r * 0.85, y: cy },
-      end: { x: cx + r * 0.25, y: cy - r * 0.55 },
-      thickness: stroke,
-      color: fg,
-    });
+    return;
   }
+
+  if (kind === 'sent') {
+    // Paper plane — same silhouette as the design HTML's send SVG
+    // ("M22 2 11 13" + "M22 2 15 22l-4-9-9-4 20-7Z") simplified to a
+    // tilted triangle outline + a fold crease. SVG y is down, so values
+    // below center use positive y. Origin set to the icon center.
+    const path = [
+      // Outer triangle (north-east tip, body to the south-west)
+      `M ${-r * 1.0} ${r * 0.45}`,
+      `L ${r * 1.05} ${-r * 1.05}`,
+      `L ${r * 0.05} ${r * 1.0}`,
+      `Z`,
+      // Inner crease — from tip into body
+      `M ${r * 1.05} ${-r * 1.05}`,
+      `L ${-r * 0.15} ${r * 0.15}`,
+    ].join(' ');
+    page.drawSvgPath(path, {
+      x: cx,
+      y: cy,
+      borderColor: fg,
+      borderWidth: stroke,
+    });
+    return;
+  }
+
+  if (kind === 'envelope') {
+    // Envelope — matches the design HTML's "M4 4h16…" rectangle plus
+    // "polyline 22,6 12,13 2,6" inner V. Drawn as a rounded rectangle
+    // outline + two diagonal strokes that meet in the middle of the top
+    // edge, forming the classic envelope flap.
+    const w = r * 2.2;
+    const h = r * 1.5;
+    const x0 = cx - w / 2;
+    const y0 = cy - h / 2;
+    drawRoundedRect(page, {
+      x: x0,
+      y: y0,
+      width: w,
+      height: h,
+      radius: 1.2,
+      stroke: fg,
+      strokeWidth: stroke,
+    });
+    // Flap V: top-left corner → middle of top edge → top-right corner.
+    page.drawLine({
+      start: { x: x0 + 1, y: y0 + h - 1 },
+      end: { x: cx, y: cy + h * 0.05 },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx, y: cy + h * 0.05 },
+      end: { x: x0 + w - 1, y: y0 + h - 1 },
+      thickness: stroke,
+      color: fg,
+    });
+    return;
+  }
+
+  if (kind === 'view') {
+    // Eye — almond-shaped outline (lens) plus a filled iris. Origin at
+    // icon center; SVG y is down, so the upper arc uses negative y.
+    const lensH = r * 0.78;
+    const lensW = r * 1.2;
+    const path = [
+      `M ${-lensW} 0`,
+      `Q 0 ${lensH} ${lensW} 0`,
+      `Q 0 ${-lensH} ${-lensW} 0`,
+      `Z`,
+    ].join(' ');
+    page.drawSvgPath(path, {
+      x: cx,
+      y: cy,
+      borderColor: fg,
+      borderWidth: stroke,
+    });
+    page.drawCircle({ x: cx, y: cy, size: r * 0.34, color: fg });
+    return;
+  }
+
+  if (kind === 'sign') {
+    // Pen / signature mark — tilted rectangle (pen body) with a pointed
+    // tip at the lower-left and a tail nib stroke. SVG origin at the
+    // icon center.
+    const path = [
+      `M ${-r * 0.95} ${-r * 0.4}`,
+      `L ${r * 0.45} ${r * 1.0}`,
+      `L ${r * 1.05} ${r * 0.4}`,
+      `L ${-r * 0.35} ${-r * 1.0}`,
+      `Z`,
+      `M ${-r * 0.65} ${-r * 0.65}`,
+      `L ${r * 0.05} ${r * 0.05}`,
+    ].join(' ');
+    page.drawSvgPath(path, {
+      x: cx,
+      y: cy,
+      borderColor: fg,
+      borderWidth: stroke,
+    });
+    return;
+  }
+
+  if (kind === 'decline') {
+    page.drawLine({
+      start: { x: cx - r * 0.85, y: cy - r * 0.85 },
+      end: { x: cx + r * 0.85, y: cy + r * 0.85 },
+      thickness: stroke,
+      color: fg,
+    });
+    page.drawLine({
+      start: { x: cx - r * 0.85, y: cy + r * 0.85 },
+      end: { x: cx + r * 0.85, y: cy - r * 0.85 },
+      thickness: stroke,
+      color: fg,
+    });
+    return;
+  }
+
+  // Generic — small horizontal arrow as a sane default.
+  page.drawLine({
+    start: { x: cx - r, y: cy },
+    end: { x: cx + r, y: cy },
+    thickness: stroke,
+    color: fg,
+  });
 }
 
 function drawTrustBar(page: PDFPage, ctx: RenderCtx, yBase: number): void {
