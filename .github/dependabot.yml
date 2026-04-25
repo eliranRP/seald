@@ -1,0 +1,82 @@
+version: 2
+
+# Weekly grouped dependency updates. The npm ecosystem entry covers pnpm
+# workspaces — Dependabot resolves pnpm-lock.yaml at each `directory` and
+# opens one PR per group. GitHub Actions are tracked separately.
+#
+# Groups limit churn: one PR per workspace per category per week.
+# Major bumps are excluded from the auto-grouped PRs because every recent
+# advisory we couldn't auto-patch (multer, @nestjs/core, pdfjs-dist, vite 6)
+# was a major version that needed human review.
+
+updates:
+  # ---------------- root (husky, lint-staged, prettier) ----------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      root-prod:
+        dependency-type: production
+        update-types: [minor, patch]
+      root-dev:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # ---------------- apps/api (Nest.js) ----------------
+  - package-ecosystem: npm
+    directory: /apps/api
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      api-prod:
+        dependency-type: production
+        update-types: [minor, patch]
+      api-dev:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # ---------------- apps/web (React + Vite) ----------------
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      web-prod:
+        dependency-type: production
+        update-types: [minor, patch]
+      web-dev:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # ---------------- packages/shared ----------------
+  - package-ecosystem: npm
+    directory: /packages/shared
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      shared-prod:
+        dependency-type: production
+        update-types: [minor, patch]
+      shared-dev:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # ---------------- GitHub Actions workflow files ----------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      gh-actions:
+        patterns: ["*"]
