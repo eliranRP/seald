@@ -2,7 +2,7 @@ name: Terraform (deploy/terraform)
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
     paths: ['deploy/terraform/**', '.github/workflows/terraform.yml']
   # Push to main with Terraform changes → auto-apply. We gate on the
   # paths filter so an unrelated commit doesn't needlessly touch infra,
@@ -32,7 +32,7 @@ env:
 # ---------------------------------------------------------------
 # What this workflow does:
 #
-#   PR to develop/main with changes under deploy/terraform/ →
+#   PR to main with changes under deploy/terraform/ →
 #     runs `terraform fmt -check` + `terraform validate` + `terraform plan`
 #     and posts the plan summary to the PR as a comment.
 #

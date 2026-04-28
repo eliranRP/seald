@@ -7,9 +7,9 @@ ignore the AI-specific sections.
 ## Branch + push conventions
 
 - Default branch: **`main`**. Day-to-day commits go directly to `main`.
-- A `develop` branch is kept in sync with `main` (fast-forwarded after every
-  release-grade batch). Any branch protection rules referencing `develop`
-  continue to work.
+  Every CI gate, every deploy (Cloudflare Pages, EC2 Caddy, Docker, Terraform),
+  and every release fires off `main`. There is no `develop` branch — it was
+  removed on 2026-04-28 once we standardized on a single trunk.
 - Direct push to `main` is allowed for committers; CI is the gate.
 
 ## CI gates (`.github/workflows/ci.yml`)
@@ -127,7 +127,7 @@ A placeholder lives in `apps/web/.env.local.example`.
 ### CI
 
 `.github/workflows/chromatic.yml` runs on every PR and every push to
-`main`/`develop` (doc-only paths skipped). It:
+`main` (doc-only paths skipped). It:
 
 1. Reads `CHROMATIC_PROJECT_TOKEN` from GitHub Actions secrets.
 2. Builds Storybook (`pnpm --filter web build-storybook` via the action).

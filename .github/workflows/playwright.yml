@@ -8,7 +8,7 @@ name: Playwright
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -17,7 +17,7 @@ on:
       - '.gitignore'
       - '.editorconfig'
   push:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -112,7 +112,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: pnpm --filter web bdd:smoke
 
-      - name: Run BDD full suite (push to main/develop)
+      - name: Run BDD full suite (push to main)
         if: github.event_name != 'pull_request'
         run: pnpm --filter web bdd:full
 

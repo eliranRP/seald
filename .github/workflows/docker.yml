@@ -2,7 +2,7 @@ name: Build + push image
 
 on:
   push:
-    branches: [develop, main]
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
 

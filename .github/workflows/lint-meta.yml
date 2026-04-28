@@ -12,7 +12,7 @@ name: Lint Meta
 
 on:
   pull_request:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -21,7 +21,7 @@ on:
       - '.gitignore'
       - '.editorconfig'
   push:
-    branches: [develop, main]
+    branches: [main]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
