@@ -29,6 +29,23 @@ const config: Config = {
   collectCoverageFrom: ['src/**/*.(t|j)sx?'],
   coverageDirectory: 'coverage',
   testEnvironment: 'node',
+  // Rule 4.6 — reset mock state between tests so order/seed effects
+  // can't leak across `it()` blocks.
+  clearMocks: true,
+  restoreMocks: true,
+  // Rule 5.1 / 5.2 — coverage gate so unit suite refuses to slip below
+  // baseline. Tighten incrementally as suites grow.
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      lines: 80,
+      statements: 80,
+      functions: 75,
+    },
+  },
+  // Rule 12.4 — randomize test order inside a file to surface hidden
+  // ordering dependencies before they bite in CI.
+  randomize: true,
 };
 
 export default config;

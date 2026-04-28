@@ -16,6 +16,14 @@ export interface RenderSigningRouteOptions {
  * Renders the current pathname so tests can `getByTestId('__pathname__')`
  * to verify navigation after a redirect/replace without pulling in
  * `useLocation`-aware test doubles.
+ *
+ * Rule 4.6 exception — every other selector in the suite uses
+ * role/name queries; this is the deliberate test-only sentinel. There
+ * is no accessible role/name we could substitute (the probe renders an
+ * inert `<div>` with the current pathname as text — no button, no
+ * heading, no landmark would be semantically honest). Leave the testid
+ * here, and DO NOT add new `data-testid` usage elsewhere without first
+ * exhausting role/name alternatives.
  */
 function LastPathnameProbe(): ReactElement {
   const loc = useLocation();

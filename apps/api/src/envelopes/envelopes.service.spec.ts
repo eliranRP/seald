@@ -11,6 +11,7 @@ import {
   OutboundEmailsRepository,
   type OutboundEmailRow,
 } from '../email/outbound-emails.repository';
+import { makeEnvelope } from '../../test/factories';
 import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
@@ -97,28 +98,26 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     }
     this.shortCodesSeen.add(input.short_code);
     const now = new Date().toISOString();
-    const env: Envelope = {
+    // Rule 11.1 — assemble the draft via the shared factory and override
+    // only the fields the spec controls (id, owner, draft-specific
+    // metadata). This keeps the per-spec story explicit while removing
+    // ~15 lines of duplicated boilerplate.
+    const env: Envelope = makeEnvelope({
       id: `e_${this.envelopes.size + 1}`,
       owner_id: input.owner_id,
       title: input.title,
       short_code: input.short_code,
       status: 'draft',
-      delivery_mode: 'parallel',
       original_pages: null,
-      original_sha256: null,
-      sealed_sha256: null,
       sender_email: null,
       sender_name: null,
       sent_at: null,
-      completed_at: null,
       expires_at: input.expires_at,
       tc_version: input.tc_version,
       privacy_version: input.privacy_version,
-      signers: [],
-      fields: [],
       created_at: now,
       updated_at: now,
-    };
+    });
     this.envelopes.set(env.id, env);
     return env;
   }

@@ -31,21 +31,23 @@ function makeGuard(
 }
 
 describe('AuthGuard', () => {
-  it('rejects missing Authorization header', async () => {
+  // Rule 2.4 — collapse the six "this header should be rejected as
+  // missing_token" variants into a single it.each table so adding a new
+  // case is one row instead of one `it`. The table covers absent header,
+  // wrong scheme, lowercase scheme, missing token half, leading space
+  // (split returns ['', 'Bearer', 'abc']), and an empty bearer value.
+  it.each<{ readonly label: string; readonly header: string | undefined }>([
+    { label: 'header absent', header: undefined },
+    { label: 'wrong scheme (Basic)', header: 'Basic abc' },
+    { label: 'lowercase scheme', header: 'bearer abc.def.ghi' },
+    { label: 'missing token half', header: 'Bearer' },
+    { label: 'empty bearer value', header: 'Bearer ' },
+    { label: 'leading whitespace', header: ' Bearer abc' },
+  ])('rejects header variant — $label', async ({ header }) => {
     const { guard } = makeGuard(async () => {
       throw new Error('should not be called');
     });
-    const ctx = mockContext({});
-    await expect(guard.canActivate(ctx)).rejects.toMatchObject({
-      message: 'missing_token',
-    });
-  });
-
-  it('rejects malformed Authorization header', async () => {
-    const { guard } = makeGuard(async () => {
-      throw new Error('should not be called');
-    });
-    const ctx = mockContext({ authorization: 'Basic abc' });
+    const ctx = mockContext(header === undefined ? {} : { authorization: header });
     await expect(guard.canActivate(ctx)).rejects.toMatchObject({
       message: 'missing_token',
     });
