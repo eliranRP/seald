@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -52,7 +52,7 @@ export class SealingService {
 
   async processSealJob(envelope_id: string): Promise<void> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
-    if (!envelope) throw new Error(`envelope_not_found:${envelope_id}`);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'sealing') {
       // Envelope raced into a non-sealing state (declined, expired). Bail
       // quietly — the worker will mark the job done and no harm done.
@@ -169,7 +169,7 @@ export class SealingService {
 
   async processAuditOnlyJob(envelope_id: string): Promise<void> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
-    if (!envelope) throw new Error(`envelope_not_found:${envelope_id}`);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
 
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),

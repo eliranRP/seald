@@ -7,6 +7,7 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailDispatcherService, type FlushResult } from '../email/email-dispatcher.service';
@@ -20,6 +21,7 @@ import { EnvelopesRepository } from '../envelopes/envelopes.repository';
  * CRON_SECRET is mandatory in production (env schema enforces >=32 chars).
  * In test it's optional, but if unset the endpoint refuses.
  */
+@Public()
 @Controller('internal/cron')
 export class CronController {
   constructor(

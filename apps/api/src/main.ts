@@ -5,7 +5,6 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { APP_ENV } from './config/config.module';
 import type { AppEnv } from './config/env.schema';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 /** HTTP keep-alive must be shorter than headers timeout (Node ≥18.5 invariant). */
 const KEEP_ALIVE_TIMEOUT_MS = 5_000;
@@ -56,7 +55,8 @@ async function bootstrap() {
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // HttpExceptionFilter is registered via APP_FILTER in AppModule (rule 6.2)
+  // so it can inject Logger / ConfigService cleanly.
 
   // SIGTERM (orchestrator stop) + SIGINT (Ctrl-C) → graceful shutdown via
   // OnApplicationShutdown lifecycle hooks (rule 12.1, 12.4). DbModule already

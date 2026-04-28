@@ -1,4 +1,5 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Public } from '../auth/public.decorator';
 import type { EnvelopeEvent } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
@@ -24,6 +25,7 @@ import { StorageService } from '../storage/storage.service';
  *   - signer decline_reason free-text (only presence flag)
  *   - signature image paths / tokens / anything internal
  */
+@Public()
 @Controller('verify')
 export class VerifyController {
   constructor(

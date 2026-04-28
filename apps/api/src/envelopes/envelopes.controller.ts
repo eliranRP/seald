@@ -13,7 +13,6 @@ import {
   Query,
   Req,
   UploadedFile,
-  UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -21,7 +20,6 @@ import type { Request } from 'express';
 import { ENVELOPE_STATUSES } from 'shared';
 import type { Envelope } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
 import { AddSignerDto } from './dto/add-signer.dto';
@@ -38,8 +36,9 @@ import { EnvelopesService } from './envelopes.service';
 
 type EnvelopeStatus = Envelope['status'];
 
+// AuthGuard is registered globally as APP_GUARD in AuthModule (rule 5.1).
+// Every route here authenticates by default unless tagged with `@Public()`.
 @Controller('envelopes')
-@UseGuards(AuthGuard)
 export class EnvelopesController {
   constructor(private readonly svc: EnvelopesService) {}
 

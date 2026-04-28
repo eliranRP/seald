@@ -1,5 +1,7 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { AuthGuard } from './auth.guard';
+import { IS_PUBLIC_KEY } from './public.decorator';
 import { SupabaseJwtStrategy } from './supabase-jwt.strategy';
 import type { AuthUser } from './auth-user';
 
@@ -12,12 +14,20 @@ function mockContext(
   const request: RequestStub = { headers, ...req };
   return {
     switchToHttp: () => ({ getRequest: () => request }),
+    getHandler: () => () => undefined,
+    getClass: () => class {},
   } as unknown as ExecutionContext;
 }
 
-function makeGuard(validate: (token: string) => Promise<AuthUser>) {
+function makeGuard(
+  validate: (token: string) => Promise<AuthUser>,
+  isPublic = false,
+): { guard: AuthGuard; strategy: SupabaseJwtStrategy } {
   const strategy = { validate } as unknown as SupabaseJwtStrategy;
-  return { guard: new AuthGuard(strategy), strategy };
+  const reflector = {
+    getAllAndOverride: (key: string) => (key === IS_PUBLIC_KEY ? isPublic : undefined),
+  } as unknown as Reflector;
+  return { guard: new AuthGuard(strategy, reflector), strategy };
 }
 
 describe('AuthGuard', () => {
@@ -50,6 +60,8 @@ describe('AuthGuard', () => {
     });
     const ctx = {
       switchToHttp: () => ({ getRequest: () => req }),
+      getHandler: () => () => undefined,
+      getClass: () => class {},
     } as unknown as ExecutionContext;
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect(req.user).toEqual(user);
@@ -63,5 +75,13 @@ describe('AuthGuard', () => {
     await expect(guard.canActivate(ctx)).rejects.toMatchObject({
       message: 'token_expired',
     });
+  });
+
+  it('bypasses auth when route is marked @Public()', async () => {
+    const { guard } = makeGuard(async () => {
+      throw new Error('strategy should not run for public routes');
+    }, true);
+    const ctx = mockContext({});
+    await expect(guard.canActivate(ctx)).resolves.toBe(true);
   });
 });
