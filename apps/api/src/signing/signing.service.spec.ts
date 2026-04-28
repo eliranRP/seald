@@ -8,6 +8,7 @@ import type {
   SetSignerSignatureInput,
 } from '../envelopes/envelopes.repository';
 import type { StorageService } from '../storage/storage.service';
+import { makeEnvelope, makeSigner } from '../../test/factories';
 import type { SignerSessionService } from './signer-session.service';
 import type { SigningTokenService } from './signing-token.service';
 import { SigningService } from './signing.service';
@@ -23,45 +24,21 @@ import { SigningService } from './signing.service';
 const ENV_ID = '00000000-0000-0000-0000-000000000010';
 const SIGNER_ID = '00000000-0000-0000-0000-0000000000bb';
 
+// Rule 11.1 — delegate to the shared factories. We keep the tiny
+// per-spec wrappers below so the existing call sites (`envelope()`,
+// `signer()`) don't need to be touched.
 function envelope(): Envelope {
-  return {
+  return makeEnvelope({
     id: ENV_ID,
     owner_id: '00000000-0000-0000-0000-000000000098',
     title: 'Spec',
     short_code: 'SC0000000010',
     status: 'awaiting_others',
-    delivery_mode: 'parallel',
-    original_pages: 1,
-    original_sha256: null,
-    sealed_sha256: null,
-    sender_email: 'sender@example.com',
-    sender_name: 'Sender',
-    sent_at: new Date().toISOString(),
-    completed_at: null,
-    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
-    tc_version: 'tc-v1',
-    privacy_version: 'pp-v1',
-    signers: [],
-    fields: [],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  });
 }
 
 function signer(): EnvelopeSigner {
-  return {
-    id: SIGNER_ID,
-    email: 'ada@example.com',
-    name: 'Ada',
-    color: '#112233',
-    role: 'signatory',
-    signing_order: 1,
-    status: 'viewing',
-    viewed_at: new Date().toISOString(),
-    tc_accepted_at: new Date().toISOString(),
-    signed_at: null,
-    declined_at: null,
-  };
+  return makeSigner({ id: SIGNER_ID });
 }
 
 async function tinyPng(): Promise<Buffer> {

@@ -5,6 +5,7 @@ import type { OutboundEmailsRepository } from '../email/outbound-emails.reposito
 import type { Envelope } from '../envelopes/envelope.entity';
 import type { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import type { StorageService } from '../storage/storage.service';
+import { makeEnvelope, makeField, makeSigner } from '../../test/factories';
 import { NoopPadesSigner } from './pades-signer';
 import { SealingService } from './sealing.service';
 
@@ -43,81 +44,56 @@ async function tinySolidPng(rgba: { r: number; g: number; b: number }): Promise<
     .toBuffer();
 }
 
-function makeEnvelope(): Envelope {
-  return {
+// Rule 11.1 — Build the envelope from the shared factories. The
+// `signers`/`fields` shape is unique to the burn-in spec so we still
+// declare it inline, but the per-field defaults (page=1, required=true,
+// etc.) come from `makeField()`.
+function makeBurnInEnvelope(): Envelope {
+  return makeEnvelope({
     id: ENV_ID,
-    owner_id: '00000000-0000-0000-0000-000000000099',
     title: 'Burn-in Spec Envelope',
-    short_code: 'SC0000000001',
     status: 'sealing',
-    delivery_mode: 'parallel',
-    original_pages: 1,
-    original_sha256: null,
-    sealed_sha256: null,
-    sender_email: 'sender@example.com',
-    sender_name: 'Sender',
-    sent_at: new Date().toISOString(),
-    completed_at: null,
-    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
-    tc_version: 'tc-v1',
-    privacy_version: 'pp-v1',
     signers: [
-      {
+      makeSigner({
         id: SIGNER_ID,
-        email: 'ada@example.com',
-        name: 'Ada',
-        color: '#112233',
-        role: 'signatory',
-        signing_order: 1,
         status: 'completed',
-        viewed_at: new Date().toISOString(),
-        tc_accepted_at: new Date().toISOString(),
         signed_at: new Date().toISOString(),
-        declined_at: null,
-      },
+      }),
     ],
     fields: [
       // Each field placed in a distinct quadrant so the assertions below
       // can be page-position-agnostic — we only care WHICH image went in
       // and WHETHER drawText('X') happened, not pixel coordinates.
-      {
+      makeField({
         id: '00000000-0000-0000-0000-00000000f001',
         signer_id: SIGNER_ID,
         kind: 'signature',
-        page: 1,
         x: 0.05,
         y: 0.05,
         width: 0.2,
         height: 0.05,
-        required: true,
-      },
-      {
+      }),
+      makeField({
         id: '00000000-0000-0000-0000-00000000f002',
         signer_id: SIGNER_ID,
         kind: 'initials',
-        page: 1,
         x: 0.7,
         y: 0.05,
         width: 0.08,
         height: 0.04,
-        required: true,
-      },
-      {
+      }),
+      makeField({
         id: '00000000-0000-0000-0000-00000000f003',
         signer_id: SIGNER_ID,
         kind: 'checkbox',
-        page: 1,
         x: 0.05,
         y: 0.5,
         width: 0.03,
         height: 0.03,
-        required: true,
         value_boolean: true,
-      },
+      }),
     ],
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
+  });
 }
 
 interface InMemoryStorage {
@@ -169,7 +145,7 @@ describe('SealingService burn-in', () => {
     const burnIn = (svc as unknown as { burnIn: BurnInFn }).burnIn.bind(svc);
 
     const original = await makeOnePagePdf();
-    const out = await burnIn(makeEnvelope(), original);
+    const out = await burnIn(makeBurnInEnvelope(), original);
 
     // The burn-in must have asked storage for both deterministic paths.
     expect(storage.downloads).toEqual(
@@ -194,7 +170,7 @@ describe('SealingService burn-in', () => {
     const burnIn = (svc as unknown as { burnIn: BurnInFn }).burnIn.bind(svc);
 
     const original = await makeOnePagePdf();
-    const out = await burnIn(makeEnvelope(), original);
+    const out = await burnIn(makeBurnInEnvelope(), original);
 
     // We still try to read the initials path — that's what makes this a
     // *fallback* rather than a no-op — but a missing artifact must not
@@ -232,7 +208,7 @@ describe('SealingService burn-in', () => {
 
     try {
       const original = await makeOnePagePdf();
-      await burnIn(makeEnvelope(), original);
+      await burnIn(makeBurnInEnvelope(), original);
 
       // Affirmative: the checkmark uses two distinct line segments.
       // (Checkbox outline is a drawRectangle, not drawLine, so this

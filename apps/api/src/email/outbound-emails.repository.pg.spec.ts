@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'kysely';
 import { createPgMemDb, seedUser, type PgMemHandle } from '../../test/pg-mem-db';
 import { DuplicateOutboundEmailError } from './outbound-emails.repository';
 import { OutboundEmailsPgRepository } from './outbound-emails.repository.pg';
@@ -266,7 +267,7 @@ describe('OutboundEmailsPgRepository', () => {
         })
         .returning(['id'])
         .executeTakeFirstOrThrow();
-      await repo.insert({
+      const invite = await repo.insert({
         envelope_id: envelopeId,
         signer_id: signerId,
         kind: 'invite',
@@ -275,7 +276,6 @@ describe('OutboundEmailsPgRepository', () => {
         payload: {},
         source_event_id: evA.id,
       });
-      await new Promise((r) => setTimeout(r, 10));
       const reminder = await repo.insert({
         envelope_id: envelopeId,
         signer_id: signerId,
@@ -285,6 +285,21 @@ describe('OutboundEmailsPgRepository', () => {
         payload: {},
         source_event_id: evB.id,
       });
+      // Rule 9.6 — explicit per-row created_at overrides remove the
+      // race-based ordering that `setTimeout(10)` previously relied on.
+      // The repository orders by created_at desc, so set the older row
+      // earlier and the newer one later with a deterministic gap.
+      // Bypass kysely's `never`-typed update for created_at via raw SQL.
+      // The schema deliberately marks created_at as non-updatable through
+      // the typed query builder (ColumnType<Date, string|undefined, never>),
+      // but tests need to deterministically order rows. sql.raw is fine
+      // here because there is no user-controlled input.
+      await sql`update outbound_emails set created_at = '2026-04-25T00:00:00.000Z' where id = ${invite.id}`.execute(
+        handle.db,
+      );
+      await sql`update outbound_emails set created_at = '2026-04-25T00:00:01.000Z' where id = ${reminder.id}`.execute(
+        handle.db,
+      );
       const last = await repo.findLastInviteOrReminder(envelopeId, signerId);
       expect(last?.id).toBe(reminder.id);
     });

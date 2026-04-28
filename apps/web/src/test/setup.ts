@@ -96,3 +96,25 @@ if (typeof Element.prototype.scrollTo !== 'function') {
 if (typeof window.scrollTo !== 'function') {
   window.scrollTo = ((): void => {}) as typeof window.scrollTo;
 }
+
+// Rule 3.6 — Network guard.
+// Vitest tests must never reach the real network; an unmocked request is
+// always a test bug (forgotten MSW handler, missed `vi.mock`, etc.). We
+// don't ship MSW here, so the cheapest enforcement is a fetch shim that
+// throws with an actionable message. Tests that need to talk HTTP must
+// install their own `vi.spyOn(globalThis, 'fetch')` or axios adapter
+// inside the spec — the override is per-test and the global guard
+// re-applies via `restoreMocks: true`.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = ((input: RequestInfo | URL, _init?: RequestInit) => {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  throw new Error(
+    `Refusing to make a real network request from a vitest run.\n` +
+      `URL: ${url}\n` +
+      `Mock the call (vi.mock(...) / vi.spyOn(globalThis, 'fetch') / axios mock) before invoking ` +
+      `the code under test, or extend src/test/setup.ts if a global allow-list is genuinely needed.`,
+  );
+}) as typeof fetch;
+// Keep a handle on the original for any test that explicitly opts back
+// in (e.g. a contract test that hits a local supertest server).
+(globalThis as unknown as { __originalFetch?: typeof fetch }).__originalFetch = originalFetch;

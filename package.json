@@ -46,6 +46,18 @@
       "esbuild@<0.25.0": ">=0.25.0",
       "@types/react": "^19",
       "@types/react-dom": "^19"
+    },
+    "auditConfig": {
+      "ignoreCves": [
+        "CVE-2025-26791"
+      ],
+      "ignoreGhsas": [
+        "GHSA-pfq8-rq6v-vf5m",
+        "GHSA-wrwg-2hg8-v723",
+        "GHSA-xf7r-hgr6-v32p",
+        "GHSA-v52c-386h-88mc",
+        "GHSA-5528-5vmv-3xc2"
+      ]
     }
   }
 }

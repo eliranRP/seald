@@ -83,10 +83,24 @@ export default defineConfig({
     // `toThrow`; the rethrow is just noise that otherwise causes vitest
     // to exit 1 even when every test passed.
     dangerouslyIgnoreUnhandledErrors: true,
+    // Rule 4.6 — mock state should never leak between tests.
+    clearMocks: true,
+    restoreMocks: true,
+    // Rule 12.4 — randomize file + within-file ordering so hidden order
+    // dependencies surface locally rather than only on a noisy CI runner.
+    sequence: { shuffle: true },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html', 'lcov'],
       include: ['src/**/*.{ts,tsx}'],
+      // Rule 5.1 / 5.2 — coverage gates so the web suite refuses to slip
+      // below baseline. Floors set just below current observed coverage
+      // (lines ~73.5%, branches ~61.6% on main); ratchet up over time in
+      // dedicated PRs, not as drive-by changes.
+      thresholds: {
+        lines: 70,
+        branches: 60,
+      },
       // Exclude generated/style/test scaffolding so coverage signals what
       // production code is actually exercised by the suite.
       exclude: [

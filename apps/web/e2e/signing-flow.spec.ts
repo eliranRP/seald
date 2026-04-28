@@ -1,17 +1,20 @@
 import { test, expect, type Route } from '@playwright/test';
 
 /**
- * Signing-flow happy path (first iteration).
+ * Signing-flow happy path (full coverage).
  *
- * Scope: entry → prep → fill navigation, plus the T&C accept POST.
- *
- * The fill / review / done steps require mocking PDF rendering, the
- * signature-capture drawer, and writing the sessionStorage handoff that
- * `SigningDonePage` reads to render its terminal screen. That's tracked
- * as a TODO below; a 3-step happy path that passes consistently is more
- * valuable than a 6-step one that flakes on PDF.js timing.
+ * Scope: entry → prep → fill → review → done — all five navigation
+ * checkpoints with their backing /sign/* mocks. The fill page is the
+ * load-bearing one: instead of driving PDF.js + the signature canvas
+ * (which would flake), we seed `/sign/me` with a single required text
+ * field that's already filled. That makes `allRequiredFilled` true on
+ * first render so the "Review & finish" button appears immediately and
+ * we can move on without touching the document canvas.
  *
  * All `/sign/*` calls are intercepted via `page.route` — no backend.
+ *
+ * Rule 11.3 — module-level fixtures are wrapped in factory functions
+ * so each spec gets a fresh object (no shared mutable state).
  */
 
 const ENVELOPE_ID = 'env-test-001';
@@ -19,30 +22,54 @@ const ENVELOPE_ID = 'env-test-001';
 const TOKEN = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 const SIGNER_ID = 'signer-test-001';
+const FIELD_ID = 'field-text-001';
 
-const baseEnvelope = {
-  id: ENVELOPE_ID,
-  title: 'Test Document',
-  short_code: 'TEST-001',
-  status: 'sent',
-  original_pages: 1,
-  expires_at: '2099-12-31T00:00:00.000Z',
-  tc_version: 'v1',
-  privacy_version: 'v1',
-};
+function makeBaseEnvelope() {
+  return {
+    id: ENVELOPE_ID,
+    title: 'Test Document',
+    short_code: 'TEST-001',
+    status: 'sent',
+    original_pages: 1,
+    expires_at: '2099-12-31T00:00:00.000Z',
+    tc_version: 'v1',
+    privacy_version: 'v1',
+  };
+}
 
-const baseSigner = {
-  id: SIGNER_ID,
-  email: 'signer@example.com',
-  name: 'Test Signer',
-  color: '#4f46e5',
-  role: 'signatory' as const,
-  status: 'viewing' as const,
-  viewed_at: null,
-  tc_accepted_at: null,
-  signed_at: null,
-  declined_at: null,
-};
+function makeBaseSigner() {
+  return {
+    id: SIGNER_ID,
+    email: 'signer@example.com',
+    name: 'Test Signer',
+    color: '#4f46e5',
+    role: 'signatory' as const,
+    status: 'viewing' as const,
+    viewed_at: null,
+    tc_accepted_at: null,
+    signed_at: null,
+    declined_at: null,
+  };
+}
+
+function makeFilledTextField() {
+  // Pre-filled so `allRequiredFilled` flips true on first render and the
+  // fill page exposes the "Review & finish" CTA without us having to
+  // drive the field drawer / signature canvas.
+  return {
+    id: FIELD_ID,
+    signer_id: SIGNER_ID,
+    kind: 'text' as const,
+    page: 1,
+    x: 0.1,
+    y: 0.2,
+    width: 0.3,
+    height: 0.05,
+    required: true,
+    value_text: 'Pre-filled answer',
+    filled_at: '2026-04-25T10:00:00.000Z',
+  };
+}
 
 test.describe('signing flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -59,16 +86,17 @@ test.describe('signing flow', () => {
       });
     });
 
-    // GET /sign/me → envelope + signer + zero fields. The prep page only
-    // needs envelope.title and signer.{name,email,tc_accepted_at}.
+    // GET /sign/me → envelope + signer + a single pre-filled required
+    // text field, so the fill page renders the "Review & finish" CTA on
+    // first paint (allRequiredFilled becomes true).
     await page.route('**/sign/me', async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          envelope: baseEnvelope,
-          signer: baseSigner,
-          fields: [],
+          envelope: makeBaseEnvelope(),
+          signer: makeBaseSigner(),
+          fields: [makeFilledTextField()],
           other_signers: [],
         }),
       });
@@ -78,9 +106,57 @@ test.describe('signing flow', () => {
     await page.route('**/sign/accept-terms', async (route: Route) => {
       await route.fulfill({ status: 200, body: '' });
     });
+
+    // POST /sign/fields/:id → echo back the field as filled. Not strictly
+    // needed when we pre-fill in /sign/me, but mocked here so any drawer
+    // interaction during the spec doesn't leak to a real backend.
+    await page.route('**/sign/fields/*', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(makeFilledTextField()),
+      });
+    });
+
+    // POST /sign/signature → returns the updated signer.
+    await page.route('**/sign/signature', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(makeBaseSigner()),
+      });
+    });
+
+    // POST /sign/submit → success. The submit mutation's onSuccess writes
+    // the doneSnapshot to sessionStorage; the Done page reads from there.
+    await page.route('**/sign/submit', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ status: 'submitted', envelope_status: 'completed' }),
+      });
+    });
+
+    // GET /sign/pdf → tiny inline fixture so pdf.js doesn't 404 on the
+    // fill page. Content is intentionally minimal; the fill page renders
+    // even if rasterization fails.
+    await page.route('**/sign/pdf', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ url: '/pdf-fixture.pdf' }),
+      });
+    });
+    await page.route('**/pdf-fixture.pdf', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/pdf',
+        body: '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF',
+      });
+    });
   });
 
-  test('entry → prep → fill happy path', async ({ page }) => {
+  test('entry → prep → fill → review → done happy path', async ({ page }) => {
     // 1. Open the signing link (envelope_id + ?t=<token>).
     await page.goto(`/sign/${ENVELOPE_ID}?t=${TOKEN}`);
 
@@ -98,17 +174,19 @@ test.describe('signing flow', () => {
     // 5. Click "Start signing" — fires POST /sign/accept-terms (mocked
     //    above) and navigates to /fill.
     await page.getByRole('button', { name: /start signing/i }).click();
-
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
 
-    // TODO: extend this spec to cover the rest of the happy path:
-    //   - mock /sign/me with one required text field
-    //   - mock /sign/fields/:id for the fill action
-    //   - drive the FieldInputDrawer to "Continue" → /review
-    //   - mock /sign/submit and seed the doneSnapshot sessionStorage
-    //     so SigningDonePage doesn't bounce
-    //   - assert the "Seald." success heading
-    // The fill page mounts pdf.js and a multi-page canvas, so the
-    // selectors there are heavier — left for a follow-up commit.
+    // 6. The pre-filled required field flips `allRequiredFilled = true`,
+    //    so the action bar shows "Review & finish" immediately. Click it.
+    await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
+    await page.waitForURL(`**/sign/${ENVELOPE_ID}/review`, { timeout: 15_000 });
+
+    // 7. Review page heading + submit button.
+    await expect(page.getByRole('heading', { name: /everything look right\?/i })).toBeVisible();
+    await page.getByRole('button', { name: /sign and submit/i }).click();
+
+    // 8. Land on /done and assert the success heading.
+    await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
+    await expect(page.getByRole('heading', { name: /^seald\.?$/i })).toBeVisible();
   });
 });
