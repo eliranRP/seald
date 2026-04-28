@@ -4,6 +4,10 @@ import forge from 'node-forge';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 
+/** TSA round-trip timeout (rule 9.3). Above this we bail and fall through to
+ *  PAdES-B-B; sealing must not block on a flaky upstream timestamp authority. */
+const TSA_FETCH_TIMEOUT_MS = 10_000;
+
 /**
  * RFC 3161 Time-Stamp Authority client. Given the hash of a blob (typically
  * a PAdES signature's encryptedDigest, but really any bytes), fetches a
@@ -52,11 +56,23 @@ export class TsaClient {
       `TSA request → ${url} (sha256=${messageImprint.toString('hex').slice(0, 12)}…)`,
     );
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/timestamp-query' },
-      body: new Uint8Array(reqDer),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/timestamp-query' },
+        body: new Uint8Array(reqDer),
+        // Time-stamp authorities are external — bound the wait so a flaky TSA
+        // can't hang the sealing worker (rule 9.3). Caller (PadesSigner) is
+        // configured to fall back to PAdES-B-B on TSA failure.
+        signal: AbortSignal.timeout(TSA_FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        throw new Error(`tsa_timeout: ${err.message}`);
+      }
+      throw err;
+    }
     if (!res.ok) {
       throw new Error(`tsa_http_${res.status}`);
     }
