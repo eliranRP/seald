@@ -2,6 +2,8 @@ import 'reflect-metadata';
 import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { APP_ENV } from './config/config.module';
 import type { AppEnv } from './config/env.schema';
@@ -51,7 +53,39 @@ async function bootstrap() {
 
   installCrashHandlers(logger);
 
-  app.enableCors({ origin: env.CORS_ORIGIN, credentials: true });
+  // Trust the first proxy hop (Caddy in production) so X-Forwarded-For is
+  // honored by Express. The `extractClientIp` helper relies on it for IP
+  // attribution in the audit trail.
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.set('trust proxy', 1);
+
+  // CORS allow-list: env.CORS_ORIGIN is a comma-separated list. Origin-less
+  // requests (server-to-server, curl, mobile) are allowed; browser origins
+  // must match exactly. Anything else gets rejected with a clear error.
+  const allowed = env.CORS_ORIGIN.split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  app.enableCors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // server-to-server, curl, Postman
+      if (allowed.includes(origin)) return cb(null, true);
+      return cb(new Error(`CORS: origin ${origin} not in allowlist`), false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    maxAge: 600,
+  });
+
+  // Security headers: Helmet defaults cover X-Content-Type-Options,
+  // Strict-Transport-Security, X-Frame-Options, Referrer-Policy, etc.
+  app.use(helmet());
+
+  // JSON / urlencoded body limits — file uploads use FileInterceptor with
+  // their own multer limits, so 1mb here just bounds JSON payloads.
+  app.use(json({ limit: '1mb' }));
+  app.use(urlencoded({ extended: false, limit: '1mb' }));
+
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );

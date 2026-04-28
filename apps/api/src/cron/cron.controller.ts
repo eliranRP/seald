@@ -7,6 +7,7 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
 import { Public } from '../auth/public.decorator';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -82,8 +83,20 @@ export class CronController {
       // Explicit config error — caller shouldn't retry.
       throw new BadRequestException('cron_not_configured');
     }
-    if (provided !== expected) {
+    if (typeof provided !== 'string' || !safeCompare(provided, expected)) {
       throw new UnauthorizedException('invalid_cron_secret');
     }
   }
+}
+
+/**
+ * Constant-time string compare for shared secrets. Avoids the early-exit
+ * leak in `===` that lets an attacker probe a secret one character at a
+ * time with timing measurements.
+ */
+function safeCompare(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
 }

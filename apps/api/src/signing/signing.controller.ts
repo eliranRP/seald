@@ -15,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
@@ -51,6 +52,10 @@ export class SigningController {
   ) {}
 
   @Post('start')
+  // Tight per-route rate limit on the unauthenticated token-exchange
+  // endpoint: 3 attempts per minute per IP. Prevents token-burning brute
+  // force while still allowing a signer to retry after a typo.
+  @Throttle({ short: { limit: 3, ttl: 60_000 } })
   @HttpCode(200)
   async start(
     @Body() dto: StartSessionDto,
