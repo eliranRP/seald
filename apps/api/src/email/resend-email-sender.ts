@@ -6,6 +6,9 @@ import {
   type EmailSendResult,
 } from './email-sender';
 
+/** Outbound timeout for Resend HTTP calls (rule 9.3). */
+const RESEND_FETCH_TIMEOUT_MS = 15_000;
+
 /**
  * Resend REST adapter. Uses the `POST /emails` endpoint with
  * `Idempotency-Key` so worker retries on the same outbound_emails row dedupe
@@ -30,22 +33,34 @@ export class ResendEmailSender extends EmailSender {
   }
 
   async send(msg: EmailMessage): Promise<EmailSendResult> {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-        'Idempotency-Key': msg.idempotencyKey,
-      },
-      body: JSON.stringify({
-        from: `${msg.from.name ?? this.fromDefault.name} <${msg.from.email ?? this.fromDefault.email}>`,
-        to: `${msg.to.name} <${msg.to.email}>`,
-        subject: msg.subject,
-        html: msg.html,
-        text: msg.text,
-        headers: msg.headers,
-      }),
-    });
+    let res: Response;
+    try {
+      res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': msg.idempotencyKey,
+        },
+        body: JSON.stringify({
+          from: `${msg.from.name ?? this.fromDefault.name} <${msg.from.email ?? this.fromDefault.email}>`,
+          to: `${msg.to.name} <${msg.to.email}>`,
+          subject: msg.subject,
+          html: msg.html,
+          text: msg.text,
+          headers: msg.headers,
+        }),
+        // Bounded by AbortSignal.timeout (rule 9.3) — a hung Resend node
+        // would otherwise stall the email worker indefinitely.
+        signal: AbortSignal.timeout(RESEND_FETCH_TIMEOUT_MS),
+      });
+    } catch (err) {
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        // Treat as transient (504) so the email worker retries with backoff.
+        throw new EmailSendError('resend', 504, true, `fetch aborted: ${err.message}`);
+      }
+      throw err;
+    }
 
     if (!res.ok) {
       const body = await res.text();

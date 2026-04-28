@@ -144,4 +144,31 @@ describe('SupabaseStorageService', () => {
       expect(init.body).toContain('"b.pdf"');
     });
   });
+
+  // Regression: rule 9.3 — outbound HTTP without a timeout hangs the worker on
+  // a stalled Supabase node. SupabaseStorageService now installs an
+  // AbortSignal.timeout per call; a thrown AbortError/TimeoutError is mapped to
+  // StorageError('timeout', 504) so the email/sealing workers see a uniform
+  // shape and can decide to retry.
+  describe('fetch timeout (rule 9.3)', () => {
+    it('passes an AbortSignal on every call', async () => {
+      const svc = new SupabaseStorageService(BASE_ENV);
+      mockFetch.mockResolvedValue(new Response('', { status: 200 }) as unknown as Response);
+      await svc.exists('x.pdf');
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
+
+    it('maps an aborted fetch to StorageError(504, timeout)', async () => {
+      const svc = new SupabaseStorageService(BASE_ENV);
+      const abortError = Object.assign(new Error('The operation was aborted'), {
+        name: 'AbortError',
+      });
+      mockFetch.mockRejectedValue(abortError);
+      await expect(svc.download('abc/original.pdf')).rejects.toMatchObject({
+        name: 'StorageError',
+        status: 504,
+      });
+    });
+  });
 });
