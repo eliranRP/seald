@@ -8,9 +8,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
-  UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '../auth/auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import type { Contact } from './contact.entity';
@@ -18,8 +16,10 @@ import { ContactsService } from './contacts.service';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
 
+// AuthGuard is registered globally as APP_GUARD in AuthModule (rule 5.1).
+// No `@UseGuards(AuthGuard)` needed — every route here authenticates by
+// default unless tagged with `@Public()`.
 @Controller('contacts')
-@UseGuards(AuthGuard)
 export class ContactsController {
   constructor(private readonly svc: ContactsService) {}
 

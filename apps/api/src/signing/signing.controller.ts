@@ -17,6 +17,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
+import { Public } from '../auth/public.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -40,6 +41,7 @@ import { SigningService, type SignMeResponse } from './signing.service';
  * web app) against `api.seald.nromomentum.com` — main.ts's enableCors already
  * honors `CORS_ORIGIN`, no per-route config needed.
  */
+@Public()
 @Controller('sign')
 export class SigningController {
   constructor(
