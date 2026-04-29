@@ -39,6 +39,13 @@ services:
       - apps/api/.env
     expose:
       - "3000"
+    # Mount the secrets dir read-only so the API can load the KMS-bound
+    # binding cert at runtime (PDF_SIGNING_KMS_CERT_PEM_PATH points here).
+    # The directory is provisioned out-of-band by the operator following
+    # deploy/terraform/SEALING_KMS_RUNBOOK.md; absence is fine when the
+    # signer is configured for the local-P12 path.
+    volumes:
+      - /opt/seald/secrets:/opt/seald/secrets:ro
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 30s
