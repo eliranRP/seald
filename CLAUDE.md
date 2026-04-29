@@ -56,6 +56,53 @@ The [`gmail-email-html` skill](~/.claude/skills/gmail-email-html/SKILL.md)
 covers Gmail/Outlook quirks. Inline visual styles, defeat the auto-linker,
 preview every change in real Gmail before committing.
 
+### Sealing / PAdES
+The seald API seals every completed envelope into a PAdES PDF that
+progresses **B-T → B-LT (DSS) → optional B-LTA**. All sealing code lives
+in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
+`memory/project_pades_pipeline.md`; KMS hand-built CMS rationale in
+`memory/project_kms_signer.md`.
+
+- **S.1** Producer order in `SealingModule` factory: `KmsPadesSigner`
+  (production, when `PDF_SIGNING_PROVIDER=kms` + key id set) →
+  `P12PadesSigner` (dev, P12 path present) → `NoopPadesSigner` (last
+  resort). Never silently downgrade — startup must throw on misconfig.
+- **S.2** `KmsCmsSigner` hand-builds CMS — forge's `pkcs7.sign()`
+  requires a local private key, which defeats KMS. Preserve the RFC 5652
+  §5.4 explicit-`SET` (tag `0x31`) re-encoding of `signedAttrs` before
+  hashing; Adobe Reader rejects the wrong tag.
+- **S.3** Env-var contract: `PDF_SIGNING_PROVIDER` (`local`/`kms`/`sslcom`),
+  `PDF_SIGNING_KMS_KEY_ID`, `PDF_SIGNING_KMS_REGION`,
+  `PDF_SIGNING_KMS_CERT_PEM` or `_PATH`, `PDF_SIGNING_TSA_URLS` (CSV;
+  rotated on failure by `MultiTsaClient`; legacy singular
+  `PDF_SIGNING_TSA_URL` still honored).
+- **S.4** Verifier: `pnpm --filter api exec ts-node scripts/verify-pades.ts <dir>`.
+  Runs as the `pades-verify` CI job on every PR — gates regressions in
+  `/Contents` parsing, signed-attrs digest, TST presence, and DSS
+  injection.
+- **S.5** **Never** call `@signpdf/utils.extractSignature` — it strips
+  trailing `0x00` byte pairs and corrupts CMS that legitimately ends in
+  `0x00`. Use `apps/api/src/sealing/pades-verify-helpers.ts` instead
+  (`extractContents()` slices by the outer DER `SEQUENCE` length).
+- **S.6** Audit chain: `envelope_events.prev_event_hash =
+  SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
+  surfaces `chain_intact`. Walk via `verifyEventChain`. Canonical JSON
+  contract (sorted keys, RFC 8785-ish) lives next to the helper — import
+  it, don't reimplement.
+
+### Sprint history
+- **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
+- **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
+  verifier CI.
+- **Sprint 3 (PR #10)** — PAdES B-LT (DSS) + tamper-evident audit chain.
+- **Post-sprint-2** — PR #14 (B-LTA archive timestamp), PR #15
+  (LocalStack KMS e2e harness).
+
+All PAdES due-diligence findings F-1..F-14 are closed across these PRs;
+F-7 (AATL trust) and F-15 (HSM-backed key rotation runbook) remain
+external/legal. See `memory/feedback_pades_due_diligence_resolved.md`
+before re-raising any sealing finding.
+
 ### Commit messages
 Follow conventional commits: `type(scope): subject` (e.g.
 `fix(audit): refined event icons`, `refactor(api): tighten TS hygiene`).
