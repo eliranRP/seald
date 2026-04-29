@@ -220,14 +220,34 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------
-  # E2E tests — includes the PAdES + PAdES-B-T suites that shell out
-  # to openssl. Ubuntu runners ship openssl so the suite won't skip.
+  # E2E tests — includes the PAdES B-T (openssl-P12) and PAdES-B-T
+  # (KMS-against-LocalStack) suites. Ubuntu runners ship openssl. The
+  # LocalStack service container exercises the KmsPadesSigner path
+  # so we have a real KMS round-trip in CI without needing AWS creds.
   # ---------------------------------------------------------------
   e2e:
     name: API e2e tests (incl. PAdES + PAdES-B-T)
     runs-on: ubuntu-latest
     needs: install
     timeout-minutes: 15
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: kms
+          DEBUG: 0
+        options: >-
+          --health-cmd "curl -fsS http://localhost:4566/_localstack/health"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localhost:4566
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
