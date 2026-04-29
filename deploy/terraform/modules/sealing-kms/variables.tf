@@ -20,7 +20,22 @@ variable "api_role_name" {
 }
 
 variable "tags" {
-  description = "Extra tags to merge onto every resource the module creates."
+  description = "Extra tags to merge onto every resource the module creates. Only applied when var.enable_resource_tags is true."
   type        = map(string)
   default     = {}
+}
+
+variable "enable_resource_tags" {
+  description = <<-EOT
+    Whether to set tags on the KMS key + alias resources.
+
+    Tagging a KMS key requires the caller's IAM principal to hold
+    `kms:TagResource` on the resource. Many CI roles only have the bare
+    `kms:CreateKey` / `kms:CreateAlias` minimum and would fail apply with
+    AccessDeniedException on first run. Default false so a fresh deploy
+    succeeds even with the minimum perms; flip to true once `kms:TagResource`
+    is granted to the deployer (and re-run apply to attach tags).
+  EOT
+  type        = bool
+  default     = false
 }
