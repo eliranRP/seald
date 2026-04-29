@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { DocumentPageCanvas } from './DocumentPageCanvas';
 
 const meta: Meta<typeof DocumentPageCanvas> = {

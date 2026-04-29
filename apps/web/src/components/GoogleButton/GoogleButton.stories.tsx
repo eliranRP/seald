@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { GoogleButton } from './GoogleButton';
 
 const meta: Meta<typeof GoogleButton> = {

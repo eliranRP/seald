@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { FileCheck2, FileText, Package, ShieldCheck } from 'lucide-react';
 import { DownloadMenu } from './DownloadMenu';
 import type { DownloadMenuItem } from './DownloadMenu.types';

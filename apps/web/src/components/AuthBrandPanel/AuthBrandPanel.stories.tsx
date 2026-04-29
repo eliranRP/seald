@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AuthBrandPanel } from './AuthBrandPanel';
 
 const meta: Meta<typeof AuthBrandPanel> = {

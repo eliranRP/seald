@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { FieldInputDrawer } from './FieldInputDrawer';
 import type { FieldInputKind } from './FieldInputDrawer.types';

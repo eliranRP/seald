@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { EmailCard } from './EmailCard';
 import { EmailMasthead } from '../EmailMasthead';
 

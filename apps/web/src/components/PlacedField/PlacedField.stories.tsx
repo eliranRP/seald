@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PlacedField } from './PlacedField';
 import type { PlacedFieldSigner, PlacedFieldValue } from './PlacedField.types';
 

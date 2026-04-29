@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { SendingOverlay } from './SendingOverlay';
 import type { SendingOverlaySigner } from './SendingOverlay.types';
 
