@@ -149,6 +149,16 @@ export interface EnvelopeEventsTable {
   ip: string | null;
   user_agent: string | null;
   metadata: ColumnType<Record<string, unknown>, string | undefined, string | undefined>;
+  /**
+   * Tamper-evident hash chain. SHA-256 of the previous event row's canonical
+   * JSON within the same envelope. NULL only for the genesis event. See
+   * `event-hash.ts` for the canonicalization algorithm — it must match
+   * exactly between insert (repository) and verify (controller) paths,
+   * otherwise a freshly-written row would already report `chain_intact: false`.
+   * Stored as `bytea`; reads come back as a Node Buffer in pg, and as a
+   * Buffer-shaped Uint8Array in pg-mem.
+   */
+  prev_event_hash: ColumnType<Buffer | null, Buffer | null | undefined, Buffer | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 

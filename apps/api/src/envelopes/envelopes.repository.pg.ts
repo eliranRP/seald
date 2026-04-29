@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
+import { eventHash } from './event-hash';
 import type {
   Database,
   EnvelopesTable,
@@ -54,6 +55,20 @@ function isShortCodeUniqueViolation(err: unknown): boolean {
   if (e.code !== '23505') return false;
   if (e.constraint === 'envelopes_short_code_key') return true;
   if (typeof e.message === 'string' && e.message.toLowerCase().includes('short_code')) return true;
+  return false;
+}
+
+function isPrevHashUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; constraint?: string; message?: string };
+  if (e.code !== '23505') return false;
+  if (e.constraint === 'envelope_events_envelope_prev_hash_unique') return true;
+  if (
+    typeof e.message === 'string' &&
+    e.message.includes('envelope_events_envelope_prev_hash_unique')
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -374,6 +389,37 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       .orderBy('id', 'asc')
       .execute();
     return rows.map(toEventDomain);
+  }
+
+  async verifyEventChain(envelope_id: string): Promise<{ readonly chain_intact: boolean }> {
+    const rows = await this.db
+      .selectFrom('envelope_events')
+      .selectAll()
+      .where('envelope_id', '=', envelope_id)
+      .orderBy('created_at', 'asc')
+      .orderBy('id', 'asc')
+      .execute();
+    if (rows.length === 0) return { chain_intact: true };
+
+    // Genesis event must have NULL prev_event_hash. Anything else means a
+    // row was deleted upstream (the genesis we have was actually a child).
+    const genesis = rows[0]!;
+    if (genesis.prev_event_hash !== null && genesis.prev_event_hash !== undefined) {
+      return { chain_intact: false };
+    }
+
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1]!;
+      const curr = rows[i]!;
+      const expected = eventHash(toEventDomain(prev));
+      const stored = curr.prev_event_hash;
+      if (!stored) return { chain_intact: false };
+      // pg returns Buffer, pg-mem may return Uint8Array — coerce.
+      const storedBuf = Buffer.isBuffer(stored) ? stored : Buffer.from(stored as Uint8Array);
+      if (storedBuf.length !== expected.length) return { chain_intact: false };
+      if (!storedBuf.equals(expected)) return { chain_intact: false };
+    }
+    return { chain_intact: true };
   }
 
   async listSignerAuditDetails(envelope_id: string): Promise<ReadonlyArray<SignerAuditDetail>> {
@@ -924,20 +970,54 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
   // ---------- Audit ----------
 
   async appendEvent(input: EventInput): Promise<EnvelopeEvent> {
-    const row = await this.db
-      .insertInto('envelope_events')
-      .values({
-        envelope_id: input.envelope_id,
-        signer_id: input.signer_id ?? null,
-        actor_kind: input.actor_kind,
-        event_type: input.event_type,
-        ip: input.ip ?? null,
-        user_agent: input.user_agent ?? null,
-        metadata: JSON.stringify(input.metadata ?? {}),
-      })
-      .returningAll()
-      .executeTakeFirstOrThrow();
-    return toEventDomain(row);
+    // Tamper-evident chain: each row stores SHA-256 of the previous row's
+    // canonical JSON (within the same envelope, ordered by created_at).
+    //
+    // Concurrency: two concurrent appends on the same envelope could
+    // observe the same "latest" predecessor and both write the same
+    // prev_event_hash, silently breaking the chain. Migration 0007
+    // installs a partial unique index on (envelope_id, prev_event_hash)
+    // WHERE prev_event_hash IS NOT NULL — the second writer's INSERT
+    // hits 23505 and we retry once, picking up the freshly-written row
+    // as the new predecessor. The retry is bounded so a runaway loop
+    // (e.g. unique-index disabled in tests) still terminates.
+    const MAX_RETRIES = 3;
+    let lastErr: unknown = null;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        return await this.db.transaction().execute(async (trx) => {
+          const latest = await trx
+            .selectFrom('envelope_events')
+            .selectAll()
+            .where('envelope_id', '=', input.envelope_id)
+            .orderBy('created_at', 'desc')
+            .orderBy('id', 'desc')
+            .limit(1)
+            .executeTakeFirst();
+          const prevHash = latest ? eventHash(toEventDomain(latest)) : null;
+          const row = await trx
+            .insertInto('envelope_events')
+            .values({
+              envelope_id: input.envelope_id,
+              signer_id: input.signer_id ?? null,
+              actor_kind: input.actor_kind,
+              event_type: input.event_type,
+              ip: input.ip ?? null,
+              user_agent: input.user_agent ?? null,
+              metadata: JSON.stringify(input.metadata ?? {}),
+              prev_event_hash: prevHash,
+            })
+            .returningAll()
+            .executeTakeFirstOrThrow();
+          return toEventDomain(row);
+        });
+      } catch (err) {
+        lastErr = err;
+        if (!isPrevHashUniqueViolation(err)) throw err;
+        // Race detected — retry with the freshly-written predecessor.
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error('appendEvent_chain_race');
   }
 
   // ---------- Jobs ----------

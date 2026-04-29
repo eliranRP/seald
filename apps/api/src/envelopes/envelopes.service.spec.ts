@@ -37,6 +37,7 @@ import {
   InvalidCursorError,
   ShortCodeCollisionError,
 } from './envelopes.repository';
+import { eventHash } from './event-hash';
 import { EnvelopesService } from './envelopes.service';
 
 class FakeContactsRepo extends ContactsRepository {
@@ -354,7 +355,14 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     throw new Error('not_implemented_in_fake');
   }
 
+  /** Side map mirroring the prev_event_hash column. Tests can corrupt or
+   *  inspect it via `getPrevHash` / `setPrevHash`. */
+  readonly prevHashes = new Map<string, Buffer | null>();
+
   async appendEvent(input: EventInput): Promise<EnvelopeEvent> {
+    const previous = this.events.filter((e) => e.envelope_id === input.envelope_id);
+    const latest = previous.length > 0 ? previous[previous.length - 1]! : null;
+    const prev = latest ? eventHash(latest) : null;
     const event: EnvelopeEvent = {
       id: `ev_${this.events.length + 1}`,
       envelope_id: input.envelope_id,
@@ -367,7 +375,29 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       created_at: new Date().toISOString(),
     };
     this.events.push(event);
+    this.prevHashes.set(event.id, prev);
     return event;
+  }
+
+  async verifyEventChain(envelope_id: string): Promise<{ readonly chain_intact: boolean }> {
+    const list = this.events.filter((e) => e.envelope_id === envelope_id);
+    if (list.length === 0) return { chain_intact: true };
+    const genesis = list[0]!;
+    const genesisHash = this.prevHashes.get(genesis.id);
+    if (genesisHash !== null && genesisHash !== undefined) return { chain_intact: false };
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1]!;
+      const curr = list[i]!;
+      const expected = eventHash(prev);
+      const stored = this.prevHashes.get(curr.id);
+      if (!stored || !stored.equals(expected)) return { chain_intact: false };
+    }
+    return { chain_intact: true };
+  }
+
+  /** Test-only: tamper directly with the chain map. */
+  setPrevHash(event_id: string, value: Buffer | null): void {
+    this.prevHashes.set(event_id, value);
   }
 
   jobs: Array<{ readonly envelope_id: string; readonly kind: 'seal' | 'audit_only' }> = [];
@@ -772,6 +802,65 @@ describe('EnvelopesService', () => {
     it('404 on cross-owner', async () => {
       const e = await svc.createDraft(OWNER, { title: 'X' });
       await expect(svc.listEvents(OTHER, e.id)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('audit-event hash chain', () => {
+    it('verifyEventChain returns chain_intact=true after sequential appends', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      // createDraft already appended a 'created' genesis event. Append two more.
+      await repo.appendEvent({
+        envelope_id: e.id,
+        actor_kind: 'system',
+        event_type: 'sent',
+      });
+      await repo.appendEvent({
+        envelope_id: e.id,
+        actor_kind: 'system',
+        event_type: 'viewed',
+      });
+      const result = await repo.verifyEventChain(e.id);
+      expect(result.chain_intact).toBe(true);
+    });
+
+    it('verifyEventChain returns chain_intact=false after metadata mutation bypassing appendEvent', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await repo.appendEvent({
+        envelope_id: e.id,
+        actor_kind: 'system',
+        event_type: 'sent',
+      });
+      await repo.appendEvent({
+        envelope_id: e.id,
+        actor_kind: 'system',
+        event_type: 'viewed',
+      });
+      // Mutate event #2's metadata directly, simulating a DB row hand-edit.
+      const target = repo.events.find((ev) => ev.envelope_id === e.id && ev.event_type === 'sent')!;
+      target.metadata = { tampered: true };
+      const result = await repo.verifyEventChain(e.id);
+      expect(result.chain_intact).toBe(false);
+    });
+
+    it('verifyEventChain returns chain_intact=false when prev_event_hash is corrupted', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await repo.appendEvent({
+        envelope_id: e.id,
+        actor_kind: 'system',
+        event_type: 'sent',
+      });
+      // Corrupt the stored prev_event_hash on the second event.
+      const second = repo.events.find((ev) => ev.envelope_id === e.id && ev.event_type === 'sent')!;
+      repo.setPrevHash(second.id, Buffer.alloc(32, 0xff));
+      const result = await repo.verifyEventChain(e.id);
+      expect(result.chain_intact).toBe(false);
+    });
+
+    it('genesis event has null prev_event_hash', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const genesis = repo.events.find((ev) => ev.envelope_id === e.id);
+      expect(genesis).toBeDefined();
+      expect(repo.prevHashes.get(genesis!.id)).toBeNull();
     });
   });
 

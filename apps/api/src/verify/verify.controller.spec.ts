@@ -74,6 +74,7 @@ describe('VerifyController', () => {
   const repo = {
     findByShortCode: jest.fn(),
     listEventsForEnvelope: jest.fn(),
+    verifyEventChain: jest.fn(),
   };
   const storage = {
     createSignedUrl: jest.fn(),
@@ -83,6 +84,8 @@ describe('VerifyController', () => {
   beforeEach(async () => {
     repo.findByShortCode.mockReset();
     repo.listEventsForEnvelope.mockReset();
+    repo.verifyEventChain.mockReset();
+    repo.verifyEventChain.mockResolvedValue({ chain_intact: true });
     storage.createSignedUrl.mockReset();
     storage.exists.mockReset();
 
@@ -138,6 +141,18 @@ describe('VerifyController', () => {
 
     expect(res.sealed_url).toBe('https://signed.example/sealed.pdf');
     expect(res.audit_url).toBe('https://signed.example/audit.pdf');
+    expect(res.chain_intact).toBe(true);
+  });
+
+  it('surfaces chain_intact=false when the audit-event chain is broken', async () => {
+    repo.findByShortCode.mockResolvedValueOnce(ENVELOPE);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([EVENT_RAW]);
+    repo.verifyEventChain.mockResolvedValueOnce({ chain_intact: false });
+    storage.createSignedUrl
+      .mockResolvedValueOnce('https://signed.example/sealed.pdf')
+      .mockResolvedValueOnce('https://signed.example/audit.pdf');
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.chain_intact).toBe(false);
   });
 
   it('does not include sender_email or owner_id in the response (PII redaction)', async () => {

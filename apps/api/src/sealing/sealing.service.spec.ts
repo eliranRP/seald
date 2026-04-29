@@ -131,6 +131,11 @@ function makeService(storage: Pick<StorageService, 'download' | 'upload'>): Seal
     storage as StorageService,
     {} as OutboundEmailsRepository,
     new NoopPadesSigner(),
+    // DssInjector is a no-op when PDF_SIGNING_BLT_ENABLED is false (the
+    // default in tests), so the burn-in spec doesn't exercise it. Pass a
+    // plain stub object — the SealingService never calls into it on the
+    // disabled path.
+    { upgradeToBLt: async (b: Buffer) => b } as unknown as import('./dss-injector').DssInjector,
     { APP_PUBLIC_URL: 'http://localhost' } as AppEnv,
   );
 }

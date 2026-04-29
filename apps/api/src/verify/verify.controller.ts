@@ -39,6 +39,7 @@ export class VerifyController {
     if (!envelope) throw new NotFoundException('envelope_not_found');
 
     const events = await this.repo.listEventsForEnvelope(envelope.id);
+    const { chain_intact } = await this.repo.verifyEventChain(envelope.id);
 
     let sealed_url: string | null = null;
     let audit_url: string | null = null;
@@ -82,6 +83,7 @@ export class VerifyController {
         declined_at: s.declined_at,
       })),
       events: events.map(redactEvent),
+      chain_intact,
       sealed_url,
       audit_url,
     };
@@ -131,6 +133,17 @@ export interface VerifyResponse {
     readonly declined_at: string | null;
   }>;
   readonly events: ReadonlyArray<RedactedEvent>;
+  /**
+   * Whether the audit-event hash chain (`prev_event_hash` column on
+   * envelope_events) is intact. `false` indicates that the underlying
+   * row(s) have been mutated, inserted, or deleted out-of-band — i.e.
+   * potential tampering with the audit log. `true` means every event row
+   * after the genesis is a SHA-256 of the canonical JSON of its
+   * predecessor, exactly as written by `appendEvent`. The verify-page UI
+   * surfaces this as a green check ("audit chain intact") or a red
+   * warning ("audit chain broken — possible tampering").
+   */
+  readonly chain_intact: boolean;
   /** 5-min signed URL. Null if not yet sealed. */
   readonly sealed_url: string | null;
   /** 5-min signed URL. Null if no audit.pdf has been produced. */

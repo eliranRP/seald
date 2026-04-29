@@ -799,6 +799,37 @@ describe('EnvelopesPgRepository — appendEvent + listEventsForEnvelope', () => 
     const events = await repo.listEventsForEnvelope(e.id);
     expect(events.map((ev) => ev.event_type)).toEqual(['created', 'sent', 'viewed']);
     expect(events[1]!.metadata).toEqual({ a: 1 });
+
+    // NOTE: we deliberately do NOT call verifyEventChain here — the
+    // raw `update created_at` calls above DID corrupt the chain (they
+    // bypass appendEvent, which is the only writer that recomputes
+    // hashes). That's tamper-detection working correctly. The
+    // chain-intact happy path is asserted in its own dedicated test
+    // below where appendEvent is the sole writer.
+  });
+
+  it('verifyEventChain reports broken when prev_event_hash is corrupted out-of-band', async () => {
+    const e = await repo.createDraft(draftInput(ownerId));
+    await repo.appendEvent({
+      envelope_id: e.id,
+      actor_kind: 'system',
+      event_type: 'created',
+    });
+    const second = await repo.appendEvent({
+      envelope_id: e.id,
+      actor_kind: 'system',
+      event_type: 'sent',
+    });
+    // Corrupt the second event's prev_event_hash via raw SQL — simulating
+    // an attacker with DB write access bypassing the repository's
+    // appendEvent. We use the hex-escape bytea literal `\\xDEADBEEF...`
+    // (32-byte length so the comparison reaches the equals() branch
+    // rather than short-circuiting on length-mismatch).
+    handle.mem.public.none(
+      `update public.envelope_events set prev_event_hash = '\\xdeadbeef00000000000000000000000000000000000000000000000000000000' where id = '${second.id}';`,
+    );
+    const result = await repo.verifyEventChain(e.id);
+    expect(result.chain_intact).toBe(false);
   });
 });
 

@@ -14,6 +14,7 @@ import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
 import { buildAuditPdf } from './audit-pdf';
+import { DssInjector } from './dss-injector';
 import { PadesSigner } from './pades-signer';
 
 /**
@@ -47,6 +48,7 @@ export class SealingService {
     private readonly storage: StorageService,
     private readonly outboundEmails: OutboundEmailsRepository,
     private readonly pades: PadesSigner,
+    private readonly dss: DssInjector,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -66,7 +68,17 @@ export class SealingService {
     const originalBytes = await this.storage.download(originalPath);
 
     const sealedBytes = await this.burnIn(envelope, originalBytes);
-    const signedBytes = await this.pades.sign(sealedBytes);
+    const btSignedBytes = await this.pades.sign(sealedBytes);
+    // PAdES B-T → B-LT upgrade. The DssInjector pipeline (cert-chain
+    // extraction + OCSP/CRL fetch + /DSS dictionary build) is wired here;
+    // the injector itself returns the B-T bytes unchanged today because a
+    // full-resave would mutate the existing /Sig.Contents byte range and
+    // break the embedded signature. The remaining piece is the ISO
+    // 32000-1 §7.5.6 incremental-update writer — see TODO at the bottom
+    // of dss-injector.ts. Until then the chain-extractor and revocation-
+    // fetcher are still exercised by unit tests, ready to slot in when
+    // the writer lands.
+    const signedBytes = await this.dss.upgradeToBLt(btSignedBytes);
     const sealedSha = sha256Hex(signedBytes);
     const sealedPath = `${envelope_id}/sealed.pdf`;
     await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
