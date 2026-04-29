@@ -1,4 +1,13 @@
 export * from './signer';
+export { TEMPLATE_FIELD_TYPES } from './templates';
+export type {
+  Template,
+  TemplateField,
+  TemplateFieldType,
+  TemplatePageRule,
+  CreateTemplateInput,
+  UpdateTemplateInput,
+} from './templates';
 export {
   ENVELOPE_STATUSES,
   DELIVERY_MODES,

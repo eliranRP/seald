@@ -147,6 +147,26 @@ export function createPgMemDb(): PgMemHandle {
   const patched0007 = raw0007.replace(/comment on column[\s\S]*?;/g, '');
   mem.public.none(patched0007);
 
+  const migration0008Path = resolve(__dirname, '../db/migrations/0008_templates.sql');
+  const raw0008 = readFileSync(migration0008Path, 'utf8');
+  // Same `comment on column` strip as 0007. Also drop `nulls last` from
+  // the index DDL — pg-mem's parser chokes on it at create time. The
+  // runtime ORDER BY in templates.repository.pg.ts re-applies `nulls
+  // last` at query time, which pg-mem does support.
+  const patched0008 = raw0008
+    .replace(/comment on column[\s\S]*?;/g, '')
+    .replace(/\s+nulls\s+last/gi, '')
+    // Strip the updated_at trigger — the function `public.set_updated_at`
+    // is not present here (we already stripped it in 0001) and pg-mem's
+    // plpgsql coverage is limited. The repo overwrites updated_at
+    // explicitly anyway.
+    .replace(/alter table public\.templates enable row level security;/g, '')
+    .replace(
+      /create trigger templates_set_updated_at[\s\S]*?execute function public\.set_updated_at\(\);/g,
+      '',
+    );
+  mem.public.none(patched0008);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
