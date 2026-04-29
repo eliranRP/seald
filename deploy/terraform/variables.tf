@@ -52,6 +52,38 @@ variable "tags" {
   default     = {}
 }
 
+# ---------- Sealing KMS (PAdES signing) ----------
+
+variable "enable_kms_sealing" {
+  description = <<-EOT
+    Provision the production PAdES sealing key (RSA-3072 SIGN_VERIFY)
+    via modules/sealing-kms. Default true so prod gets it on first
+    apply; flip to false in non-prod tfvars (staging, dev, ephemeral
+    review envs) to avoid the per-key/month KMS charge and the
+    30-day deletion window when tearing down.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "sealing_environment" {
+  description = "Environment slug fed into the sealing-kms module (alias suffix + tags). Defaults to `prod` because that's the only env the seal currently runs in."
+  type        = string
+  default     = "prod"
+}
+
+variable "sealing_api_role_name" {
+  description = <<-EOT
+    Name of the IAM role attached to the API runtime that should be
+    granted kms:Sign + kms:GetPublicKey on the sealing key. Leave
+    empty to provision the policy without attaching — the EC2 spot
+    instance currently runs with static credentials, so attachment
+    is deferred until the migration to an instance profile.
+  EOT
+  type        = string
+  default     = ""
+}
+
 # ---------- GoDaddy DNS (optional) ----------
 
 variable "godaddy_enabled" {

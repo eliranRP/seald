@@ -236,3 +236,28 @@ resource "aws_eip" "api" {
   instance = aws_instance.api.id
   tags     = merge(local.common_tags, { Name = "${var.project}-api" })
 }
+
+# --------------------------------------------------------------------
+# PAdES sealing key (RSA-3072 SIGN_VERIFY).
+#
+# Backs apps/api/src/sealing/pades-signer.ts -> KmsPadesSigner. The
+# private key never leaves AWS KMS; the API only ever calls kms:Sign
+# with a SHA-256 digest. After apply, run:
+#
+#   pnpm --filter api ts-node scripts/generate-kms-binding-cert.ts \
+#     --key-id <module.sealing_kms[0].key_id> \
+#     --region <module.sealing_kms[0].region> \
+#     --out apps/api/.local/seald-pades-prod.crt.pem
+#
+# Then set PDF_SIGNING_KMS_KEY_ID + PDF_SIGNING_KMS_REGION +
+# PDF_SIGNING_KMS_CERT_PEM_PATH on the API host. Full walkthrough in
+# deploy/terraform/SEALING_KMS_RUNBOOK.md.
+# --------------------------------------------------------------------
+module "sealing_kms" {
+  count  = var.enable_kms_sealing ? 1 : 0
+  source = "./modules/sealing-kms"
+
+  environment   = var.sealing_environment
+  api_role_name = var.sealing_api_role_name
+  tags          = local.common_tags
+}
