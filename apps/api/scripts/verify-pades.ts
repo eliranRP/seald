@@ -275,6 +275,13 @@ function verifyOne(path: string, bytes: Buffer): VerifyResult {
     info.push('PAdES-B-LT: /DSS dictionary present on catalog');
   }
 
+  // ---- Soft check 7: PAdES-B-LTA (archive timestamp). A second /Sig
+  // field with /SubFilter /ETSI.RFC3161 cryptographically pins the
+  // post-/DSS state to a TSA-attested time (ETSI EN 319 142-1 §6.4).
+  if (/\/SubFilter\s*\/ETSI\.RFC3161/.test(pdfText)) {
+    info.push('PAdES-B-LTA: archive timestamp (/ETSI.RFC3161 doc-timestamp) present');
+  }
+
   // OID_DATA reference is consulted via SignedAttributes[contentType], but TS
   // marks it unused if the assertion above ever skips. Touch the constant so
   // a future tightening of unused-import lint doesn't silently drop it.

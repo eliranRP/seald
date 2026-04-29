@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { extractSignature } from '@signpdf/utils';
 import forge from 'node-forge';
+import { appendArchiveTimestamp } from './archive-timestamp';
 import {
   parseCertChainFromCms,
   parseCertChainFromTst,
@@ -9,6 +10,7 @@ import {
 } from './cert-chain-extractor';
 import { appendDssIncrementalUpdate } from './dss-incremental-update';
 import { RevocationFetcher } from './revocation-fetcher';
+import { TsaClient } from './tsa-client';
 
 /**
  * Upgrades a PAdES B-T signed PDF to PAdES B-LT (Long-Term Validation) by
@@ -47,7 +49,10 @@ import { RevocationFetcher } from './revocation-fetcher';
 export class DssInjector {
   private readonly logger = new Logger(DssInjector.name);
 
-  constructor(private readonly revocations: RevocationFetcher) {}
+  constructor(
+    private readonly revocations: RevocationFetcher,
+    private readonly tsa: TsaClient,
+  ) {}
 
   /**
    * Toggle for emergency rollback only. The incremental-update writer
@@ -58,6 +63,19 @@ export class DssInjector {
    * regresses on the incremental update; can be flipped via env var.
    */
   static EMBED_DSS = true;
+
+  /**
+   * PAdES-B-LTA archive timestamp toggle. When enabled, after embedding
+   * /DSS we append a Document Timestamp (`/SubFilter /ETSI.RFC3161`) over
+   * the post-/DSS state, cryptographically pinning the validation
+   * material at a TSA-attested time (ETSI EN 319 142-1 §6.4).
+   *
+   * Default false until production CI exercises a real TSA round-trip
+   * against a sealed B-LT artefact. The append-only contract is the
+   * same as the DSS update — original bytes are never touched, so
+   * flipping this on cannot invalidate the prior B-T signature.
+   */
+  static EMBED_LTA = false;
 
   async upgradeToBLt(signedPdf: Buffer): Promise<Buffer> {
     let cmsAsn1: forge.asn1.Asn1;
@@ -130,14 +148,32 @@ export class DssInjector {
       return signedPdf;
     }
 
+    let bltPdf: Buffer;
     try {
-      return embedDssDictionary(signedPdf, allCerts, ocspResponses, crls);
+      bltPdf = embedDssDictionary(signedPdf, allCerts, ocspResponses, crls);
     } catch (err) {
       this.logger.error(
         `DSS embedding failed (${(err as Error).message}); returning B-T PDF unchanged`,
       );
       return signedPdf;
     }
+
+    // PAdES-B-LTA upgrade: append a Document Timestamp over the post-
+    // DSS bytes. Best-effort — same contract as the B-T timestamp:
+    // failures degrade gracefully to B-LT (no archive timestamp) but
+    // never throw. The append-only invariant means the prior B-T
+    // signature stays valid regardless.
+    if (DssInjector.EMBED_LTA && this.tsa.configured) {
+      try {
+        return await appendArchiveTimestamp({ pdfWithDss: bltPdf, tsa: this.tsa });
+      } catch (err) {
+        this.logger.warn(
+          `B-LTA archive timestamp failed (${(err as Error).message}); returning B-LT PDF`,
+        );
+      }
+    }
+
+    return bltPdf;
   }
 }
 

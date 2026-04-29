@@ -2,12 +2,15 @@ import { Buffer } from 'node:buffer';
 import { DssInjector } from './dss-injector';
 import { RevocationFetcher } from './revocation-fetcher';
 import { appendDssIncrementalUpdate } from './dss-incremental-update';
+import type { TsaClient } from './tsa-client';
+
+const fakeTsa = { configured: false } as unknown as TsaClient;
 
 describe('DssInjector', () => {
   let injector: DssInjector;
 
   beforeEach(() => {
-    injector = new DssInjector(new RevocationFetcher());
+    injector = new DssInjector(new RevocationFetcher(), fakeTsa);
   });
 
   it('returns the input unchanged when the PDF has no extractable CMS signature', async () => {
