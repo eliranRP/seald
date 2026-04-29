@@ -27,6 +27,51 @@ export const Lede = styled.p`
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
+export const Toolbar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[3]};
+  align-items: center;
+  margin-top: ${({ theme }) => theme.space[5]};
+`;
+
+export const SearchSlot = styled.div`
+  flex: 1 1 240px;
+  max-width: 360px;
+`;
+
+export const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const Chip = styled.button<{ $active: boolean }>`
+  all: unset;
+  cursor: pointer;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  border: 1px solid
+    ${({ theme, $active }) => ($active ? theme.color.indigo[500] : theme.color.border[2])};
+  background: ${({ theme, $active }) => ($active ? theme.color.indigo[100] : theme.color.paper)};
+  color: ${({ theme, $active }) => ($active ? theme.color.indigo[700] : theme.color.fg[2])};
+  &:focus-visible {
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const EmptyState = styled.div`
+  margin-top: ${({ theme }) => theme.space[8]};
+  padding: ${({ theme }) => theme.space[8]};
+  border: 1px dashed ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  text-align: center;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: 14px;
+`;
+
 export const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

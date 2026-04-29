@@ -27,6 +27,11 @@ export const WithoutEdit: Story = {
   args: { onEdit: undefined },
 };
 
+export const WithDuplicate: Story = {
+  name: 'With overflow menu (Duplicate)',
+  args: { onDuplicate: noop },
+};
+
 export const Grid: Story = {
   name: 'Four cards in a responsive grid',
   render: (args) => (

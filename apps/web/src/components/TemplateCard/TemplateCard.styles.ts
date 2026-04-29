@@ -164,4 +164,56 @@ export const Actions = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.space[2]};
   flex-shrink: 0;
+  position: relative;
+`;
+
+export const MenuTrigger = styled.button`
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.color.fg[3]};
+  &:hover,
+  &:focus-visible {
+    background: ${({ theme }) => theme.color.ink[100]};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+`;
+
+export const MenuPopover = styled.ul`
+  position: absolute;
+  bottom: calc(100% + ${({ theme }) => theme.space[1]});
+  right: 0;
+  margin: 0;
+  padding: ${({ theme }) => theme.space[1]};
+  list-style: none;
+  background: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  box-shadow: ${({ theme }) => theme.shadow.md};
+  z-index: 5;
+  min-width: 160px;
+`;
+
+export const MenuItem = styled.li`
+  & > button {
+    all: unset;
+    display: flex;
+    align-items: center;
+    gap: ${({ theme }) => theme.space[2]};
+    width: 100%;
+    box-sizing: border-box;
+    padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
+    border-radius: ${({ theme }) => theme.radius.sm};
+    font-size: 13px;
+    color: ${({ theme }) => theme.color.fg[1]};
+    cursor: pointer;
+  }
+  & > button:hover,
+  & > button:focus-visible {
+    background: ${({ theme }) => theme.color.ink[100]};
+  }
 `;

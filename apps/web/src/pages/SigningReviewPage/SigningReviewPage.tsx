@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { Info, PenTool } from 'lucide-react';
+import { BookmarkPlus, Info, PenTool } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { ReviewList } from '@/components/ReviewList';
 import type { ReviewItem, ReviewFieldKind } from '@/components/ReviewList';
+import { SaveAsTemplateDialog } from '@/components/SaveAsTemplateDialog';
+import type { SaveAsTemplatePayload } from '@/components/SaveAsTemplateDialog';
 import { SignatureMark } from '@/components/SignatureMark';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import type { SignMeField } from '@/features/signing';
@@ -90,6 +92,41 @@ const SubmitBtn = styled.button`
   }
 `;
 
+const SaveTemplateRow = styled.div`
+  margin-top: ${({ theme }) => theme.space[5]};
+  display: flex;
+  justify-content: flex-end;
+`;
+
+const SaveTemplateBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px dashed ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  padding: 8px 14px;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    border-color: ${({ theme }) => theme.color.indigo[500]};
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+`;
+
+const Toast = styled.div`
+  margin-top: ${({ theme }) => theme.space[4]};
+  background: ${({ theme }) => theme.color.success[50]};
+  border: 1px solid ${({ theme }) => theme.color.success[500]};
+  color: ${({ theme }) => theme.color.success[700]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  padding: 10px 12px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+`;
+
 const ErrorBanner = styled.div`
   margin-top: ${({ theme }) => theme.space[4]};
   background: ${({ theme }) => theme.color.danger[50]};
@@ -172,8 +209,23 @@ function Content() {
   const { envelope, fields, submit } = useSigningSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [savedTplToast, setSavedTplToast] = useState<string | null>(null);
 
   const items = useMemo(() => fields.filter(fieldIsFilled).map(toReviewItem), [fields]);
+
+  const handleSaveTemplate = useCallback(
+    (payload: SaveAsTemplatePayload): void => {
+      // TODO(api): replace this client-only stub with a POST to the
+      // templates service once it lands. The payload mirrors what the
+      // sender-side `/templates` flow expects so the call site won't move.
+      // eslint-disable-next-line no-console
+      console.log('[save-as-template]', { ...payload, envelopeId, fieldCount: items.length });
+      setSaveTplOpen(false);
+      setSavedTplToast(`Saved "${payload.title}" as a template.`);
+    },
+    [envelopeId, items.length],
+  );
 
   const handleBack = useCallback(
     () => navigate(`/sign/${envelopeId}/fill`),
@@ -208,6 +260,22 @@ function Content() {
           Once you submit, we&apos;ll lock the document and send a signed copy to everyone.
         </Helper>
         <ReviewList items={items} />
+
+        <SaveTemplateRow>
+          <SaveTemplateBtn type="button" onClick={() => setSaveTplOpen(true)}>
+            <Icon icon={BookmarkPlus} size={14} />
+            Save as template
+          </SaveTemplateBtn>
+        </SaveTemplateRow>
+
+        {savedTplToast ? <Toast role="status">{savedTplToast}</Toast> : null}
+
+        <SaveAsTemplateDialog
+          open={saveTplOpen}
+          defaultTitle={envelope.title}
+          onCancel={() => setSaveTplOpen(false)}
+          onSave={handleSaveTemplate}
+        />
 
         <Legal>
           <Icon icon={Info} size={14} />

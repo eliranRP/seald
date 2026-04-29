@@ -33,6 +33,30 @@ export interface TemplateSummary {
   /** Filename of the example PDF this template was authored from. */
   readonly exampleFile: string;
   readonly fields: ReadonlyArray<TemplateFieldLayout>;
+  /** Optional short description; used by search + the Save-as-template flow. */
+  readonly description?: string;
+}
+
+/** Returns true if at least one of the template's saved fields matches the given type. */
+export function templateHasFieldType(template: TemplateSummary, type: TemplateFieldType): boolean {
+  return template.fields.some((f) => f.type === type);
+}
+
+/**
+ * Build a duplicate of `template` with a fresh id and `(copy)` suffix on the
+ * name. Pure — callers thread the result back into local state. The id format
+ * mirrors the seed so the templates list stays visually consistent until a
+ * server-side templates service replaces this client-only seed.
+ */
+export function duplicateTemplate(template: TemplateSummary): TemplateSummary {
+  const suffix = Math.random().toString(16).slice(2, 6).toUpperCase();
+  return {
+    ...template,
+    id: `TPL-${suffix}`,
+    name: `${template.name} (copy)`,
+    uses: 0,
+    lastUsed: '—',
+  };
 }
 
 const MSA_FIELDS: ReadonlyArray<TemplateFieldLayout> = [
@@ -85,6 +109,7 @@ export const TEMPLATES: ReadonlyArray<TemplateSummary> = [
     cover: '#EEF2FF',
     exampleFile: 'Master Services Agreement.pdf',
     fields: MSA_FIELDS,
+    description: 'Lien waiver issued on receipt of the final payment for a project.',
   },
   {
     id: 'TPL-7B12',
@@ -96,6 +121,7 @@ export const TEMPLATES: ReadonlyArray<TemplateSummary> = [
     cover: '#FFFBEB',
     exampleFile: 'Mutual NDA.pdf',
     fields: NDA_FIELDS,
+    description: 'Two-way confidentiality agreement for early conversations.',
   },
   {
     id: 'TPL-29DA',
@@ -107,6 +133,7 @@ export const TEMPLATES: ReadonlyArray<TemplateSummary> = [
     cover: '#ECFDF5',
     exampleFile: 'Independent Contractor Agreement.pdf',
     fields: ICA_FIELDS,
+    description: 'Standard 1099 contractor terms with checkboxes for scope and exclusivity.',
   },
   {
     id: 'TPL-5F0E',
@@ -118,6 +145,7 @@ export const TEMPLATES: ReadonlyArray<TemplateSummary> = [
     cover: '#FDF2F8',
     exampleFile: 'Photography Release.pdf',
     fields: RELEASE_FIELDS,
+    description: 'Subject release for using a photo in marketing or print.',
   },
 ];
 

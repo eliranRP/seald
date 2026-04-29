@@ -1,5 +1,5 @@
-import { forwardRef, useMemo } from 'react';
-import { FileText, PenTool, Send } from 'lucide-react';
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
+import { Copy, FileText, MoreHorizontal, PenTool, Send } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import type { TemplateCardProps } from './TemplateCard.types';
@@ -17,6 +17,9 @@ import {
   CoverWrap,
   Footer,
   FooterStat,
+  MenuItem,
+  MenuPopover,
+  MenuTrigger,
   Meta,
   MetaItem,
   Name,
@@ -48,11 +51,36 @@ function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
 /**
  * L2 domain card — preview tile for a single template, used in the
  * `/templates` grid. Whole card is clickable (fires `onUse`), with explicit
- * Edit / Use buttons in the footer for keyboard parity.
+ * Edit / Use buttons in the footer for keyboard parity. When an
+ * `onDuplicate` prop is supplied a "More actions" overflow menu surfaces a
+ * Duplicate item; the menu closes on outside click and on Escape.
  */
 export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
-  const { template, onUse, onEdit, ...rest } = props;
+  const { template, onUse, onEdit, onDuplicate, ...rest } = props;
   const widths = useMemo(() => computeLineWidths(template.id, COVER_LINE_COUNT), [template.id]);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const actionsRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the overflow menu on outside-click + Escape (rule 4.4: each effect
+  // owns one concern — here, "menu open ⇒ listen for dismissal").
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    function onPointer(ev: MouseEvent): void {
+      const node = actionsRef.current;
+      if (node && ev.target instanceof Node && !node.contains(ev.target)) {
+        setMenuOpen(false);
+      }
+    }
+    function onKey(ev: KeyboardEvent): void {
+      if (ev.key === 'Escape') setMenuOpen(false);
+    }
+    window.addEventListener('mousedown', onPointer);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('mousedown', onPointer);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
 
   return (
     <Root
@@ -97,7 +125,7 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
         <FooterStat>
           Used <b>{template.uses}</b> times · last <code>{template.lastUsed}</code>
         </FooterStat>
-        <Actions>
+        <Actions ref={actionsRef}>
           {onEdit ? (
             <Button
               variant="ghost"
@@ -118,6 +146,36 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
           >
             Use
           </Button>
+          {onDuplicate ? (
+            <>
+              <MenuTrigger
+                type="button"
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label={`More actions for ${template.name}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
+                <Icon icon={MoreHorizontal} size={16} />
+              </MenuTrigger>
+              {menuOpen ? (
+                <MenuPopover role="menu">
+                  <MenuItem role="none">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDuplicate(template);
+                      }}
+                    >
+                      <Icon icon={Copy} size={14} />
+                      Duplicate
+                    </button>
+                  </MenuItem>
+                </MenuPopover>
+              ) : null}
+            </>
+          ) : null}
         </Actions>
       </Footer>
     </Root>

@@ -114,4 +114,23 @@ describe('SigningReviewPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /sign and submit/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/boom/i);
   });
+
+  it('Save as template button opens the dialog and submits the payload', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    renderReview();
+    await userEvent.click(await screen.findByRole('button', { name: /save as template/i }));
+    const dialog = await screen.findByRole('dialog', { name: /save as template/i });
+    expect(dialog).toBeInTheDocument();
+    // Title is prefilled from the envelope title — replace it.
+    const nameInput = screen.getByLabelText(/template name/i);
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, 'Reusable NDA');
+    await userEvent.click(screen.getByRole('button', { name: /save template/i }));
+    expect(logSpy).toHaveBeenCalledWith(
+      '[save-as-template]',
+      expect.objectContaining({ title: 'Reusable NDA' }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(/saved "reusable nda"/i);
+    logSpy.mockRestore();
+  });
 });
