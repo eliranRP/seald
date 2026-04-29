@@ -5,4 +5,10 @@ export type {
   TemplatePageRule,
   TemplateSummary,
 } from './templates';
-export { TEMPLATES, findTemplateById, resolveTemplateFields } from './templates';
+export {
+  TEMPLATES,
+  duplicateTemplate,
+  findTemplateById,
+  resolveTemplateFields,
+  templateHasFieldType,
+} from './templates';

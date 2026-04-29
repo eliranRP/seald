@@ -36,4 +36,22 @@ describe('TemplateCard', () => {
     // Click on Edit must not bubble up to the card-level onUse handler.
     expect(onUse).not.toHaveBeenCalled();
   });
+
+  it('overflow menu surfaces Duplicate when onDuplicate is supplied', async () => {
+    const onUse = vi.fn();
+    const onDuplicate = vi.fn();
+    const { getByRole, queryByRole } = renderWithTheme(
+      <TemplateCard template={TEMPLATE} onUse={onUse} onDuplicate={onDuplicate} />,
+    );
+    expect(queryByRole('menu')).toBeNull();
+    await userEvent.click(getByRole('button', { name: `More actions for ${TEMPLATE.name}` }));
+    await userEvent.click(getByRole('menuitem', { name: /duplicate/i }));
+    expect(onDuplicate).toHaveBeenCalledWith(TEMPLATE);
+    expect(onUse).not.toHaveBeenCalled();
+  });
+
+  it('does not render the overflow trigger when onDuplicate is omitted', () => {
+    const { queryByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
+    expect(queryByRole('button', { name: /more actions/i })).toBeNull();
+  });
 });
