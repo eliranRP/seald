@@ -103,7 +103,7 @@ importers:
         specifier: ^5
         version: 5.1.9
       node-forge:
-        specifier: ^1
+        specifier: 1.4.0
         version: 1.4.0
       pdf-lib:
         specifier: ^1.17

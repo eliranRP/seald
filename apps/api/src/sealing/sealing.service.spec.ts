@@ -1,3 +1,4 @@
+import forge from 'node-forge';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
 import type { AppEnv } from '../config/env.schema';
@@ -6,6 +7,7 @@ import type { Envelope } from '../envelopes/envelope.entity';
 import type { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import type { StorageService } from '../storage/storage.service';
 import { makeEnvelope, makeField, makeSigner } from '../../test/factories';
+import { assertSigningCertificateV2 } from './p12-tsa-signer';
 import { NoopPadesSigner } from './pades-signer';
 import { SealingService } from './sealing.service';
 
@@ -225,5 +227,96 @@ describe('SealingService burn-in', () => {
       drawLineSpy.mockRestore();
       drawTextSpy.mockRestore();
     }
+  });
+});
+
+// --------------------------------------------------------------------
+// assertSigningCertificateV2 — defense-in-depth check for the modern
+// ESS attribute mandated by PAdES baseline (cryptography-expert §11.4,
+// esignature-standards-expert §3.2). We hand-roll minimal valid + invalid
+// CMS ASN.1 trees so we don't need to spin up a real P12 just to prove
+// the helper does what it claims.
+// --------------------------------------------------------------------
+
+const OID_PKCS7_SIGNED_DATA = '1.2.840.113549.1.7.2';
+const OID_DATA = '1.2.840.113549.1.7.1';
+const OID_SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
+const OID_SIGNING_CERTIFICATE_V1 = '1.2.840.113549.1.9.16.2.12';
+const OID_CONTENT_TYPE = '1.2.840.113549.1.9.3';
+
+/** Build an Attribute SEQUENCE { attrType OID, attrValues SET } skeleton. */
+function makeAttribute(oid: string): forge.asn1.Asn1 {
+  return forge.asn1.create(forge.asn1.Class.UNIVERSAL, forge.asn1.Type.SEQUENCE, true, [
+    forge.asn1.create(
+      forge.asn1.Class.UNIVERSAL,
+      forge.asn1.Type.OID,
+      false,
+      forge.asn1.oidToDer(oid).getBytes(),
+    ),
+    forge.asn1.create(forge.asn1.Class.UNIVERSAL, forge.asn1.Type.SET, true, []),
+  ]);
+}
+
+/**
+ * Hand-roll a minimal ContentInfo → SignedData → SignerInfos[0] ASN.1 with
+ * the supplied list of signed-attribute OIDs. Only the fields the helper
+ * walks over are populated; everything else is a stub.
+ */
+function makeFakeCms(signedAttrOids: string[]): forge.asn1.Asn1 {
+  const a = forge.asn1;
+  const signedAttrs = a.create(
+    a.Class.CONTEXT_SPECIFIC,
+    0,
+    true,
+    signedAttrOids.map((oid) => makeAttribute(oid)),
+  );
+  // SignerInfo: version INTEGER, sid SEQ (placeholder), digestAlg SEQ, signedAttrs [0], …
+  const signerInfo = a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+    a.create(a.Class.UNIVERSAL, a.Type.INTEGER, false, String.fromCharCode(1)),
+    a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, []),
+    a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, []),
+    signedAttrs,
+  ]);
+  const signerInfos = a.create(a.Class.UNIVERSAL, a.Type.SET, true, [signerInfo]);
+  // SignedData: version, digestAlgorithms (SET), encapContentInfo (SEQ),
+  // [optional certs/crls], signerInfos (SET — last, which is what
+  // findFirstSignerInfo looks for).
+  const signedData = a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+    a.create(a.Class.UNIVERSAL, a.Type.INTEGER, false, String.fromCharCode(1)),
+    a.create(a.Class.UNIVERSAL, a.Type.SET, true, []),
+    a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+      a.create(a.Class.UNIVERSAL, a.Type.OID, false, a.oidToDer(OID_DATA).getBytes()),
+    ]),
+    signerInfos,
+  ]);
+  const explicit0 = a.create(a.Class.CONTEXT_SPECIFIC, 0, true, [signedData]);
+  return a.create(a.Class.UNIVERSAL, a.Type.SEQUENCE, true, [
+    a.create(a.Class.UNIVERSAL, a.Type.OID, false, a.oidToDer(OID_PKCS7_SIGNED_DATA).getBytes()),
+    explicit0,
+  ]);
+}
+
+describe('assertSigningCertificateV2', () => {
+  it('passes when signing-certificate-v2 is present and v1 is absent', () => {
+    const cms = makeFakeCms([OID_CONTENT_TYPE, OID_SIGNING_CERTIFICATE_V2]);
+    expect(() => assertSigningCertificateV2(cms)).not.toThrow();
+  });
+
+  it('throws pades_b_b_violation when signing-certificate-v2 is missing', () => {
+    const cms = makeFakeCms([OID_CONTENT_TYPE]);
+    expect(() => assertSigningCertificateV2(cms)).toThrow(
+      /pades_b_b_violation: signing_certificate_v2_missing/,
+    );
+  });
+
+  it('throws pades_b_b_violation when the legacy SHA-1 signing-certificate-v1 is present', () => {
+    const cms = makeFakeCms([
+      OID_CONTENT_TYPE,
+      OID_SIGNING_CERTIFICATE_V1,
+      OID_SIGNING_CERTIFICATE_V2,
+    ]);
+    expect(() => assertSigningCertificateV2(cms)).toThrow(
+      /pades_b_b_violation: legacy_signing_certificate_v1_present/,
+    );
   });
 });

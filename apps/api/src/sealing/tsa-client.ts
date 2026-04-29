@@ -18,11 +18,15 @@ const TSA_FETCH_TIMEOUT_MS = 10_000;
  * messageImprint matches the hash of the blob — proving the blob existed
  * at that time.
  *
- * For MVP we write the TST as a sidecar file (`{envelope_id}/timestamp.tsr`)
- * next to sealed.pdf. A full PAdES-B-T integration would embed the TST as
- * an unsigned attribute on the SignerInfo (OID 1.2.840.113549.1.9.16.2.14);
- * that's tracked as a follow-up because it requires SignerInfo ASN.1
- * rewriting on top of node-forge.
+ * The TST is embedded INLINE in the PDF signature. Specifically, after the
+ * TSA grants a token, `P12TsaSigner` (apps/api/src/sealing/p12-tsa-signer.ts)
+ * walks the produced CMS SignedData ASN.1 tree and attaches the token as
+ * `id-aa-signatureTimeStampToken` (OID 1.2.840.113549.1.9.16.2.14) on the
+ * SignerInfo's `unsignedAttrs` (`[1] IMPLICIT`). The result is a single
+ * self-contained PKCS#7 blob in the PDF's /Contents — no sidecar files
+ * are produced, and verifiers do NOT fetch external blobs at validation
+ * time per PAdES rules. (cryptography-expert §9.4; esignature-standards-
+ * expert §3.3.)
  *
  * Skip gracefully if PDF_SIGNING_TSA_URL is not set or if the TSA round-trip
  * fails — sealing should not break due to an external transient outage.
