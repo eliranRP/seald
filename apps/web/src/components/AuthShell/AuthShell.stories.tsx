@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AuthShell } from './AuthShell';
 
 const meta: Meta<typeof AuthShell> = {

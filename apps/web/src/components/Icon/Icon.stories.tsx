@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { PenTool, FileSignature, Send, ShieldCheck } from 'lucide-react';
 import { Icon } from './Icon';
 

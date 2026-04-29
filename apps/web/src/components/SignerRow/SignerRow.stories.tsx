@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 import { SignerRow } from './SignerRow';
 import { SIGNER_STATUSES } from '../../types/sealdTypes';

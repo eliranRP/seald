@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from '@storybook/react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { RecipientHeader } from './RecipientHeader';
 
 const meta: Meta<typeof RecipientHeader> = {
