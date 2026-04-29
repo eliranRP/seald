@@ -20,9 +20,21 @@ import {
   Spacer,
 } from './NavBar.styles';
 
+/**
+ * Fallback nav items when the consumer doesn't pass `items`. Kept in sync
+ * with `apps/web/src/layout/navItems.ts:NAV_ITEMS` so any route that
+ * forgets to plumb the items prop (e.g. UploadPage / DocumentPage render
+ * their own NavBar outside AppShell) still surfaces every tab.
+ *
+ * Adding a new top-level destination?
+ *   1. Add it to NAV_ITEMS in apps/web/src/layout/navItems.ts.
+ *   2. Mirror it here.
+ *   3. Update matchNavId() so the active-tab indicator follows the route.
+ */
 const DEFAULT_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'documents', label: 'Documents' },
   { id: 'sign', label: 'Sign' },
+  { id: 'templates', label: 'Templates' },
   { id: 'signers', label: 'Signers' },
 ];
 

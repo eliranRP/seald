@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, FileText, MoreHorizontal, PenTool, Send } from 'lucide-react';
+import { Copy, FileText, MoreHorizontal, PenTool, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import type { TemplateCardProps } from './TemplateCard.types';
@@ -7,6 +7,7 @@ import {
   Actions,
   Body,
   Code,
+  ConfirmRow,
   CoverInitial,
   CoverLine,
   CoverLines,
@@ -56,23 +57,30 @@ function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
  * Duplicate item; the menu closes on outside click and on Escape.
  */
 export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
-  const { template, onUse, onEdit, onDuplicate, ...rest } = props;
+  const { template, onUse, onEdit, onDuplicate, onDelete, ...rest } = props;
   const widths = useMemo(() => computeLineWidths(template.id, COVER_LINE_COUNT), [template.id]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const actionsRef = useRef<HTMLDivElement | null>(null);
+  const hasMenu = Boolean(onDuplicate) || Boolean(onDelete);
 
   // Close the overflow menu on outside-click + Escape (rule 4.4: each effect
-  // owns one concern — here, "menu open ⇒ listen for dismissal").
+  // owns one concern — here, "menu open ⇒ listen for dismissal"). Also
+  // resets the destructive-confirm state so the menu re-opens fresh.
   useEffect(() => {
     if (!menuOpen) return undefined;
     function onPointer(ev: MouseEvent): void {
       const node = actionsRef.current;
       if (node && ev.target instanceof Node && !node.contains(ev.target)) {
         setMenuOpen(false);
+        setConfirmingDelete(false);
       }
     }
     function onKey(ev: KeyboardEvent): void {
-      if (ev.key === 'Escape') setMenuOpen(false);
+      if (ev.key === 'Escape') {
+        setMenuOpen(false);
+        setConfirmingDelete(false);
+      }
     }
     window.addEventListener('mousedown', onPointer);
     window.addEventListener('keydown', onKey);
@@ -146,11 +154,14 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
           >
             Use
           </Button>
-          {onDuplicate ? (
+          {hasMenu ? (
             <>
               <MenuTrigger
                 type="button"
-                onClick={() => setMenuOpen((v) => !v)}
+                onClick={() => {
+                  setMenuOpen((v) => !v);
+                  setConfirmingDelete(false);
+                }}
                 aria-label={`More actions for ${template.name}`}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
@@ -159,19 +170,61 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
               </MenuTrigger>
               {menuOpen ? (
                 <MenuPopover role="menu">
-                  <MenuItem role="none">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDuplicate(template);
-                      }}
-                    >
-                      <Icon icon={Copy} size={14} />
-                      Duplicate
-                    </button>
-                  </MenuItem>
+                  {onDuplicate ? (
+                    <MenuItem role="none">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          onDuplicate(template);
+                        }}
+                      >
+                        <Icon icon={Copy} size={14} />
+                        Duplicate
+                      </button>
+                    </MenuItem>
+                  ) : null}
+                  {onDelete && !confirmingDelete ? (
+                    <MenuItem role="none" $danger>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => setConfirmingDelete(true)}
+                      >
+                        <Icon icon={Trash2} size={14} />
+                        Delete
+                      </button>
+                    </MenuItem>
+                  ) : null}
+                  {onDelete && confirmingDelete ? (
+                    <ConfirmRow role="none">
+                      <strong>Delete this template?</strong>
+                      <span>This can&apos;t be undone.</span>
+                      <div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setConfirmingDelete(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          iconLeft={Trash2}
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setConfirmingDelete(false);
+                            onDelete(template);
+                          }}
+                          aria-label={`Confirm delete ${template.name}`}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </ConfirmRow>
+                  ) : null}
                 </MenuPopover>
               ) : null}
             </>

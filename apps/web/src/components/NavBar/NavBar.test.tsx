@@ -11,9 +11,10 @@ describe('NavBar', () => {
     const active = getByRole('button', { name: 'Documents' });
     expect(active).toHaveAttribute('aria-current', 'page');
     expect(getByRole('button', { name: 'Sign' })).not.toHaveAttribute('aria-current');
+    expect(getByRole('button', { name: 'Templates' })).not.toHaveAttribute('aria-current');
     expect(getByRole('button', { name: 'Signers' })).not.toHaveAttribute('aria-current');
-    // Templates & Reports were retired — the default nav is now 3 items.
-    expect(queryByRole('button', { name: 'Templates' })).toBeNull();
+    // Reports was retired in the original 4 → 3 trim; Templates was added
+    // back when the templates feature shipped (PR #11).
     expect(queryByRole('button', { name: 'Reports' })).toBeNull();
   });
 

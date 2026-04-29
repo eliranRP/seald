@@ -149,6 +149,15 @@ export function TemplatesListPage() {
     });
   }, []);
 
+  // Local-state delete for the seed data. Once the templates API client
+  // lands, this becomes a `DELETE /templates/:id` followed by a list
+  // refetch (or optimistic remove + rollback on error). The card already
+  // captures the destructive-action confirm UX, so the host page just
+  // commits the removal.
+  const handleDelete = useCallback((template: TemplateSummary): void => {
+    setTemplates((prev) => prev.filter((t) => t.id !== template.id));
+  }, []);
+
   const isFiltered = query.length > 0 || activeChips.size > 0;
 
   return (
@@ -232,6 +241,7 @@ export function TemplatesListPage() {
                 onUse={handleUse}
                 onEdit={handleEdit}
                 onDuplicate={handleDuplicate}
+                onDelete={handleDelete}
               />
             ))}
           </Grid>

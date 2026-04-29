@@ -198,7 +198,7 @@ export const MenuPopover = styled.ul`
   min-width: 160px;
 `;
 
-export const MenuItem = styled.li`
+export const MenuItem = styled.li<{ $danger?: boolean }>`
   & > button {
     all: unset;
     display: flex;
@@ -209,11 +209,43 @@ export const MenuItem = styled.li`
     padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
     border-radius: ${({ theme }) => theme.radius.sm};
     font-size: 13px;
-    color: ${({ theme }) => theme.color.fg[1]};
+    color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[1])};
     cursor: pointer;
   }
   & > button:hover,
   & > button:focus-visible {
-    background: ${({ theme }) => theme.color.ink[100]};
+    background: ${({ theme, $danger }) =>
+      $danger ? theme.color.danger[50] : theme.color.ink[100]};
+  }
+`;
+
+/**
+ * Inline destructive-action confirm shown when the operator clicks
+ * "Delete" in the menu. Slots into the same MenuPopover footprint —
+ * no separate modal, so the cursor is already hovering and a single
+ * click confirms.
+ */
+export const ConfirmRow = styled.li`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme }) => theme.color.danger[50]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+
+  & > strong {
+    font-weight: 600;
+  }
+  & > span {
+    color: ${({ theme }) => theme.color.fg[3]};
+    font-size: 12px;
+  }
+  & > div {
+    display: flex;
+    gap: ${({ theme }) => theme.space[2]};
+    justify-content: flex-end;
+    margin-top: ${({ theme }) => theme.space[1]};
   }
 `;
