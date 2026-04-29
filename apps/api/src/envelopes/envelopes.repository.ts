@@ -194,6 +194,19 @@ export abstract class EnvelopesRepository {
   abstract listEventsForEnvelope(envelope_id: string): Promise<ReadonlyArray<EnvelopeEvent>>;
 
   /**
+   * Walk the audit-event hash chain for an envelope and return whether it
+   * is intact. Recomputes `prev_event_hash` for each event from the
+   * canonical JSON of the previous event and compares against the stored
+   * value; any mismatch (or any non-genesis event with NULL prev_event_hash)
+   * means the chain is broken — i.e. some row was inserted, modified, or
+   * deleted out-of-band, bypassing `appendEvent`.
+   *
+   * Returns `chain_intact: true` for an empty event log (vacuously) or for
+   * a single-event chain where the genesis prev hash is NULL.
+   */
+  abstract verifyEventChain(envelope_id: string): Promise<{ readonly chain_intact: boolean }>;
+
+  /**
    * Returns the per-signer metadata needed by the audit PDF renderer
    * (signature format, verification checks, signing IP). Kept separate from
    * findByIdWithAll so the domain Signer shape — used by the public wire

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { eventHash } from '../src/envelopes/event-hash';
 import type {
   AddSignerInput,
   CreateDraftInput,
@@ -44,6 +45,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.declineReasons.clear();
     this.sealedPaths.clear();
     this.auditPaths.clear();
+    this.eventPrevHashes.clear();
   }
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
@@ -159,6 +161,25 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   async listEventsForEnvelope(envelope_id: string): Promise<readonly EnvelopeEvent[]> {
     return this.events.filter((e) => e.envelope_id === envelope_id);
+  }
+
+  async verifyEventChain(envelope_id: string): Promise<{ readonly chain_intact: boolean }> {
+    const list = this.events.filter((e) => e.envelope_id === envelope_id);
+    if (list.length === 0) return { chain_intact: true };
+    const genesis = list[0]!;
+    const genesisHash = this.eventPrevHashes.get(genesis.id);
+    if (genesisHash !== null && genesisHash !== undefined) {
+      return { chain_intact: false };
+    }
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1]!;
+      const curr = list[i]!;
+      const expected = eventHash(prev);
+      const stored = this.eventPrevHashes.get(curr.id);
+      if (!stored) return { chain_intact: false };
+      if (!stored.equals(expected)) return { chain_intact: false };
+    }
+    return { chain_intact: true };
   }
 
   async listSignerAuditDetails(envelope_id: string) {
@@ -560,7 +581,22 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return transitioned;
   }
 
+  /**
+   * Side map: event id -> stored prev_event_hash. The domain `EnvelopeEvent`
+   * deliberately omits prev_event_hash (it's an internal tamper-evidence
+   * column, not part of the wire contract), so we keep it here in parallel
+   * with `events`. Tests that need to read it call `getEventPrevHash`.
+   */
+  readonly eventPrevHashes = new Map<string, Buffer | null>();
+
   async appendEvent(input: EventInput): Promise<EnvelopeEvent> {
+    // Mirror the PG repo's transactional chain: hash the latest event for
+    // this envelope (canonical JSON) and store as `prev_event_hash` on the
+    // new row. The first event of any envelope gets null.
+    const previous = this.events.filter((e) => e.envelope_id === input.envelope_id);
+    const latest = previous.length > 0 ? previous[previous.length - 1]! : null;
+    const prevHash = latest ? eventHash(latest) : null;
+
     const event: EnvelopeEvent = {
       id: randomUUID(),
       envelope_id: input.envelope_id,
@@ -573,7 +609,13 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       created_at: new Date().toISOString(),
     };
     this.events.push(event);
+    this.eventPrevHashes.set(event.id, prevHash);
     return event;
+  }
+
+  /** Test-only: read the stored prev_event_hash for an event id. */
+  getEventPrevHash(event_id: string): Buffer | null | undefined {
+    return this.eventPrevHashes.get(event_id);
   }
 
   readonly jobs: Array<{

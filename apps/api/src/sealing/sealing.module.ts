@@ -4,7 +4,9 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailModule } from '../email/email.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
+import { DssInjector } from './dss-injector';
 import { NoopPadesSigner, P12PadesSigner, PadesSigner } from './pades-signer';
+import { RevocationFetcher } from './revocation-fetcher';
 import { SealingService } from './sealing.service';
 import { TsaClient } from './tsa-client';
 import { WorkerService } from './worker.service';
@@ -30,6 +32,8 @@ import { WorkerService } from './worker.service';
     SealingService,
     WorkerService,
     TsaClient,
+    RevocationFetcher,
+    DssInjector,
     {
       provide: PadesSigner,
       useFactory: (env: AppEnv, tsa: TsaClient) => {
@@ -55,6 +59,6 @@ import { WorkerService } from './worker.service';
       inject: [APP_ENV, TsaClient],
     },
   ],
-  exports: [SealingService, PadesSigner, TsaClient],
+  exports: [SealingService, PadesSigner, TsaClient, DssInjector, RevocationFetcher],
 })
 export class SealingModule {}

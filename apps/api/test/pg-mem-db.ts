@@ -123,6 +123,11 @@ export function createPgMemDb(): PgMemHandle {
   const migration0005Path = resolve(__dirname, '../db/migrations/0005_signer_initials.sql');
   mem.public.none(readFileSync(migration0005Path, 'utf8'));
 
+  // 0007 adds prev_event_hash bytea column to envelope_events. Plain alter
+  // table. Must be applied BEFORE migrations 0006 (which is itself a no-op
+  // in pg-mem due to ALTER TYPE ADD VALUE) — actually order doesn't matter
+  // here because 0007 is independent of 0006, but we keep numeric order for
+  // parity with real Postgres' migration sequence.
   // 0006 adds 'session_invalidated_by_cancel' to the event_type enum.
   // pg-mem treats enums as plain text columns once the create-type runs, so
   // ALTER TYPE ... ADD VALUE is a no-op against the in-memory schema; we
@@ -135,6 +140,12 @@ export function createPgMemDb(): PgMemHandle {
     // pg-mem may not implement ALTER TYPE ADD VALUE — safe to ignore;
     // its enum check is text-based so the inserts still work.
   }
+
+  const migration0007Path = resolve(__dirname, '../db/migrations/0007_event_chain_hash.sql');
+  const raw0007 = readFileSync(migration0007Path, 'utf8');
+  // pg-mem doesn't support `comment on column ...`. Strip it.
+  const patched0007 = raw0007.replace(/comment on column[\s\S]*?;/g, '');
+  mem.public.none(patched0007);
 
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
