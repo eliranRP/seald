@@ -28,6 +28,10 @@ import {
   Main,
   Shell,
   Subtitle,
+  TemplateBanner,
+  TemplateBannerClear,
+  TemplateBannerStrong,
+  TemplateBannerText,
 } from './UploadPage.styles';
 
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
@@ -142,6 +146,9 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     maxSizeBytes = DEFAULT_MAX_BYTES,
     status = 'idle',
     analyzingFileName,
+    templateBannerTitle,
+    templateBannerTone = 'info',
+    onClearTemplate,
     ...rest
   } = props;
 
@@ -280,6 +287,22 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
               <Heading>{title}</Heading>
               <Subtitle>{subtitle}</Subtitle>
             </div>
+            {templateBannerTitle ? (
+              <TemplateBanner
+                $tone={templateBannerTone}
+                role={templateBannerTone === 'warning' ? 'alert' : 'status'}
+                aria-live="polite"
+              >
+                <TemplateBannerText>
+                  Using template: <TemplateBannerStrong>{templateBannerTitle}</TemplateBannerStrong>
+                </TemplateBannerText>
+                {onClearTemplate ? (
+                  <TemplateBannerClear type="button" onClick={onClearTemplate}>
+                    Clear template
+                  </TemplateBannerClear>
+                ) : null}
+              </TemplateBanner>
+            ) : null}
             {status === 'analyzing' ? (
               <AnalyzingLoader fileName={analyzingFileName} />
             ) : (

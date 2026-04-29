@@ -61,4 +61,16 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly status?: UploadPageStatus | undefined;
   /** File name to display in the analyzing state. */
   readonly analyzingFileName?: string | undefined;
+
+  // Template integration -------------------------------------------------
+  /**
+   * Title of the template the sender chose on `/templates/:id/use`. When
+   * present, a "Using template: <title>" banner renders above the dropzone
+   * with a "Clear template" affordance that fires `onClearTemplate`.
+   */
+  readonly templateBannerTitle?: string | undefined;
+  /** Tone of the template banner. Defaults to `info`. */
+  readonly templateBannerTone?: 'info' | 'warning' | undefined;
+  /** Strips the `?template=` query arg + any pre-populated field state. */
+  readonly onClearTemplate?: (() => void) | undefined;
 }

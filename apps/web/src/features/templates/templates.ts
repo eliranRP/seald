@@ -125,7 +125,7 @@ export function findTemplateById(id: string): TemplateSummary | undefined {
   return TEMPLATES.find((t) => t.id === id);
 }
 
-interface ResolvedField {
+export interface ResolvedField {
   readonly id: string;
   readonly page: number;
   readonly type: TemplateFieldType;
