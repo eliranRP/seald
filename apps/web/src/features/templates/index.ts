@@ -1,4 +1,5 @@
 export type {
+  ResolvedField,
   TemplateFieldLayout,
   TemplateFieldType,
   TemplatePageRule,

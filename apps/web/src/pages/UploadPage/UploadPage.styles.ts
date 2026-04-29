@@ -270,3 +270,49 @@ export const LoaderStepDot = styled.span<{ $active: boolean; $done: boolean }>`
   flex-shrink: 0;
   transition: background 200ms ease;
 `;
+
+/* ---- Template banner ---- */
+
+export const TemplateBanner = styled.div<{ $tone: 'info' | 'warning' }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
+  border-radius: ${({ theme }) => theme.radius.md};
+  border: 1px solid
+    ${({ theme, $tone }) => ($tone === 'warning' ? theme.color.warn[500] : theme.color.indigo[200])};
+  background: ${({ theme, $tone }) =>
+    $tone === 'warning' ? theme.color.warn[50] : theme.color.indigo[50]};
+  color: ${({ theme, $tone }) =>
+    $tone === 'warning' ? theme.color.warn[700] : theme.color.indigo[800]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+`;
+
+export const TemplateBannerText = styled.span`
+  flex: 1 1 auto;
+  min-width: 0;
+`;
+
+export const TemplateBannerStrong = styled.strong`
+  font-weight: 600;
+`;
+
+export const TemplateBannerClear = styled.button`
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  &:hover {
+    opacity: 0.85;
+  }
+  &:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+`;

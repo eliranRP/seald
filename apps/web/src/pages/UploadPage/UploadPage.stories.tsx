@@ -50,3 +50,29 @@ export const CustomCopy: Story = {
     />
   ),
 };
+
+export const WithTemplateBanner: Story = {
+  name: 'With template banner',
+  render: () => (
+    <UploadPage
+      user={{ name: 'Jamie Okonkwo' }}
+      onFileSelected={() => {}}
+      templateBannerTitle="Mutual NDA — short form"
+      templateBannerTone="info"
+      onClearTemplate={() => {}}
+    />
+  ),
+};
+
+export const WithTemplateNotFound: Story = {
+  name: 'With template not-found banner',
+  render: () => (
+    <UploadPage
+      user={{ name: 'Jamie Okonkwo' }}
+      onFileSelected={() => {}}
+      templateBannerTitle="Template not found — starting empty"
+      templateBannerTone="warning"
+      onClearTemplate={() => {}}
+    />
+  ),
+};
