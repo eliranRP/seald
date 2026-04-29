@@ -8,6 +8,8 @@ import { RedirectWhenAuthed } from './layout/RedirectWhenAuthed';
 import { RootLanding } from './layout/RootLanding';
 import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
+import { TemplatesListPage } from './pages/TemplatesListPage';
+import { UseTemplatePage } from './pages/UseTemplatePage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { SignInPage } from './pages/SignInPage';
@@ -137,6 +139,8 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
           <Route path="/signers" element={<ContactsPage />} />
+          <Route path="/templates" element={<TemplatesListPage />} />
+          <Route path="/templates/:id/use" element={<UseTemplatePage />} />
         </Route>
       </Route>
 
