@@ -82,6 +82,21 @@ export class P12PadesSigner extends PadesSigner {
   }
 
   async sign(pdf: Buffer): Promise<Buffer> {
+    // SECURITY NOTE — visible signature appearances:
+    // The signatures we currently produce are INVISIBLE (no widget rendered
+    // on the page; only a /Sig dictionary). The `name: 'Seald'` below feeds
+    // the /Sig dictionary's /Name entry, which Adobe Reader displays as a
+    // text label in the signature panel — informational only, not a
+    // visible-on-page appearance.
+    //
+    // If/when visible signature appearances are added (drawing the signer's
+    // identity onto the page itself), the displayed name MUST be derived
+    // from the signing certificate's Subject CN — never from user-supplied
+    // input. A visible appearance that lies about who signed is a UX-level
+    // trust spoofing attack: a viewer believes "Alice signed this" when
+    // really Bob's key signed it but the appearance carried Alice's name.
+    // See esignature-standards-expert §2.3 (signer identity binding) and
+    // §13.9 (visible appearance integrity) before extending this path.
     const withPlaceholder = plainAddPlaceholder({
       pdfBuffer: pdf,
       reason: 'Signed and sealed by Seald',
@@ -90,6 +105,12 @@ export class P12PadesSigner extends PadesSigner {
       location: 'Seald',
       // 16 KB handles sha256 + cert chain + TSA TST comfortably.
       signatureLength: 16384,
+      // Override the @signpdf default ('adbe.pkcs7.detached', a legacy CMS
+      // marker that does NOT signal PAdES conformance) with the ETSI
+      // subfilter that PAdES baseline B-B/B-T mandates. Verifiers like
+      // EU DSS key off this string to even attempt PAdES validation.
+      // (esignature-standards-expert §3.2; cryptography-expert §11.4.)
+      subFilter: 'ETSI.CAdES.detached',
     });
 
     // With TSA → PAdES-B-T (full cryptographic chain-of-custody including

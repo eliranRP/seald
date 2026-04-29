@@ -224,6 +224,11 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
     // The detached PKCS#7 blob lives inside /Contents — at least a long
     // hex blob must be present.
     expect(text).toMatch(/\/Contents\s*<[0-9A-Fa-f]{200,}/);
+    // F-3 — PAdES baseline mandates the ETSI subfilter; the legacy
+    // adbe.pkcs7.detached default would NOT mark the signature as
+    // PAdES-conformant for verifiers like EU DSS.
+    expect(text).toMatch(/\/SubFilter\s*\/ETSI\.CAdES\.detached/);
+    expect(text).not.toMatch(/\/SubFilter\s*\/adbe\.pkcs7\.detached/);
   });
 
   it('full seal pipeline produces a PAdES-signed sealed.pdf; artifacts written to ./test-output/', async () => {

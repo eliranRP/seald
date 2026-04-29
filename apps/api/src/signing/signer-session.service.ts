@@ -26,7 +26,14 @@ export interface SignerSessionClaims {
 
 export const SIGNER_SESSION_COOKIE = 'seald_sign';
 const DEFAULT_TTL_SECONDS = 30 * 60; // 30 minutes
-const JWT_ISSUER = 'seald.app/sign';
+// Issuer claim must match the production hostname so verifiers can pin it.
+// Rotated 2026-04-29 from the placeholder `seald.app/sign` to the real
+// deployed domain. This rotation invalidates any in-flight tokens at
+// deploy time: `jwtVerify({ issuer: JWT_ISSUER })` rejects mismatches with
+// reason 'invalid'. Acceptable because tokens TTL is 30 min — within that
+// window every signer naturally re-authenticates via `POST /sign/start`,
+// no user-facing remediation needed.
+const JWT_ISSUER = 'seald.nromomentum.com/sign';
 
 export class SignerSessionVerifyError extends Error {
   constructor(public readonly reason: 'missing' | 'expired' | 'invalid') {
