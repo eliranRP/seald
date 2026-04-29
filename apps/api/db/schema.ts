@@ -10,6 +10,35 @@ export interface Database {
   outbound_emails: OutboundEmailsTable;
   idempotency_records: IdempotencyRecordsTable;
   email_webhooks: EmailWebhooksTable;
+  templates: TemplatesTable;
+}
+
+export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
+
+/**
+ * One field layout entry inside `templates.field_layout`. Mirrors the
+ * `TemplateField` shape exported from packages/shared/src/templates.ts —
+ * the canonical client-side type. See migration 0008 for the column comment.
+ */
+export interface TemplateFieldLayoutDb {
+  type: TemplateFieldTypeDb;
+  pageRule: 'all' | 'allButLast' | 'first' | 'last' | number;
+  x: number;
+  y: number;
+  label?: string;
+}
+
+export interface TemplatesTable {
+  id: Generated<string>;
+  owner_id: string;
+  title: string;
+  description: string | null;
+  cover_color: string | null;
+  field_layout: ColumnType<ReadonlyArray<TemplateFieldLayoutDb>, string, string | undefined>;
+  uses_count: ColumnType<number, number | undefined, number | undefined>;
+  last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export interface ContactsTable {

@@ -1,0 +1,119 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { Kysely, Selectable } from 'kysely';
+import { sql } from 'kysely';
+import type { Template, TemplateField } from 'shared';
+import type { Database, TemplatesTable } from '../../db/schema';
+import { DB_TOKEN } from '../db/db.provider';
+import {
+  TemplatesRepository,
+  type CreateTemplateInput,
+  type UpdateTemplatePatch,
+} from './templates.repository';
+
+type Row = Selectable<TemplatesTable>;
+
+function toDomain(r: Row): Template {
+  return {
+    id: r.id,
+    owner_id: r.owner_id,
+    title: r.title,
+    description: r.description,
+    cover_color: r.cover_color,
+    field_layout: r.field_layout as ReadonlyArray<TemplateField>,
+    uses_count: r.uses_count,
+    last_used_at: r.last_used_at ? new Date(r.last_used_at).toISOString() : null,
+    created_at: new Date(r.created_at).toISOString(),
+    updated_at: new Date(r.updated_at).toISOString(),
+  };
+}
+
+@Injectable()
+export class TemplatesPgRepository extends TemplatesRepository {
+  constructor(@Inject(DB_TOKEN) private readonly db: Kysely<Database>) {
+    super();
+  }
+
+  async create(input: CreateTemplateInput): Promise<Template> {
+    const row = await this.db
+      .insertInto('templates')
+      .values({
+        owner_id: input.owner_id,
+        title: input.title,
+        description: input.description,
+        cover_color: input.cover_color,
+        field_layout: JSON.stringify(input.field_layout),
+      })
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return toDomain(row);
+  }
+
+  async findAllByOwner(owner_id: string): Promise<ReadonlyArray<Template>> {
+    const rows = await this.db
+      .selectFrom('templates')
+      .selectAll()
+      .where('owner_id', '=', owner_id)
+      // Recently-used first; never-used (last_used_at IS NULL) at the bottom.
+      .orderBy(sql`last_used_at desc nulls last`)
+      .orderBy('created_at', 'desc')
+      .execute();
+    return rows.map(toDomain);
+  }
+
+  async findOneByOwner(owner_id: string, id: string): Promise<Template | null> {
+    const row = await this.db
+      .selectFrom('templates')
+      .selectAll()
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
+  }
+
+  async update(owner_id: string, id: string, patch: UpdateTemplatePatch): Promise<Template | null> {
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.title !== undefined) update['title'] = patch.title;
+    if (patch.description !== undefined) update['description'] = patch.description;
+    if (patch.cover_color !== undefined) update['cover_color'] = patch.cover_color;
+    if (patch.field_layout !== undefined) {
+      update['field_layout'] = JSON.stringify(patch.field_layout);
+    }
+    if (Object.keys(update).length === 1) {
+      // Only updated_at — caller passed an empty patch. Return current.
+      return this.findOneByOwner(owner_id, id);
+    }
+    const row = await this.db
+      .updateTable('templates')
+      .set(update)
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
+  }
+
+  async delete(owner_id: string, id: string): Promise<boolean> {
+    const res = await this.db
+      .deleteFrom('templates')
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return (res?.numDeletedRows ?? 0n) > 0n;
+  }
+
+  async incrementUseCount(owner_id: string, id: string): Promise<Template | null> {
+    const now = new Date().toISOString();
+    const row = await this.db
+      .updateTable('templates')
+      .set({
+        uses_count: sql`uses_count + 1` as never,
+        last_used_at: now,
+        updated_at: now,
+      })
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
+  }
+}

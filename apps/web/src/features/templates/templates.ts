@@ -3,32 +3,22 @@
  *
  * Templates capture a saved field layout (initial / signature / date / text /
  * checkbox positions) on a representative document, so a sender can pick a
- * template, swap in a new PDF, and have the layout snap onto it. The seed
- * data here mirrors the design canvas mock at
- * `Design-Guide/project/templates-flow/TemplatesList.jsx` — it stays purely
- * client-side until a backend templates service lands.
- */
-
-export type TemplateFieldType = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
-
-/**
- * Where a saved field lands when the template is applied to a target document.
+ * template, swap in a new PDF, and have the layout snap onto it.
  *
- * - `'all'` — every page in the target.
- * - `'allButLast'` — every page except the final one (initials on body pages).
- * - `'first' | 'last'` — first / last page only.
- * - A page number (1-indexed) — exact page; ignored if the target is shorter.
+ * The canonical `TemplateField` / `TemplateFieldType` / `TemplatePageRule`
+ * types live in `packages/shared/src/templates.ts` so the API and SPA share
+ * one source of truth — re-exported here under the local
+ * `TemplateFieldLayout` alias for back-compat with existing call sites.
+ *
+ * The seed `TEMPLATES` array stays purely client-side; the upcoming
+ * backend (`feat/templates-api` PR) will replace it with a real query.
  */
-export type TemplatePageRule = 'all' | 'allButLast' | 'first' | 'last' | number;
 
-export interface TemplateFieldLayout {
-  readonly type: TemplateFieldType;
-  readonly pageRule: TemplatePageRule;
-  /** PDF point coordinate, top-left origin. */
-  readonly x: number;
-  readonly y: number;
-  readonly label?: string;
-}
+import type { TemplateField, TemplateFieldType } from 'shared';
+
+export type { TemplateFieldType, TemplatePageRule } from 'shared';
+/** Local alias kept for back-compat — same shape as the shared `TemplateField`. */
+export type TemplateFieldLayout = TemplateField;
 
 export interface TemplateSummary {
   readonly id: string;
