@@ -1,27 +1,38 @@
 import { readFileSync } from 'node:fs';
 import { Injectable, Logger } from '@nestjs/common';
+import { KMSClient } from '@aws-sdk/client-kms';
 import { plainAddPlaceholder } from '@signpdf/placeholder-plain';
 import { P12Signer } from '@signpdf/signer-p12';
 import { SignPdf } from '@signpdf/signpdf';
+import forge from 'node-forge';
 import type { AppEnv } from '../config/env.schema';
+import { KmsCmsSigner } from './kms-cms-signer';
 import { P12TsaSigner } from './p12-tsa-signer';
 import type { TsaClient } from './tsa-client';
 
 /**
  * Port for applying a PAdES (PDF Advanced Electronic Signatures) signature
- * to a burned-in PDF. Two implementations:
+ * to a burned-in PDF. Three implementations:
  *
- *   P12PadesSigner — the real deal. Reads a PKCS#12 keypair from disk,
+ *   KmsPadesSigner — production path. The signing key lives only in AWS
+ *     KMS; this process never sees the private key bytes. Each seal calls
+ *     KMS Sign for a SHA-256 digest. Pairs with an X.509 cert (PEM) that
+ *     binds the KMS public key to the signer identity. F-1 / F-8 of the
+ *     PAdES due-diligence remediation.
+ *
+ *   P12PadesSigner — legacy / dev path. Reads a PKCS#12 keypair from disk,
  *     injects a signature placeholder into the PDF, and signs with CMS
- *     (detached PKCS#7). The result has a /Sig dictionary that Adobe
- *     Reader, preview tools, and PDF verifiers will recognise.
+ *     (detached PKCS#7). Kept for local development and the e2e harness
+ *     (which generates a throwaway P12 with openssl); will be removed in
+ *     a follow-up commit once the KMS path is fully exercised in CI.
  *
- *   NoopPadesSigner — passthrough. Used when PDF_SIGNING_LOCAL_P12_PATH
- *     is absent (e.g. test environments, pre-provisioning). The sealed
- *     PDF still has the burn-in + a sha256; just no crypto chain.
+ *   NoopPadesSigner — passthrough. Used when neither provider is
+ *     configured (e.g. a freshly-cloned dev environment, pre-provisioning
+ *     image). The sealed PDF still has the burn-in + a sha256; just no
+ *     crypto chain.
  *
- * Selection happens in SealingModule via the PADES_SIGNER factory
- * provider — at runtime it picks based on env presence.
+ * Selection happens in SealingModule via the PadesSigner factory provider
+ * — at runtime it picks based on PDF_SIGNING_PROVIDER + env presence.
  */
 @Injectable()
 export abstract class PadesSigner {
@@ -122,4 +133,87 @@ export class P12PadesSigner extends PadesSigner {
     const signed = await new SignPdf().sign(withPlaceholder, signer);
     return signed;
   }
+}
+
+/**
+ * AWS KMS-backed PAdES signer. The keypair lives in KMS (asymmetric
+ * SIGN_VERIFY, RSA_3072) — this process holds only the public-side
+ * X.509 cert that binds the KMS public key to the signer identity.
+ * Per `sign()`:
+ *
+ *   1. Inject a /Contents placeholder via @signpdf/placeholder-plain
+ *      with the same `ETSI.CAdES.detached` subFilter as the P12 path.
+ *   2. Hand off to SignPdf + KmsCmsSigner — the latter builds the CMS
+ *      SignedData by hand and delegates the signature operation to
+ *      KMS over the SHA-256 of DER-encoded SignedAttributes.
+ *
+ * F-1 / F-8 of the PAdES due-diligence remediation (cryptography-expert
+ * §8 — production keys go in HSM-backed KMS, not on local disk).
+ */
+@Injectable()
+export class KmsPadesSigner extends PadesSigner {
+  private readonly logger = new Logger(KmsPadesSigner.name);
+  private readonly kmsClient: KMSClient;
+  private readonly keyId: string;
+  private readonly certificate: forge.pki.Certificate;
+  private readonly tsa: TsaClient | null;
+
+  constructor(env: AppEnv, tsa: TsaClient | null) {
+    super();
+    if (!env.PDF_SIGNING_KMS_KEY_ID || !env.PDF_SIGNING_KMS_REGION) {
+      throw new Error('KmsPadesSigner requires PDF_SIGNING_KMS_KEY_ID + PDF_SIGNING_KMS_REGION');
+    }
+    const pem = resolveKmsCertPem(env);
+    if (!pem) {
+      throw new Error(
+        'KmsPadesSigner requires PDF_SIGNING_KMS_CERT_PEM or PDF_SIGNING_KMS_CERT_PEM_PATH',
+      );
+    }
+    this.kmsClient = new KMSClient({ region: env.PDF_SIGNING_KMS_REGION });
+    this.keyId = env.PDF_SIGNING_KMS_KEY_ID;
+    this.certificate = forge.pki.certificateFromPem(pem);
+    this.tsa = tsa;
+    const subjectCn = this.certificate.subject.getField('CN')?.value ?? '(no CN)';
+    this.logger.log(
+      `KMS signer ready: key=${this.keyId} region=${env.PDF_SIGNING_KMS_REGION} subject="${String(subjectCn)}" TSA=${this.tsa ? 'enabled' : 'disabled'}`,
+    );
+  }
+
+  async sign(pdf: Buffer): Promise<Buffer> {
+    const withPlaceholder = plainAddPlaceholder({
+      pdfBuffer: pdf,
+      reason: 'Signed and sealed by Seald',
+      contactInfo: 'seald',
+      name: 'Seald',
+      location: 'Seald',
+      signatureLength: 16384,
+      // Same PAdES subFilter as the P12 path — verifiers (EU DSS, Adobe
+      // Reader) key off this string to attempt PAdES validation.
+      subFilter: 'ETSI.CAdES.detached',
+    });
+
+    const cmsSigner = new KmsCmsSigner(this.kmsClient, this.keyId, this.certificate, this.tsa);
+    return await new SignPdf().sign(withPlaceholder, cmsSigner);
+  }
+}
+
+/**
+ * Resolve the binding cert. Inline PEM (PDF_SIGNING_KMS_CERT_PEM) wins
+ * over the on-disk path. Returns null if neither is set so the caller
+ * surfaces a precise error.
+ */
+function resolveKmsCertPem(env: AppEnv): string | null {
+  if (env.PDF_SIGNING_KMS_CERT_PEM && env.PDF_SIGNING_KMS_CERT_PEM.length > 0) {
+    return env.PDF_SIGNING_KMS_CERT_PEM;
+  }
+  if (env.PDF_SIGNING_KMS_CERT_PEM_PATH && env.PDF_SIGNING_KMS_CERT_PEM_PATH.length > 0) {
+    try {
+      return readFileSync(env.PDF_SIGNING_KMS_CERT_PEM_PATH, 'utf8');
+    } catch (err) {
+      throw new Error(
+        `KmsPadesSigner: cannot read cert PEM at ${env.PDF_SIGNING_KMS_CERT_PEM_PATH}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  return null;
 }
