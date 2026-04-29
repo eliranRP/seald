@@ -57,11 +57,13 @@ resource "aws_kms_key" "sealing" {
   deletion_window_in_days  = 30
   is_enabled               = true
 
-  tags = merge(var.tags, {
+  # Tags require kms:TagResource on the deployer; gated behind a flag so
+  # a fresh apply with the minimum-perms CI role succeeds. See variables.tf.
+  tags = var.enable_resource_tags ? merge(var.tags, {
     Name        = "seald-pades-sealing-${var.environment}"
     Environment = var.environment
     Purpose     = "pades-signing"
-  })
+  }) : null
 }
 
 resource "aws_kms_alias" "sealing" {
@@ -103,10 +105,12 @@ resource "aws_iam_policy" "api_kms_sign" {
   description = "Allow the Seald API role to call kms:Sign + kms:GetPublicKey on the PAdES sealing key (${var.environment})."
   policy      = data.aws_iam_policy_document.api_kms_sign.json
 
-  tags = merge(var.tags, {
+  # Same gating as the KMS key tags above — IAM policies follow the same
+  # iam:TagPolicy permission boundary that smaller CI roles often lack.
+  tags = var.enable_resource_tags ? merge(var.tags, {
     Environment = var.environment
     Purpose     = "pades-signing"
-  })
+  }) : null
 }
 
 # Attaching the policy is conditional: var.api_role_name = "" means the

@@ -66,6 +66,7 @@ export function AppShell() {
   return (
     <Shell>
       <NavBar
+        items={NAV_ITEMS}
         activeItemId={activeNavId}
         onSelectItem={handleSelectNavItem}
         user={user ?? undefined}
