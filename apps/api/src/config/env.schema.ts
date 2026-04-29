@@ -29,7 +29,7 @@ export const envSchema = z
     METRICS_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
-    PDF_SIGNING_PROVIDER: z.enum(['local', 'sslcom']).default('local'),
+    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).default('local'),
 
     // Email provider-specific
     RESEND_API_KEY: z.string().optional(),
@@ -46,7 +46,28 @@ export const envSchema = z
     PDF_SIGNING_SSLCOM_CLIENT_ID: z.string().optional(),
     PDF_SIGNING_SSLCOM_CLIENT_SECRET: z.string().optional(),
     PDF_SIGNING_SSLCOM_CERT_ID: z.string().optional(),
+    /**
+     * AWS KMS-backed sealing (PDF_SIGNING_PROVIDER=kms). The KMS key must be
+     * an asymmetric SIGN_VERIFY key with KeySpec=RSA_3072 and KeyUsage=SIGN
+     * (cryptography-expert §8). The signing certificate is the public-side
+     * X.509 cert that pairs with that key — KMS itself does not issue or
+     * store certs, so we provide it via PEM (inline or filesystem path).
+     * For the no-CA-required MVP this is a self-signed cert pinning the
+     * KMS public key; AATL-trusted issuance comes later.
+     */
+    PDF_SIGNING_KMS_KEY_ID: z.string().optional(),
+    PDF_SIGNING_KMS_REGION: z.string().optional(),
+    PDF_SIGNING_KMS_CERT_PEM: z.string().optional(),
+    PDF_SIGNING_KMS_CERT_PEM_PATH: z.string().optional(),
     PDF_SIGNING_TSA_URL: z.string().url().default('https://freetsa.org/tsr'),
+    /**
+     * Comma-separated list of additional TSA endpoints to try if
+     * PDF_SIGNING_TSA_URL fails. The client tries them left-to-right;
+     * first successful round-trip wins. Optional — when unset, sealing
+     * uses the single PDF_SIGNING_TSA_URL exactly as before.
+     * (cryptography-expert §11.3, esignature-standards-expert §3.3.)
+     */
+    PDF_SIGNING_TSA_URLS: z.string().optional(),
 
     ENVELOPE_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
 
@@ -103,6 +124,26 @@ export const envSchema = z
             message: `${key} required when PDF_SIGNING_PROVIDER=local and NODE_ENV!=test`,
           });
         }
+      }
+    }
+
+    if (env.PDF_SIGNING_PROVIDER === 'kms' && env.NODE_ENV !== 'test') {
+      for (const key of ['PDF_SIGNING_KMS_KEY_ID', 'PDF_SIGNING_KMS_REGION'] as const) {
+        if (!env[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} required when PDF_SIGNING_PROVIDER=kms and NODE_ENV!=test`,
+          });
+        }
+      }
+      if (!env.PDF_SIGNING_KMS_CERT_PEM && !env.PDF_SIGNING_KMS_CERT_PEM_PATH) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PDF_SIGNING_KMS_CERT_PEM'],
+          message:
+            'PDF_SIGNING_KMS_CERT_PEM or PDF_SIGNING_KMS_CERT_PEM_PATH required when PDF_SIGNING_PROVIDER=kms',
+        });
       }
     }
 

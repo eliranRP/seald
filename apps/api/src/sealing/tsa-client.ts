@@ -28,8 +28,10 @@ const TSA_FETCH_TIMEOUT_MS = 10_000;
  * time per PAdES rules. (cryptography-expert §9.4; esignature-standards-
  * expert §3.3.)
  *
- * Skip gracefully if PDF_SIGNING_TSA_URL is not set or if the TSA round-trip
- * fails — sealing should not break due to an external transient outage.
+ * Skip gracefully if no TSA URL is configured or if every configured TSA
+ * round-trip fails — sealing should not break due to an external transient
+ * outage. With PDF_SIGNING_TSA_URLS set, the client fans out left-to-right
+ * across the list and returns the first granted response (F-11).
  */
 @Injectable()
 export class TsaClient {
@@ -38,28 +40,71 @@ export class TsaClient {
   constructor(@Inject(APP_ENV) private readonly env: AppEnv) {}
 
   get configured(): boolean {
-    return (
-      typeof this.env.PDF_SIGNING_TSA_URL === 'string' && this.env.PDF_SIGNING_TSA_URL.length > 0
-    );
+    return this.tsaUrls().length > 0;
+  }
+
+  /**
+   * Resolve the ordered list of TSA endpoints to try. PDF_SIGNING_TSA_URLS
+   * (comma-separated) takes precedence over the singular PDF_SIGNING_TSA_URL
+   * for backward compatibility — when only the singular var is set we fall
+   * back to a one-element list. Empty / whitespace entries are dropped.
+   */
+  private tsaUrls(): ReadonlyArray<string> {
+    const csv = this.env.PDF_SIGNING_TSA_URLS;
+    if (typeof csv === 'string' && csv.length > 0) {
+      const list = csv
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      if (list.length > 0) return list;
+    }
+    const single = this.env.PDF_SIGNING_TSA_URL;
+    if (typeof single === 'string' && single.length > 0) return [single];
+    return [];
   }
 
   /**
    * Request a timestamp for `data`. Hashes with SHA-256, builds a
-   * TimeStampReq (RFC 3161), POSTs to the TSA, and returns the
-   * TimeStampToken bytes from a granted response.
+   * TimeStampReq (RFC 3161), POSTs to each configured TSA in turn, and
+   * returns the TimeStampToken bytes from the first granted response.
    *
-   * Throws on transport errors, HTTP errors, or non-granted TSR statuses.
-   * Callers that want best-effort behaviour should catch and fall through.
+   * Throws `tsa_all_failed` only after every endpoint has failed. Callers
+   * that want best-effort behaviour should catch and fall through to
+   * PAdES-B-B (no embedded timestamp).
    */
   async timestamp(data: Buffer): Promise<TimestampResult> {
-    if (!this.configured) throw new Error('tsa_not_configured');
-    const url = this.env.PDF_SIGNING_TSA_URL!;
+    const urls = this.tsaUrls();
+    if (urls.length === 0) throw new Error('tsa_not_configured');
     const messageImprint = createHash('sha256').update(data).digest();
     const reqDer = buildTimestampReq(messageImprint);
+
+    const failures: string[] = [];
+    for (const url of urls) {
+      try {
+        const result = await this.tryTsa(url, reqDer, messageImprint);
+        if (failures.length > 0) {
+          this.logger.warn(
+            `TSA fallback succeeded on ${url} after ${failures.length} prior failure(s): ${failures.join('; ')}`,
+          );
+        }
+        return result;
+      } catch (err) {
+        const reason = err instanceof Error ? err.message : String(err);
+        failures.push(`${url}:${reason}`);
+        this.logger.warn(`TSA ${url} failed: ${reason}`);
+      }
+    }
+    throw new Error(`tsa_all_failed: ${failures.join('; ')}`);
+  }
+
+  private async tryTsa(
+    url: string,
+    reqDer: Buffer,
+    messageImprint: Buffer,
+  ): Promise<TimestampResult> {
     this.logger.log(
       `TSA request → ${url} (sha256=${messageImprint.toString('hex').slice(0, 12)}…)`,
     );
-
     let res: Response;
     try {
       res = await fetch(url, {
@@ -73,7 +118,7 @@ export class TsaClient {
       });
     } catch (err) {
       if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
-        throw new Error(`tsa_timeout: ${err.message}`);
+        throw new Error(`tsa_timeout`);
       }
       throw err;
     }

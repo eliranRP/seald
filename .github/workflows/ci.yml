@@ -253,3 +253,40 @@ jobs:
           path: apps/api/test-output/
           if-no-files-found: ignore
           retention-days: 7
+
+  # ---------------------------------------------------------------
+  # PAdES verifier (F-13) — downloads the sealed PDFs uploaded by
+  # the e2e job and runs apps/api/scripts/verify-pades.ts against
+  # them. Asserts wire-level PAdES conformance: ETSI.CAdES.detached
+  # subFilter, signing-cert-v2 attribute, messageDigest matches
+  # /ByteRange-covered bytes, and the embedded CMS signature
+  # actually verifies under the embedded cert's public key. Soft
+  # checks for B-T / B-LT only emit log lines.
+  # ---------------------------------------------------------------
+  pades-verify:
+    name: PAdES verifier (F-13)
+    runs-on: ubuntu-latest
+    needs: e2e
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter shared build
+
+      - name: Download sealed-PDF samples from e2e job
+        uses: actions/download-artifact@v4
+        with:
+          name: sealed-pdf-samples
+          path: pdfs/
+
+      - name: Verify PAdES conformance
+        run: pnpm --filter api exec ts-node scripts/verify-pades.ts ../../pdfs
