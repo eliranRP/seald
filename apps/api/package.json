@@ -17,7 +17,8 @@
     "storage:init": "node scripts/ensure-storage-bucket.mjs",
     "smoke:upload": "node scripts/smoke-upload.mjs",
     "seed:signer": "ts-node --transpile-only scripts/seed-signer.ts",
-    "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts"
+    "flush:emails": "ts-node --transpile-only scripts/flush-emails.ts",
+    "kms:gen-cert": "ts-node --transpile-only scripts/generate-kms-binding-cert.ts"
   },
   "dependencies": {
     "@aws-sdk/client-kms": "^3.1038.0",

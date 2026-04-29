@@ -35,3 +35,35 @@ output "godaddy_dns_instructions" {
   description = "DNS setup instructions. If godaddy_enabled is true, Terraform already wrote the A record for you. If false, paste the EIP into the GoDaddy DNS dashboard after apply."
   value       = var.godaddy_enabled ? local.dns_managed_msg : local.dns_manual_msg
 }
+
+# --------------------------------------------------------------------
+# Sealing KMS outputs — surface the values needed by
+# apps/api/scripts/generate-kms-binding-cert.ts and the API runtime
+# env vars (PDF_SIGNING_KMS_KEY_ID, PDF_SIGNING_KMS_REGION).
+# All null when var.enable_kms_sealing = false.
+# --------------------------------------------------------------------
+
+output "sealing_kms_key_arn" {
+  description = "ARN of the PAdES sealing KMS key. Null when enable_kms_sealing = false."
+  value       = var.enable_kms_sealing ? module.sealing_kms[0].key_arn : null
+}
+
+output "sealing_kms_key_id" {
+  description = "Key id (UUID) for PDF_SIGNING_KMS_KEY_ID. Null when enable_kms_sealing = false."
+  value       = var.enable_kms_sealing ? module.sealing_kms[0].key_id : null
+}
+
+output "sealing_kms_alias" {
+  description = "Stable alias (alias/seald-pades-sealing-<env>) — accepted by KmsPadesSigner in lieu of the key id."
+  value       = var.enable_kms_sealing ? module.sealing_kms[0].key_alias : null
+}
+
+output "sealing_kms_region" {
+  description = "Region the sealing key lives in. Goes into PDF_SIGNING_KMS_REGION."
+  value       = var.enable_kms_sealing ? module.sealing_kms[0].region : null
+}
+
+output "sealing_kms_iam_policy_arn" {
+  description = "ARN of the kms:Sign + kms:GetPublicKey IAM policy. Attach to additional roles as needed."
+  value       = var.enable_kms_sealing ? module.sealing_kms[0].iam_policy_arn : null
+}
