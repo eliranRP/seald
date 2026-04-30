@@ -1,7 +1,7 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Avatar } from '../Avatar';
 import type { UserMenuProps } from './UserMenu.types';
-import { Email, Header, Item, Menu, Name, Root, Trigger } from './UserMenu.styles';
+import { Divider, Email, Header, Item, Menu, Name, Root, Trigger } from './UserMenu.styles';
 
 /**
  * L2 component — avatar button that opens a popover with the user's name,
@@ -10,7 +10,15 @@ import { Email, Header, Item, Menu, Name, Root, Trigger } from './UserMenu.style
  * its right cluster.
  */
 export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) => {
-  const { user, onSignOut, ...rest } = props;
+  const {
+    user,
+    onSignOut,
+    onExportData,
+    onDeleteAccount,
+    isExporting = false,
+    isDeleting = false,
+    ...rest
+  } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -35,6 +43,18 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
     setOpen(false);
     onSignOut();
   }, [onSignOut]);
+
+  const handleExport = useCallback((): void => {
+    if (!onExportData) return;
+    setOpen(false);
+    onExportData();
+  }, [onExportData]);
+
+  const handleDelete = useCallback((): void => {
+    if (!onDeleteAccount) return;
+    setOpen(false);
+    onDeleteAccount();
+  }, [onDeleteAccount]);
 
   // Forward the external ref to the wrapper, but keep the internal ref for
   // outside-click detection.
@@ -70,9 +90,35 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
             <Name>{user.name}</Name>
             <Email>{user.email}</Email>
           </Header>
+          {onExportData ? (
+            <Item
+              type="button"
+              role="menuitem"
+              onClick={handleExport}
+              disabled={isExporting}
+              aria-busy={isExporting || undefined}
+            >
+              {isExporting ? 'Preparing download…' : 'Download my data'}
+            </Item>
+          ) : null}
           <Item type="button" role="menuitem" onClick={handleSignOut}>
             Sign out
           </Item>
+          {onDeleteAccount ? (
+            <>
+              <Divider role="separator" />
+              <Item
+                type="button"
+                role="menuitem"
+                $danger
+                onClick={handleDelete}
+                disabled={isDeleting}
+                aria-busy={isDeleting || undefined}
+              >
+                {isDeleting ? 'Deleting account…' : 'Delete account'}
+              </Item>
+            </>
+          ) : null}
         </Menu>
       ) : null}
     </Root>

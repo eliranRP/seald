@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
+import { useAccountActions } from '@/features/account';
 import { NAV_ITEMS, matchNavId } from './navItems';
 
 const Shell = styled.div`
@@ -68,6 +69,17 @@ export function AppShell() {
       .finally(() => navigate('/signin', { replace: true }));
   }, [signOut, navigate]);
 
+  // After successful account deletion the Supabase session is invalid;
+  // sign-out flushes the access token and `RequireAuth` then bounces the
+  // user to /signin. We replace history so back-button doesn't return
+  // them to a now-403 authed surface.
+  const onAccountDeleted = useCallback(async (): Promise<void> => {
+    await signOut().catch(() => undefined);
+    navigate('/signin', { replace: true });
+  }, [signOut, navigate]);
+
+  const account = useAccountActions({ onAccountDeleted });
+
   const mode = !user && guest ? 'guest' : 'authed';
 
   return (
@@ -81,6 +93,10 @@ export function AppShell() {
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
         onSignOut={handleSignOut}
+        onExportData={mode === 'authed' ? account.exportData : undefined}
+        onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
+        isExporting={account.isExporting}
+        isDeleting={account.isDeleting}
       />
       <Content>
         <Outlet />

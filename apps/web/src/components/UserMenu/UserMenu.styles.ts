@@ -54,7 +54,7 @@ export const Email = styled.div`
   margin-top: 2px;
 `;
 
-export const Item = styled.button`
+export const Item = styled.button<{ $danger?: boolean }>`
   appearance: none;
   text-align: left;
   background: transparent;
@@ -64,13 +64,24 @@ export const Item = styled.button`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[1]};
+  color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[1])};
   cursor: pointer;
   &:hover {
-    background: ${({ theme }) => theme.color.ink[100]};
+    background: ${({ theme, $danger }) =>
+      $danger ? theme.color.danger[50] : theme.color.ink[100]};
   }
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+export const Divider = styled.div`
+  height: 1px;
+  background: ${({ theme }) => theme.color.border[1]};
+  margin: ${({ theme }) => `${theme.space[1]} 0`};
 `;
