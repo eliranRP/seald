@@ -132,6 +132,33 @@ validator's completion notification automatically.
 If a pre-commit hook fails: fix the underlying issue, re-stage, create a
 NEW commit. Don't bypass.
 
+### React PR review before any `apps/web/**` commit
+
+Before running `git commit` on a diff that touches `apps/web/**`, invoke
+the [`seald-react-pr-review` skill](~/.claude/skills/seald-react-pr-review/SKILL.md).
+That skill walks the staged diff against the canonical
+`react-best-practices` rulebook, applies MUST-FIX items in place (with
+regression tests when a runtime path changes), runs the scoped gates
+(`pnpm typecheck && pnpm lint && pnpm vitest run`), and writes a
+verdict block. The commit only proceeds when the gates are green and the
+MUST-FIX list is empty.
+
+The user can opt out per commit by saying "skip the react review for
+this commit" — log the override in the commit body if so.
+
+### QA validation before declaring a feature done
+
+Whenever a feature, UI element, or backend endpoint is added or modified
+in `apps/web`, `apps/api`, or `packages/shared`, invoke the
+[`seald-qa-validation` skill](~/.claude/skills/seald-qa-validation/SKILL.md)
+before claiming completion. It runs three layers in order: (1) tests
+(regression coverage + scoped suites), (2) code review via the matching
+rulebook skill (react / nestjs / nodejs / cryptography / esignature),
+and (3) pixel-perfect UI diff against `Design-Guide/project/**/index.html`
+at 1440 / 1920 / 2560 / 3440. Skip a layer only when it genuinely
+doesn't apply (e.g. backend-only change skips UI), and document the
+skip in the report.
+
 ### Phase 3 deferrals
 
 All five MVP deferrals were resolved on 2026-04-24. See
