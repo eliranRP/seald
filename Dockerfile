@@ -47,9 +47,14 @@ ENV NODE_ENV=production \
     NODE_OPTIONS="--enable-source-maps"
 # dumb-init for clean SIGTERM propagation → lets the worker's OnModuleDestroy
 # run before the container dies mid-seal. postgresql-client is the psql
-# binary used by scripts/migrate.sh at container boot.
+# binary used by scripts/migrate.sh at container boot. awscli + jq are
+# used by scripts/entrypoint.sh to fetch the runtime secret blob from
+# AWS Secrets Manager (when SEALD_API_SECRET_ID is set) and parse it
+# into per-key env vars before launching node. Debian's `awscli` is
+# v1.x — small enough for this single-call use case (~25 MB) and
+# notably lighter than bundling AWS CLI v2.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates dumb-init postgresql-client \
+ && apt-get install -y --no-install-recommends ca-certificates dumb-init postgresql-client awscli jq \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --system --uid 10001 --home-dir /app --shell /usr/sbin/nologin seald
 WORKDIR /app
