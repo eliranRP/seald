@@ -157,7 +157,12 @@ jobs:
 
             echo '=== docker compose up -d --build ==='
             sudo docker compose pull caddy 2>&1 || true
-            sudo docker compose up -d --build
+            # The previous boot may have left a crash-looping `api`
+            # container around; `compose up --build` hits a name
+            # collision in that case ("Container name … is already in
+            # use"). Tear it down first so the rebuild is clean.
+            sudo docker compose rm -fs api 2>&1 || true
+            sudo docker compose up -d --build --force-recreate
 
             echo '=== Wait for API healthcheck (max 90s) ==='
             for i in $(seq 1 30); do
