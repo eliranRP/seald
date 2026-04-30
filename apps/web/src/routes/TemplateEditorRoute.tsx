@@ -19,6 +19,7 @@ import {
   deriveTemplateFieldLayout,
   findTemplateById,
   getTemplates,
+  mergeFieldLayoutOnReducedRoster,
   rebindFieldsToSigners,
   resolveTemplateFields,
   setTemplates,
@@ -600,20 +601,33 @@ export function TemplateEditorRoute() {
   const handleSendAndUpdate = useCallback(() => {
     setSendConfirmOpen(false);
     if (sourceTemplate && draft) {
-      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages, draft.signers);
-      // Capture the current signer roster as `last_signers` so the
-      // next user of this template starts with the same recipients
-      // pre-filled. The wizard's Step-2 SignersStepCard reads from
-      // `template.lastSigners` when seeding its state.
-      const lastSigners = draft.signers.map((s) => ({
+      const derivedLayout = deriveTemplateFieldLayout(
+        draft.fields,
+        draft.totalPages,
+        draft.signers,
+      );
+      // Defensive merge for the "saved with one signer when sender
+      // removed one" report: when the draft's roster shrank below the
+      // source template's stored count, preserve the original
+      // `last_signers` and re-attach `field_layout` entries owned by
+      // the now-out-of-range signer ordinals. The user reduced
+      // signers for *this* envelope, not for the template definition.
+      // See `mergeFieldLayoutOnReducedRoster` for the full ruleset.
+      const draftLastSigners = draft.signers.map((s) => ({
         id: s.id,
         name: s.name,
         email: s.email,
         color: s.color,
       }));
+      const merged = mergeFieldLayoutOnReducedRoster({
+        derivedLayout,
+        draftLastSigners,
+        sourceFields: sourceTemplate.fields,
+        sourceLastSigners: sourceTemplate.lastSigners ?? [],
+      });
       updateTemplate(sourceTemplate.id, {
-        field_layout: fieldLayout,
-        last_signers: lastSigners,
+        field_layout: merged.fieldLayout,
+        last_signers: merged.lastSigners,
       })
         .then((updated) => {
           setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
@@ -756,9 +770,24 @@ export function TemplateEditorRoute() {
             availableFieldKinds={TEMPLATE_FIELD_KINDS}
             {...(banner ? { banner } : {})}
             onSend={mode === 'new' ? () => {} : handleSend}
-            onSaveAsTemplate={() => {
-              handleSaveAsTemplate().catch(() => {});
-            }}
+            // Only expose Save-as-template in modes where saving is the
+            // user's stated intent: authoring a new template ('new') or
+            // explicitly editing an existing one ('editing'). In 'using'
+            // mode the user is sending an envelope — surfacing the
+            // dashed rail "Save as template" CTA there auto-overwrites
+            // the source template (e.g. with a reduced signer roster)
+            // even when the sender clicked "Just send this one" in the
+            // SendConfirmDialog. Hiding it removes that accidental
+            // mutation pathway. Persisting changes from a 'using'
+            // session goes through SendConfirmDialog → "Send and update
+            // template" exclusively.
+            {...(mode !== 'using'
+              ? {
+                  onSaveAsTemplate: () => {
+                    handleSaveAsTemplate().catch(() => {});
+                  },
+                }
+              : {})}
             sendLabel={mode === 'new' ? 'Save as template' : 'Send to sign'}
             templateMode={mode === 'new' ? 'authoring' : 'using'}
             templateName={headerTitle}
