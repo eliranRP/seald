@@ -17,7 +17,7 @@ const sealed = (available: boolean): DownloadMenuItem => ({
   icon: FileCheck2,
   title: 'Sealed PDF',
   description: 'Final signed document with all fields filled and certificate page.',
-  meta: available ? '5 pages · 312 KB · eIDAS QES' : 'Available once all signers complete',
+  meta: available ? '5 pages · 312 KB · PAdES-LT' : 'Available once all signers complete',
   available,
   recommended: available,
   primaryLabel: 'sealed PDF',
