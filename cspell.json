@@ -450,7 +450,9 @@
     "Nakamura",
     "IMDS",
     "AKID",
-    "noout"
+    "noout",
+    "tmpenv",
+    "esac"
   ],
   "ignoreRegExpList": [
     "Base64",
