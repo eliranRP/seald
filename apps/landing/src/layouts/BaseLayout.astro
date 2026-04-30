@@ -13,6 +13,7 @@
 // via props, then drop their content in the <slot/>.
 
 import '@/styles/globals.css';
+import CookieBanner from '@/components/CookieBanner.astro';
 
 export interface Props {
   title?: string;
@@ -135,21 +136,47 @@ const softwareLd = {
     <script type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
 
     <!--
-      Cloudflare Web Analytics
-      ------------------------
-      Privacy-friendly, cookie-less. No banner needed. Replace the empty
-      token below with the real beacon token from the Cloudflare dashboard
-      (Analytics & Logs → Web Analytics → site config). See CLAUDE.md.
+      Cloudflare Web Analytics — gated behind cookie consent.
+      ------------------------------------------------------
+      The beacon is privacy-friendly (cookie-less, IP not stored) but it
+      still loads a third-party script and reads request metadata, so we
+      treat it as the "analytics" category and only inject the <script>
+      element after a `seald:consent-changed` event with `analytics:true`.
+      This matches our T-09 contract (ePrivacy Art. 5(3) + EDPB 03/2022).
     -->
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": ""}'
-    ></script>
+    <script is:inline data-cf-token="">
+      (function () {
+        // Capture the token from the script tag now, while
+        // document.currentScript is still defined. Inside async event
+        // handlers it's null.
+        var token =
+          (document.currentScript &&
+            document.currentScript.dataset &&
+            document.currentScript.dataset.cfToken) ||
+          '';
+        function inject() {
+          if (window.__sealdCfBeaconLoaded) return;
+          var s = document.createElement('script');
+          s.defer = true;
+          s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+          // Empty token is the current placeholder — see CLAUDE.md.
+          // The beacon script no-ops on an empty token, but wiring the
+          // gate end-to-end lets us prove consent works without leaking
+          // analytics data before consent.
+          s.setAttribute('data-cf-beacon', JSON.stringify({ token: token }));
+          document.head.appendChild(s);
+          window.__sealdCfBeaconLoaded = true;
+        }
+        window.addEventListener('seald:consent-changed', function (e) {
+          if (e && e.detail && e.detail.analytics === true) inject();
+        });
+      })();
+    </script>
   </head>
 
   <body>
     <a href="#main" class="sr-only">Skip to main content</a>
     <slot />
+    <CookieBanner />
   </body>
 </html>

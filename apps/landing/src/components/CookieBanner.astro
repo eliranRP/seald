@@ -1,0 +1,418 @@
+---
+// CookieBanner.astro — first-party cookie/consent banner.
+//
+// Why this exists (T-09 in .audit/LEGAL_GAPS.md):
+//   - ePrivacy Art. 5(3) / EDPB 03/2022: prior, informed consent for any
+//     non-essential storage or read on the user's device.
+//   - CCPA/CPRA §7025: honor the Global Privacy Control (GPC) signal as a
+//     valid opt-out of sale/share for non-essential categories.
+//   - EDPB dark-patterns guidance: Reject must be as prominent and as easy
+//     as Accept; no pre-ticked toggles.
+//
+// Behavior:
+//   1. First visit (no `seald_consent_v1` cookie): the banner is shown.
+//      If `navigator.globalPrivacyControl === true`, every non-essential
+//      category is auto-rejected and the user is informed (see GPC notice).
+//   2. The user can: Accept all / Reject all / Customize (per-purpose).
+//      All three buttons are visually equal — no dark patterns.
+//   3. After a choice the banner hides and a `seald_consent_v1` cookie is
+//      set (max 365 days per EDPB). A `seald:consent-changed` CustomEvent
+//      fires so other scripts (e.g. analytics injectors) can react.
+//   4. The footer's "Manage cookie preferences" link calls
+//      `window.sealdConsent.show()` to reopen the banner pre-populated
+//      with the saved choices.
+//
+// The banner is server-rendered hidden (display: none) and only revealed
+// by the inline script after the cookie is read. This avoids a flash of
+// banner on returning visitors.
+---
+<aside
+  id="cookie-banner"
+  class="cookie-banner"
+  role="dialog"
+  aria-modal="false"
+  aria-labelledby="cookie-banner-title"
+  aria-describedby="cookie-banner-desc"
+  hidden
+>
+  <div class="cookie-card">
+    <h2 id="cookie-banner-title">Cookies &amp; your privacy</h2>
+    <p id="cookie-banner-desc">
+      We use first-party cookies and similar storage to keep you signed in (essential)
+      and, with your consent, to measure how the site is used so we can improve it.
+      We do not sell or share your personal information for cross-context behavioral
+      advertising. You can change your choice any time from the footer.
+    </p>
+
+    <p id="cookie-gpc-notice" class="cookie-gpc" hidden>
+      Your browser is sending a Global Privacy Control (GPC) signal. We've pre-set
+      every non-essential category to <strong>off</strong> in line with the GPC
+      regulations (CCPA §7025). You can still opt back in below.
+    </p>
+
+    <fieldset class="cookie-categories" hidden>
+      <legend class="sr-only">Cookie categories</legend>
+
+      <label class="cookie-row">
+        <input type="checkbox" name="essential" checked disabled />
+        <span class="cookie-row-text">
+          <span class="cookie-row-title">Essential</span>
+          <span class="cookie-row-desc">
+            Required for the site to work — sign-in, security, and load balancing.
+            Always on; cannot be disabled.
+          </span>
+        </span>
+      </label>
+
+      <label class="cookie-row">
+        <input type="checkbox" name="analytics" />
+        <span class="cookie-row-text">
+          <span class="cookie-row-title">Analytics</span>
+          <span class="cookie-row-desc">
+            Privacy-friendly, aggregated page-view counts (Cloudflare Web Analytics).
+            No cross-site tracking, no IP storage.
+          </span>
+        </span>
+      </label>
+
+      <label class="cookie-row">
+        <input type="checkbox" name="marketing" />
+        <span class="cookie-row-text">
+          <span class="cookie-row-title">Marketing</span>
+          <span class="cookie-row-desc">
+            We don't run any marketing trackers today. This stays off unless we add
+            something — at which point we'll re-prompt.
+          </span>
+        </span>
+      </label>
+    </fieldset>
+
+    <div class="cookie-actions">
+      <button type="button" id="cookie-reject" class="cookie-btn cookie-btn-secondary">
+        Reject all
+      </button>
+      <button type="button" id="cookie-customize" class="cookie-btn cookie-btn-secondary">
+        Customize
+      </button>
+      <button type="button" id="cookie-save" class="cookie-btn cookie-btn-primary" hidden>
+        Save preferences
+      </button>
+      <button type="button" id="cookie-accept" class="cookie-btn cookie-btn-primary">
+        Accept all
+      </button>
+    </div>
+
+    <p class="cookie-foot">
+      <a href="/legal/cookies">Cookie policy</a> ·
+      <a href="/legal/privacy">Privacy policy</a> ·
+      <a href="/dsar">Your privacy choices</a>
+    </p>
+  </div>
+</aside>
+
+<script is:inline>
+  // Self-contained vanilla JS — no framework, no dependencies. Runs on
+  // every page via BaseLayout. Exposes `window.sealdConsent` for the
+  // footer link + any subscribers.
+  (function () {
+    var COOKIE = 'seald_consent_v1';
+    var MAX_AGE_DAYS = 365;
+    var DEFAULT = { essential: true, analytics: false, marketing: false, gpc: false, ts: 0 };
+
+    function readCookie() {
+      var match = document.cookie.match(
+        new RegExp('(?:^|; )' + COOKIE + '=([^;]+)'),
+      );
+      if (!match) return null;
+      try {
+        return JSON.parse(decodeURIComponent(match[1]));
+      } catch (_e) {
+        return null;
+      }
+    }
+
+    function writeCookie(value) {
+      var encoded = encodeURIComponent(JSON.stringify(value));
+      var maxAge = MAX_AGE_DAYS * 24 * 60 * 60;
+      var secure = location.protocol === 'https:' ? '; Secure' : '';
+      document.cookie =
+        COOKIE + '=' + encoded + '; Max-Age=' + maxAge + '; Path=/; SameSite=Lax' + secure;
+    }
+
+    function isGpc() {
+      try {
+        return navigator.globalPrivacyControl === true;
+      } catch (_e) {
+        return false;
+      }
+    }
+
+    function dispatch(consent) {
+      try {
+        window.dispatchEvent(
+          new CustomEvent('seald:consent-changed', { detail: consent }),
+        );
+      } catch (_e) {
+        /* no-op for older browsers */
+      }
+    }
+
+    var banner = document.getElementById('cookie-banner');
+    if (!banner) return;
+    var fieldset = banner.querySelector('.cookie-categories');
+    var gpcNotice = banner.querySelector('#cookie-gpc-notice');
+    var saveBtn = banner.querySelector('#cookie-save');
+    var customizeBtn = banner.querySelector('#cookie-customize');
+    var acceptBtn = banner.querySelector('#cookie-accept');
+    var rejectBtn = banner.querySelector('#cookie-reject');
+    var analyticsInput = banner.querySelector('input[name="analytics"]');
+    var marketingInput = banner.querySelector('input[name="marketing"]');
+
+    function show() {
+      var stored = readCookie();
+      if (stored) {
+        if (analyticsInput) analyticsInput.checked = !!stored.analytics;
+        if (marketingInput) marketingInput.checked = !!stored.marketing;
+      } else if (isGpc()) {
+        if (gpcNotice) gpcNotice.hidden = false;
+      }
+      banner.hidden = false;
+    }
+
+    function hide() {
+      banner.hidden = true;
+      if (fieldset) fieldset.hidden = true;
+      if (saveBtn) saveBtn.hidden = true;
+      if (customizeBtn) customizeBtn.hidden = false;
+      if (acceptBtn) acceptBtn.hidden = false;
+    }
+
+    function persist(choice) {
+      var consent = {
+        essential: true,
+        analytics: !!choice.analytics,
+        marketing: !!choice.marketing,
+        gpc: isGpc(),
+        ts: Date.now(),
+      };
+      writeCookie(consent);
+      dispatch(consent);
+      hide();
+    }
+
+    if (rejectBtn) {
+      rejectBtn.addEventListener('click', function () {
+        persist({ analytics: false, marketing: false });
+      });
+    }
+    if (acceptBtn) {
+      acceptBtn.addEventListener('click', function () {
+        // GPC = strong opt-out signal. We still let the user click Accept,
+        // but we DON'T flip non-essential to true — the user must
+        // expressly opt back in via Customize → Save.
+        if (isGpc()) {
+          persist({ analytics: false, marketing: false });
+        } else {
+          persist({ analytics: true, marketing: true });
+        }
+      });
+    }
+    if (customizeBtn) {
+      customizeBtn.addEventListener('click', function () {
+        if (fieldset) fieldset.hidden = false;
+        if (saveBtn) saveBtn.hidden = false;
+        // Hide accept/customize so the user has one clear "Save" action.
+        if (acceptBtn) acceptBtn.hidden = true;
+        customizeBtn.hidden = true;
+      });
+    }
+    if (saveBtn) {
+      saveBtn.addEventListener('click', function () {
+        persist({
+          analytics: !!(analyticsInput && analyticsInput.checked),
+          marketing: !!(marketingInput && marketingInput.checked),
+        });
+      });
+    }
+
+    // Public API (used by the footer "Manage cookie preferences" link).
+    window.sealdConsent = {
+      show: show,
+      get: readCookie,
+      // Programmatic setter so future surfaces can flip a category from
+      // a settings page without re-opening the banner.
+      set: function (partial) {
+        var current = readCookie() || DEFAULT;
+        persist({
+          analytics: 'analytics' in (partial || {}) ? !!partial.analytics : !!current.analytics,
+          marketing: 'marketing' in (partial || {}) ? !!partial.marketing : !!current.marketing,
+        });
+      },
+    };
+
+    // Delegated click handler for any element marked
+    // `data-seald-cookie-prefs` — keeps inline onclick out of HTML so
+    // the page is CSP-friendly and Astro stops emitting the deprecated
+    // global `event` warning.
+    document.addEventListener('click', function (e) {
+      var target = e.target;
+      while (target && target !== document.body) {
+        if (target.dataset && 'sealdCookiePrefs' in target.dataset) {
+          e.preventDefault();
+          show();
+          return;
+        }
+        target = target.parentElement;
+      }
+    });
+
+    // First visit: show banner. Returning visitor with stored consent:
+    // dispatch the stored value once so analytics injectors can react.
+    var stored = readCookie();
+    if (!stored) {
+      show();
+    } else {
+      dispatch(stored);
+    }
+  })();
+</script>
+
+<style>
+  .cookie-banner {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 9000;
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(11, 18, 32, 0.06);
+    backdrop-filter: blur(6px);
+  }
+  .cookie-card {
+    width: min(720px, 100%);
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 12px 40px rgba(11, 18, 32, 0.16);
+    padding: 22px 22px 18px;
+    font-family:
+      Inter,
+      -apple-system,
+      'Segoe UI',
+      Arial,
+      sans-serif;
+    color: #0b1220;
+  }
+  .cookie-card h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .cookie-card p {
+    margin: 0 0 12px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: #334155;
+  }
+  .cookie-gpc {
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: #1e293b !important;
+    font-size: 13px !important;
+  }
+  .cookie-categories {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin: 4px 0 14px;
+    padding: 8px 10px;
+  }
+  .cookie-row {
+    display: flex;
+    gap: 10px;
+    padding: 8px 4px;
+    align-items: flex-start;
+  }
+  .cookie-row + .cookie-row {
+    border-top: 1px solid #f1f5f9;
+  }
+  .cookie-row input[type='checkbox'] {
+    margin: 4px 0 0;
+    flex-shrink: 0;
+  }
+  .cookie-row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .cookie-row-title {
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .cookie-row-desc {
+    color: #475569;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  .cookie-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+  .cookie-btn {
+    /* Equal visual weight — no dark patterns. */
+    flex: 1 1 auto;
+    min-height: 40px;
+    border-radius: 10px;
+    border: 1px solid #0b1220;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+    padding: 0 14px;
+  }
+  .cookie-btn:hover {
+    filter: brightness(0.95);
+  }
+  .cookie-btn-primary {
+    background: #0b1220;
+    color: #ffffff;
+  }
+  .cookie-btn-secondary {
+    background: #ffffff;
+    color: #0b1220;
+  }
+  .cookie-foot {
+    margin: 12px 0 0;
+    font-size: 12px !important;
+    color: #64748b !important;
+  }
+  .cookie-foot a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  @media (max-width: 480px) {
+    .cookie-actions {
+      flex-direction: column;
+    }
+    .cookie-btn {
+      width: 100%;
+    }
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+</style>

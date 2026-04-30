@@ -94,10 +94,18 @@ const VERSION = 'cookies_v0.1';
       <section id="control">
         <h2>5. How to control cookies</h2>
         <ul>
-          <li><strong>In Seald:</strong> click "Manage cookie preferences" in the footer to change your choice at any time.</li>
+          <li><strong>In Seald:</strong> click "Manage cookie preferences" in the footer (or use the button below) to change your choice at any time.</li>
           <li><strong>In your browser:</strong> Chrome, Firefox, Safari, Edge, and Brave all let you block or delete cookies in settings. Blocking strictly necessary cookies will break the Service.</li>
           <li><strong>Global Privacy Control:</strong> install a browser or extension that sends the GPC signal; we will treat it as an opt-out.</li>
         </ul>
+        <p>
+          <button
+            type="button"
+            data-seald-cookie-prefs
+            style="display:inline-block;padding:10px 16px;border-radius:10px;border:1px solid #0b1220;background:#0b1220;color:#ffffff;font-weight:600;font-size:14px;cursor:pointer;"
+            >Open cookie preferences</button
+          >
+        </p>
       </section>
 
       <section id="changes">
