@@ -7,8 +7,6 @@ import {
   FIELD_HEIGHT,
   FIELD_WIDTH,
   MARQUEE_THRESHOLD,
-  SPLIT_TILE_GAP,
-  SPLIT_TILE_WIDTH,
   expandSelectionToGroup,
   makeId,
 } from './lib';
@@ -100,41 +98,29 @@ export function useCanvasDnd({
       const x = Math.max(0, Math.round(localX - FIELD_WIDTH / 2));
       const y = Math.max(0, Math.round(localY - FIELD_HEIGHT / 2));
 
-      // Pre-populate signers with everyone so the common case ("everyone
-      // signs this") is a single confirmation click. When more than one
-      // signer is on the document, we split the drop into N independent
-      // (ungrouped) fields placed side-by-side rather than one multi-
-      // signer tile — that's what makes it possible to position each
-      // signer's box individually without first ungrouping (issue #2 v2).
+      // Drop a single placeholder pre-populated with every signer, then
+      // open the SelectSignersPopover so the user explicitly chooses
+      // which signers own this field. `applySignerSelection` handles
+      // the rest: 1 signer → keep the single field, 2+ signers → split
+      // into N side-by-side ungrouped tiles (mirrors the popover's
+      // Apply path so all multi-signer flows route through the same
+      // assignment UI). Previously the multi-signer branch split
+      // silently and skipped the popover, which left users with no
+      // way to say "this single field is for just one of the
+      // signers" without first deleting the auto-generated extras.
       const signerIds = signers.map((s) => s.id);
+      const dropped: PlacedFieldValue = {
+        id: makeId(),
+        page: dropPage,
+        type: kind,
+        x,
+        y,
+        signerIds,
+      };
       pushUndo(fields);
-      if (signerIds.length <= 1) {
-        const dropped: PlacedFieldValue = {
-          id: makeId(),
-          page: dropPage,
-          type: kind,
-          x,
-          y,
-          signerIds,
-        };
-        onFieldsChange([...fields, dropped]);
-        setSelectedIds([dropped.id]);
-        setSignerPopoverFor(dropped.id);
-      } else {
-        const stride = SPLIT_TILE_WIDTH + SPLIT_TILE_GAP;
-        const dropped: ReadonlyArray<PlacedFieldValue> = signerIds.map((sid, idx) => ({
-          id: makeId(),
-          page: dropPage,
-          type: kind,
-          x: x + idx * stride,
-          y,
-          signerIds: [sid],
-        }));
-        onFieldsChange([...fields, ...dropped]);
-        setSelectedIds(dropped.map((d) => d.id));
-        // No popover — the user already has every signer represented
-        // by the N fields they can adjust individually.
-      }
+      onFieldsChange([...fields, dropped]);
+      setSelectedIds([dropped.id]);
+      setSignerPopoverFor(dropped.id);
       dragKindRef.current = null;
     },
     [

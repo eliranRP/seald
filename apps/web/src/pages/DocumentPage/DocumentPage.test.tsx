@@ -91,12 +91,14 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('document', { name: /page 2 of 4/i })).toBeInTheDocument();
   });
 
-  it('drops a palette field with 2+ signers as N independent fields placed side-by-side (no popover)', () => {
-    // Issue #2 v2: dropping a palette field when the document has more
-    // than one signer now creates one field per signer (each ungrouped
-    // and individually positionable) instead of a single multi-signer
-    // tile. The Select-signers popover does NOT auto-open — the user
-    // already has every signer represented.
+  it('drops one field pre-selected with all signers and opens the popover when 2+ signers', () => {
+    // Multi-signer drop: a single field is dropped pre-selected with
+    // every signer, and the Select-signers popover opens so the user
+    // explicitly picks who the field is for. If they pick 2+ in the
+    // popover, `applySignerSelection` (covered separately below) splits
+    // it into N side-by-side ungrouped tiles. Previously the drop
+    // silently produced N tiles with no popover, leaving no path to
+    // assign a single field to just one of the signers.
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -122,25 +124,15 @@ describe('DocumentPage', () => {
     expect(onFieldsChangeSpy).toHaveBeenCalledTimes(1);
     const firstCall = onFieldsChangeSpy.mock.calls[0];
     const next = firstCall ? firstCall[0] : undefined;
-    // Two signers (`a`, `b`) on the document → two fields, each with
-    // a single signerId, side-by-side starting at the drop coordinate.
-    expect(next?.length).toBe(2);
+    // One field, pre-selected with both signers ("a" and "b").
+    expect(next?.length).toBe(1);
     expect(next?.[0]?.type).toBe('signature');
-    expect(next?.[1]?.type).toBe('signature');
-    expect(next?.[0]?.signerIds).toEqual(['a']);
-    expect(next?.[1]?.signerIds).toEqual(['b']);
-    // Each is independent — no shared groupId until the user explicitly
-    // groups them via the GroupToolbar's Group button.
-    expect(next?.[0]?.groupId).toBeUndefined();
-    expect(next?.[1]?.groupId).toBeUndefined();
-    // Side-by-side offset is asserted in the popover-apply test below
-    // (jsdom's fireEvent.drop doesn't surface clientX/clientY through
-    // React's synthetic DragEvent, so absolute drop coordinates here
-    // are unreliable — the popover-apply path uses concrete source
-    // coordinates and validates the 140-px stride directly).
-    // No auto-popover for multi-signer drops — the split already
-    // captures the user's per-signer intent.
-    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+    expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
+    // Popover is open with both signers pre-checked — the user can now
+    // confirm both, narrow to one, or cancel.
+    const dialog = screen.getByRole('dialog', { name: /select signers/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /ada byron/i })).toBeChecked();
   });
 
   it('drops a palette field with a single signer as one field, opening the popover for adjustment', () => {
@@ -176,7 +168,13 @@ describe('DocumentPage', () => {
     expect(ada).toBeChecked();
   });
 
-  it('each successive multi-signer palette drop adds a fresh row of split fields without re-opening the popover', () => {
+  it('each successive multi-signer palette drop opens the popover for that drop', () => {
+    // Each drop on a multi-signer document funnels through the
+    // Select-signers popover so the user is asked who the field is
+    // for every time. Cancelling the first popover leaves the dropped
+    // placeholder in place (with both signers); the second drop then
+    // adds another placeholder and re-opens the popover keyed to the
+    // new field.
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -192,29 +190,33 @@ describe('DocumentPage', () => {
       types: ['text/plain'],
     };
 
-    // First drop with 2 signers → 2 fields, no popover.
+    // First drop → 1 placeholder field, popover opens.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 150, clientY: 150 });
     });
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
+    // Cancel — the placeholder stays, popover closes.
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
     expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
 
-    // Second drop → 2 more fields, still no popover.
+    // Second drop → another placeholder, popover re-opens for it.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 300, clientY: 200 });
     });
-    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
 
     const { calls } = onFieldsChangeSpy.mock;
     const last = calls[calls.length - 1];
     const next = last ? last[0] : undefined;
-    // 4 fields total — 2 per drop — each carrying exactly one signerId.
-    expect(next?.length).toBe(4);
+    // 2 placeholders total (one per drop) — each carries every signer
+    // id until the user narrows the assignment via the popover.
+    expect(next?.length).toBe(2);
     expect(next?.every((f) => f.type === 'signature')).toBe(true);
-    expect(next?.every((f) => f.signerIds.length === 1)).toBe(true);
+    expect(next?.every((f) => f.signerIds.length === 2)).toBe(true);
   });
 
   it('clears the selection when the canvas background is clicked', () => {
