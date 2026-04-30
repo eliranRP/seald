@@ -49,3 +49,6 @@ apps/*/playwright/.cache/
 # playwright-bdd generated specs — see apps/web/playwright.config.ts
 apps/web/e2e/.bdd/
 .claude/
+# MCP-driven Playwright + visual-diff scratch (logs, screenshots, traces)
+.playwright-mcp/
+.visual-diff/

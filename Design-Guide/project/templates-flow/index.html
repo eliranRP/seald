@@ -1,0 +1,277 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Sealed — Templates</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <style>
+    html,body{margin:0;padding:0;background:var(--ink-50);}
+    #root{font-family:var(--font-sans);color:var(--fg-2);}
+    .stepper{position:fixed;bottom:20px;left:20px;z-index:50;display:flex;gap:6px;background:#fff;border:1px solid var(--border-1);border-radius:999px;padding:4px;box-shadow:var(--shadow-md);font-family:var(--font-sans);}
+    .stepper button{border:none;background:transparent;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:600;color:var(--fg-3);cursor:pointer;}
+    .stepper button.on{background:var(--ink-900);color:#fff}
+    .stepper .sep{width:1px;background:var(--border-1);margin:4px 4px}
+    .saved-toast{position:fixed;top:80px;left:50%;transform:translateX(-50%);z-index:100;background:#fff;border:1px solid var(--border-1);border-radius:14px;padding:14px 20px;box-shadow:var(--shadow-lg);display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg-1);animation:toastIn 240ms var(--ease-standard);}
+    @keyframes toastIn{ from{opacity:0;transform:translate(-50%,-8px);} to{opacity:1;transform:translate(-50%,0);} }
+    @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
+  </style>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
+  <script type="text/babel" src="../ui_kits/signing_app/Screens.jsx"></script>
+  <script type="text/babel" src="./TemplatesList.jsx"></script>
+  <script type="text/babel" src="./UseTemplate.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Resolve a template's saved field layout against a target document's page count.
+    function resolveTemplateFields(templateFields, totalPages) {
+      const out = [];
+      let id = 1;
+      templateFields.forEach((tf) => {
+        let pages = [];
+        if (tf.pageRule === 'all')          pages = Array.from({length: totalPages}, (_, i) => i + 1);
+        else if (tf.pageRule === 'allButLast') pages = Array.from({length: Math.max(0, totalPages - 1)}, (_, i) => i + 1);
+        else if (tf.pageRule === 'last')    pages = totalPages > 0 ? [totalPages] : [];
+        else if (tf.pageRule === 'first')   pages = totalPages > 0 ? [1] : [];
+        else if (typeof tf.pageRule === 'number') pages = (tf.pageRule >= 1 && tf.pageRule <= totalPages) ? [tf.pageRule] : [];
+        pages.forEach((p) => {
+          out.push({ id:`tpl-f${id++}`, page:p, type:tf.type, x:tf.x, y:tf.y, signerIds:[tf.x < 200 ? 'sA' : 'sB'] });
+        });
+      });
+      return out;
+    }
+
+    function App() {
+      // Pages:  list | signers | document | fields
+      const [page, setPage] = useState(() => localStorage.getItem('sealed.tpl.page') || 'list');
+      const [contacts, setContacts] = useContacts();
+      const [savedToast, setSavedToast] = useState(false);
+      const [confirmOpen, setConfirmOpen] = useState(false);
+
+      useEffect(()=>{ localStorage.setItem('sealed.tpl.page', page); }, [page]);
+      useEffect(()=>{ if (window.lucide) window.lucide.createIcons(); });
+
+      // Flow context: 'new' (creating template) or 'use' (using existing template)
+      const [mode, setMode] = useState('new');
+      // The template being created or used — id:null for brand-new
+      const [activeTemplate, setActiveTemplate] = useState({ id:null, name:'New template', pages:6, fields:[], lastUsed:null });
+      // Signers for the current flow (step 1 result)
+      const [signers, setSigners] = useState([]);
+      // Document chosen in step 2: { name, pages, isSaved:bool }
+      const [chosenDoc, setChosenDoc] = useState(null);
+      // Has the user modified the field layout (vs. what's saved)?
+      const [layoutModified, setLayoutModified] = useState(false);
+
+      const goNew = () => {
+        setMode('new');
+        setActiveTemplate({ id:null, name:'New template', pages:6, fields:[], lastUsed:null });
+        setSigners([]);
+        setChosenDoc(null);
+        setLayoutModified(false);
+        setPage('signers');
+      };
+
+      const editExisting = (t) => {
+        // "Edit" a template — same unified flow, mode='use', pre-fills everything.
+        useTemplate(t);
+      };
+
+      const useTemplate = (t) => {
+        setMode('use');
+        setActiveTemplate({
+          id:t.id, name:t.t, pages:t.pages,
+          fields: window.TEMPLATE_FIELDS[t.id] || [],
+          lastUsed: t.lastUsed,
+          exampleFile: 'Master Services Agreement.pdf',
+        });
+        // Pre-fill last signers
+        const palette = ['#F472B6','#7DD3FC','#FBBF24','#A78BFA'];
+        setSigners([
+          { id:'sA', contactId:'c1', name:'Eliran Azulay',    email:'eliran@azulay.co', color: palette[0] },
+          { id:'sB', contactId:'c2', name:'Nitsan Yanovitch', email:'nitsan@yanov.co',  color: palette[1] },
+        ]);
+        setChosenDoc(null);
+        setLayoutModified(false);
+        setPage('signers');
+      };
+
+      const onContinueSigners = () => setPage('document');
+
+      const onUseSavedDoc = () => {
+        setChosenDoc({ name: activeTemplate.exampleFile || 'Saved example PDF', pages: activeTemplate.pages, isSaved: true });
+        setPage('fields');
+      };
+      const onUploadDoc = () => {
+        // Simulate the new doc has 9 pages — exercises rule adaptation
+        setChosenDoc({ name: 'Project Atlas — final.pdf', pages: 9, isSaved: false });
+        setPage('fields');
+      };
+
+      const showToast = (title, sub) => {
+        setSavedToast({ title, sub });
+        setTimeout(()=>setSavedToast(false), 1600);
+      };
+
+      const onSentDoc = () => {
+        if (mode === 'use') {
+          // Always offer the choice to update the template too on send.
+          setConfirmOpen(true);
+          return;
+        }
+        showToast('Template saved', 'Reuse it any time from the templates list.');
+        setTimeout(()=>setPage('list'), 700);
+      };
+
+      const onSaveLayout = () => {
+        setLayoutModified(false);
+        showToast('Template updated', 'Field changes saved back to the template.');
+      };
+
+      // ---- Render -----------------------------------------------------------
+      const screen = (() => {
+        if (page === 'list') {
+          return <TemplatesList onCreate={goNew} onOpen={editExisting} onUse={useTemplate}/>;
+        }
+
+        const renameTemplate = (name) => setActiveTemplate(t => ({ ...t, name }));
+        const flowProps = {
+          template: activeTemplate,
+          mode,
+          onCancel: () => setPage('list'),
+          onRenameTemplate: renameTemplate,
+        };
+
+        if (page === 'signers') {
+          return (
+            <>
+              <TopNav active="documents" logoSrc="../assets/logo.svg" onLogo={()=>setPage('list')} onNav={(k)=>{ if(k==='documents') setPage('list'); }}/>
+              <SignersStep
+                {...flowProps}
+                signers={signers}
+                setSigners={setSigners}
+                contacts={contacts}
+                onContinue={onContinueSigners}
+                onBack={()=>setPage('list')}/>
+            </>
+          );
+        }
+        if (page === 'document') {
+          return (
+            <>
+              <TopNav active="documents" logoSrc="../assets/logo.svg" onLogo={()=>setPage('list')} onNav={(k)=>{ if(k==='documents') setPage('list'); }}/>
+              <DocumentStep
+                {...flowProps}
+                savedDoc={{ name: activeTemplate.exampleFile, pages: activeTemplate.pages }}
+                onUseSaved={onUseSavedDoc}
+                onUpload={onUploadDoc}
+                onBack={()=>setPage('signers')}/>
+            </>
+          );
+        }
+        if (page === 'fields') {
+          const totalPages = chosenDoc?.pages || activeTemplate.pages;
+          // For "use" mode, resolve saved fields onto the target doc
+          const resolved = mode === 'use' ? resolveTemplateFields(activeTemplate.fields || [], totalPages) : null;
+          // Map signers to template fields (alternate by x position, like before)
+          const resolvedWithSigners = resolved && signers.length > 0
+            ? resolved.map((f, i) => ({ ...f, signerIds: [signers[i % signers.length].id] }))
+            : resolved;
+
+          // Banner copy
+          const banner = mode === 'use' ? {
+            title: chosenDoc?.isSaved
+              ? `Saved layout loaded · ${(resolved||[]).length} fields across ${totalPages} pages`
+              : `Saved layout adapted to your new document · ${(resolved||[]).length} fields across ${totalPages} pages`,
+            subtitle: chosenDoc?.isSaved
+              ? `Edit anything you'd like, then send. Save changes back to the template if you want them to stick.`
+              : `Field rules adjusted for the new page count. Drag any field to nudge it, then send.`,
+          } : {
+            title: 'Last step — place fields, then save as template',
+            subtitle: `Drop fields where they should appear. When you're done, hit ${'\u201C'}Save as template${'\u201D'} in the right panel to make this reusable.`,
+            tone: 'success',
+          };
+
+          return (
+            <>
+              <TopNav active="documents" logoSrc="../assets/logo.svg" onLogo={()=>setPage('list')} onNav={(k)=>{ if(k==='documents') setPage('list'); }}/>
+              <FlowHeader step={3} mode={mode} templateName={activeTemplate.name} onRenameTemplate={renameTemplate} onBack={()=>setPage('document')} onCancel={()=>setPage('list')}/>
+              <PlaceFieldsScreen
+                templateMode={mode==='new'}
+                templateName={activeTemplate.name}
+                totalPages={totalPages}
+                contacts={contacts}
+                setContacts={setContacts}
+                prefilledFields={resolvedWithSigners}
+                prefilledSigners={signers.length > 0 ? signers : undefined}
+                applyBanner={banner}
+                primaryLabel={mode==='new' ? 'Save as template' : 'Send to sign'}
+                primaryIcon={mode==='new' ? 'bookmark' : 'send'}
+                onSave={mode==='use' ? onSaveLayout : undefined}
+                onBack={()=>setPage('document')}
+                onNext={onSentDoc}/>
+            </>
+          );
+        }
+        return null;
+      })();
+
+      return (
+        <div data-screen-label={`Templates · ${page}`}>
+          {screen}
+          {savedToast && (
+            <div className="saved-toast">
+              <span style={{width:24,height:24,borderRadius:999,background:'var(--success-500)',color:'#fff',display:'inline-flex',alignItems:'center',justifyContent:'center'}}><Icon name="check" size={14}/></span>
+              <div>
+                <div style={{fontWeight:600}}>{savedToast.title}</div>
+                <div style={{fontSize:12,color:'var(--fg-3)'}}>{savedToast.sub}</div>
+              </div>
+            </div>
+          )}
+
+          <SendConfirmDialog
+            open={confirmOpen}
+            onClose={()=>setConfirmOpen(false)}
+            onJustSend={()=>{ setConfirmOpen(false); showToast('Sent for signature', 'Template kept untouched.'); setTimeout(()=>setPage('list'), 700); }}
+            onSendAndUpdate={()=>{ setConfirmOpen(false); showToast('Sent + template updated', 'Field changes saved for next time.'); setTimeout(()=>setPage('list'), 700); }}/>
+
+          <div className="stepper" title="Jump between flow states (demo)">
+            <button className={page==='list'?'on':''} onClick={()=>setPage('list')}>Templates</button>
+            <span className="sep"/>
+            <button onClick={goNew}>New: signers</button>
+            <button onClick={()=>{ setMode('new'); setPage('document'); }}>New: doc</button>
+            <button onClick={()=>{ setMode('new'); setActiveTemplate({ id:null, name:'New template', pages:6, fields:[], lastUsed:null }); setPage('fields'); }}>New: fields</button>
+            <span className="sep"/>
+            <button onClick={()=>{ if(!activeTemplate.id) useTemplate(window.TEMPLATES[0]); else { setMode('use'); setPage('signers'); } }}>Use: signers</button>
+            <button onClick={()=>{ if(!activeTemplate.id) useTemplate(window.TEMPLATES[0]); setMode('use'); setPage('document'); }}>Use: doc</button>
+            <button onClick={()=>{
+              if(!activeTemplate.id) {
+                const t = window.TEMPLATES[0];
+                setMode('use');
+                setActiveTemplate({ id:t.id, name:t.t, pages:t.pages, fields: window.TEMPLATE_FIELDS[t.id] || [], lastUsed:t.lastUsed, exampleFile:'Master Services Agreement.pdf' });
+                const palette = ['#F472B6','#7DD3FC'];
+                setSigners([
+                  { id:'sA', contactId:'c1', name:'Eliran Azulay',    email:'eliran@azulay.co', color:palette[0] },
+                  { id:'sB', contactId:'c2', name:'Nitsan Yanovitch', email:'nitsan@yanov.co',  color:palette[1] },
+                ]);
+                setChosenDoc({ name:'Project Atlas — final.pdf', pages:9, isSaved:false });
+              }
+              setPage('fields');
+            }}>Use: fields</button>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
