@@ -131,6 +131,10 @@ jobs:
             SCRIPT
             sudo chmod 0755 /opt/seald/_restore/gen-cert.sh
 
+            echo "=== AWS key shape check (no values exposed) ==="
+            echo "AKID prefix=${AWS_KMS_ACCESS_KEY_ID:0:4} len=${#AWS_KMS_ACCESS_KEY_ID}"
+            echo "SECRET first2=${AWS_KMS_SECRET_ACCESS_KEY:0:2} last2=${AWS_KMS_SECRET_ACCESS_KEY: -2} len=${#AWS_KMS_SECRET_ACCESS_KEY}"
+
             # The instance has no IAM role attached (Terraform-replaced
             # AMI; instance_profile was never wired into aws_instance.api
             # — fix tracked separately). Pass static IAM-user keys via
