@@ -167,6 +167,14 @@ export function createPgMemDb(): PgMemHandle {
     );
   mem.public.none(patched0008);
 
+  // 0009 — adds `tags` + `last_signers` jsonb columns to templates.
+  // Strip the `comment on column` blocks (pg-mem unsupported) but keep
+  // the column DDL itself.
+  const migration0009Path = resolve(__dirname, '../db/migrations/0009_template_tags_signers.sql');
+  const raw0009 = readFileSync(migration0009Path, 'utf8');
+  const patched0009 = raw0009.replace(/comment on column[\s\S]*?;/g, '');
+  mem.public.none(patched0009);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });

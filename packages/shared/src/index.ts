@@ -5,6 +5,7 @@ export type {
   TemplateField,
   TemplateFieldType,
   TemplatePageRule,
+  TemplateLastSigner,
   CreateTemplateInput,
   UpdateTemplateInput,
 } from './templates';

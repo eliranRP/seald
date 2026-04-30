@@ -46,6 +46,20 @@ export interface TemplateField {
 }
 
 /**
+ * One previously-attached signer captured on the latest "Send and
+ * update template" event. Persisted alongside the template so the
+ * next sender starts with the same roster pre-filled. Stored verbatim
+ * — `id` is the contact id, or a synthesized guest id when the signer
+ * was an ad-hoc email entry.
+ */
+export interface TemplateLastSigner {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly color: string;
+}
+
+/**
  * Full template record as returned by the API. ISO timestamps; `null` for
  * a never-used template (`uses_count` is 0 and `last_used_at` is `null`).
  */
@@ -56,6 +70,13 @@ export interface Template {
   readonly description: string | null;
   readonly cover_color: string | null;
   readonly field_layout: ReadonlyArray<TemplateField>;
+  /** Client-side tags for filter / group on the templates list. */
+  readonly tags: ReadonlyArray<string>;
+  /**
+   * Last signer roster used when this template was sent. Empty until
+   * the first "Send and update template" persists it.
+   */
+  readonly last_signers: ReadonlyArray<TemplateLastSigner>;
   readonly uses_count: number;
   readonly last_used_at: string | null;
   readonly created_at: string;
@@ -67,6 +88,8 @@ export interface CreateTemplateInput {
   readonly description?: string | null;
   readonly cover_color?: string | null;
   readonly field_layout: ReadonlyArray<TemplateField>;
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }
 
 export interface UpdateTemplateInput {
@@ -74,4 +97,6 @@ export interface UpdateTemplateInput {
   readonly description?: string | null;
   readonly cover_color?: string | null;
   readonly field_layout?: ReadonlyArray<TemplateField>;
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }

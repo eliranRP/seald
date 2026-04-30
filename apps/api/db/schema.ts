@@ -28,6 +28,20 @@ export interface TemplateFieldLayoutDb {
   label?: string;
 }
 
+/**
+ * `last_signers` row entries — captured on Send-and-update so the
+ * next use of a template pre-fills the signer roster. Mirrors the
+ * shared `TemplateLastSigner` type but lives here so the DB layer
+ * has its own bound (we don't want a leak from the public contract
+ * to drag the DB types into rebuilds on contract-only changes).
+ */
+export interface TemplateLastSignerDb {
+  id: string;
+  name: string;
+  email: string;
+  color: string;
+}
+
 export interface TemplatesTable {
   id: Generated<string>;
   owner_id: string;
@@ -35,6 +49,8 @@ export interface TemplatesTable {
   description: string | null;
   cover_color: string | null;
   field_layout: ColumnType<ReadonlyArray<TemplateFieldLayoutDb>, string, string | undefined>;
+  tags: ColumnType<ReadonlyArray<string>, string, string | undefined>;
+  last_signers: ColumnType<ReadonlyArray<TemplateLastSignerDb>, string, string | undefined>;
   uses_count: ColumnType<number, number | undefined, number | undefined>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
