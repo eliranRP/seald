@@ -5,8 +5,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '../../providers/AuthProvider';
 import type { AuthContextValue } from '../../providers/AuthProvider';
 import { AppStateProvider } from '../../providers/AppStateProvider';
-import { TEMPLATES } from '../../features/templates';
+import { setTemplates } from '../../features/templates';
+import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import { UseTemplatePage } from './UseTemplatePage';
+
+// Stories need fixtures; production ships with an empty list. Seed once
+// at module scope so every story sees the same fixtures via
+// `findTemplateById`.
+setTemplates(TEMPLATES);
 
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();

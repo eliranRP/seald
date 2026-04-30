@@ -1,132 +1,519 @@
-import styled from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 
 export const Main = styled.div`
   flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
-  padding: ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]}
-    ${({ theme }) => theme.space[20]};
+  padding: 40px 48px 80px;
 `;
 
 export const Inner = styled.div`
   max-width: 1320px;
-  margin: 0 auto;
   display: flex;
   flex-direction: column;
 `;
 
-export const HeaderSlot = styled.div`
-  margin-bottom: ${({ theme }) => theme.space[8]};
+/* ============================================================
+ * Header (serif title + Lede + primary CTA)
+ * ============================================================ */
+
+export const HeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+`;
+
+export const HeaderTitle = styled.h1`
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: 32px;
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[1]};
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
 `;
 
 export const Lede = styled.p`
-  margin: ${({ theme }) => theme.space[2]} 0 0;
-  max-width: 560px;
-  font-size: 14px;
-  line-height: 1.55;
+  margin: 6px 0 0;
+  font-size: 13px;
   color: ${({ theme }) => theme.color.fg[3]};
 `;
+
+/* ============================================================
+ * Toolbar — tag filter, active-tag chips, group toggle, search
+ * ============================================================ */
 
 export const Toolbar = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[3]};
   align-items: center;
-  margin-top: ${({ theme }) => theme.space[5]};
-`;
-
-export const SearchSlot = styled.div`
-  flex: 1 1 240px;
-  max-width: 360px;
-`;
-
-export const ChipRow = styled.div`
-  display: flex;
+  gap: 12px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[2]};
 `;
 
-export const Chip = styled.button<{ $active: boolean }>`
-  all: unset;
+export const ToolbarSpacer = styled.div`
+  flex: 1;
+`;
+
+export const GroupToggleLabel = styled.label`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.color.fg[2]};
   cursor: pointer;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  border: 1px solid
-    ${({ theme, $active }) => ($active ? theme.color.indigo[500] : theme.color.border[2])};
-  background: ${({ theme, $active }) => ($active ? theme.color.indigo[100] : theme.color.paper)};
-  color: ${({ theme, $active }) => ($active ? theme.color.indigo[700] : theme.color.fg[2])};
-  &:focus-visible {
-    box-shadow: ${({ theme }) => theme.shadow.focus};
+  user-select: none;
+  white-space: nowrap;
+
+  & > input {
+    accent-color: ${({ theme }) => theme.color.indigo[600]};
   }
 `;
 
-export const EmptyState = styled.div`
-  margin-top: ${({ theme }) => theme.space[8]};
-  padding: ${({ theme }) => theme.space[8]};
-  border: 1px dashed ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.lg};
-  text-align: center;
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-size: 14px;
+export const SearchBox = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: 10px;
+  background: ${({ theme }) => theme.color.paper};
+  width: 240px;
+
+  & > input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: inherit;
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  & > input::placeholder {
+    color: ${({ theme }) => theme.color.fg[3]};
+  }
 `;
+
+/* ============================================================
+ * TagFilterMenu (popover)
+ * ============================================================ */
+
+export const TagFilterAnchor = styled.div`
+  position: relative;
+`;
+
+export const TagFilterTrigger = styled.button<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  font-family: inherit;
+  ${({ $active, theme }) =>
+    $active
+      ? css`
+          background: ${theme.color.indigo[50]};
+          border: 1px solid ${theme.color.indigo[300]};
+          color: ${theme.color.fg[1]};
+        `
+      : css`
+          background: ${theme.color.paper};
+          border: 1px solid ${theme.color.border[1]};
+          color: ${theme.color.fg[1]};
+        `}
+`;
+
+export const TagFilterCount = styled.span`
+  padding: 1px 7px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  font-size: 11px;
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+export const TagFilterPanel = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: ${({ theme }) => theme.z.overlay};
+  width: 280px;
+  background: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: 12px;
+  box-shadow: ${({ theme }) => theme.shadow.lg};
+  padding: 10px;
+`;
+
+export const TagFilterSearchRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 8px;
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[2]};
+
+  & > input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 12.5px;
+    background: transparent;
+    color: ${({ theme }) => theme.color.fg[1]};
+    font-family: inherit;
+  }
+`;
+
+export const TagFilterClearButton = styled.button`
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: 11.5px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  padding: 2px 4px;
+  font-family: inherit;
+`;
+
+export const TagFilterList = styled.div`
+  max-height: 260px;
+  overflow-y: auto;
+  padding-top: 6px;
+`;
+
+export const TagFilterRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    background: ${({ theme }) => theme.color.ink[100]};
+  }
+`;
+
+export const TagFilterCheck = styled.span<{ $checked: boolean; $color: string }>`
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1.5px solid
+    ${({ $checked, $color, theme }) => ($checked ? $color : theme.color.border[1])};
+  background: ${({ $checked, $color, theme }) => ($checked ? $color : theme.color.paper)};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.color.fg.inverse};
+  flex-shrink: 0;
+`;
+
+export const TagFilterName = styled.span`
+  flex: 1;
+  font-size: 12.5px;
+  color: ${({ theme }) => theme.color.fg[1]};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+`;
+
+export const TagFilterCountBadge = styled.span`
+  font-size: 11px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+export const TagFilterEmpty = styled.div`
+  padding: 14px 6px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  text-align: center;
+`;
+
+/* ============================================================
+ * Active-tag chips row (next to filter trigger)
+ * ============================================================ */
+
+export const ActiveTagPill = styled.span<{ $bg: string; $fg: string }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 4px 10px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 11.5px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  letter-spacing: 0.02em;
+  background: ${({ $bg }) => $bg};
+  color: ${({ $fg }) => $fg};
+`;
+
+export const ActiveTagRemove = styled.button`
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  width: 16px;
+  height: 16px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: inherit;
+`;
+
+export const ActiveTagOverflow = styled.span`
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+`;
+
+/* ============================================================
+ * Grid / Group sections
+ * ============================================================ */
 
 export const Grid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: ${({ theme }) => theme.space[5]};
-  margin-top: ${({ theme }) => theme.space[6]};
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
 `;
+
+export const GroupSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  & + & {
+    margin-top: 32px;
+  }
+`;
+
+export const GroupHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+export const GroupTagPill = styled.span<{ $bg: string; $fg: string }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  letter-spacing: 0.02em;
+  background: ${({ $bg }) => $bg};
+  color: ${({ $fg }) => $fg};
+`;
+
+export const GroupTagDot = styled.span<{ $color: string }>`
+  width: 7px;
+  height: 7px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ $color }) => $color};
+`;
+
+export const GroupCount = styled.span`
+  font-size: 12px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+export const GroupRule = styled.div`
+  flex: 1;
+  height: 1px;
+  background: ${({ theme }) => theme.color.border[1]};
+`;
+
+/* ============================================================
+ * Empty state
+ * ============================================================ */
+
+export const EmptyState = styled.div`
+  margin-top: 16px;
+  padding: 40px 16px;
+  border: 1px dashed ${({ theme }) => theme.color.border[2]};
+  border-radius: 14px;
+  background: ${({ theme }) => theme.color.paper};
+  text-align: center;
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/* ============================================================
+ * "New template" tile (sits in the grid)
+ * ============================================================ */
 
 export const CreateCard = styled.button`
   all: unset;
   cursor: pointer;
   background: ${({ theme }) => theme.color.paper};
   border: 1.5px dashed ${({ theme }) => theme.color.indigo[300]};
-  border-radius: ${({ theme }) => theme.radius.lg};
-  padding: ${({ theme }) => theme.space[6]};
+  border-radius: 16px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: ${({ theme }) => theme.space[3]};
-  min-height: 208px;
-  text-align: left;
+  gap: 12px;
   transition:
-    background ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
-    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+
   &:hover,
   &:focus-visible {
     background: ${({ theme }) => theme.color.indigo[50]};
     border-color: ${({ theme }) => theme.color.indigo[500]};
-  }
-  &:focus-visible {
-    box-shadow: ${({ theme }) => theme.shadow.focus};
+    transform: translateY(-1px);
   }
 `;
 
-export const CreateBadge = styled.span`
-  width: 44px;
-  height: 44px;
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.indigo[100]};
-  color: ${({ theme }) => theme.color.indigo[700]};
-  display: inline-flex;
+export const CreateThumb = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: ${({ theme }) => theme.color.indigo[50]};
+  border-radius: 12px;
+  display: flex;
   align-items: center;
   justify-content: center;
 `;
 
-export const CreateTitle = styled.span`
+export const CreateBadge = styled.span`
+  width: 54px;
+  height: 54px;
+  border-radius: 14px;
+  background: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.indigo[700]};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: ${({ theme }) => theme.shadow.md};
+`;
+
+export const CreateBody = styled.div`
+  padding: 2px 4px 4px;
+  text-align: left;
+`;
+
+export const CreateTitle = styled.div`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 22px;
+  font-size: 18px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.01em;
 `;
 
-export const CreateSub = styled.span`
+export const CreateSub = styled.div`
+  font-size: 12px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  margin-top: 3px;
+`;
+
+/* ============================================================
+ * Delete confirm modal
+ * ============================================================ */
+
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to   { opacity: 1; }
+`;
+
+export const ModalBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: ${({ theme }) => theme.z.modal};
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: ${fadeIn} 160ms ease-out;
+`;
+
+export const ModalCard = styled.div`
+  width: 460px;
+  max-width: 100%;
+  background: ${({ theme }) => theme.color.paper};
+  border-radius: 18px;
+  box-shadow: ${({ theme }) => theme.shadow.lg};
+  padding: 28px 28px 22px;
+`;
+
+export const ModalHead = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+`;
+
+export const ModalIcon = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: ${({ theme }) => theme.color.danger[50]};
+  color: ${({ theme }) => theme.color.danger[700]};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+export const ModalTitle = styled.h2`
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: 22px;
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[1]};
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  margin: 0;
+`;
+
+export const ModalBody = styled.p`
   font-size: 13px;
   color: ${({ theme }) => theme.color.fg[3]};
+  margin: 6px 0 0;
   line-height: 1.5;
+`;
+
+export const ModalFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+`;
+
+export const ModalCancelButton = styled.button`
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  color: ${({ theme }) => theme.color.fg[1]};
+  font-size: 13px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-family: inherit;
+`;
+
+export const ModalDeleteButton = styled.button`
+  background: ${({ theme }) => theme.color.danger[700]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  border: none;
+  font-size: 13px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  padding: 9px 16px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: inherit;
+
+  &:hover,
+  &:focus-visible {
+    background: ${({ theme }) => theme.color.danger[500]};
+  }
 `;

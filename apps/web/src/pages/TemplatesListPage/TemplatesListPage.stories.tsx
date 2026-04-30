@@ -5,7 +5,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthContext } from '../../providers/AuthProvider';
 import type { AuthContextValue } from '../../providers/AuthProvider';
 import { AppStateProvider } from '../../providers/AppStateProvider';
+import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import { TemplatesListPage } from './TemplatesListPage';
+
+// Tagged variant of the seed so the Default story exercises the tag
+// pills + filter menu surface. Untouched fixtures stay tag-less.
+const TAGGED = TEMPLATES.map((t, i) => ({
+  ...t,
+  tags:
+    i === 0
+      ? ['Construction', 'Legal']
+      : i === 1
+        ? ['Legal', 'Sales']
+        : i === 2
+          ? ['HR', 'Legal']
+          : ['Marketing'],
+}));
 
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();
@@ -67,5 +82,11 @@ export default meta;
 type Story = StoryObj<typeof TemplatesListPage>;
 
 export const Default: Story = {
-  name: 'Initial render with seed templates',
+  name: 'Initial render with seed templates (tagged)',
+  args: { initialTemplates: TAGGED },
+};
+
+export const Empty: Story = {
+  name: 'No templates yet',
+  args: { initialTemplates: [] },
 };

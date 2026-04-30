@@ -29,6 +29,9 @@ const UploadRoute = lazy(() =>
 const DocumentRoute = lazy(() =>
   import('./routes/DocumentRoute').then((m) => ({ default: m.DocumentRoute })),
 );
+const TemplateEditorRoute = lazy(() =>
+  import('./routes/TemplateEditorRoute').then((m) => ({ default: m.TemplateEditorRoute })),
+);
 
 // Code-split every signing page so recipients don't pay for the sender
 // bundle's Supabase / react-pdf weight on initial load.
@@ -116,23 +119,25 @@ export function AppRoutes() {
       </Route>
 
       <Route element={<RequireAuthOrGuest />}>
-        <Route
-          path="/document/new"
-          element={
-            <Suspense fallback={<AuthLoadingScreen />}>
-              <UploadRoute />
-            </Suspense>
-          }
-        />
-        <Route
-          path="/document/:id"
-          element={
-            <Suspense fallback={<AuthLoadingScreen />}>
-              <DocumentRoute />
-            </Suspense>
-          }
-        />
-        <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
+        <Route element={<AppShell />}>
+          <Route
+            path="/document/new"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <UploadRoute />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/document/:id"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <DocumentRoute />
+              </Suspense>
+            }
+          />
+          <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
+        </Route>
       </Route>
 
       <Route element={<RequireAuth />}>
@@ -141,6 +146,18 @@ export function AppRoutes() {
           <Route path="/signers" element={<ContactsPage />} />
           <Route path="/templates" element={<TemplatesListPage />} />
           <Route path="/templates/:id/use" element={<UseTemplatePage />} />
+          {/* Step 3 of the templates wizard runs INSIDE AppShell so the
+              global NavBar stays visible across the entire wizard.
+              The TemplateFlowHeader (back / mode pill / step pills /
+              cancel) sits BELOW the NavBar as a sub-chrome bar. */}
+          <Route
+            path="/templates/:id/edit"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <TemplateEditorRoute />
+              </Suspense>
+            }
+          />
         </Route>
       </Route>
 
