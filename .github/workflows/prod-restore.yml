@@ -83,17 +83,22 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             apt-get update
             apt-get install -y --no-install-recommends ca-certificates
-            cd /work/apps/api
-            # Pin versions to avoid surprise breakage; node-forge 1.3.x
-            # matches what the API uses, ts-node 10.9 supports node 20.
-            npm install --no-save --no-audit --no-fund \
+            # Install dependencies in an empty workspace so npm resolves
+            # against ONLY the deps we ask for — running this inside
+            # /work/apps/api would inherit the API's package.json and
+            # hit peer-dep conflicts (e.g. @signpdf/signer-p12 pinning
+            # node-forge ^1.3.3, vs. our 1.3.1).
+            mkdir -p /tmp/cert-gen
+            cd /tmp/cert-gen
+            echo '{"name":"cert-gen","version":"0.0.0","private":true}' > package.json
+            npm install --no-audit --no-fund \
               ts-node@10.9.2 typescript@5.4.5 \
               @aws-sdk/client-kms@3.620.0 \
               node-forge@1.3.1 \
               @types/node-forge@1.3.11 \
               @types/node@20.12.7
             ./node_modules/.bin/ts-node --transpile-only \
-              scripts/generate-kms-binding-cert.ts \
+              /work/apps/api/scripts/generate-kms-binding-cert.ts \
               --key-id alias/seald-pades-sealing-prod \
               --region us-east-1 \
               --out /work/secrets/seald-pades-prod.crt.pem
