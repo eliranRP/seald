@@ -98,14 +98,22 @@ export function UploadRoute() {
   }, []);
   const [pickerOpen, setPickerOpen] = useState(false);
 
+  // The upload-page entry doesn't host its own "use this template"
+  // experience — it only gates document creation on a PDF + signers.
+  // Picking a template here therefore hands off to the canonical
+  // `/templates/:id/use` flow (same destination as the TemplatesListPage
+  // "Use" CTA), which handles "Continue with the saved example PDF" vs.
+  // "Upload a new one" + signer collection before routing back to
+  // `/document/new` with `?template=<id>` and (when applicable) the
+  // location-state handoff. Stamping `?template=` from the picker on
+  // `/document/new` would leave the user stuck behind the upload
+  // dropzone with no way forward.
   const handlePickTemplate = useCallback(
     (picked: TemplateSummary): void => {
       setPickerOpen(false);
-      const next = new URLSearchParams(searchParams);
-      next.set(TEMPLATE_QUERY_PARAM, picked.id);
-      setSearchParams(next, { replace: false });
+      navigate(`/templates/${encodeURIComponent(picked.id)}/use`);
     },
-    [searchParams, setSearchParams],
+    [navigate],
   );
 
   // Resolve the template from the query arg (local lookup today;
