@@ -3,7 +3,13 @@ import type { DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { DocumentPageSigner } from '@/pages/DocumentPage/DocumentPage.types';
-import { FIELD_HEIGHT, FIELD_WIDTH, MARQUEE_THRESHOLD, makeId } from './lib';
+import {
+  FIELD_HEIGHT,
+  FIELD_WIDTH,
+  MARQUEE_THRESHOLD,
+  expandSelectionToGroup,
+  makeId,
+} from './lib';
 
 interface MarqueeRect {
   readonly x: number;
@@ -173,7 +179,15 @@ export function useCanvasDnd({
             const fh = f.height ?? FIELD_HEIGHT;
             return f.x < r.x + r.w && f.x + fw > r.x && f.y < r.y + r.h && f.y + fh > r.y;
           });
-        setSelectedIds(hit.map((f) => f.id));
+        // Persistent groups (set via the GroupToolbar's "Group" button)
+        // expand the marquee selection so partial captures still pick
+        // up every group member — that's what makes drag/duplicate
+        // operate on the whole group.
+        const expanded = expandSelectionToGroup(
+          hit.map((f) => f.id),
+          fields,
+        );
+        setSelectedIds(expanded);
         setSignerPopoverFor(null);
         setPagesPopoverFor(null);
         suppressNextBgClickRef.current = true;

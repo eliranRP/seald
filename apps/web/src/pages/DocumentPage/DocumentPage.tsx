@@ -1,5 +1,14 @@
 import { forwardRef, useCallback, useState } from 'react';
-import { ArrowLeft, Bookmark, BookmarkPlus, CheckCircle2, Copy, X as XIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bookmark,
+  BookmarkPlus,
+  CheckCircle2,
+  Copy,
+  Group as GroupIcon,
+  Ungroup as UngroupIcon,
+  X as XIcon,
+} from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { AddSignerDropdown } from '@/components/AddSignerDropdown';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
@@ -19,6 +28,11 @@ import { SignersPanel } from '@/components/SignersPanel';
 import {
   DEFAULT_LEFT_WIDTH,
   DEFAULT_RIGHT_WIDTH,
+  expandSelectionToGroup,
+  hasAnyGrouped,
+  isFullyGrouped,
+  makeGroupId,
+  withoutGroupId,
   useCanvasDnd,
   useCanvasScroll,
   useCanvasZoom,
@@ -195,6 +209,32 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     if (selectedIds.length < 2) return;
     setGroupPagesPopoverOpen(true);
   }, [selectedIds]);
+
+  // Persistent group/ungroup actions. "Group" assigns a fresh groupId to
+  // every selected field so they stay bound across selections, drags,
+  // and duplicate-on-pages operations. "Ungroup" strips the groupId off
+  // every selected field, returning them to standalone behavior. Both
+  // record an undo snapshot so the operation is reversible.
+  const groupSelected = useCallback((): void => {
+    if (selectedIds.length < 2) return;
+    if (isFullyGrouped(selectedIds, fields)) return;
+    const newGroupId = makeGroupId();
+    const selectedSet = new Set<string>(selectedIds);
+    pushUndo(fields);
+    onFieldsChange(fields.map((f) => (selectedSet.has(f.id) ? { ...f, groupId: newGroupId } : f)));
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+
+  const ungroupSelected = useCallback((): void => {
+    if (!hasAnyGrouped(selectedIds, fields)) return;
+    const selectedSet = new Set<string>(selectedIds);
+    pushUndo(fields);
+    onFieldsChange(
+      fields.map((f) => {
+        if (!selectedSet.has(f.id) || !f.groupId) return f;
+        return withoutGroupId(f);
+      }),
+    );
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
 
   const { duplicateField, applySignerSelection, applyPagesSelection, applyGroupPagesSelection } =
     usePlacement({
@@ -376,15 +416,17 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                       onSelect={(e) => {
                                         e.stopPropagation();
                                         const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-                                        if (additive) {
-                                          setSelectedIds((prev) =>
-                                            prev.includes(field.id)
+                                        // Persistent groups expand to all members so clicking
+                                        // any tile selects the whole group — same gesture for
+                                        // single-click and shift/meta-click.
+                                        setSelectedIds((prev) => {
+                                          const base = additive
+                                            ? prev.includes(field.id)
                                               ? prev.filter((id) => id !== field.id)
-                                              : [...prev, field.id],
-                                          );
-                                        } else {
-                                          setSelectedIds([field.id]);
-                                        }
+                                              : [...prev, field.id]
+                                            : [field.id];
+                                          return expandSelectionToGroup(base, fields);
+                                        });
                                         setSignerPopoverFor(null);
                                         setPagesPopoverFor(null);
                                       }}
@@ -455,6 +497,25 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                     <GroupToolbarLabel>
                                       {selectedIds.length} selected
                                     </GroupToolbarLabel>
+                                    {isFullyGrouped(selectedIds, fields) ? (
+                                      <GroupToolbarButton
+                                        type="button"
+                                        $tone="indigo"
+                                        aria-label="Ungroup selected fields"
+                                        onClick={ungroupSelected}
+                                      >
+                                        <UngroupIcon size={14} strokeWidth={1.75} aria-hidden />
+                                      </GroupToolbarButton>
+                                    ) : (
+                                      <GroupToolbarButton
+                                        type="button"
+                                        $tone="indigo"
+                                        aria-label="Group selected fields"
+                                        onClick={groupSelected}
+                                      >
+                                        <GroupIcon size={14} strokeWidth={1.75} aria-hidden />
+                                      </GroupToolbarButton>
+                                    )}
                                     <GroupToolbarButton
                                       type="button"
                                       $tone="indigo"

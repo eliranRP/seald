@@ -849,3 +849,75 @@ describe('DocumentPage', () => {
     expect(btn).toBeDisabled();
   });
 });
+
+// Persistent groups (issue #2): the GroupToolbar exposes a Group / Ungroup
+// affordance so the user can bind 2+ selected fields together (so they
+// move and duplicate as one) and later release them to position
+// individually. These tests assert each piece of the round trip:
+//  (1) the affordance is the correct one for the current selection state,
+//  (2) clicking Group writes a shared groupId on every selected field,
+//  (3) clicking any group member auto-expands the selection back to the
+//      whole group (so a single click → drag-as-one),
+//  (4) clicking Ungroup strips the groupId off every selected field.
+describe('DocumentPage — persistent group / ungroup', () => {
+  it('shows the Group button while two ungrouped fields are selected, and writes a shared groupId on click', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.click(screen.getByRole('group', { name: /date field for/i }), { shiftKey: true });
+    // Group affordance is visible; Ungroup is NOT (no groupId yet).
+    const groupBtn = screen.getByRole('button', { name: /group selected fields/i });
+    expect(groupBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ungroup selected fields/i })).toBeNull();
+    fireEvent.click(groupBtn);
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(2);
+    // Both fields share the same fresh groupId (`g_…`).
+    const ids = new Set(next.map((f) => f.groupId));
+    expect(ids.size).toBe(1);
+    expect([...ids][0]).toMatch(/^g_/);
+  });
+
+  it('auto-expands a single click on any group member to select the whole group, then ungroups them', () => {
+    // Pre-grouped fixture: both fields already share `g_a`, simulating
+    // a session that had previously hit the Group action.
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'], groupId: 'g_a' },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'], groupId: 'g_a' },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    // Single click on ONE member should expand to both → group toolbar
+    // shows "2 selected" and offers Ungroup (not Group, because the
+    // selection is already fully grouped).
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
+    const ungroupBtn = screen.getByRole('button', { name: /ungroup selected fields/i });
+    expect(ungroupBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^group selected fields$/i })).toBeNull();
+    fireEvent.click(ungroupBtn);
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(2);
+    // groupId is removed (not just set to undefined) so subsequent
+    // selections behave as if the fields had never been grouped.
+    for (const f of next) {
+      expect('groupId' in f).toBe(false);
+    }
+  });
+
+  it('does not include the Group button when the selection is already fully grouped', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'], groupId: 'g_a' },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'], groupId: 'g_a' },
+    ];
+    renderPage({ initialFields: fields });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    // Ungroup is the only group/ungroup affordance shown.
+    expect(screen.getByRole('button', { name: /ungroup selected fields/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^group selected fields$/i })).toBeNull();
+  });
+});

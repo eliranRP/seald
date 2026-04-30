@@ -1,7 +1,14 @@
 import { useCallback } from 'react';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
-import { PASTE_OFFSET, makeId, makeLinkId, resolveTargetPages } from './lib';
+import {
+  PASTE_OFFSET,
+  makeGroupId,
+  makeId,
+  makeLinkId,
+  resolveTargetPages,
+  withoutGroupId,
+} from './lib';
 import type { GroupRect } from './useDocumentDerived';
 
 interface UsePlacementArgs {
@@ -59,8 +66,11 @@ export function usePlacement({
     (id: string): void => {
       const source = fields.find((f) => f.id === id);
       if (!source) return;
+      // Clone is standalone: drop `groupId` so a single-field duplicate
+      // doesn't silently join the source's persistent group. Users who
+      // want grouped clones go through the group-place-on-pages action.
       const clone: PlacedFieldValue = {
-        ...source,
+        ...withoutGroupId(source),
         id: makeId(),
         x: source.x + PASTE_OFFSET,
         y: source.y + PASTE_OFFSET,
@@ -141,13 +151,33 @@ export function usePlacement({
       for (const f of sourceFields) {
         linkIdBySource.set(f.id, f.linkId ?? makeLinkId());
       }
+      // If the sources are all part of the same persistent group, mint a
+      // FRESH groupId per target page so each page's row becomes its
+      // own group. Re-using the source groupId across pages would break
+      // the single-page invariant that `groupRect` and selection-
+      // expansion assume.
+      const sourceGroupId = sourceFields[0]?.groupId;
+      const sourcesShareGroup =
+        sourceGroupId !== undefined && sourceFields.every((f) => f.groupId === sourceGroupId);
+      const groupIdByPage = new Map<number, string>();
+      if (sourcesShareGroup) {
+        for (const page of targets) groupIdByPage.set(page, makeGroupId());
+      }
       const clones: ReadonlyArray<PlacedFieldValue> = targets.flatMap((page) =>
-        sourceFields.map((f) => ({
-          ...f,
-          id: makeId(),
-          page,
-          linkId: linkIdBySource.get(f.id),
-        })),
+        sourceFields.map((f) => {
+          const linkId = linkIdBySource.get(f.id);
+          const pageGroupId = groupIdByPage.get(page);
+          // Strip the source's `groupId` from the spread so clones never
+          // leak the source-page group across pages. If sources shared
+          // a group, the per-page groupId is added back below.
+          return {
+            ...withoutGroupId(f),
+            id: makeId(),
+            page,
+            ...(linkId !== undefined ? { linkId } : {}),
+            ...(pageGroupId !== undefined ? { groupId: pageGroupId } : {}),
+          };
+        }),
       );
       pushUndo(fields);
       onFieldsChange([
