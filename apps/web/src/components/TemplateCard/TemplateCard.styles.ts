@@ -1,251 +1,299 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+import type { TemplateCardAccent } from './TemplateCard.types';
+
+/**
+ * Per-accent color set used by `MiniThumb`. Each accent maps to:
+ *   bg   — washed background panel (palette-50)
+ *   mark — strong stripe + signature outline (palette-500)
+ *   soft — softer signature fill (palette-100)
+ * Mirrors the design guide's `ACCENTS` map.
+ */
+const ACCENT_BG = css<{ $accent: TemplateCardAccent }>`
+  background: ${({ theme, $accent }) => {
+    if ($accent === 'amber') return theme.color.warn[50];
+    if ($accent === 'emerald') return theme.color.success[50];
+    if ($accent === 'pink') return theme.color.danger[50];
+    return theme.color.indigo[50];
+  }};
+`;
+
+const ACCENT_MARK = css<{ $accent: TemplateCardAccent }>`
+  background: ${({ theme, $accent }) => {
+    if ($accent === 'amber') return theme.color.warn[500];
+    if ($accent === 'emerald') return theme.color.success[500];
+    if ($accent === 'pink') return theme.color.danger[500];
+    return theme.color.indigo[500];
+  }};
+`;
+
+const ACCENT_SOFT = css<{ $accent: TemplateCardAccent }>`
+  background: ${({ theme, $accent }) => {
+    if ($accent === 'amber') return theme.color.warn[50];
+    if ($accent === 'emerald') return theme.color.success[50];
+    if ($accent === 'pink') return theme.color.danger[50];
+    return theme.color.indigo[100];
+  }};
+  border: 1px solid
+    ${({ theme, $accent }) => {
+      if ($accent === 'amber') return theme.color.warn[500];
+      if ($accent === 'emerald') return theme.color.success[500];
+      if ($accent === 'pink') return theme.color.danger[500];
+      return theme.color.indigo[500];
+    }};
+`;
+
+/* ============================================================
+ * Card root
+ * ============================================================ */
 
 export const Root = styled.article`
+  position: relative;
   background: ${({ theme }) => theme.color.paper};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.lg};
-  padding: ${({ theme }) => theme.space[5]};
+  border-radius: 16px;
+  padding: 14px;
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[4]};
-  transition:
-    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
-    box-shadow ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
+  gap: 12px;
+
   &:hover,
   &:focus-within {
     border-color: ${({ theme }) => theme.color.indigo[300]};
     box-shadow: ${({ theme }) => theme.shadow.md};
+    transform: translateY(-1px);
   }
 `;
 
-export const Top = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[5]};
-  align-items: flex-start;
-`;
+/* ============================================================
+ * MiniThumb — proportional 4:3 paper preview
+ * ============================================================ */
 
-export const CoverWrap = styled.div`
+export const MiniThumb = styled.div<{ $accent: TemplateCardAccent }>`
   position: relative;
-  width: 92px;
-  height: 116px;
-  flex-shrink: 0;
-`;
-
-export const CoverPaper = styled.div`
-  position: absolute;
-  inset: 0;
-  background: ${({ theme }) => theme.color.paper};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.xs};
-  box-shadow: ${({ theme }) => theme.shadow.paper};
-  padding: 12px 10px;
-  display: flex;
-  flex-direction: column;
-`;
-
-export const CoverStripe = styled.div<{ $color: string }>`
-  height: 5px;
-  border-radius: 2px;
-  background: ${({ $color }) => $color};
-  width: 60%;
-`;
-
-export const CoverLines = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 8px;
-  flex: 1;
-`;
-
-export const CoverLine = styled.div<{ $width: number }>`
-  height: 2px;
-  border-radius: 1px;
-  background: ${({ theme }) => theme.color.ink[150]};
-  width: ${({ $width }) => `${$width}%`};
-`;
-
-export const CoverInitial = styled.div`
-  position: absolute;
-  top: 12px;
-  right: 10px;
-  width: 18px;
-  height: 12px;
-  border-radius: 3px;
-  background: ${({ theme }) => theme.color.indigo[100]};
-  border: 1px solid ${({ theme }) => theme.color.indigo[300]};
-`;
-
-export const CoverSig = styled.div`
-  position: absolute;
-  bottom: 12px;
-  left: 10px;
-  right: 38px;
-  height: 14px;
-  border-radius: 3px;
-  background: ${({ theme }) => theme.color.indigo[100]};
-  border: 1px solid ${({ theme }) => theme.color.indigo[300]};
-`;
-
-export const CoverPages = styled.div`
-  position: absolute;
-  bottom: 6px;
-  right: 8px;
-  font-size: 9px;
-  font-family: ${({ theme }) => theme.font.mono};
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const Body = styled.div`
-  flex: 1;
-  min-width: 0;
-  padding-top: ${({ theme }) => theme.space[1]};
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.space[2]};
-`;
-
-export const Code = styled.div`
-  font-size: 11px;
-  font-family: ${({ theme }) => theme.font.mono};
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const Name = styled.h3`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: 18px;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.fg[1]};
-  letter-spacing: -0.01em;
-  line-height: 1.25;
-  margin: 0;
-`;
-
-export const Meta = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[4]};
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const MetaItem = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[1]};
-`;
-
-export const Footer = styled.div`
-  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
-  padding-top: ${({ theme }) => theme.space[3]};
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[3]};
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const FooterStat = styled.span`
-  flex: 1;
-  min-width: 0;
-  & > b {
-    color: ${({ theme }) => theme.color.fg[1]};
-    font-weight: ${({ theme }) => theme.font.weight.semibold};
-  }
-  & > code {
-    font-family: ${({ theme }) => theme.font.mono};
-    color: ${({ theme }) => theme.color.fg[2]};
-    background: transparent;
-    padding: 0;
-  }
-`;
-
-export const Actions = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[2]};
-  flex-shrink: 0;
-  position: relative;
-`;
-
-export const MenuTrigger = styled.button`
-  all: unset;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  color: ${({ theme }) => theme.color.fg[3]};
-  &:hover,
-  &:focus-visible {
-    background: ${({ theme }) => theme.color.ink[100]};
-    color: ${({ theme }) => theme.color.fg[1]};
-  }
-`;
-
-export const MenuPopover = styled.ul`
-  position: absolute;
-  bottom: calc(100% + ${({ theme }) => theme.space[1]});
-  right: 0;
-  margin: 0;
-  padding: ${({ theme }) => theme.space[1]};
-  list-style: none;
-  background: ${({ theme }) => theme.color.paper};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  box-shadow: ${({ theme }) => theme.shadow.md};
-  z-index: 5;
-  min-width: 160px;
-`;
-
-export const MenuItem = styled.li<{ $danger?: boolean }>`
-  & > button {
-    all: unset;
-    display: flex;
-    align-items: center;
-    gap: ${({ theme }) => theme.space[2]};
-    width: 100%;
-    box-sizing: border-box;
-    padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
-    border-radius: ${({ theme }) => theme.radius.sm};
-    font-size: 13px;
-    color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[1])};
-    cursor: pointer;
-  }
-  & > button:hover,
-  & > button:focus-visible {
-    background: ${({ theme, $danger }) =>
-      $danger ? theme.color.danger[50] : theme.color.ink[100]};
-  }
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  ${ACCENT_BG}
 `;
 
 /**
- * Inline destructive-action confirm shown when the operator clicks
- * "Delete" in the menu. Slots into the same MenuPopover footprint —
- * no separate modal, so the cursor is already hovering and a single
- * click confirms.
+ * Faux paper centered on the accent panel. The DG renders a 3:4 paper
+ * tile with shadow + 7 grey lines + a signature box at the bottom.
  */
-export const ConfirmRow = styled.li`
+export const ThumbPaper = styled.div`
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  width: 58%;
+  aspect-ratio: 3 / 4;
+  background: ${({ theme }) => theme.color.paper};
+  border-radius: 3px;
+  padding: 10% 11%;
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[2]};
-  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
-  font-size: 13px;
-  color: ${({ theme }) => theme.color.fg[1]};
-  background: ${({ theme }) => theme.color.danger[50]};
-  border-radius: ${({ theme }) => theme.radius.sm};
+  gap: 4%;
+  box-shadow: ${({ theme }) => theme.shadow.paper};
+`;
 
-  & > strong {
-    font-weight: 600;
+export const ThumbStripe = styled.div<{ $accent: TemplateCardAccent }>`
+  height: 4%;
+  border-radius: 1px;
+  width: 48%;
+  ${ACCENT_MARK}
+`;
+
+export const ThumbSpacer = styled.div`
+  height: 2%;
+`;
+
+export const ThumbLine = styled.div<{ $width: number }>`
+  height: 2.4%;
+  border-radius: 1px;
+  background: ${({ theme }) => theme.color.ink[200]};
+  width: ${({ $width }) => `${$width}%`};
+`;
+
+export const ThumbSig = styled.div<{ $accent: TemplateCardAccent }>`
+  position: absolute;
+  left: 14%;
+  right: 46%;
+  bottom: 14%;
+  height: 7%;
+  border-radius: 2px;
+  ${ACCENT_SOFT}
+`;
+
+export const ThumbPagesChip = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: rgba(255, 255, 255, 0.92);
+  font-size: 10px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  font-family: ${({ theme }) => theme.font.mono};
+  color: ${({ theme }) => theme.color.fg[2]};
+  letter-spacing: 0.04em;
+  box-shadow: ${({ theme }) => theme.shadow.xs};
+`;
+
+/* ============================================================
+ * Card body
+ * ============================================================ */
+
+export const Body = styled.div`
+  padding: 0 4px;
+  min-height: 64px;
+`;
+
+export const Name = styled.h3`
+  font-size: 14px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  line-height: 1.3;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
+export const TagRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+`;
+
+export const TagPill = styled.button<{ $bg: string; $fg: string }>`
+  font-size: 10.5px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  border: none;
+  cursor: pointer;
+  background: ${({ $bg }) => $bg};
+  color: ${({ $fg }) => $fg};
+  font-family: inherit;
+`;
+
+export const TagOverflowPill = styled.button`
+  font-size: 10.5px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  letter-spacing: 0.02em;
+  padding: 2px 7px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  border: none;
+  cursor: pointer;
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-family: inherit;
+`;
+
+export const StatRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const StatItem = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+export const StatDot = styled.span`
+  width: 2px;
+  height: 2px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[300]};
+`;
+
+export const StatMono = styled.span`
+  font-family: ${({ theme }) => theme.font.mono};
+`;
+
+/* ============================================================
+ * Floating action overlay (revealed on card hover)
+ * ============================================================ */
+
+/**
+ * Action overlay sits over the thumbnail and reveals on hover/focus
+ * via opacity. We deliberately keep `pointer-events: auto` always so
+ * the buttons stay reachable by keyboard + tests; only the visual
+ * curtain animates in. Without this, jsdom (no real hover events)
+ * can't drive the actions, and screen readers wouldn't surface them
+ * either.
+ */
+export const ActionOverlay = styled.div`
+  position: absolute;
+  top: 22px;
+  left: 22px;
+  right: 22px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+
+  ${Root}:hover &,
+  ${Root}:focus-within & {
+    opacity: 1;
   }
-  & > span {
-    color: ${({ theme }) => theme.color.fg[3]};
-    font-size: 12px;
+
+  & > button:focus-visible {
+    opacity: 1;
   }
-  & > div {
-    display: flex;
-    gap: ${({ theme }) => theme.space[2]};
-    justify-content: flex-end;
-    margin-top: ${({ theme }) => theme.space[1]};
+`;
+
+const baseAction = css`
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-family: inherit;
+  color: ${({ theme }) => theme.color.fg[1]};
+  box-shadow: ${({ theme }) => theme.shadow.xs};
+`;
+
+export const ActionButton = styled.button`
+  ${baseAction}
+`;
+
+export const ActionPrimary = styled.button`
+  ${baseAction}
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  border: none;
+  padding: 6px 10px;
+`;
+
+export const ActionDanger = styled.button`
+  ${baseAction}
+  color: ${({ theme }) => theme.color.danger[700]};
+  padding: 6px 8px;
+
+  &:hover,
+  &:focus-visible {
+    background: ${({ theme }) => theme.color.danger[50]};
+    border-color: ${({ theme }) => theme.color.danger[500]};
   }
 `;
