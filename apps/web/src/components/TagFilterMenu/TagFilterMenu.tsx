@@ -15,21 +15,18 @@ import {
   TagFilterRow,
   TagFilterSearchRow,
   TagFilterTrigger,
-} from './TemplatesListPage.styles';
-
-export interface TagFilterMenuProps {
-  readonly allTags: ReadonlyArray<string>;
-  readonly counts: Readonly<Record<string, number>>;
-  readonly selected: ReadonlyArray<string>;
-  readonly onToggle: (tag: string) => void;
-  readonly onClear: () => void;
-}
+} from './TagFilterMenu.styles';
+import type { TagFilterMenuProps } from './TagFilterMenu.types';
 
 /**
- * L3 widget — popover trigger ("Tags") that opens a searchable list of
- * the unique tags currently in the template set. Clicking a row
- * toggles its membership in the active filter; the parent owns the
- * `selected` list. Closes on outside-click + Escape.
+ * Popover trigger ("Tags") that opens a searchable list of the unique
+ * tags currently in the surrounding set. Clicking a row toggles its
+ * membership in the active filter; the parent owns the `selected`
+ * list. Closes on outside-click + Escape.
+ *
+ * Shared between the templates list page and the template-picker
+ * dialog (sign flow). Lifted from `pages/TemplatesListPage` per FSD
+ * rule 1.4 once a second consumer arrived.
  */
 export function TagFilterMenu({
   allTags,

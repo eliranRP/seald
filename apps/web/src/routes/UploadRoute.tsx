@@ -4,12 +4,15 @@ import { UploadPage } from '../pages/UploadPage';
 import { SignersStepCard } from '../components/SignersStepCard';
 import type { SignersStepSigner } from '../components/SignersStepCard';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
+import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { useAppState } from '../providers/AppStateProvider';
 import { usePdfDocument } from '../lib/pdf';
 import {
   findTemplateById,
+  getTemplates,
   rebindFieldsToSigners,
   resolveTemplateFields,
+  subscribeToTemplates,
   type TemplateSummary,
 } from '../features/templates';
 
@@ -80,6 +83,30 @@ export function UploadRoute() {
     () => initialHandoff?.templateSigners ?? [],
   );
   const { numPages } = usePdfDocument(pdfFile);
+
+  /**
+   * Live-subscribed list of templates. Drives the "Start from a
+   * template" CTA in the dropzone — hidden when empty (per design)
+   * and populated by `getTemplates()` once the seed/loader resolves.
+   * The subscription stays mounted so a save in another tab/page
+   * (e.g. "Save as template" on a finished envelope) shows up here
+   * without a refresh.
+   */
+  const [templates, setTemplatesState] = useState<ReadonlyArray<TemplateSummary>>(getTemplates);
+  useEffect(() => {
+    return subscribeToTemplates(() => setTemplatesState(getTemplates()));
+  }, []);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const handlePickTemplate = useCallback(
+    (picked: TemplateSummary): void => {
+      setPickerOpen(false);
+      const next = new URLSearchParams(searchParams);
+      next.set(TEMPLATE_QUERY_PARAM, picked.id);
+      setSearchParams(next, { replace: false });
+    },
+    [searchParams, setSearchParams],
+  );
 
   // Resolve the template from the query arg (local lookup today;
   // TODO(api): swap for `GET /templates/:id` once the templates service
@@ -258,6 +285,7 @@ export function UploadRoute() {
           {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
           templateBannerTone={bannerTone}
           {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
+          {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
         />
       ) : (
         <SignersStepCard
@@ -296,6 +324,12 @@ export function UploadRoute() {
           continueLabel="Continue to fields"
         />
       )}
+      <TemplatePickerDialog
+        open={pickerOpen}
+        templates={templates}
+        onPick={handlePickTemplate}
+        onClose={() => setPickerOpen(false)}
+      />
     </>
   );
 }

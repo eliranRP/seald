@@ -18,7 +18,7 @@ import {
   updateTemplate as apiUpdateTemplate,
 } from '@/features/templates/templatesApi';
 import type { TemplateSummary } from '@/features/templates';
-import { TagFilterMenu } from './TagFilterMenu';
+import { TagFilterMenu } from '@/components/TagFilterMenu';
 import {
   ActiveTagOverflow,
   ActiveTagPill,

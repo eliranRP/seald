@@ -316,3 +316,44 @@ export const TemplateBannerClear = styled.button`
     border-radius: 2px;
   }
 `;
+
+export const TemplatePromptDivider = styled.div`
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px dashed ${({ theme }) => theme.color.border[2]};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const TemplatePromptHint = styled.span``;
+
+export const TemplatePromptLink = styled.button`
+  appearance: none;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: ${({ theme }) => theme.color.indigo[700]};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+
+  &:hover {
+    color: ${({ theme }) => theme.color.indigo[600]};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+`;

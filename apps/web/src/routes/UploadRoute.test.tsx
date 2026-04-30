@@ -161,6 +161,27 @@ describe('UploadRoute (template integration)', () => {
     );
   });
 
+  it('hides the "Start from a template" CTA when no templates are saved', () => {
+    setTemplates([]);
+    renderAt('/document/new');
+    expect(
+      screen.queryByRole('button', { name: /start from a template/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens the template picker when the CTA is clicked, and ?template= is set on pick', async () => {
+    renderAt('/document/new');
+    fireEvent.click(screen.getByRole('button', { name: /start from a template/i }));
+    const dialog = await screen.findByRole('dialog', { name: /choose a template/i });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(SAMPLE.name, 'i') }));
+    await waitFor(() => {
+      // Banner means `?template=` was applied + template resolved.
+      expect(screen.getByRole('status')).toHaveTextContent(/using template/i);
+      expect(screen.getByRole('status')).toHaveTextContent(SAMPLE.name);
+    });
+  });
+
   // Regression for the "signers display more than once" bug. The
   // templates wizard hands off `templateSigners` via `location.state`;
   // UploadRoute clears that state on mount (so back-then-forward
