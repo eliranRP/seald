@@ -8,7 +8,7 @@ export const STATUS_BADGE_MAP: Readonly<
 > = Object.freeze({
   'awaiting-you': { tone: 'indigo', label: 'Awaiting you' },
   'awaiting-others': { tone: 'amber', label: 'Awaiting others' },
-  completed: { tone: 'emerald', label: 'Completed' },
+  completed: { tone: 'emerald', label: 'Signed' },
   declined: { tone: 'red', label: 'Declined' },
   expired: { tone: 'red', label: 'Expired' },
   draft: { tone: 'neutral', label: 'Draft' },
