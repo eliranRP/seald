@@ -1,0 +1,114 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'cookies_v0.1';
+---
+<BaseLayout
+  title="Cookie Policy — Seald"
+  description="What cookies and similar technologies Seald uses, and how to opt out. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Cookie Policy</h1>
+        <p>This page explains what cookies and similar technologies Seald, Inc. ("<strong>Seald</strong>", "we") uses on the Seald website at <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> and inside the Seald e-signature web application (the "<strong>Service</strong>"), what they do, how long they last, and how you can opt out. It is meant to be read in plain English.</p>
+      </header>
+
+      <section id="what">
+        <h2>1. What is a cookie?</h2>
+        <p>A cookie is a small text file stored on your device by your browser. Similar technologies — <code>localStorage</code>, <code>sessionStorage</code>, IndexedDB, web beacons — work in much the same way. We refer to all of them collectively as "cookies" on this page. Cookies are either "first-party" (set by Seald) or "third-party" (set by another company on our behalf).</p>
+      </section>
+
+      <section id="categories">
+        <h2>2. Categories of cookies we use</h2>
+        <h3>2.1 Strictly necessary</h3>
+        <p>These cookies are required for the Service to work. We do not ask for your consent to set them, because the law (ePrivacy Directive 2002/58/EC, Article 5(3)) treats them as strictly necessary for the service you have requested.</p>
+        <h3>2.2 Analytics (privacy-friendly, consent-gated)</h3>
+        <p>We use Cloudflare Web Analytics to count visits and understand which pages are popular. The Cloudflare beacon is designed to be cookieless and to use sampled, hashed visit signals rather than persistent identifiers. We still treat it as non-essential and gate it behind your consent.</p>
+        <h3>2.3 Marketing</h3>
+        <p>We do not use marketing or advertising cookies. We do not sell or share personal information for cross-context behavioral advertising as those terms are defined under the California Privacy Rights Act (Cal. Civ. Code § 1798.140(ad), (ah)).</p>
+      </section>
+
+      <section id="list">
+        <h2>3. Specific cookies and beacons</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Purpose</th>
+              <th scope="col">First or third party</th>
+              <th scope="col">Lifetime</th>
+              <th scope="col">Category</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Cloudflare Web Analytics beacon (<code>beacon.min.js</code>)</th>
+              <td>Counts page views in aggregate. Cookieless by design; transmits a sampled visit signal to Cloudflare.</td>
+              <td>Third party (Cloudflare, Inc.)</td>
+              <td>Per page view; no persistent storage</td>
+              <td>Analytics — consent required in EEA / UK / Switzerland</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>seald_consent_v1</code></th>
+              <td>Records your cookie-banner choice so we do not ask again on every page.</td>
+              <td>First party</td>
+              <td>Up to 12 months (EDPB 03/2022 maximum)</td>
+              <td>Strictly necessary</td>
+            </tr>
+            <tr>
+              <th scope="row">Supabase auth cookies (<code>sb-access-token</code>, <code>sb-refresh-token</code>)</th>
+              <td>Keep you signed in to the Service after you authenticate, and let us refresh your session without making you log in again.</td>
+              <td>First party (set by the Service via Supabase Auth)</td>
+              <td>Access token: 1 hour. Refresh token: rotated, up to the configured Supabase session lifetime.</td>
+              <td>Strictly necessary</td>
+            </tr>
+            <tr>
+              <th scope="row"><code>sb-pkce-verifier</code></th>
+              <td>Protects the OAuth / magic-link sign-in flow from interception (PKCE).</td>
+              <td>First party</td>
+              <td>Cleared at the end of the sign-in flow</td>
+              <td>Strictly necessary</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>If we add another cookie or beacon we will update this table and re-prompt for consent if it falls into the analytics or marketing category.</p>
+      </section>
+
+      <section id="banner">
+        <h2>4. Our consent banner — Reject as easy as Accept</h2>
+        <p>If you visit the Site from the EEA, the UK, or Switzerland, we show a consent banner before any non-essential cookie or beacon fires. Following the European Data Protection Board's Guidelines 03/2022 on dark patterns:</p>
+        <ul>
+          <li>The "Reject" button is shown with the same prominence as the "Accept" button.</li>
+          <li>No category is pre-ticked.</li>
+          <li>You can choose categories individually.</li>
+          <li>You can withdraw your consent at any time, with the same ease as giving it, by clicking <strong>Manage cookie preferences</strong> in the footer.</li>
+          <li>Continued browsing is never treated as consent.</li>
+        </ul>
+        <p>We honor the Global Privacy Control browser signal as an opt-out for the analytics category, in line with California CCPA Regulations § 7025 and the universal-opt-out mechanisms required by Colorado and Connecticut.</p>
+      </section>
+
+      <section id="control">
+        <h2>5. How to control cookies</h2>
+        <ul>
+          <li><strong>In Seald:</strong> click "Manage cookie preferences" in the footer to change your choice at any time.</li>
+          <li><strong>In your browser:</strong> Chrome, Firefox, Safari, Edge, and Brave all let you block or delete cookies in settings. Blocking strictly necessary cookies will break the Service.</li>
+          <li><strong>Global Privacy Control:</strong> install a browser or extension that sends the GPC signal; we will treat it as an opt-out.</li>
+        </ul>
+      </section>
+
+      <section id="changes">
+        <h2>6. Changes to this Policy</h2>
+        <p>We will update this Cookie Policy from time to time. The "Last updated" date at the top reflects the most recent change. Material changes will be communicated by email or in the consent banner.</p>
+      </section>
+
+      <section id="contact">
+        <h2>7. Contact</h2>
+        <p>Questions: <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

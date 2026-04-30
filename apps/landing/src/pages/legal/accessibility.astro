@@ -1,0 +1,81 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'accessibility_v0.1';
+---
+<BaseLayout
+  title="Accessibility Statement — Seald"
+  description="Seald accessibility statement. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Accessibility Statement</h1>
+        <p>Seald, Inc. ("<strong>Seald</strong>", "we") is committed to making its website and e-signature service usable by the widest possible audience, including people with disabilities. This statement describes our current accessibility posture, the standards we target, the gaps we know about, and how to reach us with feedback.</p>
+      </header>
+
+      <section id="standard">
+        <h2>1. Standard we target</h2>
+        <p>We target the Web Content Accessibility Guidelines ("<strong>WCAG</strong>") version 2.1 at conformance Level AA, published by the World Wide Web Consortium. This is the de-facto standard for U.S. Department of Justice expectations under the Americans with Disabilities Act, Title III (42 U.S.C. § 12181 et seq.), the federal Rehabilitation Act § 508 (29 U.S.C. § 794d) ICT Refresh, and the European Accessibility Act ("<strong>EAA</strong>", Directive (EU) 2019/882), which has been in force since 28 June 2025.</p>
+        <p>Our current self-assessed conformance level is <strong>partially conformant with WCAG 2.1 Level AA</strong>. "Partially conformant" means that some parts of the content do not yet fully meet the standard.</p>
+      </section>
+
+      <section id="known-gaps">
+        <h2>2. Known accessibility gaps</h2>
+        <p>We are working to close these gaps; in the meantime, please contact us if any of them prevents you from using the Service.</p>
+        <ul>
+          <li>The signing fill page (<code>/sign/&hellip;</code>) does not yet provide complete ARIA labels and descriptions on every interactive field; some form-validation messages are not yet associated with their inputs through <code>aria-describedby</code>.</li>
+          <li>The drawn-signature pad relies on pointer or touch input. Signers who cannot use a pointer device should choose the "Type" tab to enter a typed signature, which is fully keyboard-accessible.</li>
+          <li>The marketing landing page uses scroll-triggered animations. We respect <code>prefers-reduced-motion</code> where supported, but a small number of decorative animations may still play; they are non-essential and contain no information.</li>
+          <li>Color-contrast ratios on a small number of legacy decorative elements have not yet been verified against the 4.5:1 minimum for body text.</li>
+          <li>An external accessibility audit (third-party VPAT / Accessibility Conformance Report) has not yet been commissioned. Our claim of "partially conformant" is based on internal review only.</li>
+        </ul>
+      </section>
+
+      <section id="features">
+        <h2>3. Accessibility features in place</h2>
+        <ul>
+          <li>"Skip to main content" link as the first focusable element on every page.</li>
+          <li>Semantic HTML (headings, landmarks, lists, tables) throughout.</li>
+          <li>Keyboard navigation across the primary signing flow with visible focus styles.</li>
+          <li>Three signature input modes — typed, drawn, or uploaded image — so that signers can choose the input method that works for them.</li>
+          <li>Plain-English error messages and labelled form controls in the authentication and signing flows.</li>
+          <li>Dark-mode-aware theme colors and respect for the operating system's color scheme.</li>
+        </ul>
+      </section>
+
+      <section id="review">
+        <h2>4. Date of last review</h2>
+        <p>This statement was last reviewed and updated on <code>2026-04-30</code>. The review was conducted by Seald's engineering team using internal tools (axe DevTools, Storybook a11y addon) and manual keyboard-and-screen-reader testing on Chrome with VoiceOver and NVDA. We will review the statement at least annually, and after any major change to the Service.</p>
+      </section>
+
+      <section id="feedback">
+        <h2>5. Feedback and contact</h2>
+        <p>If you cannot access part of the Service, or if you have feedback about how to improve our accessibility, please tell us:</p>
+        <dl>
+          <dt>Email</dt><dd><a href="mailto:accessibility@seald.nromomentum.com">accessibility@seald.nromomentum.com</a></dd>
+          <dt>Subject line</dt><dd><code>Accessibility — &lt;short description&gt;</code></dd>
+        </dl>
+        <p>We will acknowledge your message within five (5) business days and respond substantively within thirty (30) business days. If your need is urgent (for example, you cannot complete a signing request), we will provide a reasonable alternative arrangement — such as a paper copy, an emailed copy, or assisted signing — at no charge.</p>
+      </section>
+
+      <section id="enforcement">
+        <h2>6. Enforcement</h2>
+        <h3>6.1 European Economic Area</h3>
+        <p>If you live in the EEA and you believe our accessibility falls short of the European Accessibility Act, you may complain to your member state's designated enforcement authority. A list of authorities is maintained by the European Commission's Directorate-General for Employment, Social Affairs and Inclusion.</p>
+        <h3>6.2 United Kingdom</h3>
+        <p>If you live in the UK, you may contact the Equality Advisory and Support Service (EASS) for complaints under the Equality Act 2010.</p>
+        <h3>6.3 United States</h3>
+        <p>If you live in the United States, you may file a complaint with the U.S. Department of Justice, Civil Rights Division, under the Americans with Disabilities Act.</p>
+      </section>
+
+      <section id="changes">
+        <h2>7. Changes to this Statement</h2>
+        <p>We will update this Accessibility Statement when our conformance level changes, when we close known gaps, or after any material change to the Service.</p>
+      </section>
+    </article>
+  </main>
+</BaseLayout>
