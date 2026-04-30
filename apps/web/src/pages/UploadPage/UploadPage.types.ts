@@ -62,4 +62,11 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly templateBannerTone?: 'info' | 'warning' | undefined;
   /** Strips the `?template=` query arg + any pre-populated field state. */
   readonly onClearTemplate?: (() => void) | undefined;
+  /**
+   * When supplied, a "Start from a template" CTA is rendered at the
+   * bottom of the dropzone. The parent (`UploadRoute`) opens the
+   * template-picker dialog and routes to `?template=<id>` once a
+   * template is chosen. Hidden when there are no templates yet.
+   */
+  readonly onPickTemplate?: (() => void) | undefined;
 }

@@ -93,6 +93,18 @@ describe('rebindFieldsToSigners', () => {
     expect(out[0]?.signerIds).toEqual([]);
   });
 
+  it('preserves linkId from ResolvedField onto PlacedFieldValue', () => {
+    // Without this, the editor's `useLinkedRemove` can't see that two
+    // copies expanded from `pageRule: 'all'` belong together — the
+    // confirmation dialog would never fire.
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({ id: 'a', page: 1, type: 'signature', signerIndex: 0, linkId: 'L-1' }),
+      field({ id: 'b', page: 2, type: 'signature', signerIndex: 0, linkId: 'L-1' }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
+    expect(out.map((f) => f.linkId)).toEqual(['L-1', 'L-1']);
+  });
+
   it('maps template field types to their editor counterparts', () => {
     const resolved: ReadonlyArray<ResolvedField> = [
       field({ id: 'a', page: 1, type: 'initial', signerIndex: 0 }),

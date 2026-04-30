@@ -139,12 +139,28 @@ export interface ResolvedField {
    * templates saved before signer-indexing was added.
    */
   readonly signerIndex?: number;
+  /**
+   * Stable identifier shared by every copy expanded from the same
+   * multi-page source rule (e.g. `pageRule: 'all'` on a 3-page doc
+   * produces 3 ResolvedFields that all carry the same `linkId`).
+   * Drives `useLinkedRemove` in the editor: deleting one peer with a
+   * `linkId` opens the "delete from all pages or just this one?"
+   * dialog instead of silently dropping a single copy. Undefined for
+   * single-page rules (`'first'`, `'last'`, numeric) — there are no
+   * peers to link to.
+   */
+  readonly linkId?: string;
 }
 
 /**
  * Project a template's saved field layout onto a target document with a
  * different page count. Used when the user picks "upload a new PDF" and we
  * need to resolve `pageRule: 'last'` etc against the new total page count.
+ *
+ * Multi-page rules (`'all'`, `'allButLast'`) emit N copies that share a
+ * fresh `linkId`. Without it the editor's `useLinkedRemove` hook would
+ * see N standalone records and skip the "all pages vs. this page only"
+ * confirmation dialog — the very behavior the templates flow regressed.
  */
 export function resolveTemplateFields(
   fields: ReadonlyArray<TemplateFieldLayout>,
@@ -152,6 +168,7 @@ export function resolveTemplateFields(
 ): ReadonlyArray<ResolvedField> {
   const out: ResolvedField[] = [];
   let id = 1;
+  let linkSeq = 1;
   for (const tf of fields) {
     let pages: number[] = [];
     if (tf.pageRule === 'all') {
@@ -165,6 +182,9 @@ export function resolveTemplateFields(
     } else if (typeof tf.pageRule === 'number') {
       pages = tf.pageRule >= 1 && tf.pageRule <= totalPages ? [tf.pageRule] : [];
     }
+    // Only mint a linkId when the source rule expanded into more than
+    // one peer — single-page rules don't need linking.
+    const linkId = pages.length > 1 ? `tpl-link-${linkSeq++}` : undefined;
     for (const p of pages) {
       const resolved: ResolvedField = {
         id: `tpl-f${id++}`,
@@ -174,6 +194,7 @@ export function resolveTemplateFields(
         y: tf.y,
         ...(tf.label !== undefined ? { label: tf.label } : {}),
         ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
+        ...(linkId !== undefined ? { linkId } : {}),
       };
       out.push(resolved);
     }

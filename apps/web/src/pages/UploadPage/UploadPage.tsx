@@ -1,7 +1,8 @@
 import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, DragEvent, JSX, MouseEvent } from 'react';
-import { UploadCloud } from 'lucide-react';
+import { LayoutTemplate, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/Button';
+import { Icon } from '@/components/Icon';
 import type { UploadPageErrorCode, UploadPageProps } from './UploadPage.types';
 import {
   Actions,
@@ -30,6 +31,9 @@ import {
   TemplateBannerClear,
   TemplateBannerStrong,
   TemplateBannerText,
+  TemplatePromptDivider,
+  TemplatePromptHint,
+  TemplatePromptLink,
 } from './UploadPage.styles';
 
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
@@ -139,6 +143,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     templateBannerTitle,
     templateBannerTone = 'info',
     onClearTemplate,
+    onPickTemplate,
     ...rest
   } = props;
 
@@ -286,6 +291,21 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                 </Button>
               </Actions>
               {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
+              {onPickTemplate ? (
+                <TemplatePromptDivider>
+                  <TemplatePromptHint>Already have a layout saved?</TemplatePromptHint>
+                  <TemplatePromptLink
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPickTemplate();
+                    }}
+                  >
+                    <Icon icon={LayoutTemplate} size={14} />
+                    Start from a template
+                  </TemplatePromptLink>
+                </TemplatePromptDivider>
+              ) : null}
               <HiddenFileInput
                 ref={inputRef}
                 id={inputId}

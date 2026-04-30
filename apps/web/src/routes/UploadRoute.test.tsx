@@ -161,6 +161,45 @@ describe('UploadRoute (template integration)', () => {
     );
   });
 
+  it('hides the "Start from a template" CTA when no templates are saved', () => {
+    setTemplates([]);
+    renderAt('/document/new');
+    expect(
+      screen.queryByRole('button', { name: /start from a template/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Regression: previously the picker just stamped `?template=<id>` onto
+  // `/document/new` and showed a banner — leaving the user stuck because
+  // the upload screen still demanded a PDF before any "continue" path
+  // existed. Routing the pick into `/templates/:id/use` reuses the
+  // canonical templates flow (same destination as
+  // TemplatesListPage's "Use" CTA) so the user can immediately proceed.
+  it('opens the template picker when the CTA is clicked, and routes to /templates/:id/use on pick', async () => {
+    function TemplateUseProbe() {
+      const location = useLocation();
+      return <div data-testid="use-probe">{`${location.pathname}${location.search}`}</div>;
+    }
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/document/new']}>
+        <Routes>
+          <Route path="/document/new" element={<UploadRoute />} />
+          <Route path="/templates/:id/use" element={<TemplateUseProbe />} />
+          <Route path="*" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /start from a template/i }));
+    const dialog = await screen.findByRole('dialog', { name: /choose a template/i });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(SAMPLE.name, 'i') }));
+    await waitFor(() => {
+      expect(screen.getByTestId('use-probe')).toHaveTextContent(
+        `/templates/${encodeURIComponent(SAMPLE.id)}/use`,
+      );
+    });
+  });
+
   // Regression for the "signers display more than once" bug. The
   // templates wizard hands off `templateSigners` via `location.state`;
   // UploadRoute clears that state on mount (so back-then-forward

@@ -101,6 +101,21 @@ describe('UploadPage', () => {
     expect(onFileSelected).toHaveBeenCalledTimes(1);
   });
 
+  it('hides the "Start from a template" CTA when onPickTemplate is not supplied', () => {
+    renderPage();
+    expect(
+      screen.queryByRole('button', { name: /start from a template/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('renders the "Start from a template" CTA and fires onPickTemplate when supplied', () => {
+    const onPickTemplate = vi.fn();
+    renderPage({ onPickTemplate });
+    const cta = screen.getByRole('button', { name: /start from a template/i });
+    fireEvent.click(cta);
+    expect(onPickTemplate).toHaveBeenCalledTimes(1);
+  });
+
   it('has no axe violations', async () => {
     const { container } = renderPage();
     expect(await axe(container)).toHaveNoViolations();
