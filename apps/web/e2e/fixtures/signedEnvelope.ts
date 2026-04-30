@@ -114,6 +114,20 @@ export class SignedEnvelopeFixture {
       json: buildSignMeResponse(envelopeId, shape === 'declined' ? 'declined' : 'awaiting'),
     });
     this.api.on('POST', /\/sign\/accept-terms$/, { status: 204 });
+    // T-14: prep page also POSTs /sign/esign-disclosure when the user
+    // ticks the Consumer Disclosure ack + ESIGN demonstrated-ability
+    // checkboxes and clicks "Start signing".
+    this.api.on('POST', /\/sign\/esign-disclosure$/, { status: 204 });
+    // T-15: review page POSTs /sign/intent-to-sign immediately before
+    // /sign/submit when the user ticks the intent-to-sign checkbox and
+    // clicks "Sign and submit".
+    this.api.on('POST', /\/sign\/intent-to-sign$/, { status: 204 });
+    // T-16: prep page exposes a "Withdraw consent" link that POSTs
+    // /sign/withdraw-consent. Mock it so any future declined-via-
+    // withdrawal scenarios don't 404 against the network filter.
+    this.api.on('POST', /\/sign\/withdraw-consent$/, {
+      json: { status: 'declined', envelope_status: 'declined' },
+    });
     this.api.on('POST', /\/sign\/fields\//, {
       json: {
         id: 'field_sig_1',

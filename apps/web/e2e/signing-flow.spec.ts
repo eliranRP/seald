@@ -107,6 +107,18 @@ test.describe('signing flow', () => {
       await route.fulfill({ status: 200, body: '' });
     });
 
+    // T-14: POST /sign/esign-disclosure → records the Consumer Disclosure
+    // ack + "demonstrated ability" affirmation. Returns 204-style success.
+    await page.route('**/sign/esign-disclosure', async (route: Route) => {
+      await route.fulfill({ status: 200, body: '' });
+    });
+
+    // T-15: POST /sign/intent-to-sign → records the explicit intent to
+    // sign affirmation immediately before submit. Returns 204-style success.
+    await page.route('**/sign/intent-to-sign', async (route: Route) => {
+      await route.fulfill({ status: 200, body: '' });
+    });
+
     // POST /sign/fields/:id → echo back the field as filled. Not strictly
     // needed when we pre-fill in /sign/me, but mocked here so any drawer
     // interaction during the spec doesn't leak to a real backend.
@@ -168,11 +180,16 @@ test.describe('signing flow', () => {
     //    the hero copy — first() collapses the strict-mode multi-match).
     await expect(page.getByText('Test Document').first()).toBeVisible();
 
-    // 4. Tick the "I agree to electronic signatures" checkbox.
-    await page.getByRole('checkbox', { name: /agree to electronic signatures/i }).check();
+    // 4. T-14: tick BOTH disclosure checkboxes — the Consumer Disclosure
+    //    ack + the ESIGN §7001(c)(1)(C)(ii) "demonstrated ability"
+    //    affirmation. The "Start signing" button stays disabled until
+    //    both are checked.
+    await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
+    await page.getByRole('checkbox', { name: /access electronic records on this device/i }).check();
 
-    // 5. Click "Start signing" — fires POST /sign/accept-terms (mocked
-    //    above) and navigates to /fill.
+    // 5. Click "Start signing" — fires POST /sign/accept-terms +
+    //    POST /sign/esign-disclosure (both mocked above) and navigates
+    //    to /fill.
     await page.getByRole('button', { name: /start signing/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
 
@@ -181,8 +198,11 @@ test.describe('signing flow', () => {
     await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/review`, { timeout: 15_000 });
 
-    // 7. Review page heading + submit button.
+    // 7. Review page heading + T-15 intent-to-sign affirmation + submit
+    //    button. The submit button stays disabled until the intent
+    //    checkbox is ticked.
     await expect(page.getByRole('heading', { name: /everything look right\?/i })).toBeVisible();
+    await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
     await page.getByRole('button', { name: /sign and submit/i }).click();
 
     // 8. Land on /done and assert the success heading.
