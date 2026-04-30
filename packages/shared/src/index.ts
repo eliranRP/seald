@@ -1,4 +1,13 @@
 export * from './signer';
+export {
+  ESIGN_DISCLOSURE_VERSION,
+  ENVELOPE_RETENTION_YEARS_DEFAULT,
+  LEGAL_CONTACT_EMAIL_DEFAULT,
+  ESIGN_EXCLUDED_CATEGORIES,
+  SIGNER_AUTH_TIERS,
+  CURRENT_SIGNER_AUTH_TIER,
+} from './compliance';
+export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
 export { TEMPLATE_FIELD_TYPES } from './templates';
 export type {
   Template,

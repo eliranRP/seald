@@ -350,6 +350,30 @@ describe('Signing — /sign/start (e2e)', () => {
       expect(types).toEqual(expect.arrayContaining(['tc_accepted', 'viewed']));
     });
 
+    it('records the ESIGN disclosure version + auth tier in tc_accepted metadata', async () => {
+      // ESIGN §7001(c)(1) requires that the consumer's affirmative
+      // consent to electronic records be tied to the disclosure they
+      // saw. The tc_accepted event metadata must include the
+      // disclosure version + the authentication tier so the audit
+      // trail is self-describing. Regression for saas-legal-advisor
+      // S.1 + S.7. (rule 4.6 — query by event_type, not testid.)
+      const { envId, signerId, cookie } = await startSessionAndGetCookie();
+      await request(app.getHttpServer()).post('/sign/accept-terms').set('Cookie', cookie);
+      const tcEvent = envelopesRepo.events.find(
+        (e) =>
+          e.envelope_id === envId && e.signer_id === signerId && e.event_type === 'tc_accepted',
+      );
+      expect(tcEvent).toBeDefined();
+      expect(tcEvent?.metadata).toEqual(
+        expect.objectContaining({
+          tc_version: expect.any(String),
+          privacy_version: expect.any(String),
+          esign_disclosure_version: expect.any(String),
+          signer_auth_tier: 'medium',
+        }),
+      );
+    });
+
     it('second call is idempotent — no duplicate audit events', async () => {
       const { envId, signerId, cookie } = await startSessionAndGetCookie();
       await request(app.getHttpServer()).post('/sign/accept-terms').set('Cookie', cookie);
