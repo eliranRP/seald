@@ -2,7 +2,6 @@ import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'rea
 import type { ChangeEvent, DragEvent, JSX, MouseEvent } from 'react';
 import { UploadCloud } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { NavBar } from '@/components/NavBar';
 import type { UploadPageErrorCode, UploadPageProps } from './UploadPage.types';
 import {
   Actions,
@@ -26,7 +25,6 @@ import {
   LoaderSubtitle,
   LoaderTitle,
   Main,
-  Shell,
   Subtitle,
   TemplateBanner,
   TemplateBannerClear,
@@ -129,14 +127,6 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
   const {
     onFileSelected,
     onError,
-    onLogoClick,
-    onSelectNavItem,
-    activeNavId = 'sign',
-    user,
-    navMode,
-    onSignIn,
-    onSignUp,
-    onSignOut,
     title = DEFAULT_TITLE,
     subtitle = DEFAULT_SUBTITLE,
     dropHeading = DEFAULT_DROP_HEADING,
@@ -249,98 +239,66 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
   );
 
   return (
-    <Shell {...rest} ref={ref}>
-      <NavBar
-        activeItemId={activeNavId}
-        onSelectItem={onSelectNavItem}
-        {...(user ? { user } : {})}
-        {...(navMode ? { mode: navMode } : {})}
-        {...(onSignIn ? { onSignIn } : {})}
-        {...(onSignUp ? { onSignUp } : {})}
-        {...(onSignOut ? { onSignOut } : {})}
-        {...(onLogoClick
-          ? {
-              logo: (
-                <button
-                  type="button"
-                  onClick={onLogoClick}
-                  aria-label="Go home"
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    cursor: 'pointer',
-                    font: 'inherit',
-                    color: 'inherit',
-                  }}
-                >
-                  Seald
-                </button>
-              ),
-            }
-          : {})}
-      />
-      <Body>
-        <Main>
-          <Inner>
-            <div>
-              <Heading>{title}</Heading>
-              <Subtitle>{subtitle}</Subtitle>
-            </div>
-            {templateBannerTitle ? (
-              <TemplateBanner
-                $tone={templateBannerTone}
-                role={templateBannerTone === 'warning' ? 'alert' : 'status'}
-                aria-live="polite"
-              >
-                <TemplateBannerText>
-                  Using template: <TemplateBannerStrong>{templateBannerTitle}</TemplateBannerStrong>
-                </TemplateBannerText>
-                {onClearTemplate ? (
-                  <TemplateBannerClear type="button" onClick={onClearTemplate}>
-                    Clear template
-                  </TemplateBannerClear>
-                ) : null}
-              </TemplateBanner>
-            ) : null}
-            {status === 'analyzing' ? (
-              <AnalyzingLoader fileName={analyzingFileName} />
-            ) : (
-              <Dropzone
-                $dragging={dragging}
-                onDragEnter={handleDragEnter}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                role="region"
-                aria-label="Upload a PDF"
-                {...(error ? { 'aria-describedby': errorId } : {})}
-              >
-                <IconCircle>
-                  <UploadCloud size={28} strokeWidth={1.75} aria-hidden />
-                </IconCircle>
-                <DropHeading>{dropHeading}</DropHeading>
-                <DropSubheading>{effectiveDropSubheading}</DropSubheading>
-                <Actions>
-                  <Button variant="primary" onClick={handleChooseClick}>
-                    {chooseLabel}
-                  </Button>
-                </Actions>
-                {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
-                <HiddenFileInput
-                  ref={inputRef}
-                  id={inputId}
-                  type="file"
-                  accept={accept}
-                  onChange={handleInputChange}
-                  aria-label="Choose PDF file"
-                />
-              </Dropzone>
-            )}
-          </Inner>
-        </Main>
-      </Body>
-    </Shell>
+    <Body {...rest} ref={ref}>
+      <Main>
+        <Inner>
+          <div>
+            <Heading>{title}</Heading>
+            <Subtitle>{subtitle}</Subtitle>
+          </div>
+          {templateBannerTitle ? (
+            <TemplateBanner
+              $tone={templateBannerTone}
+              role={templateBannerTone === 'warning' ? 'alert' : 'status'}
+              aria-live="polite"
+            >
+              <TemplateBannerText>
+                Using template: <TemplateBannerStrong>{templateBannerTitle}</TemplateBannerStrong>
+              </TemplateBannerText>
+              {onClearTemplate ? (
+                <TemplateBannerClear type="button" onClick={onClearTemplate}>
+                  Clear template
+                </TemplateBannerClear>
+              ) : null}
+            </TemplateBanner>
+          ) : null}
+          {status === 'analyzing' ? (
+            <AnalyzingLoader fileName={analyzingFileName} />
+          ) : (
+            <Dropzone
+              $dragging={dragging}
+              onDragEnter={handleDragEnter}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              role="region"
+              aria-label="Upload a PDF"
+              {...(error ? { 'aria-describedby': errorId } : {})}
+            >
+              <IconCircle>
+                <UploadCloud size={28} strokeWidth={1.75} aria-hidden />
+              </IconCircle>
+              <DropHeading>{dropHeading}</DropHeading>
+              <DropSubheading>{effectiveDropSubheading}</DropSubheading>
+              <Actions>
+                <Button variant="primary" onClick={handleChooseClick}>
+                  {chooseLabel}
+                </Button>
+              </Actions>
+              {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
+              <HiddenFileInput
+                ref={inputRef}
+                id={inputId}
+                type="file"
+                accept={accept}
+                onChange={handleInputChange}
+                aria-label="Choose PDF file"
+              />
+            </Dropzone>
+          )}
+        </Inner>
+      </Main>
+    </Body>
   );
 });
 

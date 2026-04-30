@@ -38,10 +38,12 @@ function InteractiveDemo({
   startingFields = INITIAL_FIELDS,
   startingSigners = INITIAL_SIGNERS,
   initialPage = 4,
+  withSaveAsTemplate = false,
 }: {
   readonly startingFields?: ReadonlyArray<PlacedFieldValue>;
   readonly startingSigners?: ReadonlyArray<DocumentPageSigner>;
   readonly initialPage?: number;
+  readonly withSaveAsTemplate?: boolean;
 }) {
   const [fields, setFields] = useState<ReadonlyArray<PlacedFieldValue>>(startingFields);
   const [signers, setSigners] = useState<ReadonlyArray<DocumentPageSigner>>(startingSigners);
@@ -50,7 +52,6 @@ function InteractiveDemo({
     <DocumentPage
       totalPages={4}
       initialPage={initialPage}
-      user={{ name: 'Jamie Okonkwo' }}
       signers={signers}
       contacts={CONTACTS}
       fields={fields}
@@ -72,6 +73,7 @@ function InteractiveDemo({
       onSend={() => {}}
       onSaveDraft={() => {}}
       onBack={() => {}}
+      {...(withSaveAsTemplate ? { onSaveAsTemplate: () => {} } : {})}
     />
   );
 }
@@ -95,4 +97,13 @@ export const SingleSigner: Story = {
       initialPage={1}
     />
   ),
+};
+
+export const WithSaveAsTemplate: Story = {
+  // Variant that opts into the "Save as template" affordance — the
+  // route wrapper threads `onSaveAsTemplate` through whenever the
+  // sender has authored a layout worth reusing. The dashed button
+  // appears in the right rail above the Send footer.
+  name: 'Save-as-template affordance',
+  render: () => <InteractiveDemo withSaveAsTemplate />,
 };

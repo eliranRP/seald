@@ -825,4 +825,27 @@ describe('DocumentPage', () => {
     expect(clonesOnP4.map((f) => f.x).sort()).toEqual([20, 220]);
     expect(clonesOnP4.flatMap((f) => f.signerIds).sort()).toEqual(['a', 'b']);
   });
+
+  it('renders the Save-as-template affordance only when the route opts in via onSaveAsTemplate', () => {
+    // Without the prop the page hides the affordance entirely — the
+    // legacy callers (sign-only flows, demo views) never see it.
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /save current layout as a template/i })).toBeNull();
+    unmount();
+
+    // With the prop wired the route shows the dashed quiet button.
+    const onSaveAsTemplate = vi.fn();
+    renderPage({ onSaveAsTemplate });
+    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onSaveAsTemplate).toHaveBeenCalledOnce();
+  });
+
+  it('disables the Save-as-template button when no fields have been placed', () => {
+    const onSaveAsTemplate = vi.fn();
+    renderPage({ onSaveAsTemplate, initialFields: [] });
+    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
+    expect(btn).toBeDisabled();
+  });
 });

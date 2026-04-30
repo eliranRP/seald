@@ -1,17 +1,28 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DocumentPage } from '../pages/DocumentPage';
 import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
+import { SaveAsTemplateDialog } from '../components/SaveAsTemplateDialog';
+import type { SaveAsTemplatePayload } from '../components/SaveAsTemplateDialog';
+import { SendConfirmDialog } from '../components/SendConfirmDialog';
 import { SendingOverlay } from '../components/SendingOverlay';
+import { TemplateModeBanner } from '../components/TemplateModeBanner';
+import { Toast } from '../components/Toast';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { NAV_ITEMS } from '../layout/navItems';
 import { useSendEnvelope } from '../features/envelopes';
 import type { FieldKind, FieldPlacement } from '../features/envelopes';
+import {
+  deriveTemplateFieldLayout,
+  findTemplateById,
+  getTemplates,
+  setTemplates,
+} from '../features/templates';
+import { createTemplate, updateTemplate } from '../features/templates/templatesApi';
 
 // The editor canvas is fixed-width; field coords are stored in px during the
 // draft and normalized to 0–1 just before the send hits the backend.
@@ -43,22 +54,45 @@ function toNormalized(
   };
 }
 
+interface ToastState {
+  readonly title: string;
+  readonly subtitle?: string | undefined;
+  readonly tone: 'success' | 'error' | 'info';
+}
+
 /**
  * Route wrapper around `DocumentPage`. Manages the in-memory draft (File +
  * fields + signers) while the user composes, then publishes the draft to
  * the `/envelopes/*` API on send (create → upload → addSigner per contact
  * → placeFields → send).
+ *
+ * When the draft was started from a saved template (`fromTemplateId` set
+ * by `UploadRoute`), the editor renders a contextual `TemplateModeBanner`
+ * above the canvas and prompts with `SendConfirmDialog` ("update template
+ * too?") on send so the user can fold any field-layout changes back into
+ * the canonical record.
  */
 export function DocumentRoute() {
   const params = useParams<{ readonly id: string }>();
   const navigate = useNavigate();
-  const { user, contacts, getDocument, updateDocument, addContact, sendDocument } = useAppState();
-  const { guest, exitGuestMode, signOut } = useAuth();
+  const { contacts, getDocument, updateDocument, addContact, sendDocument } = useAppState();
+  const { guest } = useAuth();
   const doc = params.id ? getDocument(params.id) : undefined;
   const { doc: pdfDoc, loading: pdfLoading } = usePdfDocument(doc?.file ?? null);
   const [exitOpen, setExitOpen] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [saveTplOpen, setSaveTplOpen] = useState(false);
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
+
+  // Resolve the source template (if any) so the banner copy can quote
+  // the exact name/page count. Re-resolves when the module store
+  // updates (e.g. after the user saves edits back to the template).
+  const sourceTemplate = useMemo(
+    () => (doc?.fromTemplateId ? findTemplateById(doc.fromTemplateId) : undefined),
+    [doc?.fromTemplateId],
+  );
 
   const handleFieldsChange = useCallback(
     (next: ReadonlyArray<PlacedFieldValue>) => {
@@ -129,12 +163,6 @@ export function DocumentRoute() {
   // Back button, 'back' for a popstate-driven (browser back) intercept.
   const [pendingNav, setPendingNav] = useState<string | null>(null);
 
-  // Intercept browser-level navigations that bypass react-router (Cmd+R
-  // refresh, tab close, hard back to a different origin) via the native
-  // beforeunload event. Browsers ignore the returnValue text and show a
-  // generic "Leave site?" prompt — the only signal we need to send is
-  // that returnValue is set. Listener is gated on hasUnsavedWork so it
-  // doesn't fire on a clean dashboard.
   useEffect(() => {
     if (!hasUnsavedWork) return undefined;
     const handler = (e: BeforeUnloadEvent): void => {
@@ -147,22 +175,10 @@ export function DocumentRoute() {
     };
   }, [hasUnsavedWork]);
 
-  // Intercept the in-app browser back/forward via popstate. We can't use
-  // react-router's `useBlocker` because the app mounts <BrowserRouter>,
-  // not the data router that useBlocker requires. The pattern: push a
-  // "guard" history entry on top of the editor URL while there's unsaved
-  // work, so the next back-press fires popstate while keeping us on the
-  // editor route. On popstate, we open the confirm dialog and re-push
-  // the guard so the user stays on the editor until they confirm.
   useEffect(() => {
     if (!hasUnsavedWork) return undefined;
-    // Push a sentinel state on top of the current URL.
     window.history.pushState({ docGuard: true }, '');
     const handler = (): void => {
-      // User pressed browser back/forward. The browser already popped
-      // our sentinel; the URL is still the editor (because the sentinel
-      // had the same pathname). Show the dialog and re-push the
-      // sentinel so cancel keeps the user in place.
       setPendingNav('back');
       setExitOpen(true);
       window.history.pushState({ docGuard: true }, '');
@@ -185,9 +201,6 @@ export function DocumentRoute() {
   const handleExitConfirm = useCallback(() => {
     setExitOpen(false);
     if (pendingNav === 'back') {
-      // popstate intercept — we re-pushed a sentinel during the popstate
-      // handler. To actually leave, navigate to the dashboard rather than
-      // calling history.back() (which would just re-trigger our handler).
       setPendingNav(null);
       navigate('/documents');
       return;
@@ -203,13 +216,15 @@ export function DocumentRoute() {
     setPendingNav(null);
   }, []);
 
-  const handleSend = useCallback(async () => {
+  /**
+   * Internal — actually push the envelope to the API. Split out from
+   * `handleSend` so the SendConfirmDialog branches can call it after
+   * doing or skipping the template-update step.
+   */
+  const runSend = useCallback(async () => {
     if (!doc || !doc.file) return;
     setSendError(null);
 
-    // Guest mode has no Supabase session → no authed `/envelopes` writes.
-    // Fall back to the pre-existing local-only send behaviour so the
-    // demo flow still completes. Authed users take the API path.
     if (guest) {
       sendDocument(doc.id);
       navigate(`/document/${doc.id}/sent`);
@@ -223,10 +238,6 @@ export function DocumentRoute() {
         signers: doc.signers.map((s) => ({ contactId: s.id })),
         buildFields: (contactIdToSignerId) => {
           const out: FieldPlacement[] = [];
-          // Fan out across every signer the user assigned the field to.
-          // The backend contract places one field per (signer, placement)
-          // tuple — multi-signer fields become multiple API rows, linked
-          // by the shared `linkId`.
           for (const f of doc.fields) {
             const normalized = toNormalized(f);
             for (const localSignerId of f.signerIds) {
@@ -252,13 +263,62 @@ export function DocumentRoute() {
       });
 
       sendDocument(doc.id);
-      // Carry the server envelope id forward so the sent-confirmation page
-      // can deep-link back to the dashboard row.
       navigate(`/document/${result.envelope_id}/sent`);
     } catch (err) {
       setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
     }
   }, [doc, guest, navigate, sendDocument, sendEnvelope]);
+
+  /**
+   * Patch the source template with the current placed-field layout —
+   * fired by the SendConfirmDialog "Send and update" path. The editor's
+   * `PlacedFieldValue[]` is collapsed back into `TemplateField[]`
+   * (with `pageRule` rules) so the saved layout retains the same
+   * page-adaptation semantics.
+   */
+  const updateSourceTemplate = useCallback(async () => {
+    if (!doc?.fromTemplateId) return;
+    const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages);
+    const updated = await updateTemplate(doc.fromTemplateId, { field_layout: fieldLayout });
+    setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
+  }, [doc?.fields, doc?.fromTemplateId, doc?.totalPages]);
+
+  const handleSend = useCallback(() => {
+    // When the draft was started from a saved template, prompt the
+    // user with the "update template too?" dialog before sending.
+    // Plain drafts (no template provenance) skip straight to send.
+    if (doc?.fromTemplateId) {
+      setSendConfirmOpen(true);
+      return;
+    }
+    runSend().catch(() => {
+      /* surfaced via setSendError inside runSend */
+    });
+  }, [doc?.fromTemplateId, runSend]);
+
+  const handleSendJust = useCallback(() => {
+    setSendConfirmOpen(false);
+    runSend().catch(() => {
+      /* surfaced via setSendError */
+    });
+  }, [runSend]);
+
+  const handleSendAndUpdate = useCallback(() => {
+    setSendConfirmOpen(false);
+    // Fire-and-forget the template update — failure should NOT block
+    // the send (the user's primary goal is sending). We surface a
+    // toast on success either way.
+    updateSourceTemplate().catch(() => {
+      setToast({
+        title: 'Template update failed',
+        subtitle: 'Sending the document anyway.',
+        tone: 'error',
+      });
+    });
+    runSend().catch(() => {
+      /* surfaced via setSendError */
+    });
+  }, [runSend, updateSourceTemplate]);
 
   const handleSaveDraft = useCallback(() => {
     if (!doc) return;
@@ -266,38 +326,96 @@ export function DocumentRoute() {
     navigate('/documents');
   }, [doc, updateDocument, navigate]);
 
-  const handleSelectNavItem = useCallback(
-    (id: string): void => {
-      const item = NAV_ITEMS.find((n) => n.id === id);
-      if (item) navigate(item.path);
+  const handleOpenSaveTemplate = useCallback(() => {
+    setSaveTplOpen(true);
+  }, []);
+
+  const handleSaveTemplate = useCallback(
+    async (payload: SaveAsTemplatePayload) => {
+      if (!doc) return;
+      try {
+        const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages);
+        const created = await createTemplate({
+          title: payload.title,
+          field_layout: fieldLayout,
+          ...(payload.description ? { description: payload.description } : {}),
+          cover_color: '#EEF2FF',
+        });
+        setTemplates([created, ...getTemplates()]);
+        setSaveTplOpen(false);
+        setToast({
+          title: 'Template saved',
+          subtitle: 'Reuse it any time from the templates list.',
+          tone: 'success',
+        });
+      } catch (err) {
+        setToast({
+          title: 'Save failed',
+          subtitle:
+            err instanceof Error ? err.message : 'Failed to save template. Please try again.',
+          tone: 'error',
+        });
+      }
     },
-    [navigate],
+    [doc],
   );
 
-  const handleAuthCta = useCallback(
-    (path: string): void => {
-      exitGuestMode();
-      navigate(path);
-    },
-    [exitGuestMode, navigate],
-  );
+  const handleCancelSaveTemplate = useCallback(() => {
+    setSaveTplOpen(false);
+  }, []);
 
-  const handleSignOut = useCallback((): void => {
-    signOut()
-      .catch(() => {
-        /* soft-fail */
-      })
-      .finally(() => navigate('/signin', { replace: true }));
-  }, [signOut, navigate]);
+  // Auto-dismiss toasts after a few seconds — non-blocking confirmation,
+  // no user action required. Errors get the same auto-dismiss; the
+  // user can re-trigger the action and see another error toast if it
+  // recurs.
+  useEffect(() => {
+    if (!toast) return undefined;
+    const id = window.setTimeout(() => setToast(null), 4000);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
+  // Build the contextual banner for templates flow. Three copies:
+  //   - new mode (sender came from /templates/new)
+  //   - use+saved (saved doc + saved layout)
+  //   - use+upload (fresh PDF + adapted layout)
+  // Plain drafts get no banner.
+  const banner = useMemo(() => {
+    if (!doc?.fromTemplateId) return null;
+    if (!sourceTemplate) {
+      // Source template not in the local store — show a soft note
+      // so the user still knows the draft has provenance.
+      return (
+        <TemplateModeBanner
+          tone="info"
+          title="Working from a saved template"
+          subtitle="Field layout was loaded from a template. Adjust as needed before sending."
+        />
+      );
+    }
+    const fieldRulesCount = sourceTemplate.fields.length;
+    const totalPages = doc.totalPages;
+    if (doc.fromTemplateFreshUpload) {
+      return (
+        <TemplateModeBanner
+          tone="info"
+          title={`Saved layout adapted to your new document · ${String(fieldRulesCount)} fields across ${String(totalPages)} pages`}
+          subtitle="Field rules adjusted for the new page count. Drag any field to nudge it, then send."
+        />
+      );
+    }
+    return (
+      <TemplateModeBanner
+        tone="info"
+        title={`Saved layout loaded · ${String(fieldRulesCount)} fields across ${String(totalPages)} pages`}
+        subtitle="Edit anything you'd like, then send. Save changes back to the template if you want them to stick."
+      />
+    );
+  }, [doc?.fromTemplateId, doc?.fromTemplateFreshUpload, doc?.totalPages, sourceTemplate]);
 
   if (!doc) {
-    // No local draft under this id — the user deep-linked (or came from the
-    // dashboard) to a server-side envelope. Render the read-only detail view
-    // instead of the authoring editor; the editor requires the raw File.
     return <EnvelopeDetailPage />;
   }
 
-  const navMode = !user && guest ? 'guest' : 'authed';
   const sendInFlight = sendEnvelope.phase !== 'idle' && sendEnvelope.phase !== 'error';
 
   return (
@@ -315,21 +433,35 @@ export function DocumentRoute() {
         onAddSignerFromContact={handleAddSignerFromContact}
         onCreateSigner={handleCreateSigner}
         onRemoveSigner={handleRemoveSigner}
-        onSend={() => {
-          handleSend().catch(() => {
-            /* surfaced via setSendError */
-          });
-        }}
+        onSend={handleSend}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
-        user={user ?? undefined}
-        activeNavId="sign"
-        onSelectNavItem={handleSelectNavItem}
-        navMode={navMode}
-        onSignIn={() => handleAuthCta('/signin')}
-        onSignUp={() => handleAuthCta('/signup')}
-        onSignOut={handleSignOut}
+        onSaveAsTemplate={handleOpenSaveTemplate}
+        {...(banner ? { banner } : {})}
       />
+      <SaveAsTemplateDialog
+        open={saveTplOpen}
+        defaultTitle={doc.title}
+        onSave={(p) => {
+          handleSaveTemplate(p).catch(() => {
+            /* surfaced via setToast */
+          });
+        }}
+        onCancel={handleCancelSaveTemplate}
+      />
+      <SendConfirmDialog
+        open={sendConfirmOpen}
+        onSendAndUpdate={handleSendAndUpdate}
+        onJustSend={handleSendJust}
+        onCancel={() => setSendConfirmOpen(false)}
+      />
+      {toast ? (
+        <Toast
+          title={toast.title}
+          {...(toast.subtitle ? { subtitle: toast.subtitle } : {})}
+          tone={toast.tone}
+        />
+      ) : null}
       <ExitConfirmDialog
         open={exitOpen}
         onConfirm={handleExitConfirm}

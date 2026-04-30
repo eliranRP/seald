@@ -15,7 +15,6 @@ function InteractiveDemo() {
   const [lastFile, setLastFile] = useState<string | null>(null);
   return (
     <UploadPage
-      user={{ name: 'Jamie Okonkwo' }}
       onFileSelected={(f) => setLastFile(f.name)}
       subtitle={
         lastFile
@@ -32,15 +31,12 @@ export const Default: Story = {
 
 export const ErrorState: Story = {
   name: 'With size limit (1 KB)',
-  render: () => (
-    <UploadPage user={{ name: 'Jamie Okonkwo' }} onFileSelected={() => {}} maxSizeBytes={1024} />
-  ),
+  render: () => <UploadPage onFileSelected={() => {}} maxSizeBytes={1024} />,
 };
 
 export const CustomCopy: Story = {
   render: () => (
     <UploadPage
-      user={{ name: 'Jamie Okonkwo' }}
       onFileSelected={() => {}}
       title="Upload a contract"
       subtitle="We support PDFs up to 10 MB. Drag the file in, or click the button below."
@@ -55,7 +51,6 @@ export const WithTemplateBanner: Story = {
   name: 'With template banner',
   render: () => (
     <UploadPage
-      user={{ name: 'Jamie Okonkwo' }}
       onFileSelected={() => {}}
       templateBannerTitle="Mutual NDA — short form"
       templateBannerTone="info"
@@ -68,7 +63,6 @@ export const WithTemplateNotFound: Story = {
   name: 'With template not-found banner',
   render: () => (
     <UploadPage
-      user={{ name: 'Jamie Okonkwo' }}
       onFileSelected={() => {}}
       templateBannerTitle="Template not found — starting empty"
       templateBannerTone="warning"

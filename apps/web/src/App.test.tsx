@@ -186,34 +186,43 @@ describe('App routing', () => {
 
   // With the `vi.mock('./lib/pdf', ...)` at the top of this file,
   // `usePdfDocument` synchronously reports numPages: 1, so UploadRoute
-  // opens the CreateSignatureRequestDialog immediately. The default
-  // findBy timeout (1s) is therefore plenty.
-  const DIALOG_TIMEOUT = { timeout: 1000 };
+  // mounts the SignersStepCard surface immediately after a PDF is
+  // chosen. We assert against its empty-state heading and CTA copy
+  // ("Continue to fields") to avoid coupling to picker internals.
+  const STEP_TIMEOUT = { timeout: 1000 };
 
-  it('opens the Create signature request dialog immediately after a PDF is chosen', async () => {
+  it('shows the SignersStepCard immediately after a PDF is chosen', async () => {
     renderApp(['/document/new']);
     const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(
-      await screen.findByRole('dialog', { name: /create your signature request/i }, DIALOG_TIMEOUT),
+      await screen.findByRole('heading', { name: /who needs to sign this/i }, STEP_TIMEOUT),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /apply/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /continue to fields/i })).toBeDisabled();
   });
 
-  it('cancelling the dialog stays on the upload page and discards picked signers', async () => {
+  it('Back from the SignersStepCard returns to the upload dropzone and discards picked signers', async () => {
     renderApp(['/document/new']);
     const input1 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input1, { target: { files: [makePdf()] } });
-    fireEvent.click(await screen.findByRole('button', { name: /add receiver/i }, DIALOG_TIMEOUT));
+    // Wait for the SignersStepCard to mount (heading present), then
+    // pick a contact via the inline picker.
+    await screen.findByRole('heading', { name: /who needs to sign this/i }, STEP_TIMEOUT);
+    fireEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
     fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
-    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    // SignersStepCard's footer Back link drops the file + signers and
+    // re-renders the UploadPage dropzone.
+    fireEvent.click(screen.getByRole('button', { name: /^back$/i }));
     expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
-    // After cancel, UploadPage remounts the Dropzone (status flips back to
-    // 'idle'), so the file input is a fresh DOM node — re-query it.
+    // After Back, UploadPage remounts the Dropzone (status flips back
+    // to 'idle'), so the file input is a fresh DOM node — re-query it.
     const input2 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
     fireEvent.change(input2, { target: { files: [makePdf()] } });
-    expect(await screen.findByRole('button', { name: /apply/i }, DIALOG_TIMEOUT)).toBeDisabled();
-    expect(screen.queryAllByRole('button', { name: /remove receiver/i })).toHaveLength(0);
+    // SignersStepCard re-renders empty (no carry-over signers) — its
+    // Continue CTA is gated on having ≥1 signer.
+    expect(
+      await screen.findByRole('button', { name: /continue to fields/i }, STEP_TIMEOUT),
+    ).toBeDisabled();
   });
 
   it('Signers page lists seed contacts', async () => {

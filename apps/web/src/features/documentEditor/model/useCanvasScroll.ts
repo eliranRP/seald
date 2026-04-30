@@ -88,6 +88,21 @@ export function useCanvasScroll({
   // before the observer fires.
   const [visiblePages, setVisiblePages] = useState<ReadonlySet<number>>(() => new Set([1]));
 
+  /**
+   * While a programmatic scroll is in flight (`scrollToPage()` →
+   * `scrollIntoView({ behavior: 'smooth' })`), the IntersectionObserver
+   * fires on every intermediate animation frame and reports whichever
+   * page has the highest intersection ratio at that instant — typically
+   * page 1, because the smooth scroll sweeps over it on the way down.
+   * That overwrites the current page back to 1 a beat after the user
+   * clicked a different thumb in the rail.
+   *
+   * Suppress observer-driven `setCurrentPage` until the scroll settles.
+   * Window of 600ms covers the longest smooth-scroll on a tall canvas
+   * without making the observer feel laggy under normal scrolling.
+   */
+  const programmaticScrollUntilRef = useRef<number>(0);
+
   useEffect(() => {
     if (typeof IntersectionObserver === 'undefined') return undefined;
     const scrollEl = canvasScrollRef.current;
@@ -115,6 +130,14 @@ export function useCanvasScroll({
           }
           return next ?? prev;
         });
+        // Honor the user's last programmatic page choice while a smooth
+        // scroll is in flight — observer-derived dominant page is noisy
+        // mid-animation and would flicker the selection back to page 1.
+        const now =
+          typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        if (now < programmaticScrollUntilRef.current) return;
         if (bestPage !== null && bestRatio > 0) setCurrentPage(bestPage);
       },
       {
@@ -136,6 +159,12 @@ export function useCanvasScroll({
     if (target && typeof target.scrollIntoView === 'function') {
       target.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }
+    // Suppression window for the observer — see ref doc above.
+    const now =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+    programmaticScrollUntilRef.current = now + 600;
     // Eagerly mark the target visible so its DocumentCanvas mounts even when
     // the IntersectionObserver doesn't fire (jsdom/tests, smooth-scroll races).
     setVisiblePages((prev) => {
