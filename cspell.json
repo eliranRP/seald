@@ -452,7 +452,8 @@
     "AKID",
     "noout",
     "tmpenv",
-    "esac"
+    "esac",
+    "esign"
   ],
   "ignoreRegExpList": [
     "Base64",
