@@ -67,3 +67,8 @@ output "sealing_kms_iam_policy_arn" {
   description = "ARN of the kms:Sign + kms:GetPublicKey IAM policy. Attach to additional roles as needed."
   value       = var.enable_kms_sealing ? module.sealing_kms[0].iam_policy_arn : null
 }
+
+output "api_iam_role_name" {
+  description = "Name of the IAM role attached to the API EC2 instance profile. The sealing-kms module attaches its kms:Sign policy to this role by default."
+  value       = aws_iam_role.api.name
+}

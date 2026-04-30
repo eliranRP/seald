@@ -74,14 +74,18 @@ variable "sealing_environment" {
 
 variable "sealing_api_role_name" {
   description = <<-EOT
-    Name of the IAM role attached to the API runtime that should be
-    granted kms:Sign + kms:GetPublicKey on the sealing key. Leave
-    empty to provision the policy without attaching — the EC2 spot
-    instance currently runs with static credentials, so attachment
-    is deferred until the migration to an instance profile.
+    Override the IAM role that gets the kms:Sign + kms:GetPublicKey
+    policy attachment on the sealing key. When null (the default), the
+    sealing-kms module auto-attaches to aws_iam_role.api.name (the
+    instance profile role created in main.tf), which is what prod
+    wants — short-lived IMDS credentials, no static keys. Set this to
+    a different role name only if you're running the API somewhere
+    other than the EC2 instance profile (e.g. ECS task role, a
+    separate operator role for ad-hoc signing). Set to empty string
+    "" to provision the policy without attaching it to any role.
   EOT
   type        = string
-  default     = ""
+  default     = null
 }
 
 # ---------- GoDaddy DNS (optional) ----------

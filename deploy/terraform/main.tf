@@ -186,6 +186,40 @@ locals {
 }
 
 # --------------------------------------------------------------------
+# IAM role + instance profile for the API host.
+#
+# Replaces the legacy static IAM-user keys (seald-pades-signer-prod)
+# that were piped into the container via AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY env vars. With this in place the host fetches
+# short-lived credentials from IMDSv2 directly; no rotation burden, no
+# secrets to leak. The role starts empty — module.sealing_kms below
+# attaches the kms:Sign / kms:GetPublicKey / kms:DescribeKey policy on
+# the sealing key, which is the only AWS API the API actually calls.
+# --------------------------------------------------------------------
+data "aws_iam_policy_document" "api_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "api" {
+  name               = "${var.project}-api"
+  assume_role_policy = data.aws_iam_policy_document.api_assume_role.json
+  tags               = merge(local.common_tags, { Name = "${var.project}-api" })
+}
+
+resource "aws_iam_instance_profile" "api" {
+  name = "${var.project}-api"
+  role = aws_iam_role.api.name
+  tags = merge(local.common_tags, { Name = "${var.project}-api" })
+}
+
+# --------------------------------------------------------------------
 # Single spot instance - simpler and one-pass-appliable than an ASG.
 # Trade-off: if the spot is reclaimed, operator re-runs `terraform
 # apply` to replace. For the scale this template targets (single-node
@@ -198,6 +232,7 @@ resource "aws_instance" "api" {
   key_name               = aws_key_pair.admin.key_name
   vpc_security_group_ids = [aws_security_group.api.id]
   subnet_id              = data.aws_subnets.default.ids[0]
+  iam_instance_profile   = aws_iam_instance_profile.api.name
 
   user_data                   = local.user_data
   user_data_replace_on_change = false
@@ -258,7 +293,7 @@ module "sealing_kms" {
   source = "./modules/sealing-kms"
 
   environment   = var.sealing_environment
-  api_role_name = var.sealing_api_role_name
+  api_role_name = coalesce(var.sealing_api_role_name, aws_iam_role.api.name)
   tags          = local.common_tags
   # Tags require kms:TagResource + iam:TagPolicy on the deployer. The
   # initial apply ran with this off so the bare CI role could create
