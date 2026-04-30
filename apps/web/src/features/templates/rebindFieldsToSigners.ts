@@ -77,6 +77,10 @@ export function rebindFieldsToSigners(
       x: rf.x,
       y: rf.y,
       signerIds: targetSignerId !== undefined ? [targetSignerId] : [],
+      // Carry the linked-copy id through to the editor so the
+      // "delete from all pages or just this one?" dialog fires when
+      // the user removes one peer of a multi-page rule.
+      ...(rf.linkId !== undefined ? { linkId: rf.linkId } : {}),
     });
   }
   return out;
