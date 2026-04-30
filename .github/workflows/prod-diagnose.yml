@@ -48,6 +48,13 @@ jobs:
             echo '=== docker compose ps ==='
             sudo docker compose ps -a 2>&1 || true
 
+            echo '=== docker compose logs api (last 200) ==='
+            sudo docker compose logs --tail=200 api 2>&1 || true
+
+            echo '=== docker inspect api healthcheck ==='
+            sudo docker inspect -f '{{json .State.Health}}' \
+              $(sudo docker compose ps -q api) 2>&1 | head -200 || true
+
             echo '=== disk space ==='
             df -h / /opt 2>&1 || true
 
