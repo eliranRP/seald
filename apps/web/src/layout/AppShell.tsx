@@ -9,7 +9,8 @@ import { NAV_ITEMS, matchNavId } from './navItems';
 const Shell = styled.div`
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background: ${({ theme }) => theme.color.bg.app};
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
@@ -18,6 +19,7 @@ const Shell = styled.div`
 const Content = styled.main`
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 `;

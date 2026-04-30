@@ -40,32 +40,44 @@ export const Card = styled.div`
   box-shadow: ${({ theme }) => theme.shadow.lg};
 `;
 
+/**
+ * Confirmation badge — visually parallel to the VerifyPage's
+ * `VerdictMark` so the success state reads identically across both
+ * surfaces. Soft success-tinted background, success-700 stroke for
+ * the inline SVG check, and a slow ring pulse via `::before`.
+ * The pop animation on first paint is preserved from the previous
+ * design so the page feels like an answer landing.
+ */
 export const SealBadge = styled.div`
   position: relative;
   width: 88px;
   height: 88px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: linear-gradient(
-    145deg,
-    ${({ theme }) => theme.color.success[500]},
-    ${({ theme }) => theme.color.success[700]}
-  );
-  color: ${({ theme }) => theme.color.bg.surface};
+  background: ${({ theme }) => theme.color.success[50]};
+  color: ${({ theme }) => theme.color.success[700]};
+  border: 1.5px solid ${({ theme }) => theme.color.success[500]};
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow:
-    0 8px 24px rgba(16, 185, 129, 0.35),
-    0 0 0 6px rgba(16, 185, 129, 0.12);
+  margin: 0 auto;
   animation: ${sealPop} 520ms cubic-bezier(0.5, 1.8, 0.5, 1) both;
 
-  &::after {
+  /* Slow pulse ring matches VerifyPage's VerdictMark — replaces the
+     loud ripple-out animation that overwhelmed the page header. */
+  &::before {
     content: '';
     position: absolute;
-    inset: -4px;
+    inset: -10px;
     border-radius: ${({ theme }) => theme.radius.pill};
-    border: 2px solid ${({ theme }) => theme.color.success[500]};
-    animation: ${rippleOut} 1600ms ease-out infinite;
+    border: 1.5px solid ${({ theme }) => theme.color.success[500]};
+    opacity: 0.18;
+    animation: ${rippleOut} 3s ${({ theme }) => theme.motion.easeStandard} infinite;
+  }
+
+  /* Hosts the inline checkmark SVG; sizing matches VerdictMark. */
+  & > svg {
+    width: 44px;
+    height: 44px;
   }
 `;
 

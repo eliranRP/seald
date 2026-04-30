@@ -117,7 +117,20 @@ export function SentConfirmationPage() {
     <Wrap>
       <Card>
         <SealBadge aria-hidden>
-          <Check size={36} strokeWidth={2.4} />
+          {/* Same inline checkmark the VerifyPage's success VerdictMark
+              uses — kept inline so the stroke matches the rounded
+              line-cap treatment that lucide's <Check> stroke renders
+              square at this size. */}
+          <svg
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="5 13 10 18 19 8" />
+          </svg>
         </SealBadge>
         <Kicker>Delivered</Kicker>
         <Title>Sent. Your envelope is on its way.</Title>

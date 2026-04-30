@@ -35,6 +35,23 @@ export interface AppDocument {
   readonly file: File | null;
   /** Estimated / mocked page count. Comes from the parsed PDF when `file` is set. */
   readonly totalPages: number;
+  /**
+   * When the draft was started from a saved template, the source template
+   * id is captured so the editor can:
+   *   - render the contextual TemplateModeBanner,
+   *   - prompt with SendConfirmDialog ("update template too?") on send,
+   *   - PATCH /templates/:id when the user picks "Send and update".
+   * Undefined for plain-upload drafts.
+   */
+  readonly fromTemplateId?: string | undefined;
+  /**
+   * `true` when the draft's PDF was freshly uploaded from the wizard's
+   * "Upload a new one" branch — i.e. the saved template's example doc
+   * was REPLACED. Drives the banner copy ("Saved layout adapted to your
+   * new document"). Always undefined for `fromTemplateId === undefined`
+   * drafts.
+   */
+  readonly fromTemplateFreshUpload?: boolean | undefined;
 }
 
 export interface AppUser {
