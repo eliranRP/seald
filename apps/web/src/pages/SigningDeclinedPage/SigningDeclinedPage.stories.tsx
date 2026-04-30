@@ -10,6 +10,7 @@ if (typeof window !== 'undefined') {
   writeDoneSnapshot({
     kind: 'declined',
     envelope_id: ENVELOPE_ID,
+    short_code: 'STORYBOOKDEC1',
     title: 'Master Services Agreement',
     sender_name: 'Eliran Azulay',
     recipient_email: 'maya@example.com',

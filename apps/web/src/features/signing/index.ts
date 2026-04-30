@@ -7,6 +7,9 @@ export {
   useSignatureMutation,
   useSubmitMutation,
   useDeclineMutation,
+  useEsignDisclosureMutation,
+  useIntentToSignMutation,
+  useWithdrawConsentMutation,
 } from './useSigning';
 export type { FillFieldArgs, SignatureMutationArgs, TerminalMutationOptions } from './useSigning';
 export { SigningSessionProvider, useSigningSession } from './session';
@@ -15,6 +18,9 @@ export {
   startSession,
   getMe,
   acceptTerms,
+  acknowledgeEsignDisclosure,
+  confirmIntentToSign,
+  withdrawConsent,
   fillField,
   uploadSignature,
   submit,

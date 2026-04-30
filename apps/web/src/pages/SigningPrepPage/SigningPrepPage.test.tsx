@@ -54,25 +54,41 @@ describe('SigningPrepPage', () => {
     expect(link).toHaveAttribute('href', '/legal/esign-disclosure');
   });
 
-  it('Start signing is disabled until the T&C checkbox is ticked', async () => {
+  it('Start signing is disabled until BOTH ESIGN checkboxes are ticked', async () => {
     renderPrep();
     const start = await screen.findByRole('button', { name: /start signing/i });
     expect(start).toBeDisabled();
-    const check = screen.getByRole('checkbox', { name: /agree to electronic signatures/i });
-    await userEvent.click(check);
+    const consent = screen.getByRole('checkbox', { name: /read the consumer disclosure/i });
+    await userEvent.click(consent);
+    // Only one of two checked — still disabled (T-14 requires both).
+    expect(start).toBeDisabled();
+    const access = screen.getByRole('checkbox', {
+      name: /access electronic records on this device/i,
+    });
+    await userEvent.click(access);
     expect(start).not.toBeDisabled();
   });
 
-  it('clicking Start calls acceptTerms and navigates to /fill', async () => {
-    post.mockResolvedValueOnce(okResponse(null, 204));
+  it('clicking Start calls acceptTerms + esign-disclosure and navigates to /fill', async () => {
+    // Two POSTs expected: /sign/accept-terms and /sign/esign-disclosure.
+    post.mockResolvedValue(okResponse(null, 204));
     renderPrep();
-    const check = await screen.findByRole('checkbox', {
-      name: /agree to electronic signatures/i,
-    });
-    await userEvent.click(check);
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith('/sign/accept-terms', undefined, expect.any(Object));
+    });
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledWith(
+        '/sign/esign-disclosure',
+        { disclosure_version: 'esign_v0.1' },
+        expect.any(Object),
+      );
     });
     await waitFor(() => {
       // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
@@ -80,7 +96,7 @@ describe('SigningPrepPage', () => {
     });
   });
 
-  it('skips acceptTerms when tc_accepted_at is already set', async () => {
+  it('skips acceptTerms when tc_accepted_at is already set, but still records esign-disclosure', async () => {
     get.mockResolvedValueOnce(
       okResponse(
         makeSignMeResponse({
@@ -91,17 +107,29 @@ describe('SigningPrepPage', () => {
         }),
       ),
     );
+    post.mockResolvedValue(okResponse(null, 204));
     renderPrep();
-    const check = await screen.findByRole('checkbox', {
-      name: /agree to electronic signatures/i,
-    });
-    await userEvent.click(check);
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}/fill`);
     });
-    // acceptTerms must NOT have been called; only the /sign/me GET was issued.
-    expect(post).not.toHaveBeenCalled();
+    // acceptTerms was skipped; esign-disclosure was still POSTed (T-14).
+    expect(post).not.toHaveBeenCalledWith(
+      '/sign/accept-terms',
+      expect.anything(),
+      expect.anything(),
+    );
+    expect(post).toHaveBeenCalledWith(
+      '/sign/esign-disclosure',
+      { disclosure_version: 'esign_v0.1' },
+      expect.any(Object),
+    );
   });
 
   it('confirm+decline navigates to /declined', async () => {

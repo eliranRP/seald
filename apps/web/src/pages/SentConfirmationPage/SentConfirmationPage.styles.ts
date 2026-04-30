@@ -233,6 +233,20 @@ export const Actions = styled.div`
   margin-top: ${({ theme }) => theme.space[2]};
 `;
 
+/**
+ * T-18 — sender-facing retention disclosure. Sits below the AuditBadge
+ * as a quieter caption (micro size, muted color) so it doesn't compete
+ * with the success state but the 7-year storage commitment is visible.
+ */
+export const RetentionNote = styled.p`
+  margin: 0;
+  max-width: 48ch;
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: 1.55;
+  text-align: center;
+`;
+
 // Legacy name kept for backwards compatibility with older imports. Prefer
 // `SealBadge` in new code.
 export const SealIcon = SealBadge;

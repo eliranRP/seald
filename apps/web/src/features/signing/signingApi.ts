@@ -122,6 +122,50 @@ export async function acceptTerms(signal?: AbortSignal): Promise<void> {
   await signApiClient.post('/sign/accept-terms', undefined, configWithSignal(signal));
 }
 
+/**
+ * T-14 — record that the signer acknowledged the ESIGN Consumer
+ * Disclosure and demonstrated the ability to access electronic
+ * records on this device. The version string maps 1:1 to the copy
+ * the signer saw and is preserved verbatim in the audit chain.
+ */
+export async function acknowledgeEsignDisclosure(
+  disclosureVersion: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await signApiClient.post(
+    '/sign/esign-disclosure',
+    { disclosure_version: disclosureVersion },
+    configWithSignal(signal),
+  );
+}
+
+/**
+ * T-15 — record the signer's explicit intent-to-sign affirmation.
+ * The act of POSTing is the affirmation; no body is sent.
+ */
+export async function confirmIntentToSign(signal?: AbortSignal): Promise<void> {
+  await signApiClient.post('/sign/intent-to-sign', undefined, configWithSignal(signal));
+}
+
+/**
+ * T-16 — record withdrawal of consent for electronic signing.
+ * Server emits `consent_withdrawn` then funnels into the decline
+ * pipeline so the envelope reaches a terminal state. Returns the
+ * same shape as decline().
+ */
+export async function withdrawConsent(
+  reason?: string,
+  signal?: AbortSignal,
+): Promise<DeclineResponse> {
+  const body = reason !== undefined ? { reason } : undefined;
+  const { data } = await signApiClient.post<DeclineResponse>(
+    '/sign/withdraw-consent',
+    body,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
 export async function fillField(
   fieldId: string,
   value: FillValue,

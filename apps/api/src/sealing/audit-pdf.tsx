@@ -60,6 +60,11 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
+  /** T-22 — retention window (years). Mirrors `ENVELOPE_RETENTION_YEARS`
+   *  from `apps/api/src/config/env.schema.ts`. Surfaced on the
+   *  Certificate of Completion cover so the printed PDF is the legal
+   *  authoritative record of what we committed to retain. */
+  readonly retentionYears: number;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -82,6 +87,7 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
+      retentionYears={input.retentionYears}
     />,
   );
   // renderToBuffer returns Buffer in Node; widen the type for the call
@@ -363,6 +369,17 @@ const styles = StyleSheet.create({
     lineHeight: 1.45,
     maxWidth: '72%',
     marginTop: 8,
+  },
+  // T-22 — operator + retention banner just below the hero subtitle.
+  // Tight 7.5pt caption so it doesn't compete with the hero text but
+  // the legal authoritative retention commitment is on the printed PDF.
+  heroOperator: {
+    fontFamily: 'Inter',
+    fontSize: 7.5,
+    color: C.ink500,
+    lineHeight: 1.4,
+    maxWidth: '72%',
+    marginTop: 6,
   },
 
   seal: {
@@ -916,6 +933,7 @@ interface DocumentRenderProps {
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
+  retentionYears: number;
 }
 
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
@@ -929,8 +947,8 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
       subject={`Audit trail for ${props.envelope.short_code}`}
     >
       <Page size="LETTER" style={styles.page}>
-        <PageHeader suffix="Attestation of signing" />
-        <Hero envelope={props.envelope} />
+        <PageHeader suffix="Certificate of Completion" />
+        <Hero envelope={props.envelope} retentionYears={props.retentionYears} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -1072,7 +1090,13 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
+function Hero({
+  envelope,
+  retentionYears,
+}: {
+  envelope: Envelope;
+  retentionYears: number;
+}): React.ReactElement {
   const completed = envelope.completed_at
     ? formatDateShort(envelope.completed_at)
     : formatDateShort(envelope.created_at);
@@ -1091,6 +1115,14 @@ function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
         evidence we collected along the way — identity, consent, timestamps, and a cryptographic
         fingerprint of the file before and after signing. Definitions for every field are on the
         last page.
+      </Text>
+      {/* T-22 — operator attribution + retention commitment. Printed
+          alongside the audit trail so the certificate is self-describing
+          if it surfaces later as legal evidence detached from the live
+          service. */}
+      <Text style={styles.heroOperator}>
+        Issued by Seald, Inc. · Retained for {retentionYears} years from sealing · PAdES-LT Advanced
+        Electronic Signature
       </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
@@ -1236,7 +1268,20 @@ interface ParticipantData {
 }
 
 interface ParticipantEvent {
-  kind: 'create' | 'sent' | 'envelope' | 'view' | 'sign' | 'decline';
+  // T-22 — extended for the Phase-5 ESIGN UX events:
+  //   `consent`   → ESIGN Consumer Disclosure acknowledgment
+  //   `intent`    → explicit intent-to-sign affirmation on Review
+  //   `withdraw`  → withdrawal of consent (distinct from decline)
+  kind:
+    | 'create'
+    | 'sent'
+    | 'envelope'
+    | 'view'
+    | 'consent'
+    | 'intent'
+    | 'sign'
+    | 'decline'
+    | 'withdraw';
   action: string;
   ip: string;
   at: string;
@@ -1327,8 +1372,11 @@ function EventIcon({ kind }: { kind: ParticipantEvent['kind'] }): React.ReactEle
     sent: { bg: C.ink150, fg: C.ink700, paths: ICONS.send },
     envelope: { bg: C.ink150, fg: C.ink700, paths: ICONS.inbox },
     view: { bg: C.info50, fg: C.info700, paths: ICONS.eye },
+    consent: { bg: C.indigo50, fg: C.indigo700, paths: ICONS.shieldCheck },
+    intent: { bg: C.indigo50, fg: C.indigo700, paths: ICONS.check },
     sign: { bg: C.success50, fg: C.success700, paths: ICONS.pen },
     decline: { bg: C.ink150, fg: C.ink700, paths: ICONS.x },
+    withdraw: { bg: C.ink150, fg: C.ink700, paths: ICONS.x },
   }[kind];
   return (
     <View style={[styles.evtIco, { backgroundColor: cfg.bg }]}>
@@ -1458,8 +1506,20 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
         k: 'Viewed',
         v: 'The participant has accepted the Terms and Privacy Policy and viewed the document.',
       },
+      {
+        k: 'ESIGN disclosure acknowledged',
+        v: 'The signer affirmed they read the Consumer Disclosure and can access electronic records on this device (ESIGN §7001(c)(1)(C)(ii)).',
+      },
+      {
+        k: 'Intent to sign confirmed',
+        v: 'Just before submitting, the signer affirmed their intent to sign the document electronically.',
+      },
       { k: 'Signed', v: 'The signer has signed the document.' },
       { k: 'Validated', v: 'The validator has validated the document.' },
+      {
+        k: 'Consent withdrawn',
+        v: 'The signer revoked consent to sign electronically (ESIGN §7001(c)(1)(B)). Distinct from a decline; recorded as a separate audit event.',
+      },
     ],
   },
   {
@@ -1654,6 +1714,27 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
       at: formatDateTimeShort(viewed.created_at),
     });
   }
+  // T-22 — surface the Phase-5 ESIGN audit events so the printed
+  // Certificate of Completion narrates the full consent → intent →
+  // sign chain (or consent → withdraw).
+  const esignAck = perEvents.find((e) => e.event_type === 'esign_disclosure_acknowledged');
+  if (esignAck) {
+    events.push({
+      kind: 'consent',
+      action: 'ESIGN disclosure acknowledged',
+      ip: esignAck.ip ?? '—',
+      at: formatDateTimeShort(esignAck.created_at),
+    });
+  }
+  const intentAck = perEvents.find((e) => e.event_type === 'intent_to_sign_confirmed');
+  if (intentAck) {
+    events.push({
+      kind: 'intent',
+      action: 'Intent to sign confirmed',
+      ip: intentAck.ip ?? '—',
+      at: formatDateTimeShort(intentAck.created_at),
+    });
+  }
   const signed = perEvents.find((e) => e.event_type === 'signed');
   if (signed) {
     events.push({
@@ -1670,6 +1751,15 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
       action: 'Declined',
       ip: declined.ip ?? '—',
       at: formatDateTimeShort(declined.created_at),
+    });
+  }
+  const withdrew = perEvents.find((e) => e.event_type === 'consent_withdrawn');
+  if (withdrew) {
+    events.push({
+      kind: 'withdraw',
+      action: 'Consent withdrawn',
+      ip: withdrew.ip ?? '—',
+      at: formatDateTimeShort(withdrew.created_at),
     });
   }
   const checks = deriveVerificationChecks(detail?.verification_checks ?? ['email']);

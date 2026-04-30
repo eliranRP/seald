@@ -87,10 +87,19 @@ describe('SigningReviewPage', () => {
     });
   });
 
-  it('Sign-and-submit calls /sign/submit and navigates to /done', async () => {
-    post.mockResolvedValueOnce(okResponse({ status: 'submitted', envelope_status: 'sealing' }));
+  it('Sign-and-submit calls /sign/intent-to-sign + /sign/submit and navigates to /done', async () => {
+    // Two POSTs in order: /sign/intent-to-sign (T-15) then /sign/submit.
+    post
+      .mockResolvedValueOnce(okResponse(null, 204))
+      .mockResolvedValueOnce(okResponse({ status: 'submitted', envelope_status: 'sealing' }));
     renderReview();
-    await userEvent.click(await screen.findByRole('button', { name: /sign and submit/i }));
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /intend to sign this document/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /sign and submit/i }));
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledWith('/sign/intent-to-sign', undefined, expect.any(Object));
+    });
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith('/sign/submit', undefined, expect.any(Object));
     });
@@ -100,18 +109,29 @@ describe('SigningReviewPage', () => {
   });
 
   it('401 on submit redirects the user back to /sign/:id', async () => {
-    post.mockRejectedValueOnce(Object.assign(new Error('session_expired'), { status: 401 }));
+    // Intent-to-sign succeeds, then /sign/submit returns 401.
+    post
+      .mockResolvedValueOnce(okResponse(null, 204))
+      .mockRejectedValueOnce(Object.assign(new Error('session_expired'), { status: 401 }));
     renderReview();
-    await userEvent.click(await screen.findByRole('button', { name: /sign and submit/i }));
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /intend to sign this document/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /sign and submit/i }));
     await waitFor(() => {
       expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}`);
     });
   });
 
   it('generic submit error shows an inline alert banner', async () => {
-    post.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
+    post
+      .mockResolvedValueOnce(okResponse(null, 204))
+      .mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
     renderReview();
-    await userEvent.click(await screen.findByRole('button', { name: /sign and submit/i }));
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /intend to sign this document/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /sign and submit/i }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/boom/i);
   });
 

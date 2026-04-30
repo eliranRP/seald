@@ -1,9 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { CheckCircle2, FileText, Sparkles } from 'lucide-react';
+import { CheckCircle2, FileText, ShieldCheck, Sparkles } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readDoneSnapshot } from '@/features/signing';
+
+/**
+ * T-18 — keep this in sync with `ENVELOPE_RETENTION_YEARS` (default `7`)
+ * in `apps/api/src/config/env.schema.ts`. The signer-facing retention
+ * disclosure is informational; the legal authoritative value is on the
+ * Privacy Policy and audit PDF, both of which read the env var at
+ * issuance time.
+ */
+const RETENTION_YEARS = 7;
 
 const Page = styled.div`
   min-height: 100vh;
@@ -143,6 +152,29 @@ const ExitLink = styled.button`
   cursor: pointer;
 `;
 
+const RetentionCard = styled.div`
+  margin-top: ${({ theme }) => theme.space[8]};
+  padding: 14px 16px;
+  background: ${({ theme }) => theme.color.ink[50]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  text-align: left;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[2]};
+  line-height: 1.55;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+`;
+
+const AesNote = styled.p`
+  margin: ${({ theme }) => theme.space[4]} 0 0;
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: 1.55;
+  text-align: left;
+`;
+
 /**
  * `/sign/:envelopeId/done` — terminal success screen. Reads the sessionStorage
  * snapshot written by the submit mutation; if missing (user deep-linked),
@@ -192,6 +224,28 @@ export function SigningDonePage() {
             Check your email for the signed copy
           </SecondaryBtn>
         </Actions>
+
+        <RetentionCard>
+          <Icon icon={ShieldCheck} size={16} />
+          <span>
+            Seald retains the sealed PDF and audit trail for <b>{RETENTION_YEARS} years</b> from
+            sealing. You can verify it any time at{' '}
+            <a
+              href={`/verify/${snap.short_code}`}
+              style={{ color: 'inherit', textDecoration: 'underline' }}
+            >
+              /verify/{snap.short_code}
+            </a>
+            .
+          </span>
+        </RetentionCard>
+
+        <AesNote>
+          Seald produces an Advanced Electronic Signature (PAdES-LT) — legally equivalent to a
+          handwritten signature in most jurisdictions. Some documents (wills, real-estate
+          conveyances, certain DE/FR/IT/ES instruments) require a Qualified Electronic Signature or
+          wet ink. Consult counsel if unsure.
+        </AesNote>
 
         <Upsell>
           <UpsellChip>

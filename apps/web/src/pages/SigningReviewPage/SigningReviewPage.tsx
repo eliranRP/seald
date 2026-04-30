@@ -54,6 +54,29 @@ const Legal = styled.div`
   align-items: flex-start;
 `;
 
+const IntentRow = styled.label`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: ${({ theme }) => theme.space[5]};
+  padding: 12px 14px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[2]};
+  line-height: 1.55;
+  cursor: pointer;
+`;
+
+const IntentCheckbox = styled.input`
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: ${({ theme }) => theme.color.ink[900]};
+  cursor: pointer;
+`;
+
 const Actions = styled.div`
   margin-top: ${({ theme }) => theme.space[6]};
   display: flex;
@@ -206,11 +229,15 @@ function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
-  const { envelope, fields, submit } = useSigningSession();
+  const { envelope, fields, submit, confirmIntentToSign } = useSigningSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveTplOpen, setSaveTplOpen] = useState(false);
   const [savedTplToast, setSavedTplToast] = useState<string | null>(null);
+  // T-15 — Submit is gated on an explicit intent-to-sign checkbox so
+  // the user's affirmation is a discrete, dateable act distinct from
+  // clicking the Submit button.
+  const [intentChecked, setIntentChecked] = useState(false);
 
   const items = useMemo(() => fields.filter(fieldIsFilled).map(toReviewItem), [fields]);
 
@@ -233,9 +260,15 @@ function Content() {
   );
 
   const handleSubmit = useCallback(async () => {
+    if (!intentChecked) return;
     setBusy(true);
     setError(null);
     try {
+      // Record intent-to-sign first so it lands BEFORE the `signed`
+      // event in the chain. The audit PDF reads in chain order; the
+      // intent affirmation must precede the signature event for the
+      // narrative to be correct.
+      await confirmIntentToSign();
       await submit();
       navigate(`/sign/${envelopeId}/done`, { replace: true });
     } catch (err) {
@@ -247,7 +280,7 @@ function Content() {
       setError(e.message ?? 'We could not submit right now. Please try again.');
       setBusy(false);
     }
-  }, [envelopeId, navigate, submit]);
+  }, [confirmIntentToSign, envelopeId, intentChecked, navigate, submit]);
 
   if (!envelope) return null;
 
@@ -285,13 +318,26 @@ function Content() {
           </span>
         </Legal>
 
+        <IntentRow>
+          <IntentCheckbox
+            type="checkbox"
+            checked={intentChecked}
+            onChange={(e) => setIntentChecked(e.target.checked)}
+            aria-label="I intend to sign this document with the signature shown above"
+          />
+          <span>
+            <b>I intend to sign this document</b> with the signature shown above. (This affirmation
+            is recorded in the audit trail.)
+          </span>
+        </IntentRow>
+
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
         <Actions>
           <BackBtn type="button" onClick={handleBack} disabled={busy}>
             Back to fields
           </BackBtn>
-          <SubmitBtn type="button" onClick={handleSubmit} disabled={busy}>
+          <SubmitBtn type="button" onClick={handleSubmit} disabled={busy || !intentChecked}>
             <Icon icon={PenTool} size={16} />
             {busy ? 'Submitting…' : 'Sign and submit'}
           </SubmitBtn>
