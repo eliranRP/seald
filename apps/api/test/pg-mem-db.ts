@@ -185,6 +185,38 @@ export function createPgMemDb(): PgMemHandle {
 
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
+  // pg-mem inlines query parameters by serializing Buffers as utf-8
+  // (`buf.toString('utf-8')`) and wrapping in `E'…'`. When a hash byte
+  // is 0x5C (backslash) followed by a byte that V8's `JSON.parse` rejects
+  // as an escape (e.g. `\X`), the pgsql-ast-parser lexer throws
+  // "Bad escaped character in JSON at position 2 (line 1 column 3)" — a
+  // ~1-in-256-per-byte flake against a SHA-256 (`prev_event_hash`) Buffer.
+  // Production uses real Postgres binary protocol so this cannot happen
+  // there. To make pg-mem-backed unit tests deterministic we intercept
+  // `pool.query` and rewrite Buffer params into a hex string `\x<hex>`,
+  // which contains only ASCII chars and never trips the lexer's escape
+  // path. pg-mem's bytea-from-text conversion (Buffer.from(str)) stores
+  // the literal text bytes — lossy vs. the original raw hash bytes, but
+  // the only pg-mem-backed test that re-reads `prev_event_hash` is the
+  // tamper-detection case which expects `chain_intact: false` and so is
+  // unaffected by the lossy roundtrip.
+  const originalQuery = pool.query.bind(pool);
+  pool.query = ((...args: unknown[]) => {
+    const first = args[0];
+    if (Array.isArray(args[1])) {
+      args[1] = (args[1] as unknown[]).map((v) =>
+        Buffer.isBuffer(v) ? `\\x${v.toString('hex')}` : v,
+      );
+    } else if (
+      first &&
+      typeof first === 'object' &&
+      Array.isArray((first as { values?: unknown[] }).values)
+    ) {
+      const cfg = first as { values?: unknown[] };
+      cfg.values = cfg.values!.map((v) => (Buffer.isBuffer(v) ? `\\x${v.toString('hex')}` : v));
+    }
+    return originalQuery(...(args as Parameters<typeof originalQuery>));
+  }) as typeof pool.query;
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
 
   return {
