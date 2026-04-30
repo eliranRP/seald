@@ -30,15 +30,13 @@ jobs:
         uses: appleboy/ssh-action@v1.1.0
         env:
           PROD_API_ENV: ${{ secrets.PROD_API_ENV }}
-          AWS_KMS_ACCESS_KEY_ID: ${{ secrets.AWS_KMS_ACCESS_KEY_ID }}
-          AWS_KMS_SECRET_ACCESS_KEY: ${{ secrets.AWS_KMS_SECRET_ACCESS_KEY }}
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
           command_timeout: 8m
-          envs: PROD_API_ENV,AWS_KMS_ACCESS_KEY_ID,AWS_KMS_SECRET_ACCESS_KEY
+          envs: PROD_API_ENV
           script: |
             set -euo pipefail
             cd /opt/seald
@@ -51,22 +49,15 @@ jobs:
             echo '=== Write apps/api/.env from PROD_API_ENV secret ==='
             sudo install -d -o $(id -u) -g $(id -g) /opt/seald/apps/api
             printf '%s' "$PROD_API_ENV" | sudo tee /opt/seald/apps/api/.env >/dev/null
-            # Append AWS creds for the dedicated pades-signer IAM user.
-            # The instance has no IAM role attached (ami_replace did not
-            # rewire the instance profile — separate Terraform task), so
-            # we hand the API container static keys via env_file. The
-            # `seald-pades-signer-prod` user has *only* kms:Sign +
-            # kms:GetPublicKey on alias/seald-pades-sealing-prod.
-            #
-            # TODO: remove these AWS_* lines once `feat/terraform-api-iam-role`
-            # has applied — the EC2 instance profile + IAM role will let
-            # the SDK pick up creds via IMDSv2 automatically, including
-            # for the kms:Sign + secretsmanager:GetSecretValue calls.
-            {
-              printf '\nAWS_ACCESS_KEY_ID=%s\n' "$AWS_KMS_ACCESS_KEY_ID"
-              printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_KMS_SECRET_ACCESS_KEY"
-              printf 'AWS_REGION=us-east-2\n'
-            } | sudo tee -a /opt/seald/apps/api/.env >/dev/null
+            # AWS creds for the API container come from the EC2 instance
+            # IAM role (provisioned by deploy/terraform/iam.tf, attached
+            # to aws_instance.api via aws_iam_instance_profile.api). The
+            # SDK picks them up via IMDSv2 (hop_limit=2 in main.tf so
+            # bridge-network docker containers can reach 169.254.169.254).
+            # AWS_REGION is still useful for the SDK to know without an
+            # IMDS round-trip, so set it explicitly.
+            printf '\nAWS_REGION=us-east-2\n' \
+              | sudo tee -a /opt/seald/apps/api/.env >/dev/null
             # Point entrypoint.sh at the AWS Secrets Manager entry
             # provisioned by deploy/terraform/secrets.tf. The container
             # fetches this at boot and exports each key (DATABASE_URL,
@@ -146,23 +137,17 @@ jobs:
             SCRIPT
             sudo chmod 0755 /opt/seald/_restore/gen-cert.sh
 
-            echo "=== AWS key shape check (no values exposed) ==="
-            echo "AKID prefix=${AWS_KMS_ACCESS_KEY_ID:0:4} len=${#AWS_KMS_ACCESS_KEY_ID}"
-            echo "SECRET first2=${AWS_KMS_SECRET_ACCESS_KEY:0:2} last2=${AWS_KMS_SECRET_ACCESS_KEY: -2} len=${#AWS_KMS_SECRET_ACCESS_KEY}"
-
-            # The instance has no IAM role attached (Terraform-replaced
-            # AMI; instance_profile was never wired into aws_instance.api
-            # — fix tracked separately). Pass static IAM-user keys via
-            # -e instead. Same keys are written into apps/api/.env above
-            # so the runtime API container can call kms:Sign at sealing
-            # time.
+            # The cert-gen container picks up AWS creds via IMDSv2
+            # (EC2 instance role provisioned by deploy/terraform/iam.tf).
+            # main.tf's metadata_options.http_put_response_hop_limit = 2
+            # is what makes the bridge-network docker container reach
+            # 169.254.169.254. Region is set explicitly so the SDK
+            # skips the IMDS round-trip for it.
             sudo docker run --rm \
               -v /opt/seald:/work \
               -w /work/apps/api \
               -e AWS_REGION=us-east-2 \
               -e AWS_DEFAULT_REGION=us-east-2 \
-              -e AWS_ACCESS_KEY_ID="$AWS_KMS_ACCESS_KEY_ID" \
-              -e AWS_SECRET_ACCESS_KEY="$AWS_KMS_SECRET_ACCESS_KEY" \
               node:20-bookworm-slim \
               /work/_restore/gen-cert.sh 2>&1
             sudo chmod 0644 /opt/seald/secrets/seald-pades-prod.crt.pem
