@@ -1,0 +1,61 @@
+name: Prod diagnose (read-only SSH)
+
+# One-shot read-only diagnostic. Connects to the EC2 host and dumps the
+# state of /opt/seald — file presence, disk space, recent dmesg, and
+# docker compose status — so we can pin down why /opt/seald/apps/api/.env
+# went missing without modifying any host state.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: SSH read-only diagnostic
+        uses: appleboy/ssh-action@v1.1.0
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 4m
+          script: |
+            set -uo pipefail
+            echo '=== whoami / pwd ==='
+            whoami
+            pwd
+
+            echo '=== /opt/seald top-level ==='
+            sudo ls -la /opt/seald || true
+
+            echo '=== /opt/seald/apps/api (.env, .env.* incl hidden) ==='
+            sudo ls -la /opt/seald/apps/api 2>&1 | sed -n '1,80p' || true
+            sudo find /opt/seald/apps/api -maxdepth 1 -name '.env*' -printf '%p %s bytes  mtime=%TY-%Tm-%Td %TH:%TM\n' 2>&1 || true
+
+            echo '=== /opt/seald/secrets (KMS binding cert dir) ==='
+            sudo ls -la /opt/seald/secrets 2>&1 || true
+
+            echo '=== Any .env-like files anywhere under /opt/seald ==='
+            sudo find /opt/seald -maxdepth 6 -name '.env*' -printf '%p %s bytes  mtime=%TY-%Tm-%Td %TH:%TM\n' 2>&1 || true
+
+            echo '=== git status / last commit ==='
+            cd /opt/seald
+            sudo git status -sb || true
+            sudo git log -1 --format='%h %ci %s' || true
+
+            echo '=== docker compose ps ==='
+            sudo docker compose ps -a 2>&1 || true
+
+            echo '=== disk space ==='
+            df -h / /opt 2>&1 || true
+
+            echo '=== uptime + load ==='
+            uptime
+            echo '=== last 50 lines of dmesg (look for OOM / fs errors) ==='
+            sudo dmesg | tail -50 2>&1 || true
+
+            echo '=== bash history hint (last 30 from root if any) ==='
+            sudo bash -c 'tail -n 30 ~/.bash_history 2>/dev/null || true'
+            sudo bash -c 'tail -n 30 /home/${{ secrets.DEPLOY_SSH_USER }}/.bash_history 2>/dev/null || true'
