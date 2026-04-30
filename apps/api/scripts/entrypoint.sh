@@ -34,7 +34,7 @@ fetch_secrets_from_aws() {
     return 0
   fi
 
-  region="${AWS_REGION:-us-east-1}"
+  region="${AWS_REGION:-us-east-2}"
   echo "entrypoint: fetching runtime secrets from AWS Secrets Manager (id=$SEALD_API_SECRET_ID region=$region)..."
 
   if ! command -v aws >/dev/null 2>&1; then
