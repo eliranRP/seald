@@ -26,6 +26,7 @@ import {
 import {
   createTemplate,
   fetchTemplateExamplePdf,
+  listTemplates,
   updateTemplate,
   uploadTemplateExamplePdf,
 } from '../features/templates/templatesApi';
@@ -189,6 +190,40 @@ export function TemplateEditorRoute() {
    * not in saved-doc mode.
    */
   const [fetchedExampleFile, setFetchedExampleFile] = useState<File | null>(null);
+  /**
+   * "We've stopped trying to fetch the example PDF" flag. Flips to
+   * `true` whether the fetch succeeded, failed, or 404'd. The
+   * bootstrap effect uses this to know it can stop waiting and fall
+   * through to the placeholder, so a network failure doesn't
+   * permanently freeze the editor on the saved-doc branch.
+   */
+  const [examplePdfFetchSettled, setExamplePdfFetchSettled] = useState(false);
+
+  /**
+   * Hydrate the templates module store on mount when it's empty and
+   * we're not authoring a brand-new template. Without this a user
+   * who deep-links / hard-reloads `/templates/:id/edit` lands with
+   * an empty store, `sourceTemplate` stays undefined, the example-
+   * PDF fetch effect never fires, and the bootstrap stalls. Mirrors
+   * the same idempotent listTemplates() call TemplatesListPage runs
+   * on its own mount.
+   */
+  useEffect(() => {
+    if (isNewTemplate) return undefined;
+    if (templates.length > 0) return undefined;
+    const controller = new AbortController();
+    void listTemplates(controller.signal)
+      .then((rows) => {
+        if (controller.signal.aborted) return;
+        setTemplates(rows);
+      })
+      .catch(() => {
+        // Quiet failure — the editor will fall through to the
+        // not-found surface if the template still can't be resolved.
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNewTemplate]);
 
   const fileForParse = draft?.file ?? initialHandoff?.pendingFile ?? fetchedExampleFile ?? null;
   const { doc: pdfDoc, numPages, loading: pdfLoading } = usePdfDocument(fileForParse);
@@ -206,14 +241,20 @@ export function TemplateEditorRoute() {
   const placeholderFile = useMemo<File | null>(() => {
     if (initialHandoff?.pendingFile) return null;
     if (!sourceTemplate) return null;
-    if (sourceTemplate.hasExamplePdf) return null;
+    // While the example-PDF fetch is in flight, suppress the
+    // placeholder so the bootstrap-wait branch can do its job. Once
+    // the fetch settles (success OR failure), fall through to the
+    // placeholder if no real bytes arrived — that keeps the editor
+    // usable even when the saved PDF can't be fetched.
+    if (sourceTemplate.hasExamplePdf && !examplePdfFetchSettled) return null;
+    if (sourceTemplate.hasExamplePdf && fetchedExampleFile) return null;
     const blob = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], {
       type: 'application/pdf',
     });
     return new File([blob], sourceTemplate.exampleFile || `${sourceTemplate.name}.pdf`, {
       type: 'application/pdf',
     });
-  }, [initialHandoff?.pendingFile, sourceTemplate]);
+  }, [initialHandoff?.pendingFile, sourceTemplate, examplePdfFetchSettled, fetchedExampleFile]);
 
   /**
    * Fetch the example PDF once when the user reuses a saved template
@@ -227,16 +268,23 @@ export function TemplateEditorRoute() {
     if (initialHandoff?.pendingFile) return undefined;
     if (!sourceTemplate?.hasExamplePdf) return undefined;
     const controller = new AbortController();
+    setExamplePdfFetchSettled(false);
     void fetchTemplateExamplePdf(sourceTemplate.id, controller.signal)
       .then((blob) => {
         if (controller.signal.aborted) return;
         const filename = sourceTemplate.exampleFile || `${sourceTemplate.name}.pdf`;
         setFetchedExampleFile(new File([blob], filename, { type: 'application/pdf' }));
       })
-      .catch(() => {
-        // Server may be unreachable or return 404 mid-flight; the
-        // placeholder branch covers that — no toast for what should
-        // be transparent fallback behavior.
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return;
+        // Server may be unreachable or return 404 mid-flight. We log
+        // a console.warn so devs can see the failure and fall
+        // through to the placeholder canvas (the route stays usable
+        // for editing — saving will still re-upload).
+        console.warn('[templates] example PDF fetch failed; using placeholder:', err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setExamplePdfFetchSettled(true);
       });
     return () => controller.abort();
   }, [
@@ -253,11 +301,13 @@ export function TemplateEditorRoute() {
   useEffect(() => {
     if (draftId) return;
 
-    // Wait for the example-PDF fetch to settle before locking in the
-    // draft when the template advertises one. The placeholder file
-    // would otherwise win the bootstrap race and `draft.file` would
-    // never be replaced when the real bytes arrive (issue #4 v2).
-    if (sourceTemplate?.hasExamplePdf && !fetchedExampleFile && !initialHandoff?.pendingFile) {
+    // Wait for the example-PDF fetch to SETTLE (success or failure)
+    // before locking in the draft when the template advertises one.
+    // The placeholder would otherwise win the bootstrap race and
+    // `draft.file` would never be replaced when the real bytes
+    // arrive. If the fetch fails the settled flag still flips so
+    // the route doesn't freeze (issue #4 v3).
+    if (sourceTemplate?.hasExamplePdf && !examplePdfFetchSettled && !initialHandoff?.pendingFile) {
       return;
     }
 
@@ -324,6 +374,7 @@ export function TemplateEditorRoute() {
     initialHandoff?.pendingFile,
     sourceTemplate,
     fetchedExampleFile,
+    examplePdfFetchSettled,
   ]);
 
   // ---- Editor state ----------------------------------------------------
