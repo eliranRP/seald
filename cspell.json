@@ -453,7 +453,12 @@
     "noout",
     "tmpenv",
     "esac",
-    "esign"
+    "esign",
+    "DSAR",
+    "dsar",
+    "CCPA",
+    "ccpa",
+    "serialisable"
   ],
   "ignoreRegExpList": [
     "Base64",
