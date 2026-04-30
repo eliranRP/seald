@@ -4,55 +4,16 @@ import { UploadPage } from '../pages/UploadPage';
 import { SignersStepCard } from '../components/SignersStepCard';
 import type { SignersStepSigner } from '../components/SignersStepCard';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
-import type { FieldKind } from '../features/envelopes';
 import { useAppState } from '../providers/AppStateProvider';
 import { usePdfDocument } from '../lib/pdf';
 import {
   findTemplateById,
+  rebindFieldsToSigners,
   resolveTemplateFields,
-  type ResolvedField,
-  type TemplateFieldType,
   type TemplateSummary,
 } from '../features/templates';
 
 const TEMPLATE_QUERY_PARAM = 'template';
-
-// Template field kinds use the singular `initial`; `PlacedFieldValue.type`
-// uses the canonical `FieldKind` ('initials'). Keep the mapping local to the
-// upload route — templates are otherwise an isolated authoring concept.
-const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
-  signature: 'signature',
-  initial: 'initials',
-  date: 'date',
-  text: 'text',
-  checkbox: 'checkbox',
-};
-
-function templateFieldsToPlaced(
-  resolved: ReadonlyArray<ResolvedField>,
-  signers: ReadonlyArray<{ readonly id: string }>,
-): ReadonlyArray<PlacedFieldValue> {
-  return resolved.map((rf) => {
-    // Reuse the saved per-field `signerIndex` to bind each resolved
-    // field back to the matching signer in the freshly chosen roster.
-    // Older saves without an index (or roster shrunk under the saved
-    // ordinal) leave the field unassigned so the sender re-picks in
-    // the editor — same conservative fallback as TemplateEditorRoute.
-    const target =
-      rf.signerIndex !== undefined && rf.signerIndex < signers.length
-        ? signers[rf.signerIndex]
-        : undefined;
-    return {
-      id: rf.id,
-      page: rf.page,
-      type: TEMPLATE_TO_FIELD_KIND[rf.type],
-      x: rf.x,
-      y: rf.y,
-      signerIds: target ? [target.id] : [],
-    };
-  });
-}
 
 /**
  * Route wrapper around `UploadPage` that gates document creation on the
@@ -177,10 +138,10 @@ export function UploadRoute() {
     // that don't exist on the new PDF (e.g. layout asks for `page: 5`
     // on a 3-page upload) are filtered out by `resolveTemplateFields`;
     // we surface a console warning so the dropoff is observable.
-    let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
+    let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
     if (template) {
       const resolved = resolveTemplateFields(template.fields, resolvedPages);
-      pendingFields = templateFieldsToPlaced(resolved, selectedSigners);
+      pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
       if (resolvedPages < template.pages) {
         // Use console.warn so the SPA's debug build flags the gap. The
         // banner already informs the user; this is for engineering.

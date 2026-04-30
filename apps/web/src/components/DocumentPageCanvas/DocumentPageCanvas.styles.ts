@@ -1,13 +1,27 @@
 import styled from 'styled-components';
 
-export const Page = styled.div<{ readonly $width: number }>`
+/**
+ * `$pdfMode` mirrors the editor's `DocumentCanvas` Paper: when the page
+ * is hosting a real rendered PDF, padding is stripped to 0 so the canvas
+ * fills the full 560×740 (or `$width`-sized) box edge-to-edge. Fields
+ * are positioned absolute against the same coordinate space the editor
+ * stored them in (0..$width × 0..740), so without this the padded layout
+ * here would render fields in a 432×628 effective area while the editor
+ * placed them in 560×740 — the right-edge fields literally fall off the
+ * PDF in signing. Placeholder mode keeps the original padded canvas so
+ * the lined-paper preview still has gutters around it.
+ */
+export const Page = styled.div<{
+  readonly $width: number;
+  readonly $pdfMode: boolean;
+}>`
   position: relative;
   width: ${({ $width }) => `${$width}px`};
   min-height: 740px;
   background: ${({ theme }) => theme.color.paper};
   border-radius: ${({ theme }) => theme.radius.xs};
   box-shadow: ${({ theme }) => theme.shadow.paper};
-  padding: 56px 64px;
+  padding: ${({ $pdfMode }) => ($pdfMode ? '0' : '56px 64px')};
   overflow: hidden;
 `;
 

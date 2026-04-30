@@ -16,5 +16,7 @@ export {
   templateHasFieldType,
 } from './templates';
 export { deriveTemplateFieldLayout, inferPageRule } from './deriveFieldLayout';
+export { rebindFieldsToSigners } from './rebindFieldsToSigners';
+export type { RebindSigner } from './rebindFieldsToSigners';
 export { tagColorFor } from './tagColors';
 export type { TagColor } from './tagColors';

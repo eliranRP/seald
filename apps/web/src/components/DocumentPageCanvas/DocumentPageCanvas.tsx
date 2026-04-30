@@ -85,14 +85,31 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
 
     const pdfFailed = Boolean(pdfSrc) && (error !== null || renderError !== null);
     const showPdf = Boolean(pdfSrc) && !pdfFailed;
+    // Strip the padded chrome (Heading / PageTag / Spacer + 56/64 padding)
+    // once the PDF has loaded so the canvas + field layer share the same
+    // 560×740 coordinate space the editor used. Until the PDF is ready
+    // (loading or failed) we fall back to the padded placeholder so the
+    // page never collapses to nothing while loading.
+    const isPdfMode = showPdf && !loading;
 
     return (
-      <Page ref={ref} $width={width} data-r-page={pageNum} {...rest}>
-        <Heading>{title}</Heading>
-        <PageTag>
-          Page {pageNum} of {totalPages}
-        </PageTag>
-        <Spacer />
+      <Page
+        ref={ref}
+        $width={width}
+        $pdfMode={isPdfMode}
+        data-r-page={pageNum}
+        data-pdf-mode={isPdfMode ? 'true' : 'false'}
+        {...rest}
+      >
+        {!isPdfMode ? (
+          <>
+            <Heading>{title}</Heading>
+            <PageTag>
+              Page {pageNum} of {totalPages}
+            </PageTag>
+            <Spacer />
+          </>
+        ) : null}
 
         {pdfFailed ? (
           <PreviewWarning role="status">
@@ -100,7 +117,7 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
           </PreviewWarning>
         ) : null}
 
-        {showPdf && !loading ? (
+        {isPdfMode ? (
           <PdfCanvas ref={canvasRef} aria-hidden="true" />
         ) : (
           <PlaceholderBars pageNum={pageNum} />

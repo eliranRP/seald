@@ -19,6 +19,7 @@ import {
   deriveTemplateFieldLayout,
   findTemplateById,
   getTemplates,
+  rebindFieldsToSigners,
   resolveTemplateFields,
   setTemplates,
   subscribeToTemplates,
@@ -30,7 +31,7 @@ import {
   updateTemplate,
   uploadTemplateExamplePdf,
 } from '../features/templates/templatesApi';
-import type { TemplateFieldType, TemplateSummary } from '../features/templates';
+import type { TemplateSummary } from '../features/templates';
 
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 740;
@@ -46,14 +47,6 @@ const TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
   'text',
   'checkbox',
 ];
-
-const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
-  signature: 'signature',
-  initial: 'initials',
-  date: 'date',
-  text: 'text',
-  checkbox: 'checkbox',
-};
 
 const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> = {
   signature: { w: 200, h: 54 },
@@ -343,25 +336,13 @@ export function TemplateEditorRoute() {
     let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
     if (sourceTemplate) {
       const resolved = resolveTemplateFields(sourceTemplate.fields, resolvedPages);
-      pendingFields = resolved.map((rf) => {
-        // Prefer the saved per-field signer index when present (so each
-        // signer's fields keep their original color on reuse). Older
-        // templates without signerIndex, or out-of-range indexes against
-        // a shrunken roster, fall back to signers[0] so the field is
-        // still placed and the user can re-assign it.
-        const targetSigner =
-          rf.signerIndex !== undefined && rf.signerIndex < signers.length
-            ? signers[rf.signerIndex]
-            : signers[0];
-        return {
-          id: rf.id,
-          page: rf.page,
-          type: TEMPLATE_TO_FIELD_KIND[rf.type],
-          x: rf.x,
-          y: rf.y,
-          signerIds: targetSigner ? [targetSigner.id] : [],
-        };
-      });
+      // Apply the user-spec signer-count rules: bind by ordinal, drop
+      // fields whose owning signer was removed, fall back to signers[0]
+      // only for legacy (pre-signerIndex) templates. Centralized in
+      // `rebindFieldsToSigners` so UploadRoute and this route share the
+      // exact same semantics. See `rebindFieldsToSigners.test.ts` for
+      // the regression cases tied to bug #2.
+      pendingFields = rebindFieldsToSigners(resolved, signers);
     }
 
     updateDocument(id, {

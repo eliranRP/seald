@@ -42,4 +42,16 @@ describe('DocumentPageCanvas', () => {
     renderWithTheme(<DocumentPageCanvas ref={ref} pageNum={1} totalPages={1} />);
     expect(ref.current).toBeInstanceOf(HTMLDivElement);
   });
+
+  // Regression: signing rendered fields with absolute coords from the
+  // editor (0..560 × 0..740). The padded layout (56/64 padding) reduced
+  // the effective PDF render area to 432×628 while fields were placed
+  // at 0..560 — right-edge signatures fell outside the PDF. Without a
+  // pdfSrc we must remain in the padded placeholder layout so the
+  // demo/preview surface still has gutters.
+  it('placeholder layout (no pdfSrc) reports data-pdf-mode="false"', () => {
+    const { container } = renderWithTheme(<DocumentPageCanvas pageNum={1} totalPages={1} />);
+    const page = container.querySelector('[data-r-page="1"]');
+    expect(page?.getAttribute('data-pdf-mode')).toBe('false');
+  });
 });
