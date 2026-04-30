@@ -437,13 +437,9 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                 />
               ))}
             </Grid>
-            {filtered.length === 0 ? (
+            {filtered.length === 0 && (query || isFiltered) ? (
               <EmptyState role="status">
-                {query
-                  ? `No templates match "${query}".`
-                  : isFiltered
-                    ? 'No templates match the selected tags.'
-                    : 'No templates yet.'}
+                {query ? `No templates match "${query}".` : 'No templates match the selected tags.'}
               </EmptyState>
             ) : null}
           </>

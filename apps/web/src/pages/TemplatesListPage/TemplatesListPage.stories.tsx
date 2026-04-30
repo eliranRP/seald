@@ -87,6 +87,6 @@ export const Default: Story = {
 };
 
 export const Empty: Story = {
-  name: 'No templates yet',
+  name: 'Empty list — only the New template tile is shown',
   args: { initialTemplates: [] },
 };

@@ -345,10 +345,23 @@ export function TemplateEditorRoute() {
     const title = (renamedTitle ?? sourceTemplate?.name ?? 'Untitled template').trim();
     try {
       const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages);
+      // Capture the current signer roster as `last_signers` so the
+      // next user of this template starts with the same recipients
+      // pre-filled. Previously this was only persisted in
+      // `handleSendAndUpdate`, so brand-new templates saved without
+      // sending lost their roster — see UseTemplatePage's pre-fill
+      // effect (reads `template.lastSigners`).
+      const lastSigners = draft.signers.map((s) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        color: s.color,
+      }));
       if (sourceTemplate) {
         const updated = await updateTemplate(sourceTemplate.id, {
           title,
           field_layout: fieldLayout,
+          last_signers: lastSigners,
         });
         setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
       } else {
@@ -356,6 +369,7 @@ export function TemplateEditorRoute() {
           title,
           field_layout: fieldLayout,
           cover_color: '#EEF2FF',
+          last_signers: lastSigners,
         });
         setTemplates([created, ...getTemplates()]);
       }
