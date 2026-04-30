@@ -447,7 +447,10 @@
     "Okonkwo",
     "Raskin",
     "Diaz",
-    "Nakamura"
+    "Nakamura",
+    "IMDS",
+    "AKID",
+    "noout"
   ],
   "ignoreRegExpList": [
     "Base64",
