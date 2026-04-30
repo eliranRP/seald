@@ -1,0 +1,103 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'contact_v0.1';
+---
+<BaseLayout
+  title="Contact — Seald"
+  description="Reach Seald: support, privacy, security, legal, accessibility, and abuse contact details."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft.</strong> Contact endpoints are stable but staffing is still ramping; expect business-hours response in U.S. Pacific time. Critical security issues take priority.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Contact Seald</h1>
+        <p>Pick the address that matches your question. Email is currently the only supported channel; we do not operate a phone line. We typically reply within two (2) business days, and within five (5) business days at the latest. Security reports are prioritized.</p>
+      </header>
+
+      <section id="general">
+        <h2>1. General</h2>
+        <dl>
+          <dt>Sales / general questions</dt><dd><a href="mailto:hello@seald.nromomentum.com">hello@seald.nromomentum.com</a></dd>
+          <dt>Customer support</dt><dd><a href="mailto:support@seald.nromomentum.com">support@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+
+      <section id="privacy">
+        <h2>2. Privacy and data-subject requests</h2>
+        <p>Use this channel to exercise GDPR / UK GDPR / CCPA / CPRA / state-omnibus rights (access, copy, deletion, correction, portability, opt-out of sale or sharing, opt-out of profiling, limit use of sensitive personal information).</p>
+        <dl>
+          <dt>Privacy &amp; DSAR intake</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
+          <dt>Suggested subject lines</dt>
+          <dd>
+            <ul>
+              <li><code>DSAR — Access</code></li>
+              <li><code>DSAR — Deletion</code></li>
+              <li><code>DSAR — Correction</code></li>
+              <li><code>DSAR — Portability</code></li>
+              <li><code>DSAR — Opt out of sale/share</code></li>
+              <li><code>Withdraw electronic-records consent</code></li>
+              <li><code>Paper copy request</code></li>
+              <li><code>Update contact information</code></li>
+              <li><code>Your Privacy Choices</code> (CPRA "Do Not Sell or Share My Personal Information")</li>
+            </ul>
+          </dd>
+        </dl>
+        <p>We will acknowledge your request within ten (10) business days and respond substantively within forty-five (45) calendar days (extendable by another forty-five days where permitted by law). To verify your identity, we will reply from <code>privacy@seald.nromomentum.com</code> and ask you to confirm from the email address associated with the documents or account in question; we do not ask for government identification, social-security numbers, or other sensitive identifiers.</p>
+      </section>
+
+      <section id="security">
+        <h2>3. Security and vulnerability disclosure</h2>
+        <p>We welcome reports of security weaknesses. Our full Vulnerability Disclosure Policy will be published as a separate page; in the meantime, the safe-harbor terms below apply.</p>
+        <dl>
+          <dt>Security reports</dt><dd><a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a></dd>
+          <dt>Subject line</dt><dd><code>Security — &lt;short title&gt;</code></dd>
+          <dt>PGP key</dt><dd><code>{`{TODO — key fingerprint}`}</code></dd>
+        </dl>
+        <h3>3.1 Safe-harbor</h3>
+        <p>If you make a good-faith effort to comply with this policy, we will (a) consider your research authorized, (b) work with you to understand and resolve the issue quickly, and (c) not pursue or support legal action against you. Activity that violates U.S. wire-fraud statutes or other criminal law is not protected — destroying customer data, exfiltrating data beyond the minimum needed to demonstrate the bug, or holding data for ransom are out of scope.</p>
+        <h3>3.2 Out of scope</h3>
+        <ul>
+          <li>Denial-of-service or volumetric attacks against the Service or our infrastructure providers.</li>
+          <li>Social engineering of Seald staff or customers.</li>
+          <li>Reports based solely on automated scanner output without a working proof-of-concept.</li>
+          <li>Best-practice findings on third-party services we do not operate (e.g. our DNS provider's TLS configuration).</li>
+        </ul>
+      </section>
+
+      <section id="abuse">
+        <h2>4. Abuse, copyright, and illegal content</h2>
+        <p>To report content sent through Seald that you believe is fraudulent, harassing, infringing, or otherwise prohibited by our <a href="/legal/aup">Acceptable Use Policy</a>:</p>
+        <dl>
+          <dt>Abuse intake</dt><dd><a href="mailto:abuse@seald.nromomentum.com">abuse@seald.nromomentum.com</a></dd>
+          <dt>Subject line</dt><dd><code>Abuse — &lt;short title&gt;</code> or <code>DMCA — &lt;short title&gt;</code></dd>
+        </dl>
+        <p>For DMCA takedown notices under 17 U.S.C. § 512(c)(3), include all six required elements: identification of the work, identification of the material to be removed and its location, your contact information, a good-faith-belief statement, an accuracy statement under penalty of perjury, and your physical or electronic signature.</p>
+      </section>
+
+      <section id="legal">
+        <h2>5. Legal notices and service of process</h2>
+        <dl>
+          <dt>Legal</dt><dd><a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a></dd>
+        </dl>
+        <p>Service of process must follow the rules of our state of incorporation; emailing the legal address alone does not constitute service unless the recipient confirms receipt in writing. See our <a href="/legal/imprint">Imprint</a> for the registered agent.</p>
+      </section>
+
+      <section id="accessibility">
+        <h2>6. Accessibility</h2>
+        <p>If part of the Service is not accessible to you, please contact <a href="mailto:accessibility@seald.nromomentum.com">accessibility@seald.nromomentum.com</a>. We will provide a reasonable alternative arrangement, free of charge. See our full <a href="/legal/accessibility">Accessibility Statement</a>.</p>
+      </section>
+
+      <section id="postal">
+        <h2>7. Postal address</h2>
+        <p>Postal correspondence will be acknowledged but is the slowest channel and not recommended for time-sensitive matters.</p>
+        <address>
+          Seald, Inc.<br />
+          <code>{`{TODO — pre-incorporation}`}</code>
+        </address>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

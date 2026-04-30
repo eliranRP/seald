@@ -129,8 +129,11 @@ function Content() {
               aria-label="Agree to electronic signatures"
             />
             <span>
-              I agree to use electronic signatures and to be bound by Seald&apos;s Consumer
-              Disclosure.
+              I agree to use electronic signatures and to be bound by Seald&apos;s{' '}
+              <a href="/legal/esign-disclosure" target="_blank" rel="noopener noreferrer">
+                Consumer Disclosure
+              </a>
+              .
             </span>
           </TosRow>
         </IdCard>

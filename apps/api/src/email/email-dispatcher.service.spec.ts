@@ -30,6 +30,10 @@ class FakeSender extends EmailSender {
 const env: AppEnv = {
   EMAIL_FROM_ADDRESS: 'no-reply@test.seald',
   EMAIL_FROM_NAME: 'Seald Test',
+  EMAIL_LEGAL_ENTITY: 'Seald, Inc.',
+  EMAIL_LEGAL_POSTAL: 'Postal address available on request — write to legal@seald.test.',
+  EMAIL_PRIVACY_URL: 'https://seald.test/legal/privacy',
+  EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.test?subject=Email%20preferences',
 } as unknown as AppEnv;
 
 function inviteRow(overrides: Partial<InsertOutboundEmailInput> = {}): InsertOutboundEmailInput {
@@ -95,6 +99,34 @@ describe('EmailDispatcherService', () => {
     expect(row.provider_id).toBe('prv_test');
     expect(row.sent_at).toBeTruthy();
     expect(row.attempts).toBe(1);
+  });
+
+  it('injects legal-footer vars (legal_entity, legal_postal, privacy_url, preferences_url) into every render', async () => {
+    await repo.insert(inviteRow());
+    await dispatcher.dispatchOne();
+
+    const html = sender.calls[0]!.html;
+    expect(html).toContain('>Seald, Inc.</strong>');
+    expect(html).toContain('Postal address available on request');
+    expect(html).toContain('https://seald.test/legal/privacy');
+    expect(html).toContain('mailto:privacy@seald.test?subject=Email%20preferences');
+  });
+
+  it('per-row payload overrides the global legal-footer defaults', async () => {
+    await repo.insert(
+      inviteRow({
+        payload: {
+          ...inviteRow().payload,
+          legal_entity: 'Acme Corp',
+          legal_postal: '1 Loop Way, Cupertino CA 95014, USA',
+        },
+      }),
+    );
+    await dispatcher.dispatchOne();
+
+    const html = sender.calls[0]!.html;
+    expect(html).toContain('>Acme Corp</strong>');
+    expect(html).toContain('1 Loop Way, Cupertino CA 95014, USA');
   });
 
   it('retries with backoff on a transient failure (no status => transient)', async () => {
