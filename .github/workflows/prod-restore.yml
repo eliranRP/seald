@@ -91,6 +91,13 @@ jobs:
             mkdir -p /tmp/cert-gen
             cd /tmp/cert-gen
             echo '{"name":"cert-gen","version":"0.0.0","private":true}' > package.json
+            # Local tsconfig — ts-node walks upward looking for one and
+            # would otherwise pick up apps/api/tsconfig.json (which uses
+            # module: NodeNext + a strict moduleResolution that breaks
+            # this throwaway transpile). Pin a permissive one here.
+            cat > tsconfig.json <<'TSCONFIG'
+            {"compilerOptions":{"target":"ES2020","module":"commonjs","moduleResolution":"node","esModuleInterop":true,"resolveJsonModule":true,"skipLibCheck":true,"strict":false,"allowJs":true}}
+            TSCONFIG
             npm install --no-audit --no-fund \
               ts-node@10.9.2 typescript@5.4.5 \
               @aws-sdk/client-kms@3.620.0 \
