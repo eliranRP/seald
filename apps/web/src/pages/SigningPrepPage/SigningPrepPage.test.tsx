@@ -48,6 +48,12 @@ describe('SigningPrepPage', () => {
     expect(screen.getByText('maya@example.com')).toBeInTheDocument();
   });
 
+  it('links the Consumer Disclosure copy to /legal/esign-disclosure', async () => {
+    renderPrep();
+    const link = await screen.findByRole('link', { name: /consumer disclosure/i });
+    expect(link).toHaveAttribute('href', '/legal/esign-disclosure');
+  });
+
   it('Start signing is disabled until the T&C checkbox is ticked', async () => {
     renderPrep();
     const start = await screen.findByRole('button', { name: /start signing/i });

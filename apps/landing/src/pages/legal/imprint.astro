@@ -1,0 +1,87 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'imprint_v0.1';
+---
+<BaseLayout
+  title="Imprint — Seald"
+  description="Seald's legal imprint / impressum, including controller identification, EU representative, and regulatory contact details. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Imprint / Impressum</h1>
+        <p>This page identifies the legal operator of the Seald service in compliance with § 5 of the German Telemediengesetz (TMG), Art. 22 of the Italian Legislative Decree 70/2003, Art. 10 of Directive 2000/31/EC (the EU e-Commerce Directive), the UK Electronic Commerce (EC Directive) Regulations 2002, and California Business and Professions Code § 22575 et seq.</p>
+      </header>
+
+      <section id="operator">
+        <h2>1. Operator</h2>
+        <dl>
+          <dt>Legal entity</dt><dd>Seald, Inc.</dd>
+          <dt>Form of organization</dt><dd>Delaware corporation (United States)</dd>
+          <dt>Registered office</dt><dd><code>{`{TODO — pre-incorporation}`}</code></dd>
+          <dt>State of incorporation</dt><dd>Delaware</dd>
+          <dt>Federal Employer Identification Number (EIN)</dt><dd><code>{`{TODO — pre-incorporation}`}</code></dd>
+          <dt>Registered agent</dt><dd><code>{`{TODO — pre-incorporation}`}</code></dd>
+          <dt>Business email</dt><dd><a href="mailto:hello@seald.nromomentum.com">hello@seald.nromomentum.com</a></dd>
+        </dl>
+        <p>Seald is in pre-incorporation. Until we file the certificate of incorporation, the registered office and EIN are placeholders and the contractual counterparty for the Service is the founding operator. We will publish the final entity details here as soon as the corporation is formed; the version number above will increment.</p>
+      </section>
+
+      <section id="management">
+        <h2>2. Authorized representatives</h2>
+        <dl>
+          <dt>Founder &amp; controller</dt><dd>Eliran Azulay</dd>
+          <dt>Business contact</dt><dd><a href="mailto:hello@seald.nromomentum.com">hello@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+
+      <section id="eu-rep">
+        <h2>3. EU and UK representatives</h2>
+        <h3>3.1 GDPR Article 27 representative (EU)</h3>
+        <p>Because Seald processes personal data of individuals in the European Economic Area while not being established in the Union, GDPR Art. 27 requires a representative inside the Union. Seald has engaged an external Article 27 representative; their contact details will be published here once the engagement letter is countersigned.</p>
+        <dl>
+          <dt>EU representative</dt><dd><code>{`{TODO — vendor onboarding in progress}`}</code></dd>
+          <dt>EU representative contact</dt><dd><code>{`{TODO}`}</code></dd>
+        </dl>
+        <h3>3.2 UK GDPR Article 27 representative</h3>
+        <p>Because we offer the Service to individuals in the United Kingdom, UK GDPR Art. 27 also requires a UK representative.</p>
+        <dl>
+          <dt>UK representative</dt><dd><code>{`{TODO — vendor onboarding in progress}`}</code></dd>
+          <dt>UK representative contact</dt><dd><code>{`{TODO}`}</code></dd>
+        </dl>
+        <p>You may contact either representative on any matter relating to the processing of your personal data, in addition to or instead of contacting Seald directly.</p>
+      </section>
+
+      <section id="dpo">
+        <h2>4. Data Protection Officer</h2>
+        <p>Seald has not appointed a Data Protection Officer ("<strong>DPO</strong>"). Under GDPR Art. 37 and UK GDPR Art. 37, a DPO is mandatory only when the core activities of the controller consist of large-scale systematic monitoring or large-scale processing of special-category data. Seald's core activity is providing electronic-signature infrastructure to customers who control their own documents; we do not engage in large-scale systematic monitoring of data subjects, and we do not process special-category data on our own behalf. We will reassess this conclusion at least annually.</p>
+        <p>For privacy questions, please use <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
+      </section>
+
+      <section id="vat">
+        <h2>5. VAT and tax registration</h2>
+        <p>Seald is in pre-incorporation and is not yet registered for VAT in any EU member state, nor for the UK VAT One-Stop-Shop, nor for state-level sales tax in the United States. We will list our registration numbers here once issued.</p>
+      </section>
+
+      <section id="content-liability">
+        <h2>6. Content and link liability</h2>
+        <p>Under § 7 (1) TMG, Seald is responsible for its own content on the Seald website. Under §§ 8 to 10 TMG, however, Seald is not obliged to monitor transmitted or stored third-party information, or to investigate circumstances that indicate illegal activity. Obligations to remove information or to block its use under general statute remain unaffected; we will act expeditiously to remove or disable access to allegedly infringing content upon receiving a substantiated notice. Our DMCA / illegal-content notice procedure is set out in our <a href="/legal/aup">Acceptable Use Policy</a>.</p>
+        <p>Our website may link to external sites. We do not endorse those sites and we are not responsible for their content. If you become aware that a linked external site contains illegal content, please write to <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> and we will review the link.</p>
+      </section>
+
+      <section id="dispute">
+        <h2>7. Dispute resolution platform</h2>
+        <p>Pursuant to Regulation (EU) No 524/2013, the European Commission provides an Online Dispute Resolution platform at <a href="https://ec.europa.eu/consumers/odr" rel="noopener noreferrer" target="_blank">ec.europa.eu/consumers/odr</a>. Seald is not obliged and not willing to participate in dispute-resolution proceedings before a consumer arbitration board.</p>
+      </section>
+
+      <section id="legal-contact">
+        <h2>8. Legal notices</h2>
+        <p>Service of process and legal notices should be sent by email to <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a>, with a copy to the registered office once that address is finalized. Notices that purport to be served only on Seald support, sales, or generic mailboxes are not validly served.</p>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

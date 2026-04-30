@@ -203,7 +203,17 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
               onChange={(e) => setAgreed(e.target.checked)}
               aria-label="Agree to Terms of Service and Privacy Policy"
             />
-            <span>I agree to Seald&apos;s Terms of Service and Privacy Policy.</span>
+            <span>
+              I agree to Seald&apos;s{' '}
+              <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
+              </a>
+              .
+            </span>
           </TosRow>
         )}
 

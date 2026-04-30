@@ -40,6 +40,12 @@ export class EmailDispatcherService {
   private readonly log = new Logger('EmailDispatcher');
   private readonly fromAddress: string;
   private readonly fromName: string;
+  // Globally-injected legal-footer vars — surfaced in every template's
+  // `<div class="foot">`. CAN-SPAM § 5(a)(5) / CASL § 6(2)(c) require a
+  // valid postal address and a working unsubscribe / preferences endpoint
+  // on every commercial email. We inject these once here so individual
+  // templates don't have to know which vars exist.
+  private readonly legalFooterVars: Readonly<Record<string, string>>;
 
   constructor(
     private readonly repo: OutboundEmailsRepository,
@@ -49,6 +55,12 @@ export class EmailDispatcherService {
   ) {
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
     this.fromName = env.EMAIL_FROM_NAME;
+    this.legalFooterVars = Object.freeze({
+      legal_entity: env.EMAIL_LEGAL_ENTITY,
+      legal_postal: env.EMAIL_LEGAL_POSTAL,
+      privacy_url: env.EMAIL_PRIVACY_URL,
+      preferences_url: env.EMAIL_PREFERENCES_URL,
+    });
   }
 
   /**
@@ -122,7 +134,10 @@ export class EmailDispatcherService {
     // The payload is a JSON blob; TemplateService expects a flat map of
     // string|number values. Coerce unknown values defensively — missing
     // vars render as empty strings already.
-    const vars: Record<string, string | number> = {};
+    // Per-row payload wins over the global legal-footer defaults so a
+    // sender (e.g. an enterprise tenant) can override the postal block
+    // without redeploying.
+    const vars: Record<string, string | number> = { ...this.legalFooterVars };
     for (const [k, v] of Object.entries(row.payload)) {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);

@@ -77,6 +77,18 @@ describe('AuthForm', () => {
     expect(submit).not.toBeDisabled();
   });
 
+  it('links the ToS row to the Terms of Service and Privacy Policy pages', () => {
+    const { getByRole } = renderWithTheme(<AuthForm mode="signup" />);
+    expect(getByRole('link', { name: /terms of service/i })).toHaveAttribute(
+      'href',
+      '/legal/terms',
+    );
+    expect(getByRole('link', { name: /privacy policy/i })).toHaveAttribute(
+      'href',
+      '/legal/privacy',
+    );
+  });
+
   it('shows the strength meter once the user starts typing a password in signup', async () => {
     const { getByLabelText, queryByRole } = renderWithTheme(<AuthForm mode="signup" />);
     expect(queryByRole('progressbar')).not.toBeInTheDocument();
