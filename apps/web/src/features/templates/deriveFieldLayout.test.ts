@@ -131,4 +131,58 @@ describe('deriveTemplateFieldLayout', () => {
     const out = deriveTemplateFieldLayout(fields, 2);
     expect(out[0]).toMatchObject({ x: 42, y: 84 });
   });
+
+  // signerIndex round-trip — required to fix the bug where every reused
+  // template's fields collapsed onto signers[0]. Each saved entry must
+  // record the 0-based ordinal of its owning signer in the supplied
+  // roster, and only when a roster is passed (back-compat with older
+  // saves and the "save without sending" path that didn't have one).
+  it('omits signerIndex when no signers roster is supplied', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      field({ id: 'f1', page: 1, type: 'text', x: 10, y: 10, signerIds: ['s1'] }),
+    ];
+    const out = deriveTemplateFieldLayout(fields, 1);
+    expect(out).toEqual([{ type: 'text', pageRule: 'last', x: 10, y: 10 }]);
+    expect(out[0]).not.toHaveProperty('signerIndex');
+  });
+
+  it("records each field's signerIndex as the 0-based ordinal in the roster", () => {
+    // 4-page doc to keep page 1 a numeric rule (`'first'` only kicks in
+    // on the literal first page; `'last'` only on the literal last
+    // page — see the inferPageRule cases above). We want the rule
+    // assertions to be about coordinates, not edge collapsing.
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      field({ id: 'f1', page: 2, type: 'signature', x: 50, y: 100, signerIds: ['s2'] }),
+      field({ id: 'f2', page: 3, type: 'signature', x: 60, y: 110, signerIds: ['s1'] }),
+    ];
+    const out = deriveTemplateFieldLayout(fields, 4, [{ id: 's1' }, { id: 's2' }]);
+    expect(out).toEqual([
+      { type: 'signature', pageRule: 2, x: 50, y: 100, signerIndex: 1 },
+      { type: 'signature', pageRule: 3, x: 60, y: 110, signerIndex: 0 },
+    ]);
+  });
+
+  it('propagates signerIndex onto every fan-out entry of a non-contiguous group', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      field({ id: 'f1', page: 1, type: 'date', x: 200, y: 50, linkId: 'L3', signerIds: ['s2'] }),
+      field({ id: 'f3', page: 3, type: 'date', x: 200, y: 50, linkId: 'L3', signerIds: ['s2'] }),
+    ];
+    const out = deriveTemplateFieldLayout(fields, 5, [{ id: 's1' }, { id: 's2' }]);
+    expect(out).toEqual([
+      { type: 'date', pageRule: 1, x: 200, y: 50, label: 'L3', signerIndex: 1 },
+      { type: 'date', pageRule: 3, x: 200, y: 50, label: 'L3', signerIndex: 1 },
+    ]);
+  });
+
+  it('omits signerIndex when the field has no signer or the signer is missing from the roster', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      field({ id: 'f1', page: 1, type: 'text', x: 10, y: 10, signerIds: [] }),
+      field({ id: 'f2', page: 1, type: 'text', x: 20, y: 20, signerIds: ['ghost'] }),
+    ];
+    const out = deriveTemplateFieldLayout(fields, 1, [{ id: 's1' }]);
+    expect(out).toEqual([
+      { type: 'text', pageRule: 'last', x: 10, y: 10 },
+      { type: 'text', pageRule: 'last', x: 20, y: 20 },
+    ]);
+  });
 });

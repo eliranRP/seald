@@ -132,6 +132,13 @@ export interface ResolvedField {
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /**
+   * Mirrors `TemplateField.signerIndex`. Consumers map this back to the
+   * matching signer in the new envelope's roster (which is pre-filled
+   * from `template.lastSigners` in the same order). Undefined for older
+   * templates saved before signer-indexing was added.
+   */
+  readonly signerIndex?: number;
 }
 
 /**
@@ -166,6 +173,7 @@ export function resolveTemplateFields(
         x: tf.x,
         y: tf.y,
         ...(tf.label !== undefined ? { label: tf.label } : {}),
+        ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
       };
       out.push(resolved);
     }

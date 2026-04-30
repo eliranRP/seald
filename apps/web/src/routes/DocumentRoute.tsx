@@ -278,10 +278,10 @@ export function DocumentRoute() {
    */
   const updateSourceTemplate = useCallback(async () => {
     if (!doc?.fromTemplateId) return;
-    const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages);
+    const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers);
     const updated = await updateTemplate(doc.fromTemplateId, { field_layout: fieldLayout });
     setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
-  }, [doc?.fields, doc?.fromTemplateId, doc?.totalPages]);
+  }, [doc?.fields, doc?.fromTemplateId, doc?.totalPages, doc?.signers]);
 
   const handleSend = useCallback(() => {
     // When the draft was started from a saved template, prompt the
@@ -334,7 +334,7 @@ export function DocumentRoute() {
     async (payload: SaveAsTemplatePayload) => {
       if (!doc) return;
       try {
-        const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages);
+        const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers);
         const created = await createTemplate({
           title: payload.title,
           field_layout: fieldLayout,

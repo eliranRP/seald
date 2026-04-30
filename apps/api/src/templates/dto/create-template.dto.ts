@@ -4,11 +4,13 @@ import {
   IsArray,
   IsEmail,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
   Matches,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
   registerDecorator,
@@ -72,6 +74,18 @@ export class TemplateFieldDto {
   @IsString()
   @MaxLength(100)
   readonly label?: string;
+
+  /**
+   * Zero-based ordinal of the signer this field belongs to in the
+   * roster captured under `last_signers`. Used on reuse to rebind each
+   * field to its original signer (preserving per-signer colors). Capped
+   * to match `last_signers` ArrayMaxSize so a malformed payload can't
+   * point past a sane roster.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  readonly signerIndex?: number;
 }
 
 /**

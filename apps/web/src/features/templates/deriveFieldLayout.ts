@@ -75,15 +75,35 @@ export function inferPageRule(
 }
 
 /**
+ * Minimal signer shape we need to compute the `signerIndex` for each
+ * saved field. Callers typically pass the editor's `draft.signers`.
+ */
+interface DerivedFieldLayoutSigner {
+  readonly id: string;
+}
+
+/**
  * Build the API-bound `field_layout` array from the editor's current
  * placed fields. `totalPages` MUST be the page count of the document
  * the user authored against — it's how we name `'all'` vs `'allButLast'`.
+ *
+ * `signers` is optional. When provided, each saved entry records a
+ * `signerIndex` (0-based ordinal into the supplied roster) so reuse
+ * can rebind every field to its original signer instead of collapsing
+ * them onto the first signer. When omitted, the layout is back-compat
+ * (no `signerIndex`) and consumers fall back to signers[0].
  */
 export function deriveTemplateFieldLayout(
   fields: ReadonlyArray<PlacedFieldValue>,
   totalPages: number,
+  signers?: ReadonlyArray<DerivedFieldLayoutSigner>,
 ): ReadonlyArray<TemplateField> {
   if (fields.length === 0) return [];
+
+  const signerOrdinalById = new Map<string, number>();
+  if (signers) {
+    signers.forEach((s, i) => signerOrdinalById.set(s.id, i));
+  }
 
   // Bucket by linkId. Standalone fields (no linkId) go into singleton
   // buckets so the per-page fallback below still works for them.
@@ -107,6 +127,21 @@ export function deriveTemplateFieldLayout(
       // The user can re-place it on the resolved document.
       continue;
     }
+    // Derive signerIndex from the head field's first assigned signer.
+    // Linked copies share an assignment in the editor today (the group
+    // toolbar applies the picker to every member), so the head's
+    // signerIds[0] is representative of the bucket. Drop the field
+    // entirely from the layout if we can't resolve an index when one
+    // was requested via `signers` — better to lose the field than to
+    // misbind it to signers[0] silently.
+    let signerIndex: number | undefined;
+    if (signers) {
+      const headSignerId = head.signerIds[0];
+      if (headSignerId !== undefined) {
+        const idx = signerOrdinalById.get(headSignerId);
+        if (idx !== undefined) signerIndex = idx;
+      }
+    }
     const rule = inferPageRule(pages, totalPages);
     if (rule !== null) {
       out.push({
@@ -115,6 +150,7 @@ export function deriveTemplateFieldLayout(
         x: head.x,
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
+        ...(signerIndex !== undefined ? { signerIndex } : {}),
       });
       continue;
     }
@@ -129,6 +165,7 @@ export function deriveTemplateFieldLayout(
         x: head.x,
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
+        ...(signerIndex !== undefined ? { signerIndex } : {}),
       });
     }
   }

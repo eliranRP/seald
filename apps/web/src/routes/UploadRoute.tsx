@@ -31,18 +31,27 @@ const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
 
 function templateFieldsToPlaced(
   resolved: ReadonlyArray<ResolvedField>,
+  signers: ReadonlyArray<{ readonly id: string }>,
 ): ReadonlyArray<PlacedFieldValue> {
-  return resolved.map((rf) => ({
-    id: rf.id,
-    page: rf.page,
-    type: TEMPLATE_TO_FIELD_KIND[rf.type],
-    x: rf.x,
-    y: rf.y,
-    // No signer assigned yet — sender will pick signers in the dialog and
-    // assign them to fields once the editor opens. Empty array keeps the
-    // PlacedFieldValue contract.
-    signerIds: [],
-  }));
+  return resolved.map((rf) => {
+    // Reuse the saved per-field `signerIndex` to bind each resolved
+    // field back to the matching signer in the freshly chosen roster.
+    // Older saves without an index (or roster shrunk under the saved
+    // ordinal) leave the field unassigned so the sender re-picks in
+    // the editor — same conservative fallback as TemplateEditorRoute.
+    const target =
+      rf.signerIndex !== undefined && rf.signerIndex < signers.length
+        ? signers[rf.signerIndex]
+        : undefined;
+    return {
+      id: rf.id,
+      page: rf.page,
+      type: TEMPLATE_TO_FIELD_KIND[rf.type],
+      x: rf.x,
+      y: rf.y,
+      signerIds: target ? [target.id] : [],
+    };
+  });
 }
 
 /**
@@ -171,7 +180,7 @@ export function UploadRoute() {
     let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
     if (template) {
       const resolved = resolveTemplateFields(template.fields, resolvedPages);
-      pendingFields = templateFieldsToPlaced(resolved);
+      pendingFields = templateFieldsToPlaced(resolved, selectedSigners);
       if (resolvedPages < template.pages) {
         // Use console.warn so the SPA's debug build flags the gap. The
         // banner already informs the user; this is for engineering.

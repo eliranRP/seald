@@ -43,6 +43,16 @@ export interface TemplateField {
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /**
+   * Zero-based index into the signer roster active when the template was
+   * saved. When the template is reused (and `last_signers` re-pre-fills
+   * the new envelope's roster in the same order), each field is rebound
+   * to the signer at this index — so signer #1's signature stays signer
+   * #1's signature instead of every field collapsing onto signers[0].
+   * Optional for back-compat with older saved templates: missing values
+   * still fall back to signers[0] on the consumer side.
+   */
+  readonly signerIndex?: number;
 }
 
 /**

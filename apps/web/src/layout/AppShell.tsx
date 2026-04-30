@@ -22,6 +22,11 @@ const Content = styled.main`
   min-height: 0;
   display: flex;
   flex-direction: column;
+  /* Shell caps height to 100vh with overflow:hidden, so Content owns the
+     scroll. Pages that overflow (SentConfirmation audit list, UseTemplate
+     Signers step with picker open) scroll naturally; pages with their
+     own inner scroll (DocumentPage canvas, signing flows) are unaffected. */
+  overflow-y: auto;
 `;
 
 /**

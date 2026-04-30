@@ -343,14 +343,25 @@ export function TemplateEditorRoute() {
     let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
     if (sourceTemplate) {
       const resolved = resolveTemplateFields(sourceTemplate.fields, resolvedPages);
-      pendingFields = resolved.map((rf) => ({
-        id: rf.id,
-        page: rf.page,
-        type: TEMPLATE_TO_FIELD_KIND[rf.type],
-        x: rf.x,
-        y: rf.y,
-        signerIds: signers.length > 0 ? [signers[0]!.id] : [],
-      }));
+      pendingFields = resolved.map((rf) => {
+        // Prefer the saved per-field signer index when present (so each
+        // signer's fields keep their original color on reuse). Older
+        // templates without signerIndex, or out-of-range indexes against
+        // a shrunken roster, fall back to signers[0] so the field is
+        // still placed and the user can re-assign it.
+        const targetSigner =
+          rf.signerIndex !== undefined && rf.signerIndex < signers.length
+            ? signers[rf.signerIndex]
+            : signers[0];
+        return {
+          id: rf.id,
+          page: rf.page,
+          type: TEMPLATE_TO_FIELD_KIND[rf.type],
+          x: rf.x,
+          y: rf.y,
+          signerIds: targetSigner ? [targetSigner.id] : [],
+        };
+      });
     }
 
     updateDocument(id, {
@@ -466,7 +477,11 @@ export function TemplateEditorRoute() {
     if (!draft) return;
     const title = (renamedTitle ?? sourceTemplate?.name ?? 'Untitled template').trim();
     try {
-      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages);
+      // Pass the live signer roster so each saved field records its
+      // owning signer's ordinal — see `TemplateField.signerIndex`. On
+      // reuse, fields are rebound to the same ordinal so per-signer
+      // colors and assignments survive the round-trip.
+      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages, draft.signers);
       // Capture the current signer roster as `last_signers` so the
       // next user of this template starts with the same recipients
       // pre-filled. Previously this was only persisted in
@@ -604,7 +619,7 @@ export function TemplateEditorRoute() {
   const handleSendAndUpdate = useCallback(() => {
     setSendConfirmOpen(false);
     if (sourceTemplate && draft) {
-      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages);
+      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages, draft.signers);
       // Capture the current signer roster as `last_signers` so the
       // next user of this template starts with the same recipients
       // pre-filled. The wizard's Step-2 SignersStepCard reads from
