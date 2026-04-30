@@ -26,6 +26,8 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
       description: input.description,
       cover_color: input.cover_color,
       field_layout: input.field_layout,
+      tags: input.tags ?? [],
+      last_signers: input.last_signers ?? [],
       uses_count: 0,
       last_used_at: null,
       created_at: now,

@@ -120,4 +120,60 @@ describe('TemplatesPgRepository (pg-mem)', () => {
     expect(await repo.findOneByOwner(OWNER_A, t.id)).toBeNull();
     expect(await repo.delete(OWNER_A, t.id)).toBe(false);
   });
+
+  // Regression for the "save template returns internal_error" bug
+  // (migration 0009 added `tags` + `last_signers` columns; the live
+  // DB hadn't been migrated, so INSERTs from the new repo failed
+  // with column-not-found and the API mapped it to internal_error).
+  // pg-mem applies 0009 via the test fixture — these assertions
+  // confirm the repo round-trips the new columns, so a future
+  // schema/repo drift would surface here before reaching prod.
+  it('round-trips tags + last_signers on create', async () => {
+    const t = await repo.create({
+      owner_id: OWNER_A,
+      title: 'Tagged template',
+      description: null,
+      cover_color: null,
+      field_layout: SAMPLE_FIELDS,
+      tags: ['Legal', 'Sales'],
+      last_signers: [{ id: 'c-jamie', name: 'Jamie', email: 'jamie@seald.app', color: '#818CF8' }],
+    });
+    expect(t.tags).toEqual(['Legal', 'Sales']);
+    expect(t.last_signers).toEqual([
+      { id: 'c-jamie', name: 'Jamie', email: 'jamie@seald.app', color: '#818CF8' },
+    ]);
+  });
+
+  it('defaults tags + last_signers to [] when caller omits them', async () => {
+    // The repo's CreateTemplateInput marks both fields optional so
+    // existing call sites that pre-date 0009 keep working without
+    // every test having to spell them out.
+    const t = await repo.create({
+      owner_id: OWNER_A,
+      title: 'No-tags template',
+      description: null,
+      cover_color: null,
+      field_layout: SAMPLE_FIELDS,
+    });
+    expect(t.tags).toEqual([]);
+    expect(t.last_signers).toEqual([]);
+  });
+
+  it('update can patch tags + last_signers in isolation', async () => {
+    const t = await repo.create({
+      owner_id: OWNER_A,
+      title: 'Patchable',
+      description: null,
+      cover_color: null,
+      field_layout: SAMPLE_FIELDS,
+    });
+    const patched = await repo.update(OWNER_A, t.id, {
+      tags: ['Construction'],
+      last_signers: [{ id: 's-1', name: 'Guest', email: 'g@example.com', color: '#F472B6' }],
+    });
+    expect(patched?.tags).toEqual(['Construction']);
+    expect(patched?.last_signers?.[0]?.email).toBe('g@example.com');
+    // Title untouched.
+    expect(patched?.title).toBe('Patchable');
+  });
 });

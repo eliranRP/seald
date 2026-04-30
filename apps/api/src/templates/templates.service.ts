@@ -25,6 +25,8 @@ export class TemplatesService {
       description: dto.description ?? null,
       cover_color: dto.cover_color ?? null,
       field_layout: dto.field_layout,
+      tags: dto.tags ?? [],
+      last_signers: dto.last_signers ?? [],
     });
   }
 

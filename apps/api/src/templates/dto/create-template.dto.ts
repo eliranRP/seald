@@ -1,6 +1,8 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
+  IsEmail,
   IsIn,
   IsNumber,
   IsOptional,
@@ -72,6 +74,33 @@ export class TemplateFieldDto {
   readonly label?: string;
 }
 
+/**
+ * Last-used signer entry persisted on Send-and-update so the next
+ * sender starts with the same roster pre-filled. Stored verbatim;
+ * `id` is the contact id (UUID) for known contacts or a synthesized
+ * `s-…` token for ad-hoc guest signers.
+ */
+export class TemplateLastSignerDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  readonly id!: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  readonly name!: string;
+
+  @IsEmail()
+  @MaxLength(254)
+  readonly email!: string;
+
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'color must be a 6-digit hex like #RRGGBB',
+  })
+  readonly color!: string;
+}
+
 export class CreateTemplateDto {
   @IsString()
   @MinLength(1)
@@ -89,8 +118,41 @@ export class CreateTemplateDto {
   })
   readonly cover_color?: string | null;
 
+  /**
+   * Capped at 200 entries to keep memory + JSON-encode work bounded.
+   * Real templates ship with 5-20 entries (NDA: 5, ICA: 11). 200 is
+   * 10x our worst-case observed; if a future product change needs more,
+   * raise this AND add a matching `CHECK (jsonb_array_length(...) <= N)`
+   * in the DB so the limit lives in two places (defence-in-depth).
+   * (Server review SHOULD-FIX #1.)
+   */
   @IsArray()
+  @ArrayMaxSize(200, { message: 'field_layout cannot have more than 200 entries' })
   @ValidateNested({ each: true })
   @Type(() => TemplateFieldDto)
   readonly field_layout!: ReadonlyArray<TemplateFieldDto>;
+
+  /**
+   * Optional client-side tags for filter / group-by-tag in the
+   * templates list. Cap of 32 keeps the list compact and prevents
+   * abuse via the public API. Each tag is bounded length-wise.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(32, { message: 'tags cannot have more than 32 entries' })
+  @IsString({ each: true })
+  @MaxLength(48, { each: true, message: 'tag entries cannot exceed 48 characters' })
+  readonly tags?: ReadonlyArray<string>;
+
+  /**
+   * Optional last-signers roster. Caller sends this on the very first
+   * Save-as-template that follows a real send so the next user gets a
+   * pre-filled list.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50, { message: 'last_signers cannot have more than 50 entries' })
+  @ValidateNested({ each: true })
+  @Type(() => TemplateLastSignerDto)
+  readonly last_signers?: ReadonlyArray<TemplateLastSignerDto>;
 }

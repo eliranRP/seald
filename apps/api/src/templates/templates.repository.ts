@@ -1,4 +1,4 @@
-import type { Template, TemplateField } from 'shared';
+import type { Template, TemplateField, TemplateLastSigner } from 'shared';
 
 export interface CreateTemplateInput {
   readonly owner_id: string;
@@ -6,6 +6,14 @@ export interface CreateTemplateInput {
   readonly description: string | null;
   readonly cover_color: string | null;
   readonly field_layout: ReadonlyArray<TemplateField>;
+  /**
+   * Tags + last_signers are optional on the repo input — both default
+   * to `[]` when the caller omits them. The service-layer wrapper
+   * always passes through (with sensible defaults) so the wire
+   * shape is consistent; tests can omit them for terseness.
+   */
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }
 
 export interface UpdateTemplatePatch {
@@ -13,6 +21,8 @@ export interface UpdateTemplatePatch {
   readonly description?: string | null;
   readonly cover_color?: string | null;
   readonly field_layout?: ReadonlyArray<TemplateField>;
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }
 
 /**
