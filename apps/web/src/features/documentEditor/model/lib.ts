@@ -102,6 +102,15 @@ export function isFullyGrouped(
 }
 
 /**
+ * Default tile width / gap used when splitting a multi-signer assignment
+ * into N side-by-side single-signer fields. Mirrors the constants in
+ * `PlacedField.tsx` so the visual cell sizes line up with the source
+ * field's footprint (132 + 8 = 140 px stride).
+ */
+export const SPLIT_TILE_WIDTH = 132;
+export const SPLIT_TILE_GAP = 8;
+
+/**
  * Return a copy of the field with `groupId` removed (not just set to
  * undefined — the `exactOptionalPropertyTypes` tsconfig flag rejects
  * `groupId: undefined`). Centralized so clone/ungroup callers don't

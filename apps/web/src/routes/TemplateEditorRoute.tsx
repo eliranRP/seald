@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -21,6 +21,7 @@ import {
   getTemplates,
   resolveTemplateFields,
   setTemplates,
+  subscribeToTemplates,
 } from '../features/templates';
 import {
   createTemplate,
@@ -136,9 +137,22 @@ export function TemplateEditorRoute() {
 
   const decodedId = decodeURIComponent(params.id ?? '');
   const isNewTemplate = decodedId === 'new';
+  // Subscribe to the templates store so deep-link / hard-reload paths
+  // pick up the canonical record once the API hydration finishes.
+  // Without this `sourceTemplate.hasExamplePdf` would stay undefined
+  // on first render and the example-PDF fetch effect below would
+  // never fire (issue #4 v2 regression).
+  const templates = useSyncExternalStore<ReadonlyArray<TemplateSummary>>(
+    subscribeToTemplates,
+    getTemplates,
+    getTemplates,
+  );
   const sourceTemplate = useMemo<TemplateSummary | undefined>(
-    () => (isNewTemplate ? undefined : findTemplateById(decodedId)),
-    [decodedId, isNewTemplate],
+    () =>
+      isNewTemplate
+        ? undefined
+        : (templates.find((t) => t.id === decodedId) ?? findTemplateById(decodedId)),
+    [decodedId, isNewTemplate, templates],
   );
   const mode: 'new' | 'using' | 'editing' = isNewTemplate
     ? 'new'
@@ -239,6 +253,14 @@ export function TemplateEditorRoute() {
   useEffect(() => {
     if (draftId) return;
 
+    // Wait for the example-PDF fetch to settle before locking in the
+    // draft when the template advertises one. The placeholder file
+    // would otherwise win the bootstrap race and `draft.file` would
+    // never be replaced when the real bytes arrive (issue #4 v2).
+    if (sourceTemplate?.hasExamplePdf && !fetchedExampleFile && !initialHandoff?.pendingFile) {
+      return;
+    }
+
     // Effective file + page count. Real parsed file takes precedence;
     // saved-doc branch falls back to the placeholder + source template
     // page count so we don't block on PDF.js for a doc we can't parse.
@@ -301,6 +323,7 @@ export function TemplateEditorRoute() {
     initialHandoff?.templateSigners,
     initialHandoff?.pendingFile,
     sourceTemplate,
+    fetchedExampleFile,
   ]);
 
   // ---- Editor state ----------------------------------------------------

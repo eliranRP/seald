@@ -3,6 +3,8 @@ import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.type
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
 import {
   PASTE_OFFSET,
+  SPLIT_TILE_GAP,
+  SPLIT_TILE_WIDTH,
   makeGroupId,
   makeId,
   makeLinkId,
@@ -85,10 +87,39 @@ export function usePlacement({
   const applySignerSelection = useCallback(
     (ids: ReadonlyArray<string>): void => {
       if (!signerPopoverFor) return;
-      onFieldsChange(fields.map((f) => (f.id === signerPopoverFor ? { ...f, signerIds: ids } : f)));
+      const source = fields.find((f) => f.id === signerPopoverFor);
+      if (!source) {
+        setSignerPopoverFor(null);
+        return;
+      }
+      // 0 or 1 signer: single field, just update signerIds.
+      if (ids.length <= 1) {
+        pushUndo(fields);
+        onFieldsChange(
+          fields.map((f) => (f.id === signerPopoverFor ? { ...f, signerIds: ids } : f)),
+        );
+        setSignerPopoverFor(null);
+        return;
+      }
+      // 2+ signers: replace the source with N independent (ungrouped)
+      // single-signer fields placed side-by-side starting at the
+      // source's coordinates. Default state is ungrouped so the user
+      // can move each one individually; the GroupToolbar's "Group"
+      // button binds them together when desired (issue #2 v2).
+      const cellWidth = source.width ?? SPLIT_TILE_WIDTH;
+      const stride = cellWidth + SPLIT_TILE_GAP;
+      const splits: ReadonlyArray<PlacedFieldValue> = ids.map((sid, idx) => ({
+        ...withoutGroupId(source),
+        id: makeId(),
+        x: source.x + idx * stride,
+        signerIds: [sid],
+      }));
+      pushUndo(fields);
+      onFieldsChange([...fields.filter((f) => f.id !== signerPopoverFor), ...splits]);
+      setSelectedIds(splits.map((s) => s.id));
       setSignerPopoverFor(null);
     },
-    [fields, onFieldsChange, setSignerPopoverFor, signerPopoverFor],
+    [fields, onFieldsChange, pushUndo, setSelectedIds, setSignerPopoverFor, signerPopoverFor],
   );
 
   const applyPagesSelection = useCallback(
