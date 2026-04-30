@@ -51,6 +51,10 @@ export interface TemplatesTable {
   field_layout: ColumnType<ReadonlyArray<TemplateFieldLayoutDb>, string, string | undefined>;
   tags: ColumnType<ReadonlyArray<string>, string, string | undefined>;
   last_signers: ColumnType<ReadonlyArray<TemplateLastSignerDb>, string, string | undefined>;
+  // Storage object key (relative to STORAGE_BUCKET) for the saved
+  // example PDF. Nullable — set by `POST /templates/:id/example` after
+  // the row exists. Migration 0010.
+  example_pdf_path: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   uses_count: ColumnType<number, number | undefined, number | undefined>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;

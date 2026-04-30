@@ -24,6 +24,12 @@ export interface ApiTemplate {
   readonly field_layout: ReadonlyArray<TemplateField>;
   readonly tags: ReadonlyArray<string>;
   readonly last_signers: ReadonlyArray<ApiTemplateLastSigner>;
+  /**
+   * `true` when an example PDF has been uploaded for this template
+   * (server-side flag derived from the existence of an
+   * `example_pdf_path`). The path itself never leaves the API.
+   */
+  readonly has_example_pdf: boolean;
   readonly uses_count: number;
   readonly last_used_at: string | null;
   readonly created_at: string;
@@ -62,6 +68,7 @@ function toSummary(t: ApiTemplate): TemplateSummary {
     fields: t.field_layout,
     tags: t.tags ?? [],
     lastSigners: t.last_signers ?? [],
+    hasExamplePdf: t.has_example_pdf,
   };
 }
 
@@ -135,4 +142,44 @@ export async function bumpUseCount(id: string, signal?: AbortSignal): Promise<Te
     configWithSignal(signal),
   );
   return toSummary(data);
+}
+
+/**
+ * Upload (or replace) the template's example PDF. Returns the updated
+ * template summary so the caller can flip `hasExamplePdf` in the
+ * module store without an extra GET. Errors propagate as rejected
+ * axios promises — the editor's save flow surfaces them via toast.
+ */
+export async function uploadTemplateExamplePdf(
+  id: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<TemplateSummary> {
+  const form = new FormData();
+  form.append('file', file, file.name);
+  const { data } = await apiClient.post<ApiTemplate>(
+    `/templates/${encodeURIComponent(id)}/example`,
+    form,
+    {
+      ...configWithSignal(signal),
+      // Let the browser set the multipart boundary — overriding it
+      // strips the boundary parameter and breaks the parser.
+      headers: { 'Content-Type': undefined as unknown as string },
+    } as AxiosRequestConfig,
+  );
+  return toSummary(data);
+}
+
+/**
+ * Fetch the template's example PDF as a Blob suitable for handing to
+ * `usePdfDocument`. Throws when the server returns 404 (no PDF
+ * attached) or any other non-200 — callers fall back to the editor's
+ * placeholder canvas in that case.
+ */
+export async function fetchTemplateExamplePdf(id: string, signal?: AbortSignal): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(`/templates/${encodeURIComponent(id)}/example`, {
+    ...configWithSignal(signal),
+    responseType: 'blob',
+  });
+  return data;
 }

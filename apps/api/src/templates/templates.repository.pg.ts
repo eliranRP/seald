@@ -22,6 +22,10 @@ function toDomain(r: Row): Template {
     field_layout: r.field_layout as ReadonlyArray<TemplateField>,
     tags: (r.tags ?? []) as ReadonlyArray<string>,
     last_signers: (r.last_signers ?? []) as ReadonlyArray<TemplateLastSigner>,
+    // The storage path itself is internal — surface only a boolean so
+    // clients can decide whether to fetch the PDF without learning the
+    // bucket layout.
+    has_example_pdf: r.example_pdf_path !== null && r.example_pdf_path !== undefined,
     uses_count: r.uses_count,
     last_used_at: r.last_used_at ? new Date(r.last_used_at).toISOString() : null,
     created_at: new Date(r.created_at).toISOString(),
@@ -125,5 +129,33 @@ export class TemplatesPgRepository extends TemplatesRepository {
       .returningAll()
       .executeTakeFirst();
     return row ? toDomain(row) : null;
+  }
+
+  async setExamplePdfPath(
+    owner_id: string,
+    id: string,
+    path: string | null,
+  ): Promise<Template | null> {
+    const row = await this.db
+      .updateTable('templates')
+      .set({
+        example_pdf_path: path,
+        updated_at: new Date().toISOString(),
+      })
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
+  }
+
+  async getExamplePdfPath(owner_id: string, id: string): Promise<string | null> {
+    const row = await this.db
+      .selectFrom('templates')
+      .select('example_pdf_path')
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    return row?.example_pdf_path ?? null;
   }
 }

@@ -49,4 +49,20 @@ export abstract class TemplatesRepository {
    * POSTs `/templates/:id/use` to record the usage.
    */
   abstract incrementUseCount(owner_id: string, id: string): Promise<Template | null>;
+  /**
+   * Set the storage path for the template's example PDF. Returns the
+   * updated template, or null when the row is missing or owned by
+   * someone else. Pair with `getExamplePdfPath` for the read side.
+   */
+  abstract setExamplePdfPath(
+    owner_id: string,
+    id: string,
+    path: string | null,
+  ): Promise<Template | null>;
+  /**
+   * Read the storage path for the template's example PDF without
+   * exposing it on the wire shape. Returns null when no PDF is
+   * attached or the template is missing/owned-elsewhere.
+   */
+  abstract getExamplePdfPath(owner_id: string, id: string): Promise<string | null>;
 }

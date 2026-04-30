@@ -77,6 +77,15 @@ export interface Template {
    * the first "Send and update template" persists it.
    */
   readonly last_signers: ReadonlyArray<TemplateLastSigner>;
+  /**
+   * `true` when an example PDF has been uploaded for this template
+   * (via `POST /templates/:id/example`). The SPA uses this to decide
+   * whether to fetch the saved PDF on the use-template flow vs. fall
+   * back to its local placeholder canvas. The actual storage path is
+   * server-side only; clients always go through
+   * `GET /templates/:id/example` to retrieve the bytes.
+   */
+  readonly has_example_pdf: boolean;
   readonly uses_count: number;
   readonly last_used_at: string | null;
   readonly created_at: string;

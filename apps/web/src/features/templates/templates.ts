@@ -52,6 +52,14 @@ export interface TemplateSummary {
     readonly email: string;
     readonly color: string;
   }>;
+  /**
+   * `true` when an example PDF has been uploaded for this template
+   * (via `POST /templates/:id/example`). Drives the use-template
+   * editor's choice between fetching the original PDF and falling
+   * back to a placeholder canvas. Optional on the local model — the
+   * seed list defaults to `false`.
+   */
+  readonly hasExamplePdf?: boolean;
 }
 
 /** Returns true if at least one of the template's saved fields matches the given type. */

@@ -22,7 +22,12 @@ import {
   resolveTemplateFields,
   setTemplates,
 } from '../features/templates';
-import { createTemplate, updateTemplate } from '../features/templates/templatesApi';
+import {
+  createTemplate,
+  fetchTemplateExamplePdf,
+  updateTemplate,
+  uploadTemplateExamplePdf,
+} from '../features/templates/templatesApi';
 import type { TemplateFieldType, TemplateSummary } from '../features/templates';
 
 const CANVAS_WIDTH = 560;
@@ -162,21 +167,32 @@ export function TemplateEditorRoute() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const draft = draftId ? getDocument(draftId) : undefined;
 
-  const fileForParse = draft?.file ?? initialHandoff?.pendingFile ?? null;
+  /**
+   * Saved example PDF fetched from the API when the user picks a
+   * template that has `hasExamplePdf`. Stored as state so the
+   * usePdfDocument hook can re-parse once the bytes arrive. `null`
+   * until either (a) the fetch completes successfully or (b) we're
+   * not in saved-doc mode.
+   */
+  const [fetchedExampleFile, setFetchedExampleFile] = useState<File | null>(null);
+
+  const fileForParse = draft?.file ?? initialHandoff?.pendingFile ?? fetchedExampleFile ?? null;
   const { doc: pdfDoc, numPages, loading: pdfLoading } = usePdfDocument(fileForParse);
 
   /**
-   * Saved-doc branch (no pendingFile, sourceTemplate exists): we have
-   * no PDF blob to parse — the template only stored a layout. Synthesize
-   * a 1-byte placeholder File so `createDocument` accepts it; the page
-   * count comes from the source template's authored count, and the
-   * editor renders a blank N-page canvas the user can place fields on.
-   * This is a stop-gap until the API stores the example PDF
-   * server-side and we can fetch it on demand.
+   * Saved-doc branch (no pendingFile, sourceTemplate exists, no example
+   * PDF stored server-side): we have no PDF blob to parse — the
+   * template only stored a layout. Synthesize a 1-byte placeholder
+   * File so `createDocument` accepts it; the page count comes from
+   * the source template's authored count, and the editor renders a
+   * blank N-page canvas the user can place fields on. This is the
+   * fallback when migration 0010 hasn't been applied or the original
+   * upload happened before example-PDF storage existed.
    */
   const placeholderFile = useMemo<File | null>(() => {
     if (initialHandoff?.pendingFile) return null;
     if (!sourceTemplate) return null;
+    if (sourceTemplate.hasExamplePdf) return null;
     const blob = new Blob([new Uint8Array([0x25, 0x50, 0x44, 0x46])], {
       type: 'application/pdf',
     });
@@ -184,6 +200,38 @@ export function TemplateEditorRoute() {
       type: 'application/pdf',
     });
   }, [initialHandoff?.pendingFile, sourceTemplate]);
+
+  /**
+   * Fetch the example PDF once when the user reuses a saved template
+   * that has one stored. Aborts on unmount / template change so a
+   * stale response can't overwrite a newer fetch. Failures fall
+   * through silently — the placeholder branch above renders the blank
+   * canvas so the editor remains usable even if the bytes can't be
+   * downloaded right now.
+   */
+  useEffect(() => {
+    if (initialHandoff?.pendingFile) return undefined;
+    if (!sourceTemplate?.hasExamplePdf) return undefined;
+    const controller = new AbortController();
+    void fetchTemplateExamplePdf(sourceTemplate.id, controller.signal)
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        const filename = sourceTemplate.exampleFile || `${sourceTemplate.name}.pdf`;
+        setFetchedExampleFile(new File([blob], filename, { type: 'application/pdf' }));
+      })
+      .catch(() => {
+        // Server may be unreachable or return 404 mid-flight; the
+        // placeholder branch covers that — no toast for what should
+        // be transparent fallback behavior.
+      });
+    return () => controller.abort();
+  }, [
+    initialHandoff?.pendingFile,
+    sourceTemplate?.hasExamplePdf,
+    sourceTemplate?.id,
+    sourceTemplate?.exampleFile,
+    sourceTemplate?.name,
+  ]);
 
   // Once the PDF parses (or we have a placeholder + a sourceTemplate),
   // bootstrap a local draft entry: createDocument + seed signers +
@@ -357,6 +405,7 @@ export function TemplateEditorRoute() {
         email: s.email,
         color: s.color,
       }));
+      let savedId: string;
       if (sourceTemplate) {
         const updated = await updateTemplate(sourceTemplate.id, {
           title,
@@ -364,6 +413,7 @@ export function TemplateEditorRoute() {
           last_signers: lastSigners,
         });
         setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
+        savedId = updated.id;
       } else {
         const created = await createTemplate({
           title,
@@ -372,6 +422,21 @@ export function TemplateEditorRoute() {
           last_signers: lastSigners,
         });
         setTemplates([created, ...getTemplates()]);
+        savedId = created.id;
+      }
+      // Persist the example PDF alongside the layout when the user
+      // uploaded one in this session. Reuse triggers fetch-on-open
+      // (effect above) so a future "Use this template" can re-render
+      // the original document instead of the placeholder canvas.
+      if (draft.file) {
+        try {
+          const updated = await uploadTemplateExamplePdf(savedId, draft.file);
+          setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
+        } catch {
+          // Upload failure is non-fatal — the template row was
+          // already saved. The user just won't see the original PDF
+          // on next open; the placeholder canvas takes over.
+        }
       }
       setToast({
         title: 'Template saved',

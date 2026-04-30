@@ -6,7 +6,9 @@ import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { APP_ENV } from '../src/config/config.module';
 import type { AppEnv } from '../src/config/env.schema';
+import { StorageService } from '../src/storage/storage.service';
 import { TemplatesRepository } from '../src/templates/templates.repository';
+import { InMemoryStorageService } from './in-memory-storage';
 import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { buildTestJwks } from './test-jwks';
 
@@ -48,6 +50,7 @@ const SAMPLE_PAYLOAD = {
 describe('Templates HTTP (e2e)', () => {
   let app: INestApplication;
   let templates: InMemoryTemplatesRepository;
+  let storage: InMemoryStorageService;
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
   let tokenB: string;
@@ -55,6 +58,7 @@ describe('Templates HTTP (e2e)', () => {
   beforeAll(async () => {
     tk = await buildTestJwks();
     templates = new InMemoryTemplatesRepository();
+    storage = new InMemoryStorageService();
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -63,6 +67,8 @@ describe('Templates HTTP (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(TemplatesRepository)
       .useValue(templates)
+      .overrideProvider(StorageService)
+      .useValue(storage)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -84,6 +90,7 @@ describe('Templates HTTP (e2e)', () => {
 
   beforeEach(() => {
     templates.reset();
+    storage.reset();
   });
 
   afterAll(async () => {
@@ -218,5 +225,111 @@ describe('Templates HTTP (e2e)', () => {
         field_layout: [{ type: 'signature', pageRule: 0, x: 0, y: 0 }],
       })
       .expect(400);
+  });
+
+  describe('Example PDF round trip', () => {
+    // Minimal valid PDF header — enough for the controller's mime check
+    // and the in-memory storage to round-trip the buffer. The seal /
+    // verify pipeline isn't exercised here; we only assert the upload
+    // path stores the bytes and the download streams them back.
+    const PDF_BYTES = Buffer.from('%PDF-1.4\n% test fixture\n%%EOF', 'utf8');
+
+    async function createOwned(): Promise<string> {
+      const r = await request(app.getHttpServer())
+        .post('/templates')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send(SAMPLE_PAYLOAD)
+        .expect(201);
+      return r.body.id as string;
+    }
+
+    it('stores the PDF on POST /templates/:id/example and flips has_example_pdf', async () => {
+      const id = await createOwned();
+      // Pre-condition: no PDF yet.
+      const before = await request(app.getHttpServer())
+        .get(`/templates/${id}`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      expect(before.body.has_example_pdf).toBe(false);
+
+      const uploaded = await request(app.getHttpServer())
+        .post(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .attach('file', PDF_BYTES, { filename: 'sample.pdf', contentType: 'application/pdf' })
+        .expect(200);
+      expect(uploaded.body.has_example_pdf).toBe(true);
+
+      // Storage path is server-side; the in-memory adapter records it
+      // by template id so we can assert it landed.
+      const stored = storage.allPaths().find((p) => p.endsWith(`/${id}/example.pdf`));
+      expect(stored).toBeDefined();
+      const obj = storage.get(stored!);
+      expect(obj?.contentType).toBe('application/pdf');
+      expect(obj?.bytes.equals(PDF_BYTES)).toBe(true);
+    });
+
+    it('streams the PDF back on GET /templates/:id/example', async () => {
+      const id = await createOwned();
+      await request(app.getHttpServer())
+        .post(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .attach('file', PDF_BYTES, { filename: 'sample.pdf', contentType: 'application/pdf' })
+        .expect(200);
+
+      const fetched = await request(app.getHttpServer())
+        .get(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .buffer(true)
+        .parse((res, cb) => {
+          // supertest's default parser is JSON; for a binary body we
+          // need to accumulate the raw bytes.
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => cb(null, Buffer.concat(chunks)));
+        })
+        .expect(200);
+      expect(fetched.headers['content-type']).toBe('application/pdf');
+      expect((fetched.body as Buffer).equals(PDF_BYTES)).toBe(true);
+    });
+
+    it('returns 404 when the template has no example PDF attached', async () => {
+      const id = await createOwned();
+      await request(app.getHttpServer())
+        .get(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(404);
+    });
+
+    it('rejects a non-PDF mime', async () => {
+      const id = await createOwned();
+      await request(app.getHttpServer())
+        .post(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .attach('file', Buffer.from('plain text'), {
+          filename: 'note.txt',
+          contentType: 'text/plain',
+        })
+        .expect(400);
+    });
+
+    it('scopes example PDFs by owner — user B cannot upload to or read user A templates', async () => {
+      const id = await createOwned();
+      // Upload by attacker → 404 (no leaking ownership).
+      await request(app.getHttpServer())
+        .post(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .attach('file', PDF_BYTES, { filename: 'sample.pdf', contentType: 'application/pdf' })
+        .expect(404);
+      // Owner uploads then attacker tries to download → 404.
+      await request(app.getHttpServer())
+        .post(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .attach('file', PDF_BYTES, { filename: 'sample.pdf', contentType: 'application/pdf' })
+        .expect(200);
+      await request(app.getHttpServer())
+        .get(`/templates/${id}/example`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(404);
+    });
   });
 });

@@ -175,6 +175,14 @@ export function createPgMemDb(): PgMemHandle {
   const patched0009 = raw0009.replace(/comment on column[\s\S]*?;/g, '');
   mem.public.none(patched0009);
 
+  // 0010 — adds nullable `example_pdf_path` to templates so the SPA can
+  // re-render the original example PDF instead of a placeholder when a
+  // saved template is reused.
+  const migration0010Path = resolve(__dirname, '../db/migrations/0010_template_example_pdf.sql');
+  const raw0010 = readFileSync(migration0010Path, 'utf8');
+  const patched0010 = raw0010.replace(/comment on column[\s\S]*?;/g, '');
+  mem.public.none(patched0010);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   const db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });

@@ -12,9 +12,15 @@ import {
  */
 export class InMemoryTemplatesRepository extends TemplatesRepository {
   private readonly rows = new Map<string, Template>();
+  // Stores the example-PDF storage path keyed by template id, parallel
+  // to the `example_pdf_path` column the PG adapter persists. Kept
+  // out-of-band so the public `Template` shape only carries the
+  // boolean `has_example_pdf` flag the wire contract exposes.
+  private readonly examplePaths = new Map<string, string | null>();
 
   reset(): void {
     this.rows.clear();
+    this.examplePaths.clear();
   }
 
   async create(input: CreateTemplateInput): Promise<Template> {
@@ -28,6 +34,7 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
       field_layout: input.field_layout,
       tags: input.tags ?? [],
       last_signers: input.last_signers ?? [],
+      has_example_pdf: false,
       uses_count: 0,
       last_used_at: null,
       created_at: now,
@@ -87,5 +94,28 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
     };
     this.rows.set(id, next);
     return next;
+  }
+
+  async setExamplePdfPath(
+    owner_id: string,
+    id: string,
+    path: string | null,
+  ): Promise<Template | null> {
+    const existing = this.rows.get(id);
+    if (!existing || existing.owner_id !== owner_id) return null;
+    this.examplePaths.set(id, path);
+    const next: Template = {
+      ...existing,
+      has_example_pdf: path !== null,
+      updated_at: new Date().toISOString(),
+    };
+    this.rows.set(id, next);
+    return next;
+  }
+
+  async getExamplePdfPath(owner_id: string, id: string): Promise<string | null> {
+    const existing = this.rows.get(id);
+    if (!existing || existing.owner_id !== owner_id) return null;
+    return this.examplePaths.get(id) ?? null;
   }
 }
