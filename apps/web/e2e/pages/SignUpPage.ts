@@ -13,7 +13,10 @@ export class SignUpPage {
     await this.page.getByRole('textbox', { name: /full name/i }).fill(fullName);
     await this.page.getByRole('textbox', { name: /email/i }).fill(email);
     await this.page.getByRole('textbox', { name: /password/i }).fill(password);
-    // The signup form gates submission on a "agree to ToS" checkbox.
+    // The signup form gates submission on two checkboxes — legal-age
+    // confirmation (T-25) and ToS/Privacy agreement. Tick both before
+    // the submit button becomes enabled.
+    await this.page.getByRole('checkbox', { name: /legal age/i }).check();
     await this.page.getByRole('checkbox', { name: /agree.*terms/i }).check();
     await this.page.getByRole('button', { name: /^create account$/i }).click();
   }
