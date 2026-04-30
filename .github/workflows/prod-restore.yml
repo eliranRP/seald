@@ -60,7 +60,7 @@ jobs:
             {
               printf '\nAWS_ACCESS_KEY_ID=%s\n' "$AWS_KMS_ACCESS_KEY_ID"
               printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_KMS_SECRET_ACCESS_KEY"
-              printf 'AWS_REGION=us-east-1\n'
+              printf 'AWS_REGION=us-east-2\n'
             } | sudo tee -a /opt/seald/apps/api/.env >/dev/null
             sudo chmod 0600 /opt/seald/apps/api/.env
             sudo wc -c /opt/seald/apps/api/.env
@@ -126,7 +126,7 @@ jobs:
             cp /work/apps/api/scripts/generate-kms-binding-cert.ts /tmp/cert-gen/gen.ts
             ./node_modules/.bin/ts-node --transpile-only ./gen.ts \
               --key-id alias/seald-pades-sealing-prod \
-              --region us-east-1 \
+              --region us-east-2 \
               --out /work/secrets/seald-pades-prod.crt.pem
             SCRIPT
             sudo chmod 0755 /opt/seald/_restore/gen-cert.sh
@@ -144,8 +144,8 @@ jobs:
             sudo docker run --rm \
               -v /opt/seald:/work \
               -w /work/apps/api \
-              -e AWS_REGION=us-east-1 \
-              -e AWS_DEFAULT_REGION=us-east-1 \
+              -e AWS_REGION=us-east-2 \
+              -e AWS_DEFAULT_REGION=us-east-2 \
               -e AWS_ACCESS_KEY_ID="$AWS_KMS_ACCESS_KEY_ID" \
               -e AWS_SECRET_ACCESS_KEY="$AWS_KMS_SECRET_ACCESS_KEY" \
               node:20-bookworm-slim \
