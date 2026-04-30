@@ -52,6 +52,18 @@ variable "tags" {
   default     = {}
 }
 
+variable "environment_slug" {
+  description = <<-EOT
+    Deploy environment slug, used as a suffix on environment-scoped
+    resource names (e.g. the AWS Secrets Manager entry becomes
+    `seald-api-$${environment_slug}`). Defaults to `prod` because the
+    hosted EC2 deploy is currently prod-only; staging/review envs
+    should override via tfvars.
+  EOT
+  type        = string
+  default     = "prod"
+}
+
 # ---------- Sealing KMS (PAdES signing) ----------
 
 variable "enable_kms_sealing" {
