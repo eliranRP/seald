@@ -66,6 +66,14 @@ jobs:
             set -euo pipefail
             cd /opt/seald
 
+            # Self-heal: break-glass restores (`prod-restore.yml`) run
+            # `sudo git fetch` and leave some `.git/objects` owned by
+            # root, which makes the next `git fetch` here fail with
+            # "insufficient permission for adding an object". Reclaim
+            # ownership for the SSH user before any git op. Idempotent
+            # — no-op when ownership is already correct.
+            sudo chown -R "$(id -u):$(id -g)" .git
+
             # For workflow_run (push to main), inputs.ref is unset →
             # fall through to 'main'. For dispatch, honour the provided
             # ref input.
