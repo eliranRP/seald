@@ -41,6 +41,20 @@ describe('AuthShell', () => {
     expect(ref.current).toBeInstanceOf(HTMLDivElement);
   });
 
+  it('renders the legal/accessibility footer with all four trust links', () => {
+    const { getByRole } = renderWithTheme(
+      <AuthShell>
+        <h1>Sign in</h1>
+      </AuthShell>,
+    );
+    const foot = getByRole('contentinfo', { name: /legal and accessibility/i });
+    expect(foot).toBeInTheDocument();
+    expect(foot.querySelector('a[href="/legal/privacy"]')).toBeInTheDocument();
+    expect(foot.querySelector('a[href="/legal/terms"]')).toBeInTheDocument();
+    expect(foot.querySelector('a[href="/legal/accessibility"]')).toBeInTheDocument();
+    expect(foot.querySelector('a[href="/legal/responsible-disclosure"]')).toBeInTheDocument();
+  });
+
   it('renders without axe violations', async () => {
     const { container } = renderWithTheme(
       <AuthShell>

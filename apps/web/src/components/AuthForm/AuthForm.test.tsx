@@ -66,15 +66,28 @@ describe('AuthForm', () => {
     expect(auth.signInWithPassword).toHaveBeenCalledWith('ada@example.com', 'hunter2', false);
   });
 
-  it('gates signup submit on ToS checkbox', async () => {
+  it('gates signup submit on ToS + age-gate checkboxes', async () => {
     const { getByRole, getByLabelText } = renderWithTheme(<AuthForm mode="signup" />);
     const submit = getByRole('button', { name: /create account/i });
     await userEvent.type(getByLabelText(/full name/i), 'Ada Lovelace');
     await userEvent.type(getByLabelText(/email/i), 'ada@example.com');
     await userEvent.type(getByLabelText(/^password$/i), 'hunter2!!');
     expect(submit).toBeDisabled();
+    // ToS alone isn't enough — age gate must also be ticked.
     await userEvent.click(getByLabelText(/agree to terms/i));
+    expect(submit).toBeDisabled();
+    await userEvent.click(getByLabelText(/legal age/i));
     expect(submit).not.toBeDisabled();
+  });
+
+  it('keeps signup submit disabled when age gate is unchecked even if ToS is checked', async () => {
+    const { getByRole, getByLabelText } = renderWithTheme(<AuthForm mode="signup" />);
+    const submit = getByRole('button', { name: /create account/i });
+    await userEvent.type(getByLabelText(/full name/i), 'Ada Lovelace');
+    await userEvent.type(getByLabelText(/email/i), 'ada@example.com');
+    await userEvent.type(getByLabelText(/^password$/i), 'hunter2!!');
+    await userEvent.click(getByLabelText(/agree to terms/i));
+    expect(submit).toBeDisabled();
   });
 
   it('links the ToS row to the Terms of Service and Privacy Policy pages', () => {
@@ -105,6 +118,7 @@ describe('AuthForm', () => {
     await userEvent.type(getByLabelText(/full name/i), 'Ada Lovelace');
     await userEvent.type(getByLabelText(/email/i), 'ada@example.com');
     await userEvent.type(getByLabelText(/^password$/i), 'hunter2!!');
+    await userEvent.click(getByLabelText(/legal age/i));
     await userEvent.click(getByLabelText(/agree to terms/i));
     await userEvent.click(getByRole('button', { name: /create account/i }));
     expect(onNeeds).toHaveBeenCalledWith('ada@example.com');

@@ -67,6 +67,11 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
   const [password, setPassword] = useState('');
   const [keep, setKeep] = useState(true);
   const [agreed, setAgreed] = useState(false);
+  // Age gate (T-24). Our Terms require signers to be at least 18, or
+  // 16 in jurisdictions that permit a 16-year-old to enter into binding
+  // electronic contracts (see /legal/terms §2). We capture an explicit
+  // attestation here; the legal limit lives in the Terms, not the UI.
+  const [ofAge, setOfAge] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,10 +80,12 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
   const valid = useMemo(() => {
     if (isForgot) return EMAIL_RE.test(email);
     if (isSignup) {
-      return name.trim().length > 1 && EMAIL_RE.test(email) && password.length >= 8 && agreed;
+      return (
+        name.trim().length > 1 && EMAIL_RE.test(email) && password.length >= 8 && agreed && ofAge
+      );
     }
     return EMAIL_RE.test(email) && password.length >= 1;
-  }, [isForgot, isSignup, name, email, password, agreed]);
+  }, [isForgot, isSignup, name, email, password, agreed, ofAge]);
 
   const handleGoogle = async (): Promise<void> => {
     if (busy) return;
@@ -196,25 +203,39 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
         )}
 
         {isSignup && (
-          <TosRow>
-            <Checkbox
-              type="checkbox"
-              checked={agreed}
-              onChange={(e) => setAgreed(e.target.checked)}
-              aria-label="Agree to Terms of Service and Privacy Policy"
-            />
-            <span>
-              I agree to Seald&apos;s{' '}
-              <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
-                Terms of Service
-              </a>{' '}
-              and{' '}
-              <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">
-                Privacy Policy
-              </a>
-              .
-            </span>
-          </TosRow>
+          <>
+            <TosRow>
+              <Checkbox
+                type="checkbox"
+                checked={ofAge}
+                onChange={(e) => setOfAge(e.target.checked)}
+                aria-label="Confirm I am of legal age to sign electronically"
+              />
+              <span>
+                I confirm I am at least 18 years old (or the legal age in my jurisdiction to enter
+                into binding electronic contracts).
+              </span>
+            </TosRow>
+            <TosRow>
+              <Checkbox
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                aria-label="Agree to Terms of Service and Privacy Policy"
+              />
+              <span>
+                I agree to Seald&apos;s{' '}
+                <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="/legal/privacy" target="_blank" rel="noopener noreferrer">
+                  Privacy Policy
+                </a>
+                .
+              </span>
+            </TosRow>
+          </>
         )}
 
         {!isSignup && !isForgot && (
