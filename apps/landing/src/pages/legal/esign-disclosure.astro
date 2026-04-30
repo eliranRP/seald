@@ -1,0 +1,95 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'esign_disclosure_v0.1';
+---
+<BaseLayout
+  title="ESIGN Consumer Disclosure — Seald"
+  description="Seald's consumer disclosure for the use of electronic records and signatures under the federal ESIGN Act. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>ESIGN Consumer Disclosure</h1>
+        <p>Please read this disclosure carefully before consenting to use electronic records and electronic signatures with Seald, Inc. ("<strong>Seald</strong>", "we"). It describes your rights under the federal Electronic Signatures in Global and National Commerce Act, 15 U.S.C. § 7001(c)(1) ("<strong>ESIGN</strong>"), the Uniform Electronic Transactions Act ("<strong>UETA</strong>") in states that have adopted it, and (in New York) the Electronic Signatures and Records Act ("<strong>ESRA</strong>"), N.Y. State Tech. Law § 301 et seq.</p>
+      </header>
+
+      <section id="scope">
+        <h2>1. Scope of your consent</h2>
+        <p>By clicking "I agree" or its equivalent on the Seald signing screen, you consent to receive, view, sign, and store the document presented to you in electronic form, and to receive in electronic form related notices, disclosures, and copies (the "<strong>Electronic Records</strong>"). Your consent applies to the specific transaction in which it is given. You will be asked to consent again for each new signing transaction; you are not consenting to receive every future communication from Seald or any sender electronically by clicking a single time.</p>
+      </section>
+
+      <section id="paper">
+        <h2>2. Your right to a paper copy</h2>
+        <p>You have the right to receive a paper copy of any Electronic Record we provide to you. To request a paper copy, send an email to <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> with the subject line "<code>Paper copy request</code>" and a reference to the document or request identifier shown in your signing email. We will provide a paper copy free of charge for the first request per document; additional requests may be subject to a reasonable handling fee, which we will state in advance.</p>
+        <p>Requesting a paper copy does not by itself withdraw your consent to use Electronic Records.</p>
+      </section>
+
+      <section id="withdraw">
+        <h2>3. Your right to withdraw consent</h2>
+        <p>You may withdraw your consent to use Electronic Records at any time before signing the document by clicking <strong>Withdraw consent</strong> on the signing screen, or by emailing <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> with the subject line "<code>Withdraw electronic-records consent</code>" and a reference to the document or request identifier.</p>
+        <h3>3.1 Consequences of withdrawal</h3>
+        <p>If you withdraw consent before signing, the signing request is cancelled and the document is not signed by you. The sender may then choose whether to offer you an alternative — including, if available, a paper copy you can sign by hand and return — or to terminate the request without alternative. Seald does not control whether a sender offers a paper alternative; you should ask the sender directly.</p>
+        <p>Withdrawing consent is prospective only. It does not invalidate documents you have already signed electronically with Seald, and it does not erase the audit trail for those documents, which Seald is required to retain under § 7001(d) ESIGN and UETA § 12.</p>
+      </section>
+
+      <section id="contact-update">
+        <h2>4. How to update your contact information</h2>
+        <p>If your email address or phone number changes, update your account profile in the Service or email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> with the subject line "<code>Update contact information</code>". For signers without an account, reply to the most recent signing email from Seald and ask the sender to resend the request to your new address. We are not responsible for missed Electronic Records caused by an out-of-date contact address.</p>
+      </section>
+
+      <section id="hardware-software">
+        <h2>5. Hardware and software you need</h2>
+        <p>To access, sign, and retain the Electronic Records, you need:</p>
+        <ul>
+          <li>A device with internet access (computer, tablet, or smartphone).</li>
+          <li>A current version of a major web browser — Chrome, Firefox, Safari, Edge, or Brave — released within the last twenty-four (24) months, with JavaScript and cookies enabled.</li>
+          <li>A working email account to receive signing invitations and notifications.</li>
+          <li>A PDF reader (Adobe Acrobat Reader, the macOS Preview app, or any modern browser's built-in PDF viewer) to view and retain the sealed PDF after signing.</li>
+          <li>Local storage available to download and save the sealed PDF and audit trail — typically less than five (5) megabytes per document.</li>
+          <li>For signers using a touchscreen, an input method that lets you draw a signature.</li>
+        </ul>
+        <p>We may update these requirements from time to time. If a change materially affects your ability to access or retain Electronic Records, we will provide notice and a renewed opportunity to consent or to withdraw consent.</p>
+      </section>
+
+      <section id="demonstrated-ability">
+        <h2>6. Confirming your ability to access</h2>
+        <p>Federal ESIGN, § 7001(c)(1)(C)(ii), requires that your consent be given in a manner that "reasonably demonstrates" your ability to access the Electronic Records in the form they will be delivered. The Seald signing screen presents this disclosure and the document for review using the same browser and PDF rendering you will use to sign. By clicking "I have read this disclosure" and "I can access electronic records on this device", you affirm that ability. Seald records the affirmation, the disclosure version, the timestamp, and your IP and user-agent in the audit trail.</p>
+      </section>
+
+      <section id="retention">
+        <h2>7. Retention of Electronic Records</h2>
+        <p>Once a document is signed, Seald produces a sealed PDF (PAdES long-term-validation profile, ETSI EN 319 142, anchored by an RFC 3161 trusted timestamp) and an audit trail. Both are retained for seven (7) years from completion by default, in line with the U.S. statute-of-limitations defaults and the UK Limitation Act 1980. You may verify the sealed document at any time during that period at the verification URL printed on the audit trail. If a record is required by law, court order, or active dispute, we retain it for the longer of the seven-year period and the period legally required.</p>
+      </section>
+
+      <section id="excluded">
+        <h2>8. Document categories not covered by ESIGN</h2>
+        <p>Federal ESIGN, § 7003, excludes certain document categories from electronic execution. The Seald Service is not appropriate for, and our <a href="/legal/aup">Acceptable Use Policy</a> prohibits, electronic signing of:</p>
+        <ul>
+          <li>Wills, codicils, and testamentary trusts;</li>
+          <li>Adoption, divorce, and other family-law instruments;</li>
+          <li>Court orders, judgments, and court filings;</li>
+          <li>Notices of cancellation or termination of utility services;</li>
+          <li>Notices of default, foreclosure, or eviction;</li>
+          <li>Notices of cancellation of health or life-insurance benefits;</li>
+          <li>Product recalls or notices that affect health or safety;</li>
+          <li>Documents required by law to accompany the transportation of hazardous materials;</li>
+          <li>Negotiable instruments under UCC Article 3;</li>
+          <li>Other documents excluded by your state's UETA or, in New York, by ESRA.</li>
+        </ul>
+        <p>Some categories require a Qualified Electronic Signature ("QES") under Regulation (EU) No 910/2014 ("eIDAS") in EU member states (notably Germany, France, Italy, and Spain). Seald produces an Advanced Electronic Signature ("AdES"), not a QES. If you are signing under EU member-state law, consult counsel about whether QES is required.</p>
+      </section>
+
+      <section id="contact">
+        <h2>9. Contact</h2>
+        <dl>
+          <dt>Privacy and consent matters</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
+          <dt>Legal</dt><dd><a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

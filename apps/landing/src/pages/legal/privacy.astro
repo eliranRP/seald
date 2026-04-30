@@ -1,0 +1,175 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'privacy_v0.1';
+---
+<BaseLayout
+  title="Privacy Policy — Seald"
+  description="Seald privacy policy. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Privacy Policy</h1>
+        <p>This Privacy Policy explains how Seald, Inc. ("<strong>Seald</strong>", "we", "us") collects, uses, discloses, and protects personal information when you visit <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> or use the Seald e-signature service (the "<strong>Service</strong>"). It covers visitors and users in the United States, the European Economic Area ("<strong>EEA</strong>"), and the United Kingdom ("<strong>UK</strong>").</p>
+      </header>
+
+      <section id="controller">
+        <h2>1. Who we are</h2>
+        <p>Seald is the controller of personal information collected through the Site and the Service, except where Seald processes personal information on behalf of a customer organization, in which case Seald is a processor and the customer is the controller. The terms of that processor relationship are set out in our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
+        <dl>
+          <dt>Privacy contact</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
+          <dt>EU representative (Art. 27 GDPR)</dt><dd>{`{{TODO: appoint before publication — {EU_REP_NAME} — appointment pending publication}}`}</dd>
+          <dt>UK representative (Art. 27 UK GDPR)</dt><dd>{`{{TODO: appoint before publication — {UK_REP_NAME} — appointment pending publication}}`}</dd>
+          <dt>Data Protection Officer</dt><dd>Seald has not appointed a DPO. Our processing does not meet the GDPR Article 37(1) thresholds (no large-scale processing of special categories, no large-scale systematic monitoring of public areas). All privacy enquiries are handled by the address above.</dd>
+        </dl>
+      </section>
+
+      <section id="categories">
+        <h2>2. Categories of personal information we collect</h2>
+        <h3>2.1 From you directly</h3>
+        <ul>
+          <li><strong>Identifiers</strong> — name, email address, optional phone number.</li>
+          <li><strong>Account credentials</strong> — authentication tokens and password hashes (Seald does not store plaintext passwords).</li>
+          <li><strong>Customer Content</strong> — PDF documents you upload, fields you place, recipients you invite, signatures you draw or type, and templates you save.</li>
+          <li><strong>Commercial information</strong> — when paid tiers are introduced, billing details (handled by our payment processor; Seald does not store full card numbers).</li>
+          <li><strong>Communications</strong> — emails, support tickets, and feedback you send us.</li>
+        </ul>
+        <h3>2.2 Automatically</h3>
+        <ul>
+          <li><strong>Internet and network activity</strong> — IP address, user-agent string, pages requested, timestamps, referrer.</li>
+          <li><strong>Audit-event metadata</strong> — for each envelope: viewed / consented / signed / declined / sealed events together with IP, user-agent, UTC timestamp, and SHA-256 document hashes.</li>
+          <li><strong>Cookies and similar technologies</strong> — see our <a href="/legal/cookies">Cookie Policy</a>.</li>
+        </ul>
+        <h3>2.3 From third parties</h3>
+        <ul>
+          <li>Trusted timestamp tokens issued by an RFC 3161 Time-Stamp Authority.</li>
+          <li>Email-delivery telemetry from our transactional email provider (open, bounce, complaint signals — not message content).</li>
+        </ul>
+        <h3>2.4 Sensitive personal information (CCPA/CPRA § 1798.140(ae))</h3>
+        <p>Seald does not intentionally collect Social Security numbers, driver's-license numbers, financial-account credentials, precise geolocation, racial or ethnic origin, religious beliefs, mail/email contents (other than transactional email metadata), genetic data, biometric identifiers used for unique identification, health, sex life or orientation, citizenship, or immigration status. A user may, however, choose to upload a document that contains such information; that content is treated as Customer Content and is not used for any purpose other than providing the Service. Drawn-signature images are not used for biometric identification; they are stored as visual marks attached to a sealed PDF.</p>
+      </section>
+
+      <section id="purposes">
+        <h2>3. Purposes and lawful bases</h2>
+        <p>Under the EU and UK General Data Protection Regulations ("<strong>GDPR</strong>" and "<strong>UK GDPR</strong>") we rely on the following lawful bases (Art. 6(1) GDPR):</p>
+        <table>
+          <thead><tr><th>Purpose</th><th>Lawful basis</th></tr></thead>
+          <tbody>
+            <tr><td>Provide the Service (account creation, document handling, signing, sealing, audit trail)</td><td>Contract — Art. 6(1)(b)</td></tr>
+            <tr><td>Send transactional emails (signing invitations, completion notices, account notifications)</td><td>Contract — Art. 6(1)(b)</td></tr>
+            <tr><td>Maintain security, prevent fraud and abuse, debug</td><td>Legitimate interests — Art. 6(1)(f)</td></tr>
+            <tr><td>Comply with legal obligations (e.g. record-retention under ESIGN § 7001(d) and UETA § 12)</td><td>Legal obligation — Art. 6(1)(c)</td></tr>
+            <tr><td>Improve the Service through aggregated, non-identifying analytics</td><td>Legitimate interests — Art. 6(1)(f)</td></tr>
+            <tr><td>Send optional product or marketing email</td><td>Consent — Art. 6(1)(a)</td></tr>
+          </tbody>
+        </table>
+        <p>You can object to processing based on legitimate interests at any time (see Section 8).</p>
+      </section>
+
+      <section id="recipients">
+        <h2>4. Recipients and sub-processors</h2>
+        <p>We share personal information with service providers ("processors" / "service providers") who help us operate the Service. The current list, including transfer mechanisms, is available at <a href="/legal/sub-processors">/legal/sub-processors</a>. We do not sell personal information and we do not share it for cross-context behavioral advertising as those terms are defined under California's CPRA (Cal. Civ. Code § 1798.140(ad), (ah)).</p>
+        <p>We may disclose personal information to comply with a legally binding request from a public authority, to enforce our Terms, or to protect the rights, safety, or property of Seald or others. In a corporate transaction (merger, acquisition, financing, or sale of assets) personal information may be transferred to the successor entity subject to this Privacy Policy.</p>
+      </section>
+
+      <section id="transfers">
+        <h2>5. International transfers</h2>
+        <p>Seald processes personal information primarily in the United States. Our database, object storage, and authentication services run on Supabase in the AWS us-east-2 region; our cryptographic key service runs on AWS KMS in us-east-2; our content delivery and DNS run on Cloudflare's global network.</p>
+        <p>For personal information originating in the EEA, the UK, or Switzerland and transferred to the United States, we rely on the following transfer mechanisms (in priority order):</p>
+        <ul>
+          <li><strong>EU-U.S. Data Privacy Framework ("DPF")</strong> and the UK Extension and Swiss-U.S. Framework, where the recipient is certified.</li>
+          <li><strong>Standard Contractual Clauses</strong> ("SCCs", Commission Implementing Decision (EU) 2021/914), Module 2 (controller-to-processor) or Module 3 (processor-to-processor), with the UK International Data Transfer Addendum or the UK International Data Transfer Agreement ("IDTA") for UK-origin data.</li>
+        </ul>
+        <p>A Transfer Impact Assessment is available on request at <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
+      </section>
+
+      <section id="retention">
+        <h2>6. Retention</h2>
+        <table>
+          <thead><tr><th>Category</th><th>Retention period</th></tr></thead>
+          <tbody>
+            <tr><td>Completed envelopes (sealed PDF, audit events, original PDF)</td><td>Seven (7) years from completion, in line with U.S. statute-of-limitations defaults and the UK Limitation Act 1980. Configurable per environment via <code>ENVELOPE_RETENTION_YEARS=7</code>.</td></tr>
+            <tr><td>Authentication and access logs</td><td>Eighteen (18) months</td></tr>
+            <tr><td>Account profile and contact data</td><td>Until you request deletion, plus a 30-day grace window during which a closed account can be restored</td></tr>
+            <tr><td>Encrypted backups</td><td>Thirty-five (35) days, after which they are overwritten</td></tr>
+            <tr><td>Support correspondence</td><td>Three (3) years from the last interaction</td></tr>
+          </tbody>
+        </table>
+        <p>If a record is required by law, court order, or active dispute, we retain it for the longer of the period above and the period legally required.</p>
+      </section>
+
+      <section id="rights-eu-uk">
+        <h2>7. Your rights — EEA and UK</h2>
+        <p>If the GDPR or the UK GDPR applies to our processing of your personal information, you have the following rights:</p>
+        <ul>
+          <li><strong>Access</strong> — Art. 15</li>
+          <li><strong>Rectification</strong> — Art. 16</li>
+          <li><strong>Erasure ("right to be forgotten")</strong> — Art. 17</li>
+          <li><strong>Restriction of processing</strong> — Art. 18</li>
+          <li><strong>Notification of recipients</strong> — Art. 19</li>
+          <li><strong>Data portability</strong> — Art. 20</li>
+          <li><strong>Objection</strong> — Art. 21, including an absolute right to object to direct marketing</li>
+          <li><strong>No solely-automated decisions with legal or similarly significant effect</strong> — Art. 22 (Seald does not currently make such decisions about you)</li>
+          <li><strong>Withdraw consent</strong> at any time where consent is the lawful basis</li>
+          <li><strong>Lodge a complaint</strong> with a supervisory authority — for example the Irish Data Protection Commission, the UK Information Commissioner's Office (ICO), or your local member-state authority</li>
+        </ul>
+        <p>To exercise any of these rights, email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. We will acknowledge within ten (10) business days and respond within one month, extendable by up to two further months for complex requests with notice. Service is free of charge unless your request is manifestly unfounded or excessive.</p>
+      </section>
+
+      <section id="rights-us">
+        <h2>8. Your rights — California, Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Delaware, New Hampshire, New Jersey</h2>
+        <p>Depending on your state of residence, you may have rights under the California Consumer Privacy Act as amended by the California Privacy Rights Act ("<strong>CCPA/CPRA</strong>"), the Colorado Privacy Act, the Connecticut Data Privacy Act, the Virginia Consumer Data Protection Act, the Utah Consumer Privacy Act, the Texas Data Privacy and Security Act, the Oregon Consumer Privacy Act, the Montana Consumer Data Privacy Act, the Iowa Consumer Data Protection Act, the Delaware Personal Data Privacy Act, New Hampshire SB 255, and the New Jersey Data Privacy Act.</p>
+        <ul>
+          <li><strong>Right to know</strong> what categories and specific pieces of personal information we have collected, the sources, the purposes, and the recipients (CCPA § 1798.110, § 1798.115).</li>
+          <li><strong>Right to delete</strong> personal information we collected from you (CCPA § 1798.105).</li>
+          <li><strong>Right to correct</strong> inaccurate personal information (CCPA § 1798.106).</li>
+          <li><strong>Right to portability</strong>.</li>
+          <li><strong>Right to opt out of "sale" or "sharing"</strong> for cross-context behavioral advertising (CCPA § 1798.120). <em>Seald does not sell personal information and does not share for cross-context behavioral advertising.</em></li>
+          <li><strong>Right to limit the use of sensitive personal information</strong> (CCPA § 1798.121). <em>Seald does not use sensitive personal information for purposes that would require this election.</em></li>
+          <li><strong>Right to opt out of profiling</strong> with legal or similarly significant effects (CO/CT/VA/OR).</li>
+          <li><strong>Right of appeal</strong> if we deny a request (CO/CT/VA and others).</li>
+          <li><strong>Right to non-retaliation</strong> for exercising any of these rights.</li>
+        </ul>
+        <p>To exercise these rights, email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. We will acknowledge within ten (10) business days and fulfill within forty-five (45) calendar days, extendable by up to forty-five (45) days with notice for complex requests. We may verify your identity by matching the information in your request against the information in your account. An authorized agent must provide written permission from the consumer.</p>
+        <h3>8.1 Global Privacy Control</h3>
+        <p>Seald honors the Global Privacy Control ("GPC") browser signal as a valid opt-out of "sale" and "sharing" under California's CCPA Regulations § 7025 and the equivalent universal-opt-out mechanisms required by Colorado and Connecticut. When we detect a GPC signal we treat it as an opt-out for the visiting browser; signed-in users can also record the choice on their account.</p>
+        <h3>8.2 12-month look-back</h3>
+        <p>For California right-to-know requests we will report on the prior twelve (12) months of personal-information practices.</p>
+      </section>
+
+      <section id="security">
+        <h2>9. Security</h2>
+        <p>We protect personal information with technical and organizational measures appropriate to the risk, including encryption at rest with AES-256, encryption in transit with TLS 1.3, hardened access controls to our cryptographic key service (AWS KMS), audit logging, and least-privilege access for personnel. Document seals use the PAdES long-term-validation profile (ETSI EN 319 142) anchored by RFC 3161 trusted timestamps; audit events are chained with SHA-256 to make tampering detectable. No method of transmission or storage is perfectly secure.</p>
+        <p>Suspected security issues should be reported to <a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a>.</p>
+      </section>
+
+      <section id="children">
+        <h2>10. Children</h2>
+        <p>The Service is not intended for children under sixteen (16) and is not directed to children under thirteen (13). Seald does not knowingly collect personal information from a child under thirteen in violation of the U.S. Children's Online Privacy Protection Act ("COPPA", 15 U.S.C. § 6501 et seq.). If you believe a child has provided personal information to Seald, please contact <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> and we will delete it.</p>
+      </section>
+
+      <section id="cookies">
+        <h2>11. Cookies and similar technologies</h2>
+        <p>For the cookies and scripts we set, their purposes, lifetimes, and how to opt out, see our <a href="/legal/cookies">Cookie Policy</a>.</p>
+      </section>
+
+      <section id="changes">
+        <h2>12. Changes to this Policy</h2>
+        <p>We will update this Privacy Policy from time to time. The "Last updated" date at the top reflects the most recent change. Material changes will be communicated by email or in product at least thirty (30) days before they take effect.</p>
+      </section>
+
+      <section id="contact">
+        <h2>13. Contact</h2>
+        <dl>
+          <dt>Privacy questions and rights requests</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
+          <dt>Sub-processor change subscription</dt><dd><a href="mailto:subscribe-subprocessors@seald.nromomentum.com?subject=Subscribe%20%E2%80%94%20sub-processor%20changes">subscribe-subprocessors@seald.nromomentum.com</a></dd>
+          <dt>Security</dt><dd><a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

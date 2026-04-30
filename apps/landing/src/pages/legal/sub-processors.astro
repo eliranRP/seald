@@ -1,0 +1,87 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'sub_processors_v0.1';
+---
+<BaseLayout
+  title="Sub-processors — Seald"
+  description="The current list of Seald sub-processors. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Sub-processors</h1>
+        <p>Seald engages a small number of trusted Sub-processors to operate the Service. This page lists each Sub-processor, the processing role, the location of the processing, and the international-transfer mechanism used for personal data originating in the EEA, UK, or Switzerland. The list is maintained under our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
+      </header>
+
+      <section id="subscribe">
+        <h2>1. Change-notice subscription</h2>
+        <p>We give at least thirty (30) days' advance notice before adding or replacing a Sub-processor. To receive notices by email, send a message to <a href="mailto:subscribe-subprocessors@seald.nromomentum.com?subject=Subscribe%20%E2%80%94%20sub-processor%20changes">subscribe-subprocessors@seald.nromomentum.com</a> with the subject line "<code>Subscribe — sub-processor changes</code>". You can unsubscribe at any time by replying with the subject line "<code>Unsubscribe</code>".</p>
+        <p>Customers may object to a new Sub-processor on reasonable data-protection grounds within the thirty-day window per Section 4 of the <a href="/legal/dpa">DPA</a>.</p>
+      </section>
+
+      <section id="list">
+        <h2>2. Current Sub-processors</h2>
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Legal name</th>
+              <th scope="col">Processing role</th>
+              <th scope="col">Location</th>
+              <th scope="col">Transfer mechanism</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Supabase Inc.</th>
+              <td>Managed PostgreSQL database, object storage, and authentication. Processes envelope metadata, audit events, account profiles, document files.</td>
+              <td>United States (AWS us-east-2)</td>
+              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+            </tr>
+            <tr>
+              <th scope="row">Amazon Web Services, Inc.</th>
+              <td>Cryptographic key service (KMS), Secrets Manager, and compute (EC2). Holds non-exportable private keys used to seal PDFs.</td>
+              <td>United States (us-east-2)</td>
+              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+            </tr>
+            <tr>
+              <th scope="row">Resend, Inc.</th>
+              <td>Transactional email delivery (signing invitations, completion notices, account notifications).</td>
+              <td>United States</td>
+              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+            </tr>
+            <tr>
+              <th scope="row">Cloudflare, Inc.</th>
+              <td>DNS, content delivery network, Cloudflare Pages hosting for the marketing site, and the Cloudflare Web Analytics insights beacon.</td>
+              <td>Global edge, United States headquarters</td>
+              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+            </tr>
+            <tr>
+              <th scope="row">GitHub, Inc.</th>
+              <td>Source-code hosting and CI/CD. Processes commit metadata and authorized contributor identifiers; does not process Customer Content.</td>
+              <td>United States</td>
+              <td>EU-U.S. Data Privacy Framework certification (via parent Microsoft Corporation); SCCs Module 2 with UK Addendum where applicable</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Seald has not obtained SOC 2 Type II, ISO 27001, or any qualified-trust-service-provider recognition; the certifications listed above belong to the named Sub-processors.</p>
+      </section>
+
+      <section id="affiliates">
+        <h2>3. Seald affiliates</h2>
+        <p>Seald has no operating affiliates today. If we add an affiliate that processes Customer Personal Data, it will be listed here and subject to the same notice and objection process.</p>
+      </section>
+
+      <section id="contact">
+        <h2>4. Contact</h2>
+        <dl>
+          <dt>Sub-processor questions</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
+          <dt>Subscribe to change notices</dt><dd><a href="mailto:subscribe-subprocessors@seald.nromomentum.com?subject=Subscribe%20%E2%80%94%20sub-processor%20changes">subscribe-subprocessors@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

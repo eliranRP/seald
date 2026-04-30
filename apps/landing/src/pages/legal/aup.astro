@@ -1,0 +1,113 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'aup_v0.1';
+---
+<BaseLayout
+  title="Acceptable Use Policy — Seald"
+  description="Seald acceptable use policy. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Acceptable Use Policy</h1>
+        <p>This Acceptable Use Policy (the "<strong>AUP</strong>") sets out the conduct that is and is not acceptable when using the Seald e-signature service (the "<strong>Service</strong>") operated by Seald, Inc. ("<strong>Seald</strong>", "we"). It is incorporated into the <a href="/legal/terms">Terms of Service</a> and applies to anyone who accesses the Service, whether as a sender, signer, administrator, or visitor. Violating this AUP is a material breach of the Terms of Service and may result in suspension or termination, without refund, and notification to law enforcement where appropriate.</p>
+      </header>
+
+      <section id="excluded-categories">
+        <h2>1. Documents you may not send through Seald</h2>
+        <p>Seald produces an Advanced Electronic Signature ("AdES") under Regulation (EU) No 910/2014 ("eIDAS") and an electronic signature compliant with the federal Electronic Signatures in Global and National Commerce Act, 15 U.S.C. § 7001 et seq. ("<strong>ESIGN</strong>"), and the Uniform Electronic Transactions Act ("UETA") in adopting states. Several categories of documents are excluded from electronic execution by statute or are typically required to be signed in wet ink or with a Qualified Electronic Signature. You may not use the Service to sign or to invite another person to sign:</p>
+        <ul>
+          <li>Wills, codicils, or testamentary trusts (excluded by ESIGN § 7003(a)(1) and most state UETAs);</li>
+          <li>Adoption, divorce, and other family-law instruments (ESIGN § 7003(a)(1));</li>
+          <li>Court orders, judgments, and court filings (ESIGN § 7003(b)(1));</li>
+          <li>Conveyances of real property in jurisdictions where wet-ink or notarized form is required (varies by state and country);</li>
+          <li>Notices of cancellation or termination of utility services (ESIGN § 7003(b)(2)(B)(i));</li>
+          <li>Notices of default, acceleration, repossession, foreclosure, or eviction (ESIGN § 7003(b)(2)(B)(ii));</li>
+          <li>Notices of cancellation or termination of health or life-insurance benefits (ESIGN § 7003(b)(2)(B)(iii));</li>
+          <li>Product recalls or notices that affect health or safety (ESIGN § 7003(b)(2)(B)(iv));</li>
+          <li>Documents required by law to accompany the transportation of hazardous materials, pesticides, or similar substances (ESIGN § 7003(b)(2)(B)(v));</li>
+          <li>Negotiable instruments under UCC Article 3 (excluded in most states);</li>
+          <li>Birth, marriage, or death certificates and other vital records;</li>
+          <li>Documents that, under New York Technology Law § 307, ESRA excludes (wills, trusts, powers of attorney, healthcare proxies, certain real-property conveyances, negotiable instruments);</li>
+          <li>Documents that, under EU member-state law, require a Qualified Electronic Signature (for example certain German Schriftform documents under BGB §§ 126 and 126a, French acte authentique, Italian certain commercial-registry filings, Spanish notarial deeds).</li>
+        </ul>
+        <p>If you are unsure whether your document falls into one of these categories, consult counsel. The Service may surface a warning when a template appears to match a flagged category, but the warning is informational and does not relieve you of your obligation to comply with this AUP.</p>
+      </section>
+
+      <section id="anti-spam">
+        <h2>2. Anti-spam — CAN-SPAM and equivalents</h2>
+        <p>You may use the Service only to send signing invitations and related transactional emails to recipients who have a reasonable expectation of receiving them in the ordinary course of business or a personal transaction. You may not use the Service to send unsolicited commercial email in violation of the U.S. CAN-SPAM Act of 2003, 15 U.S.C. § 7701 et seq., or its rules at 16 C.F.R. Part 316, or the Canadian Anti-Spam Legislation (S.C. 2010, c. 23), or the EU ePrivacy Directive 2002/58/EC.</p>
+        <p>You must keep accurate sender information, must not use deceptive subject lines, and must honor opt-out and unsubscribe requests promptly.</p>
+      </section>
+
+      <section id="anti-malware">
+        <h2>3. Anti-malware</h2>
+        <p>You may not upload to the Service, transmit through the Service, or link from a Seald document to any virus, worm, Trojan, spyware, ransomware, keylogger, or other malicious code. You may not attempt to introduce a payload into a sealed PDF or its audit trail.</p>
+      </section>
+
+      <section id="anti-fraud">
+        <h2>4. Anti-fraud</h2>
+        <p>You may not use the Service to:</p>
+        <ul>
+          <li>Forge another person's signature or impersonate another person;</li>
+          <li>Misrepresent your identity, your affiliation, or the source or nature of a document;</li>
+          <li>Send a document to a person without a reasonable basis to believe they have agreed to receive it;</li>
+          <li>Conceal or omit material terms of a transaction;</li>
+          <li>Engage in deceptive marketing in violation of Section 5 of the Federal Trade Commission Act, 15 U.S.C. § 45;</li>
+          <li>Engage in market-manipulation, money-laundering, terrorism-financing, or other activity prohibited by law.</li>
+        </ul>
+      </section>
+
+      <section id="security">
+        <h2>5. Security and integrity of the Service</h2>
+        <p>You may not:</p>
+        <ul>
+          <li>Probe, scan, or test the vulnerability of the Service except under a written authorization or a published vulnerability-disclosure program;</li>
+          <li>Breach or circumvent any authentication, rate-limit, quota, or access control;</li>
+          <li>Interfere with the Service through denial-of-service, flooding, or excessive automated traffic;</li>
+          <li>Reverse-engineer, decompile, or disassemble the Service except to the extent expressly permitted by applicable law;</li>
+          <li>Extract or scrape content from the Service in bulk, including by automated means.</li>
+        </ul>
+      </section>
+
+      <section id="impersonation">
+        <h2>6. Impersonation and false attribution</h2>
+        <p>You may not register an account, send an envelope, or apply a signature in the name of another person without that person's authorization. Pretexting, social-engineering, and other forms of identity fraud are prohibited.</p>
+      </section>
+
+      <section id="csam">
+        <h2>7. Child sexual abuse material and abusive content</h2>
+        <p>You may not use the Service to store, transmit, or facilitate child sexual abuse material ("<strong>CSAM</strong>"), or any content that sexually exploits a minor, in any form. Seald reports suspected CSAM to the U.S. National Center for Missing & Exploited Children (NCMEC) as required by 18 U.S.C. § 2258A. You may not use the Service to harass, defame, or threaten any person.</p>
+      </section>
+
+      <section id="ip">
+        <h2>8. Intellectual property and confidentiality</h2>
+        <p>You may not upload, send, or sign documents in violation of another person's intellectual-property rights, contractual confidentiality obligations, or rights of publicity or privacy. You are responsible for confirming that you have the rights to send the documents you place into the Service.</p>
+      </section>
+
+      <section id="export-sanctions">
+        <h2>9. Export controls and sanctions</h2>
+        <p>You may not access or use the Service from a jurisdiction subject to comprehensive U.S. sanctions (currently Cuba, Iran, North Korea, Syria, the Crimea, Donetsk, Luhansk, Kherson, and Zaporizhzhia regions of Ukraine), and you may not use the Service if you are listed on the U.S. Department of the Treasury's Office of Foreign Assets Control ("<strong>OFAC</strong>") Specially Designated Nationals list, the U.S. Department of Commerce Entity List, the U.S. Department of State debarred parties list, or any equivalent list maintained by the EU, UK, or another applicable jurisdiction. You may not use the Service to transmit content controlled under the U.S. Export Administration Regulations or the International Traffic in Arms Regulations without the required authorization.</p>
+      </section>
+
+      <section id="reporting">
+        <h2>10. Reporting violations</h2>
+        <p>To report a suspected violation of this AUP, email <a href="mailto:abuse@seald.nromomentum.com">abuse@seald.nromomentum.com</a> with as much detail as you can share. To report a security issue, email <a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a>.</p>
+      </section>
+
+      <section id="enforcement">
+        <h2>11. Enforcement</h2>
+        <p>Seald may, in its discretion and with or without notice depending on the severity of the violation, suspend or terminate your access to the Service, remove or disable access to offending content, preserve evidence in connection with a law-enforcement request, and report violations to the relevant authorities. Termination for breach of this AUP is governed by Section 11 of the <a href="/legal/terms">Terms of Service</a>.</p>
+      </section>
+
+      <section id="changes">
+        <h2>12. Changes to this AUP</h2>
+        <p>We may update this AUP from time to time. Material changes will be communicated by email or in product at least thirty (30) days before they take effect.</p>
+      </section>
+    </article>
+  </main>
+</BaseLayout>
