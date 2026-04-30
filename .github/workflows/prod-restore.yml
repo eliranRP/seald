@@ -118,9 +118,16 @@ jobs:
             SCRIPT
             sudo chmod 0755 /opt/seald/_restore/gen-cert.sh
 
+            # --network host: lets the container reach IMDSv2 at
+            # 169.254.169.254 with the instance's hop-limit=1 (the default
+            # bridge network would cross a hop and IMDS would refuse). The
+            # SDK then auto-discovers the EC2 role's STS credentials.
             sudo docker run --rm \
+              --network host \
               -v /opt/seald:/work \
               -w /work/apps/api \
+              -e AWS_REGION=us-east-1 \
+              -e AWS_DEFAULT_REGION=us-east-1 \
               node:20-bookworm-slim \
               /work/_restore/gen-cert.sh 2>&1
             sudo chmod 0644 /opt/seald/secrets/seald-pades-prod.crt.pem
