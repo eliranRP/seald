@@ -72,3 +72,14 @@ output "api_iam_role_name" {
   description = "Name of the IAM role attached to the API EC2 instance profile. The sealing-kms module attaches its kms:Sign policy to this role by default."
   value       = aws_iam_role.api.name
 }
+
+# --------------------------------------------------------------------
+# Secrets Manager — exposed so the deploy workflow can echo the ARN
+# into logs (without ever printing the secret material) and so the
+# parallel IAM-role PR can sanity-check the ARN it's attaching to.
+# --------------------------------------------------------------------
+
+output "api_secret_arn" {
+  description = "ARN of the Seald API runtime Secrets Manager entry. Fed into SEALD_API_SECRET_ID at container boot (entrypoint.sh fetches + parses + exports as env vars)."
+  value       = aws_secretsmanager_secret.api.arn
+}

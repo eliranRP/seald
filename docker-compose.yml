@@ -35,6 +35,11 @@ services:
       # migrations. Single-node deploys leave this unset.
       SKIP_MIGRATIONS: "${SKIP_MIGRATIONS:-0}"
       NODE_OPTIONS: --enable-source-maps
+      # AWS Secrets Manager secret id (or ARN). When set, entrypoint.sh
+      # fetches the JSON blob at boot, parses it with jq, and exports
+      # each key as an env var ONLY if currently unset — so anything in
+      # env_file below still wins. Leave empty for local dev.
+      SEALD_API_SECRET_ID: "${SEALD_API_SECRET_ID:-}"
     env_file:
       - apps/api/.env
     expose:
