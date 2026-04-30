@@ -1,6 +1,15 @@
 import { forwardRef, useCallback, useState } from 'react';
-import type { ReactNode } from 'react';
-import { ArrowLeft, Copy, X as XIcon } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bookmark,
+  BookmarkPlus,
+  CheckCircle2,
+  Copy,
+  Group as GroupIcon,
+  Ungroup as UngroupIcon,
+  X as XIcon,
+} from 'lucide-react';
+import { Icon } from '@/components/Icon';
 import { AddSignerDropdown } from '@/components/AddSignerDropdown';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { Button } from '@/components/Button';
@@ -8,7 +17,6 @@ import { CollapsibleRail } from '@/components/CollapsibleRail';
 import { DocumentCanvas } from '@/components/DocumentCanvas';
 import { FieldPalette } from '@/components/FieldPalette';
 import { FieldsPlacedList } from '@/components/FieldsPlacedList';
-import { NavBar } from '@/components/NavBar';
 import { PageThumbRail } from '@/components/PageThumbRail';
 import { PageToolbar } from '@/components/PageToolbar';
 import { PlaceOnPagesPopover } from '@/components/PlaceOnPagesPopover';
@@ -20,6 +28,11 @@ import { SignersPanel } from '@/components/SignersPanel';
 import {
   DEFAULT_LEFT_WIDTH,
   DEFAULT_RIGHT_WIDTH,
+  expandSelectionToGroup,
+  hasAnyGrouped,
+  isFullyGrouped,
+  makeGroupId,
+  withoutGroupId,
   useCanvasDnd,
   useCanvasScroll,
   useCanvasZoom,
@@ -47,13 +60,24 @@ import {
   GroupToolbarButton,
   GroupToolbarLabel,
   MarqueeRect,
+  BannerSlot,
   PageStack,
   RailSlot,
   RightRailFooter,
   RightRailInner,
   RightRailScroll,
+  SaveAsTemplateButton,
+  SaveAsTemplateRow,
   Shell,
   SnapGuide,
+  TemplatePrimaryButton,
+  TemplatePrimaryFooter,
+  TemplatePrimaryStatus,
+  TemplateSummaryBody,
+  TemplateSummaryCard,
+  TemplateSummaryEyebrow,
+  TemplateSummaryIcon,
+  TemplateSummaryText,
   Workspace,
 } from './DocumentPage.styles';
 
@@ -82,16 +106,15 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onSend,
     onSaveDraft,
     onBack,
-    user,
-    onLogoClick,
-    onSelectNavItem,
-    activeNavId = 'sign',
-    navMode,
-    onSignIn,
-    onSignUp,
-    onSignOut,
+    onSaveAsTemplate,
+    banner,
+    sendLabel,
+    templateMode,
+    templateName,
     ...rest
   } = props;
+
+  const isTemplateAuthoring = templateMode === 'authoring';
 
   // -------------------------- chrome state (rail widths + drawer toggles)
   const [leftOpen, setLeftOpen] = useState(true);
@@ -187,6 +210,32 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     setGroupPagesPopoverOpen(true);
   }, [selectedIds]);
 
+  // Persistent group/ungroup actions. "Group" assigns a fresh groupId to
+  // every selected field so they stay bound across selections, drags,
+  // and duplicate-on-pages operations. "Ungroup" strips the groupId off
+  // every selected field, returning them to standalone behavior. Both
+  // record an undo snapshot so the operation is reversible.
+  const groupSelected = useCallback((): void => {
+    if (selectedIds.length < 2) return;
+    if (isFullyGrouped(selectedIds, fields)) return;
+    const newGroupId = makeGroupId();
+    const selectedSet = new Set<string>(selectedIds);
+    pushUndo(fields);
+    onFieldsChange(fields.map((f) => (selectedSet.has(f.id) ? { ...f, groupId: newGroupId } : f)));
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+
+  const ungroupSelected = useCallback((): void => {
+    if (!hasAnyGrouped(selectedIds, fields)) return;
+    const selectedSet = new Set<string>(selectedIds);
+    pushUndo(fields);
+    onFieldsChange(
+      fields.map((f) => {
+        if (!selectedSet.has(f.id) || !f.groupId) return f;
+        return withoutGroupId(f);
+      }),
+    );
+  }, [fields, onFieldsChange, pushUndo, selectedIds]);
+
   const { duplicateField, applySignerSelection, applyPagesSelection, applyGroupPagesSelection } =
     usePlacement({
       fields,
@@ -257,38 +306,9 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     [onCreateSigner],
   );
 
-  // ------------------------------------------------------------------ chrome
-  const logoNode: ReactNode = onLogoClick ? (
-    <button
-      type="button"
-      onClick={onLogoClick}
-      aria-label="Go home"
-      style={{
-        background: 'transparent',
-        border: 'none',
-        padding: 0,
-        cursor: 'pointer',
-        font: 'inherit',
-        color: 'inherit',
-      }}
-    >
-      Seald
-    </button>
-  ) : undefined;
-
   // ------------------------------------------------------------------ render
   return (
     <Shell {...rest} ref={ref}>
-      <NavBar
-        activeItemId={activeNavId}
-        onSelectItem={onSelectNavItem}
-        {...(user ? { user } : {})}
-        {...(logoNode ? { logo: logoNode } : {})}
-        {...(navMode ? { mode: navMode } : {})}
-        {...(onSignIn ? { onSignIn } : {})}
-        {...(onSignUp ? { onSignUp } : {})}
-        {...(onSignOut ? { onSignOut } : {})}
-      />
       <Body>
         <Workspace>
           <CollapsibleRail
@@ -335,6 +355,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 <CenterHeaderSide aria-hidden />
               </CenterHeader>
             </CenterTop>
+
+            {banner ? <BannerSlot>{banner}</BannerSlot> : null}
 
             <CanvasScroll ref={canvasScrollRef}>
               <CenterInner>
@@ -394,15 +416,17 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                       onSelect={(e) => {
                                         e.stopPropagation();
                                         const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-                                        if (additive) {
-                                          setSelectedIds((prev) =>
-                                            prev.includes(field.id)
+                                        // Persistent groups expand to all members so clicking
+                                        // any tile selects the whole group — same gesture for
+                                        // single-click and shift/meta-click.
+                                        setSelectedIds((prev) => {
+                                          const base = additive
+                                            ? prev.includes(field.id)
                                               ? prev.filter((id) => id !== field.id)
-                                              : [...prev, field.id],
-                                          );
-                                        } else {
-                                          setSelectedIds([field.id]);
-                                        }
+                                              : [...prev, field.id]
+                                            : [field.id];
+                                          return expandSelectionToGroup(base, fields);
+                                        });
                                         setSignerPopoverFor(null);
                                         setPagesPopoverFor(null);
                                       }}
@@ -473,6 +497,25 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                     <GroupToolbarLabel>
                                       {selectedIds.length} selected
                                     </GroupToolbarLabel>
+                                    {isFullyGrouped(selectedIds, fields) ? (
+                                      <GroupToolbarButton
+                                        type="button"
+                                        $tone="indigo"
+                                        aria-label="Ungroup selected fields"
+                                        onClick={ungroupSelected}
+                                      >
+                                        <UngroupIcon size={14} strokeWidth={1.75} aria-hidden />
+                                      </GroupToolbarButton>
+                                    ) : (
+                                      <GroupToolbarButton
+                                        type="button"
+                                        $tone="indigo"
+                                        aria-label="Group selected fields"
+                                        onClick={groupSelected}
+                                      >
+                                        <GroupIcon size={14} strokeWidth={1.75} aria-hidden />
+                                      </GroupToolbarButton>
+                                    )}
                                     <GroupToolbarButton
                                       type="button"
                                       $tone="indigo"
@@ -513,7 +556,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
 
           <CollapsibleRail
             side="right"
-            title="Ready to send"
+            title={isTemplateAuthoring ? (templateName ?? 'New template') : 'Ready to send'}
             open={rightOpen}
             onOpenChange={setRightOpen}
             width={rightWidth}
@@ -524,22 +567,43 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           >
             <RightRailInner>
               <RightRailScroll>
-                <div style={ADDDROPDOWN_WRAP_STYLE}>
-                  {addSignerOpen ? (
-                    <AddSignerDropdown
-                      contacts={contacts}
-                      existingContactIds={existingContactIds}
-                      onPick={handlePickContact}
-                      onCreate={handleCreateSigner}
-                      onClose={() => setAddSignerOpen(false)}
+                {isTemplateAuthoring ? (
+                  // Template-authoring mode: explanatory summary card
+                  // sits where the Signers panel would. Signers are
+                  // collected later when the template is *used*, so
+                  // they don't belong in the authoring surface.
+                  <TemplateSummaryCard role="note">
+                    <TemplateSummaryIcon aria-hidden>
+                      <Icon icon={Bookmark} size={16} />
+                    </TemplateSummaryIcon>
+                    <TemplateSummaryBody>
+                      <TemplateSummaryEyebrow>Template</TemplateSummaryEyebrow>
+                      <TemplateSummaryText>
+                        Place fields once. Pick which pages they repeat on. Add signers later, when
+                        you send.
+                      </TemplateSummaryText>
+                    </TemplateSummaryBody>
+                  </TemplateSummaryCard>
+                ) : (
+                  <>
+                    <div style={ADDDROPDOWN_WRAP_STYLE}>
+                      {addSignerOpen ? (
+                        <AddSignerDropdown
+                          contacts={contacts}
+                          existingContactIds={existingContactIds}
+                          onPick={handlePickContact}
+                          onCreate={handleCreateSigner}
+                          onClose={() => setAddSignerOpen(false)}
+                        />
+                      ) : null}
+                    </div>
+                    <SignersPanel
+                      signers={panelSigners}
+                      onRequestAdd={() => setAddSignerOpen((v) => !v)}
+                      {...(onRemoveSigner ? { onRemoveSigner } : {})}
                     />
-                  ) : null}
-                </div>
-                <SignersPanel
-                  signers={panelSigners}
-                  onRequestAdd={() => setAddSignerOpen((v) => !v)}
-                  {...(onRemoveSigner ? { onRemoveSigner } : {})}
-                />
+                  </>
+                )}
                 <FieldsPlacedList
                   fields={fieldsSummary}
                   signers={placedFieldSigners}
@@ -553,14 +617,55 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   onRemoveField={removeField}
                 />
               </RightRailScroll>
-              <RightRailFooter>
-                <SendPanelFooter
-                  fieldCount={fields.length}
-                  signerCount={signers.length}
-                  onSend={onSend}
-                  {...(onSaveDraft ? { onSaveDraft } : {})}
-                />
-              </RightRailFooter>
+              {onSaveAsTemplate && !isTemplateAuthoring ? (
+                <SaveAsTemplateRow>
+                  <SaveAsTemplateButton
+                    type="button"
+                    onClick={onSaveAsTemplate}
+                    disabled={fields.length === 0}
+                    aria-label="Save current layout as a template"
+                  >
+                    <Icon icon={BookmarkPlus} size={14} />
+                    Save as template
+                  </SaveAsTemplateButton>
+                </SaveAsTemplateRow>
+              ) : null}
+              {isTemplateAuthoring ? (
+                <TemplatePrimaryFooter>
+                  <TemplatePrimaryStatus>
+                    <Icon icon={CheckCircle2} size={14} />
+                    {fields.length === 0
+                      ? 'Drop a field to enable saving'
+                      : `${String(fields.length)} ${fields.length === 1 ? 'field' : 'fields'} across ${String(totalPages)} ${totalPages === 1 ? 'page' : 'pages'}`}
+                  </TemplatePrimaryStatus>
+                  <TemplatePrimaryButton
+                    type="button"
+                    onClick={onSaveAsTemplate}
+                    disabled={fields.length === 0 || !onSaveAsTemplate}
+                  >
+                    <Icon icon={Bookmark} size={16} />
+                    Save as template
+                  </TemplatePrimaryButton>
+                </TemplatePrimaryFooter>
+              ) : (
+                <RightRailFooter>
+                  <SendPanelFooter
+                    fieldCount={fields.length}
+                    /* The seald API rejects envelopes without a signature
+                       (`signer_without_signature_field`). Surface the
+                       constraint as a UI gate: count placed signatures
+                       and let SendPanelFooter disable Send until ≥ 1.
+                       Templates flow doesn't go through this branch
+                       (uses TemplatePrimaryFooter above) so this only
+                       applies to the regular envelope flow. */
+                    signatureFieldCount={fields.filter((f) => f.type === 'signature').length}
+                    signerCount={signers.length}
+                    onSend={onSend}
+                    {...(onSaveDraft ? { onSaveDraft } : {})}
+                    {...(sendLabel ? { primaryLabel: sendLabel } : {})}
+                  />
+                </RightRailFooter>
+              )}
             </RightRailInner>
           </CollapsibleRail>
         </Workspace>

@@ -3,12 +3,31 @@ import styled from 'styled-components';
 /**
  * Glass pane that floats against the right edge of the canvas scroll area.
  * The parent `RailSlot` owns the sticky positioning so the rail stays pinned
- * across the full scroll range. A capped `max-height` + internal scroll means
- * the rail stays a fixed width even for 100+ page documents.
+ * across the full scroll range. The rail is internally scrollable so a
+ * 100-page document doesn't blow up its width.
+ *
+ * Sizing: capped at the height of `RailSlot`'s sticky window. The slot
+ * itself uses `top: ${space[6]}` and the canvas scroll provides the
+ * effective viewport. Using `max-height: 100%` (parent-relative)
+ * instead of `calc(100vh - 160px)` keeps the rail honest regardless of
+ * how much chrome sits above the editor — the templates flow stacks
+ * the global NavBar on top of the TemplateFlowHeader, which would push
+ * a viewport-derived rail past its container and get its bottom thumbs
+ * clipped by the parent's `overflow: hidden`. Falling back to a
+ * generous viewport cap for legacy callers (no parent height set) keeps
+ * the original behaviour for the regular editor flow at large
+ * viewports.
  */
 export const Rail = styled.nav`
   width: 76px;
-  max-height: calc(100vh - 160px);
+  /* Cap relative to the viewport, NOT a hard-coded chrome height.
+     Originally 'calc(100vh - 160px)', which assumed only the global
+     NavBar lived above the editor. The templates flow stacks a
+     TemplateFlowHeader sub-chrome on top of the NavBar, pushing the
+     rail past the visible area and clipping bottom thumbs. 80vh is
+     conservative enough for any reasonable chrome height (up to 20vh
+     of page-top affordances) at any practical viewport. */
+  max-height: 80vh;
   overflow-y: auto;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(8px);

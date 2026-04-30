@@ -21,11 +21,11 @@ function useContacts() {
   return [contacts, setContacts];
 }
 
-function TopNav({ onLogo, active='documents', onNav, guest=false, onSignIn, onSignUp }) {
+function TopNav({ onLogo, active='documents', onNav, guest=false, onSignIn, onSignUp, logoSrc='../../assets/logo.svg' }) {
   const items = ['Documents','Contacts'];
   return (
     <div style={{position:'sticky', top:0, zIndex:20, height:56, background:'rgba(255,255,255,0.82)', backdropFilter:'blur(12px)', borderBottom:'1px solid var(--border-1)', display:'flex', alignItems:'center', padding:'0 24px', gap:24}}>
-      <img src="../../assets/logo.svg" height="26" alt="Sealed" onClick={onLogo} style={{cursor:'pointer'}}/>
+      <img src={logoSrc} height="26" alt="Sealed" onClick={onLogo} style={{cursor:'pointer'}}/>
       {guest ? (
         <div style={{display:'inline-flex', alignItems:'center', gap:8, marginLeft:14, padding:'4px 10px', borderRadius:999, background:'var(--ink-100)', border:'1px solid var(--border-1)'}}>
           <Icon name="user" size={12} style={{color:'var(--fg-3)'}}/>
@@ -55,19 +55,20 @@ function TopNav({ onLogo, active='documents', onNav, guest=false, onSignIn, onSi
   );
 }
 
-function LeftRail({ active='sent', onNew }) {
+function LeftRail({ active='sent', onNew, onNav }) {
   const items = [
     { id:'inbox', label:'Inbox', icon:'inbox' },
     { id:'sent', label:'Sent', icon:'send' },
     { id:'drafts', label:'Drafts', icon:'file-text' },
     { id:'completed', label:'Completed', icon:'check-circle-2' },
+    { id:'templates', label:'Templates', icon:'bookmark' },
   ];
   return (
     <div style={{width:240, padding:'16px 12px', borderRight:'1px solid var(--border-1)', height:'calc(100vh - 56px)', position:'sticky', top:56, background:'var(--ink-50)'}}>
       <Button variant="primary" icon="upload-cloud" onClick={onNew} style={{width:'100%', justifyContent:'center'}}>New document</Button>
       <div style={{height:20}}/>
       {items.map(it => (
-        <div key={it.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:10, background: active===it.id?'#fff':'transparent', border: active===it.id?'1px solid var(--border-1)':'1px solid transparent', color: active===it.id?'var(--fg-1)':'var(--fg-2)', fontSize:14, fontWeight: active===it.id?600:500, cursor:'pointer', marginBottom:2}}>
+        <div key={it.id} onClick={()=>onNav && onNav(it.id)} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:10, background: active===it.id?'#fff':'transparent', border: active===it.id?'1px solid var(--border-1)':'1px solid transparent', color: active===it.id?'var(--fg-1)':'var(--fg-2)', fontSize:14, fontWeight: active===it.id?600:500, cursor:'pointer', marginBottom:2}}>
           <Icon name={it.icon} size={16} style={{color: active===it.id?'var(--indigo-600)':'var(--fg-3)'}}/>
           <span style={{flex:1}}>{it.label}</span>
         </div>
@@ -76,7 +77,7 @@ function LeftRail({ active='sent', onNew }) {
   );
 }
 
-function UploadScreen({ onNext }) {
+function UploadScreen({ onNext, title, subtitle, dropTitle, dropSubtitle }) {
   // Loader states: idle → uploading → analyzing → ready
   const [phase, setPhase] = useState('idle'); // 'idle' | 'uploading' | 'analyzing' | 'ready'
   const [progress, setProgress] = useState(0);
@@ -131,8 +132,8 @@ function UploadScreen({ onNext }) {
 
   return (
     <div style={{padding:'48px 48px 80px', maxWidth:960, margin:'0 auto'}}>
-      <div style={{fontFamily:'var(--font-serif)', fontSize:40, fontWeight:500, color:'var(--fg-1)', letterSpacing:'-0.02em', lineHeight:1.1}}>Start a new document</div>
-      <div style={{fontSize:16, color:'var(--fg-3)', marginTop:10, lineHeight:1.55}}>Drop a PDF, or choose from your computer. We'll walk you through placing signature fields and sending it off.</div>
+      <div style={{fontFamily:'var(--font-serif)', fontSize:40, fontWeight:500, color:'var(--fg-1)', letterSpacing:'-0.02em', lineHeight:1.1}}>{title || 'Start a new document'}</div>
+      <div style={{fontSize:16, color:'var(--fg-3)', marginTop:10, lineHeight:1.55}}>{subtitle || `Drop a PDF, or choose from your computer. We'll walk you through placing signature fields and sending it off.`}</div>
 
       {phase === 'idle' && (
         <div
@@ -148,8 +149,8 @@ function UploadScreen({ onNext }) {
           }}
         >
           <div style={{width:64,height:64,borderRadius:999,background:'var(--indigo-50)',display:'inline-flex',alignItems:'center',justifyContent:'center',color:'var(--indigo-600)',marginBottom:20}}><Icon name="upload-cloud" size={28}/></div>
-          <div style={{fontFamily:'var(--font-serif)',fontSize:24,fontWeight:500,color:'var(--fg-1)'}}>Drop your PDF here</div>
-          <div style={{fontSize:14,color:'var(--fg-3)',marginTop:8}}>or choose a file from your computer · up to 25 MB</div>
+          <div style={{fontFamily:'var(--font-serif)',fontSize:24,fontWeight:500,color:'var(--fg-1)'}}>{dropTitle || 'Drop your PDF here'}</div>
+          <div style={{fontSize:14,color:'var(--fg-3)',marginTop:8}}>{dropSubtitle || 'or choose a file from your computer · up to 25 MB'}</div>
           <div style={{display:'flex',gap:10,justifyContent:'center',marginTop:24}}>
             <Button variant="primary" onClick={pickFile}>Choose file</Button>
           </div>
@@ -398,17 +399,18 @@ function PageCanvas({
   );
 }
 
-function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages = 12, guest = false }) {
-  const [signers, setSigners] = useState(() => guest ? [] : [
+function PlaceFieldsScreen({ onNext, onBack, onSave, contacts, setContacts, totalPages = 12, guest = false, templateMode = false, templateName = '', prefilledFields, prefilledSigners, applyBanner, primaryLabel, primaryIcon }) {
+  const [signers, setSigners] = useState(() => prefilledSigners || (guest ? [] : [
     { id:'s1', contactId:'c1', name:'Eliran Azulay',    email:'eliran@azulay.co', color:'#F472B6' },
     { id:'s2', contactId:'c2', name:'Nitsan Yanovitch', email:'nitsan@yanov.co',  color:'#7DD3FC' },
-  ]);
-  const [currentPage, setCurrentPage] = useState(guest ? 1 : 4);
+  ]));
+  const [currentPage, setCurrentPage] = useState(guest ? 1 : (prefilledFields && prefilledFields[0] ? prefilledFields[0].page : 4));
   // fields: array of {id, page, type, x, y, signerIds:[]}
-  const [fields, setFields] = useState(() => guest ? [] : [
+  const [fields, setFields] = useState(() => prefilledFields || (guest ? [] : [
     { id:'f1', page:4, type:'signature', x: 60, y: 560, signerIds:['s1'] },
     { id:'f2', page:4, type:'signature', x: 272, y: 560, signerIds:['s2'] },
-  ]);
+  ]));
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]); // multi-select (group)
   const [marquee, setMarquee] = useState(null); // {x1,y1,x2,y2}
@@ -536,7 +538,13 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
     };
     setFields(fs => [...fs, newField]);
     setSelectedFieldId(newField.id);
-    setSignerPopover({ fieldId: newField.id, screenX: e.clientX, screenY: e.clientY });
+    // Templates: ask "where does this repeat?" right after dropping.
+    // Signing: ask "who fills this?" — the existing behavior.
+    if (templateMode) {
+      setPagesPopover({ fieldId: newField.id, screenX: e.clientX, screenY: e.clientY });
+    } else {
+      setSignerPopover({ fieldId: newField.id, screenX: e.clientX, screenY: e.clientY });
+    }
     setDragType(null);
     setActiveZone(null);
     setDragHoverPos(null);
@@ -641,7 +649,9 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
           <FieldPaletteItem key={f.k} f={f} onDragStart={()=>setDragType(f.k)}/>
         ))}
         <div style={{marginTop:18,padding:'12px 12px',background:'var(--indigo-50)',borderRadius:10,fontSize:12,color:'var(--indigo-800)',lineHeight:1.5}}>
-          {guest && signers.length === 0
+          {templateMode
+            ? <><b style={{color:'var(--indigo-900)'}}>Drop a field anywhere.</b> We'll ask which pages it should repeat on — initials on every page, signature on the last, that sort of thing.</>
+            : guest && signers.length === 0
             ? <><b style={{color:'var(--indigo-900)'}}>Start here:</b> add a signer using the <span style={{whiteSpace:'nowrap'}}>+ button</span> on the right, then drag fields onto the page.</>
             : <>Drag a field onto the page. You'll pick which signers fill it.</>}
         </div>
@@ -709,6 +719,26 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
         </div>
 
         <div ref={canvasRef} style={{position:'relative', display:'flex', flexDirection:'column', alignItems:'center', gap:24}}>
+          {applyBanner && !bannerDismissed && (
+            <div style={{
+              width: 612, marginBottom: 4, padding:'14px 16px',
+              background: 'linear-gradient(180deg, #fff, var(--indigo-50))',
+              border: '1px solid var(--indigo-200)',
+              borderRadius: 14, boxShadow: 'var(--shadow-md)',
+              display:'flex', alignItems:'flex-start', gap:12,
+            }}>
+              <div style={{width:32,height:32,borderRadius:8,background:'var(--indigo-600)',color:'#fff',display:'inline-flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <Icon name="bookmark-check" size={16}/>
+              </div>
+              <div style={{flex:1, minWidth:0}}>
+                <div style={{fontSize:14, fontWeight:600, color:'var(--fg-1)'}}>{applyBanner.title}</div>
+                <div style={{fontSize:12.5, color:'var(--fg-3)', marginTop:3, lineHeight:1.5}}>{applyBanner.subtitle}</div>
+              </div>
+              <button onClick={()=>setBannerDismissed(true)} title="Dismiss" style={{background:'transparent',border:'none',padding:6,borderRadius:6,cursor:'pointer',color:'var(--fg-3)',flexShrink:0}}>
+                <Icon name="x" size={16}/>
+              </button>
+            </div>
+          )}
           {Array.from({length: totalPages}, (_, i) => i + 1).map(pageNum => {
             const isLast = pageNum === totalPages;
             const zones = getSignZonesForPage(pageNum, totalPages);
@@ -803,9 +833,19 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
       </div>
 
       {/* Right rail — signers (compact) + fields summary + Send CTA pinned to bottom */}
-      <CollapsibleRail side="right" open={rightOpen} setOpen={setRightOpen} width={rightW} setWidth={setRightW} minW={280} maxW={440} title="Ready to send" noPad>
+      <CollapsibleRail side="right" open={rightOpen} setOpen={setRightOpen} width={rightW} setWidth={setRightW} minW={280} maxW={440} title={templateMode ? (templateName || 'Template') : 'Ready to send'} noPad>
         <div style={{display:'flex',flexDirection:'column',height:'100%'}}>
           <div style={{flex:1,overflow:'auto',padding:'14px 16px'}}>
+            {templateMode && (
+              <div style={{padding:'12px 14px',background:'var(--indigo-50)',border:'1px solid var(--indigo-200)',borderRadius:12,marginBottom:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
+                  <Icon name="bookmark" size={14} style={{color:'var(--indigo-700)'}}/>
+                  <div style={{fontSize:12,fontWeight:700,color:'var(--indigo-900)',letterSpacing:'0.04em',textTransform:'uppercase'}}>Template</div>
+                </div>
+                <div style={{fontSize:12,color:'var(--indigo-800)',lineHeight:1.55}}>Place fields once. Pick which pages they repeat on. Add signers later, when you send.</div>
+              </div>
+            )}
+            {!templateMode && <>
             {/* Signers: compact chips (like reference) */}
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
               <div style={{fontSize:12,fontWeight:600,color:'var(--fg-1)'}}>Signers</div>
@@ -836,12 +876,51 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
                 />
               )}
             </div>
+            </>}
 
             {/* Fields summary */}
             <div style={{fontSize:12,fontWeight:600,color:'var(--fg-1)',margin:'4px 0 10px'}}>Fields placed</div>
             {fields.length===0 ? (
               <div style={{padding:'14px 14px',border:'1px dashed var(--border-2)',borderRadius:12,fontSize:12,color:'var(--fg-3)',lineHeight:1.5,background:'var(--ink-50)'}}>
                 Drag a field from the left onto the page to get started.
+              </div>
+            ) : templateMode ? (
+              // Group fields by (type, x, y) — those duplicated across pages share an anchor.
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {(() => {
+                  const groups = [];
+                  for (const f of fields) {
+                    const key = `${f.type}|${Math.round(f.x)}|${Math.round(f.y)}`;
+                    let g = groups.find(x => x.key === key);
+                    if (!g) { g = { key, type:f.type, x:f.x, y:f.y, pages:[], anchorId:f.id }; groups.push(g); }
+                    g.pages.push(f.page);
+                  }
+                  const scopeLabel = (pages) => {
+                    const sorted = [...new Set(pages)].sort((a,b)=>a-b);
+                    if (sorted.length === totalPages) return 'All pages';
+                    if (sorted.length === totalPages - 1 && !sorted.includes(totalPages)) return 'All but last';
+                    if (sorted.length === 1 && sorted[0] === totalPages) return 'Last page only';
+                    if (sorted.length === 1) return `Page ${sorted[0]} only`;
+                    if (sorted.length <= 4) return `Pages ${sorted.join(', ')}`;
+                    return `${sorted.length} pages`;
+                  };
+                  return groups.map(g => {
+                    const t = FIELD_TYPES.find(x=>x.k===g.type);
+                    const isSelected = g.pages.length > 0 && fields.find(f=>f.id===selectedFieldId && f.type===g.type && Math.round(f.x)===Math.round(g.x) && Math.round(f.y)===Math.round(g.y));
+                    return (
+                      <div key={g.key} onClick={(e)=>{e.stopPropagation(); setCurrentPage(g.pages[0]); setSelectedFieldId(g.anchorId);}} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,background:isSelected?'var(--indigo-50)':'#fff',border:`1px solid ${isSelected?'var(--indigo-300)':'var(--border-1)'}`,cursor:'pointer'}}>
+                        <Icon name={t?.i||'pen-tool'} size={14} style={{color:'var(--indigo-600)',flexShrink:0}}/>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,fontWeight:600,color:'var(--fg-1)'}}>{t?.l||'Field'}</div>
+                          <div style={{fontSize:11,color:'var(--fg-3)',marginTop:2,display:'inline-flex',alignItems:'center',gap:5}}>
+                            <Icon name="copy" size={10}/>{scopeLabel(g.pages)}
+                          </div>
+                        </div>
+                        <span style={{fontSize:11,fontFamily:'var(--font-mono)',color:'var(--indigo-700)',background:'var(--indigo-50)',padding:'2px 7px',borderRadius:999,fontWeight:700}}>×{g.pages.length}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             ) : (
               <div style={{display:'flex',flexDirection:'column',gap:6}}>
@@ -870,8 +949,8 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
             <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,fontSize:12,color: fields.length?'var(--success-700)':'var(--fg-3)'}}>
               <Icon name={fields.length?'check-circle-2':'circle-dashed'} size={14}/>
               {fields.length
-                ? <span><b style={{color:'var(--fg-1)'}}>{fields.length}</b> field{fields.length===1?'':'s'} · {signers.length} signer{signers.length===1?'':'s'}</span>
-                : <span>Place at least one field to enable sending</span>}
+                ? <span><b style={{color:'var(--fg-1)'}}>{fields.length}</b> field{fields.length===1?'':'s'} {templateMode ? `across ${totalPages} pages` : `· ${signers.length} signer${signers.length===1?'':'s'}`}</span>
+                : <span>{templateMode ? 'Place at least one field to save the template' : 'Place at least one field to enable sending'}</span>}
             </div>
             <button
               disabled={!fields.length}
@@ -890,11 +969,13 @@ function PlaceFieldsScreen({ onNext, onBack, contacts, setContacts, totalPages =
               onMouseUp={(e)=>{ e.currentTarget.style.transform='translateY(0)'; }}
               onMouseLeave={(e)=>{ e.currentTarget.style.transform='translateY(0)'; }}
             >
-              Send to Sign
-              <Icon name="arrow-right" size={16}/>
+              {primaryLabel || (templateMode ? 'Save template' : 'Send to Sign')}
+              <Icon name={primaryIcon || (templateMode ? 'bookmark' : 'arrow-right')} size={16}/>
             </button>
             <div style={{display:'flex',justifyContent:'center',marginTop:10}}>
-              <button style={{background:'transparent',border:'none',color:'var(--fg-3)',fontSize:12,fontWeight:500,cursor:'pointer',padding:'4px 6px'}}>Save as draft</button>
+              {onSave
+                ? <button onClick={onSave} style={{background:'transparent',border:'1px solid var(--border-1)',color:'var(--fg-2)',fontSize:12,fontWeight:600,cursor:'pointer',padding:'6px 12px',borderRadius:999,display:'inline-flex',alignItems:'center',gap:6}}><Icon name="save" size={12}/> Save changes</button>
+                : <button style={{background:'transparent',border:'none',color:'var(--fg-3)',fontSize:12,fontWeight:500,cursor:'pointer',padding:'4px 6px'}}>{templateMode ? 'Save & close later' : 'Save as draft'}</button>}
             </div>
           </div>
         </div>

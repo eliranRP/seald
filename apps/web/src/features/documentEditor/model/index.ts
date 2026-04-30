@@ -14,7 +14,12 @@ export {
   clampZoom,
   makeId,
   makeLinkId,
+  makeGroupId,
   resolveTargetPages,
+  expandSelectionToGroup,
+  isFullyGrouped,
+  hasAnyGrouped,
+  withoutGroupId,
 } from './lib';
 export { useCanvasZoom } from './useCanvasZoom';
 export { useUndoStack } from './useUndoStack';

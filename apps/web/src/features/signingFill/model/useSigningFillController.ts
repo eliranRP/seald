@@ -87,7 +87,7 @@ export function useSigningFillController({
   envelopeId,
 }: UseSigningFillControllerArgs): UseSigningFillControllerReturn {
   const navigate = useNavigate();
-  const { fillField, setSignature, decline, nextField } = useSigningSession();
+  const { fillField, setSignature, decline, nextField, fields } = useSigningSession();
 
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [textDrawer, setTextDrawer] = useState<TextDrawerState | null>(null);
@@ -108,14 +108,46 @@ export function useSigningFillController({
   const closeTextDrawer = useCallback(() => setTextDrawer(null), []);
   const closeSigDrawer = useCallback(() => setSigDrawer(null), []);
 
+  /**
+   * Auto-advance: after a successful field apply, scroll to and
+   * activate the next required unfilled field. Skips the just-filled
+   * id so a stale closure (which still sees the field as unfilled)
+   * doesn't ping-pong back to the same field.
+   *
+   * Implements the "should move automatically to the next place where
+   * the user should click to sign" feature — replaces the manual
+   * tap-on-the-pill flow that used to require operator effort
+   * between every field. Plain functions (not memoized) so they always
+   * close over the freshest `fields` snapshot; the callbacks that
+   * invoke them list `fields` in their deps so the captured helpers
+   * stay current.
+   */
+  function findNextAfter(skipId: string): SignMeField | null {
+    for (const f of fields) {
+      if (!f.required) continue;
+      if (f.id === skipId) continue;
+      if (!fieldIsFilled(f)) return f;
+    }
+    return null;
+  }
+  function advanceTo(target: SignMeField | null): void {
+    if (!target) return;
+    scrollToField(target);
+    setActiveFieldId(target.id);
+  }
+
   const handleFieldClick = useCallback(
     async (field: SignMeField): Promise<void> => {
       setError(null);
       setActiveFieldId(field.id);
       const uiKind = toUiKind(field);
       if (uiKind === 'checkbox') {
+        // Toggling a checkbox FROM filled→unfilled shouldn't auto-
+        // advance — the user is correcting a mistake, not progressing.
+        // Only chase the next field when the click filled the box.
+        const willBeFilled = !fieldIsFilled(field);
         try {
-          await fillField(field.id, { value_boolean: !fieldIsFilled(field) });
+          await fillField(field.id, { value_boolean: willBeFilled });
         } catch (err) {
           const e = err as ApiErrorLike;
           if (e.status === 401 || e.status === 410) {
@@ -123,7 +155,9 @@ export function useSigningFillController({
             return;
           }
           setError(e.message ?? 'Could not save that change. Please try again.');
+          return;
         }
+        if (willBeFilled) advanceTo(findNextAfter(field.id));
         return;
       }
       if (uiKind === 'signature' || uiKind === 'initials') {
@@ -152,7 +186,9 @@ export function useSigningFillController({
               return;
             }
             setError(e.message ?? 'Could not apply your signature. Please try again.');
+            return;
           }
+          advanceTo(findNextAfter(field.id));
           return;
         }
         setSigDrawer({ field, kind: uiKind });
@@ -162,7 +198,8 @@ export function useSigningFillController({
         setTextDrawer({ field, kind: uiKind });
       }
     },
-    [envelopeId, fillField, navigate, setSignature],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the inline `findNextAfter`/`advanceTo` close over `fields`; listed here so the callback re-binds when fields change instead of running against a stale snapshot.
+    [envelopeId, fillField, navigate, setSignature, fields],
   );
 
   // "Next field" / jump-to-next-zone: scroll + highlight only. We deliberately
@@ -189,9 +226,13 @@ export function useSigningFillController({
           return;
         }
         setError(e.message ?? 'Could not save that field. Please try again.');
+        return;
       }
+      // Auto-advance after a successful text fill.
+      advanceTo(findNextAfter(id));
     },
-    [envelopeId, fillField, navigate, textDrawer],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
+    [envelopeId, fillField, navigate, textDrawer, fields],
   );
 
   const handleSignatureApply = useCallback(
@@ -230,9 +271,13 @@ export function useSigningFillController({
           return;
         }
         setError(e.message ?? 'Could not save your signature. Please try again.');
+        return;
       }
+      // Auto-advance after a successful signature/initials apply.
+      advanceTo(findNextAfter(id));
     },
-    [envelopeId, navigate, setSignature, sigDrawer],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
+    [envelopeId, navigate, setSignature, sigDrawer, fields],
   );
 
   const handleReview = useCallback((): void => {

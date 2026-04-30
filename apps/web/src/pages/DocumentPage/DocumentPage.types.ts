@@ -1,5 +1,4 @@
-import type { HTMLAttributes } from 'react';
-import type { NavBarMode, NavBarUser } from '@/components/NavBar/NavBar.types';
+import type { HTMLAttributes, ReactNode } from 'react';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
@@ -15,11 +14,11 @@ export interface DocumentPageSigner {
 }
 
 /**
- * L4 page — full "place fields" workspace. Composes the NavBar + SideBar chrome,
- * a resizable left rail (field palette), a centered canvas with a page toolbar
- * and page-thumb strip, and a right rail with signer chips, a fields summary,
- * and the send CTA. Popovers for signer selection and page placement are
- * owned internally.
+ * L4 page — full "place fields" workspace. The NavBar is provided by the
+ * parent `AppShell` layout; this page renders a resizable left rail (field
+ * palette), a centered canvas with a page toolbar and page-thumb strip, and
+ * a right rail with signer chips, a fields summary, and the send CTA.
+ * Popovers for signer selection and page placement are owned internally.
  *
  * State model: the page is **fields-controlled**. Callers hold the
  * `fields` list and receive a replacement list via `onFieldsChange` on every
@@ -62,16 +61,49 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   readonly onSend: () => void;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
-
-  // Chrome ----------------------------------------------------------------
-  readonly user?: NavBarUser | undefined;
-  readonly onLogoClick?: (() => void) | undefined;
-  readonly onSelectNavItem?: ((id: string) => void) | undefined;
-  readonly activeNavId?: string | undefined;
-  readonly navMode?: NavBarMode | undefined;
-  readonly onSignIn?: (() => void) | undefined;
-  readonly onSignUp?: (() => void) | undefined;
-  readonly onSignOut?: (() => void) | undefined;
+  /**
+   * Persist the current placed-fields layout as a reusable template.
+   * When provided, the right rail renders a "Save as template"
+   * affordance below the signers/fields summary. The route wrapper
+   * owns the persistence (POST /templates) — the page just surfaces
+   * the trigger so the editor stays presentation-only.
+   */
+  readonly onSaveAsTemplate?: (() => void) | undefined;
+  /**
+   * Optional contextual banner above the canvas. Used when the draft
+   * was started from a saved template — see TemplateModeBanner for
+   * the canonical rendering. Rendered inline above the canvas;
+   * presence of this slot does not change layout when omitted.
+   */
+  readonly banner?: ReactNode | undefined;
+  /**
+   * Override the right-rail send button copy + icon. Defaults stay as
+   * `Send to sign`. Templates flip this to `Save as template` when the
+   * sender is authoring a brand-new template (no envelope to send yet).
+   */
+  readonly sendLabel?: string | undefined;
+  /** Override the icon shown on the send button. */
+  readonly sendIconName?: 'send' | 'bookmark' | undefined;
+  /**
+   * When set, the right rail renders the templates flow surface
+   * instead of the signing-flow Signers + Fields panels:
+   *   - 'authoring' → TEMPLATE summary card + Fields-placed list,
+   *                   primary CTA "Save as template" (no signers
+   *                   section). Used by `mode='new'` of the templates
+   *                   wizard.
+   *   - 'using'     → keep Signers + Fields panels, but the primary
+   *                   CTA reads "Send to sign" + the optional
+   *                   secondary "Save as template" affordance is
+   *                   hidden (saving back goes through the
+   *                   SendConfirmDialog instead).
+   */
+  readonly templateMode?: 'authoring' | 'using' | undefined;
+  /**
+   * Display name of the template being authored / used. Drives the
+   * right-rail title in template mode and the TEMPLATE summary card
+   * heading. Defaults to "New template" for `templateMode='authoring'`.
+   */
+  readonly templateName?: string | undefined;
 }
 
 export type { PlacePagesMode };

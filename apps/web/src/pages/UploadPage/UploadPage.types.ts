@@ -1,5 +1,4 @@
 import type { HTMLAttributes, ReactNode } from 'react';
-import type { NavBarMode, NavBarUser } from '@/components/NavBar/NavBar.types';
 
 /**
  * Error codes emitted when a file fails validation before `onFileSelected`
@@ -19,7 +18,8 @@ export type UploadPageErrorCode = 'type' | 'size';
 export type UploadPageStatus = 'idle' | 'analyzing';
 
 /**
- * L4 page — composes NavBar + a centered upload dropzone.
+ * L4 page — centered upload dropzone. The NavBar is provided by the parent
+ * `AppShell` layout; this page renders only the dropzone body.
  *
  * The page owns no persistent state. It drives drag-over visuals and file
  * validation, then bubbles the chosen `File` up via `onFileSelected`.
@@ -29,17 +29,6 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly onFileSelected: (file: File) => void;
   /** Fires instead of `onFileSelected` when the file fails `accept` or `maxSizeBytes`. */
   readonly onError?: ((code: UploadPageErrorCode, message: string) => void) | undefined;
-
-  // Chrome ----------------------------------------------------------------
-  readonly onLogoClick?: (() => void) | undefined;
-  readonly onSelectNavItem?: ((id: string) => void) | undefined;
-  readonly activeNavId?: string | undefined;
-  readonly user?: NavBarUser | undefined;
-  /** NavBar mode: `authed` renders the avatar, `guest` renders Sign in / Sign up CTAs. */
-  readonly navMode?: NavBarMode | undefined;
-  readonly onSignIn?: (() => void) | undefined;
-  readonly onSignUp?: (() => void) | undefined;
-  readonly onSignOut?: (() => void) | undefined;
 
   // Dropzone copy / limits -----------------------------------------------
   readonly title?: string | undefined;

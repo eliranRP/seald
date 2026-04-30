@@ -101,13 +101,6 @@ describe('UploadPage', () => {
     expect(onFileSelected).toHaveBeenCalledTimes(1);
   });
 
-  it('calls onLogoClick when the logo button is activated', () => {
-    const onLogoClick = vi.fn();
-    renderPage({ onLogoClick });
-    fireEvent.click(screen.getByRole('button', { name: /go home/i }));
-    expect(onLogoClick).toHaveBeenCalledTimes(1);
-  });
-
   it('has no axe violations', async () => {
     const { container } = renderPage();
     expect(await axe(container)).toHaveNoViolations();

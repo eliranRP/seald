@@ -4,7 +4,8 @@ import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { UploadRoute } from './UploadRoute';
-import { TEMPLATES } from '../features/templates';
+import { setTemplates } from '../features/templates';
+import { SAMPLE_TEMPLATES as TEMPLATES } from '../test/templateFixtures';
 
 // `UploadRoute` calls `usePdfDocument` to learn the page count of the
 // uploaded file. pdfjs is impractical to drive in jsdom, so the test
@@ -18,29 +19,27 @@ vi.mock('../lib/pdf', () => ({
   }),
 }));
 
-// `CreateSignatureRequestDialog` pulls in heavy chrome that isn't
-// relevant to the template-wiring assertions; replace it with a tiny
-// shim that exposes "Add Jamie" + "Apply" buttons so we can drive the
-// flow deterministically.
-vi.mock('../components/CreateSignatureRequestDialog', () => ({
-  CreateSignatureRequestDialog: (props: {
-    open: boolean;
+// `SignersStepCard` is the same widget the templates wizard uses;
+// stub it to a tiny shim with "Add Jamie" + "Apply" + a signer-count
+// readout so tests can drive the flow deterministically without the
+// inline contact picker's full DOM tree.
+vi.mock('../components/SignersStepCard', () => ({
+  SignersStepCard: (props: {
     signers: ReadonlyArray<{ readonly id: string; readonly name: string }>;
-    onAddFromContact: (c: {
+    onPickContact: (c: {
       readonly id: string;
       readonly name: string;
       readonly email: string;
       readonly color: string;
     }) => void;
-    onApply: () => void;
-  }): JSX.Element | null => {
-    if (!props.open) return null;
+    onContinue: () => void;
+  }): JSX.Element => {
     return (
       <div data-testid="signer-dialog">
         <button
           type="button"
           onClick={() =>
-            props.onAddFromContact({
+            props.onPickContact({
               id: 'c-jamie',
               name: 'Jamie Okonkwo',
               email: 'jamie@seald.app',
@@ -50,7 +49,7 @@ vi.mock('../components/CreateSignatureRequestDialog', () => ({
         >
           Add Jamie
         </button>
-        <button type="button" onClick={() => props.onApply()}>
+        <button type="button" onClick={() => props.onContinue()}>
           Apply
         </button>
         <span data-testid="signer-count">{props.signers.length}</span>
@@ -97,11 +96,16 @@ describe('UploadRoute (template integration)', () => {
   beforeEach(() => {
     consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Production seed is empty; tests need fixtures so `findTemplateById`
+    // returns the right record. Reset between tests so fixtures don't
+    // leak across the suite.
+    setTemplates(TEMPLATES);
   });
 
   afterEach(() => {
     consoleInfoSpy.mockRestore();
     consoleWarnSpy.mockRestore();
+    setTemplates([]);
   });
 
   it('renders the "Using template" banner when ?template= matches a known id', () => {
@@ -155,5 +159,56 @@ describe('UploadRoute (template integration)', () => {
     expect(consoleInfoSpy).toHaveBeenCalledWith(
       expect.stringContaining(`uses_count++ for ${SAMPLE.id}`),
     );
+  });
+
+  // Regression for the "signers display more than once" bug. The
+  // templates wizard hands off `templateSigners` via `location.state`;
+  // UploadRoute clears that state on mount (so back-then-forward
+  // doesn't re-apply a stale File). Before the fix, `handoffHasSigners`
+  // re-derived from `location.state` every render, so it flipped
+  // `true → false` the moment the clear-state effect ran, which
+  // un-suppressed the auto-open dialog and surfaced the picker AGAIN
+  // with the same chips. Capturing the handoff into local state on
+  // first render keeps the suppression sticky for the lifetime of
+  // the route.
+  it('does not re-open the signer dialog when handoff carries signers', async () => {
+    function HandoffEntry() {
+      const navigate = useLocation();
+      // Just exercise that the component renders; the navigate call
+      // happens via initialEntries.state below.
+      return <div data-testid="entry">{navigate.pathname}</div>;
+    }
+    function renderHandoff() {
+      return renderWithProviders(
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/document/new',
+              state: {
+                pendingFile: makePdf('handoff.pdf'),
+                templateSigners: [
+                  { id: 'c-jamie', name: 'Jamie', email: 'jamie@seald.app', color: '#818CF8' },
+                ],
+              },
+            },
+          ]}
+        >
+          <Routes>
+            <Route path="/document/new" element={<UploadRoute />} />
+            <Route path="/document/:id" element={<DocumentProbe />} />
+            <Route path="*" element={<HandoffEntry />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+    renderHandoff();
+    // The dialog must NOT auto-open — the wizard already collected
+    // these signers. Once `numPages > 0` resolves (mocked as 6 above),
+    // the auto-confirm effect should land us on `/document/:id`
+    // without ever showing the picker.
+    await waitFor(() => {
+      expect(screen.getByTestId('doc-probe')).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId('signer-dialog')).toBeNull();
   });
 });

@@ -3,7 +3,13 @@ import type { DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { DocumentPageSigner } from '@/pages/DocumentPage/DocumentPage.types';
-import { FIELD_HEIGHT, FIELD_WIDTH, MARQUEE_THRESHOLD, makeId } from './lib';
+import {
+  FIELD_HEIGHT,
+  FIELD_WIDTH,
+  MARQUEE_THRESHOLD,
+  expandSelectionToGroup,
+  makeId,
+} from './lib';
 
 interface MarqueeRect {
   readonly x: number;
@@ -92,16 +98,24 @@ export function useCanvasDnd({
       const x = Math.max(0, Math.round(localX - FIELD_WIDTH / 2));
       const y = Math.max(0, Math.round(localY - FIELD_HEIGHT / 2));
 
-      // Pre-populate signers with everyone so the common case ("everyone signs
-      // this") is a single confirmation click. The popover opens immediately
-      // so the user can adjust.
+      // Drop a single placeholder pre-populated with every signer, then
+      // open the SelectSignersPopover so the user explicitly chooses
+      // which signers own this field. `applySignerSelection` handles
+      // the rest: 1 signer → keep the single field, 2+ signers → split
+      // into N side-by-side ungrouped tiles (mirrors the popover's
+      // Apply path so all multi-signer flows route through the same
+      // assignment UI). Previously the multi-signer branch split
+      // silently and skipped the popover, which left users with no
+      // way to say "this single field is for just one of the
+      // signers" without first deleting the auto-generated extras.
+      const signerIds = signers.map((s) => s.id);
       const dropped: PlacedFieldValue = {
         id: makeId(),
         page: dropPage,
         type: kind,
         x,
         y,
-        signerIds: signers.map((s) => s.id),
+        signerIds,
       };
       pushUndo(fields);
       onFieldsChange([...fields, dropped]);
@@ -173,7 +187,15 @@ export function useCanvasDnd({
             const fh = f.height ?? FIELD_HEIGHT;
             return f.x < r.x + r.w && f.x + fw > r.x && f.y < r.y + r.h && f.y + fh > r.y;
           });
-        setSelectedIds(hit.map((f) => f.id));
+        // Persistent groups (set via the GroupToolbar's "Group" button)
+        // expand the marquee selection so partial captures still pick
+        // up every group member — that's what makes drag/duplicate
+        // operate on the whole group.
+        const expanded = expandSelectionToGroup(
+          hit.map((f) => f.id),
+          fields,
+        );
+        setSelectedIds(expanded);
         setSignerPopoverFor(null);
         setPagesPopoverFor(null);
         suppressNextBgClickRef.current = true;

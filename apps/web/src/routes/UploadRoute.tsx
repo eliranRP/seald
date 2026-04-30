@@ -1,50 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { UploadPage } from '../pages/UploadPage';
-import { CreateSignatureRequestDialog } from '../components/CreateSignatureRequestDialog';
+import { SignersStepCard } from '../components/SignersStepCard';
+import type { SignersStepSigner } from '../components/SignersStepCard';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
-import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
-import type { FieldKind } from '../features/envelopes';
 import { useAppState } from '../providers/AppStateProvider';
-import { useAuth } from '../providers/AuthProvider';
 import { usePdfDocument } from '../lib/pdf';
-import { NAV_ITEMS } from '../layout/navItems';
 import {
   findTemplateById,
+  rebindFieldsToSigners,
   resolveTemplateFields,
-  type ResolvedField,
-  type TemplateFieldType,
   type TemplateSummary,
 } from '../features/templates';
 
 const TEMPLATE_QUERY_PARAM = 'template';
-
-// Template field kinds use the singular `initial`; `PlacedFieldValue.type`
-// uses the canonical `FieldKind` ('initials'). Keep the mapping local to the
-// upload route — templates are otherwise an isolated authoring concept.
-const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
-  signature: 'signature',
-  initial: 'initials',
-  date: 'date',
-  text: 'text',
-  checkbox: 'checkbox',
-};
-
-function templateFieldsToPlaced(
-  resolved: ReadonlyArray<ResolvedField>,
-): ReadonlyArray<PlacedFieldValue> {
-  return resolved.map((rf) => ({
-    id: rf.id,
-    page: rf.page,
-    type: TEMPLATE_TO_FIELD_KIND[rf.type],
-    x: rf.x,
-    y: rf.y,
-    // No signer assigned yet — sender will pick signers in the dialog and
-    // assign them to fields once the editor opens. Empty array keeps the
-    // PlacedFieldValue contract.
-    signerIds: [],
-  }));
-}
 
 /**
  * Route wrapper around `UploadPage` that gates document creation on the
@@ -59,14 +28,57 @@ function templateFieldsToPlaced(
  * draft so the editor renders them immediately. "Clear template" strips
  * the query arg and resets the pending field state.
  */
+/**
+ * Soft handshake from the templates wizard. When the user arrives via
+ * `/templates/:id/use` Step 2 → Step 3, the wizard forwards the picked
+ * PDF + signers via `location.state` so the editor can skip its own
+ * upload screen and the signer dialog opens already populated. Each
+ * field is optional — direct visits to `/document/new` from the nav
+ * have no state and the route falls back to its standalone behavior.
+ */
+interface UploadRouteHandoffState {
+  readonly pendingFile?: File;
+  readonly templateSigners?: ReadonlyArray<AddSignerContact>;
+  // Optional renamed title from the wizard. `string | undefined` (NOT
+  // `string | null`) so it follows the project's exactOptionalPropertyTypes
+  // convention — absent vs. present, no third "explicit null" form.
+  readonly templateRename?: string;
+}
+
 export function UploadRoute() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, contacts, createDocument, addContact, updateDocument } = useAppState();
-  const { guest, exitGuestMode, signOut } = useAuth();
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>([]);
+  const { contacts, createDocument, addContact, updateDocument } = useAppState();
+
+  // Capture the handoff payload exactly once on mount. We can't keep
+  // re-deriving from `location.state`: the first useEffect below clears
+  // it (so the browser doesn't try to re-apply a stale File on
+  // back-then-forward), and any read after that returns null. If we
+  // derived `templateSignersFromHandoff` from `location.state` directly,
+  // it would flip true → false the moment the clear-state effect ran,
+  // which would un-suppress the auto-open dialog and re-show the
+  // signers picker right after the wizard already collected them
+  // (the "signers display more than once" bug).
+  const [initialHandoff] = useState<UploadRouteHandoffState | null>(
+    () => (location.state ?? null) as UploadRouteHandoffState | null,
+  );
+  useEffect(() => {
+    if (initialHandoff && (initialHandoff.pendingFile || initialHandoff.templateSigners)) {
+      navigate(
+        { pathname: location.pathname, search: location.search },
+        { replace: true, state: null },
+      );
+    }
+    // run once on mount; the clear-state effect must not chase
+    // `location` updates or it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [pdfFile, setPdfFile] = useState<File | null>(initialHandoff?.pendingFile ?? null);
+  const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>(
+    () => initialHandoff?.templateSigners ?? [],
+  );
   const { numPages } = usePdfDocument(pdfFile);
 
   // Resolve the template from the query arg (local lookup today;
@@ -81,33 +93,22 @@ export function UploadRoute() {
   }, [templateIdFromQuery]);
   const templateMissing = templateIdFromQuery !== null && template === null;
 
-  // Open the signer-picker once the PDF has been parsed (numPages > 0).
-  // In the meantime UploadPage shows the "Analyzing" loader. If parsing
-  // fails numPages stays 0 forever — a small defensive timeout opens
-  // the dialog anyway so the user is never stuck.
-  useEffect(() => {
-    if (!pdfFile) return undefined;
-    if (numPages > 0) {
-      setDialogOpen(true);
-      return undefined;
-    }
-    const t = window.setTimeout(() => setDialogOpen(true), 3000);
-    return () => window.clearTimeout(t);
-  }, [pdfFile, numPages]);
+  /**
+   * Once a templates-wizard handoff carries both signers AND a parsed
+   * file, we want to skip the picker entirely and go straight to the
+   * editor. Auto-confirm fires once numPages is known (or after a
+   * 3s timeout if PDF.js fails to parse). The previous incarnation of
+   * this hook also opened a popup-modal picker; that's gone now —
+   * the inline `SignersStepCard` below replaces it.
+   */
+  const handoffHasSigners = (initialHandoff?.templateSigners?.length ?? 0) > 0;
 
   const handleFileSelected = useCallback((file: File) => {
     setPdfFile(file);
     setSelectedSigners([]);
-    // Hold the signer-picker dialog until the PDF has been parsed so
-    // the UploadPage can show its "Analyzing your document" loader in
-    // the intervening window.
-    setDialogOpen(false);
-  }, []);
-
-  const handleAddFromContact = useCallback((contact: AddSignerContact) => {
-    setSelectedSigners((prev) =>
-      prev.some((s) => s.id === contact.id) ? prev : [...prev, contact],
-    );
+    // The "Analyzing your document" loader plays automatically while
+    // the PDF parses (`pdfFile && numPages <= 0` branch in render).
+    // Once `numPages > 0`, the SignersStepCard takes over.
   }, []);
 
   const handleCreateContact = useCallback(
@@ -137,10 +138,10 @@ export function UploadRoute() {
     // that don't exist on the new PDF (e.g. layout asks for `page: 5`
     // on a 3-page upload) are filtered out by `resolveTemplateFields`;
     // we surface a console warning so the dropoff is observable.
-    let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
+    let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
     if (template) {
       const resolved = resolveTemplateFields(template.fields, resolvedPages);
-      pendingFields = templateFieldsToPlaced(resolved);
+      pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
       if (resolvedPages < template.pages) {
         // Use console.warn so the SPA's debug build flags the gap. The
         // banner already informs the user; this is for engineering.
@@ -156,6 +157,12 @@ export function UploadRoute() {
       console.info(`[templates] uses_count++ for ${template.id}`);
     }
 
+    // `fromTemplateId` lets the editor render the contextual banner
+    // and trigger the SendConfirmDialog when the user later sends.
+    // `fromTemplateFreshUpload` flips when the user came in via the
+    // wizard's "Upload a new one" branch (the saved layout adapted
+    // to a different doc, vs. landing on the saved example).
+    const cameFromUpload = initialHandoff?.pendingFile != null;
     updateDocument(id, {
       signers: selectedSigners.map((s) => ({
         id: s.id,
@@ -164,18 +171,54 @@ export function UploadRoute() {
         color: s.color,
       })),
       ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
+      ...(template ? { fromTemplateId: template.id } : {}),
+      ...(template && cameFromUpload ? { fromTemplateFreshUpload: true } : {}),
     });
-    setDialogOpen(false);
     setPdfFile(null);
     setSelectedSigners([]);
     navigate(`/document/${id}`);
-  }, [pdfFile, selectedSigners, createDocument, updateDocument, numPages, navigate, template]);
+  }, [
+    pdfFile,
+    selectedSigners,
+    createDocument,
+    updateDocument,
+    numPages,
+    navigate,
+    template,
+    initialHandoff?.pendingFile,
+  ]);
 
+  /**
+   * Back from the SignersStepCard — drop the picked file + signers and
+   * return to the upload dropzone. Called from the card's "Back" link
+   * footer; previously this closed a modal dialog.
+   */
   const handleCancelDialog = useCallback(() => {
-    setDialogOpen(false);
     setPdfFile(null);
     setSelectedSigners([]);
   }, []);
+
+  // When the templates wizard handed off both signers AND a parsed PDF,
+  // skip the upload page + dialog entirely and drop the user straight
+  // into the editor. The wizard already collected everything we need,
+  // so the upload page would just be a flash of the analyzing loader
+  // followed by an awkward "Where did my signers go?" if we let the
+  // dialog gate this. We wait for `numPages > 0` because
+  // `createDocument` needs the resolved page count to size the editor;
+  // until then the user sees the analyzing spinner like a normal upload.
+  // Use a ref guard so we only fire once even if React re-runs the
+  // effect (e.g. handleConfirm bumping local state in a way that
+  // re-triggers it before navigation lands).
+  const handoffAutoConfirmedRef = useRef(false);
+  useEffect(() => {
+    if (handoffAutoConfirmedRef.current) return;
+    if (!handoffHasSigners) return;
+    if (!pdfFile) return;
+    if (selectedSigners.length === 0) return;
+    if (numPages <= 0) return;
+    handoffAutoConfirmedRef.current = true;
+    handleConfirm();
+  }, [handoffHasSigners, pdfFile, selectedSigners, numPages, handleConfirm]);
 
   const handleClearTemplate = useCallback((): void => {
     // Strip the `template` arg only — preserve any other query params the
@@ -186,37 +229,8 @@ export function UploadRoute() {
     next.delete(TEMPLATE_QUERY_PARAM);
     setSearchParams(next, { replace: true });
     setPdfFile(null);
-    setDialogOpen(false);
     setSelectedSigners([]);
   }, [searchParams, setSearchParams]);
-
-  const handleSelectNavItem = useCallback(
-    (id: string): void => {
-      const item = NAV_ITEMS.find((n) => n.id === id);
-      if (item) {
-        navigate(item.path);
-      }
-    },
-    [navigate],
-  );
-
-  const handleAuthCta = useCallback(
-    (path: string): void => {
-      exitGuestMode();
-      navigate(path);
-    },
-    [exitGuestMode, navigate],
-  );
-
-  const handleSignOut = useCallback((): void => {
-    signOut()
-      .catch(() => {
-        /* soft-fail: still route to signin */
-      })
-      .finally(() => navigate('/signin', { replace: true }));
-  }, [signOut, navigate]);
-
-  const navMode = !user && guest ? 'guest' : 'authed';
 
   const bannerTitle = template
     ? template.name
@@ -227,31 +241,61 @@ export function UploadRoute() {
 
   return (
     <>
-      <UploadPage
-        user={user ?? undefined}
-        onFileSelected={handleFileSelected}
-        activeNavId="sign"
-        onSelectNavItem={handleSelectNavItem}
-        navMode={navMode}
-        onSignIn={() => handleAuthCta('/signin')}
-        onSignUp={() => handleAuthCta('/signup')}
-        onSignOut={handleSignOut}
-        status={pdfFile && !dialogOpen ? 'analyzing' : 'idle'}
-        {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
-        {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
-        templateBannerTone={bannerTone}
-        {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
-      />
-      <CreateSignatureRequestDialog
-        open={dialogOpen}
-        signers={selectedSigners}
-        contacts={contacts}
-        onAddFromContact={handleAddFromContact}
-        onCreateContact={handleCreateContact}
-        onRemoveSigner={handleRemoveSelected}
-        onApply={handleConfirm}
-        onCancel={handleCancelDialog}
-      />
+      {/*
+        Two-mode rendering: until the PDF is uploaded we show the
+        UploadPage's drop surface; once it's parsed we swap to the same
+        SignersStepCard the templates wizard uses. This unifies the
+        signer-picking surface across the regular sign flow and the
+        templates flow per operator feedback. The "Analyzing" loader
+        still gets a brief moment to play if numPages is still 0 by the
+        time the file lands.
+      */}
+      {!pdfFile || (pdfFile && numPages <= 0) ? (
+        <UploadPage
+          onFileSelected={handleFileSelected}
+          status={pdfFile ? 'analyzing' : 'idle'}
+          {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
+          {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
+          templateBannerTone={bannerTone}
+          {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
+        />
+      ) : (
+        <SignersStepCard
+          mode="new"
+          // Envelope-flow copy — the signer flow at /document/new is
+          // sending a real envelope, not authoring a template, so the
+          // template-flavoured defaults baked into SignersStepCard
+          // ("Pick the people who will fill this template.") are
+          // overridden with envelope-appropriate language.
+          heading="Who needs to sign this?"
+          subtitle="Pick the people who'll fill out and sign this document."
+          signers={selectedSigners.map(
+            (c): SignersStepSigner => ({
+              id: c.id,
+              contactId: c.id,
+              name: c.name,
+              email: c.email,
+              color: c.color,
+            }),
+          )}
+          contacts={contacts}
+          onPickContact={(contact) => {
+            // Toggle: clicking an already-selected contact removes it
+            // (matches the templates wizard's SignersStepCard semantics).
+            setSelectedSigners((prev) => {
+              const exists = prev.some((s) => s.id === contact.id);
+              return exists ? prev.filter((s) => s.id !== contact.id) : [...prev, contact];
+            });
+          }}
+          onCreateGuest={(name, email) => {
+            handleCreateContact(name, email);
+          }}
+          onRemoveSigner={(id) => handleRemoveSelected(id)}
+          onContinue={handleConfirm}
+          onBack={handleCancelDialog}
+          continueLabel="Continue to fields"
+        />
+      )}
     </>
   );
 }

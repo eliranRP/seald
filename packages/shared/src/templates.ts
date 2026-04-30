@@ -43,6 +43,30 @@ export interface TemplateField {
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /**
+   * Zero-based index into the signer roster active when the template was
+   * saved. When the template is reused (and `last_signers` re-pre-fills
+   * the new envelope's roster in the same order), each field is rebound
+   * to the signer at this index — so signer #1's signature stays signer
+   * #1's signature instead of every field collapsing onto signers[0].
+   * Optional for back-compat with older saved templates: missing values
+   * still fall back to signers[0] on the consumer side.
+   */
+  readonly signerIndex?: number;
+}
+
+/**
+ * One previously-attached signer captured on the latest "Send and
+ * update template" event. Persisted alongside the template so the
+ * next sender starts with the same roster pre-filled. Stored verbatim
+ * — `id` is the contact id, or a synthesized guest id when the signer
+ * was an ad-hoc email entry.
+ */
+export interface TemplateLastSigner {
+  readonly id: string;
+  readonly name: string;
+  readonly email: string;
+  readonly color: string;
 }
 
 /**
@@ -56,6 +80,22 @@ export interface Template {
   readonly description: string | null;
   readonly cover_color: string | null;
   readonly field_layout: ReadonlyArray<TemplateField>;
+  /** Client-side tags for filter / group on the templates list. */
+  readonly tags: ReadonlyArray<string>;
+  /**
+   * Last signer roster used when this template was sent. Empty until
+   * the first "Send and update template" persists it.
+   */
+  readonly last_signers: ReadonlyArray<TemplateLastSigner>;
+  /**
+   * `true` when an example PDF has been uploaded for this template
+   * (via `POST /templates/:id/example`). The SPA uses this to decide
+   * whether to fetch the saved PDF on the use-template flow vs. fall
+   * back to its local placeholder canvas. The actual storage path is
+   * server-side only; clients always go through
+   * `GET /templates/:id/example` to retrieve the bytes.
+   */
+  readonly has_example_pdf: boolean;
   readonly uses_count: number;
   readonly last_used_at: string | null;
   readonly created_at: string;
@@ -67,6 +107,8 @@ export interface CreateTemplateInput {
   readonly description?: string | null;
   readonly cover_color?: string | null;
   readonly field_layout: ReadonlyArray<TemplateField>;
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }
 
 export interface UpdateTemplateInput {
@@ -74,4 +116,6 @@ export interface UpdateTemplateInput {
   readonly description?: string | null;
   readonly cover_color?: string | null;
   readonly field_layout?: ReadonlyArray<TemplateField>;
+  readonly tags?: ReadonlyArray<string>;
+  readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
 }

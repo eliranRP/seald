@@ -30,6 +30,14 @@ export interface PlacedFieldValue {
    * this page's copy or every linked copy at once.
    */
   readonly linkId?: string | undefined;
+  /**
+   * Persistent group identifier. Fields that share a `groupId` are treated
+   * as one selectable unit — clicking any member selects every member,
+   * marquee selection auto-expands to include all members, drag/move
+   * applies to the whole group. Created via the GroupToolbar's "Group"
+   * action; cleared via "Ungroup". `undefined` for standalone fields.
+   */
+  readonly groupId?: string | undefined;
 }
 
 type RootAttrs = Omit<

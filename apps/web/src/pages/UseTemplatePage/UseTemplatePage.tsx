@@ -1,204 +1,514 @@
-import { useCallback, useMemo } from 'react';
-import {
-  ArrowLeft,
-  ArrowRight,
-  Bookmark,
-  Calendar,
-  CheckSquare,
-  FileText,
-  PenTool,
-  Send,
-  Type,
-  Users,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowRight, Bookmark, Info, UploadCloud } from 'lucide-react';
+import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { Button } from '@/components/Button';
+import { DropArea } from '@/components/DropArea';
 import { Icon } from '@/components/Icon';
-import { findTemplateById } from '@/features/templates';
-import type { TemplateFieldType, TemplatePageRule } from '@/features/templates';
+import { SignersStepCard } from '@/components/SignersStepCard';
+import type { SignersStepSigner } from '@/components/SignersStepCard';
+import { TemplateFlowHeader } from '@/components/TemplateFlowHeader';
+import type { TemplateFlowMode } from '@/components/TemplateFlowHeader';
 import {
-  ActionsRow,
-  Cover,
-  CoverLine,
-  Crumb,
-  FieldGlyph,
-  FieldKind,
-  FieldRow,
-  FieldRule,
-  FieldText,
-  FieldsCaption,
-  FieldsCard,
-  FieldsHeading,
-  FieldsList,
-  Inner,
-  Main,
+  findTemplateById,
+  getTemplates,
+  subscribeToTemplates,
+  type TemplateSummary,
+} from '@/features/templates';
+import { useAppState } from '@/providers/AppStateProvider';
+import {
+  DocumentTitle,
+  DocumentTitleRow,
+  FooterHint,
+  InfoIconButton,
   NotFoundCard,
-  SummaryBody,
-  SummaryEyebrow,
-  SummaryGrid,
-  SummaryMeta,
-  SummaryMetaItem,
-  SummaryTitle,
-  TopBadge,
-  TopBar,
+  NotFoundLede,
+  NotFoundTitle,
+  NewDocHeading,
+  NewDocLede,
+  Page,
+  SavedDocBody,
+  SavedDocCard,
+  SavedDocCover,
+  SavedDocLine,
+  SavedDocMeta,
+  SavedDocName,
+  SavedDocPaper,
+  SavedDocStack,
+  SavedDocStripe,
+  Segmented,
+  SegmentedButton,
+  StepBody,
+  StepInner,
+  TooltipBubble,
+  TooltipWrap,
 } from './UseTemplatePage.styles';
 
-const FIELD_ICON: Record<TemplateFieldType, LucideIcon> = {
-  signature: PenTool,
-  initial: Type,
-  date: Calendar,
-  text: Type,
-  checkbox: CheckSquare,
-};
-
-const FIELD_LABEL: Record<TemplateFieldType, string> = {
-  signature: 'Signature',
-  initial: 'Initial',
-  date: 'Date',
-  text: 'Text',
-  checkbox: 'Checkbox',
-};
-
-function describeRule(rule: TemplatePageRule): string {
-  switch (rule) {
-    case 'all':
-      return 'On every page';
-    case 'allButLast':
-      return 'On every page except the last';
-    case 'first':
-      return 'On the first page';
-    case 'last':
-      return 'On the last page';
-    default:
-      return `On page ${rule}`;
-  }
-}
-
-const COVER_WIDTHS: ReadonlyArray<number> = [78, 66, 84, 72, 90, 64, 80, 70];
+/**
+ * Stable color palette for guest signers (typed-in emails). Cycles
+ * after 6 — matches the Design-Guide's SignersDropdown palette so the
+ * step 1 chip and the editor's PlacedField swatch agree on color
+ * assignment for the same signer.
+ */
+const SIGNER_COLORS = ['#F472B6', '#7DD3FC', '#FBBF24', '#A78BFA', '#34D399', '#FB7185'] as const;
 
 /**
- * L4 page — `/templates/:id/use`. Shows a preview of the chosen template
- * (cover, name, page count, captured field rules) and routes the sender into
- * the standard new-document flow with the template id propagated as a query
- * arg. Local-state only; no API integration yet.
+ * Project the API's `last_signers` (camelCased to `lastSigners` on
+ * `TemplateSummary`) onto the wizard's `SignersStepSigner` shape.
+ * `contactId` is null for guest signers (id prefixed `s-`); known
+ * contacts surface their canonical id so the editor + downstream
+ * matchers can look them up.
+ */
+function mapLastSignersToStep(
+  saved:
+    | ReadonlyArray<{
+        readonly id: string;
+        readonly name: string;
+        readonly email: string;
+        readonly color: string;
+      }>
+    | undefined,
+): ReadonlyArray<SignersStepSigner> {
+  if (!saved || saved.length === 0) return [];
+  return saved.map((s) => ({
+    id: s.id,
+    contactId: s.id.startsWith('s-') ? null : s.id,
+    name: s.name,
+    email: s.email,
+    color: s.color,
+  }));
+}
+
+/**
+ * L4 page — `/templates/:id/use` (and `/templates/new` via aliasing).
+ * Implements the 3-step Use-template flow per the latest design guide
+ * (`Design-Guide/project/templates-flow/UseTemplate.jsx`).
+ *
+ *   Step 1 — Signers   : Centered card with empty pill, ordinal
+ *                        signer list, inline picker. Uses SignersStepCard.
+ *   Step 2 — Document  : For 'use' mode, segmented "Use saved /
+ *                        Upload new"; for 'new' mode, a single drop-zone.
+ *   Step 3 — Fields    : Existing place-fields editor at
+ *                        `/document/new?template=<id>`. The wizard
+ *                        navigates away here; the editor surfaces a
+ *                        TemplateModeBanner in its place.
+ *
+ * Step order (Signers → Document → Fields) was settled per the
+ * latest design guide. Picking signers first means the user commits
+ * to recipients before they touch the document choice — and that
+ * decision often determines whether the saved layout still applies.
  */
 export function UseTemplatePage() {
   const { id = '' } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const template = useMemo(() => findTemplateById(decodeURIComponent(id)), [id]);
+  const { contacts } = useAppState();
 
-  const goBack = useCallback((): void => {
+  const decodedId = decodeURIComponent(id);
+  const isNewTemplate = decodedId === 'new';
+
+  /**
+   * Reactive read of the templates module store. Plain `findTemplateById`
+   * + `useMemo` only ran once on mount, so when the user deep-linked to
+   * `/templates/:id/use` BEFORE the module store had hydrated from the
+   * API, `template` would resolve to `undefined` and stay that way —
+   * which meant the lazy-init `signers` state never picked up
+   * `lastSigners`. `useSyncExternalStore` re-renders on every store
+   * mutation so the page reflects the canonical record once it loads.
+   */
+  const templates = useSyncExternalStore<ReadonlyArray<TemplateSummary>>(
+    subscribeToTemplates,
+    getTemplates,
+    getTemplates,
+  );
+  const template = useMemo<TemplateSummary | undefined>(
+    () =>
+      isNewTemplate
+        ? undefined
+        : (templates.find((t) => t.id === decodedId) ?? findTemplateById(decodedId)),
+    [decodedId, isNewTemplate, templates],
+  );
+
+  const mode: TemplateFlowMode = useMemo(() => {
+    if (isNewTemplate) return 'new';
+    if (searchParams.get('mode') === 'edit') return 'editing';
+    return 'using';
+  }, [isNewTemplate, searchParams]);
+
+  // Wizard state ---------------------------------------------------------
+  // Step 1: signers; Step 2: document. Step 3 is the editor (different route).
+  const [step, setStep] = useState<1 | 2>(1);
+  /**
+   * For 'using' / 'editing' mode we pre-fill the signer roster with
+   * the template's `lastSigners` (captured on the previous "Send and
+   * update template"). Brand-new templates start empty. This matches
+   * the design guide's "Pre-filled from last time" subtitle.
+   *
+   * The lazy init handles the case where the template is already in
+   * the module store at mount time. The effect below covers the
+   * deep-link case where the API hydration finishes after mount.
+   */
+  const [signers, setSigners] = useState<ReadonlyArray<SignersStepSigner>>(() =>
+    mapLastSignersToStep(template?.lastSigners),
+  );
+  /**
+   * Tracks whether the user has touched the signer roster. Once they
+   * have, we stop auto-seeding from `lastSigners` so a late-arriving
+   * store update can't overwrite the user's edits.
+   */
+  const userTouchedSignersRef = useRef(false);
+  useEffect(() => {
+    if (userTouchedSignersRef.current) return;
+    if (signers.length > 0) return;
+    const saved = template?.lastSigners ?? [];
+    if (saved.length === 0) return;
+    setSigners(mapLastSignersToStep(saved));
+  }, [template, signers.length]);
+  const [docChoice, setDocChoice] = useState<'saved' | 'upload'>(() =>
+    isNewTemplate ? 'upload' : 'saved',
+  );
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [tipOpen, setTipOpen] = useState(false);
+  const [renamedTitle, setRenamedTitle] = useState<string | null>(() =>
+    isNewTemplate ? 'Untitled template' : null,
+  );
+
+  // Step navigation ------------------------------------------------------
+
+  const goBackToList = useCallback(() => {
     navigate('/templates');
   }, [navigate]);
 
-  const startSend = useCallback((): void => {
-    if (!template) return;
-    navigate(`/document/new?template=${encodeURIComponent(template.id)}`);
-  }, [navigate, template]);
+  const goBackOneStep = useCallback(() => {
+    if (step === 2) setStep(1);
+    else goBackToList();
+  }, [step, goBackToList]);
 
-  if (!template) {
+  // Step 1 (Document) → Step 2 (Signers). Gated on having a valid
+  // document source — saved-doc requires the template, upload
+  // requires a pendingFile.
+  const continueToSigners = useCallback(() => {
+    if (docChoice === 'saved' && !template) return;
+    if (docChoice === 'upload' && !pendingFile) return;
+    setStep(2);
+  }, [docChoice, template, pendingFile]);
+
+  /**
+   * Step 2 (Signers) → Step 3 (template editor). Routes to the
+   * dedicated `/templates/:id/edit` surface, which renders the
+   * TemplateFlowHeader chrome instead of the global app NavBar so
+   * the entire wizard reads as a single connected flow.
+   */
+  const continueToEditor = useCallback(() => {
+    if (signers.length === 0) return;
+    if (docChoice === 'saved' && !template) return;
+    if (docChoice === 'upload' && !pendingFile) return;
+
+    const handoffSigners: ReadonlyArray<AddSignerContact> = signers.map((s) => ({
+      id: s.contactId ?? s.id,
+      name: s.name,
+      email: s.email,
+      color: s.color,
+    }));
+
+    // Saved-doc branch: reuse the saved example. We don't carry a
+    // File object — the route falls back to a synthesized placeholder
+    // (the actual signed envelope's example PDF lives server-side
+    // once /templates/:id/example lands).
+    if (docChoice === 'saved' && template) {
+      navigate(`/templates/${encodeURIComponent(template.id)}/edit`, {
+        state: { templateSigners: handoffSigners },
+      });
+      return;
+    }
+
+    if (template) {
+      navigate(`/templates/${encodeURIComponent(template.id)}/edit`, {
+        state: { templateSigners: handoffSigners, pendingFile },
+      });
+      return;
+    }
+
+    // 'new' mode — sender is authoring a brand-new template.
+    navigate('/templates/new/edit', {
+      state: {
+        templateSigners: handoffSigners,
+        pendingFile,
+        ...(renamedTitle ? { templateRename: renamedTitle } : {}),
+      },
+    });
+  }, [docChoice, navigate, pendingFile, renamedTitle, signers, template]);
+
+  // Picker handlers ------------------------------------------------------
+
+  const togglePickContact = useCallback((contact: AddSignerContact) => {
+    userTouchedSignersRef.current = true;
+    setSigners((prev) => {
+      const exists = prev.find((s) => s.email.toLowerCase() === contact.email.toLowerCase());
+      if (exists) {
+        return prev.filter((s) => s.email.toLowerCase() !== contact.email.toLowerCase());
+      }
+      return [
+        ...prev,
+        {
+          id: `s-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          contactId: contact.id,
+          name: contact.name,
+          email: contact.email,
+          color: contact.color,
+        },
+      ];
+    });
+  }, []);
+
+  const createGuestSigner = useCallback((name: string, email: string) => {
+    userTouchedSignersRef.current = true;
+    setSigners((prev) => {
+      if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) {
+        return prev;
+      }
+      const colorIdx = prev.length % SIGNER_COLORS.length;
+      return [
+        ...prev,
+        {
+          id: `s-${Date.now()}`,
+          contactId: null,
+          name: name || email.split('@')[0] || email,
+          email,
+          color: SIGNER_COLORS[colorIdx]!,
+        },
+      ];
+    });
+  }, []);
+
+  const removeSigner = useCallback((rowId: string) => {
+    userTouchedSignersRef.current = true;
+    setSigners((prev) => prev.filter((s) => s.id !== rowId));
+  }, []);
+
+  const renameTemplate = useCallback((next: string) => {
+    setRenamedTitle(next);
+  }, []);
+
+  // Not-found surface ----------------------------------------------------
+
+  if (!template && !isNewTemplate) {
     return (
-      <Main>
-        <Inner>
-          <TopBar>
-            <Crumb type="button" onClick={goBack} aria-label="Back to templates">
-              <Icon icon={ArrowLeft} size={14} />
-              Back to templates
-            </Crumb>
-          </TopBar>
+      <Page>
+        <TemplateFlowHeader
+          step={1}
+          mode="using"
+          templateName="Template"
+          onBack={goBackToList}
+          onCancel={goBackToList}
+        />
+        <StepBody>
           <NotFoundCard role="alert">
-            <SummaryTitle>Template not found</SummaryTitle>
-            <FieldsCaption>
+            <NotFoundTitle>Template not found</NotFoundTitle>
+            <NotFoundLede>
               The template you opened may have been removed. Pick another from the list.
-            </FieldsCaption>
-            <ActionsRow style={{ justifyContent: 'center' }}>
-              <Button variant="primary" onClick={goBack}>
-                Back to templates
-              </Button>
-            </ActionsRow>
+            </NotFoundLede>
+            <Button variant="primary" onClick={goBackToList}>
+              Back to templates
+            </Button>
           </NotFoundCard>
-        </Inner>
-      </Main>
+        </StepBody>
+      </Page>
     );
   }
 
+  const headerTitle = renamedTitle ?? template?.name ?? 'New template';
+
   return (
-    <Main>
-      <Inner>
-        <TopBar>
-          <Crumb type="button" onClick={goBack} aria-label="Back to templates">
-            <Icon icon={ArrowLeft} size={14} />
-            Back to templates
-          </Crumb>
-          <TopBadge>
-            <Icon icon={Bookmark} size={11} />
-            Using template
-          </TopBadge>
-        </TopBar>
+    <Page>
+      <TemplateFlowHeader
+        step={step}
+        mode={mode}
+        templateName={headerTitle}
+        onRenameTemplate={renameTemplate}
+        onBack={goBackOneStep}
+        onCancel={goBackToList}
+      />
 
-        <SummaryGrid>
-          <Cover $color={template.cover} aria-hidden>
-            {COVER_WIDTHS.map((w, i) => (
-              <CoverLine key={`cl-${i}`} $width={w} />
-            ))}
-          </Cover>
-          <SummaryBody>
-            <SummaryEyebrow>{template.id}</SummaryEyebrow>
-            <SummaryTitle>{template.name}</SummaryTitle>
-            <SummaryMeta>
-              <SummaryMetaItem>
-                <Icon icon={FileText} size={13} />
-                {template.pages} pages
-              </SummaryMetaItem>
-              <SummaryMetaItem>
-                <Icon icon={PenTool} size={13} />
-                {template.fieldCount} fields
-              </SummaryMetaItem>
-              <SummaryMetaItem>
-                <Icon icon={Users} size={13} />
-                Used {template.uses} times · last {template.lastUsed}
-              </SummaryMetaItem>
-            </SummaryMeta>
-            <FieldsCaption>
-              Example: <strong>{template.exampleFile}</strong>. Field rules adapt automatically when
-              you swap in a different document.
-            </FieldsCaption>
-            <ActionsRow>
-              <Button variant="ghost" iconLeft={ArrowLeft} onClick={goBack}>
-                Cancel
-              </Button>
-              <Button variant="primary" iconRight={ArrowRight} onClick={startSend}>
-                Continue with this template
-              </Button>
-              <Button variant="secondary" iconLeft={Send} onClick={startSend}>
-                Send to sign
-              </Button>
-            </ActionsRow>
-          </SummaryBody>
-        </SummaryGrid>
+      {/*
+        STEP 1 — Document. For 'using' mode the user picks between
+        the saved example doc and a fresh upload (segmented choice
+        at the top). For 'new' mode there's no saved example to
+        choose from — only the dropzone. Continue advances to Step 2
+        (signers) once a valid document source is set.
+      */}
+      {step === 1 ? (
+        <StepBody>
+          <StepInner $wide>
+            {isNewTemplate ? (
+              // New-mode hero: matches the design guide's UploadScreen
+              // (`Design-Guide/.../UseTemplate.jsx` DocumentStep mode 'new').
+              // Big serif heading + lede over the dropzone — no segmented
+              // chooser because there's no saved doc to fall back to.
+              <div>
+                <NewDocHeading>Upload an example document</NewDocHeading>
+                <NewDocLede>
+                  A representative copy works best — we&apos;ll use it to place fields. Real
+                  documents go in later.
+                </NewDocLede>
+              </div>
+            ) : (
+              <DocumentTitleRow>
+                <DocumentTitle>Document</DocumentTitle>
+                <TooltipWrap
+                  onMouseEnter={() => setTipOpen(true)}
+                  onMouseLeave={() => setTipOpen(false)}
+                  onFocus={() => setTipOpen(true)}
+                  onBlur={() => setTipOpen(false)}
+                >
+                  <InfoIconButton
+                    type="button"
+                    aria-label="What does the document choice mean?"
+                    aria-describedby="doc-tip"
+                  >
+                    <Icon icon={Info} size={14} />
+                  </InfoIconButton>
+                  {tipOpen ? (
+                    <TooltipBubble id="doc-tip" role="tooltip">
+                      The saved layout adapts to whichever document you pick.
+                    </TooltipBubble>
+                  ) : null}
+                </TooltipWrap>
+              </DocumentTitleRow>
+            )}
 
-        <FieldsCard aria-labelledby="tpl-fields-heading">
-          <FieldsHeading id="tpl-fields-heading">Fields captured in this template</FieldsHeading>
-          <FieldsCaption>
-            These rules are projected onto whichever document you choose next. Pages resolve at
-            apply-time so a 9-page upload still gets a single signature on its last page.
-          </FieldsCaption>
-          <FieldsList>
-            {template.fields.map((f, i) => (
-              <FieldRow key={`f-${i}`}>
-                <FieldGlyph aria-hidden>
-                  <Icon icon={FIELD_ICON[f.type]} size={16} />
-                </FieldGlyph>
-                <FieldText>
-                  <FieldKind>{f.label ?? FIELD_LABEL[f.type]}</FieldKind>
-                  <FieldRule>{describeRule(f.pageRule)}</FieldRule>
-                </FieldText>
-              </FieldRow>
-            ))}
-          </FieldsList>
-        </FieldsCard>
-      </Inner>
-    </Main>
+            {!isNewTemplate ? (
+              <Segmented role="radiogroup" aria-label="Document source">
+                <SegmentedButton
+                  type="button"
+                  role="radio"
+                  aria-checked={docChoice === 'saved'}
+                  tabIndex={docChoice === 'saved' ? 0 : -1}
+                  $active={docChoice === 'saved'}
+                  onClick={() => setDocChoice('saved')}
+                >
+                  <Icon icon={Bookmark} size={14} />
+                  Use saved document
+                </SegmentedButton>
+                <SegmentedButton
+                  type="button"
+                  role="radio"
+                  aria-checked={docChoice === 'upload'}
+                  tabIndex={docChoice === 'upload' ? 0 : -1}
+                  $active={docChoice === 'upload'}
+                  onClick={() => setDocChoice('upload')}
+                >
+                  <Icon icon={UploadCloud} size={14} />
+                  Upload a new one
+                </SegmentedButton>
+              </Segmented>
+            ) : null}
+
+            {docChoice === 'saved' && template ? (
+              <SavedDocCard>
+                <SavedDocCover aria-hidden>
+                  <SavedDocStack />
+                  <SavedDocStack />
+                  <SavedDocPaper>
+                    <SavedDocStripe />
+                    <SavedDocLine $width={62} />
+                    <SavedDocLine $width={73} />
+                    <SavedDocLine $width={84} />
+                    <SavedDocLine $width={66} />
+                    <SavedDocLine $width={78} />
+                  </SavedDocPaper>
+                </SavedDocCover>
+                <SavedDocBody>
+                  <SavedDocName>{template.exampleFile || 'Saved example PDF'}</SavedDocName>
+                  <SavedDocMeta>
+                    <span>{template.pages} pages</span>
+                    <span>·</span>
+                    <span>{template.fields.length} field rules</span>
+                    <span>·</span>
+                    <span>Last sent {template.lastUsed || '—'}</span>
+                  </SavedDocMeta>
+                </SavedDocBody>
+                <Button variant="primary" iconRight={ArrowRight} onClick={continueToSigners}>
+                  Continue
+                </Button>
+              </SavedDocCard>
+            ) : null}
+
+            {docChoice === 'upload' ? (
+              <>
+                {pendingFile ? (
+                  <SavedDocCard>
+                    <SavedDocCover aria-hidden>
+                      <SavedDocStack />
+                      <SavedDocStack />
+                      <SavedDocPaper>
+                        <SavedDocStripe />
+                        <SavedDocLine $width={62} />
+                        <SavedDocLine $width={73} />
+                        <SavedDocLine $width={84} />
+                      </SavedDocPaper>
+                    </SavedDocCover>
+                    <SavedDocBody>
+                      <SavedDocName>{pendingFile.name}</SavedDocName>
+                      <SavedDocMeta>
+                        <span>{(pendingFile.size / (1024 * 1024)).toFixed(1)}&nbsp;MB</span>
+                        <span>·</span>
+                        <span>Ready to use</span>
+                      </SavedDocMeta>
+                    </SavedDocBody>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setPendingFile(null);
+                        setUploadError(null);
+                      }}
+                    >
+                      Replace
+                    </Button>
+                    <Button variant="primary" iconRight={ArrowRight} onClick={continueToSigners}>
+                      Continue
+                    </Button>
+                  </SavedDocCard>
+                ) : (
+                  <DropArea
+                    onFileSelected={(f) => {
+                      setUploadError(null);
+                      setPendingFile(f);
+                    }}
+                    onError={(_, message) => setUploadError(message)}
+                    heading={template ? 'Drop a different PDF' : 'Drop a sample PDF'}
+                    subheading={
+                      template ? 'Saved layout will snap onto it · up to 25 MB' : 'up to 25 MB'
+                    }
+                  />
+                )}
+                {uploadError ? <FooterHint role="alert">{uploadError}</FooterHint> : null}
+              </>
+            ) : null}
+          </StepInner>
+        </StepBody>
+      ) : null}
+
+      {/*
+        STEP 2 — Signers. Centered card with empty pill, ordinal-numbered
+        signer rows, and an inline contacts picker. The Continue CTA
+        hands off to the place-fields editor (`continueToEditor`),
+        which is Step 3 of the wizard but lives at a different route.
+      */}
+      {step === 2 ? (
+        <SignersStepCard
+          mode={mode}
+          signers={signers}
+          contacts={contacts}
+          onPickContact={togglePickContact}
+          onCreateGuest={createGuestSigner}
+          onRemoveSigner={removeSigner}
+          onContinue={continueToEditor}
+          onBack={() => setStep(1)}
+          continueLabel="Continue to fields"
+        />
+      ) : null}
+    </Page>
   );
 }

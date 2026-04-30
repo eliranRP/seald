@@ -260,4 +260,10 @@ module "sealing_kms" {
   environment   = var.sealing_environment
   api_role_name = var.sealing_api_role_name
   tags          = local.common_tags
+  # Tags require kms:TagResource + iam:TagPolicy on the deployer. The
+  # initial apply ran with this off so the bare CI role could create
+  # the key. The seald-sealing-kms-deploy inline policy now grants
+  # those perms, so we flip it on and re-apply to attach environment
+  # + Purpose tags to the key + IAM policy.
+  enable_resource_tags = true
 }

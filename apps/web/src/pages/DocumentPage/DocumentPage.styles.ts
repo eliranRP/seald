@@ -1,16 +1,17 @@
 import styled from 'styled-components';
 
 /**
- * Root app shell — pinned to the viewport so NavBar + SideBar stay anchored no
- * matter how tall the zoomed canvas grows. Without `height: 100vh` + `overflow:
- * hidden`, a highly-zoomed PDF would push Shell taller than the viewport and
- * the entire page (NavBar included) would scroll as a unit — the PDF would
- * appear to "destroy" the chrome hierarchy by scrolling past it.
+ * Page container — fills the slot AppShell carves out under the NavBar.
+ * `min-height: 0` + `overflow: hidden` keep the zoomed canvas confined to
+ * `CanvasScroll`; without them a highly-zoomed PDF would push Shell taller
+ * than its parent and the whole page (NavBar included) would scroll as a
+ * unit — the PDF would appear to "destroy" the chrome hierarchy.
  */
 export const Shell = styled.div`
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   background: ${({ theme }) => theme.color.bg.app};
   font-family: ${({ theme }) => theme.font.sans};
@@ -107,12 +108,21 @@ export const CenterTop = styled.div`
   flex-shrink: 0;
 `;
 
+/**
+ * Three-column grid: [Back side] [PageToolbar] [empty side]. Middle
+ * column is `auto`-sized so the toolbar always renders at the
+ * geometric center of the available width regardless of how wide the
+ * Center column gets at large viewports (1920+/2560+/3440+).
+ *
+ * The previous layout used `flex` with `space-between` + a 780px max,
+ * which left-anchored the entire bar on wide screens — the page toolbar
+ * drifted to the left edge of the canvas instead of staying with it.
+ */
 export const CenterHeader = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
-  max-width: 780px;
   padding: 0 ${({ theme }) => theme.space[6]};
 `;
 
@@ -121,6 +131,13 @@ export const CenterHeaderSide = styled.div`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
+
+  /* Right-side slot uses justify-self: end so the (currently empty)
+     reserved spot mirrors the back button on the opposite edge — keeps
+     the toolbar visually centered when the back button is absent. */
+  &:last-child {
+    justify-content: flex-end;
+  }
 `;
 
 export const RightRailInner = styled.div`
@@ -140,6 +157,157 @@ export const RightRailScroll = styled.div`
 
 export const RightRailFooter = styled.div`
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+`;
+
+/**
+ * Slot above the canvas reserved for contextual banners — used by
+ * the templates flow's `TemplateModeBanner`. Padded so it never abuts
+ * the canvas scroll. Empty by default; doesn't reserve space when no
+ * banner is rendered.
+ */
+export const BannerSlot = styled.div`
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[8]} 0`};
+  background: ${({ theme }) => theme.color.bg.app};
+`;
+
+/* ---------- Template-mode right rail ---------- */
+
+/**
+ * Indigo-washed summary card pinned at the top of the right rail when
+ * the editor is in `templateMode='authoring'`. Replaces the Signers
+ * panel — the user is creating a template, not sending to specific
+ * recipients yet.
+ */
+export const TemplateSummaryCard = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: ${({ theme }) => theme.color.indigo[50]};
+  border: 1px solid ${({ theme }) => theme.color.indigo[300]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  margin: 4px 4px 12px;
+`;
+
+export const TemplateSummaryIcon = styled.span`
+  width: 28px;
+  height: 28px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.indigo[700]};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+export const TemplateSummaryBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`;
+
+export const TemplateSummaryEyebrow = styled.div`
+  font-size: 11px;
+  font-weight: ${({ theme }) => theme.font.weight.bold};
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.indigo[700]};
+`;
+
+export const TemplateSummaryText = styled.p`
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+/**
+ * Primary "Save as template" CTA used in template-authoring mode. Same
+ * visual weight as `Send to sign` but keyed to the templates flow —
+ * indigo primary surface that ends the wizard.
+ */
+export const TemplatePrimaryFooter = styled.div`
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+
+export const TemplatePrimaryStatus = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const TemplatePrimaryButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fg.inverse};
+  font-size: 14px;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 140ms;
+
+  &:hover,
+  &:focus-visible {
+    background: ${({ theme }) => theme.color.indigo[700]};
+  }
+
+  &:disabled {
+    background: ${({ theme }) => theme.color.ink[300]};
+    color: ${({ theme }) => theme.color.fg.inverse};
+    cursor: not-allowed;
+  }
+`;
+
+/**
+ * Quiet "Save as template" affordance pinned above the Send footer. We
+ * keep it visually subordinate to the primary Send CTA — it's a
+ * power-user shortcut for senders who want to capture this layout for
+ * reuse, not something the every-document sender needs to notice.
+ * Dashed border + ghost background matches `SaveTemplateBtn` on the
+ * SigningReviewPage so the affordance feels like the same product
+ * surface across both flows.
+ */
+export const SaveAsTemplateRow = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+`;
+
+export const SaveAsTemplateButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  background: transparent;
+  border: 1px dashed ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  padding: 8px 14px;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    border-color: ${({ theme }) => theme.color.indigo[500]};
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
 `;
 
 /**

@@ -1,4 +1,5 @@
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
+import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 
 // Default field box dimensions when the backend hasn't sent explicit width/
 // height. The page is rendered at 560×740 base — these match the visual
@@ -40,6 +41,104 @@ export function makeLinkId(): string {
   // Shared id assigned to every field in a single Place-on-pages action so
   // the Remove dialog can find and operate on all linked copies together.
   return `l_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
+}
+
+export function makeGroupId(): string {
+  // Persistent group id — assigned by the "Group" toolbar action so a set
+  // of fields can be selected/dragged/duplicated as one. Distinct prefix
+  // from linkId (`l_`) and field id (`f_`) so logs are easy to scan.
+  return `g_${Math.random().toString(36).slice(2, 9)}_${Date.now().toString(36)}`;
+}
+
+/**
+ * Expand a selection so that every member of any persistent group represented
+ * in the input is included. If field A is in `selectedIds` and has
+ * `groupId === 'g1'`, every other field with `groupId === 'g1'` is added to
+ * the result. Idempotent: re-applying does not change the output.
+ *
+ * Returns the input untouched (same reference is fine but not guaranteed)
+ * when no selected field carries a `groupId`, so callers don't need to
+ * branch on the empty-group case.
+ */
+export function expandSelectionToGroup(
+  selectedIds: ReadonlyArray<string>,
+  fields: ReadonlyArray<PlacedFieldValue>,
+): ReadonlyArray<string> {
+  if (selectedIds.length === 0) return selectedIds;
+  const groups = new Set<string>();
+  const fieldById = new Map<string, PlacedFieldValue>();
+  for (const f of fields) fieldById.set(f.id, f);
+  for (const id of selectedIds) {
+    const f = fieldById.get(id);
+    if (f?.groupId) groups.add(f.groupId);
+  }
+  if (groups.size === 0) return selectedIds;
+  const out = new Set<string>(selectedIds);
+  for (const f of fields) {
+    if (f.groupId && groups.has(f.groupId)) out.add(f.id);
+  }
+  return Array.from(out);
+}
+
+/**
+ * Returns true when the selection forms one and only one complete group:
+ * 2+ fields, every selected field has the same `groupId`, and that
+ * `groupId` is non-empty. Used to enable/disable the Group / Ungroup
+ * toolbar buttons.
+ */
+export function isFullyGrouped(
+  selectedIds: ReadonlyArray<string>,
+  fields: ReadonlyArray<PlacedFieldValue>,
+): boolean {
+  if (selectedIds.length < 2) return false;
+  const fieldById = new Map<string, PlacedFieldValue>();
+  for (const f of fields) fieldById.set(f.id, f);
+  const first = fieldById.get(selectedIds[0]!)?.groupId;
+  if (!first) return false;
+  for (let i = 1; i < selectedIds.length; i += 1) {
+    if (fieldById.get(selectedIds[i]!)?.groupId !== first) return false;
+  }
+  return true;
+}
+
+/**
+ * Default tile width / gap used when splitting a multi-signer assignment
+ * into N side-by-side single-signer fields. Mirrors the constants in
+ * `PlacedField.tsx` so the visual cell sizes line up with the source
+ * field's footprint (132 + 8 = 140 px stride).
+ */
+export const SPLIT_TILE_WIDTH = 132;
+export const SPLIT_TILE_GAP = 8;
+
+/**
+ * Return a copy of the field with `groupId` removed (not just set to
+ * undefined — the `exactOptionalPropertyTypes` tsconfig flag rejects
+ * `groupId: undefined`). Centralized so clone/ungroup callers don't
+ * each reach for the unused-var rest-spread pattern.
+ */
+export function withoutGroupId(field: PlacedFieldValue): PlacedFieldValue {
+  if (field.groupId === undefined) return field;
+  const next: Record<string, unknown> = { ...field };
+  delete next['groupId'];
+  return next as unknown as PlacedFieldValue;
+}
+
+/**
+ * Returns true when at least one of the selected fields has a `groupId`.
+ * Used to enable the Ungroup toolbar button (you can ungroup any partial
+ * subset, not just a whole group).
+ */
+export function hasAnyGrouped(
+  selectedIds: ReadonlyArray<string>,
+  fields: ReadonlyArray<PlacedFieldValue>,
+): boolean {
+  if (selectedIds.length === 0) return false;
+  const fieldById = new Map<string, PlacedFieldValue>();
+  for (const f of fields) fieldById.set(f.id, f);
+  for (const id of selectedIds) {
+    if (fieldById.get(id)?.groupId) return true;
+  }
+  return false;
 }
 
 /**

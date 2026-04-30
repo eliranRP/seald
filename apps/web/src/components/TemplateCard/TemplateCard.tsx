@@ -1,183 +1,207 @@
-import { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, FileText, MoreHorizontal, PenTool, Send } from 'lucide-react';
-import { Button } from '@/components/Button';
+import { forwardRef, useMemo } from 'react';
+import { Pencil, PenTool, Send, Tag, Trash2 } from 'lucide-react';
 import { Icon } from '@/components/Icon';
-import type { TemplateCardProps } from './TemplateCard.types';
+import { tagColorFor } from '@/features/templates';
+import type { TemplateCardAccent, TemplateCardProps } from './TemplateCard.types';
 import {
-  Actions,
+  ActionButton,
+  ActionDanger,
+  ActionOverlay,
+  ActionPrimary,
   Body,
-  Code,
-  CoverInitial,
-  CoverLine,
-  CoverLines,
-  CoverPaper,
-  CoverPages,
-  CoverSig,
-  CoverStripe,
-  CoverWrap,
-  Footer,
-  FooterStat,
-  MenuItem,
-  MenuPopover,
-  MenuTrigger,
-  Meta,
-  MetaItem,
+  MiniThumb,
   Name,
   Root,
-  Top,
+  StatDot,
+  StatItem,
+  StatMono,
+  StatRow,
+  TagOverflowPill,
+  TagPill,
+  TagRow,
+  ThumbLine,
+  ThumbPagesChip,
+  ThumbPaper,
+  ThumbSig,
+  ThumbSpacer,
+  ThumbStripe,
 } from './TemplateCard.styles';
 
-const COVER_LINE_COUNT = 6;
+const ACCENTS: ReadonlyArray<TemplateCardAccent> = ['indigo', 'amber', 'emerald', 'pink'];
+const THUMB_LINE_COUNT = 7;
+const VISIBLE_TAGS = 2;
 
-/**
- * Deterministic line widths so the cover preview stays stable across renders
- * (avoids `Math.random` flicker — also keeps Storybook + visual snapshots
- * reproducible).
- */
-function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
+/** Hash the template id so accent + line widths stay stable per id. */
+function hashStr(s: string): number {
   let h = 0;
-  for (let i = 0; i < seed.length; i += 1) {
-    h = (h * 31 + seed.charCodeAt(i)) | 0;
-  }
+  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
+  let h = hashStr(seed);
   const widths: number[] = [];
   for (let i = 0; i < count; i += 1) {
     h = (h * 1103515245 + 12345) | 0;
     const norm = ((h >>> 16) & 0xffff) / 0xffff;
-    widths.push(60 + Math.round(norm * 32));
+    widths.push(58 + Math.round(norm * 32));
   }
   return widths;
 }
 
+function pickAccent(seed: string): TemplateCardAccent {
+  const idx = Math.abs(hashStr(seed)) % ACCENTS.length;
+  return ACCENTS[idx]!;
+}
+
 /**
- * L2 domain card — preview tile for a single template, used in the
- * `/templates` grid. Whole card is clickable (fires `onUse`), with explicit
- * Edit / Use buttons in the footer for keyboard parity. When an
- * `onDuplicate` prop is supplied a "More actions" overflow menu surfaces a
- * Duplicate item; the menu closes on outside click and on Escape.
+ * L2 domain card — 4:3 MiniThumb + name + tags + stats, with a
+ * floating action overlay revealed on hover. Mirrors the design
+ * guide's TemplatesList card layout
+ * (`Design-Guide/project/templates-flow/TemplatesList.jsx`).
+ *
+ * Whole card is clickable (fires `onUse`). The action overlay's
+ * Edit / Use / Delete / Tags affordances `stopPropagation` so the
+ * card-click never overrides them.
  */
 export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
-  const { template, onUse, onEdit, onDuplicate, ...rest } = props;
-  const widths = useMemo(() => computeLineWidths(template.id, COVER_LINE_COUNT), [template.id]);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const actionsRef = useRef<HTMLDivElement | null>(null);
+  const { template, onUse, onEdit, onDelete, onTagClick, onEditTags, ...rest } = props;
+  const widths = useMemo(() => computeLineWidths(template.id, THUMB_LINE_COUNT), [template.id]);
+  const accent = useMemo(() => pickAccent(template.id), [template.id]);
 
-  // Close the overflow menu on outside-click + Escape (rule 4.4: each effect
-  // owns one concern — here, "menu open ⇒ listen for dismissal").
-  useEffect(() => {
-    if (!menuOpen) return undefined;
-    function onPointer(ev: MouseEvent): void {
-      const node = actionsRef.current;
-      if (node && ev.target instanceof Node && !node.contains(ev.target)) {
-        setMenuOpen(false);
-      }
-    }
-    function onKey(ev: KeyboardEvent): void {
-      if (ev.key === 'Escape') setMenuOpen(false);
-    }
-    window.addEventListener('mousedown', onPointer);
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('mousedown', onPointer);
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [menuOpen]);
+  const tags = template.tags ?? [];
+  const visibleTags = tags.slice(0, VISIBLE_TAGS);
+  const overflowCount = tags.length - visibleTags.length;
 
   return (
     <Root
       ref={ref}
+      role="button"
+      tabIndex={0}
       aria-labelledby={`tpl-name-${template.id}`}
       onClick={() => onUse(template)}
-      style={{ cursor: 'pointer' }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onUse(template);
+        }
+      }}
       {...rest}
     >
-      <Top>
-        <CoverWrap aria-hidden>
-          <CoverPaper>
-            <CoverStripe $color={template.cover} />
-            <CoverLines>
-              {widths.map((w, i) => (
-                <CoverLine key={`${template.id}-${i}`} $width={w} />
-              ))}
-            </CoverLines>
-            <CoverInitial />
-            <CoverSig />
-            <CoverPages>{template.pages}p</CoverPages>
-          </CoverPaper>
-        </CoverWrap>
+      <MiniThumb $accent={accent} aria-hidden>
+        <ThumbPaper>
+          <ThumbStripe $accent={accent} />
+          <ThumbSpacer />
+          {widths.map((w, i) => (
+            <ThumbLine
+              // Index keys are fine — the line set is generated
+              // deterministically from `template.id` + count, so the
+              // identity is positional.
+              // eslint-disable-next-line react/no-array-index-key
+              key={`l${String(i)}`}
+              $width={w}
+            />
+          ))}
+          <ThumbSig $accent={accent} />
+        </ThumbPaper>
+        <ThumbPagesChip>{template.pages}p</ThumbPagesChip>
+      </MiniThumb>
 
-        <Body>
-          <Code>{template.id}</Code>
-          <Name id={`tpl-name-${template.id}`}>{template.name}</Name>
-          <Meta>
-            <MetaItem>
-              <Icon icon={FileText} size={12} />
-              {template.pages} pages
-            </MetaItem>
-            <MetaItem>
-              <Icon icon={PenTool} size={12} />
-              {template.fieldCount} fields
-            </MetaItem>
-          </Meta>
-        </Body>
-      </Top>
+      <Body>
+        <Name id={`tpl-name-${template.id}`} title={template.name}>
+          {template.name}
+        </Name>
 
-      <Footer onClick={(e) => e.stopPropagation()}>
-        <FooterStat>
-          Used <b>{template.uses}</b> times · last <code>{template.lastUsed}</code>
-        </FooterStat>
-        <Actions ref={actionsRef}>
-          {onEdit ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft={PenTool}
-              onClick={() => onEdit(template)}
-              aria-label={`Edit ${template.name}`}
-            >
-              Edit
-            </Button>
-          ) : null}
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft={Send}
-            onClick={() => onUse(template)}
-            aria-label={`Use ${template.name}`}
-          >
-            Use
-          </Button>
-          {onDuplicate ? (
-            <>
-              <MenuTrigger
+        {tags.length > 0 ? (
+          <TagRow aria-label="Tags">
+            {visibleTags.map((tag) => {
+              const c = tagColorFor(tag);
+              return (
+                <TagPill
+                  key={tag}
+                  type="button"
+                  $bg={c.bg}
+                  $fg={c.fg}
+                  title={`Filter by ${tag}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTagClick?.(tag);
+                  }}
+                >
+                  {tag}
+                </TagPill>
+              );
+            })}
+            {overflowCount > 0 ? (
+              <TagOverflowPill
                 type="button"
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label={`More actions for ${template.name}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
+                title={tags.slice(VISIBLE_TAGS).join(', ')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditTags?.(template);
+                }}
               >
-                <Icon icon={MoreHorizontal} size={16} />
-              </MenuTrigger>
-              {menuOpen ? (
-                <MenuPopover role="menu">
-                  <MenuItem role="none">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDuplicate(template);
-                      }}
-                    >
-                      <Icon icon={Copy} size={14} />
-                      Duplicate
-                    </button>
-                  </MenuItem>
-                </MenuPopover>
-              ) : null}
-            </>
-          ) : null}
-        </Actions>
-      </Footer>
+                +{overflowCount}
+              </TagOverflowPill>
+            ) : null}
+          </TagRow>
+        ) : null}
+
+        <StatRow>
+          <StatItem>
+            <Icon icon={PenTool} size={11} aria-hidden />
+            {template.fieldCount}
+          </StatItem>
+          <StatDot aria-hidden />
+          <StatItem>Used {template.uses}×</StatItem>
+          <StatDot aria-hidden />
+          <StatMono>{template.lastUsed}</StatMono>
+        </StatRow>
+      </Body>
+
+      <ActionOverlay onClick={(e) => e.stopPropagation()}>
+        {onEditTags ? (
+          <ActionButton
+            type="button"
+            onClick={() => onEditTags(template)}
+            aria-label={`Edit tags for ${template.name}`}
+            title="Edit tags"
+          >
+            <Icon icon={Tag} size={12} />
+            Tags
+          </ActionButton>
+        ) : null}
+        {onEdit ? (
+          <ActionButton
+            type="button"
+            onClick={() => onEdit(template)}
+            aria-label={`Edit ${template.name}`}
+            title="Edit template"
+          >
+            <Icon icon={Pencil} size={12} />
+            Edit
+          </ActionButton>
+        ) : null}
+        <ActionPrimary
+          type="button"
+          onClick={() => onUse(template)}
+          aria-label={`Use ${template.name}`}
+          title="Use template"
+        >
+          <Icon icon={Send} size={12} />
+          Use
+        </ActionPrimary>
+        {onDelete ? (
+          <ActionDanger
+            type="button"
+            onClick={() => onDelete(template)}
+            aria-label={`Delete ${template.name}`}
+            title="Delete template"
+          >
+            <Icon icon={Trash2} size={12} />
+          </ActionDanger>
+        ) : null}
+      </ActionOverlay>
     </Root>
   );
 });

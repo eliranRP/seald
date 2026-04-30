@@ -94,4 +94,60 @@ describe('SendPanelFooter', () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  // Regression: the seald API rejects envelopes that don't carry a
+  // signature with `signer_without_signature_field`. The Send CTA
+  // must stay disabled (and surface a specific hint) when fields
+  // are placed but none are signatures, so the user never reaches
+  // that error.
+  describe('signature gating (regression)', () => {
+    it('disables Send when fields exist but none are signatures', () => {
+      const onSend = vi.fn();
+      const { getByRole, getByText } = renderWithTheme(
+        <SendPanelFooter fieldCount={3} signatureFieldCount={0} signerCount={2} onSend={onSend} />,
+      );
+      expect(getByText(/place at least one signature field/i)).toBeDefined();
+      const button = getByRole('button', { name: 'Send to Sign' }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+      button.click();
+      expect(onSend).toHaveBeenCalledTimes(0);
+    });
+
+    it('enables Send once at least one signature field is added', () => {
+      const onSend = vi.fn();
+      const { getByRole } = renderWithTheme(
+        <SendPanelFooter fieldCount={3} signatureFieldCount={1} signerCount={2} onSend={onSend} />,
+      );
+      const button = getByRole('button', { name: 'Send to Sign' }) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+      button.click();
+      expect(onSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('still disabled with the generic hint when fieldCount=0 (signature gate is a stricter overlay)', () => {
+      const { getByRole, getByText } = renderWithTheme(
+        <SendPanelFooter
+          fieldCount={0}
+          signatureFieldCount={0}
+          signerCount={2}
+          onSend={() => {}}
+        />,
+      );
+      expect(getByText(/place at least one field/i)).toBeDefined();
+      expect((getByRole('button', { name: 'Send to Sign' }) as HTMLButtonElement).disabled).toBe(
+        true,
+      );
+    });
+
+    it('preserves legacy behaviour when signatureFieldCount is omitted', () => {
+      // Templates flow + any pre-existing host that doesn't opt into
+      // the gate must still see the original "≥ 1 field" semantics.
+      const onSend = vi.fn();
+      const { getByRole } = renderWithTheme(
+        <SendPanelFooter fieldCount={1} signerCount={1} onSend={onSend} />,
+      );
+      const button = getByRole('button', { name: 'Send to Sign' }) as HTMLButtonElement;
+      expect(button.disabled).toBe(false);
+    });
+  });
 });

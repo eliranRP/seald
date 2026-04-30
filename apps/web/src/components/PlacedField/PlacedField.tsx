@@ -119,6 +119,15 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       ? `${meta.label} field for ${assigned.map((s) => s.name).join(', ')}`
       : `${meta.label} field`;
 
+  // Native `title` tooltip surfaces the owning signer on hover so the
+  // sender can disambiguate per-signer fields without selecting them
+  // (the AssignBubble pill is only visible on selection). Falls back to
+  // a hint when the field hasn't been assigned yet.
+  const hoverTitle =
+    assigned.length > 0
+      ? `${meta.label} — ${assigned.map((s) => s.name).join(', ')}`
+      : `${meta.label} — unassigned. Click to assign a signer.`;
+
   const handleMouseDown = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>): void => {
       const target = e.target as HTMLElement;
@@ -461,6 +470,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       ref={ref}
       role="group"
       aria-label={ariaLabel}
+      title={hoverTitle}
       $x={field.x}
       $y={field.y}
       $width={totalWidth}

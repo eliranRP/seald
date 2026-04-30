@@ -91,7 +91,14 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('document', { name: /page 2 of 4/i })).toBeInTheDocument();
   });
 
-  it('drops a palette field pre-assigned to every signer and opens the Select signers popover', () => {
+  it('drops one field pre-selected with all signers and opens the popover when 2+ signers', () => {
+    // Multi-signer drop: a single field is dropped pre-selected with
+    // every signer, and the Select-signers popover opens so the user
+    // explicitly picks who the field is for. If they pick 2+ in the
+    // popover, `applySignerSelection` (covered separately below) splits
+    // it into N side-by-side ungrouped tiles. Previously the drop
+    // silently produced N tiles with no popover, leaving no path to
+    // assign a single field to just one of the signers.
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -117,21 +124,24 @@ describe('DocumentPage', () => {
     expect(onFieldsChangeSpy).toHaveBeenCalledTimes(1);
     const firstCall = onFieldsChangeSpy.mock.calls[0];
     const next = firstCall ? firstCall[0] : undefined;
-    // Exactly one field is created, pre-assigned to every current signer so
-    // "everyone signs this" is a single confirm-click for the user.
+    // One field, pre-selected with both signers ("a" and "b").
     expect(next?.length).toBe(1);
     expect(next?.[0]?.type).toBe('signature');
     expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
-    // The Select signers popover opens automatically after the drop so the
-    // user is prompted to confirm / adjust assignees before moving on.
-    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
+    // Popover is open with both signers pre-checked — the user can now
+    // confirm both, narrow to one, or cancel.
+    const dialog = screen.getByRole('dialog', { name: /select signers/i });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByRole('checkbox', { name: /ada byron/i })).toBeChecked();
   });
 
-  it('drag-and-drop of any palette field surfaces the Select signers popover as a regression guard', () => {
-    // Regression: previously dropping onto the canvas silently auto-assigned
-    // one field per signer and skipped the popover, so users had no cue that
-    // an assignment decision was needed.
-    renderPage({ initialFields: [] });
+  it('drops a palette field with a single signer as one field, opening the popover for adjustment', () => {
+    // Single-signer drops still surface the Select-signers popover so
+    // the user can adjust the assignment before moving on. Only the
+    // multi-signer path skips the popover (the split already captures
+    // intent).
+    const SINGLE_SIGNER: ReadonlyArray<DocumentPageSigner> = [DEFAULT_SIGNERS[0]!];
+    renderPage({ initialFields: [], signers: SINGLE_SIGNER });
 
     const dateRow = screen.getByRole('button', { name: 'Date' });
     const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
@@ -145,52 +155,26 @@ describe('DocumentPage', () => {
       types: ['text/plain'],
     };
 
-    // Before the drop the popover is closed.
     expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
     act(() => {
       fireEvent.dragStart(dateRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
     });
-    // After the drop the "Select signers" dialog is on-screen with the
-    // signer checkboxes ready for the user to pick.
+    // Single-signer drop → popover opens with the lone signer pre-checked.
     const dialog = screen.getByRole('dialog', { name: /select signers/i });
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByRole('checkbox', { name: /ada byron/i })).toBeInTheDocument();
-    expect(within(dialog).getByRole('checkbox', { name: /alan turing/i })).toBeInTheDocument();
-  });
-
-  it('pre-checks every signer checkbox by default in the popover after a drop', () => {
-    // Regression: users reported landing on the popover with no boxes
-    // checked, which made the common "everyone signs this" case a multi-tap
-    // affair. The drop now pre-populates signerIds with every signer.
-    renderPage({ initialFields: [] });
-
-    const signatureRow = screen.getByRole('button', { name: 'Signature' });
-    const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
-    const dataTransfer = {
-      setData: vi.fn(),
-      getData: vi.fn().mockReturnValue('signature'),
-      effectAllowed: '',
-      dropEffect: '',
-      files: [],
-      items: [],
-      types: ['text/plain'],
-    };
-    act(() => {
-      fireEvent.dragStart(signatureRow, { dataTransfer });
-      fireEvent.dragOver(canvas, { dataTransfer });
-      fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
-    });
-
-    const dialog = screen.getByRole('dialog', { name: /select signers/i });
     const ada = within(dialog).getByRole('checkbox', { name: /ada byron/i });
-    const alan = within(dialog).getByRole('checkbox', { name: /alan turing/i });
     expect(ada).toBeChecked();
-    expect(alan).toBeChecked();
   });
 
-  it('pre-selected popover lets the user Apply in one click to keep every signer assigned', () => {
+  it('each successive multi-signer palette drop opens the popover for that drop', () => {
+    // Each drop on a multi-signer document funnels through the
+    // Select-signers popover so the user is asked who the field is
+    // for every time. Cancelling the first popover leaves the dropped
+    // placeholder in place (with both signers); the second drop then
+    // adds another placeholder and re-opens the popover keyed to the
+    // new field.
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [] });
 
@@ -205,22 +189,34 @@ describe('DocumentPage', () => {
       items: [],
       types: ['text/plain'],
     };
+
+    // First drop → 1 placeholder field, popover opens.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
-      fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 150, clientY: 150 });
     });
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
+    // Cancel — the placeholder stays, popover closes.
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
 
-    // User clicks Apply immediately without touching any checkbox — the
-    // resulting field should still carry every signer.
-    const dialog = screen.getByRole('dialog', { name: /select signers/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: /apply/i }));
+    // Second drop → another placeholder, popover re-opens for it.
+    act(() => {
+      fireEvent.dragStart(signatureRow, { dataTransfer });
+      fireEvent.dragOver(canvas, { dataTransfer });
+      fireEvent.drop(canvas, { dataTransfer, clientX: 300, clientY: 200 });
+    });
+    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
 
     const { calls } = onFieldsChangeSpy.mock;
     const last = calls[calls.length - 1];
     const next = last ? last[0] : undefined;
-    expect(next?.length).toBe(1);
-    expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
+    // 2 placeholders total (one per drop) — each carries every signer
+    // id until the user narrows the assignment via the popover.
+    expect(next?.length).toBe(2);
+    expect(next?.every((f) => f.type === 'signature')).toBe(true);
+    expect(next?.every((f) => f.signerIds.length === 2)).toBe(true);
   });
 
   it('clears the selection when the canvas background is clicked', () => {
@@ -453,9 +449,14 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('button', { name: /delete field/i })).toBeInTheDocument();
   });
 
-  it('each successive palette drop re-opens the Select signers popover for the new field', () => {
+  it('each successive single-signer palette drop re-opens the Select signers popover for the new field', () => {
+    // Regression: with a single signer on the document, every drop still
+    // surfaces the popover so the user can adjust the assignment before
+    // continuing. Multi-signer drops take the split-into-N-fields path
+    // (covered by the dedicated test above) and skip the popover.
+    const SINGLE_SIGNER: ReadonlyArray<DocumentPageSigner> = [DEFAULT_SIGNERS[0]!];
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
-    renderPage({ onFieldsChangeSpy, initialFields: [] });
+    renderPage({ onFieldsChangeSpy, initialFields: [], signers: SINGLE_SIGNER });
 
     const signatureRow = screen.getByRole('button', { name: 'Signature' });
     const canvas = screen.getByRole('document', { name: /page 1 of 4/i });
@@ -469,8 +470,7 @@ describe('DocumentPage', () => {
       types: ['text/plain'],
     };
 
-    // First drop: creates a pre-assigned field and opens the popover.
-    // Confirm with Apply to keep the default "everyone" assignment.
+    // First drop with one signer → single field + popover opens.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
@@ -479,8 +479,7 @@ describe('DocumentPage', () => {
     const firstDialog = screen.getByRole('dialog', { name: /select signers/i });
     fireEvent.click(within(firstDialog).getByRole('button', { name: /apply/i }));
 
-    // Second drop: creates a second field and the popover re-opens for it,
-    // again with every signer pre-checked.
+    // Second drop → second field + popover re-opens for it.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
@@ -491,11 +490,10 @@ describe('DocumentPage', () => {
     const { calls } = onFieldsChangeSpy.mock;
     const last = calls[calls.length - 1];
     const next = last ? last[0] : undefined;
-    // Two fields total — one per drop — both pre-assigned to every signer
-    // until the user narrows the selection inside the popover.
+    // Two fields total — one per drop — each carrying the lone signer.
     expect(next?.length).toBe(2);
     expect(next?.every((f) => f.type === 'signature')).toBe(true);
-    expect(next?.every((f) => f.signerIds.length === 2)).toBe(true);
+    expect(next?.every((f) => f.signerIds.length === 1)).toBe(true);
   });
 
   it('removes a signer from the right-rail panel when the remove button is clicked', () => {
@@ -574,7 +572,12 @@ describe('DocumentPage', () => {
     expect(updated?.height).toBe(54 + 30);
   });
 
-  it('opens the signer popover from a PlacedField and applies selection', () => {
+  it('applies a 2-signer selection by splitting the source field into two ungrouped single-signer fields', () => {
+    // Issue #2 v2: applying multiple signers via the popover replaces
+    // the source field with N independent fields (each with one
+    // signerId), placed side-by-side starting at the source's
+    // coordinates. The user can position each individually, or
+    // marquee-select them and click Group to bind them together.
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy });
 
@@ -590,9 +593,20 @@ describe('DocumentPage', () => {
     fireEvent.click(within(dialog).getByRole('checkbox', { name: /alan turing/i }));
     fireEvent.click(within(dialog).getByRole('button', { name: /apply/i }));
 
-    const firstCall = onFieldsChangeSpy.mock.calls[0];
-    const next = firstCall ? firstCall[0] : undefined;
-    expect(next?.[0]?.signerIds).toEqual(['a', 'b']);
+    const { calls } = onFieldsChangeSpy.mock;
+    const last = calls[calls.length - 1];
+    const next = last ? last[0] : undefined;
+    // Original field-1 is removed; two fresh single-signer fields take
+    // its place. field-2 (on a different page) is untouched.
+    const onPage1 = next?.filter((f) => f.page === 1) ?? [];
+    expect(onPage1).toHaveLength(2);
+    expect(onPage1.map((f) => f.signerIds)).toEqual([['a'], ['b']]);
+    // The originals' coordinates are preserved on the first split; the
+    // second is offset by SPLIT_TILE_WIDTH + SPLIT_TILE_GAP (140 px).
+    expect((onPage1[1]?.x ?? 0) - (onPage1[0]?.x ?? 0)).toBe(140);
+    // Splits are NOT grouped — that is opt-in via the GroupToolbar.
+    expect(onPage1[0]?.groupId).toBeUndefined();
+    expect(onPage1[1]?.groupId).toBeUndefined();
   });
 
   it('duplicates a field to all pages via the place-on-pages popover', () => {
@@ -824,5 +838,100 @@ describe('DocumentPage', () => {
     const clonesOnP4 = next.filter((f) => f.page === 4);
     expect(clonesOnP4.map((f) => f.x).sort()).toEqual([20, 220]);
     expect(clonesOnP4.flatMap((f) => f.signerIds).sort()).toEqual(['a', 'b']);
+  });
+
+  it('renders the Save-as-template affordance only when the route opts in via onSaveAsTemplate', () => {
+    // Without the prop the page hides the affordance entirely — the
+    // legacy callers (sign-only flows, demo views) never see it.
+    const { unmount } = renderPage();
+    expect(screen.queryByRole('button', { name: /save current layout as a template/i })).toBeNull();
+    unmount();
+
+    // With the prop wired the route shows the dashed quiet button.
+    const onSaveAsTemplate = vi.fn();
+    renderPage({ onSaveAsTemplate });
+    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onSaveAsTemplate).toHaveBeenCalledOnce();
+  });
+
+  it('disables the Save-as-template button when no fields have been placed', () => {
+    const onSaveAsTemplate = vi.fn();
+    renderPage({ onSaveAsTemplate, initialFields: [] });
+    const btn = screen.getByRole('button', { name: /save current layout as a template/i });
+    expect(btn).toBeDisabled();
+  });
+});
+
+// Persistent groups (issue #2): the GroupToolbar exposes a Group / Ungroup
+// affordance so the user can bind 2+ selected fields together (so they
+// move and duplicate as one) and later release them to position
+// individually. These tests assert each piece of the round trip:
+//  (1) the affordance is the correct one for the current selection state,
+//  (2) clicking Group writes a shared groupId on every selected field,
+//  (3) clicking any group member auto-expands the selection back to the
+//      whole group (so a single click → drag-as-one),
+//  (4) clicking Ungroup strips the groupId off every selected field.
+describe('DocumentPage — persistent group / ungroup', () => {
+  it('shows the Group button while two ungrouped fields are selected, and writes a shared groupId on click', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'] },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'] },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.click(screen.getByRole('group', { name: /date field for/i }), { shiftKey: true });
+    // Group affordance is visible; Ungroup is NOT (no groupId yet).
+    const groupBtn = screen.getByRole('button', { name: /group selected fields/i });
+    expect(groupBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /ungroup selected fields/i })).toBeNull();
+    fireEvent.click(groupBtn);
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(2);
+    // Both fields share the same fresh groupId (`g_…`).
+    const ids = new Set(next.map((f) => f.groupId));
+    expect(ids.size).toBe(1);
+    expect([...ids][0]).toMatch(/^g_/);
+  });
+
+  it('auto-expands a single click on any group member to select the whole group, then ungroups them', () => {
+    // Pre-grouped fixture: both fields already share `g_a`, simulating
+    // a session that had previously hit the Group action.
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'], groupId: 'g_a' },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'], groupId: 'g_a' },
+    ];
+    const onFieldsChange = vi.fn();
+    renderPage({ initialFields: fields, onFieldsChangeSpy: onFieldsChange });
+    // Single click on ONE member should expand to both → group toolbar
+    // shows "2 selected" and offers Ungroup (not Group, because the
+    // selection is already fully grouped).
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    expect(screen.getByText(/2 selected/i)).toBeInTheDocument();
+    const ungroupBtn = screen.getByRole('button', { name: /ungroup selected fields/i });
+    expect(ungroupBtn).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^group selected fields$/i })).toBeNull();
+    fireEvent.click(ungroupBtn);
+    const next = onFieldsChange.mock.calls.at(-1)?.[0] as ReadonlyArray<PlacedFieldValue>;
+    expect(next).toHaveLength(2);
+    // groupId is removed (not just set to undefined) so subsequent
+    // selections behave as if the fields had never been grouped.
+    for (const f of next) {
+      expect('groupId' in f).toBe(false);
+    }
+  });
+
+  it('does not include the Group button when the selection is already fully grouped', () => {
+    const fields: ReadonlyArray<PlacedFieldValue> = [
+      { id: 'f1', page: 1, type: 'signature', x: 20, y: 20, signerIds: ['a'], groupId: 'g_a' },
+      { id: 'f2', page: 1, type: 'date', x: 220, y: 50, signerIds: ['b'], groupId: 'g_a' },
+    ];
+    renderPage({ initialFields: fields });
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    // Ungroup is the only group/ungroup affordance shown.
+    expect(screen.getByRole('button', { name: /ungroup selected fields/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^group selected fields$/i })).toBeNull();
   });
 });
