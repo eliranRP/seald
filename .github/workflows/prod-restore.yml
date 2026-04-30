@@ -57,11 +57,26 @@ jobs:
             # we hand the API container static keys via env_file. The
             # `seald-pades-signer-prod` user has *only* kms:Sign +
             # kms:GetPublicKey on alias/seald-pades-sealing-prod.
+            #
+            # TODO: remove these AWS_* lines once `feat/terraform-api-iam-role`
+            # has applied — the EC2 instance profile + IAM role will let
+            # the SDK pick up creds via IMDSv2 automatically, including
+            # for the kms:Sign + secretsmanager:GetSecretValue calls.
             {
               printf '\nAWS_ACCESS_KEY_ID=%s\n' "$AWS_KMS_ACCESS_KEY_ID"
               printf 'AWS_SECRET_ACCESS_KEY=%s\n' "$AWS_KMS_SECRET_ACCESS_KEY"
               printf 'AWS_REGION=us-east-2\n'
             } | sudo tee -a /opt/seald/apps/api/.env >/dev/null
+            # Point entrypoint.sh at the AWS Secrets Manager entry
+            # provisioned by deploy/terraform/secrets.tf. The container
+            # fetches this at boot and exports each key (DATABASE_URL,
+            # SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET, RESEND_API_KEY, ...)
+            # as an env var — but only when not already set, so anything
+            # in the .env above still wins. Operator populates the
+            # secret values via `aws secretsmanager put-secret-value`
+            # (one-time, see PR #feat/aws-secrets-manager runbook).
+            printf 'SEALD_API_SECRET_ID=seald-api-prod\n' \
+              | sudo tee -a /opt/seald/apps/api/.env >/dev/null
             sudo chmod 0600 /opt/seald/apps/api/.env
             sudo wc -c /opt/seald/apps/api/.env
             # Sanity-check critical keys are present (no values printed).
