@@ -537,7 +537,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 {formatDateTime(data.envelope.completed_at ?? data.envelope.sent_at)}
               </FactVal>
               <Tag $tone={sealed ? 'success' : 'neutral'}>
-                {sealed ? 'eIDAS QTSP' : data.envelope.status}
+                {sealed ? 'PAdES-LT' : data.envelope.status}
               </Tag>
             </Fact>
 
@@ -636,13 +636,13 @@ function VerifyContent({ data }: VerifyContentProps) {
           </FooterLeft>
           <FooterRight>
             <span>
-              <Check aria-hidden /> SOC 2 Type II
+              <Check aria-hidden /> AES-256 at rest
             </span>
             <span>
-              <Check aria-hidden /> eIDAS qualified
+              <Check aria-hidden /> RFC 3161 timestamps
             </span>
             <span>
-              <Check aria-hidden /> ISO 27001
+              <Check aria-hidden /> PAdES-LT seal
             </span>
           </FooterRight>
         </Footer>

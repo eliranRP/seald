@@ -1347,8 +1347,8 @@ function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
     },
     {
       label: 'Timestamp',
-      value: 'eIDAS qualified',
-      sub: 'Issued by a trusted service provider.',
+      value: 'RFC 3161 trusted',
+      sub: 'Issued by an external timestamp authority.',
       icon: ICONS.clockCircle,
     },
     {
@@ -1426,7 +1426,7 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
   {
     num: '07',
     name: 'Digital signature',
-    body: 'An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded eIDAS qualified timestamp. Validity is revoked if the document is tampered with after signing.',
+    body: 'An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded RFC 3161 trusted timestamp. Validity is revoked if the document is tampered with after signing.',
   },
   {
     num: '08',
@@ -1480,8 +1480,8 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   },
   {
     num: '12',
-    name: 'Qualified timestamp',
-    body: 'A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an eIDAS trusted service provider.',
+    name: 'Trusted timestamp (RFC 3161)',
+    body: 'A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
   },
   {
     num: '13',
@@ -1581,7 +1581,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
       label: 'Digital signature',
       value:
         ctx.sealedSha256 !== null
-          ? 'Enabled · eIDAS qualified timestamp'
+          ? 'Enabled · RFC 3161 trusted timestamp'
           : 'Not applicable (unsealed)',
       check: ctx.sealedSha256 !== null,
     },

@@ -52,3 +52,5 @@ apps/web/e2e/.bdd/
 # MCP-driven Playwright + visual-diff scratch (logs, screenshots, traces)
 .playwright-mcp/
 .visual-diff/
+# Internal audit reports (gap analyses, inventories) — never published
+.audit/

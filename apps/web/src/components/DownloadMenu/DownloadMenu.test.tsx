@@ -19,7 +19,7 @@ const items: ReadonlyArray<DownloadMenuItem> = [
     icon: FileCheck2,
     title: 'Sealed PDF',
     description: 'Final signed document.',
-    meta: '5 pages · 312 KB · eIDAS QES',
+    meta: '5 pages · 312 KB · PAdES-LT',
     available: true,
     recommended: true,
     primaryLabel: 'sealed PDF',

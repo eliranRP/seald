@@ -28,11 +28,14 @@ describe('AuthBrandPanel', () => {
     expect(screen.getByText(/General Counsel, Northwind/)).toBeInTheDocument();
   });
 
-  it('renders the trust footer line', () => {
+  it('renders the trust footer line with verifiable capability claims', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(screen.getByText(/SOC 2 Type II/)).toBeInTheDocument();
-    expect(screen.getByText(/eIDAS-qualified/)).toBeInTheDocument();
-    expect(screen.getByText(/256-bit AES/)).toBeInTheDocument();
+    // Avoid certification claims (SOC 2 / ISO) and "eIDAS-qualified" framing
+    // until those certifications exist or a QTSP is wired (T-13 in
+    // .audit/LEGAL_GAPS.md). Assert the technical-capability replacements.
+    expect(screen.getByText(/PAdES-LT/)).toBeInTheDocument();
+    expect(screen.getByText(/RFC 3161 timestamps/)).toBeInTheDocument();
+    expect(screen.getByText(/AES-256 at rest/)).toBeInTheDocument();
   });
 
   it('has no axe violations', async () => {

@@ -751,8 +751,8 @@ export function EnvelopeDetailPage() {
               <div>
                 <strong>Audit trail</strong>
                 <Muted>
-                  This envelope uses eIDAS-qualified signatures. Every event is timestamped and
-                  cryptographically sealed.
+                  This envelope is sealed with an eIDAS-aligned advanced electronic signature
+                  (PAdES-LT). Every event is timestamped and cryptographically anchored.
                 </Muted>
                 {/* The audit PDF is produced by the sealing job, so it
                     only exists once the envelope is completed. Hide the

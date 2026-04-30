@@ -79,7 +79,7 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
 
       <TrustFooter>
         <ShieldCheck size={14} aria-hidden="true" />
-        <span>SOC 2 Type II &middot; eIDAS-qualified &middot; 256-bit AES</span>
+        <span>PAdES-LT &middot; RFC 3161 timestamps &middot; AES-256 at rest</span>
       </TrustFooter>
     </Content>
   </Root>
