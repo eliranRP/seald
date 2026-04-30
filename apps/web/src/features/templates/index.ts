@@ -9,6 +9,12 @@ export {
   TEMPLATES,
   duplicateTemplate,
   findTemplateById,
+  getTemplates,
   resolveTemplateFields,
+  setTemplates,
+  subscribeToTemplates,
   templateHasFieldType,
 } from './templates';
+export { deriveTemplateFieldLayout, inferPageRule } from './deriveFieldLayout';
+export { tagColorFor } from './tagColors';
+export type { TagColor } from './tagColors';
