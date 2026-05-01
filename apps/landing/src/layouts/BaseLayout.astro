@@ -20,6 +20,18 @@ export interface Props {
   canonical?: string;
   ogImage?: string;
   noindex?: boolean;
+  /**
+   * When `true` (the default for everything except the marketing homepage)
+   * the layout renders a small shared footer with the legal links + the
+   * "Manage cookie preferences" button. The homepage opts out via
+   * `minimalFooter={false}` because it ships its own full marketing footer
+   * that already includes the same controls — rendering both would
+   * duplicate the cookie-management entry point.
+   *
+   * Issue #39 / EDPB 03/2022 + CCPA §7026(a)(4): consent withdrawal MUST
+   * be reachable from every surface, with the same ease as giving it.
+   */
+  minimalFooter?: boolean;
 }
 
 const {
@@ -32,6 +44,7 @@ const {
   // — the link below will pick it up automatically.
   ogImage = '/og-image.svg',
   noindex = false,
+  minimalFooter = true,
 } = Astro.props;
 
 // Resolve canonical against the configured site so relative paths work.
@@ -154,5 +167,27 @@ const softwareLd = {
   <body>
     <a href="#main" class="sr-only">Skip to main content</a>
     <slot />
+    {minimalFooter ? (
+      <footer class="minimal-footer" aria-label="Legal and cookie preferences">
+        <div class="container">
+          <nav class="minimal-footer-links" aria-label="Legal links">
+            <a href="/legal/privacy">Privacy</a>
+            <a href="/legal/terms">Terms</a>
+            <a href="/legal/cookies">Cookies</a>
+            <a href="/legal/accessibility">Accessibility</a>
+            <a href="/legal/responsible-disclosure">Report a vulnerability</a>
+            <button
+              type="button"
+              class="link-button"
+              data-testid="footer-manage-cookies"
+              onclick="window.SealdConsent && window.SealdConsent.openBanner()"
+            >
+              Manage cookie preferences
+            </button>
+          </nav>
+          <p class="minimal-footer-copy">© 2026 Seald, Inc. — Put your name to it.</p>
+        </div>
+      </footer>
+    ) : null}
   </body>
 </html>
