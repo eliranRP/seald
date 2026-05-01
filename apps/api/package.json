@@ -54,7 +54,7 @@
     "rxjs": "^7.8.1",
     "shared": "workspace:*",
     "sharp": "^0.34",
-    "zod": "^3.23.8"
+    "zod": "^4.4.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.0.0",
