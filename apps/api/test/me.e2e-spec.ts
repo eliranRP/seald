@@ -177,12 +177,17 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(payload.meta.format_version).toBe('1.0');
       expect(payload.meta.user).toEqual({ id: USER_A, email: USER_A_EMAIL });
       expect(payload.meta.includes_files).toBe(false);
+      // Streaming variant (issue #45): top-level `meta.counts` reports
+      // contact/template/envelope counts up-front; `outbound_emails` is
+      // unknown until envelopes are hydrated, so it lives in `meta_tail`.
       expect(payload.meta.counts).toEqual({
         contacts: 1,
         envelopes: 0,
         templates: 0,
-        outbound_emails: 0,
+        outbound_emails: null,
       });
+      expect(payload.meta_tail).toEqual({ outbound_emails: 0 });
+      expect(payload.warnings).toEqual([]);
       expect(typeof payload.meta.generated_at).toBe('string');
       expect(payload.contacts).toHaveLength(1);
       expect(payload.contacts[0].owner_id).toBe(USER_A);
