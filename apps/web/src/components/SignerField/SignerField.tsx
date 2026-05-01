@@ -79,7 +79,7 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
   const tone = deriveTone(filled, active, required);
   const showRequired = required && !filled;
 
-  let inner: React.ReactNode = null;
+  let inner: React.ReactNode;
   if (filled && previewNode) {
     inner = previewNode;
   } else if (filled && (kind === 'signature' || kind === 'initials')) {

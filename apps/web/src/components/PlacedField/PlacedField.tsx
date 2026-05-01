@@ -258,8 +258,8 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
         const dy = (ev.clientY - startClientY) / safeZoom;
         let nx = origX;
         let ny = origY;
-        let nw = origW;
-        let nh = origH;
+        let nw: number;
+        let nh: number;
         if (corner === 'nw') {
           nx = origX + dx;
           ny = origY + dy;
