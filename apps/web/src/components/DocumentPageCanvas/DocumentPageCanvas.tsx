@@ -71,7 +71,7 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
           if (!ctx) return;
           canvas.width = viewport.width;
           canvas.height = viewport.height;
-          await page.render({ canvasContext: ctx, canvas, viewport }).promise;
+          await page.render({ canvasContext: ctx, viewport }).promise;
         } catch (err) {
           if (!cancelled) {
             setRenderError(err instanceof Error ? err : new Error(String(err)));

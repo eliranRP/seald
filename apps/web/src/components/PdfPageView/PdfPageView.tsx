@@ -53,7 +53,7 @@ export const PdfPageView = forwardRef<HTMLDivElement, PdfPageViewProps>((props, 
         // pdfjs returns an object with .promise and .cancel; hold on to it
         // so an overlapping re-render (e.g. fast Next Page clicks) can abort
         // the in-flight paint instead of tearing.
-        const task = page.render({ canvasContext: ctx, viewport, canvas });
+        const task = page.render({ canvasContext: ctx, viewport });
         renderTask = task;
         await task.promise;
         if (cancelled) return;

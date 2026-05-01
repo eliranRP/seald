@@ -62,6 +62,9 @@ export default defineConfig({
   },
   server: { port: 5173, strictPort: true },
   build: {
+    // pdfjs-dist v4 emits top-level await; bump targets so esbuild keeps it.
+    // Matches the floor of every browser that supports TLA natively.
+    target: ['chrome89', 'edge89', 'firefox89', 'safari15'],
     rollupOptions: {
       output: {
         // Split heavy vendor libs into their own chunks so the dashboard /
