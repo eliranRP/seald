@@ -10,6 +10,7 @@ import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
+import { MeModule } from './me/me.module';
 import { SealingModule } from './sealing/sealing.module';
 import { TemplatesModule } from './templates/templates.module';
 import { VerifyModule } from './verify/verify.module';
@@ -45,6 +46,7 @@ import { StorageModule } from './storage/storage.module';
     ContactsModule,
     EnvelopesModule,
     TemplatesModule,
+    MeModule,
     SealingModule,
     VerifyModule,
     CronModule,

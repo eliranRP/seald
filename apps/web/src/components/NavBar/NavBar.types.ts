@@ -28,4 +28,12 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
   readonly onSignIn?: (() => void) | undefined;
   readonly onSignUp?: (() => void) | undefined;
   readonly onSignOut?: (() => void) | undefined;
+  /** Optional — wires the UserMenu's "Download my data" item. */
+  readonly onExportData?: (() => void) | undefined;
+  /** Optional — wires the UserMenu's "Delete account" danger item. */
+  readonly onDeleteAccount?: (() => void) | undefined;
+  /** Mirrors UserMenu.isExporting; disables the item while in flight. */
+  readonly isExporting?: boolean | undefined;
+  /** Mirrors UserMenu.isDeleting; disables the item while in flight. */
+  readonly isDeleting?: boolean | undefined;
 }

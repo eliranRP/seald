@@ -52,4 +52,59 @@ describe('UserMenu', () => {
     await userEvent.click(getByRole('button', { name: /open menu for/i }));
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  it('renders Download my data + Delete account when handlers are provided', async () => {
+    const onExportData = vi.fn();
+    const onDeleteAccount = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <UserMenu
+        user={user}
+        onSignOut={() => {}}
+        onExportData={onExportData}
+        onDeleteAccount={onDeleteAccount}
+      />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    await userEvent.click(getByRole('menuitem', { name: /download my data/i }));
+    expect(onExportData).toHaveBeenCalledTimes(1);
+    // After firing, menu closes; reopen and verify the danger item too.
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    await userEvent.click(getByRole('menuitem', { name: /delete account/i }));
+    expect(onDeleteAccount).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT render Download my data / Delete account when handlers are absent', async () => {
+    const { getByRole, queryByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    expect(queryByRole('menuitem', { name: /download my data/i })).toBeNull();
+    expect(queryByRole('menuitem', { name: /delete account/i })).toBeNull();
+  });
+
+  it('disables and reflects busy state on the export item while isExporting', async () => {
+    const onExportData = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} onExportData={onExportData} isExporting />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    const item = getByRole('menuitem', { name: /preparing download/i });
+    expect(item).toBeDisabled();
+    expect(item).toHaveAttribute('aria-busy', 'true');
+    await userEvent.click(item);
+    expect(onExportData).not.toHaveBeenCalled();
+  });
+
+  it('disables and reflects busy state on the delete item while isDeleting', async () => {
+    const onDeleteAccount = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} onDeleteAccount={onDeleteAccount} isDeleting />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    const item = getByRole('menuitem', { name: /deleting account/i });
+    expect(item).toBeDisabled();
+    expect(item).toHaveAttribute('aria-busy', 'true');
+    await userEvent.click(item);
+    expect(onDeleteAccount).not.toHaveBeenCalled();
+  });
 });

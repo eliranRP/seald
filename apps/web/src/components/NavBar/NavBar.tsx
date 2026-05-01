@@ -44,10 +44,24 @@ interface RightClusterArgs {
   readonly onSignIn: (() => void) | undefined;
   readonly onSignUp: (() => void) | undefined;
   readonly onSignOut: (() => void) | undefined;
+  readonly onExportData: (() => void) | undefined;
+  readonly onDeleteAccount: (() => void) | undefined;
+  readonly isExporting: boolean;
+  readonly isDeleting: boolean;
 }
 
 function renderRightCluster(args: RightClusterArgs): ReactNode {
-  const { isGuest, user, onSignIn, onSignUp, onSignOut } = args;
+  const {
+    isGuest,
+    user,
+    onSignIn,
+    onSignUp,
+    onSignOut,
+    onExportData,
+    onDeleteAccount,
+    isExporting,
+    isDeleting,
+  } = args;
   if (isGuest) {
     return (
       <>
@@ -73,6 +87,10 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
           ...(user.avatarUrl ? { avatarUrl: user.avatarUrl } : {}),
         }}
         onSignOut={onSignOut}
+        {...(onExportData ? { onExportData } : {})}
+        {...(onDeleteAccount ? { onDeleteAccount } : {})}
+        isExporting={isExporting}
+        isDeleting={isDeleting}
       />
     );
   }
@@ -121,6 +139,10 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     onSignIn,
     onSignUp,
     onSignOut,
+    onExportData,
+    onDeleteAccount,
+    isExporting = false,
+    isDeleting = false,
     ...rest
   } = props;
 
@@ -177,7 +199,17 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
       )}
       <Spacer />
       <RightCluster>
-        {renderRightCluster({ isGuest, user, onSignIn, onSignUp, onSignOut })}
+        {renderRightCluster({
+          isGuest,
+          user,
+          onSignIn,
+          onSignUp,
+          onSignOut,
+          onExportData,
+          onDeleteAccount,
+          isExporting,
+          isDeleting,
+        })}
       </RightCluster>
     </Header>
   );
