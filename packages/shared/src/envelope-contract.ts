@@ -60,7 +60,12 @@ export const SIGNER_UI_STATUSES = ['awaiting', 'viewing', 'completed', 'declined
 export type SignerUiStatus = (typeof SIGNER_UI_STATUSES)[number];
 
 // Primitive schemas
-export const uuid = z.string().uuid();
+// Use z.guid() rather than z.uuid() so that any 8-4-4-4-12 hex pattern is
+// accepted (matching Postgres `uuid` column semantics). zod 4's z.uuid() now
+// strictly enforces RFC 4122 version+variant nibbles, which would reject
+// synthetic identifiers used in tests/seeds without buying any real-world
+// safety — Postgres already gates ingest at the column level.
+export const uuid = z.guid();
 export const iso = z.string().datetime();
 export const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 export const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
