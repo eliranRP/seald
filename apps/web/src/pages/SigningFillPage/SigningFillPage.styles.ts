@@ -82,6 +82,29 @@ export const DeclineBtn = styled.button`
 `;
 
 /**
+ * Issue #41 — Withdraw-consent affordance promised by the ESIGN
+ * Disclosure §3 ("withdraw your consent at any time before signing the
+ * document by clicking Withdraw consent on the signing screen"). Kept
+ * visually quieter than Decline so it does not invite accidental
+ * activation, but reachable from every signing-screen step.
+ */
+export const WithdrawBtn = styled.button`
+  height: 36px;
+  padding: 0 12px;
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
+  text-decoration: underline;
+  cursor: pointer;
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`;
+
+/**
  * Center column: document canvas on the left, pages rail on the right.
  * `overflow: auto` on the scroll container so rail stays pinned while pages scroll.
  */
