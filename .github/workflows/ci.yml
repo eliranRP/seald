@@ -220,6 +220,49 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------
+  # Playwright (web) — real-PDF template + signing happy-path
+  # regression gate. Drives the SPA dev server with intercepted
+  # `/api/*` and `/sign/*` mocks and asserts the load-bearing
+  # "create from PDF → place fields → sign → finish" flow doesn't
+  # break before merge. Scoped to the single happy-path spec so the
+  # job stays fast (≈1m on cold-cache); the BDD project is NOT run
+  # here — it's covered separately by the existing `web` vitest job.
+  # ---------------------------------------------------------------
+  playwright-web:
+    name: Playwright (web) — template + sign happy path
+    runs-on: ubuntu-latest
+    needs: install
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared
+        run: pnpm --filter shared build
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm --filter web exec playwright install --with-deps chromium
+
+      - name: Run template + sign happy-path spec
+        run: pnpm --filter web exec playwright test --project=chromium e2e/template-sign-flow.spec.ts
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------
   # E2E tests — includes the PAdES B-T (openssl-P12) and PAdES-B-T
   # (KMS-against-LocalStack) suites. Ubuntu runners ship openssl. The
   # LocalStack service container exercises the KmsPadesSigner path
