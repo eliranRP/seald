@@ -77,18 +77,27 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
 
   const strength = useMemo(() => (isSignup ? scorePassword(password) : 0), [isSignup, password]);
 
+  // The age-gate + ToS/Privacy attestation gates the password Submit. It
+  // ALSO gates Google + Skip in signup mode — both create an account on
+  // our side (Google = OAuth-claimed user, Skip = guest session bound to
+  // our Privacy Policy) so the affirmative ESIGN/GDPR consent must
+  // happen before either flow starts. Signin mode shows no checkboxes
+  // and is unaffected.
+  const signupConsented = agreed && ofAge;
+
   const valid = useMemo(() => {
     if (isForgot) return EMAIL_RE.test(email);
     if (isSignup) {
       return (
-        name.trim().length > 1 && EMAIL_RE.test(email) && password.length >= 8 && agreed && ofAge
+        name.trim().length > 1 && EMAIL_RE.test(email) && password.length >= 8 && signupConsented
       );
     }
     return EMAIL_RE.test(email) && password.length >= 1;
-  }, [isForgot, isSignup, name, email, password, agreed, ofAge]);
+  }, [isForgot, isSignup, name, email, password, signupConsented]);
 
   const handleGoogle = async (): Promise<void> => {
     if (busy) return;
+    if (isSignup && !signupConsented) return;
     setError(null);
     setBusy(true);
     try {
@@ -98,6 +107,11 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
       setError(err instanceof Error ? err.message : 'Unable to start Google sign-in.');
       setBusy(false);
     }
+  };
+
+  const handleSkip = (): void => {
+    if (isSignup && !signupConsented) return;
+    onSkip?.();
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
@@ -146,6 +160,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
             label={isSignup ? 'Sign up with Google' : 'Continue with Google'}
             onClick={handleGoogle}
             busy={busy}
+            disabled={isSignup && !signupConsented}
           />
           <Divider label="or" />
         </>
@@ -286,7 +301,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
 
       {!isForgot && onSkip ? (
         <SkipRow>
-          <SkipButton type="button" onClick={onSkip}>
+          <SkipButton type="button" onClick={handleSkip} disabled={isSignup && !signupConsented}>
             Skip — try it without an account
             <Icon icon={ArrowRight} size={14} />
           </SkipButton>

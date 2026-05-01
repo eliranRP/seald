@@ -151,6 +151,42 @@ describe('AuthForm', () => {
     expect(onSkip).toHaveBeenCalledTimes(1);
   });
 
+  // Regression: T-24/T-25 + ESIGN affirmative-consent. The Google + Skip
+  // bypass the password form, but on signup mode they still create / claim
+  // an account on our side, so the age-gate + ToS/Privacy attestation must
+  // gate them too. Signin mode is unaffected — the user accepted at signup.
+  it('disables "Sign up with Google" until both signup checkboxes are ticked', async () => {
+    const { getByRole, getByLabelText } = renderWithTheme(<AuthForm mode="signup" />);
+    const google = getByRole('button', { name: /sign up with google/i });
+    expect(google).toBeDisabled();
+    await userEvent.click(getByLabelText(/agree to terms/i));
+    expect(google).toBeDisabled();
+    await userEvent.click(getByLabelText(/legal age/i));
+    expect(google).not.toBeDisabled();
+    await userEvent.click(google);
+    expect(auth.signInWithGoogle).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not gate "Continue with Google" in signin mode', () => {
+    const { getByRole } = renderWithTheme(<AuthForm mode="signin" />);
+    expect(getByRole('button', { name: /continue with google/i })).not.toBeDisabled();
+  });
+
+  it('disables Skip in signup mode until both checkboxes are ticked', async () => {
+    const onSkip = vi.fn();
+    const { getByRole, getByLabelText } = renderWithTheme(
+      <AuthForm mode="signup" onSkip={onSkip} />,
+    );
+    const skip = getByRole('button', { name: /skip — try it/i });
+    expect(skip).toBeDisabled();
+    await userEvent.click(getByLabelText(/agree to terms/i));
+    expect(skip).toBeDisabled();
+    await userEvent.click(getByLabelText(/legal age/i));
+    expect(skip).not.toBeDisabled();
+    await userEvent.click(skip);
+    expect(onSkip).toHaveBeenCalledTimes(1);
+  });
+
   it('surfaces provider errors in a banner', async () => {
     auth.signInWithPassword.mockRejectedValueOnce(new Error('Invalid login credentials'));
     const { getByRole, getByLabelText, findByRole } = renderWithTheme(<AuthForm mode="signin" />);

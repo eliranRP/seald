@@ -792,13 +792,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingVertical: 6,
     paddingHorizontal: 16,
-    alignItems: 'center',
+    // Was 'center'. Switched to 'flex-start' so the IP + timestamp
+    // columns stay aligned to the top of the row when the ACTION
+    // column wraps to a second line (long labels like "ESIGN
+    // disclosure acknowledged"). Inner cells carry their own
+    // paddingTop so single-line rows still look optically centered
+    // against the 22px action chip.
+    alignItems: 'flex-start',
     borderBottomWidth: 1,
     borderBottomColor: C.ink200,
     borderBottomStyle: 'solid',
   },
   evtRowLast: { borderBottomWidth: 0 },
-  evtAction: { flex: 1.5, flexDirection: 'row', alignItems: 'center' },
+  // Column widths rebalanced 2026-05-01 — the longest action label
+  // ("ESIGN disclosure acknowledged") was overflowing the ACTION column
+  // and rendering on top of the IP column. Bumped ACTION 1.5 → 2.0 and
+  // dropped IP 1.4 → 1.1 (an IPv4 string is 15 chars max, so 1.1 is
+  // generous; IPv6 still fits because the row is `alignItems: 'flex-start'`
+  // and the Text wraps if needed). Inner `evtActionText` now carries
+  // `flex: 1` + minWidth: 0 so it shrinks to fit the column instead of
+  // pushing past it.
+  evtAction: { flex: 2.0, flexDirection: 'row', alignItems: 'flex-start', paddingRight: 8 },
   evtIco: {
     width: 22,
     height: 22,
@@ -806,11 +820,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
+    flexShrink: 0,
   },
-  evtActionText: { fontFamily: 'Inter', fontSize: 10, color: C.ink900, fontWeight: 500 },
-  evtIp: { flex: 1.4, fontFamily: 'JetBrainsMono', fontSize: 9, color: C.ink700 },
+  evtActionText: {
+    flex: 1,
+    minWidth: 0,
+    fontFamily: 'Inter',
+    fontSize: 10,
+    color: C.ink900,
+    fontWeight: 500,
+    lineHeight: 1.35,
+    paddingTop: 4,
+  },
+  evtIp: { flex: 1.1, fontFamily: 'JetBrainsMono', fontSize: 9, color: C.ink700, paddingTop: 6 },
   evtIpDim: { color: C.ink400 },
-  evtTs: { flex: 1.6, fontFamily: 'JetBrainsMono', fontSize: 9, color: C.ink700 },
+  evtTs: { flex: 1.4, fontFamily: 'JetBrainsMono', fontSize: 9, color: C.ink700, paddingTop: 6 },
 
   // ---- Trust bar ----
   // marginTop tightened from 14 to 8 + smaller paddings so the bar
