@@ -15,13 +15,25 @@
  */
 
 /**
- * Default version string for the ESIGN consumer disclosure rendered on
- * the signer prep page. Bumped whenever the user-visible disclosure
- * copy changes; persisted into `tc_accepted` event metadata under
- * `esign_disclosure_version` so the audit trail can tie the consent
- * event to the exact disclosure shown.
+ * Version string for the ESIGN consumer disclosure rendered on the
+ * signer prep page (`/legal/esign-disclosure` on the landing site, and
+ * the in-flow checkbox on `/sign/:id/prep`). Bumped whenever the
+ * user-visible disclosure copy changes; persisted into the audit chain
+ * via two events so the trail is self-describing:
+ *   - `tc_accepted` metadata.esign_disclosure_version (server-stamped
+ *     in SigningService.acceptTerms — picks up THIS constant)
+ *   - `esign_disclosure_acknowledged` metadata.esign_disclosure_version
+ *     (passed in from the SPA via `acknowledgeEsignDisclosure(version)`,
+ *     so the SPA must import THIS same constant — see
+ *     SigningPrepPage.tsx)
+ *
+ * Keep this aligned with the version in
+ * `apps/landing/src/pages/legal/esign-disclosure.astro` (`VERSION` in
+ * the frontmatter). Don't repurpose old version strings; bump to a
+ * fresh value when the disclosure copy changes so historical audit
+ * events remain unambiguous.
  */
-export const ESIGN_DISCLOSURE_VERSION = '2026-04-30';
+export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.1';
 
 /**
  * Default retention period for sealed envelopes, in years. Aligns with
