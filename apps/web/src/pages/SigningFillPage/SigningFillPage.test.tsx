@@ -145,6 +145,46 @@ describe('SigningFillPage', () => {
     });
   });
 
+  describe('Withdraw consent (issue #41)', () => {
+    afterEach(() => {
+      vi.spyOn(window, 'confirm').mockRestore?.();
+    });
+
+    it('renders a Withdraw consent control next to Decline on the signing screen', async () => {
+      renderFill();
+      const btn = await screen.findByRole('button', { name: /withdraw consent/i });
+      expect(btn).toBeInTheDocument();
+    });
+
+    it('confirm + click POSTs /sign/withdraw-consent and routes to /declined', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      post.mockResolvedValueOnce(
+        okResponse({ status: 'consent_withdrawn', envelope_status: 'declined' }),
+      );
+      renderFill();
+      const btn = await screen.findByRole('button', { name: /withdraw consent/i });
+      await userEvent.click(btn);
+      await waitFor(() => {
+        expect(post).toHaveBeenCalledWith('/sign/withdraw-consent', undefined, expect.any(Object));
+      });
+      await waitFor(() => {
+        // no semantic role: __pathname__ is a test-only sentinel probe (rule 4.6)
+        expect(screen.getByTestId('__pathname__').textContent).toBe(
+          `/sign/${MOCK_ENVELOPE_ID}/declined`,
+        );
+      });
+    });
+
+    it('cancelled confirm does not call the withdraw endpoint', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      renderFill();
+      const btn = await screen.findByRole('button', { name: /withdraw consent/i });
+      await userEvent.click(btn);
+      // No POSTs at all — only the GET /sign/me from the initial render fired.
+      expect(post).not.toHaveBeenCalled();
+    });
+  });
+
   it('a 413 signature upload surfaces a size-error banner (no redirect)', async () => {
     const err = Object.assign(new Error('image_too_large'), { status: 413 });
     post.mockRejectedValueOnce(err);

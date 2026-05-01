@@ -135,6 +135,51 @@ describe('SigningReviewPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/boom/i);
   });
 
+  describe('Withdraw consent (issue #41)', () => {
+    afterEach(() => {
+      vi.spyOn(window, 'confirm').mockRestore?.();
+    });
+
+    it('renders a Withdraw consent control on the review screen', async () => {
+      renderReview();
+      const btn = await screen.findByRole('button', {
+        name: /withdraw consent to sign electronically/i,
+      });
+      expect(btn).toBeInTheDocument();
+    });
+
+    it('confirm + click POSTs /sign/withdraw-consent and routes to /declined', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      post.mockResolvedValueOnce(
+        okResponse({ status: 'consent_withdrawn', envelope_status: 'declined' }),
+      );
+      renderReview();
+      const btn = await screen.findByRole('button', {
+        name: /withdraw consent to sign electronically/i,
+      });
+      await userEvent.click(btn);
+      await waitFor(() => {
+        expect(post).toHaveBeenCalledWith('/sign/withdraw-consent', undefined, expect.any(Object));
+      });
+      await waitFor(() => {
+        // no semantic role: __pathname__ is a test-only sentinel probe (rule 4.6)
+        expect(screen.getByTestId('__pathname__').textContent).toBe(
+          `/sign/${MOCK_ENVELOPE_ID}/declined`,
+        );
+      });
+    });
+
+    it('cancelled confirm does not call the withdraw endpoint', async () => {
+      vi.spyOn(window, 'confirm').mockReturnValue(false);
+      renderReview();
+      const btn = await screen.findByRole('button', {
+        name: /withdraw consent to sign electronically/i,
+      });
+      await userEvent.click(btn);
+      expect(post).not.toHaveBeenCalled();
+    });
+  });
+
   it('Save as template button opens the dialog and submits the payload', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     renderReview();

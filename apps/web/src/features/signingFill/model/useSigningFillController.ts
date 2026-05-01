@@ -74,6 +74,13 @@ interface UseSigningFillControllerReturn {
   readonly handleSignatureApply: (result: SignatureCaptureResult) => Promise<void>;
   readonly handleReview: () => void;
   readonly handleDecline: () => Promise<void>;
+  /**
+   * Issue #41 — ESIGN Disclosure §3 promises a Withdraw-consent control on
+   * "the signing screen". Surfaced from the controller so both the Fill
+   * and Review pages can render the same affordance with the same audit
+   * outcome (a `consent_withdrawn` event distinct from `declined`).
+   */
+  readonly handleWithdrawConsent: () => Promise<void>;
 }
 
 /**
@@ -87,7 +94,8 @@ export function useSigningFillController({
   envelopeId,
 }: UseSigningFillControllerArgs): UseSigningFillControllerReturn {
   const navigate = useNavigate();
-  const { fillField, setSignature, decline, nextField, fields } = useSigningSession();
+  const { fillField, setSignature, decline, nextField, fields, withdrawConsent } =
+    useSigningSession();
 
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [textDrawer, setTextDrawer] = useState<TextDrawerState | null>(null);
@@ -300,6 +308,28 @@ export function useSigningFillController({
     }
   }, [busy, decline, envelopeId, navigate]);
 
+  const handleWithdrawConsent = useCallback(async (): Promise<void> => {
+    if (busy) return;
+    // Distinct from "Decline" — withdrawal of consent under ESIGN
+    // §7001(c)(1). Mirrored from SigningPrepPage so users get the same
+    // explicit warning regardless of which signing-screen step they
+    // trigger withdrawal from (issue #41).
+    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
+    const confirmed = window.confirm(
+      'Withdraw consent to sign this document electronically?\n\n' +
+        'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +
+        'The sender will be notified. This is recorded in the audit trail as a withdrawal (distinct from a decline).',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await withdrawConsent();
+      navigate(`/sign/${envelopeId}/declined`, { replace: true });
+    } catch {
+      setBusy(false);
+    }
+  }, [busy, envelopeId, navigate, withdrawConsent]);
+
   return {
     activeFieldId,
     textDrawer,
@@ -314,5 +344,6 @@ export function useSigningFillController({
     handleSignatureApply,
     handleReview,
     handleDecline,
+    handleWithdrawConsent,
   };
 }

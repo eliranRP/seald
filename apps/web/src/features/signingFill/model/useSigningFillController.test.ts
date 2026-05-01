@@ -32,12 +32,14 @@ const session: {
   fillField: ReturnType<typeof vi.fn>;
   setSignature: ReturnType<typeof vi.fn>;
   decline: ReturnType<typeof vi.fn>;
+  withdrawConsent: ReturnType<typeof vi.fn>;
 } = {
   fields: [],
   nextField: null,
   fillField: vi.fn(),
   setSignature: vi.fn(),
   decline: vi.fn(),
+  withdrawConsent: vi.fn(),
 };
 vi.mock('@/features/signing', async () => {
   const actual = (await vi.importActual('@/features/signing')) as Record<string, unknown>;
@@ -69,6 +71,7 @@ beforeEach(() => {
     if (f) (f as { value_text: string | null }).value_text = 'data:image/png;base64,xxx';
   });
   session.decline = vi.fn(async () => {});
+  session.withdrawConsent = vi.fn(async () => {});
 
   // jsdom's querySelector finds nothing because we don't render the
   // PDF page nodes in this hook-only test. Stub it to return a fake

@@ -140,6 +140,30 @@ const SaveTemplateBtn = styled.button`
   }
 `;
 
+/**
+ * Issue #41 — Withdraw-consent affordance promised by ESIGN Disclosure §3.
+ * Visually quiet text link below the primary actions; mirrors the prep
+ * page's WithdrawLink so the control is reachable from every signing
+ * step (prep / fill / review).
+ */
+const WithdrawLink = styled.button`
+  margin-top: ${({ theme }) => theme.space[4]};
+  background: transparent;
+  border: none;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
+  text-align: center;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: underline;
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`;
+
 const Toast = styled.div`
   margin-top: ${({ theme }) => theme.space[4]};
   background: ${({ theme }) => theme.color.success[50]};
@@ -229,7 +253,7 @@ function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
-  const { envelope, fields, submit, confirmIntentToSign } = useSigningSession();
+  const { envelope, fields, submit, confirmIntentToSign, withdrawConsent } = useSigningSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveTplOpen, setSaveTplOpen] = useState(false);
@@ -258,6 +282,30 @@ function Content() {
     () => navigate(`/sign/${envelopeId}/fill`),
     [envelopeId, navigate],
   );
+
+  const handleWithdrawConsent = useCallback(async () => {
+    if (busy) return;
+    // Same warning copy as SigningPrepPage / SigningFillPage so the
+    // consequence is identical regardless of which signing-screen step
+    // the signer triggers withdrawal from (issue #41).
+    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
+    const confirmed = window.confirm(
+      'Withdraw consent to sign this document electronically?\n\n' +
+        'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +
+        'The sender will be notified. This is recorded in the audit trail as a withdrawal (distinct from a decline).',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await withdrawConsent();
+      navigate(`/sign/${envelopeId}/declined`, { replace: true });
+    } catch (err) {
+      setBusy(false);
+      const e = err as ApiErrorLike;
+      setError(e.message ?? 'We could not record your withdrawal right now. Please try again.');
+    }
+  }, [busy, envelopeId, navigate, withdrawConsent]);
 
   const handleSubmit = useCallback(async () => {
     if (!intentChecked) return;
@@ -342,6 +390,10 @@ function Content() {
             {busy ? 'Submitting…' : 'Sign and submit'}
           </SubmitBtn>
         </Actions>
+
+        <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>
+          Withdraw consent to sign electronically
+        </WithdrawLink>
       </Inner>
     </Page>
   );

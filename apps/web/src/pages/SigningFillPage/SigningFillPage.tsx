@@ -35,6 +35,7 @@ import {
   RailSlot,
   ReviewBtn,
   Spacer,
+  WithdrawBtn,
 } from './SigningFillPage.styles';
 
 // Default field box dimensions when the backend didn't send explicit width/
@@ -88,6 +89,7 @@ function Content() {
     handleSignatureApply,
     handleReview,
     handleDecline,
+    handleWithdrawConsent,
   } = useSigningFillController({ envelopeId });
 
   // Zoom + scroll-spy + page rail — extracted to a reusable hook (rule 1.1).
@@ -146,6 +148,14 @@ function Content() {
         <DeclineBtn type="button" onClick={handleDecline} disabled={busy}>
           Decline
         </DeclineBtn>
+        <WithdrawBtn
+          type="button"
+          onClick={handleWithdrawConsent}
+          disabled={busy}
+          title="Withdraw consent to use electronic signatures for this document"
+        >
+          Withdraw consent
+        </WithdrawBtn>
         {!allRequiredFilled && nextField ? (
           <NextBtn type="button" onClick={handleNext}>
             <Icon icon={ArrowDown} size={14} />
