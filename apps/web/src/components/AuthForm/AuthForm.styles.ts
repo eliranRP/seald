@@ -48,8 +48,14 @@ export const TosRow = styled.label`
 `;
 
 export const Checkbox = styled.input`
+  /* min-width + flex-shrink: 0 keep both checkboxes visually identical
+     even when their adjacent text wraps to a different number of lines.
+     Without these, the longer-text row's flex layout was squeezing the
+     checkbox a few px narrower, making the two rows look mismatched. */
   width: 18px;
   height: 18px;
+  min-width: 18px;
+  flex-shrink: 0;
   accent-color: ${({ theme }) => theme.color.ink[900]};
   cursor: pointer;
 `;
@@ -123,13 +129,17 @@ export const SkipButton = styled.button`
   color: ${({ theme }) => theme.color.fg[3]};
   cursor: pointer;
   border-radius: ${({ theme }) => theme.radius.sm};
-  &:hover {
+  &:hover:not(:disabled) {
     color: ${({ theme }) => theme.color.fg[1]};
     background: ${({ theme }) => theme.color.ink[100]};
   }
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
