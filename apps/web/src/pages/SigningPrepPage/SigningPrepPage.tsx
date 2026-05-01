@@ -5,6 +5,7 @@ import { Avatar } from '@/components/Avatar';
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import { ESIGN_DISCLOSURE_VERSION } from 'shared';
 import {
   AesDisclosure,
   Checkbox,
@@ -25,13 +26,6 @@ import {
   TosRow,
   WithdrawLink,
 } from './SigningPrepPage.styles';
-
-/**
- * ESIGN Consumer Disclosure version. Bumped whenever the disclosure
- * copy at /legal/esign-disclosure changes; persisted into the audit
- * chain on acknowledgment so we can later prove which version applied.
- */
-const ESIGN_DISCLOSURE_VERSION = 'esign_v0.1';
 
 interface ApiErrorLike extends Error {
   status?: number;

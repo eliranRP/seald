@@ -62,7 +62,7 @@ export function SignaturePad(props: SignaturePadProps): ReactNode {
     setMode(next);
   }, []);
 
-  let panel: ReactNode = null;
+  let panel: ReactNode;
   if (mode === 'type') {
     panel = <TypeMode onCommit={handleCommit} onCancel={handleCancel} />;
   } else if (mode === 'draw') {

@@ -77,7 +77,7 @@ function buildFilters(viewerEmail: string | null): ReadonlyArray<FilterDef> {
         (d.status === 'awaiting_others' || d.status === 'sealing') &&
         !isAwaitingYou(d, viewerEmail),
     },
-    { id: 'completed', label: 'Completed', matches: (d) => d.status === 'completed' },
+    { id: 'completed', label: 'Sealed', matches: (d) => d.status === 'completed' },
     { id: 'drafts', label: 'Drafts', matches: (d) => d.status === 'draft' },
   ];
 }
@@ -86,7 +86,7 @@ const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
   awaiting_others: 'Awaiting others',
   sealing: 'Sealing',
-  completed: 'Completed',
+  completed: 'Sealed',
   declined: 'Declined',
   expired: 'Expired',
   canceled: 'Canceled',
@@ -304,7 +304,7 @@ export function DashboardPage() {
       { label: 'Awaiting you', value: awaitingYou.toString(), tone: 'indigo' as const },
       { label: 'Awaiting others', value: awaitingOthers.toString(), tone: 'amber' as const },
       {
-        label: 'Completed this month',
+        label: 'Sealed this month',
         value: completedThisMonth.toString(),
         tone: 'emerald' as const,
       },

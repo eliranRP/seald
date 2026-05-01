@@ -13,7 +13,7 @@ export const Card = forwardRef<HTMLElement, CardProps>((props, ref) => {
       $padding={padding}
       {...rest}
       as={tag}
-      ref={ref as Ref<HTMLElement>}
+      ref={ref as Ref<HTMLDivElement>}
     >
       {children}
     </CardRoot>
