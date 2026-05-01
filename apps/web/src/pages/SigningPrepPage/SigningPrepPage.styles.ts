@@ -145,6 +145,42 @@ export const DeclineLink = styled.button`
   text-decoration: underline;
 `;
 
+/**
+ * T-16 — sits below the Decline link as a separate, less-prominent
+ * affordance. Same styling as DeclineLink but tighter spacing, since
+ * the two terminal actions are visually paired.
+ */
+export const WithdrawLink = styled.button`
+  margin-top: ${({ theme }) => theme.space[2]};
+  background: transparent;
+  border: none;
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
+  text-align: center;
+  display: block;
+  width: 100%;
+  cursor: pointer;
+  text-decoration: underline;
+  opacity: 0.78;
+`;
+
+/**
+ * T-26 — small attribution disclosure under the IdCard explaining
+ * what level of e-signature Seald produces and when wet ink may
+ * still be required.
+ */
+export const AesDisclosure = styled.p`
+  margin: ${({ theme }) => theme.space[5]} 0 0;
+  padding: 12px 14px;
+  background: ${({ theme }) => theme.color.ink[50]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: 1.55;
+`;
+
 export const ErrorBanner = styled.div`
   margin-top: ${({ theme }) => theme.space[4]};
   background: ${({ theme }) => theme.color.danger[50]};

@@ -17,6 +17,7 @@ import {
   DocMeta,
   DocTitle,
   Kicker,
+  RetentionNote,
   SealBadge,
   SignerEmail,
   SignerItem,
@@ -27,6 +28,12 @@ import {
   Title,
   Wrap,
 } from './SentConfirmationPage.styles';
+
+/**
+ * T-18 — keep this in sync with `ENVELOPE_RETENTION_YEARS` (default `7`)
+ * in `apps/api/src/config/env.schema.ts` and the Done page.
+ */
+const RETENTION_YEARS = 7;
 
 /** Lightweight projection common to both the local-draft source and the API. */
 interface SentSummary {
@@ -171,6 +178,11 @@ export function SentConfirmationPage() {
           <ShieldCheck size={14} />
           Audit trail sealed — every event is cryptographically logged
         </AuditBadge>
+
+        <RetentionNote>
+          Seald retains the sealed PDF and audit trail for {RETENTION_YEARS} years from sealing.
+          Verify any time at <code>/verify/{summary.code}</code>.
+        </RetentionNote>
 
         <Actions>
           <Button variant="primary" iconLeft={ShieldCheck} onClick={openEnvelope}>

@@ -100,6 +100,7 @@ export class SealingService {
       sealedSha256: sealedSha,
       sealedPages,
       publicUrl: this.env.APP_PUBLIC_URL,
+      retentionYears: this.env.ENVELOPE_RETENTION_YEARS,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
@@ -194,6 +195,7 @@ export class SealingService {
       sealedSha256: null,
       sealedPages: null,
       publicUrl: this.env.APP_PUBLIC_URL,
+      retentionYears: this.env.ENVELOPE_RETENTION_YEARS,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');

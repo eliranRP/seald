@@ -191,6 +191,7 @@ export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOpti
       writeDoneSnapshot({
         kind: 'submitted',
         envelope_id: envelopeId,
+        short_code: me?.envelope.short_code ?? '',
         title: me?.envelope.title ?? '',
         sender_name: opts.senderName,
         recipient_email: me?.signer.email ?? '',
@@ -211,6 +212,7 @@ export function useDeclineMutation(envelopeId: string, opts: TerminalMutationOpt
       writeDoneSnapshot({
         kind: 'declined',
         envelope_id: envelopeId,
+        short_code: me?.envelope.short_code ?? '',
         title: me?.envelope.title ?? '',
         sender_name: opts.senderName,
         recipient_email: me?.signer.email ?? '',
@@ -218,6 +220,56 @@ export function useDeclineMutation(envelopeId: string, opts: TerminalMutationOpt
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.declined', envelope_id: envelopeId });
+    },
+  });
+}
+
+/**
+ * T-14 — record ESIGN Consumer Disclosure acknowledgment. Optimistic
+ * cache update is unnecessary because the disclosure event isn't
+ * surfaced in `/sign/me` — the audit trail is the only consumer.
+ */
+export function useEsignDisclosureMutation(envelopeId: string) {
+  return useMutation<void, Error, string>({
+    mutationFn: (version) => api.acknowledgeEsignDisclosure(version),
+    onSuccess: (_, version) => {
+      reportSignerEvent({
+        type: 'sign.esign_disclosure.ack',
+        envelope_id: envelopeId,
+        version,
+      });
+    },
+  });
+}
+
+/** T-15 — record explicit intent-to-sign before /sign/submit. */
+export function useIntentToSignMutation(envelopeId: string) {
+  return useMutation<void, Error, void>({
+    mutationFn: () => api.confirmIntentToSign(),
+    onSuccess: () => {
+      reportSignerEvent({ type: 'sign.intent_to_sign.ack', envelope_id: envelopeId });
+    },
+  });
+}
+
+/** T-16 — withdraw consent for electronic signing. */
+export function useWithdrawConsentMutation(envelopeId: string, opts: TerminalMutationOptions) {
+  const qc = useQueryClient();
+  return useMutation<DeclineResponse, Error, string | undefined>({
+    mutationFn: (reason) => api.withdrawConsent(reason),
+    onSuccess: () => {
+      const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
+      writeDoneSnapshot({
+        kind: 'declined',
+        envelope_id: envelopeId,
+        short_code: me?.envelope.short_code ?? '',
+        title: me?.envelope.title ?? '',
+        sender_name: opts.senderName,
+        recipient_email: me?.signer.email ?? '',
+        timestamp: new Date().toISOString(),
+      });
+      qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
+      reportSignerEvent({ type: 'sign.consent_withdrawn', envelope_id: envelopeId });
     },
   });
 }

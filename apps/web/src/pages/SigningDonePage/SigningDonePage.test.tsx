@@ -22,6 +22,7 @@ describe('SigningDonePage', () => {
     writeDoneSnapshot({
       kind: 'submitted',
       envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDONE00001',
       title: 'Master Services Agreement',
       sender_name: 'Eliran Azulay',
       recipient_email: 'maya@example.com',
@@ -45,6 +46,7 @@ describe('SigningDonePage', () => {
     writeDoneSnapshot({
       kind: 'submitted',
       envelope_id: 'some-other-envelope',
+      short_code: 'TESTDONE00002',
       title: 'Other',
       sender_name: null,
       recipient_email: 'x@y',
@@ -60,6 +62,7 @@ describe('SigningDonePage', () => {
     writeDoneSnapshot({
       kind: 'submitted',
       envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDONE00003',
       title: 'MSA',
       sender_name: null,
       recipient_email: 'maya@example.com',

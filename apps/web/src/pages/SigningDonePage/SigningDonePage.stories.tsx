@@ -12,6 +12,7 @@ if (typeof window !== 'undefined') {
   writeDoneSnapshot({
     kind: 'submitted',
     envelope_id: ENVELOPE_ID,
+    short_code: 'STORYBOOKDONE',
     title: 'Master Services Agreement',
     sender_name: 'Eliran Azulay',
     recipient_email: 'maya@example.com',

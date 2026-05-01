@@ -21,6 +21,7 @@ describe('SigningDeclinedPage', () => {
     writeDoneSnapshot({
       kind: 'declined',
       envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDEC000001',
       title: 'MSA',
       sender_name: 'Eliran',
       recipient_email: 'maya@example.com',
@@ -35,6 +36,7 @@ describe('SigningDeclinedPage', () => {
     writeDoneSnapshot({
       kind: 'declined',
       envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDEC000002',
       title: 'MSA',
       sender_name: null,
       recipient_email: 'maya@example.com',
@@ -56,6 +58,7 @@ describe('SigningDeclinedPage', () => {
     writeDoneSnapshot({
       kind: 'submitted',
       envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTSUB000001',
       title: 'MSA',
       sender_name: null,
       recipient_email: 'maya@example.com',

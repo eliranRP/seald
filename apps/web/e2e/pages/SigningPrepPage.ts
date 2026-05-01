@@ -8,7 +8,13 @@ export class SigningPrepPage {
   }
 
   async agreeAndContinue(): Promise<void> {
-    await this.page.getByRole('checkbox', { name: /agree to electronic signatures/i }).check();
+    // T-14: prep now has TWO checkboxes (Consumer Disclosure ack +
+    // ESIGN §7001(c)(1)(C)(ii) "demonstrated ability" affirmation).
+    // Both must be ticked before "Start signing" enables.
+    await this.page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
+    await this.page
+      .getByRole('checkbox', { name: /access electronic records on this device/i })
+      .check();
     await this.page.getByRole('button', { name: /start signing/i }).click();
   }
 

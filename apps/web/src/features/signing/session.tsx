@@ -3,10 +3,13 @@ import type { ReactNode } from 'react';
 import {
   useAcceptTermsMutation,
   useDeclineMutation,
+  useEsignDisclosureMutation,
   useFillFieldMutation,
+  useIntentToSignMutation,
   useSignMeQuery,
   useSignatureMutation,
   useSubmitMutation,
+  useWithdrawConsentMutation,
 } from './useSigning';
 import type {
   FillValue,
@@ -31,8 +34,14 @@ export interface SigningSessionValue {
   readonly fillField: (field_id: string, value: FillValue) => Promise<void>;
   readonly setSignature: (field_id: string, input: SignatureInput) => Promise<void>;
   readonly acceptTerms: () => Promise<void>;
+  /** T-14 — record ESIGN Consumer Disclosure acknowledgment. */
+  readonly acknowledgeEsignDisclosure: (version: string) => Promise<void>;
+  /** T-15 — record explicit intent-to-sign before submit. */
+  readonly confirmIntentToSign: () => Promise<void>;
   readonly submit: () => Promise<void>;
   readonly decline: (reason?: string) => Promise<void>;
+  /** T-16 — withdraw consent for electronic signing. */
+  readonly withdrawConsent: (reason?: string) => Promise<void>;
 }
 
 const Ctx = createContext<SigningSessionValue | null>(null);
@@ -55,8 +64,11 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
   const fill = useFillFieldMutation(envelopeId);
   const sig = useSignatureMutation(envelopeId);
   const terms = useAcceptTermsMutation(envelopeId);
+  const esign = useEsignDisclosureMutation(envelopeId);
+  const intent = useIntentToSignMutation(envelopeId);
   const submitMut = useSubmitMutation(envelopeId, { senderName });
   const declineMut = useDeclineMutation(envelopeId, { senderName });
+  const withdrawMut = useWithdrawConsentMutation(envelopeId, { senderName });
 
   const value = useMemo<SigningSessionValue>(() => {
     const fields = q.data?.fields ?? [];
@@ -84,14 +96,35 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
       acceptTerms: async () => {
         await terms.mutateAsync();
       },
+      acknowledgeEsignDisclosure: async (version) => {
+        await esign.mutateAsync(version);
+      },
+      confirmIntentToSign: async () => {
+        await intent.mutateAsync();
+      },
       submit: async () => {
         await submitMut.mutateAsync();
       },
       decline: async (reason) => {
         await declineMut.mutateAsync(reason);
       },
+      withdrawConsent: async (reason) => {
+        await withdrawMut.mutateAsync(reason);
+      },
     };
-  }, [q.data, q.isPending, q.error, fill, sig, terms, submitMut, declineMut]);
+  }, [
+    q.data,
+    q.isPending,
+    q.error,
+    fill,
+    sig,
+    terms,
+    esign,
+    intent,
+    submitMut,
+    declineMut,
+    withdrawMut,
+  ]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

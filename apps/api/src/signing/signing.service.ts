@@ -221,6 +221,105 @@ export class SigningService {
   }
 
   /**
+   * T-14 — record the signer's ESIGN Consumer Disclosure acknowledgment.
+   * The flow on `/sign/:id/prep` shows two checkboxes:
+   *   1. "I have read the Consumer Disclosure" (the existing TC checkbox)
+   *   2. "I can access electronic records on this device" (new — ESIGN
+   *      §7001(c)(1)(C)(ii) "demonstrated ability" requirement)
+   *
+   * The frontend posts here once both are checked. Idempotent — re-posting
+   * doesn't append a duplicate event because the controller short-circuits
+   * when the most recent acknowledgment for this signer is the same
+   * disclosure version. We don't bother de-duping at the DB layer because
+   * the chain-tail check is cheap and the audit PDF only renders the
+   * earliest acknowledgment.
+   */
+  async acknowledgeEsignDisclosure(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    disclosureVersion: string,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<void> {
+    await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'esign_disclosure_acknowledged',
+      ip,
+      user_agent: userAgent,
+      metadata: {
+        esign_disclosure_version: disclosureVersion,
+        demonstrated_ability: true,
+      },
+    });
+  }
+
+  /**
+   * T-15 — record the signer's explicit intent-to-sign affirmation. The
+   * Review screen disables Submit until the signer ticks "I intend to
+   * sign this document with the signature shown above"; on tick the FE
+   * posts here. The matching audit event lands in the chain BEFORE the
+   * `signed` event so the trail reads in the correct order.
+   */
+  async confirmIntentToSign(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<void> {
+    await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'intent_to_sign_confirmed',
+      ip,
+      user_agent: userAgent,
+      metadata: {},
+    });
+  }
+
+  /**
+   * T-16 — withdrawal of consent for electronic signing. Distinct from
+   * decline (which says "I will not sign"); this says "I no longer
+   * consent to signing electronically". Per ESIGN §7001(c)(1) the user
+   * must always have a withdrawal procedure. Since Seald only operates
+   * electronically, withdrawal terminates the request without an
+   * alternative, mirroring the operator-policy note exposed to the
+   * signer in the UI confirmation copy.
+   *
+   * Implementation re-uses the decline pipeline so all the side effects
+   * (sender notification, session invalidation for other signers, audit
+   * job enqueue) happen exactly once, then prepends a discrete
+   * `consent_withdrawn` event to the chain so the audit PDF can
+   * differentiate withdrawal from decline.
+   */
+  async withdrawConsent(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+    reason: string | null,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<{ status: 'declined'; envelope_status: Envelope['status'] }> {
+    await this.repo.appendEvent({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      actor_kind: 'signer',
+      event_type: 'consent_withdrawn',
+      ip,
+      user_agent: userAgent,
+      metadata: {
+        reason_provided: reason !== null && reason.length > 0,
+        reason_length: reason?.length ?? 0,
+      },
+    });
+    // Chain into the decline path. Pass a structured reason so the
+    // sender notification and audit PDF read correctly.
+    const declineReason = reason ?? 'Signer withdrew consent for electronic signing.';
+    return this.decline(envelope, signer, declineReason, ip, userAgent);
+  }
+
+  /**
    * Fill a non-signature field (date / text / checkbox / email). Enforces:
    *   - field exists in envelope + belongs to THIS signer (else 404)
    *   - field is not a signature/initials kind (those use /sign/signature)

@@ -24,6 +24,7 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
 import { DeclineDto } from './dto/decline.dto';
+import { EsignDisclosureDto } from './dto/esign-disclosure.dto';
 import { FillFieldDto } from './dto/fill-field.dto';
 import { SignatureMetaDto } from './dto/signature-meta.dto';
 import { StartSessionDto } from './dto/start-session.dto';
@@ -116,6 +117,84 @@ export class SigningController {
     const ip = extractClientIp(req);
     const ua = req.headers['user-agent'] ?? null;
     await this.svc.acceptTerms(session.envelope, session.signer, ip, ua);
+  }
+
+  /**
+   * T-14 — record the ESIGN Consumer Disclosure acknowledgment. The
+   * caller passes the disclosure version they were shown so we can
+   * later prove which version applied. The version is also baked into
+   * the audit chain metadata.
+   */
+  @Post('esign-disclosure')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(204)
+  async esignDisclosure(
+    @SignerSession() session: SignerSessionContext,
+    @Body() dto: EsignDisclosureDto,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ip = extractClientIp(req);
+    const ua = req.headers['user-agent'] ?? null;
+    await this.svc.acknowledgeEsignDisclosure(
+      session.envelope,
+      session.signer,
+      dto.disclosure_version,
+      ip,
+      ua,
+    );
+  }
+
+  /**
+   * T-15 — record the signer's explicit intent-to-sign affirmation.
+   * No body — the act of POSTing is the affirmation. Called by the
+   * Review screen when the dedicated checkbox is ticked.
+   */
+  @Post('intent-to-sign')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(204)
+  async intentToSign(
+    @SignerSession() session: SignerSessionContext,
+    @Req() req: Request,
+  ): Promise<void> {
+    const ip = extractClientIp(req);
+    const ua = req.headers['user-agent'] ?? null;
+    await this.svc.confirmIntentToSign(session.envelope, session.signer, ip, ua);
+  }
+
+  /**
+   * T-16 — record the signer withdrawing consent for electronic
+   * signing. Distinct from /sign/decline: emits a discrete event then
+   * funnels into the decline pipeline (which is the only terminal
+   * channel since Seald is electronic-only). Clears the session
+   * cookie like /sign/decline.
+   */
+  @Post('withdraw-consent')
+  @UseGuards(SignerSessionGuard)
+  @HttpCode(200)
+  async withdrawConsent(
+    @SignerSession() session: SignerSessionContext,
+    @Body() dto: DeclineDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ status: 'declined'; envelope_status: string }> {
+    const result = await this.svc.withdrawConsent(
+      session.envelope,
+      session.signer,
+      dto.reason ?? null,
+      extractClientIp(req),
+      req.headers['user-agent'] ?? null,
+    );
+    res.setHeader(
+      'Set-Cookie',
+      serializeCookie(SIGNER_SESSION_COOKIE, '', {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: this.env.NODE_ENV === 'production',
+        path: '/sign',
+        maxAge: 0,
+      }),
+    );
+    return result;
   }
 
   @Post('fields/:field_id')

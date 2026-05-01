@@ -6,6 +6,7 @@ import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import {
+  AesDisclosure,
   Checkbox,
   Chip,
   DeclineLink,
@@ -22,7 +23,15 @@ import {
   SigningAsLabel,
   Subhero,
   TosRow,
+  WithdrawLink,
 } from './SigningPrepPage.styles';
+
+/**
+ * ESIGN Consumer Disclosure version. Bumped whenever the disclosure
+ * copy at /legal/esign-disclosure changes; persisted into the audit
+ * chain on acknowledgment so we can later prove which version applied.
+ */
+const ESIGN_DISCLOSURE_VERSION = 'esign_v0.1';
 
 interface ApiErrorLike extends Error {
   status?: number;
@@ -32,19 +41,30 @@ function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
-  const { envelope, signer, acceptTerms, decline } = useSigningSession();
+  const { envelope, signer, acceptTerms, acknowledgeEsignDisclosure, decline, withdrawConsent } =
+    useSigningSession();
+  // T-14: split the single ToS checkbox into two — agreement + the ESIGN
+  // §7001(c)(1)(C)(ii) "demonstrated ability" affirmation. Both must be
+  // checked before "Start signing" enables.
   const [agreed, setAgreed] = useState(false);
+  const [canAccess, setCanAccess] = useState(false);
+  const ready = agreed && canAccess;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleStart = useCallback(async () => {
-    if (!agreed || !envelope || !signer) return;
+    if (!ready || !envelope || !signer) return;
     setBusy(true);
     setError(null);
     try {
       if (!signer.tc_accepted_at) {
         await acceptTerms();
       }
+      // ESIGN disclosure ack is recorded as a discrete audit event each
+      // time the signer reaches the prep step from a fresh session. The
+      // backend doesn't dedupe — re-sending is harmless because it
+      // appends to the chain idempotently.
+      await acknowledgeEsignDisclosure(ESIGN_DISCLOSURE_VERSION);
       navigate(`/sign/${envelopeId}/fill`);
     } catch (err) {
       const e = err as ApiErrorLike;
@@ -55,7 +75,7 @@ function Content() {
       setError(e.message ?? 'We could not record your acceptance. Please try again.');
       setBusy(false);
     }
-  }, [acceptTerms, agreed, envelope, envelopeId, navigate, signer]);
+  }, [acceptTerms, acknowledgeEsignDisclosure, ready, envelope, envelopeId, navigate, signer]);
 
   const handleDecline = useCallback(async () => {
     if (busy) return;
@@ -74,6 +94,29 @@ function Content() {
       setError(e.message ?? 'We could not decline right now. Please try again.');
     }
   }, [busy, decline, envelopeId, navigate]);
+
+  const handleWithdrawConsent = useCallback(async () => {
+    if (busy) return;
+    // Distinct from "Decline" — withdrawal of consent under ESIGN
+    // §7001(c)(1). We make the consequence explicit in the confirm
+    // dialog so users don't conflate it with decline.
+    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
+    const confirmed = window.confirm(
+      'Withdraw consent to sign this document electronically?\n\n' +
+        'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +
+        'The sender will be notified. This is recorded in the audit trail as a withdrawal (distinct from a decline).',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    try {
+      await withdrawConsent();
+      navigate(`/sign/${envelopeId}/declined`, { replace: true });
+    } catch (err) {
+      setBusy(false);
+      const e = err as ApiErrorLike;
+      setError(e.message ?? 'We could not record your withdrawal right now. Please try again.');
+    }
+  }, [busy, envelopeId, navigate, withdrawConsent]);
 
   const handleNotMe = useCallback(() => {
     // Treat "Not me" as a decline with a specific reason. Simpler than a
@@ -126,21 +169,41 @@ function Content() {
               type="checkbox"
               checked={agreed}
               onChange={(e) => setAgreed(e.target.checked)}
-              aria-label="Agree to electronic signatures"
+              aria-label="I have read the Consumer Disclosure"
             />
             <span>
-              I agree to use electronic signatures and to be bound by Seald&apos;s{' '}
+              I have read Seald&apos;s{' '}
               <a href="/legal/esign-disclosure" target="_blank" rel="noopener noreferrer">
-                Consumer Disclosure
-              </a>
-              .
+                ESIGN Consumer Disclosure
+              </a>{' '}
+              and consent to use electronic signatures and electronic records for this document.
+            </span>
+          </TosRow>
+
+          <TosRow>
+            <Checkbox
+              type="checkbox"
+              checked={canAccess}
+              onChange={(e) => setCanAccess(e.target.checked)}
+              aria-label="I can access electronic records on this device"
+            />
+            <span>
+              I can access and retain electronic records on this device — for example, by viewing
+              this page and downloading a PDF (as required by ESIGN&nbsp;§&nbsp;101(c)(1)(C)(ii)).
             </span>
           </TosRow>
         </IdCard>
 
+        <AesDisclosure>
+          Seald produces an Advanced Electronic Signature (PAdES-LT) — legally equivalent to a
+          handwritten signature in most jurisdictions. Some documents (wills, real-estate
+          conveyances, certain DE/FR/IT/ES instruments) require a Qualified Electronic Signature or
+          wet ink. Consult counsel if unsure.
+        </AesDisclosure>
+
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
-        <PrimaryBtn type="button" disabled={!agreed || busy} onClick={handleStart}>
+        <PrimaryBtn type="button" disabled={!ready || busy} onClick={handleStart}>
           {busy ? 'One moment…' : 'Start signing'}
           {!busy ? <Icon icon={ArrowRight} size={16} /> : null}
         </PrimaryBtn>
@@ -148,6 +211,9 @@ function Content() {
         <DeclineLink type="button" onClick={handleDecline} disabled={busy}>
           Decline this request
         </DeclineLink>
+        <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>
+          Withdraw consent to sign electronically
+        </WithdrawLink>
       </Inner>
     </Page>
   );

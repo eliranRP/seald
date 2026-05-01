@@ -108,14 +108,14 @@ const { join } = require('node:path');
   const PUBLIC = 'https://seald.nromomentum.com';
 
   // Variant A — completed multi-signer
-  let buf = await buildAuditPdf({ envelope: baseEnvelope, events: baseEvents, signerDetails: details, sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC });
+  let buf = await buildAuditPdf({ envelope: baseEnvelope, events: baseEvents, signerDetails: details, sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC, retentionYears: 7 });
   writeFileSync(join(OUT_DIR, 'audit-sample-completed.pdf'), buf);
   console.log('audit-sample-completed.pdf', buf.byteLength, 'bytes');
 
   // Variant B — single signer
   const single = { ...baseEnvelope, signers: [baseEnvelope.signers[0]] };
   const singleEv = baseEvents.filter((e) => e.signer_id !== s2 && e.event_type !== 'all_signed');
-  buf = await buildAuditPdf({ envelope: single, events: singleEv, signerDetails: [details[0]], sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC });
+  buf = await buildAuditPdf({ envelope: single, events: singleEv, signerDetails: [details[0]], sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC, retentionYears: 7 });
   writeFileSync(join(OUT_DIR, 'audit-sample-single.pdf'), buf);
   console.log('audit-sample-single.pdf', buf.byteLength, 'bytes');
 
@@ -133,7 +133,7 @@ const { join } = require('node:path');
   const decEvents = baseEvents
     .filter((e) => e.event_type !== 'signed' && e.event_type !== 'all_signed' && e.event_type !== 'sealed')
     .concat([ev('99', s1, 'signer', 'declined', '2026-03-11T21:21:00.000Z')]);
-  buf = await buildAuditPdf({ envelope: declined, events: decEvents, signerDetails: details, sealedSha256: null, sealedPages: null, publicUrl: PUBLIC });
+  buf = await buildAuditPdf({ envelope: declined, events: decEvents, signerDetails: details, sealedSha256: null, sealedPages: null, publicUrl: PUBLIC, retentionYears: 7 });
   writeFileSync(join(OUT_DIR, 'audit-sample-declined.pdf'), buf);
   console.log('audit-sample-declined.pdf', buf.byteLength, 'bytes');
 
@@ -143,7 +143,7 @@ const { join } = require('node:path');
     title:
       'MASTER SERVICES AGREEMENT — Statement of Work #14 — NRO Momentum LLC and Acme Construction Holdings Co. — Phase II Renovation, 2026',
   };
-  buf = await buildAuditPdf({ envelope: longTitle, events: baseEvents, signerDetails: details, sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC });
+  buf = await buildAuditPdf({ envelope: longTitle, events: baseEvents, signerDetails: details, sealedSha256: baseEnvelope.sealed_sha256, sealedPages: 9, publicUrl: PUBLIC, retentionYears: 7 });
   writeFileSync(join(OUT_DIR, 'audit-sample-long-title.pdf'), buf);
   console.log('audit-sample-long-title.pdf', buf.byteLength, 'bytes');
 })().catch((err) => {

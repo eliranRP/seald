@@ -11,6 +11,13 @@
 export interface DoneSnapshot {
   readonly kind: 'submitted' | 'declined';
   readonly envelope_id: string;
+  /**
+   * 13-char public verify code (envelope.short_code). Stored on the
+   * snapshot so the Done page can link to `/verify/<short_code>` after
+   * the session cookie has been cleared and `/sign/me` is no longer
+   * reachable.
+   */
+  readonly short_code: string;
   readonly title: string;
   readonly sender_name: string | null;
   readonly recipient_email: string;

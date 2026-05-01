@@ -25,6 +25,13 @@ export type SignerEvent =
     }
   | { readonly type: 'sign.submitted'; readonly envelope_id: string }
   | { readonly type: 'sign.declined'; readonly envelope_id: string }
+  | { readonly type: 'sign.consent_withdrawn'; readonly envelope_id: string }
+  | {
+      readonly type: 'sign.esign_disclosure.ack';
+      readonly envelope_id: string;
+      readonly version: string;
+    }
+  | { readonly type: 'sign.intent_to_sign.ack'; readonly envelope_id: string }
   | {
       readonly type: 'sign.error';
       readonly envelope_id: string | null;

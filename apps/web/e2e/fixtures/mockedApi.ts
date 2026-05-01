@@ -43,11 +43,13 @@ type Handler = {
 //    (`/src/lib/api/queryClient.ts`) don't match the substring `/api/`.
 //  - The `/sign/*` family is restricted to the actual signer-API endpoints
 //    (`/sign/start`, `/sign/me`, `/sign/accept-terms`, `/sign/fields`,
-//    `/sign/signature`, `/sign/submit`, `/sign/decline`, `/sign/pdf`) so we
-//    don't intercept SPA route navigations like `GET /sign/<envelopeId>`,
-//    which the recipient flow uses for its own URL.
+//    `/sign/signature`, `/sign/submit`, `/sign/decline`, `/sign/pdf`,
+//    `/sign/esign-disclosure`, `/sign/intent-to-sign`,
+//    `/sign/withdraw-consent`) so we don't intercept SPA route navigations
+//    like `GET /sign/<envelopeId>`, which the recipient flow uses for its
+//    own URL.
 const ROUTE_PATTERN =
-  /^https?:\/\/[^/]+(\/api\/|\/sign\/(start|me|accept-terms|fields|signature|submit|decline|pdf)|\/auth\/v1\/|\/pdf-fixture\.pdf$)/;
+  /^https?:\/\/[^/]+(\/api\/|\/sign\/(start|me|accept-terms|fields|signature|submit|decline|pdf|esign-disclosure|intent-to-sign|withdraw-consent)|\/auth\/v1\/|\/pdf-fixture\.pdf$)/;
 
 export class MockedApi {
   private readonly handlers: Handler[] = [];
