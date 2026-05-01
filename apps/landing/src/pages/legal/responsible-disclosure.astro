@@ -1,0 +1,111 @@
+---
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'responsible_disclosure_v0.1';
+---
+<BaseLayout
+  title="Vulnerability Disclosure Policy — Seald"
+  description="How to report a security vulnerability in Seald, our safe-harbor commitment, and the timelines you can expect. Draft — not legal advice."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Vulnerability Disclosure Policy</h1>
+        <p>Seald, Inc. ("<strong>Seald</strong>", "we") welcomes security research that helps keep our customers and signers safe. This Vulnerability Disclosure Policy ("<strong>VDP</strong>") explains what is in scope, what is out of scope, the rules of engagement, the safe-harbor we offer to good-faith researchers, and how to reach us. It supplements our <a href="/legal/aup">Acceptable Use Policy</a> and our <a href="/legal/terms">Terms of Service</a>.</p>
+      </header>
+
+      <section id="how-to-report">
+        <h2>1. How to report</h2>
+        <p>Send your report to <a href="mailto:security@seald.nromomentum.com?subject=Security%20report">security@seald.nromomentum.com</a>. Use the subject line <code>Security report — &lt;short title&gt;</code>. A machine-readable copy of this contact information is published at <a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a> per RFC 9116.</p>
+        <p>Please include:</p>
+        <ul>
+          <li>A description of the vulnerability and its impact.</li>
+          <li>Reproduction steps, including any URL, payload, account, request/response, and screenshot needed to confirm the issue. Use a test account; do not use a real customer's account.</li>
+          <li>The minimum personal data necessary. Redact anything you do not need to send.</li>
+          <li>Your preferred contact details and whether you would like to be credited if we publish a write-up.</li>
+        </ul>
+        <p>If you must encrypt the report, our PGP key is available at <a href="/.well-known/security-pgp-key.txt"><code>/.well-known/security-pgp-key.txt</code></a> when published. If we do not yet have a key, please tell us and we will provide one within two (2) business days.</p>
+      </section>
+
+      <section id="response">
+        <h2>2. Our response timelines</h2>
+        <p>For reports received in good faith and following the rules below:</p>
+        <ul>
+          <li><strong>Acknowledgement</strong> — within two (2) business days.</li>
+          <li><strong>Triage decision</strong> (in scope / out of scope, severity) — within ten (10) business days.</li>
+          <li><strong>Status updates</strong> — at least every fourteen (14) days while the report is open.</li>
+          <li><strong>Fix targets</strong> — Critical: 30 days; High: 60 days; Medium: 90 days; Low: best effort. The clock starts when we accept the report.</li>
+          <li><strong>Public disclosure</strong> — coordinated with the reporter; ordinarily we ask for ninety (90) days from acknowledgement before public disclosure, with extensions for complex remediation.</li>
+        </ul>
+        <p>If we decide a report is out of scope, we will tell you why so you can decide whether to escalate.</p>
+      </section>
+
+      <section id="scope">
+        <h2>3. Scope</h2>
+        <h3>3.1 In scope</h3>
+        <ul>
+          <li><code>seald.nromomentum.com</code> (marketing site and web application surfaces).</li>
+          <li><code>api.seald.nromomentum.com</code> (the Seald API).</li>
+          <li>The signing flow at <code>seald.nromomentum.com/sign/&hellip;</code>, including the recipient signing experience, audit trail, and Certificate of Completion generation.</li>
+          <li>Cryptographic correctness of PAdES-LT seals issued by the Service.</li>
+          <li>Authentication, account, billing, and access-control surfaces.</li>
+          <li>Mobile-web rendering of the above surfaces.</li>
+        </ul>
+        <h3>3.2 Out of scope</h3>
+        <ul>
+          <li>Findings against third-party services we list as <a href="/legal/sub-processors">Sub-processors</a> — please report those upstream.</li>
+          <li>Reports that are based on output from automated scanners without a working proof of concept.</li>
+          <li>Self-XSS, social-engineering of Seald staff or customers, physical attacks on Seald or supplier facilities, denial-of-service of any kind, and rate-limit / brute-force testing without our prior written permission.</li>
+          <li>Missing security headers, cookie-attribute findings, TLS configuration scoring, banner-grab fingerprints, and similar non-impact findings unless paired with a demonstrable security consequence.</li>
+          <li>Findings that require root/jailbreak on a victim's device, or a malicious browser extension already running with the victim's full privileges.</li>
+          <li>Best-practice or hardening suggestions without an exploitable consequence (we welcome them, but they are not eligible for the safe-harbor).</li>
+        </ul>
+      </section>
+
+      <section id="rules">
+        <h2>4. Rules of engagement</h2>
+        <ul>
+          <li>Test only against accounts you control. Do not access, modify, or destroy any account, document, or signature that is not yours.</li>
+          <li>Do not exfiltrate personal data, document content, or signature material. If you accidentally encounter it, stop, delete it from your systems, and tell us in your report.</li>
+          <li>Do not run automated scanners against the production Service without our prior written permission. If you need to test at scale, contact us first and we will arrange a sandbox.</li>
+          <li>Avoid privacy violations, degradation of the Service, and disruption to other users. If your testing causes an outage, stop testing and tell us immediately.</li>
+          <li>Do not use the report contact channel for unrelated disputes, support requests, or marketing.</li>
+        </ul>
+      </section>
+
+      <section id="safe-harbor">
+        <h2>5. Safe-harbor</h2>
+        <p>If you make a good-faith effort to comply with this VDP — particularly Sections 3 (Scope) and 4 (Rules of engagement) — Seald will not initiate or recommend a civil claim against you for your security research, and we will treat your activities as authorized for purposes of the U.S. Computer Fraud and Abuse Act (18 U.S.C. § 1030), the Digital Millennium Copyright Act anti-circumvention provisions (17 U.S.C. § 1201) for technical measures protecting our systems, and applicable state computer-misuse laws.</p>
+        <p>This safe-harbor extends only to Seald's claims; it does not bind third parties (including our Sub-processors) and it does not waive any rights of any other party. If a third party initiates an action against you for activities that you conducted in compliance with this VDP, we will make our authorization known where we can.</p>
+        <p>If you are unsure whether your planned testing is consistent with this VDP, ask first at <a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a>. We would rather discuss it than lose the chance to help you stay safe.</p>
+      </section>
+
+      <section id="recognition">
+        <h2>6. Recognition and rewards</h2>
+        <p>We do not currently operate a paid bug-bounty program. We acknowledge researchers in our security-changelog when a finding is fixed and the reporter consents to be named. We may, at our discretion, offer Seald swag, account credits, or a written reference.</p>
+      </section>
+
+      <section id="legal-process">
+        <h2>7. Legal process and law-enforcement requests</h2>
+        <p>Researchers who receive a subpoena, civil investigative demand, search warrant, or similar process related to a vulnerability they reported to Seald should tell us at <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> as soon as the law allows so we can coordinate an appropriate response.</p>
+      </section>
+
+      <section id="changes">
+        <h2>8. Changes to this Policy</h2>
+        <p>We will update this Policy as our scope, response capacity, or safe-harbor commitments change. The version line at the top of this page reflects the latest revision. Material changes (changes to scope or safe-harbor) will be announced on the Seald blog and in our Trust Center.</p>
+      </section>
+
+      <section id="contact">
+        <h2>9. Contact</h2>
+        <dl>
+          <dt>Reports</dt><dd><a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a></dd>
+          <dt>Machine-readable contact</dt><dd><a href="/.well-known/security.txt"><code>/.well-known/security.txt</code></a></dd>
+          <dt>General legal</dt><dd><a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a></dd>
+        </dl>
+      </section>
+    </article>
+  </main>
+</BaseLayout>

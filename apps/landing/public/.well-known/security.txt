@@ -1,0 +1,19 @@
+# Seald, Inc. — Vulnerability Disclosure Policy
+# https://datatracker.ietf.org/doc/html/rfc9116
+#
+# If you believe you've found a security issue affecting the Seald
+# Service or this website, please tell us. Reports may be submitted in
+# English. We do not currently operate a paid bug-bounty program, but we
+# acknowledge researchers who report in good faith.
+#
+# DO NOT include sensitive personal data (your own or anyone else's) in
+# your report. Include only the minimum reproduction information needed.
+
+Contact: mailto:security@seald.nromomentum.com
+Contact: https://seald.nromomentum.com/legal/responsible-disclosure
+Expires: 2027-04-30T00:00:00.000Z
+Encryption: https://seald.nromomentum.com/.well-known/security-pgp-key.txt
+Preferred-Languages: en
+Canonical: https://seald.nromomentum.com/.well-known/security.txt
+Policy: https://seald.nromomentum.com/legal/responsible-disclosure
+Hiring: https://seald.nromomentum.com/contact
