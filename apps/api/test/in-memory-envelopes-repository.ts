@@ -197,6 +197,21 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     });
   }
 
+  // Issue #46 — mirror of the PG branch so /me/export tests can exercise
+  // the storage-URL path against an in-memory fixture.
+  async listSignerImagePaths(envelope_id: string) {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return [];
+    return env.signers.map((s) => {
+      const meta = this.signerMeta.get(s.id);
+      return {
+        signer_id: s.id,
+        signature_image_path: meta?.signature_image_path ?? null,
+        initials_image_path: meta?.initials_image_path ?? null,
+      };
+    });
+  }
+
   async updateDraftMetadata(
     owner_id: string,
     envelope_id: string,
@@ -757,5 +772,81 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       if (err instanceof InvalidCursorError) throw err;
       throw new InvalidCursorError();
     }
+  }
+
+  /**
+   * Issues #38 / #43 — mirror of the PG transactional purge. The
+   * in-memory store has no transactions; we just execute the steps in
+   * order. Tests pin counts to assert the algorithm.
+   */
+  async purgeOwnedDataForAccountDeletion(input: {
+    readonly owner_id: string;
+    readonly email: string | null;
+    readonly email_hash: string;
+  }): Promise<{
+    readonly drafts_deleted: number;
+    readonly envelopes_preserved: number;
+    readonly signers_anonymized: number;
+    readonly retention_events_appended: number;
+  }> {
+    let drafts_deleted = 0;
+    for (const [id, env] of [...this.envelopes]) {
+      if (env.owner_id === input.owner_id && env.status === 'draft') {
+        this.envelopes.delete(id);
+        // Best-effort cascade for parallel maps so tests reflect FK
+        // cascades the real DB performs.
+        this.events.splice(
+          0,
+          this.events.length,
+          ...this.events.filter((e) => e.envelope_id !== id),
+        );
+        drafts_deleted++;
+      }
+    }
+
+    const preserved = [...this.envelopes.values()].filter((e) => e.owner_id === input.owner_id);
+    const envelopes_preserved = preserved.length;
+
+    const placeholderEmail = `${input.email_hash}@deleted.invalid`;
+    let signers_anonymized = 0;
+    let retention_events_appended = 0;
+
+    for (const env of preserved) {
+      const nextSigners = env.signers.map((s) => {
+        if (
+          input.email !== null &&
+          input.email !== undefined &&
+          s.email.toLowerCase() === input.email.toLowerCase()
+        ) {
+          signers_anonymized++;
+          return { ...s, name: 'Deleted user', email: placeholderEmail };
+        }
+        return s;
+      });
+
+      // Append retention_deleted via the existing chain helper so the
+      // hash continues unbroken.
+      await this.appendEvent({
+        envelope_id: env.id,
+        actor_kind: 'system',
+        event_type: 'retention_deleted',
+        metadata: { reason: 'account_deletion', email_hash: input.email_hash },
+      });
+      retention_events_appended++;
+
+      this.envelopes.set(env.id, {
+        ...env,
+        owner_id: null,
+        signers: nextSigners,
+        updated_at: new Date().toISOString(),
+      });
+    }
+
+    return {
+      drafts_deleted,
+      envelopes_preserved,
+      signers_anonymized,
+      retention_events_appended,
+    };
   }
 }

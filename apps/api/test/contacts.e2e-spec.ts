@@ -84,7 +84,7 @@ describe('Contacts — auth contract (e2e)', () => {
 
   it('GET /contacts with expired token → 401 token_expired', async () => {
     const token = await tk.sign(
-      { sub: 'user-1' },
+      { sub: '00000000-0000-4000-8000-000000000001' },
       {
         issuer: `${TEST_ENV.SUPABASE_URL}/auth/v1`,
         audience: TEST_ENV.SUPABASE_JWT_AUDIENCE,

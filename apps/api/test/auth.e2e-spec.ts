@@ -71,7 +71,7 @@ describe('Auth (e2e)', () => {
 
   it('GET /me with expired token returns 401 token_expired', async () => {
     const token = await tk.sign(
-      { sub: 'u1' },
+      { sub: '00000000-0000-4000-8000-000000000001' },
       { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE, expiresIn: '-1s' },
     );
     const res = await request(app.getHttpServer())
@@ -83,14 +83,18 @@ describe('Auth (e2e)', () => {
 
   it('GET /me with valid token returns the user', async () => {
     const token = await tk.sign(
-      { sub: 'u1', email: 'a@b.com', app_metadata: { provider: 'google' } },
+      {
+        sub: '00000000-0000-4000-8000-000000000001',
+        email: 'a@b.com',
+        app_metadata: { provider: 'google' },
+      },
       { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE },
     );
     await request(app.getHttpServer())
       .get('/me')
       .set('Authorization', `Bearer ${token}`)
       .expect(200)
-      .expect({ id: 'u1', email: 'a@b.com', provider: 'google' });
+      .expect({ id: '00000000-0000-4000-8000-000000000001', email: 'a@b.com', provider: 'google' });
   });
 
   it('CORS preflight from allowed origin succeeds', async () => {

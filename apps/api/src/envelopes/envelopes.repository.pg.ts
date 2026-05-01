@@ -437,6 +437,152 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     }));
   }
 
+  // Issue #46 — exposes the raw image paths (excluded from the domain
+  // Signer for wire-contract hygiene) to the DSAR export so signed-URL
+  // generation can attach short-TTL fetch handles for each capture.
+  async listSignerImagePaths(envelope_id: string): Promise<
+    ReadonlyArray<{
+      readonly signer_id: string;
+      readonly signature_image_path: string | null;
+      readonly initials_image_path: string | null;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom('envelope_signers')
+      .select(['id', 'signature_image_path', 'initials_image_path'])
+      .where('envelope_id', '=', envelope_id)
+      .execute();
+    return rows.map((r) => ({
+      signer_id: r.id,
+      signature_image_path: r.signature_image_path,
+      initials_image_path: r.initials_image_path,
+    }));
+  }
+
+  /**
+   * Issues #38 / #43 — atomic account-deletion purge.
+   *
+   * Wraps every step in a single transaction so a partial failure (e.g.
+   * a unique-violation race on the audit chain) rolls back and the
+   * caller can retry. The rationale for the four steps is documented on
+   * the port; this implementation keeps the SQL narrow enough to audit.
+   *
+   * NOTE: signer-row anonymization uses a placeholder email of
+   * `<email_hash>@deleted.invalid` (RFC 2606 reserved TLD) so the row
+   * remains valid for any downstream renderer while carrying zero PII.
+   */
+  async purgeOwnedDataForAccountDeletion(input: {
+    readonly owner_id: string;
+    readonly email: string | null;
+    readonly email_hash: string;
+  }): Promise<{
+    readonly drafts_deleted: number;
+    readonly envelopes_preserved: number;
+    readonly signers_anonymized: number;
+    readonly retention_events_appended: number;
+  }> {
+    return this.db.transaction().execute(async (trx) => {
+      // 1. Hard-delete drafts. They have no statutory retention — they
+      //    were never sent, never signed, never sealed. Cascades on
+      //    envelope_signers / envelope_fields / envelope_events handle
+      //    the children.
+      const draftsDel = await trx
+        .deleteFrom('envelopes')
+        .where('owner_id', '=', input.owner_id)
+        .where('status', '=', 'draft')
+        .executeTakeFirst();
+      const drafts_deleted = Number(draftsDel?.numDeletedRows ?? 0n);
+
+      // 2. Enumerate the survivors (everything that wasn't a draft).
+      const preservedRows = await trx
+        .selectFrom('envelopes')
+        .select(['id'])
+        .where('owner_id', '=', input.owner_id)
+        .execute();
+      const preservedIds = preservedRows.map((r) => r.id);
+      const envelopes_preserved = preservedIds.length;
+
+      let signers_anonymized = 0;
+      let retention_events_appended = 0;
+      if (preservedIds.length > 0) {
+        // 2a. Anonymize signer rows whose email matches the deleted
+        //     user's email (case-insensitive). The owner of an envelope
+        //     is also frequently a signer on it, so this scrub catches
+        //     any self-signed copy. Other signers' rows are untouched
+        //     — their consent to participate stands.
+        const placeholderEmail = `${input.email_hash}@deleted.invalid`;
+        if (input.email !== null && input.email !== undefined) {
+          // envelope_signers has no `updated_at` column (audit-grade
+          // immutable signer rows); the `created_at` is the only
+          // timestamp. Anonymization is intentionally a content-only
+          // patch — the row identity stays put.
+          const sigUpd = await trx
+            .updateTable('envelope_signers')
+            .set({
+              name: 'Deleted user',
+              email: placeholderEmail,
+            })
+            .where('envelope_id', 'in', preservedIds)
+            .where(sql`lower(email)`, '=', input.email.toLowerCase())
+            .executeTakeFirst();
+          signers_anonymized = Number(sigUpd?.numUpdatedRows ?? 0n);
+        }
+
+        // 2b. Append retention_deleted to each preserved envelope's
+        //     audit chain. Done inside the same trx so the chain head
+        //     read for `prev_event_hash` is consistent. We hash the
+        //     latest existing row using the canonical-JSON helper —
+        //     same algorithm as appendEvent (S.6).
+        for (const envelopeId of preservedIds) {
+          const latest = await trx
+            .selectFrom('envelope_events')
+            .selectAll()
+            .where('envelope_id', '=', envelopeId)
+            .orderBy('created_at', 'desc')
+            .orderBy('id', 'desc')
+            .limit(1)
+            .executeTakeFirst();
+          const prevHash = latest ? eventHash(toEventDomain(latest)) : null;
+          await trx
+            .insertInto('envelope_events')
+            .values({
+              envelope_id: envelopeId,
+              signer_id: null,
+              actor_kind: 'system',
+              event_type: 'retention_deleted',
+              ip: null,
+              user_agent: null,
+              metadata: JSON.stringify({
+                reason: 'account_deletion',
+                email_hash: input.email_hash,
+              }),
+              prev_event_hash: prevHash,
+            })
+            .executeTakeFirstOrThrow();
+          retention_events_appended++;
+        }
+
+        // 2c. Detach owner. Migration 0012 relaxed `owner_id` to
+        //     nullable + flipped the FK to ON DELETE SET NULL, so this
+        //     UPDATE is the application-level equivalent that gives us
+        //     the same outcome without depending on Supabase's
+        //     `auth.users` row removal happening transactionally.
+        await trx
+          .updateTable('envelopes')
+          .set({ owner_id: null, updated_at: new Date().toISOString() })
+          .where('owner_id', '=', input.owner_id)
+          .execute();
+      }
+
+      return {
+        drafts_deleted,
+        envelopes_preserved,
+        signers_anonymized,
+        retention_events_appended,
+      };
+    });
+  }
+
   // Decode helper exposed for the service layer — keeps base64 format internal
   // to the adapter. Not part of the port because cursors are a repo concern.
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {

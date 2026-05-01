@@ -115,6 +115,14 @@ export class TemplatesPgRepository extends TemplatesRepository {
     return (res?.numDeletedRows ?? 0n) > 0n;
   }
 
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    const res = await this.db
+      .deleteFrom('templates')
+      .where('owner_id', '=', owner_id)
+      .executeTakeFirst();
+    return Number(res?.numDeletedRows ?? 0n);
+  }
+
   async incrementUseCount(owner_id: string, id: string): Promise<Template | null> {
     const now = new Date().toISOString();
     const row = await this.db

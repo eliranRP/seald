@@ -24,6 +24,15 @@ export abstract class ContactsRepository {
   abstract findOneByOwner(owner_id: string, id: string): Promise<Contact | null>;
   abstract update(owner_id: string, id: string, patch: UpdateContactPatch): Promise<Contact | null>;
   abstract delete(owner_id: string, id: string): Promise<boolean>;
+
+  /**
+   * Issue #38 — bulk-delete every contact owned by `owner_id`. Used by
+   * MeService.deleteAccount; contacts are working state with no
+   * statutory retention requirement, so we hard-delete them. Returns
+   * the row count actually deleted. Idempotent (returns 0 when none
+   * existed).
+   */
+  abstract deleteAllByOwner(owner_id: string): Promise<number>;
 }
 
 /**

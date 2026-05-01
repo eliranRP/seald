@@ -100,7 +100,11 @@ export type Field = z.infer<typeof FieldSchema>;
 
 export const EnvelopeSchema = z.object({
   id: uuid,
-  owner_id: uuid,
+  // Nullable since Issue #38/#43 — when an account is deleted under
+  // GDPR/DSAR, sealed envelopes survive (statutory ESIGN §7001(d)
+  // retention) but their `owner_id` is detached so the upstream
+  // `auth.users` row can be hard-removed.
+  owner_id: uuid.nullable(),
   title: z.string().min(1).max(200),
   short_code: z.string().length(13),
   status: z.enum(ENVELOPE_STATUSES),

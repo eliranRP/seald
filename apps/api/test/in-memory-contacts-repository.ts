@@ -74,4 +74,15 @@ export class InMemoryContactsRepository extends ContactsRepository {
     this.rows.delete(id);
     return true;
   }
+
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    let count = 0;
+    for (const [id, row] of this.rows) {
+      if (row.owner_id === owner_id) {
+        this.rows.delete(id);
+        count++;
+      }
+    }
+    return count;
+  }
 }

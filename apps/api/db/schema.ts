@@ -11,6 +11,18 @@ export interface Database {
   idempotency_records: IdempotencyRecordsTable;
   email_webhooks: EmailWebhooksTable;
   templates: TemplatesTable;
+  // Migration 0012 — bookkeeping for deleted accounts. See the migration
+  // header for the GDPR Art. 17(3)(b/e) carve-out rationale.
+  deleted_user_tombstones: DeletedUserTombstonesTable;
+}
+
+export interface DeletedUserTombstonesTable {
+  user_id: string;
+  email_hash: string;
+  // Updatable on conflict: a re-run of the deletion path (e.g. after a
+  // transient Supabase failure left the tombstone but not the auth-row
+  // removal) refreshes the timestamp via `recordDeletion`'s upsert.
+  deleted_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
@@ -109,7 +121,14 @@ export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
 export interface EnvelopesTable {
   id: Generated<string>;
-  owner_id: string;
+  // Migration 0012 — relaxed to nullable. The application service
+  // detaches `owner_id` (sets it to NULL) on non-draft envelopes during
+  // account deletion so the sealed record survives auth.users deletion;
+  // the FK was also flipped from `on delete cascade` to `on delete set
+  // null` as a safety net for raw deletes that bypass the service.
+  // Drafts and templates are still hard-deleted, so a NULL owner_id
+  // implies "preserved sealed record from a deleted account".
+  owner_id: string | null;
   title: string;
   short_code: string;
   status: ColumnType<EnvelopeStatusDb, EnvelopeStatusDb | undefined, EnvelopeStatusDb | undefined>;
