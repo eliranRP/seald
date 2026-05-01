@@ -115,6 +115,13 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
     // react-hooks recommended — applied manually because the plugin's
     // `recommended` flat config export shape varies by version.
     ...reactHooksPlugin.configs.recommended.rules,
+    // eslint-plugin-react-hooks v7 added three new strict rules that flag
+    // legacy patterns across the codebase (13 violations on bump). They
+    // are disabled here to keep the v5 baseline; a follow-up sweep can
+    // refactor effects to fix them and re-enable each rule individually.
+    'react-hooks/set-state-in-effect': 'off',
+    'react-hooks/preserve-manual-memoization': 'off',
+    'react-hooks/purity': 'off',
 
     'import/prefer-default-export': 'off',
     'import/no-default-export': 'error',

@@ -66,7 +66,7 @@ async function bootstrap() {
     .map((s) => s.trim())
     .filter(Boolean);
   app.enableCors({
-    origin: (origin, cb) => {
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
       if (!origin) return cb(null, true); // server-to-server, curl, Postman
       if (allowed.includes(origin)) return cb(null, true);
       return cb(new Error(`CORS: origin ${origin} not in allowlist`), false);
