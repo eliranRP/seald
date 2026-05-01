@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
+import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { Inject } from '@nestjs/common';
@@ -201,9 +202,17 @@ export class SigningService {
         event_type: 'tc_accepted',
         ip,
         user_agent: userAgent,
+        // ESIGN §7001(c)(1) requires the consumer's affirmative consent
+        // to electronic records to be tied to the exact disclosure they
+        // saw. We persist the disclosure version + the authentication
+        // tier so the audit trail is self-describing — a future copy
+        // change cannot retroactively alter what a past signer agreed
+        // to. (saas-legal-advisor S.1, S.7.)
         metadata: {
           tc_version: envelope.tc_version,
           privacy_version: envelope.privacy_version,
+          esign_disclosure_version: ESIGN_DISCLOSURE_VERSION,
+          signer_auth_tier: CURRENT_SIGNER_AUTH_TIER,
         },
       });
     }
