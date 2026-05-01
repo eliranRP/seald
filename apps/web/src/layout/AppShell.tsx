@@ -31,6 +31,76 @@ const Content = styled.main`
 `;
 
 /**
+ * Issue #39 — the legal trust links plus the cookie-preferences re-opener
+ * MUST be reachable from every authed surface, not just the AuthShell
+ * (sign-in / sign-up). EDPB 03/2022 + CCPA §7026(a)(4): consent
+ * withdrawal must be "as easy as" giving consent. Kept visually quiet
+ * (small text, neutral color) so it never competes with page chrome.
+ */
+const ShellFooter = styled.footer`
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
+  background: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+
+  a,
+  button {
+    color: inherit;
+    font-size: inherit;
+    text-decoration: none;
+  }
+
+  a:hover,
+  button:hover {
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  a:focus-visible,
+  button:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+`;
+
+const ShellFooterButton = styled.button`
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+`;
+
+function ShellLegalFooter() {
+  const handleManageCookies = (): void => {
+    window.SealdConsent?.openBanner();
+  };
+  return (
+    <ShellFooter aria-label="Legal and cookie preferences">
+      <a href="/legal/privacy">Privacy</a>
+      <a href="/legal/terms">Terms</a>
+      <a href="/legal/cookies">Cookies</a>
+      <a href="/legal/accessibility">Accessibility</a>
+      <ShellFooterButton
+        type="button"
+        data-testid="footer-manage-cookies"
+        onClick={handleManageCookies}
+      >
+        Manage cookie preferences
+      </ShellFooterButton>
+    </ShellFooter>
+  );
+}
+
+/**
  * L4 layout — wraps routed pages with the shared NavBar. The NavBar's `mode`
  * follows auth state: `authed` for signed-in users, `guest` for anonymous
  * visitors who chose "Skip". Anonymous-without-skip never reach this shell
@@ -101,6 +171,7 @@ export function AppShell() {
       <Content>
         <Outlet />
       </Content>
+      <ShellLegalFooter />
     </Shell>
   );
 }
