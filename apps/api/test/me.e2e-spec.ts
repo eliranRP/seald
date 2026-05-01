@@ -165,9 +165,13 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(res.headers['content-type']).toMatch(/application\/json/);
       expect(res.headers['cache-control']).toBe('no-store');
       const cd = res.headers['content-disposition'] as string;
+      // RFC 6266 (issue #44): both an ASCII `filename=` fallback AND a
+      // `filename*=UTF-8''<encoded>` extension. The browser prefers the
+      // latter; we assert both pieces are present.
       expect(cd).toMatch(/^attachment; filename="seald-export-/);
       expect(cd).toContain(USER_A);
-      expect(cd).toMatch(/\.json"$/);
+      expect(cd).toMatch(/\.json"; filename\*=UTF-8''seald-export-/);
+      expect(cd).toMatch(/\.json$/);
 
       const payload = JSON.parse((res.body as Buffer).toString('utf8'));
       expect(payload.meta.format_version).toBe('1.0');

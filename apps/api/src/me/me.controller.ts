@@ -27,7 +27,12 @@ export class MeController {
     const filename = `seald-export-${user.id}-${new Date().toISOString().slice(0, 10)}.json`;
     res
       .setHeader('Content-Type', 'application/json; charset=utf-8')
-      .setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      // RFC 6266 / RFC 5987 Content-Disposition (issue #44 defense-in-
+      // depth). The `sub` claim is already UUID-validated at the JWT
+      // strategy boundary so the interpolation is safe today, but we
+      // still emit `filename*=UTF-8''<encoded>` so a regression in the
+      // validator can't reopen the header-injection vector.
+      .setHeader('Content-Disposition', buildContentDisposition(filename))
       // Don't let any caching layer keep the user's data.
       .setHeader('Cache-Control', 'no-store')
       .send(JSON.stringify(payload, null, 2));
@@ -46,4 +51,24 @@ export class MeController {
     // called.
     await this.svc.deleteAccount(user);
   }
+}
+
+/**
+ * Build an RFC 6266 `Content-Disposition` value with both an ASCII
+ * `filename=` parameter (quoted, with any `\` and `"` escaped) and an
+ * RFC 5987 `filename*=UTF-8''<percent-encoded>` extension. Modern
+ * browsers prefer `filename*` and ignore the ASCII fallback. By
+ * percent-encoding the entire filename via `encodeURIComponent` we
+ * guarantee no quote, semicolon, CR, or LF can ever escape the header
+ * value — closing the issue #44 injection vector at the response layer
+ * regardless of upstream validation.
+ */
+export function buildContentDisposition(filename: string): string {
+  // ASCII fallback: strip non-ASCII, escape backslash + double-quote.
+  const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/[\\"]/g, '\\$&');
+  // RFC 5987: percent-encode everything outside the attr-char set. The
+  // built-in `encodeURIComponent` is a strict superset of attr-char
+  // safety (it escapes `,`, `;`, `=`, `*`, etc. that RFC 5987 reserves).
+  const utf8 = encodeURIComponent(filename);
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${utf8}`;
 }
