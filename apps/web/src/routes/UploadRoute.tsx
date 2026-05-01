@@ -6,6 +6,8 @@ import type { SignersStepSigner } from '../components/SignersStepCard';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { useAppState } from '../providers/AppStateProvider';
+import { useAuth } from '../providers/AuthProvider';
+import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
 import { usePdfDocument } from '../lib/pdf';
 import {
   findTemplateById,
@@ -53,6 +55,8 @@ export function UploadRoute() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { contacts, createDocument, addContact, updateDocument } = useAppState();
+  const { user: authUser } = useAuth();
+  const isGuest = authUser === null;
 
   // Capture the handoff payload exactly once on mount. We can't keep
   // re-deriving from `location.state`: the first useEffect below clears
@@ -148,16 +152,49 @@ export function UploadRoute() {
 
   const handleCreateContact = useCallback(
     (name: string, email: string) => {
+      // Guest senders aren't authenticated, so the contacts API rejects
+      // POST /contacts with 401. The previous implementation swallowed
+      // that rejection silently, leaving the picker counter stuck at
+      // "0 selected" with no signer ever added — the entire guest send
+      // flow was unreachable. Mirror UseTemplatePage.createGuestSigner:
+      // synthesize a local-only signer (no API round-trip) so the user
+      // can keep moving. The signer is carried in `selectedSigners` and
+      // pushed to the server later as part of the envelope POST when the
+      // sender clicks "Send to sign".
+      const synthLocalSigner = (): AddSignerContact => {
+        const colorIdx = (contacts.length + selectedSigners.length) % SIGNER_COLOR_PALETTE.length;
+        return {
+          id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          name,
+          email,
+          color: SIGNER_COLOR_PALETTE[colorIdx] ?? '#818CF8',
+        };
+      };
+
+      if (isGuest) {
+        setSelectedSigners((prev) => {
+          if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) return prev;
+          return [...prev, synthLocalSigner()];
+        });
+        return;
+      }
+
       addContact(name, email)
         .then((created) => {
           setSelectedSigners((prev) => [...prev, created]);
         })
         .catch(() => {
-          // Creation errors surface in the console for now; keeping the
-          // dialog open lets the user retry without losing their other picks.
+          // Authenticated user but the contacts service is unreachable —
+          // fall back to a local-only signer so the sender still finishes
+          // the envelope. The contact won't be persisted to the address
+          // book, but the envelope POST will still carry the signer.
+          setSelectedSigners((prev) => {
+            if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) return prev;
+            return [...prev, synthLocalSigner()];
+          });
         });
     },
-    [addContact],
+    [addContact, contacts.length, isGuest, selectedSigners.length],
   );
 
   const handleRemoveSelected = useCallback((id: string) => {
