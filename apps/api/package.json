@@ -21,9 +21,9 @@
     "kms:gen-cert": "ts-node --transpile-only scripts/generate-kms-binding-cert.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1038.0",
+    "@aws-sdk/client-kms": "^3.1040.0",
     "@nestjs/common": "^10.4.0",
-    "@nestjs/core": "^11.1.18",
+    "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^10.4.0",
     "@nestjs/throttler": "^6.4.0",
     "@pdf-lib/fontkit": "^1.1.1",
@@ -33,7 +33,7 @@
     "@signpdf/signpdf": "^3",
     "@signpdf/utils": "^3",
     "class-transformer": "^0.5.1",
-    "class-validator": "^0.14.1",
+    "class-validator": "^0.15.1",
     "cookie": "^1",
     "express": "^4.21.0",
     "helmet": "^7.2.0",
@@ -54,7 +54,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "shared": "workspace:*",
-    "sharp": "^0.33",
+    "sharp": "^0.34",
     "zod": "^3.23.8"
   },
   "devDependencies": {
