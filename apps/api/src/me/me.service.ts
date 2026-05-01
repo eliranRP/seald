@@ -5,6 +5,7 @@ import { ContactsRepository } from '../contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
+import { StorageService } from '../storage/storage.service';
 import { TemplatesRepository } from '../templates/templates.repository';
 import { IdempotencyRepository } from './idempotency.repository';
 import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client';
@@ -27,6 +28,34 @@ const EXPORT_INLINE_ENVELOPE_CAP = 100_000;
 const EXPORT_STREAM_BATCH_SIZE = 500;
 
 /**
+ * Issue #46 — TTL on every signed Storage URL we attach to the export.
+ * One hour is long enough for a user to download every artifact in a
+ * single sitting (an export with thousands of envelopes might run a
+ * `wget --recursive` for many minutes), short enough that the URL
+ * effectively expires before the user could share it. The Supabase REST
+ * `/object/sign` endpoint accepts seconds.
+ */
+const EXPORT_SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+/**
+ * Wire shape of the per-envelope `files` block in the export. Each key
+ * is `null` when either (a) the artifact does not exist (e.g. the
+ * envelope is a draft so there is no sealed PDF yet) or (b) the storage
+ * call failed — in case (b) a corresponding entry is appended to
+ * `warnings[]` so the consumer knows to retry.
+ */
+export interface EnvelopeExportFiles {
+  readonly original_pdf_url: string | null;
+  readonly sealed_pdf_url: string | null;
+  readonly audit_pdf_url: string | null;
+  readonly signers: ReadonlyArray<{
+    readonly signer_id: string;
+    readonly signature_image_url: string | null;
+    readonly initials_image_url: string | null;
+  }>;
+}
+
+/**
  * Wire format of the GDPR / CCPA / DSAR data export. Public surface
  * lives in this comment + the type definition because the JSON file is
  * downloaded by users and consumed by their tooling — the shape is
@@ -43,7 +72,11 @@ export interface AccountExport {
       readonly templates: number;
       readonly outbound_emails: number;
     };
-    readonly includes_files: false;
+    // Issue #46 — true once the export attaches short-TTL signed URLs
+    // for every storage object alongside the row data. Consumers that
+    // see `includes_files: false` should not expect `files` blocks on
+    // the envelope bundles (legacy callers / downgraded responses).
+    readonly includes_files: boolean;
   };
   readonly contacts: ReadonlyArray<unknown>;
   readonly templates: ReadonlyArray<unknown>;
@@ -52,6 +85,12 @@ export interface AccountExport {
     readonly signers: ReadonlyArray<EnvelopeSigner>;
     readonly events: ReadonlyArray<EnvelopeEvent>;
     readonly outbound_emails: ReadonlyArray<unknown>;
+    // Issue #46 — attached when `meta.includes_files` is true. Each URL
+    // is independently nullable: missing artifacts (drafts have no
+    // sealed PDF; non-drawn signers have no signature image) emit
+    // `null` without a warning, while storage failures emit `null` AND
+    // surface a `warnings[]` entry keyed by storage path.
+    readonly files: EnvelopeExportFiles;
   }>;
 }
 
@@ -84,7 +123,75 @@ export class MeService {
     private readonly outboundEmailsRepo: OutboundEmailsRepository,
     private readonly idempotencyRepo: IdempotencyRepository,
     private readonly supabaseAdmin: SupabaseAdminClient,
+    // Issue #46 — used to mint short-TTL signed URLs for every storage
+    // artifact attached to the export (sealed PDF, audit PDF, original
+    // PDF, signer signature/initials images).
+    private readonly storage: StorageService,
   ) {}
+
+  /**
+   * Issue #46 — produce signed Storage URLs for every artifact attached
+   * to a single envelope bundle. Failures degrade gracefully: the URL
+   * field is set to `null` and a warning is appended so the caller can
+   * retry. We never let one bad object abort the whole export.
+   *
+   * `null` storage paths (e.g. an audit PDF that hasn't been generated
+   * yet) emit `null` URLs WITHOUT a warning — those are expected absent
+   * artifacts, not failures.
+   */
+  private async signEnvelopeArtifacts(
+    envelopeId: string,
+    signers: ReadonlyArray<EnvelopeSigner>,
+    warnings: Array<{ readonly code: string; readonly detail: string }>,
+  ): Promise<EnvelopeExportFiles> {
+    const filePaths = await this.envelopesRepo.getFilePaths(envelopeId);
+    const signerImages = await this.envelopesRepo.listSignerImagePaths(envelopeId);
+
+    const signOne = async (path: string | null | undefined): Promise<string | null> => {
+      if (!path) return null;
+      try {
+        return await this.storage.createSignedUrl(path, EXPORT_SIGNED_URL_TTL_SECONDS);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        warnings.push({
+          code: 'storage_url_failed',
+          detail: `envelope ${envelopeId} object ${path}: ${detail}`,
+        });
+        return null;
+      }
+    };
+
+    const [originalUrl, sealedUrl, auditUrl] = await Promise.all([
+      signOne(filePaths?.original_file_path),
+      signOne(filePaths?.sealed_file_path),
+      signOne(filePaths?.audit_file_path),
+    ]);
+
+    // Order signer URLs to match `signers[]` so consumers can join by
+    // index — but also key by signer_id since order is best-effort.
+    const imagesById = new Map(signerImages.map((s) => [s.signer_id, s] as const));
+    const signerFiles = await Promise.all(
+      signers.map(async (s) => {
+        const paths = imagesById.get(s.id);
+        const [signatureUrl, initialsUrl] = await Promise.all([
+          signOne(paths?.signature_image_path),
+          signOne(paths?.initials_image_path),
+        ]);
+        return {
+          signer_id: s.id,
+          signature_image_url: signatureUrl,
+          initials_image_url: initialsUrl,
+        };
+      }),
+    );
+
+    return {
+      original_pdf_url: originalUrl,
+      sealed_pdf_url: sealedUrl,
+      audit_pdf_url: auditUrl,
+      signers: signerFiles,
+    };
+  }
 
   /**
    * T-19 — assemble an export of every row owned by the caller as an
@@ -101,10 +208,12 @@ export class MeService {
     ]);
 
     // For each envelope id, hydrate the full aggregate + events +
-    // outbound emails in parallel. Order doesn't matter — the consumer
-    // sorts on its end. We bound concurrency by `Promise.all` over the
-    // outer list, which is small (envelopeIds is the user's lifetime
-    // count). If that ever gets large, batch with a semaphore.
+    // outbound emails + signed-URL-bearing files in parallel. Order
+    // doesn't matter — the consumer sorts on its end. We bound
+    // concurrency by `Promise.all` over the outer list, which is small
+    // (envelopeIds is the user's lifetime count). If that ever gets
+    // large, batch with a semaphore.
+    const warnings: Array<{ readonly code: string; readonly detail: string }> = [];
     const envelopes = await Promise.all(
       envelopeIds.map(async (envelopeId) => {
         const [aggregate, events, outboundEmails] = await Promise.all([
@@ -119,17 +228,30 @@ export class MeService {
           this.logger.warn(`export: envelope ${envelopeId} disappeared mid-flight; skipping`);
           return null;
         }
+        const files = await this.signEnvelopeArtifacts(envelopeId, aggregate.signers, warnings);
         return {
           envelope: aggregate,
           signers: aggregate.signers,
           events,
           outbound_emails: outboundEmails,
+          files,
         };
       }),
     );
 
     const cleanEnvelopes = envelopes.filter((e): e is NonNullable<typeof e> => e !== null);
     const outboundEmailCount = cleanEnvelopes.reduce((n, e) => n + e.outbound_emails.length, 0);
+    if (warnings.length > 0) {
+      // The non-streamed path doesn't have a place to surface warnings
+      // in the wire shape (it's frozen for backward compat), so we log
+      // them and keep going. The streaming path attaches them to
+      // `warnings[]`. If a consumer needs storage failure visibility
+      // they should use /me/export (streaming) which is the controller
+      // path; `exportAll` is for tests + small accounts.
+      this.logger.warn(
+        `export: ${warnings.length} storage URL warning(s) for user=${user.id}; first=${warnings[0]?.detail ?? ''}`,
+      );
+    }
 
     return {
       meta: {
@@ -142,7 +264,7 @@ export class MeService {
           templates: templates.length,
           outbound_emails: outboundEmailCount,
         },
-        includes_files: false,
+        includes_files: true,
       },
       contacts,
       templates,
@@ -205,12 +327,16 @@ export class MeService {
         // Filled in at the end of the stream — emitted in `meta_tail`.
         outbound_emails: null as number | null,
       },
-      includes_files: false as const,
+      // Issue #46 — streamed exports always attempt to attach signed
+      // URLs. Per-object failures degrade to `null` URL + a `warnings[]`
+      // entry; they never abort the stream.
+      includes_files: true as const,
     };
 
     const repo = this.envelopesRepo;
     const outRepo = this.outboundEmailsRepo;
     const logger = this.logger;
+    const signArtifacts = this.signEnvelopeArtifacts.bind(this);
     let outboundEmailCount = 0;
 
     // We use an async generator + Readable.from so backpressure is
@@ -243,11 +369,15 @@ export class MeService {
               });
               return null;
             }
+            // Sign storage artifacts after hydration so we have the
+            // signer ids; failures append to `warnings` but don't abort.
+            const files = await signArtifacts(envelopeId, aggregate.signers, warnings);
             return {
               envelope: aggregate,
               signers: aggregate.signers,
               events,
               outbound_emails: outboundEmails,
+              files,
             };
           }),
         );

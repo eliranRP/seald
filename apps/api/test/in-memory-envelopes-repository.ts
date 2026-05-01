@@ -197,6 +197,21 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     });
   }
 
+  // Issue #46 — mirror of the PG branch so /me/export tests can exercise
+  // the storage-URL path against an in-memory fixture.
+  async listSignerImagePaths(envelope_id: string) {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return [];
+    return env.signers.map((s) => {
+      const meta = this.signerMeta.get(s.id);
+      return {
+        signer_id: s.id,
+        signature_image_path: meta?.signature_image_path ?? null,
+        initials_image_path: meta?.initials_image_path ?? null,
+      };
+    });
+  }
+
   async updateDraftMetadata(
     owner_id: string,
     envelope_id: string,

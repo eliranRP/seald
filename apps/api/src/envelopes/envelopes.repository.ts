@@ -354,6 +354,23 @@ export abstract class EnvelopesRepository {
     readonly audit_file_path: string | null;
   } | null>;
 
+  /**
+   * Issue #46 — for the `/me/export` payload we need to surface signer
+   * artifact paths (drawn signature image and drawn initials image)
+   * alongside the envelope so the user can download the original raster
+   * captures, not just the burned-in PDF. The shape stays internal
+   * (image paths are not in the public Signer wire contract) so callers
+   * must explicitly opt-in by calling this method. Order is unspecified;
+   * key by `signer_id`.
+   */
+  abstract listSignerImagePaths(envelope_id: string): Promise<
+    ReadonlyArray<{
+      readonly signer_id: string;
+      readonly signature_image_path: string | null;
+      readonly initials_image_path: string | null;
+    }>
+  >;
+
   // Cursor helper — decode the opaque cursor returned by listByOwner. Throws
   // InvalidCursorError on malformed input. Lives on the port so the service
   // layer doesn't need to know the cursor encoding format.

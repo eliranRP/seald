@@ -200,6 +200,16 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     }));
   }
 
+  async listSignerImagePaths(envelope_id: string) {
+    const env = this.envelopes.get(envelope_id);
+    if (!env) return [];
+    return env.signers.map((s) => ({
+      signer_id: s.id,
+      signature_image_path: null,
+      initials_image_path: null,
+    }));
+  }
+
   async updateDraftMetadata(
     owner_id: string,
     envelope_id: string,

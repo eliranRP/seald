@@ -437,6 +437,28 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     }));
   }
 
+  // Issue #46 — exposes the raw image paths (excluded from the domain
+  // Signer for wire-contract hygiene) to the DSAR export so signed-URL
+  // generation can attach short-TTL fetch handles for each capture.
+  async listSignerImagePaths(envelope_id: string): Promise<
+    ReadonlyArray<{
+      readonly signer_id: string;
+      readonly signature_image_path: string | null;
+      readonly initials_image_path: string | null;
+    }>
+  > {
+    const rows = await this.db
+      .selectFrom('envelope_signers')
+      .select(['id', 'signature_image_path', 'initials_image_path'])
+      .where('envelope_id', '=', envelope_id)
+      .execute();
+    return rows.map((r) => ({
+      signer_id: r.id,
+      signature_image_path: r.signature_image_path,
+      initials_image_path: r.initials_image_path,
+    }));
+  }
+
   // Decode helper exposed for the service layer — keeps base64 format internal
   // to the adapter. Not part of the port because cursors are a repo concern.
   decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {

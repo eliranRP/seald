@@ -176,7 +176,9 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       const payload = JSON.parse((res.body as Buffer).toString('utf8'));
       expect(payload.meta.format_version).toBe('1.0');
       expect(payload.meta.user).toEqual({ id: USER_A, email: USER_A_EMAIL });
-      expect(payload.meta.includes_files).toBe(false);
+      // Issue #46 — flipped to true now that streaming exports always
+      // attempt to attach signed Storage URLs for every envelope artifact.
+      expect(payload.meta.includes_files).toBe(true);
       // Streaming variant (issue #45): top-level `meta.counts` reports
       // contact/template/envelope counts up-front; `outbound_emails` is
       // unknown until envelopes are hydrated, so it lives in `meta_tail`.
