@@ -12,6 +12,7 @@ import { TemplatesRepository } from '../src/templates/templates.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { IdempotencyRepository } from '../src/me/idempotency.repository';
 import { SupabaseAdminClient } from '../src/me/supabase-admin.client';
+import { TombstonesRepository } from '../src/me/tombstones.repository';
 import { buildTestJwks } from './test-jwks';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
@@ -19,6 +20,27 @@ import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryIdempotencyRepository } from './in-memory-idempotency-repository';
 import { StubSupabaseAdminClient } from './stub-supabase-admin';
+
+/**
+ * Issues #38/#43 — in-memory tombstones recorder. Captures every
+ * `recordDeletion` call so the e2e suite can assert the
+ * `(user_id, sha256(lowercase(email)))` shape and the strict
+ * "tombstone-before-supabase" ordering invariant.
+ */
+class InMemoryTombstonesRepository extends TombstonesRepository {
+  readonly recorded: Array<{ readonly user_id: string; readonly email_hash: string }> = [];
+  callLog: string[] = [];
+  async recordDeletion(input: {
+    readonly user_id: string;
+    readonly email_hash: string;
+  }): Promise<void> {
+    this.callLog.push('tombstones.recordDeletion');
+    this.recorded.push({ user_id: input.user_id, email_hash: input.email_hash });
+  }
+  reset(): void {
+    this.recorded.length = 0;
+  }
+}
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -56,6 +78,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
   let outboundEmailsRepo: InMemoryOutboundEmailsRepository;
   let idempotencyRepo: InMemoryIdempotencyRepository;
   let supabaseAdmin: StubSupabaseAdminClient;
+  let tombstonesRepo: InMemoryTombstonesRepository;
   let callLog: string[];
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
@@ -69,16 +92,34 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     outboundEmailsRepo = new InMemoryOutboundEmailsRepository();
     idempotencyRepo = new InMemoryIdempotencyRepository();
     supabaseAdmin = new StubSupabaseAdminClient();
+    tombstonesRepo = new InMemoryTombstonesRepository();
 
     callLog = [];
-    // Wire ordering tracking for both repos so we can assert
-    // idempotency-wipe-precedes-admin-call invariant.
+    // Wire ordering tracking across repos so we can assert the strict
+    // delete-pipeline order: idempotency → contacts → templates →
+    // envelopes purge → tombstone → supabase admin.
     const origDelete = idempotencyRepo.deleteByUser.bind(idempotencyRepo);
     idempotencyRepo.deleteByUser = async (id: string): Promise<number> => {
       callLog.push('idempotency.deleteByUser');
       return origDelete(id);
     };
+    const origContactsDelAll = contactsRepo.deleteAllByOwner.bind(contactsRepo);
+    contactsRepo.deleteAllByOwner = async (id: string): Promise<number> => {
+      callLog.push('contacts.deleteAllByOwner');
+      return origContactsDelAll(id);
+    };
+    const origTemplatesDelAll = templatesRepo.deleteAllByOwner.bind(templatesRepo);
+    templatesRepo.deleteAllByOwner = async (id: string): Promise<number> => {
+      callLog.push('templates.deleteAllByOwner');
+      return origTemplatesDelAll(id);
+    };
+    const origPurge = envelopesRepo.purgeOwnedDataForAccountDeletion.bind(envelopesRepo);
+    envelopesRepo.purgeOwnedDataForAccountDeletion = async (input) => {
+      callLog.push('envelopes.purgeOwnedDataForAccountDeletion');
+      return origPurge(input);
+    };
     supabaseAdmin.callLog = callLog;
+    tombstonesRepo.callLog = callLog;
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -97,6 +138,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(idempotencyRepo)
       .overrideProvider(SupabaseAdminClient)
       .useValue(supabaseAdmin)
+      .overrideProvider(TombstonesRepository)
+      .useValue(tombstonesRepo)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -121,6 +164,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     outboundEmailsRepo.rows.length = 0;
     idempotencyRepo.reset();
     supabaseAdmin.reset();
+    tombstonesRepo.reset();
     callLog.length = 0;
   });
 
@@ -257,7 +301,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(supabaseAdmin.deletedUserIds).toEqual([]);
     });
 
-    it('happy path → 204 + idempotency wipe runs BEFORE admin call', async () => {
+    it('happy path → 204 runs the full soft-delete pipeline in legal order', async () => {
       idempotencyRepo.seed(USER_A, 4);
 
       const res = await request(app.getHttpServer())
@@ -268,13 +312,28 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(res.status).toBe(204);
       expect(idempotencyRepo.countFor(USER_A)).toBe(0);
       expect(supabaseAdmin.deletedUserIds).toEqual([USER_A]);
-      // Order matters — see MeService comment. Idempotency wipe first
-      // because admin failure is retryable; idempotency wipe is
-      // idempotent.
-      expect(callLog).toEqual(['idempotency.deleteByUser', 'supabaseAdmin.deleteUser']);
+      // Issues #38/#43 — strict pipeline order. Idempotency first
+      // (FK doesn't cascade), then working-state hard-deletes
+      // (contacts/templates), then the envelopes purge that preserves
+      // sealed records, then the tombstone (forensic breadcrumb), then
+      // the supabase admin call last so a partial failure leaves a
+      // recoverable state.
+      expect(callLog).toEqual([
+        'idempotency.deleteByUser',
+        'contacts.deleteAllByOwner',
+        'templates.deleteAllByOwner',
+        'envelopes.purgeOwnedDataForAccountDeletion',
+        'tombstones.recordDeletion',
+        'supabaseAdmin.deleteUser',
+      ]);
+      // Tombstone captured the SHA-256 hash of the lowercase email so a
+      // future signer who shares the address cannot be linked back.
+      expect(tombstonesRepo.recorded).toHaveLength(1);
+      expect(tombstonesRepo.recorded[0]?.user_id).toBe(USER_A);
+      expect(tombstonesRepo.recorded[0]?.email_hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it('admin failure → 503 admin_api_unavailable, but idempotency wipe still ran', async () => {
+    it('admin failure → 503 admin_api_unavailable, prior steps + tombstone all ran', async () => {
       idempotencyRepo.seed(USER_A, 2);
       supabaseAdmin.failNextWithAdminError('SUPABASE_SERVICE_ROLE_KEY missing');
 
@@ -284,10 +343,13 @@ describe('/me (DSAR + account deletion) — e2e', () => {
         .send({ confirm: 'DELETE_MY_ACCOUNT' });
 
       expect(res.status).toBe(503);
-      // Idempotency rows were still cleared (the wipe ran first, then
-      // the admin call threw).
+      // Idempotency rows still cleared, and crucially — the tombstone
+      // was recorded BEFORE the supabase admin call so we have a
+      // forensic breadcrumb even when supabase is down.
       expect(idempotencyRepo.countFor(USER_A)).toBe(0);
       expect(supabaseAdmin.deletedUserIds).toEqual([]);
+      expect(tombstonesRepo.recorded).toHaveLength(1);
+      expect(tombstonesRepo.recorded[0]?.user_id).toBe(USER_A);
     });
 
     it('non-admin error from the admin client surfaces as a 500', async () => {

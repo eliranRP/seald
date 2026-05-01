@@ -119,4 +119,12 @@ export class ContactsPgRepository extends ContactsRepository {
       .executeTakeFirst();
     return (res?.numDeletedRows ?? 0n) > 0n;
   }
+
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    const res = await this.db
+      .deleteFrom('contacts')
+      .where('owner_id', '=', owner_id)
+      .executeTakeFirst();
+    return Number(res?.numDeletedRows ?? 0n);
+  }
 }

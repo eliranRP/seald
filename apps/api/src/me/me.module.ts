@@ -9,6 +9,8 @@ import { MeController } from './me.controller';
 import { MeService } from './me.service';
 import { SupabaseAdminClient } from './supabase-admin.client';
 import { SupabaseAdminHttpClient } from './supabase-admin.client.http';
+import { TombstonesRepository } from './tombstones.repository';
+import { TombstonesPgRepository } from './tombstones.repository.pg';
 
 /**
  * Mounts T-19 / T-20 — DSAR export and account deletion. Pulls in the
@@ -23,6 +25,7 @@ import { SupabaseAdminHttpClient } from './supabase-admin.client.http';
     MeService,
     { provide: IdempotencyRepository, useClass: IdempotencyPgRepository },
     { provide: SupabaseAdminClient, useClass: SupabaseAdminHttpClient },
+    { provide: TombstonesRepository, useClass: TombstonesPgRepository },
   ],
 })
 export class MeModule {}

@@ -49,6 +49,16 @@ class FakeRepo extends ContactsRepository {
     this.store.delete(id);
     return true;
   }
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    let n = 0;
+    for (const [id, c] of [...this.store]) {
+      if (c.owner_id === owner_id) {
+        this.store.delete(id);
+        n++;
+      }
+    }
+    return n;
+  }
 }
 
 describe('ContactsService', () => {

@@ -1,4 +1,5 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { AuthUser } from '../auth/auth-user';
 import type { ContactsRepository } from '../contacts/contacts.repository';
@@ -9,6 +10,7 @@ import type { TemplatesRepository } from '../templates/templates.repository';
 import type { IdempotencyRepository } from './idempotency.repository';
 import { MeService } from './me.service';
 import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client';
+import type { TombstonesRepository } from './tombstones.repository';
 
 const USER: AuthUser = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -20,9 +22,17 @@ function makeMocks() {
   const calls: string[] = [];
   const contactsRepo = {
     findAllByOwner: jest.fn(async () => [{ id: 'c1', name: 'A', email: 'a@x' }]),
+    deleteAllByOwner: jest.fn(async () => {
+      calls.push('contacts.deleteAllByOwner');
+      return 1;
+    }),
   } as unknown as ContactsRepository;
   const templatesRepo = {
     findAllByOwner: jest.fn(async () => [{ id: 't1', title: 'T1' }]),
+    deleteAllByOwner: jest.fn(async () => {
+      calls.push('templates.deleteAllByOwner');
+      return 1;
+    }),
   } as unknown as TemplatesRepository;
   const envelopesRepo = {
     listByOwner: jest.fn(async () => ({
@@ -53,6 +63,18 @@ function makeMocks() {
         initials_image_path: 'env/env-1/sigs/s1-initials.png',
       },
     ]),
+    // Issues #38/#43 — atomic envelopes purge for account deletion.
+    // Default returns realistic counts so call-order assertions work
+    // without each test rewiring it.
+    purgeOwnedDataForAccountDeletion: jest.fn(async () => {
+      calls.push('envelopes.purgeOwnedDataForAccountDeletion');
+      return {
+        drafts_deleted: 2,
+        envelopes_preserved: 3,
+        signers_anonymized: 4,
+        retention_events_appended: 3,
+      };
+    }),
   } as unknown as EnvelopesRepository;
   const outboundEmailsRepo = {
     listByEnvelope: jest.fn(async () => [{ id: 'oe1', kind: 'invite' }]),
@@ -68,6 +90,11 @@ function makeMocks() {
       calls.push('supabaseAdmin.deleteUser');
     }),
   } as unknown as SupabaseAdminClient;
+  const tombstonesRepo = {
+    recordDeletion: jest.fn(async () => {
+      calls.push('tombstones.recordDeletion');
+    }),
+  } as unknown as TombstonesRepository;
   // Default storage stub returns a deterministic signed URL per path so
   // tests can assert wiring; failure mode is opt-in via mockRejectedValueOnce.
   const storage = {
@@ -84,6 +111,7 @@ function makeMocks() {
     idempotencyRepo,
     supabaseAdmin,
     storage,
+    tombstonesRepo,
   };
 }
 
@@ -96,8 +124,11 @@ function build(mocks: ReturnType<typeof makeMocks>): MeService {
     mocks.idempotencyRepo,
     mocks.supabaseAdmin,
     mocks.storage,
+    mocks.tombstonesRepo,
   );
 }
+
+const EXPECTED_EMAIL_HASH = createHash('sha256').update(USER.email!.toLowerCase()).digest('hex');
 
 /** Drain a Readable JSON stream to a parsed object. */
 async function drainStream(stream: Readable): Promise<unknown> {
@@ -209,15 +240,86 @@ describe('MeService.exportAllStream', () => {
 });
 
 describe('MeService.deleteAccount', () => {
-  it('wipes idempotency_records BEFORE calling Supabase admin (FK does not cascade)', async () => {
+  it('runs the soft-delete pipeline in the legally-required order', async () => {
     const mocks = makeMocks();
     const svc = build(mocks);
     await svc.deleteAccount(USER);
-    // Order matters — see service comment. If a future refactor swaps
-    // them this assertion will fail.
-    expect(mocks.calls).toEqual(['idempotency.deleteByUser', 'supabaseAdmin.deleteUser']);
+    // Order matters — see MeService.deleteAccount docstring.
+    //   1. idempotency wipe (FK doesn't cascade)
+    //   2. contacts hard-delete (working state)
+    //   3. templates hard-delete (working state)
+    //   4. envelopes purge (drafts deleted, sealed preserved + anonymized)
+    //   5. tombstone recorded BEFORE supabase admin so a partial
+    //      failure still leaves a forensic breadcrumb
+    //   6. supabase admin call last
+    expect(mocks.calls).toEqual([
+      'idempotency.deleteByUser',
+      'contacts.deleteAllByOwner',
+      'templates.deleteAllByOwner',
+      'envelopes.purgeOwnedDataForAccountDeletion',
+      'tombstones.recordDeletion',
+      'supabaseAdmin.deleteUser',
+    ]);
     expect(mocks.idempotencyRepo.deleteByUser).toHaveBeenCalledWith(USER.id);
+    expect(mocks.contactsRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
+    expect(mocks.templatesRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
     expect(mocks.supabaseAdmin.deleteUser).toHaveBeenCalledWith(USER.id);
+  });
+
+  it('records a tombstone with sha256(lowercase(email)) before supabase admin', async () => {
+    const mocks = makeMocks();
+    const svc = build(mocks);
+    await svc.deleteAccount(USER);
+    expect(mocks.tombstonesRepo.recordDeletion).toHaveBeenCalledWith({
+      user_id: USER.id,
+      email_hash: EXPECTED_EMAIL_HASH,
+    });
+    // tombstone runs strictly before the supabase admin call so a
+    // partial failure still leaves a forensic record.
+    const tombstoneIdx = mocks.calls.indexOf('tombstones.recordDeletion');
+    const supabaseIdx = mocks.calls.indexOf('supabaseAdmin.deleteUser');
+    expect(tombstoneIdx).toBeGreaterThan(-1);
+    expect(supabaseIdx).toBeGreaterThan(tombstoneIdx);
+  });
+
+  it('lower-cases the email before hashing so case-variants tombstone identically', async () => {
+    const mocks = makeMocks();
+    const svc = build(mocks);
+    await svc.deleteAccount({ ...USER, email: 'MAYA@Example.COM' });
+    expect(mocks.tombstonesRepo.recordDeletion).toHaveBeenCalledWith({
+      user_id: USER.id,
+      email_hash: EXPECTED_EMAIL_HASH,
+    });
+  });
+
+  it('preserves sealed envelopes by calling the purge port, not a cascade', async () => {
+    const mocks = makeMocks();
+    const svc = build(mocks);
+    await svc.deleteAccount(USER);
+    // The purge port is what guarantees sealed envelopes survive.
+    // ESIGN §7001(d) / GDPR Art. 17(3)(b/e) compliance hinges on this
+    // call existing — if a future refactor drops it, the test fails.
+    expect(mocks.envelopesRepo.purgeOwnedDataForAccountDeletion).toHaveBeenCalledWith({
+      owner_id: USER.id,
+      email: USER.email,
+      email_hash: EXPECTED_EMAIL_HASH,
+    });
+  });
+
+  it('hashes empty string when AuthUser.email is null (defensive)', async () => {
+    const mocks = makeMocks();
+    const svc = build(mocks);
+    const expectedNullHash = createHash('sha256').update('').digest('hex');
+    await svc.deleteAccount({ ...USER, email: null });
+    expect(mocks.tombstonesRepo.recordDeletion).toHaveBeenCalledWith({
+      user_id: USER.id,
+      email_hash: expectedNullHash,
+    });
+    expect(mocks.envelopesRepo.purgeOwnedDataForAccountDeletion).toHaveBeenCalledWith({
+      owner_id: USER.id,
+      email: null,
+      email_hash: expectedNullHash,
+    });
   });
 
   it('maps SupabaseAdminError to a 503 (ServiceUnavailableException)', async () => {
@@ -227,8 +329,12 @@ describe('MeService.deleteAccount', () => {
     );
     const svc = build(mocks);
     await expect(svc.deleteAccount(USER)).rejects.toBeInstanceOf(ServiceUnavailableException);
-    // idempotency wipe still happened (it ran before the admin call).
+    // Every preceding step ran (they're all idempotent so retry is safe).
     expect(mocks.idempotencyRepo.deleteByUser).toHaveBeenCalledWith(USER.id);
+    expect(mocks.contactsRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
+    expect(mocks.templatesRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
+    expect(mocks.envelopesRepo.purgeOwnedDataForAccountDeletion).toHaveBeenCalled();
+    expect(mocks.tombstonesRepo.recordDeletion).toHaveBeenCalled();
   });
 
   it('rethrows non-SupabaseAdminError errors verbatim', async () => {

@@ -1,4 +1,5 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { AuthUser } from '../auth/auth-user';
 import { ContactsRepository } from '../contacts/contacts.repository';
@@ -9,6 +10,7 @@ import { StorageService } from '../storage/storage.service';
 import { TemplatesRepository } from '../templates/templates.repository';
 import { IdempotencyRepository } from './idempotency.repository';
 import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client';
+import { TombstonesRepository } from './tombstones.repository';
 
 /**
  * Hard cap on how many envelopes the inline streaming export will emit.
@@ -127,6 +129,11 @@ export class MeService {
     // artifact attached to the export (sealed PDF, audit PDF, original
     // PDF, signer signature/initials images).
     private readonly storage: StorageService,
+    // Issues #38 / #43 — forensic breadcrumb for deleted accounts. We
+    // record `(user_id, sha256(lowercase(email)))` BEFORE asking Supabase
+    // to delete the auth row so a partial failure still leaves us with a
+    // record of who used to own the preserved sealed envelopes.
+    private readonly tombstonesRepo: TombstonesRepository,
   ) {}
 
   /**
@@ -401,19 +408,73 @@ export class MeService {
   }
 
   /**
-   * T-20 — wipe non-cascading rows then ask Supabase to delete the
-   * `auth.users` row, which triggers cascade deletion of every
-   * `owner_id` FK (contacts, envelopes & children, templates,
-   * outbound_emails).
+   * T-20 / Issues #38 / #43 — DSAR-compliant account deletion that
+   * preserves cryptographically-sealed records.
    *
-   * Order: idempotency_records FIRST, admin call SECOND. If the admin
-   * call fails the user retries; the idempotency wipe is safely
-   * idempotent. Doing it the other way around would leave orphan
-   * records the user could no longer reach via the auth system.
+   * GDPR Art. 17(3)(b/e) explicitly carves out exactly this case: the
+   * "right to erasure" does not apply to records held for compliance
+   * with a legal obligation, or for the establishment / exercise /
+   * defence of legal claims. ESIGN §7001(d) AND eIDAS Art. 25(2) AND
+   * most state-level contract-law statutes require that a sealed signed
+   * record be retained for the full statutory window (typically 6-7
+   * years) — independently of whether the parties later choose to
+   * delete their auth records.
+   *
+   * Execution order is intentional:
+   *   1. Wipe `idempotency_records` (FK does NOT cascade — left over,
+   *      these would be orphans the user could never reach again).
+   *   2. Hard-delete contacts (working state, no statutory retention).
+   *   3. Hard-delete templates (working state).
+   *   4. Atomic envelopes purge:
+   *        a. Hard-delete drafts.
+   *        b. For every non-draft (sealed/awaiting/declined/expired/
+   *           canceled) envelope: anonymize signer rows that match
+   *           the deleted user's email, append a `retention_deleted`
+   *           audit event (chain stays intact), and NULL `owner_id`
+   *           so the row survives Supabase's auth.users delete.
+   *   5. Record a tombstone `(user_id, sha256(lowercase(email)))`
+   *      BEFORE asking Supabase to delete the auth row. If Supabase
+   *      then fails we still have a forensic breadcrumb of who used
+   *      to own the preserved envelopes, and the tombstone upsert is
+   *      idempotent so a retry won't duplicate.
+   *   6. Ask Supabase to delete the `auth.users` row. The FK on
+   *      envelopes is now `ON DELETE SET NULL` (migration 0012) as a
+   *      belt-and-braces — if anyone bypasses this service path the
+   *      sealed envelopes still survive.
+   *
+   * If the Supabase call fails we map to 503 — the user can retry; all
+   * preceding steps are idempotent.
    */
   async deleteAccount(user: AuthUser): Promise<void> {
+    const emailHash = createHash('sha256')
+      .update((user.email ?? '').toLowerCase())
+      .digest('hex');
+
     const wiped = await this.idempotencyRepo.deleteByUser(user.id);
     this.logger.log(`account-delete: idempotency_records wiped=${wiped} user=${user.id}`);
+
+    const contactsDeleted = await this.contactsRepo.deleteAllByOwner(user.id);
+    this.logger.log(`account-delete: contacts deleted=${contactsDeleted} user=${user.id}`);
+
+    const templatesDeleted = await this.templatesRepo.deleteAllByOwner(user.id);
+    this.logger.log(`account-delete: templates deleted=${templatesDeleted} user=${user.id}`);
+
+    const purge = await this.envelopesRepo.purgeOwnedDataForAccountDeletion({
+      owner_id: user.id,
+      email: user.email,
+      email_hash: emailHash,
+    });
+    this.logger.log(
+      `account-delete: envelopes drafts_deleted=${purge.drafts_deleted} preserved=${purge.envelopes_preserved} signers_anonymized=${purge.signers_anonymized} retention_events=${purge.retention_events_appended} user=${user.id}`,
+    );
+
+    // Tombstone BEFORE the admin call — see method docstring step 5.
+    await this.tombstonesRepo.recordDeletion({
+      user_id: user.id,
+      email_hash: emailHash,
+    });
+    this.logger.log(`account-delete: tombstone recorded user=${user.id}`);
+
     try {
       await this.supabaseAdmin.deleteUser(user.id);
     } catch (err) {

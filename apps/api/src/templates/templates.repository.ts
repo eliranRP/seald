@@ -65,4 +65,14 @@ export abstract class TemplatesRepository {
    * attached or the template is missing/owned-elsewhere.
    */
   abstract getExamplePdfPath(owner_id: string, id: string): Promise<string | null>;
+
+  /**
+   * Issue #38 — bulk-delete every template owned by `owner_id`. Used by
+   * MeService.deleteAccount; templates are working state, not statutory
+   * records. Returns the row count actually deleted. Idempotent.
+   * Note: the example_pdf_path object in Storage is NOT cleaned up by
+   * this call — caller is responsible for removing those out-of-band
+   * (or letting Storage GC reap orphans on the next sweep).
+   */
+  abstract deleteAllByOwner(owner_id: string): Promise<number>;
 }

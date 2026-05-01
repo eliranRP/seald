@@ -183,6 +183,35 @@ export function createPgMemDb(): PgMemHandle {
   const patched0010 = raw0010.replace(/comment on column[\s\S]*?;/g, '');
   mem.public.none(patched0010);
 
+  // 0012 — drop ON DELETE CASCADE on envelopes.owner_id (preserve
+  // sealed envelopes when accounts are deleted, GDPR Art. 17(3)(b/e)
+  // carve-out for legal records) and add the deleted_user_tombstones
+  // table. pg-mem doesn't implement `alter constraint` for FKs cleanly
+  // so we apply just the column-relaxation + tombstone-create
+  // statements; the FK semantics aren't asserted by unit tests
+  // (production migrations do them with real Postgres). Strip BEGIN /
+  // COMMIT wrappers (pg-mem treats `mem.public.none()` as auto-commit)
+  // and the `comment on table` block.
+  const migration0012Path = resolve(
+    __dirname,
+    '../db/migrations/0012_preserve_envelopes_on_user_delete.sql',
+  );
+  const raw0012 = readFileSync(migration0012Path, 'utf8');
+  // pg-mem can't drop+re-add FKs reliably (different parser path), so
+  // we extract only the column-nullable relaxation + tombstone create.
+  // The drop_constraint / add_constraint pairs are no-ops for pg-mem
+  // tests because pg-mem already permits NULL on the column once
+  // relaxed, and the cascade behaviour is exercised in real PG only.
+  void raw0012; // referenced for traceability — see header comment
+  mem.public.none(`
+    alter table public.envelopes alter column owner_id drop not null;
+    create table if not exists public.deleted_user_tombstones (
+      user_id    uuid        primary key,
+      email_hash text        not null check (char_length(email_hash) = 64),
+      deleted_at timestamptz not null default now()
+    );
+  `);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8

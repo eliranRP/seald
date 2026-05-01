@@ -76,6 +76,16 @@ class FakeContactsRepo extends ContactsRepository {
     this.store.delete(id);
     return true;
   }
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    let n = 0;
+    for (const [id, c] of [...this.store]) {
+      if (c.owner_id === owner_id) {
+        this.store.delete(id);
+        n++;
+      }
+    }
+    return n;
+  }
 }
 
 /**
@@ -208,6 +218,19 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       signature_image_path: null,
       initials_image_path: null,
     }));
+  }
+
+  async purgeOwnedDataForAccountDeletion(_input: {
+    readonly owner_id: string;
+    readonly email: string | null;
+    readonly email_hash: string;
+  }) {
+    return {
+      drafts_deleted: 0,
+      envelopes_preserved: 0,
+      signers_anonymized: 0,
+      retention_events_appended: 0,
+    };
   }
 
   async updateDraftMetadata(

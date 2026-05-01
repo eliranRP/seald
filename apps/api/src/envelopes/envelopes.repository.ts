@@ -375,6 +375,44 @@ export abstract class EnvelopesRepository {
   // InvalidCursorError on malformed input. Lives on the port so the service
   // layer doesn't need to know the cursor encoding format.
   abstract decodeCursorOrThrow(cursor: string): { updated_at: string; id: string };
+
+  /**
+   * Issues #38 / #43 — atomic account-deletion purge for the
+   * envelopes aggregate. Run inside a single repository call so the
+   * adapter can wrap it in a transaction; partial failures must roll
+   * back so the user can retry.
+   *
+   * Steps:
+   *   1. Hard-delete every envelope where `owner_id = $1 AND status =
+   *      'draft'`. Drafts have no statutory retention requirement.
+   *   2. For every non-draft envelope (sealed, awaiting_others,
+   *      sealing, declined, expired, canceled) owned by the user:
+   *        a. Anonymize signer rows whose `email` (case-insensitive)
+   *           matches `email` — replace name with "Deleted user" and
+   *           email with `email_hash + "@deleted.invalid"` so the
+   *           audit chain is preserved but the PII is gone.
+   *        b. Append a `retention_deleted` event to the audit chain so
+   *           verifiers can see when and why the owner was scrubbed.
+   *           The event_type already exists in the enum (added by the
+   *           original schema author for exactly this purpose).
+   *        c. NULL the envelope's `owner_id` so the envelope survives
+   *           the upcoming `auth.users` deletion. Migration 0012
+   *           relaxed the column to nullable + flipped the FK to ON
+   *           DELETE SET NULL as a belt-and-braces.
+   *
+   * Returns counts so the service can log + assert on them. Anonymized
+   * signer rows are counted across all preserved envelopes.
+   */
+  abstract purgeOwnedDataForAccountDeletion(input: {
+    readonly owner_id: string;
+    readonly email: string | null;
+    readonly email_hash: string;
+  }): Promise<{
+    readonly drafts_deleted: number;
+    readonly envelopes_preserved: number;
+    readonly signers_anonymized: number;
+    readonly retention_events_appended: number;
+  }>;
 }
 
 /**

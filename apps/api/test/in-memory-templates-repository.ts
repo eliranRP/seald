@@ -82,6 +82,18 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
     return true;
   }
 
+  async deleteAllByOwner(owner_id: string): Promise<number> {
+    let count = 0;
+    for (const [id, row] of this.rows) {
+      if (row.owner_id === owner_id) {
+        this.rows.delete(id);
+        this.examplePaths.delete(id);
+        count++;
+      }
+    }
+    return count;
+  }
+
   async incrementUseCount(owner_id: string, id: string): Promise<Template | null> {
     const existing = this.rows.get(id);
     if (!existing || existing.owner_id !== owner_id) return null;
