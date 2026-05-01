@@ -12,7 +12,6 @@
 Contact: mailto:security@seald.nromomentum.com
 Contact: https://seald.nromomentum.com/legal/responsible-disclosure
 Expires: 2027-04-30T00:00:00.000Z
-Encryption: https://seald.nromomentum.com/.well-known/security-pgp-key.txt
 Preferred-Languages: en
 Canonical: https://seald.nromomentum.com/.well-known/security.txt
 Policy: https://seald.nromomentum.com/legal/responsible-disclosure
