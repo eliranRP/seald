@@ -460,7 +460,19 @@
     "ccpa",
     "serialisable",
     "hrefs",
-    "initialised"
+    "initialised",
+    "anonymize",
+    "Anonymize",
+    "anonymization",
+    "Anonymization",
+    "anonymized",
+    "Anonymized",
+    "tombstone",
+    "Tombstone",
+    "tombstones",
+    "Tombstones",
+    "tombstoned",
+    "Tombstoned"
   ],
   "ignoreRegExpList": [
     "Base64",
