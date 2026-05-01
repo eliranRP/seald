@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: SSH restore + redeploy
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         env:
           PROD_API_ENV: ${{ secrets.PROD_API_ENV }}
         with:
