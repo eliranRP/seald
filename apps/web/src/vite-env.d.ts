@@ -9,3 +9,18 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/**
+ * Cookie-consent runtime exposed by `/scripts/cookie-consent.js`
+ * (loaded from `apps/web/index.html` and the Astro landing's BaseLayout).
+ * The script sets this on `window` once it has initialised; callers must
+ * therefore null-check before invoking. See T-30 / `apps/landing/public/scripts/cookie-consent.js`.
+ */
+interface SealdConsentApi {
+  openBanner(): void;
+  getChoice(): 'accepted' | 'rejected' | null;
+}
+
+interface Window {
+  SealdConsent?: SealdConsentApi;
+}

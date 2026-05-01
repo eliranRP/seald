@@ -1,4 +1,5 @@
 import { test as base } from 'playwright-bdd';
+import { CookieConsentFixture } from './cookieConsent';
 import { MockedApi } from './mockedApi';
 import { SeededUserFixture } from './seededUser';
 import { SignedEnvelopeFixture } from './signedEnvelope';
@@ -42,6 +43,7 @@ import { SigningDeclinedPage } from '../pages/SigningDeclinedPage';
  * fixture resolver guarantees they're set up in the order above.
  */
 type Fixtures = {
+  cookieConsent: CookieConsentFixture;
   mockedApi: MockedApi;
   seededUser: SeededUserFixture;
   signedEnvelope: SignedEnvelopeFixture;
@@ -63,6 +65,20 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
+  // Cookie-consent banner is force-disabled in every BDD scenario via
+  // `addInitScript` (T-30). The fixture is `auto: true` so step
+  // definitions don't have to opt in — the banner never overlays form
+  // fields the existing scenarios don't expect. Specs that *want* the
+  // banner (e.g. the dedicated cookie-consent flow) should not import
+  // from this fixture file; they import the bare `@playwright/test`.
+  cookieConsent: [
+    async ({ page }, use) => {
+      const fixture = new CookieConsentFixture(page);
+      await fixture.disable();
+      await use(fixture);
+    },
+    { auto: true },
+  ],
   // Network mocks are auto-installed before every test so step defs only
   // call `mockedApi.on(...)` to register a handler — no manual install.
   mockedApi: async ({ page }, use) => {

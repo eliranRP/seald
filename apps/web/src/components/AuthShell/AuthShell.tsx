@@ -1,7 +1,7 @@
 import { forwardRef } from 'react';
 import { AuthBrandPanel } from '../AuthBrandPanel';
 import type { AuthShellProps } from './AuthShell.types';
-import { FootRow, FormSide, FormWrap, Root } from './AuthShell.styles';
+import { FootLinkButton, FootRow, FormSide, FormWrap, Root } from './AuthShell.styles';
 
 /**
  * Split-screen container used by every auth page. Renders the editorial
@@ -10,11 +10,16 @@ import { FootRow, FormSide, FormWrap, Root } from './AuthShell.styles';
  * 420px wide.
  *
  * The footer row surfaces the legal/accessibility/security trust links
- * (T-17). On the production single-domain deploy these all resolve to
- * the landing-served `/legal/*` and `/.well-known/security.txt` paths.
+ * (T-17) plus the cookie-preferences re-opener (T-30). On the production
+ * single-domain deploy the legal hrefs all resolve to the landing-served
+ * `/legal/*` paths; the preferences button calls into the global
+ * `window.SealdConsent` runtime injected by `/scripts/cookie-consent.js`.
  */
 export const AuthShell = forwardRef<HTMLDivElement, AuthShellProps>((props, ref) => {
   const { children, compact = false, ...rest } = props;
+  const handleManageCookies = (): void => {
+    window.SealdConsent?.openBanner();
+  };
   return (
     <Root ref={ref} {...rest}>
       {compact ? null : <AuthBrandPanel />}
@@ -25,6 +30,13 @@ export const AuthShell = forwardRef<HTMLDivElement, AuthShellProps>((props, ref)
           <a href="/legal/terms">Terms</a>
           <a href="/legal/accessibility">Accessibility</a>
           <a href="/legal/responsible-disclosure">Report a vulnerability</a>
+          <FootLinkButton
+            type="button"
+            data-testid="footer-manage-cookies"
+            onClick={handleManageCookies}
+          >
+            Manage cookie preferences
+          </FootLinkButton>
         </FootRow>
       </FormSide>
     </Root>

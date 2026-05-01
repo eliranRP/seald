@@ -1,6 +1,9 @@
 /// <reference types="vitest" />
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve as resolvePath } from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import { visualizer } from 'rollup-plugin-visualizer';
 
@@ -8,9 +11,37 @@ import { visualizer } from 'rollup-plugin-visualizer';
 // Emits `dist/stats.html` — copy into `docs/bundle/` to track deltas.
 const withVisualizer = process.env.SEALD_VISUALIZE === '1';
 
+/**
+ * Dev-only middleware that serves `/scripts/*` from the Astro landing's
+ * `public/scripts/` folder. In production both apps are merged into one
+ * Cloudflare Pages deployment so the path resolves naturally; this plugin
+ * gives the dev server (and therefore Playwright/E2E) the same behaviour
+ * without duplicating the file. Single source of truth lives in
+ * `apps/landing/public/scripts/`.
+ */
+function landingScriptsBridge(): Plugin {
+  const root = resolvePath(fileURLToPath(new URL('../landing/public/scripts', import.meta.url)));
+  return {
+    name: 'seald:landing-scripts-bridge',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url) return next();
+        const match = /^\/scripts\/([\w.-]+)(?:\?.*)?$/.exec(req.url);
+        if (!match) return next();
+        const file = resolvePath(root, match[1]!);
+        if (!file.startsWith(root) || !existsSync(file)) return next();
+        res.setHeader('content-type', 'application/javascript; charset=utf-8');
+        res.end(readFileSync(file));
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     react(),
+    landingScriptsBridge(),
     ...(withVisualizer
       ? [
           visualizer({
