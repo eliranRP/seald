@@ -5,7 +5,7 @@ export const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
   awaiting_others: 'Awaiting others',
   sealing: 'Sealing',
-  completed: 'Completed',
+  completed: 'Sealed',
   declined: 'Declined',
   expired: 'Expired',
   canceled: 'Canceled',

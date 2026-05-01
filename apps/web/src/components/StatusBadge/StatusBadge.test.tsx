@@ -7,7 +7,7 @@ import type { SignerStatus } from '../../types/sealdTypes';
 const pairs: ReadonlyArray<readonly [SignerStatus, string]> = [
   ['awaiting-you', 'Awaiting you'],
   ['awaiting-others', 'Awaiting others'],
-  ['completed', 'Completed'],
+  ['completed', 'Signed'],
   ['declined', 'Declined'],
   ['expired', 'Expired'],
   ['draft', 'Draft'],
