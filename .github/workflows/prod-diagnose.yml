@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: SSH read-only diagnostic
-        uses: appleboy/ssh-action@v1.1.0
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
