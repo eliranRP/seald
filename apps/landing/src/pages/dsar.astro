@@ -1,0 +1,272 @@
+---
+// dsar.astro — Data-subject access request / "Your privacy choices" intake page.
+//
+// Why this page exists (T-12 in .audit/LEGAL_GAPS.md):
+//   - CCPA/CPRA §7011-§7027: businesses must provide at least two methods
+//     for submitting verifiable consumer requests, including an
+//     "easy-to-find" interactive web form for opt-out of sale/share.
+//   - GDPR Art. 12: requests must be facilitated by appropriate means.
+//   - California "DNSMPI" / "Your Privacy Choices" link in the footer
+//     points here.
+//
+// First iteration is mailto-driven: the form serializes its values into
+// a structured `mailto:` URL pointed at privacy@seald.nromomentum.com.
+// T-19 will replace this with a real backend endpoint and verification
+// flow; until then the SLA holds because all intake routes through the
+// same address.
+import BaseLayout from '@/layouts/BaseLayout.astro';
+const VERSION = 'dsar_v0.1';
+---
+<BaseLayout
+  title="Your privacy choices — Seald"
+  description="Submit a privacy / data-subject request to Seald: access, deletion, correction, portability, opt-out of sale or sharing, or limit use of sensitive personal information."
+>
+  <main id="main" class="legal">
+    <article>
+      <header>
+        <section class="legal-banner">
+          <p><strong>Draft.</strong> All submissions reach our privacy team. Acknowledgement within 10 business days; resolution within 30 days (CCPA / CPRA) or one month (GDPR / UK GDPR), extensible by up to two months for genuinely complex requests with notice to you. We may need to verify your identity before acting on a request.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+        </section>
+        <h1>Your privacy choices</h1>
+        <p>Use this form to exercise rights under the GDPR, UK GDPR, CCPA / CPRA, and the U.S. state-omnibus regimes (Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Tennessee, Indiana, Delaware, New Jersey, New Hampshire, Minnesota, Maryland, Rhode Island, Kentucky, plus any others where similar laws apply). It is also the link behind the "Your Privacy Choices" / "Do Not Sell or Share My Personal Information" footer. We do not currently sell or share personal information for cross-context behavioral advertising; submitting an opt-out is still honored on a forward-looking basis.</p>
+      </header>
+
+      <section id="form">
+        <h2>1. Submit a request</h2>
+        <p>The form below opens a pre-filled email in your default mail client. We accept submissions from any reachable email; for verified-account requests please send from the email associated with your Seald account when possible.</p>
+
+        <form id="dsar-form" class="dsar-form" novalidate>
+          <div class="dsar-row">
+            <label for="dsar-name">Full name</label>
+            <input
+              id="dsar-name"
+              name="name"
+              type="text"
+              autocomplete="name"
+              required
+              aria-required="true"
+            />
+          </div>
+
+          <div class="dsar-row">
+            <label for="dsar-email">Email</label>
+            <input
+              id="dsar-email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              required
+              aria-required="true"
+              aria-describedby="dsar-email-help"
+            />
+            <p id="dsar-email-help" class="dsar-help">We'll reply to this address. Use the address associated with your Seald account when possible.</p>
+          </div>
+
+          <div class="dsar-row">
+            <label for="dsar-jurisdiction">Jurisdiction</label>
+            <select id="dsar-jurisdiction" name="jurisdiction" required aria-required="true">
+              <option value="">Select…</option>
+              <option value="CCPA / CPRA (California, USA)">CCPA / CPRA (California, USA)</option>
+              <option value="GDPR (European Union)">GDPR (European Union)</option>
+              <option value="UK GDPR (United Kingdom)">UK GDPR (United Kingdom)</option>
+              <option value="US state omnibus (other than California)">US state omnibus (other than California)</option>
+              <option value="Other / I'm not sure">Other / I'm not sure</option>
+            </select>
+          </div>
+
+          <fieldset class="dsar-row dsar-fieldset">
+            <legend>Request type</legend>
+            <p class="dsar-help">Pick the option that matches what you'd like us to do. You can pick more than one.</p>
+            <label class="dsar-check"><input type="checkbox" name="type" value="access" /> Access — give me a copy of the personal data you hold about me.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="delete" /> Deletion — delete my personal data.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="correct" /> Correction — fix inaccurate personal data.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="portability" /> Portability — provide my personal data in a portable, machine-readable format.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="opt-out" /> Opt out of sale or sharing for cross-context behavioral advertising.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="limit-sensitive" /> Limit the use of my sensitive personal information.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="opt-out-profiling" /> Opt out of profiling that produces legal or similarly significant effects.</label>
+            <label class="dsar-check"><input type="checkbox" name="type" value="other" /> Other (describe below).</label>
+          </fieldset>
+
+          <div class="dsar-row">
+            <label for="dsar-details">Details (optional)</label>
+            <textarea id="dsar-details" name="details" rows="4" aria-describedby="dsar-details-help"></textarea>
+            <p id="dsar-details-help" class="dsar-help">Add any context that helps us locate the data — e.g. the email of a Seald account, document IDs, approximate dates.</p>
+          </div>
+
+          <div class="dsar-row">
+            <label for="dsar-agent">Are you an authorized agent acting on someone's behalf?</label>
+            <select id="dsar-agent" name="agent">
+              <option value="No">No, I'm submitting for myself</option>
+              <option value="Yes">Yes — I'm an authorized agent</option>
+            </select>
+            <p class="dsar-help">If yes, we'll request written authorization (CCPA §7063) before acting.</p>
+          </div>
+
+          <div class="dsar-actions">
+            <button type="submit" class="dsar-btn">Open prefilled email</button>
+            <a class="dsar-btn dsar-btn-ghost" href="mailto:privacy@seald.nromomentum.com?subject=DSAR%20request">Send empty email instead</a>
+          </div>
+          <p class="dsar-help">No personal data is sent to us until you press Send in your mail client. Nothing is stored on this page.</p>
+        </form>
+      </section>
+
+      <section id="sla">
+        <h2>2. What happens next</h2>
+        <ol>
+          <li><strong>Acknowledgement.</strong> Within 10 business days of receipt we send a written acknowledgement and, if needed, a verification request.</li>
+          <li><strong>Verification.</strong> We confirm we are talking to you (or your authorized agent). For account-tied requests we typically rely on a code sent to the email on file; for non-account requests we may need additional information.</li>
+          <li><strong>Resolution.</strong> Within 30 calendar days (CCPA / CPRA) or one calendar month (GDPR / UK GDPR) we either fulfill the request, deny it with a reason, or extend the deadline by up to 60 / 60 days for genuinely complex matters and notify you of the extension.</li>
+          <li><strong>Appeal.</strong> If you disagree with our decision you can reply to the same thread to request internal review (state-omnibus regimes). EU/UK residents may also lodge a complaint with their supervisory authority — see your local data-protection authority.</li>
+        </ol>
+      </section>
+
+      <section id="alt">
+        <h2>3. Alternative submission methods</h2>
+        <ul>
+          <li>Email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> directly.</li>
+          <li>Postal mail — <a href="/contact#postal">see our postal address</a>.</li>
+        </ul>
+      </section>
+
+      <section id="contact">
+        <h2>4. Questions</h2>
+        <p>Reach <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. See <a href="/legal/privacy">Privacy Policy</a> for a description of the personal data we process and our retention policy.</p>
+      </section>
+    </article>
+  </main>
+
+  <script is:inline>
+    (function () {
+      var form = document.getElementById('dsar-form');
+      if (!form) return;
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var data = new FormData(form);
+        var name = String(data.get('name') || '').trim();
+        var email = String(data.get('email') || '').trim();
+        var juris = String(data.get('jurisdiction') || '').trim();
+        var details = String(data.get('details') || '').trim();
+        var agent = String(data.get('agent') || 'No');
+        var types = data.getAll('type').map(String);
+
+        if (!name || !email || !juris) {
+          alert('Please fill in your name, email, and jurisdiction.');
+          return;
+        }
+        if (types.length === 0) {
+          alert('Please select at least one request type.');
+          return;
+        }
+
+        var subject = 'DSAR — ' + types.join(', ');
+        var body =
+          'Submitted via the Seald privacy form (https://seald.nromomentum.com/dsar)\n\n' +
+          'Name: ' +
+          name +
+          '\n' +
+          'Email: ' +
+          email +
+          '\n' +
+          'Jurisdiction: ' +
+          juris +
+          '\n' +
+          'Authorized agent: ' +
+          agent +
+          '\n' +
+          'Request type(s): ' +
+          types.join(', ') +
+          '\n\n' +
+          'Details:\n' +
+          (details || '(none provided)') +
+          '\n';
+
+        var href =
+          'mailto:privacy@seald.nromomentum.com?subject=' +
+          encodeURIComponent(subject) +
+          '&body=' +
+          encodeURIComponent(body);
+
+        window.location.href = href;
+      });
+    })();
+  </script>
+
+  <style>
+    .dsar-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-top: 8px;
+    }
+    .dsar-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .dsar-row label {
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+    .dsar-fieldset {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      gap: 8px;
+    }
+    .dsar-fieldset legend {
+      font-weight: 600;
+      font-size: 13.5px;
+      padding: 0 4px;
+    }
+    .dsar-row input[type='text'],
+    .dsar-row input[type='email'],
+    .dsar-row select,
+    .dsar-row textarea {
+      width: 100%;
+      padding: 10px 12px;
+      font: inherit;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+    }
+    .dsar-row textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .dsar-help {
+      font-size: 12.5px;
+      color: #64748b;
+      margin: 0;
+    }
+    .dsar-check {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      font-weight: 400;
+      font-size: 13.5px;
+    }
+    .dsar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .dsar-btn {
+      display: inline-block;
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid #0b1220;
+      background: #0b1220;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .dsar-btn-ghost {
+      background: #ffffff;
+      color: #0b1220;
+    }
+  </style>
+</BaseLayout>
