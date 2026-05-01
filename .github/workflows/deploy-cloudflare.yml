@@ -186,13 +186,20 @@ jobs:
         # monorepo: with packageManager=pnpm it errors ERR_PNPM_ADDING_TO_ROOT,
         # and with packageManager=npm its internal `npm i wrangler@<ver>`
         # crashes with "Cannot read properties of null (reading 'matches')"
-        # because npm chokes on the pnpm-managed root. We invoke wrangler
-        # directly via `pnpm dlx`, which sidesteps both installers.
+        # because npm chokes on the pnpm-managed root.
+        #
+        # We previously used `pnpm dlx wrangler@…`, but pnpm 10's strict
+        # build-script policy refuses to run esbuild + workerd lifecycle
+        # scripts inside the dlx temp store (ERR_PNPM_IGNORED_BUILDS),
+        # and `pnpm.onlyBuiltDependencies` in the workspace root is not
+        # consulted from a dlx temp project. `npx` has no such restriction
+        # and uses npm's resolver in an isolated cache, sidestepping both
+        # the dlx allowlist issue and the pnpm-monorepo install failures.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          pnpm dlx wrangler@3.90.0 pages deploy apps/landing/dist \
+          npx --yes wrangler@3.90.0 pages deploy apps/landing/dist \
             --project-name=seald-landing \
             --branch=main
 
