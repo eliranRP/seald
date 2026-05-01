@@ -2132,6 +2132,27 @@ footer {
   color: #fff;
   text-decoration: none;
 }
+.foot-col .link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 120ms;
+}
+.foot-col .link-button:hover {
+  color: #fff;
+}
+.foot-col .link-button:focus-visible {
+  outline: 2px solid rgba(165, 180, 252, 0.9);
+  outline-offset: 2px;
+  border-radius: 2px;
+  color: #fff;
+}
 .foot-bottom {
   margin-top: 56px;
   padding-top: 28px;

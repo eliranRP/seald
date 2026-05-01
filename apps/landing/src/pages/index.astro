@@ -451,6 +451,16 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <li><a href="/legal/dpa">DPA</a></li>
             <li><a href="/legal/aup">Acceptable use</a></li>
             <li><a href="mailto:privacy@seald.nromomentum.com?subject=Your%20Privacy%20Choices">Your Privacy Choices</a></li>
+            <li>
+              <button
+                type="button"
+                class="link-button"
+                data-testid="footer-manage-cookies"
+                onclick="window.SealdConsent && window.SealdConsent.openBanner()"
+              >
+                Manage cookie preferences
+              </button>
+            </li>
           </ul>
         </div>
       </div>

@@ -135,17 +135,20 @@ const softwareLd = {
     <script type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
 
     <!--
-      Cloudflare Web Analytics
-      ------------------------
-      Privacy-friendly, cookie-less. No banner needed. Replace the empty
-      token below with the real beacon token from the Cloudflare dashboard
-      (Analytics & Logs → Web Analytics → site config). See CLAUDE.md.
+      Cookie consent (T-30, /legal/cookies §4).
+      ----------------------------------------
+      The consent script is shared between the Astro landing and the
+      React SPA — both live on seald.nromomentum.com. It shows the
+      banner on first visit, persists the choice in `seald_consent_v1`
+      (12-month, EDPB 03/2022), honors Global Privacy Control, and only
+      injects the Cloudflare Web Analytics beacon after explicit consent.
+
+      To enable analytics in production, drop the real beacon token into
+      the meta tag below. With an empty token, no beacon is loaded even
+      after consent — fail-closed.
     -->
-    <script
-      defer
-      src="https://static.cloudflareinsights.com/beacon.min.js"
-      data-cf-beacon='{"token": ""}'
-    ></script>
+    <meta name="cf-beacon-token" content="" />
+    <script defer src="/scripts/cookie-consent.js"></script>
   </head>
 
   <body>

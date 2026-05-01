@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { fireEvent } from '@testing-library/react';
 import { axe } from 'vitest-axe';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { AuthShell } from './AuthShell';
@@ -53,6 +54,50 @@ describe('AuthShell', () => {
     expect(foot.querySelector('a[href="/legal/terms"]')).toBeInTheDocument();
     expect(foot.querySelector('a[href="/legal/accessibility"]')).toBeInTheDocument();
     expect(foot.querySelector('a[href="/legal/responsible-disclosure"]')).toBeInTheDocument();
+  });
+
+  describe('cookie-preferences button (T-30)', () => {
+    afterEach(() => {
+      delete (window as unknown as { SealdConsent?: unknown }).SealdConsent;
+    });
+
+    it('renders the manage-cookies button next to the trust links', () => {
+      const { getByRole } = renderWithTheme(
+        <AuthShell>
+          <h1>Sign in</h1>
+        </AuthShell>,
+      );
+      const btn = getByRole('button', { name: /manage cookie preferences/i });
+      expect(btn).toBeInTheDocument();
+      expect(btn).toHaveAttribute('type', 'button');
+    });
+
+    it('opens the consent banner when clicked', () => {
+      const openBanner = vi.fn();
+      (
+        window as unknown as { SealdConsent: { openBanner: () => void; getChoice: () => null } }
+      ).SealdConsent = { openBanner, getChoice: () => null };
+      const { getByRole } = renderWithTheme(
+        <AuthShell>
+          <h1>Sign in</h1>
+        </AuthShell>,
+      );
+      fireEvent.click(getByRole('button', { name: /manage cookie preferences/i }));
+      expect(openBanner).toHaveBeenCalledTimes(1);
+    });
+
+    it('no-ops gracefully when the consent runtime has not loaded yet', () => {
+      // The script tag is `defer` so SealdConsent may not exist at click time
+      // for the first tick of the page. The button must not throw.
+      const { getByRole } = renderWithTheme(
+        <AuthShell>
+          <h1>Sign in</h1>
+        </AuthShell>,
+      );
+      expect(() =>
+        fireEvent.click(getByRole('button', { name: /manage cookie preferences/i })),
+      ).not.toThrow();
+    });
   });
 
   it('renders without axe violations', async () => {

@@ -458,7 +458,9 @@
     "dsar",
     "CCPA",
     "ccpa",
-    "serialisable"
+    "serialisable",
+    "hrefs",
+    "initialised"
   ],
   "ignoreRegExpList": [
     "Base64",

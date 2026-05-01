@@ -47,3 +47,29 @@ export const FootRow = styled.footer`
     border-radius: 2px;
   }
 `;
+
+/**
+ * Footer-row button styled to look identical to the surrounding anchors.
+ * Used for the cookie-preferences re-opener so it visually peers with the
+ * legal links while still being a real <button> for accessibility.
+ */
+export const FootLinkButton = styled.button`
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.accent.base};
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+`;

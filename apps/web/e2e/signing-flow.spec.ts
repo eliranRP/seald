@@ -73,6 +73,13 @@ function makeFilledTextField() {
 
 test.describe('signing flow', () => {
   test.beforeEach(async ({ page }) => {
+    // Cookie-consent banner (T-30) is on every page and would otherwise
+    // sit on top of the form during the first navigation in this spec.
+    // The hand-written specs don't use the BDD auto-fixture, so opt out
+    // explicitly via the runtime escape hatch.
+    await page.addInitScript(() => {
+      (window as unknown as { __SEALD_CONSENT_DISABLED: boolean }).__SEALD_CONSENT_DISABLED = true;
+    });
     // POST /sign/start → a session that still requires T&C accept.
     await page.route('**/sign/start', async (route: Route) => {
       await route.fulfill({
