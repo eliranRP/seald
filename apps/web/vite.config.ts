@@ -61,9 +61,13 @@ export default defineConfig({
     },
   },
   server: { port: 5173, strictPort: true },
+  // pdfjs-dist v4 emits top-level await; bump esbuild's transpile target so
+  // the dev server (vite dev → optimizeDeps prebundle) and the production
+  // build both keep TLA. Matches the floor of every browser that supports
+  // TLA natively.
+  esbuild: { target: 'es2022' },
+  optimizeDeps: { esbuildOptions: { target: 'es2022' } },
   build: {
-    // pdfjs-dist v4 emits top-level await; bump targets so esbuild keeps it.
-    // Matches the floor of every browser that supports TLA natively.
     target: ['chrome89', 'edge89', 'firefox89', 'safari15'],
     rollupOptions: {
       output: {
