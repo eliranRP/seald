@@ -23,6 +23,12 @@ FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/shared/package.json ./packages/shared/
+# pnpm.patchedDependencies in package.json points at files under patches/
+# (e.g. cucumber-messages@8.0.0.patch). pnpm hashes these files during
+# `install --frozen-lockfile` to validate the lockfile entry, so the
+# directory MUST be present in the build context before the install step
+# — otherwise pnpm exits with ENOENT on the patch path.
+COPY patches ./patches
 # apps/web is excluded from the API image since we only serve API traffic
 # from the container. The web app deploys separately (Vercel / static host).
 ENV HUSKY=0
