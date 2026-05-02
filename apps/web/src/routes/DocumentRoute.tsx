@@ -454,7 +454,15 @@ export function DocumentRoute() {
     );
   }, [doc?.fromTemplateId, doc?.fromTemplateFreshUpload, doc?.totalPages, sourceTemplate]);
 
-  if (!doc) {
+  // The editor only makes sense for in-progress drafts. The local
+  // AppStateProvider record persists with `status: 'awaiting-others'` and
+  // an `envelopeId` after `useSendEnvelope` publishes it, so
+  // `getDocument(envelopeId)` keeps resolving the in-memory draft (needed
+  // for the post-send `/sent` screen). For every navigation back to
+  // `/document/:envelopeId` after that — clicking the row in /documents,
+  // hitting "View envelope" again, deep-linking — we want the read-only
+  // envelope/audit view, NOT the editor's "Ready to send" rail.
+  if (!doc || doc.status !== 'draft') {
     return <EnvelopeDetailPage />;
   }
 
