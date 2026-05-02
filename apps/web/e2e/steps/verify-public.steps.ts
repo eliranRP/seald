@@ -72,10 +72,15 @@ function buildVerifyPayload(shortCode: string, opts: CannedVerifyOptions) {
   };
 }
 
+// IMPORTANT: scope the handler regex to `/api/verify/...` so it only matches
+// the verifyApiClient XHR (baseURL = `http://127.0.0.1:5173/api`). A bare
+// `/verify/${shortCode}$` would also match the browser's own SPA navigation
+// to `http://127.0.0.1:5173/verify/${shortCode}` — and `MockedApi` would
+// fulfill that page request with the canned JSON, blanking the SPA.
 Given(
   'a sealed envelope is published at short code {string}',
   async ({ mockedApi }, shortCode: string) => {
-    mockedApi.on('GET', new RegExp(`/verify/${shortCode}$`), {
+    mockedApi.on('GET', new RegExp(`/api/verify/${shortCode}$`), {
       json: buildVerifyPayload(shortCode, { chainIntact: true }),
     });
   },
@@ -84,7 +89,7 @@ Given(
 Given(
   'a sealed envelope with a broken audit chain is published at short code {string}',
   async ({ mockedApi }, shortCode: string) => {
-    mockedApi.on('GET', new RegExp(`/verify/${shortCode}$`), {
+    mockedApi.on('GET', new RegExp(`/api/verify/${shortCode}$`), {
       json: buildVerifyPayload(shortCode, { chainIntact: false }),
     });
   },
