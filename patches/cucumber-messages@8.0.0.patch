@@ -1,0 +1,18 @@
+diff --git a/dist/src/IdGenerator.js b/dist/src/IdGenerator.js
+index d02a88e0ea7870c5b00cde95a2f4d0667899761b..6d7e5acc75b8f71a017acbfb8ee0f5f79bf92c76 100644
+--- a/dist/src/IdGenerator.js
++++ b/dist/src/IdGenerator.js
+@@ -1,11 +1,8 @@
+ "use strict";
+-var __importDefault = (this && this.__importDefault) || function (mod) {
+-    return (mod && mod.__esModule) ? mod : { "default": mod };
+-};
+ Object.defineProperty(exports, "__esModule", { value: true });
+-var v4_1 = __importDefault(require("uuid/v4"));
++var uuid_1 = require("uuid");
+ function uuid() {
+-    return function () { return v4_1.default(); };
++    return function () { return (0, uuid_1.v4)(); };
+ }
+ exports.uuid = uuid;
+ function incrementing() {

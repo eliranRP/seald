@@ -62,7 +62,6 @@
       "lodash": "^4.18.0",
       "protobufjs": "^7.5.5",
       "uuid": "^14.0.0",
-      "cucumber-messages>uuid": "3.4.0",
       "tmp": "^0.2.4"
     },
     "auditConfig": {
@@ -76,6 +75,9 @@
         "GHSA-v52c-386h-88mc",
         "GHSA-5528-5vmv-3xc2"
       ]
+    },
+    "patchedDependencies": {
+      "cucumber-messages@8.0.0": "patches/cucumber-messages@8.0.0.patch"
     }
   }
 }
