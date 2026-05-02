@@ -290,26 +290,65 @@ export class EnvelopesService {
     return this.setOriginalFile(owner_id, id, { file_path, sha256, pages });
   }
 
+  /**
+   * Add a signer to a draft envelope. Two payload shapes are supported:
+   *
+   *   1. Contact-backed: `{ contact_id }` — the sender selected a saved
+   *      contact in the editor's "Pick from contacts" dropdown.
+   *   2. Ad-hoc:        `{ email, name, color? }` — guest-mode senders
+   *      synthesise signers locally (UploadRoute.synthLocalSigner) without
+   *      ever persisting a contact row. This branch keeps `contact_id` null
+   *      on the row; the repo already supports that (AddSignerInput.contact_id
+   *      is optional).
+   *
+   * The DTO layer (`AddSignerDto`) ensures exactly one of the two shapes is
+   * present at the controller boundary; this service trusts that and routes
+   * accordingly.
+   */
   async addSigner(
     owner_id: string,
     envelope_id: string,
-    dto: { contact_id: string },
+    dto: { contact_id?: string; email?: string; name?: string; color?: string },
   ): Promise<EnvelopeSigner> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
-    const contact = await this.contactsRepo.findOneByOwner(owner_id, dto.contact_id);
-    if (!contact) throw new NotFoundException('contact_not_found');
+    let signerInput: {
+      contact_id: string | null;
+      email: string;
+      name: string;
+      color: string;
+      role: 'signatory';
+    };
 
-    try {
-      return await this.repo.addSigner(envelope_id, {
+    if (dto.contact_id) {
+      const contact = await this.contactsRepo.findOneByOwner(owner_id, dto.contact_id);
+      if (!contact) throw new NotFoundException('contact_not_found');
+      signerInput = {
         contact_id: contact.id,
         email: contact.email,
         name: contact.name,
         color: contact.color,
         role: 'signatory',
-      });
+      };
+    } else {
+      // Ad-hoc shape — DTO already validated email + name are present and well
+      // formed. Default colour matches the SPA's fallback (UploadRoute uses
+      // the next free swatch from `nextColor`; if none was sent we use a
+      // neutral indigo so the signer surface still has a chip colour).
+      if (!dto.email || !dto.name) throw new BadRequestException('signer_payload_invalid');
+      signerInput = {
+        contact_id: null,
+        email: dto.email,
+        name: dto.name,
+        color: dto.color ?? '#818CF8',
+        role: 'signatory',
+      };
+    }
+
+    try {
+      return await this.repo.addSigner(envelope_id, signerInput);
     } catch (err) {
       if (err instanceof EnvelopeSignerEmailTakenError) {
         throw new ConflictException('signer_email_taken');

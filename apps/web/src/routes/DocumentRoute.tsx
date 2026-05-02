@@ -16,7 +16,7 @@ import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
-import type { FieldKind, FieldPlacement } from '../features/envelopes';
+import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
   findTemplateById,
@@ -29,6 +29,11 @@ import { createTemplate, updateTemplate } from '../features/templates/templatesA
 // draft and normalized to 0–1 just before the send hits the backend.
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 740;
+
+// Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
+// real contact ids from `guest-…` synthetic ids when building the
+// addSigner payload — the API DTO rejects non-UUID `contact_id` values.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Local pixel widths/heights that mirror the defaults in the recipient
 // surface's SignerField component. Kept here because the sender stores
@@ -237,7 +242,22 @@ export function DocumentRoute() {
         const result = await sendEnvelope.run({
           title: doc.title,
           file: doc.file,
-          signers: doc.signers.map((s) => ({ contactId: s.id })),
+          signers: doc.signers.map((s): SendEnvelopeSignerInput => {
+            // Guest mode signers are synthesised locally (UploadRoute
+            // `synthLocalSigner`) with a `guest-…` id that would never
+            // pass the API DTO's `@IsUUID()` check. Send the contact
+            // details inline instead so the server creates an ad-hoc
+            // signer without persisting a contact row.
+            if (UUID_RE.test(s.id)) {
+              return { localId: s.id, contactId: s.id };
+            }
+            return {
+              localId: s.id,
+              email: s.email,
+              name: s.name,
+              color: s.color,
+            };
+          }),
           buildFields: (contactIdToSignerId) => {
             const out: FieldPlacement[] = [];
             for (const f of doc.fields) {

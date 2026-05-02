@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { EnvelopeListItem } from 'shared';
 import type {
+  AddEnvelopeSignerInput,
   CancelEnvelopeResponse,
   Envelope,
   EnvelopeEventsResponse,
@@ -88,15 +89,14 @@ export function useUploadEnvelopeFileMutation() {
   });
 }
 
-export interface AddSignerArgs {
+export type AddSignerArgs = {
   readonly envelopeId: string;
-  readonly contactId: string;
-}
+} & AddEnvelopeSignerInput;
 
 export function useAddEnvelopeSignerMutation() {
   const qc = useQueryClient();
   return useMutation<EnvelopeSigner, Error, AddSignerArgs>({
-    mutationFn: ({ envelopeId, contactId }) => addEnvelopeSigner(envelopeId, contactId),
+    mutationFn: ({ envelopeId, ...input }) => addEnvelopeSigner(envelopeId, input),
     onSuccess: (_signer, args) => {
       qc.invalidateQueries({ queryKey: ENVELOPE_KEY(args.envelopeId) });
     },

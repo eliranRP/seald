@@ -49,7 +49,10 @@ describe('useSendEnvelope', () => {
     const run = result.current.run({
       title: 'MSA',
       file: FILE,
-      signers: [{ contactId: 'local-1' }, { contactId: 'local-2' }],
+      signers: [
+        { localId: 'local-1', contactId: 'local-1' },
+        { localId: 'local-2', contactId: 'local-2' },
+      ],
       buildFields: (map): FieldPlacement[] => [
         {
           signer_id: map.get('local-1')!,
@@ -68,8 +71,8 @@ describe('useSendEnvelope', () => {
     expect(createEnvelope).toHaveBeenCalledWith({ title: 'MSA' });
     expect(uploadEnvelopeFile).toHaveBeenCalledWith('env-1', FILE);
     expect(addEnvelopeSigner).toHaveBeenCalledTimes(2);
-    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(1, 'env-1', 'local-1');
-    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(2, 'env-1', 'local-2');
+    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(1, 'env-1', { contact_id: 'local-1' });
+    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(2, 'env-1', { contact_id: 'local-2' });
     expect(placeEnvelopeFields).toHaveBeenCalledWith('env-1', [
       expect.objectContaining({ signer_id: 'server-s1', kind: 'signature' }),
     ]);
@@ -119,6 +122,60 @@ describe('useSendEnvelope', () => {
       sender_email: 'guest@example.com',
       sender_name: 'Ada Lovelace',
     });
+  });
+
+  it('forwards ad-hoc signers (email/name/color) when no contactId is provided (guest mode)', async () => {
+    createEnvelope.mockResolvedValueOnce({ id: 'env-adhoc', short_code: 'SC' });
+    uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: '' });
+    addEnvelopeSigner
+      .mockResolvedValueOnce({ id: 'server-a' })
+      .mockResolvedValueOnce({ id: 'server-b' });
+    sendEnvelope.mockResolvedValueOnce({ id: 'env-adhoc', short_code: 'SC' });
+
+    const { result } = renderHook(() => useSendEnvelope());
+
+    await act(async () => {
+      await result.current.run({
+        title: 'Guest envelope',
+        file: FILE,
+        // Synthetic guest ids — the API DTO would reject these as `contact_id`.
+        // Hook must instead post `{ email, name, color? }` per the AddSignerDto.
+        signers: [
+          {
+            localId: 'guest-aaa',
+            email: 'ada@example.com',
+            name: 'Ada Lovelace',
+            color: '#818CF8',
+          },
+          { localId: 'guest-bbb', email: 'lin@example.com', name: 'Lin Wei' },
+        ],
+        buildFields: (map): FieldPlacement[] => [
+          {
+            signer_id: map.get('guest-aaa')!,
+            kind: 'signature',
+            page: 1,
+            x: 0.1,
+            y: 0.8,
+            required: true,
+          },
+        ],
+      });
+    });
+
+    expect(addEnvelopeSigner).toHaveBeenCalledTimes(2);
+    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(1, 'env-adhoc', {
+      email: 'ada@example.com',
+      name: 'Ada Lovelace',
+      color: '#818CF8',
+    });
+    expect(addEnvelopeSigner).toHaveBeenNthCalledWith(2, 'env-adhoc', {
+      email: 'lin@example.com',
+      name: 'Lin Wei',
+    });
+    // Field map must use the local id as key so buildFields can resolve it.
+    expect(placeEnvelopeFields).toHaveBeenCalledWith('env-adhoc', [
+      expect.objectContaining({ signer_id: 'server-a' }),
+    ]);
   });
 
   it('captures the first failure + exposes it on `error`', async () => {

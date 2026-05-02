@@ -15,7 +15,7 @@ import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
-import type { FieldKind, FieldPlacement } from '../features/envelopes';
+import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
   findTemplateById,
@@ -37,6 +37,11 @@ import type { TemplateSummary } from '../features/templates';
 
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 740;
+
+// Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
+// real contact ids from `guest-…` synthetic ids when building the
+// addSigner payload — the API DTO rejects non-UUID `contact_id` values.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Fields available in the templates flow. Email isn't supported by
 // templates (the saved layout has no signer-specific email plumbing),
@@ -550,7 +555,20 @@ export function TemplateEditorRoute() {
         const result = await sendEnvelope.run({
           title: draft.title,
           file: draft.file,
-          signers: draft.signers.map((s) => ({ contactId: s.id })),
+          signers: draft.signers.map((s): SendEnvelopeSignerInput => {
+            // Same guard as DocumentRoute — guest mode signers carry
+            // synthetic `guest-…` ids that the API DTO rejects, so we
+            // send the contact details inline for those.
+            if (UUID_RE.test(s.id)) {
+              return { localId: s.id, contactId: s.id };
+            }
+            return {
+              localId: s.id,
+              email: s.email,
+              name: s.name,
+              color: s.color,
+            };
+          }),
           buildFields: (contactIdToSignerId) => {
             const out: FieldPlacement[] = [];
             for (const f of draft.fields) {

@@ -36,6 +36,7 @@ export {
   cancelEnvelope,
 } from './envelopesApi';
 export type {
+  AddEnvelopeSignerInput,
   CancelEnvelopeResponse,
   Envelope,
   EnvelopeDownloadKind,
@@ -59,5 +60,6 @@ export type {
   SendEnvelopeInput,
   SendEnvelopeResult,
   SendEnvelopePhase,
+  SendEnvelopeSignerInput,
   UseSendEnvelope,
 } from './useSendEnvelope';
