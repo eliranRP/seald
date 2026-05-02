@@ -152,6 +152,60 @@ interface ApiCallLog {
 async function installMocks(page: Page): Promise<ApiCallLog> {
   const log = { contacts: 0, signFinish: 0, signPdf: 0 };
 
+  // --- Supabase auth: mint an anonymous session on hydration.
+  // The AuthProvider re-issues an anonymous Supabase session when
+  // `sealed.guest=1` is set but `getSession()` returned null (closes
+  // the prod failure mode where access tokens expired but the localStorage
+  // flag persisted). In CI the dev server points VITE_SUPABASE_URL at a
+  // dead loopback (`http://127.0.0.1:54321`), so without this stub
+  // `signInAnonymously()` would error out, the AuthProvider would drop
+  // the guest flag, and `RequireAuthOrGuest` would redirect to /signin
+  // before the dropzone ever renders. Same shape as
+  // `e2e/guest-flow.spec.ts#installGuestMocks`.
+  await page.route('**/auth/v1/signup**', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'e2e-anon-access-token',
+          refresh_token: 'e2e-anon-refresh-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: {
+            id: 'e2e-anon-user',
+            email: null,
+            is_anonymous: true,
+            aud: 'authenticated',
+            role: 'authenticated',
+          },
+        }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+  await page.route('**/auth/v1/user**', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'e2e-anon-user', is_anonymous: true }),
+    });
+  });
+  await page.route('**/auth/v1/token**', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: 'e2e-anon-access-token',
+        refresh_token: 'e2e-anon-refresh-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        user: { id: 'e2e-anon-user', is_anonymous: true },
+      }),
+    });
+  });
+
   // --- Sender: envelope create + upload + signers + fields + send.
   // Guest mode now goes through the same `/envelopes/*` API path as
   // authed users (anonymous Supabase JWT). Mock the full chain so
