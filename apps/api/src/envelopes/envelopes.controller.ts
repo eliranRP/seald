@@ -26,6 +26,7 @@ import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
 import { PlaceFieldsDto } from './dto/place-fields.dto';
+import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type {
   EnvelopeEvent,
   EnvelopeField,
@@ -119,17 +120,22 @@ export class EnvelopesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
+    @Body() dto: SendEnvelopeDto = {},
   ): Promise<Envelope> {
-    if (!user.email) {
-      // The sender's display identity is threaded into the invite email's
-      // "From: <name>" line, so we need at least the email claim. Supabase
-      // JWTs for Google OAuth always carry email; this guard is defensive.
+    // The sender's display identity is threaded into the invite email's
+    // "From: <name>" line, so we need at least an email. JWT email always
+    // wins (anti-spoofing — a signed-in user can't impersonate via body);
+    // body sender_email is only consulted for anonymous Supabase sessions
+    // (guest mode) where the JWT carries `email: null`.
+    const sender_email = user.email ?? dto.sender_email ?? null;
+    if (!sender_email) {
       throw new BadRequestException('sender_email_missing');
     }
+    const sender_name = user.email ? null : (dto.sender_name ?? null);
     return this.svc.send(
       user.id,
       id,
-      { email: user.email },
+      { email: sender_email, name: sender_name },
       { ip: extractClientIp(req), user_agent: req.headers['user-agent'] ?? null },
     );
   }
@@ -158,9 +164,18 @@ export class EnvelopesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('signer_id', ParseUUIDPipe) signer_id: string,
+    @Body() dto: SendEnvelopeDto = {},
   ): Promise<{ status: 'queued' }> {
-    if (!user.email) throw new BadRequestException('sender_email_missing');
-    await this.svc.remindSigner(user.id, id, signer_id, { email: user.email });
+    // Same JWT-email-wins resolution as POST /:id/send. Anonymous senders
+    // (guest mode) include `sender_email` in the body so the reminder can
+    // still go out under their identity.
+    const sender_email = user.email ?? dto.sender_email ?? null;
+    if (!sender_email) throw new BadRequestException('sender_email_missing');
+    const sender_name = user.email ? null : (dto.sender_name ?? null);
+    await this.svc.remindSigner(user.id, id, signer_id, {
+      email: sender_email,
+      name: sender_name,
+    });
     return { status: 'queued' };
   }
 

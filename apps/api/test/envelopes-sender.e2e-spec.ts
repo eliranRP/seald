@@ -866,4 +866,100 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       expect(res.status).toBe(404);
     });
   });
+
+  /**
+   * Guest mode in the SPA exchanges the localStorage flag for an anonymous
+   * Supabase session, so the JWT carries `sub` but no `email`. The send /
+   * remind endpoints accept the sender's email in the request body for
+   * exactly this case (controller resolves JWT-email-wins; body email used
+   * only when JWT email is null). These tests cover the wire contract end
+   * to end so the no-sign-up flow actually persists envelopes + queues
+   * invite emails.
+   */
+  describe('anon (guest) send + remind via body sender_email', () => {
+    let anonToken: string;
+
+    beforeAll(async () => {
+      const signOpts = { issuer: ISSUER, audience: TEST_ENV.SUPABASE_JWT_AUDIENCE };
+      // No `email` claim — mirrors a Supabase anonymous sign-in.
+      anonToken = await tk.sign({ sub: USER_A }, signOpts);
+    });
+
+    async function buildAnonDraft(): Promise<{ envId: string; signerId: string }> {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Bea',
+        email: 'bea@example.com',
+        color: '#abcdef',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(anonToken))
+        .send({ title: 'Guest send' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(anonToken))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(anonToken))
+        .send({ contact_id: contact.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(anonToken))
+        .send({
+          fields: [
+            {
+              signer_id: signer.body.id,
+              kind: 'signature',
+              page: 1,
+              x: 0.1,
+              y: 0.1,
+              required: true,
+            },
+          ],
+        });
+      return { envId: env.body.id, signerId: signer.body.id };
+    }
+
+    it('POST /:id/send with body sender_email creates envelope + enqueues invite', async () => {
+      const { envId, signerId } = await buildAnonDraft();
+
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(anonToken))
+        .send({ sender_email: 'guest@example.com', sender_name: 'Guest User' });
+      expect(res.status).toBe(201);
+      expect(res.body.status).toBe('awaiting_others');
+      expect(res.body.sender_email).toBe('guest@example.com');
+      expect(res.body.sender_name).toBe('Guest User');
+
+      const queued = outbound.rows.filter((r) => r.envelope_id === envId);
+      expect(queued).toHaveLength(1);
+      expect(queued[0]!.signer_id).toBe(signerId);
+      expect(queued[0]!.to_email).toBe('bea@example.com');
+      expect(queued[0]!.payload).toMatchObject({
+        sender_email: 'guest@example.com',
+        sender_name: 'Guest User',
+      });
+    });
+
+    it('POST /:id/send with no body returns 400 sender_email_missing', async () => {
+      const { envId } = await buildAnonDraft();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(anonToken));
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ error: 'sender_email_missing' });
+    });
+
+    it('POST /:id/send with malformed sender_email rejected by DTO with 400', async () => {
+      const { envId } = await buildAnonDraft();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/send`)
+        .set(auth(anonToken))
+        .send({ sender_email: 'not-an-email' });
+      expect(res.status).toBe(400);
+    });
+  });
 });

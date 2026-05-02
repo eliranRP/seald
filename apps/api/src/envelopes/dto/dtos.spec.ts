@@ -5,6 +5,7 @@ import { AddSignerDto } from './add-signer.dto';
 import { CreateEnvelopeDto } from './create-envelope.dto';
 import { PatchEnvelopeDto } from './patch-envelope.dto';
 import { FieldPlacementDto, PlaceFieldsDto } from './place-fields.dto';
+import { SendEnvelopeDto } from './send-envelope.dto';
 
 /**
  * Direct DTO validation tests. Each DTO is exercised through the same
@@ -193,6 +194,57 @@ describe('FieldPlacementDto', () => {
     const dto = plainToInstance(FieldPlacementDto, { ...valid, width: 1.01 });
     const errors = validateSync(dto);
     expect(pathsOf(errors)).toEqual(['width']);
+  });
+});
+
+describe('SendEnvelopeDto', () => {
+  it('accepts an empty body (both fields optional, JWT-email path)', () => {
+    const dto = plainToInstance(SendEnvelopeDto, {});
+    expect(validateSync(dto)).toEqual([]);
+  });
+
+  it('accepts a valid sender_email', () => {
+    const dto = plainToInstance(SendEnvelopeDto, { sender_email: 'guest@example.com' });
+    expect(validateSync(dto)).toEqual([]);
+  });
+
+  it('accepts a valid sender_email + sender_name', () => {
+    const dto = plainToInstance(SendEnvelopeDto, {
+      sender_email: 'guest@example.com',
+      sender_name: 'Guest User',
+    });
+    expect(validateSync(dto)).toEqual([]);
+  });
+
+  it('rejects malformed sender_email', () => {
+    const dto = plainToInstance(SendEnvelopeDto, { sender_email: 'not-an-email' });
+    const errors = validateSync(dto);
+    expect(pathsOf(errors)).toEqual(['sender_email']);
+  });
+
+  it('rejects sender_email longer than 254 chars', () => {
+    const localPart = 'a'.repeat(250);
+    const dto = plainToInstance(SendEnvelopeDto, { sender_email: `${localPart}@x.io` });
+    const errors = validateSync(dto);
+    expect(pathsOf(errors)).toContain('sender_email');
+  });
+
+  it('rejects sender_name longer than 120 chars', () => {
+    const dto = plainToInstance(SendEnvelopeDto, {
+      sender_email: 'guest@example.com',
+      sender_name: 'x'.repeat(121),
+    });
+    const errors = validateSync(dto);
+    expect(pathsOf(errors)).toEqual(['sender_name']);
+  });
+
+  it('rejects empty sender_name when provided', () => {
+    const dto = plainToInstance(SendEnvelopeDto, {
+      sender_email: 'guest@example.com',
+      sender_name: '',
+    });
+    const errors = validateSync(dto);
+    expect(pathsOf(errors)).toEqual(['sender_name']);
   });
 });
 

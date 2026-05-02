@@ -195,11 +195,15 @@ export async function getEnvelopeDownloadUrl(
 export async function remindEnvelopeSigner(
   envelopeId: string,
   signerId: string,
+  payload?: SendEnvelopePayload,
   signal?: AbortSignal,
 ): Promise<void> {
+  const body: { sender_email?: string; sender_name?: string } = {};
+  if (payload?.sender_email !== undefined) body.sender_email = payload.sender_email;
+  if (payload?.sender_name !== undefined) body.sender_name = payload.sender_name;
   await apiClient.post<void>(
     `/envelopes/${envelopeId}/signers/${signerId}/remind`,
-    undefined,
+    body,
     configWithSignal(signal),
   );
 }
@@ -265,10 +269,28 @@ export async function placeEnvelopeFields(
   return data;
 }
 
-export async function sendEnvelope(id: string, signal?: AbortSignal): Promise<Envelope> {
+export interface SendEnvelopePayload {
+  /**
+   * Caller-supplied sender email. Server uses this only when the JWT has
+   * no `email` claim (anonymous Supabase sessions used by guest mode);
+   * when the JWT carries an email, the server ignores this and uses the
+   * JWT email instead (anti-spoofing).
+   */
+  readonly sender_email?: string;
+  readonly sender_name?: string;
+}
+
+export async function sendEnvelope(
+  id: string,
+  payload?: SendEnvelopePayload,
+  signal?: AbortSignal,
+): Promise<Envelope> {
+  const body: { sender_email?: string; sender_name?: string } = {};
+  if (payload?.sender_email !== undefined) body.sender_email = payload.sender_email;
+  if (payload?.sender_name !== undefined) body.sender_name = payload.sender_name;
   const { data } = await apiClient.post<Envelope>(
     `/envelopes/${id}/send`,
-    undefined,
+    body,
     configWithSignal(signal),
   );
   return data;

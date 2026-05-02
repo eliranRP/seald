@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DocumentPage } from '../pages/DocumentPage';
 import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
+import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
 import { SaveAsTemplateDialog } from '../components/SaveAsTemplateDialog';
 import type { SaveAsTemplatePayload } from '../components/SaveAsTemplateDialog';
 import { SendConfirmDialog } from '../components/SendConfirmDialog';
@@ -83,6 +84,7 @@ export function DocumentRoute() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [saveTplOpen, setSaveTplOpen] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [guestSenderOpen, setGuestSenderOpen] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
 
@@ -220,54 +222,58 @@ export function DocumentRoute() {
    * Internal — actually push the envelope to the API. Split out from
    * `handleSend` so the SendConfirmDialog branches can call it after
    * doing or skipping the template-update step.
+   *
+   * Guest mode now goes through the same `/envelopes/*` API path as
+   * authed users (anonymous Supabase JWT). The caller passes the
+   * sender identity captured by `GuestSenderEmailDialog`; for authed
+   * users both args are `undefined` and the server uses the JWT email.
    */
-  const runSend = useCallback(async () => {
-    if (!doc || !doc.file) return;
-    setSendError(null);
+  const runSend = useCallback(
+    async (senderEmail?: string, senderName?: string) => {
+      if (!doc || !doc.file) return;
+      setSendError(null);
 
-    if (guest) {
-      sendDocument(doc.id);
-      navigate(`/document/${doc.id}/sent`);
-      return;
-    }
-
-    try {
-      const result = await sendEnvelope.run({
-        title: doc.title,
-        file: doc.file,
-        signers: doc.signers.map((s) => ({ contactId: s.id })),
-        buildFields: (contactIdToSignerId) => {
-          const out: FieldPlacement[] = [];
-          for (const f of doc.fields) {
-            const normalized = toNormalized(f);
-            for (const localSignerId of f.signerIds) {
-              const serverSignerId = contactIdToSignerId.get(localSignerId);
-              if (serverSignerId) {
-                const placement: FieldPlacement = {
-                  signer_id: serverSignerId,
-                  kind: f.type as FieldKind,
-                  page: f.page,
-                  x: normalized.x,
-                  y: normalized.y,
-                  required: f.required ?? true,
-                  ...(normalized.width !== undefined ? { width: normalized.width } : {}),
-                  ...(normalized.height !== undefined ? { height: normalized.height } : {}),
-                  ...(f.linkId ? { link_id: f.linkId } : {}),
-                };
-                out.push(placement);
+      try {
+        const result = await sendEnvelope.run({
+          title: doc.title,
+          file: doc.file,
+          signers: doc.signers.map((s) => ({ contactId: s.id })),
+          buildFields: (contactIdToSignerId) => {
+            const out: FieldPlacement[] = [];
+            for (const f of doc.fields) {
+              const normalized = toNormalized(f);
+              for (const localSignerId of f.signerIds) {
+                const serverSignerId = contactIdToSignerId.get(localSignerId);
+                if (serverSignerId) {
+                  const placement: FieldPlacement = {
+                    signer_id: serverSignerId,
+                    kind: f.type as FieldKind,
+                    page: f.page,
+                    x: normalized.x,
+                    y: normalized.y,
+                    required: f.required ?? true,
+                    ...(normalized.width !== undefined ? { width: normalized.width } : {}),
+                    ...(normalized.height !== undefined ? { height: normalized.height } : {}),
+                    ...(f.linkId ? { link_id: f.linkId } : {}),
+                  };
+                  out.push(placement);
+                }
               }
             }
-          }
-          return out;
-        },
-      });
+            return out;
+          },
+          ...(senderEmail !== undefined ? { senderEmail } : {}),
+          ...(senderName !== undefined ? { senderName } : {}),
+        });
 
-      sendDocument(doc.id);
-      navigate(`/document/${result.envelope_id}/sent`);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
-    }
-  }, [doc, guest, navigate, sendDocument, sendEnvelope]);
+        sendDocument(doc.id);
+        navigate(`/document/${result.envelope_id}/sent`);
+      } catch (err) {
+        setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
+      }
+    },
+    [doc, navigate, sendDocument, sendEnvelope],
+  );
 
   /**
    * Patch the source template with the current placed-field layout —
@@ -284,6 +290,14 @@ export function DocumentRoute() {
   }, [doc?.fields, doc?.fromTemplateId, doc?.totalPages, doc?.signers]);
 
   const handleSend = useCallback(() => {
+    // Guest mode: capture sender identity first (the anonymous Supabase
+    // JWT has no email, so the API needs it in the body). The
+    // template-confirm and actual send fire from inside the dialog's
+    // onConfirm handler.
+    if (guest) {
+      setGuestSenderOpen(true);
+      return;
+    }
     // When the draft was started from a saved template, prompt the
     // user with the "update template too?" dialog before sending.
     // Plain drafts (no template provenance) skip straight to send.
@@ -294,7 +308,29 @@ export function DocumentRoute() {
     runSend().catch(() => {
       /* surfaced via setSendError inside runSend */
     });
-  }, [doc?.fromTemplateId, runSend]);
+  }, [doc?.fromTemplateId, guest, runSend]);
+
+  const handleGuestSenderConfirm = useCallback(
+    (email: string, name?: string) => {
+      setGuestSenderOpen(false);
+      // Same template-prompt branching as the authed path, just
+      // threaded with the captured guest sender identity.
+      if (doc?.fromTemplateId) {
+        // Stash sender for the SendConfirmDialog branches via runSend
+        // bound below — for guest+template, skip the prompt and just
+        // send. (The "update template" choice is meaningless to a
+        // guest who has no persisted templates.)
+        runSend(email, name).catch(() => {
+          /* surfaced via setSendError */
+        });
+        return;
+      }
+      runSend(email, name).catch(() => {
+        /* surfaced via setSendError */
+      });
+    },
+    [doc?.fromTemplateId, runSend],
+  );
 
   const handleSendJust = useCallback(() => {
     setSendConfirmOpen(false);
@@ -454,6 +490,11 @@ export function DocumentRoute() {
         onSendAndUpdate={handleSendAndUpdate}
         onJustSend={handleSendJust}
         onCancel={() => setSendConfirmOpen(false)}
+      />
+      <GuestSenderEmailDialog
+        open={guestSenderOpen}
+        onConfirm={handleGuestSenderConfirm}
+        onCancel={() => setGuestSenderOpen(false)}
       />
       {toast ? (
         <Toast

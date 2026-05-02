@@ -18,7 +18,7 @@ const auth = {
   signInWithGoogle: vi.fn(async () => undefined),
   resetPassword: vi.fn(async () => undefined),
   signOut: vi.fn(async () => undefined),
-  enterGuestMode: vi.fn(),
+  enterGuestMode: vi.fn(async () => undefined),
   exitGuestMode: vi.fn(),
 } satisfies AuthContextValue;
 

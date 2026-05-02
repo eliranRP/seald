@@ -340,16 +340,8 @@ describe('EnvelopeDetailPage', () => {
     const toast = await screen.findByRole('status');
     expect(toast).toHaveTextContent(/Reminder sent to 2 signers\./i);
     expect(post).toHaveBeenCalledTimes(2);
-    expect(post).toHaveBeenCalledWith(
-      '/envelopes/env-1/signers/s1/remind',
-      undefined,
-      expect.anything(),
-    );
-    expect(post).toHaveBeenCalledWith(
-      '/envelopes/env-1/signers/s2/remind',
-      undefined,
-      expect.anything(),
-    );
+    expect(post).toHaveBeenCalledWith('/envelopes/env-1/signers/s1/remind', {}, expect.anything());
+    expect(post).toHaveBeenCalledWith('/envelopes/env-1/signers/s2/remind', {}, expect.anything());
   });
 
   it('shows a danger toast when the cancel mutation fails', async () => {
