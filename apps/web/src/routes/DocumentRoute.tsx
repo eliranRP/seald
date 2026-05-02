@@ -266,7 +266,13 @@ export function DocumentRoute() {
           ...(senderName !== undefined ? { senderName } : {}),
         });
 
-        sendDocument(doc.id);
+        // Persist the server envelope id back onto the local draft so the
+        // post-send redirect (which puts the server uuid in the URL) can
+        // still resolve the draft via `getDocument`. Without this the
+        // SentConfirmationPage would render its "Document not found"
+        // fallback for guest senders, and "View envelope" from /sent would
+        // land on an empty editor instead of the original draft.
+        sendDocument(doc.id, result.envelope_id);
         navigate(`/document/${result.envelope_id}/sent`);
       } catch (err) {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');

@@ -100,7 +100,7 @@ export function AuthProvider(props: AuthProviderProps) {
     let cancelled = false;
     supabase.auth
       .getSession()
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (cancelled) return;
         setSession(data.session ?? null);
         // Anonymous sessions intentionally keep `guest === true`. Only a
@@ -109,7 +109,35 @@ export function AuthProvider(props: AuthProviderProps) {
           setGuest(false);
           writeGuestFlag(false);
         }
-        setLoading(false);
+        // Re-issue the anonymous session if the user previously entered
+        // guest mode but `getSession()` came back empty (Supabase access
+        // tokens expire after ~1h by default — the persisted refresh
+        // token is what normally rehydrates them, but if that's missing
+        // too we need to mint a new anon session so the apiClient has a
+        // Bearer token to attach. Without this the SPA renders as
+        // "guest mode" but every API call 401s, exactly the symptom
+        // behind the user-reported "send not sent" bug).
+        if (!data.session && readGuestFlag()) {
+          try {
+            const { error } = await supabase.auth.signInAnonymously();
+            if (cancelled) return;
+            if (error) {
+              // Anonymous provider disabled or quota hit — drop the flag
+              // so the route guard can redirect to /signin instead of
+              // leaving the user in a half-authenticated state.
+              setGuest(false);
+              writeGuestFlag(false);
+            }
+            // The `onAuthStateChange` listener below will pick up the
+            // newly-issued session; no need to setSession here.
+          } catch {
+            if (!cancelled) {
+              setGuest(false);
+              writeGuestFlag(false);
+            }
+          }
+        }
+        if (!cancelled) setLoading(false);
       })
       .catch(() => {
         if (!cancelled) setLoading(false);
@@ -221,7 +249,17 @@ export function AuthProvider(props: AuthProviderProps) {
     writeGuestFlag(false);
   }, []);
 
-  const user = useMemo<AuthUser | null>(() => toAuthUser(session?.user), [session]);
+  const user = useMemo<AuthUser | null>(() => {
+    // Anonymous Supabase sessions intentionally surface as `user === null`
+    // — the rest of the SPA treats `user !== null` as "named-account
+    // signed in" (used by NavBar to flip the primary nav, by AppState to
+    // enable the contacts query, etc). The hydration re-issue path (see
+    // useEffect above) creates anon sessions with `is_anonymous: true`,
+    // and we must not let those flip the SPA out of guest mode.
+    if (!session?.user) return null;
+    if (session.user.is_anonymous) return null;
+    return toAuthUser(session.user);
+  }, [session]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

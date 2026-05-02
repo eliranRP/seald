@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { renderWithProviders } from '../../test/renderWithProviders';
 
 // The page resolves the envelope via either local AppState (drafts) or
@@ -64,5 +65,70 @@ describe('SentConfirmationPage', () => {
       await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText(/maya raskin/i)).toBeInTheDocument();
+  });
+
+  it('"Back to documents" sends a guest to /document/new (not /documents)', async () => {
+    // `/documents` is gated by `RequireAuth` (not `RequireAuthOrGuest`)
+    // so a guest landing there bounces back to `/document/new`. The
+    // SentConfirmationPage now points the CTA straight at `/document/new`
+    // for guests to skip the round-trip flash that surfaced the
+    // user-reported "screen jumps back to fields" symptom.
+    function LocationProbe(): React.ReactElement {
+      const loc = useLocation();
+      return <div data-pathname>{loc.pathname}</div>;
+    }
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/sent/env-test']}>
+        <Routes>
+          <Route
+            path="/sent/:id"
+            element={
+              <>
+                <SentConfirmationPage />
+                <LocationProbe />
+              </>
+            }
+          />
+          <Route path="/document/new" element={<LocationProbe />} />
+          <Route path="/documents" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+      { auth: { guest: true, user: null } },
+    );
+
+    // Wait for the page to hydrate from the API stub.
+    await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i });
+
+    const backBtn = screen.getByRole('button', { name: /back to documents/i });
+    await userEvent.click(backBtn);
+
+    const probe = await screen.findByText('/document/new');
+    expect(probe).toBeInTheDocument();
+  });
+
+  it('"Back to documents" sends an authed user to /documents', async () => {
+    function LocationProbe(): React.ReactElement {
+      const loc = useLocation();
+      return <div data-pathname>{loc.pathname}</div>;
+    }
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/sent/env-test']}>
+        <Routes>
+          <Route
+            path="/sent/:id"
+            element={
+              <>
+                <SentConfirmationPage />
+                <LocationProbe />
+              </>
+            }
+          />
+          <Route path="/documents" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i });
+    await userEvent.click(screen.getByRole('button', { name: /back to documents/i }));
+    expect(await screen.findByText('/documents')).toBeInTheDocument();
   });
 });
