@@ -87,6 +87,14 @@ function SigningRouteRoot() {
 /**
  * The routed tree without a `Router` wrapper — so tests can mount the app
  * with a `MemoryRouter` to drive navigation through `initialEntries`.
+ *
+ * IMPORTANT: every top-level path declared below must also be listed in
+ * `apps/landing/_worker.js` (`SPA_EXACT` for exact matches, `SPA_PREFIXES`
+ * for prefixes). The Cloudflare Pages deploy serves the landing site at
+ * `/` and uses that worker to rewrite SPA routes to the SPA's HTML shell.
+ * A path missing from the worker silently falls through to the landing
+ * dist and serves the wrong HTML — production outage on 2026-05-02 was
+ * exactly this (`/m/send` and `/templates` returned the landing page).
  */
 export function AppRoutes() {
   return (
