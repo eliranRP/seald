@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { EVENT_TYPES } from 'shared';
 import { seald } from '../../styles/theme';
 
 vi.mock('../../lib/api/verifyApiClient', () => ({
@@ -225,6 +226,38 @@ describe('VerifyPage', () => {
       await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
     ).toBeInTheDocument();
   });
+
+  // Drift-proof variant of the test above. The hand-curated event list
+  // missed three event types (`esign_disclosure_acknowledged`,
+  // `intent_to_sign_confirmed`, `consent_withdrawn`) added to the API
+  // after this test was written, so a real `/verify/:code` request
+  // crashed the page with `Cannot read properties of undefined (reading
+  // 'toLowerCase')` inside `describeEvent`. Iterating the canonical
+  // `EVENT_TYPES` from `shared` makes the test fail the moment the
+  // FE label/tone maps fall behind the source of truth.
+  it.each(EVENT_TYPES.map((t) => [t]))(
+    'renders without crashing for canonical event_type %s',
+    async (eventType) => {
+      const payload: VerifyResponse = {
+        ...SIGNED_PAYLOAD,
+        events: [
+          {
+            id: `e-${eventType}`,
+            actor_kind: 'system',
+            event_type: eventType as VerifyResponse['events'][number]['event_type'],
+            signer_id: null,
+            created_at: '2026-04-25T21:21:08Z',
+          },
+        ],
+      };
+      get.mockResolvedValueOnce({ data: payload });
+      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+      render(<VerifyPage />, { wrapper: Wrapper });
+      expect(
+        await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('renders all signer names and emails', async () => {
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
