@@ -498,6 +498,55 @@ describe('TemplatesService', () => {
         svc.attachExamplePdf(OWNER, id, PDF_BYTES, 'application/pdf'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
+
+    // Regression — QA audit (qa/envelope-templates-break-tests). The
+    // controller hands the body straight through with the
+    // client-declared mimetype; until this gate landed, a non-PDF
+    // payload (e.g. a GIF) carrying `Content-Type: application/pdf`
+    // was uploaded to Storage as if it were a real PDF. The bytes
+    // would later be served back from the editor with
+    // `Content-Type: application/pdf`, leading to a broken render at
+    // best and a content-type confusion vector at worst. Mirror the
+    // envelope-upload path's `%PDF-` magic-byte gate. See
+    // `EnvelopesService.uploadOriginal` (PDF_MAGIC) for the analogue.
+    it('rejects bytes whose magic header is not %PDF- with example_pdf_wrong_type', async () => {
+      const id = await createOwned();
+      // GIF87a header — common content-type-confusion payload.
+      const gifBytes = Buffer.from([
+        0x47, 0x49, 0x46, 0x38, 0x37, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
+      ]);
+      await expect(
+        svc.attachExamplePdf(OWNER, id, gifBytes, 'application/pdf'),
+      ).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: 'example_pdf_wrong_type',
+      });
+      // Critically — Storage was never written. We don't want bucket
+      // pollution from a wrong-type upload that the gate caught.
+      expect(storage.uploads).toHaveLength(0);
+    });
+
+    it('rejects a buffer too short to even hold the %PDF- magic with example_pdf_wrong_type', async () => {
+      const id = await createOwned();
+      // Five bytes — same length as the magic but not the magic. Guards
+      // the off-by-one branch in the magic check.
+      const tiny = Buffer.from([0x25, 0x21, 0x21, 0x21, 0x21]);
+      await expect(svc.attachExamplePdf(OWNER, id, tiny, 'application/pdf')).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: 'example_pdf_wrong_type',
+      });
+      expect(storage.uploads).toHaveLength(0);
+    });
+
+    it('accepts the canonical %PDF-1.4 magic header (sanity check)', async () => {
+      // Pinned alongside the rejection cases so a future refactor
+      // can't accidentally over-tighten the gate. Mirrors the existing
+      // `uploads to a stable per-template path` test but kept adjacent
+      // to the rejection block for readability.
+      const id = await createOwned();
+      const out = await svc.attachExamplePdf(OWNER, id, PDF_BYTES, 'application/pdf');
+      expect(out.has_example_pdf).toBe(true);
+    });
   });
 
   describe('readExamplePdf', () => {
