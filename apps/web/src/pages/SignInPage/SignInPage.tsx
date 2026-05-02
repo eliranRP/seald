@@ -6,6 +6,7 @@ import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
 import { pathForAuthMode } from '@/layout/authPaths';
 import { useAuth } from '@/providers/AuthProvider';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
 const ErrorBanner = styled.div`
   background: ${({ theme }) => theme.color.danger[50]};
@@ -32,6 +33,7 @@ export function SignInPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { enterGuestMode } = useAuth();
+  const isMobile = useIsMobileViewport();
   const queryError = params.get('error');
   const [guestError, setGuestError] = useState<string | null>(null);
   const errorKey = guestError ? 'guest' : queryError;
@@ -43,11 +45,11 @@ export function SignInPage() {
     // allow anonymous sign-ins, surface the failure in the existing
     // error banner instead of silently leaving the user stuck.
     enterGuestMode()
-      .then(() => navigate('/document/new'))
+      .then(() => navigate(isMobile ? '/m/send' : '/document/new'))
       .catch((err: unknown) => {
         setGuestError(err instanceof Error ? err.message : 'Could not start guest session.');
       });
-  }, [enterGuestMode, navigate]);
+  }, [enterGuestMode, isMobile, navigate]);
 
   const handleSwitch = useCallback(
     (next: AuthFormMode): void => {
@@ -61,8 +63,8 @@ export function SignInPage() {
   }, [navigate]);
 
   const handleAuthed = useCallback((): void => {
-    navigate('/documents');
-  }, [navigate]);
+    navigate(isMobile ? '/m/send' : '/documents');
+  }, [isMobile, navigate]);
 
   return (
     <AuthShell>
