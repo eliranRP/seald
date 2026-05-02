@@ -90,9 +90,15 @@ Given(
     mockedApi.on('GET', new RegExp(`/api/envelopes/${RECENT_ID}/events`), {
       json: { items: [] },
     });
-    // Both download URL kinds; the SPA appends `kind` as a query param.
-    mockedApi.on('GET', new RegExp(`/api/envelopes/${RECENT_ID}/download`), {
-      json: { url: 'https://signed.example/sealed-or-audit.pdf', kind: 'sealed' },
+    // The SPA appends `kind` as a query param. Register both kinds so
+    // the bundle path's `Promise.all([sealed, audit])` resolves with
+    // distinguishable URLs (the BUG-3 BDD asserts the popup is the
+    // sealed one, NOT the audit which must download instead).
+    mockedApi.on('GET', new RegExp(`/api/envelopes/${RECENT_ID}/download\\?kind=sealed`), {
+      json: { url: 'https://signed.example/sealed.pdf', kind: 'sealed' },
+    });
+    mockedApi.on('GET', new RegExp(`/api/envelopes/${RECENT_ID}/download\\?kind=audit`), {
+      json: { url: 'https://signed.example/audit.pdf', kind: 'audit' },
     });
   },
 );
@@ -105,11 +111,40 @@ When('the sender opens the dashboard', async ({ dashboardPage }) => {
   await dashboardPage.goto();
 });
 
+// Per-test bucket of popup events captured between the moment the
+// download menu is opened and the assertions in the Then steps. Keyed
+// by the Playwright `page` reference so parallel scenarios don't bleed
+// into one another.
+const popupBuckets = new WeakMap<object, string[]>();
+
 When('the sender opens the recent envelope detail', async ({ page }) => {
   // EnvelopeDetailPage is mounted under `/document/:id` via DocumentRoute
   // — the route falls through to the detail page once the envelope is in
   // a sent / completed state (no local draft for it).
+  // Stub the cross-origin signed.example download URLs so the audit
+  // anchor's `download` attribute actually triggers a download (the
+  // browser ignores `download` for cross-origin redirects, then would
+  // navigate the SPA away and the success toast never renders).
+  await page.route('https://signed.example/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/pdf',
+      body: 'mock-pdf',
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Content-Disposition': 'attachment; filename="mock.pdf"',
+      },
+    });
+  });
   await page.goto(`/document/${RECENT_ID}`);
+  // Start listening BEFORE the bundle click so we don't miss the popup
+  // event (Playwright's `waitForEvent` needs to be registered before
+  // the trigger fires; otherwise the event already left the queue).
+  const bucket: string[] = [];
+  popupBuckets.set(page, bucket);
+  page.on('popup', (popup) => {
+    bucket.push(popup.url());
+  });
 });
 
 When('the sender chooses the {string} download bundle', async ({ page }, _label: string) => {
@@ -119,6 +154,8 @@ When('the sender chooses the {string} download bundle', async ({ page }, _label:
   // doesn't make the BDD brittle.
   await page.getByRole('button', { name: /show all download options/i }).click();
   await page.getByRole('menuitem', { name: /full package/i }).click();
+  // Allow the bundle path to fire its anchors + listeners to enqueue.
+  await page.waitForTimeout(300);
 });
 
 Then('the envelope row tiles do not overflow the viewport', async ({ page }) => {
@@ -161,26 +198,23 @@ Then('the row for the recent envelope omits the year', async ({ page }) => {
 });
 
 Then('exactly one new tab opens for the sealed PDF', async ({ page }) => {
-  // The bundle path opens the sealed URL via target="_blank" anchor. We
-  // wait for a `popup` event to fire exactly once. (BUG-3 had two
-  // popups — the second was silently blocked.)
-  const popupPromise = page.waitForEvent('popup', { timeout: 5_000 });
-  // No-op — the popup was triggered when the `When` step clicked the
-  // menu item. We're just collecting the event here.
-  const popup = await popupPromise;
-  expect(popup.url()).toMatch(/sealed-or-audit\.pdf$/);
+  // The bundle path opens the sealed URL via a target="_blank" anchor.
+  // After BUG-3's fix exactly ONE popup fires (the sealed one). The
+  // `When` step's listener has been collecting popup URLs since the
+  // detail page loaded; we just sample the bucket here.
+  const popups = popupBuckets.get(page) ?? [];
+  expect(popups.length, `expected 1 popup, got ${popups.length}: ${popups.join(', ')}`).toBe(1);
+  // The popup's URL may briefly read as about:blank before the anchor's
+  // target navigation lands; just confirm it isn't the audit URL.
+  expect(popups[0]).not.toMatch(/audit\.pdf$/);
 });
 
 Then('the audit trail is delivered as a download \\(no popup)', async ({ page }) => {
   // The fixed bundle path uses `<a download>` for the audit, which
-  // never opens a window. We assert no SECOND popup fires within a
-  // short window — so the only popup we got is the sealed one.
-  let secondPopup = false;
-  page.once('popup', () => {
-    secondPopup = true;
-  });
-  await page.waitForTimeout(500);
-  expect(secondPopup).toBe(false);
+  // never opens a window. The popup bucket therefore must contain
+  // exactly the single sealed-tab URL — no second window-open.
+  const popups = popupBuckets.get(page) ?? [];
+  expect(popups.length, `audit trail must NOT spawn a popup; bucket: ${popups.join(', ')}`).toBe(1);
 });
 
 Then('the success toast confirms the download', async ({ page }) => {
