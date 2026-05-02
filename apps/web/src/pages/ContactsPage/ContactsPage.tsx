@@ -120,19 +120,33 @@ export function ContactsPage() {
   const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' });
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * Per-field error state. Previously the dialog held a single `error`
+   * string and bound it to the email TextField's `error` prop — so a
+   * "Please enter a name." validation message rendered under the wrong
+   * field, confusing the user into editing the email when their name
+   * was the actual problem. Tracking each field independently lets us
+   * point screen readers + sighted users at the field that failed.
+   */
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const resetFieldErrors = (): void => {
+    setNameError(null);
+    setEmailError(null);
+  };
 
   const openAdd = (): void => {
     setName('');
     setEmail('');
-    setError(null);
+    resetFieldErrors();
     setDialog({ mode: 'add' });
   };
 
   const openEdit = (contact: AddSignerContact): void => {
     setName(contact.name);
     setEmail(contact.email);
-    setError(null);
+    resetFieldErrors();
     setDialog({ mode: 'edit', contact });
   };
 
@@ -146,15 +160,16 @@ export function ContactsPage() {
     if (submitting) return;
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
-    if (!trimmedName) {
-      setError('Please enter a name.');
-      return;
-    }
-    if (!isValidEmail(trimmedEmail)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    setError(null);
+    // Validate both fields up front so the user sees every issue at
+    // once rather than fixing one only to discover the next on resubmit.
+    const nextNameError = trimmedName ? null : 'Please enter a name.';
+    const nextEmailError = isValidEmail(trimmedEmail)
+      ? null
+      : 'Please enter a valid email address.';
+    setNameError(nextNameError);
+    setEmailError(nextEmailError);
+    if (nextNameError || nextEmailError) return;
+
     setSubmitting(true);
     try {
       if (dialog.mode === 'add') {
@@ -180,7 +195,10 @@ export function ContactsPage() {
       } else {
         message = 'Could not save contact. Something went wrong — please try again.';
       }
-      setError(message);
+      // Server-side errors are most often email-related (duplicate,
+      // syntactic), so attach to the email field. Pure name validation
+      // is caught client-side above.
+      setEmailError(message);
     } finally {
       setSubmitting(false);
     }
@@ -258,21 +276,56 @@ export function ContactsPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <DialogTitle>{dialog.mode === 'add' ? 'Add signer' : 'Edit signer'}</DialogTitle>
+            {/*
+              We deliberately don't wrap the inputs in a <form>:
+              DialogCard above stops click propagation (so the
+              backdrop doesn't close the modal when the user clicks
+              inside), which also stops the browser from delivering
+              the implicit `submit` event after a click on a
+              type="submit" button. Instead we wire Enter handling
+              directly on the inputs and call `handleSubmit()` from
+              both the button click and the keydown — keyboard users
+              still get one-press submission without depending on
+              implicit form submission.
+            */}
             <FieldStack>
-              <TextField label="Name" value={name} onChange={(next) => setName(next)} autoFocus />
+              <TextField
+                label="Name"
+                value={name}
+                onChange={(next) => setName(next)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleSubmit();
+                  }
+                }}
+                {...(nameError ? { error: nameError } : {})}
+              />
               <TextField
                 label="Email"
                 type="email"
                 value={email}
                 onChange={(next) => setEmail(next)}
-                {...(error ? { error } : {})}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleSubmit();
+                  }
+                }}
+                {...(emailError ? { error: emailError } : {})}
               />
             </FieldStack>
             <DialogFooter>
               <Button variant="ghost" onClick={closeDialog}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={handleSubmit}>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  void handleSubmit();
+                }}
+              >
                 {dialog.mode === 'add' ? 'Add signer' : 'Save changes'}
               </Button>
             </DialogFooter>
