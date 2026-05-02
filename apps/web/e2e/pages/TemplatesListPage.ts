@@ -47,8 +47,13 @@ export class TemplatesListPage {
   }
 
   async expectTemplateVisible(name: string): Promise<void> {
-    // Template names render inside an `aria-labelledby="tpl-name-..."`
-    // article — querying by accessible name picks that up.
-    await expect(this.page.getByRole('article', { name: new RegExp(name, 'i') })).toBeVisible();
+    // The TemplateCard root carries `role="button"` +
+    // `aria-labelledby="tpl-name-<id>"` so its accessible name resolves
+    // to the displayed template name. Multiple cards on the page may
+    // match (e.g. when the user navigates Use vs Edit), so .first()
+    // keeps the assertion focused on existence rather than uniqueness.
+    await expect(
+      this.page.getByRole('button', { name: new RegExp(`^${name}$`, 'i') }).first(),
+    ).toBeVisible();
   }
 }

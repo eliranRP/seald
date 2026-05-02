@@ -20,17 +20,26 @@ Given(
   'a signed-in sender on the templates page with a template named {string}',
   async ({ seededUser, mockedApi, templatesListPage }, name: string) => {
     await seededUser.signInAs();
+    // Mirror the wire shape the Nest TemplatesController returns
+    // (`apps/web/src/features/templates/templatesApi.ts#ApiTemplate`).
+    // Crucially: `title` (not `name`) — the SPA maps `title` → summary.name,
+    // and the per-card aria-label is `Delete ${name}` — without `title`
+    // the Delete button's accessible name would be empty.
     mockedApi.on('GET', /\/api\/templates(\?|$)/, {
       json: [
         {
           id: 'tpl_qnda',
           owner_id: '00000000-0000-4000-8000-000000000a11',
-          name,
+          title: name,
+          description: 'Mutual NDA used quarterly with vendor onboarding.',
+          cover_color: '#EEF2FF',
+          field_layout: [],
           tags: ['legal'],
-          page_count: 2,
-          // The list page only renders summary fields; sticking to the
-          // observed shape from the API integration tests.
-          created_at: '2026-05-02T10:00:00Z',
+          last_signers: [],
+          has_example_pdf: false,
+          uses_count: 3,
+          last_used_at: '2026-04-15T10:00:00Z',
+          created_at: '2026-04-01T10:00:00Z',
           updated_at: '2026-05-02T10:00:00Z',
         },
       ],
