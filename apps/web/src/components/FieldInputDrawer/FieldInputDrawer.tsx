@@ -42,11 +42,27 @@ function validate(kind: FieldInputKind, value: string): string | null {
  * L2 bottom-sheet for typing a text / email / date / name value. Used by the
  * fill page for every non-signature field.
  */
+/**
+ * BUG FIX (a11y): the dialog had `aria-modal="true"` but no Tab trap, so
+ * keyboard users could escape the modal and interact with the page
+ * underneath. This selector enumerates the focusable controls inside the
+ * sheet so we can wrap Tab / Shift+Tab at the boundaries.
+ */
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
 export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps>((props, ref) => {
   const { open, label, kind, initialValue, onCancel, onApply, ...rest } = props;
   const [value, setValue] = useState<string>(initialValue ?? '');
   const [touched, setTouched] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const sheetRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -54,7 +70,31 @@ export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps
     setTouched(false);
     const t = setTimeout(() => inputRef.current?.focus(), 0);
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      // Focus trap: when Tab / Shift+Tab would land outside the sheet,
+      // wrap to the other end. Without this, aria-modal="true" is a lie
+      // because keyboard focus can leak to the page underneath.
+      if (e.key !== 'Tab') return;
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+      const focusables = Array.from(sheet.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+        (el) => !el.hasAttribute('inert'),
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey && (active === first || !sheet.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !sheet.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener('keydown', onKey);
     return () => {
@@ -83,7 +123,7 @@ export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps
       ref={ref}
       {...rest}
     >
-      <Sheet onClick={(e) => e.stopPropagation()}>
+      <Sheet onClick={(e) => e.stopPropagation()} ref={sheetRef}>
         <HeaderRow>
           <Title>{label}</Title>
           <CloseBtn type="button" onClick={onCancel} aria-label="Cancel">

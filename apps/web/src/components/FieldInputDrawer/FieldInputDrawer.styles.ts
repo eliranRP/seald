@@ -3,6 +3,14 @@ import styled from 'styled-components';
 export const Backdrop = styled.div`
   position: fixed;
   inset: 0;
+  /* Bind the backdrop to the visual viewport on iOS Safari so the soft
+     keyboard's appearance shrinks the available area instead of pushing
+     the bottom sheet offscreen. \`dvh\` (dynamic) reflects the browser
+     chrome AND keyboard; \`svh\` is the safe fallback. \`100vh\` alone
+     was the bug — the sheet's footer sat under the iOS keyboard. */
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   background: rgba(11, 18, 32, 0.5);
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
@@ -13,9 +21,18 @@ export const Backdrop = styled.div`
 export const Sheet = styled.div`
   width: 100%;
   max-width: 560px;
+  /* Cap the sheet to the visual viewport so the footer (Apply / Cancel)
+     stays reachable when content + keyboard would otherwise overflow.
+     \`overflow-y: auto\` lets the user scroll inside the sheet rather
+     than the page jumping. */
+  max-height: 100dvh;
+  overflow-y: auto;
   background: ${({ theme }) => theme.color.paper};
   border-radius: 20px 20px 0 0;
-  padding: ${({ theme }) => theme.space[6]} 28px 28px;
+  /* Reserve space for the iPhone home indicator (the 34pt strip below
+     the bottom edge). \`env(safe-area-inset-bottom)\` is 0 on devices
+     without a notch, so this is safe everywhere. */
+  padding: ${({ theme }) => theme.space[6]} 28px calc(28px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -10px 40px rgba(11, 18, 32, 0.2);
 `;
 
