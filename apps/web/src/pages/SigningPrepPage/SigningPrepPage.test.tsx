@@ -236,10 +236,12 @@ describe('SigningPrepPage', () => {
     expect(alert).toHaveTextContent(/could not record your acceptance/i);
   });
 
-  it('NotMe button POSTs decline with reason "not-the-recipient" and routes to /declined', async () => {
-    // "Not me?" is a soft decline — handled silently (no confirm), but
-    // it must POST /sign/decline with the dedicated reason so the audit
-    // trail distinguishes it from a deliberate decline.
+  it('NotMe button confirms first, then POSTs decline with reason "not-the-recipient" and routes to /declined', async () => {
+    // BUG FIX: "Not me?" was previously a one-tap destructive action with
+    // no confirmation. On mobile the small target near the avatar made
+    // accidental decline trivial. We now require confirmation before
+    // sending the audit-logged decline.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     post.mockResolvedValueOnce(okResponse({ status: 'declined', envelope_status: 'declined' }));
     renderPrep();
     await userEvent.click(await screen.findByRole('button', { name: /not me\?/i }));
@@ -257,9 +259,20 @@ describe('SigningPrepPage', () => {
     });
   });
 
+  it('NotMe button cancelled at confirm does NOT POST and stays on /prep', async () => {
+    // BUG FIX (regression): tapping Not me by accident must be undoable
+    // via the native confirm dialog before any audit event lands.
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPrep();
+    await userEvent.click(await screen.findByRole('button', { name: /not me\?/i }));
+    expect(post).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('__pathname__')).toBeNull();
+  });
+
   it('NotMe button swallows API failure and re-enables the rest of the UI', async () => {
     // The intentionally-quiet handleNotMe `catch {}` branch — failure
     // unsticks `busy` so the signer can still decline/withdraw normally.
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     post.mockRejectedValueOnce(new Error('network down'));
     renderPrep();
     await userEvent.click(await screen.findByRole('button', { name: /not me\?/i }));
