@@ -6,6 +6,7 @@ import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
 import { pathForAuthMode } from '@/layout/authPaths';
 import { useAuth } from '@/providers/AuthProvider';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
 const ErrorBanner = styled.div`
   background: ${({ theme }) => theme.color.danger[50]};
@@ -26,6 +27,7 @@ const ErrorBanner = styled.div`
 export function SignUpPage() {
   const navigate = useNavigate();
   const { enterGuestMode } = useAuth();
+  const isMobile = useIsMobileViewport();
   const [guestError, setGuestError] = useState<string | null>(null);
 
   const handleSkip = useCallback((): void => {
@@ -34,11 +36,11 @@ export function SignUpPage() {
     // token to attach. Surface the error if the project disabled the
     // anonymous provider so the user knows to sign up instead.
     enterGuestMode()
-      .then(() => navigate('/document/new'))
+      .then(() => navigate(isMobile ? '/m/send' : '/document/new'))
       .catch((err: unknown) => {
         setGuestError(err instanceof Error ? err.message : 'Could not start guest session.');
       });
-  }, [enterGuestMode, navigate]);
+  }, [enterGuestMode, isMobile, navigate]);
 
   const handleSwitch = useCallback(
     (next: AuthFormMode): void => {
@@ -55,8 +57,8 @@ export function SignUpPage() {
   );
 
   const handleAuthed = useCallback((): void => {
-    navigate('/documents');
-  }, [navigate]);
+    navigate(isMobile ? '/m/send' : '/documents');
+  }, [isMobile, navigate]);
 
   return (
     <AuthShell>
