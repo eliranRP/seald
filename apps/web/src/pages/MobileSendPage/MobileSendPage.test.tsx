@@ -151,18 +151,23 @@ describe('MobileSendPage', () => {
     expect(screen.getByRole('button', { name: /open menu/i })).toBeInTheDocument();
   });
 
-  // 2026-05-02: Signers tab was removed from the top nav (the Contacts
-  // page is still reachable from envelope detail / direct URL). Mobile
-  // hamburger must mirror the desktop NAV_ITEMS exactly.
-  it('hamburger opens a sheet with Documents, Sign, Templates, and Sign out (no Signers)', async () => {
+  // 2026-05-03: per product, the mobile hamburger only exposes
+  // Documents + Sign out — every other affordance (Sign, Templates,
+  // Signers, Download my data, Delete account) is intentionally hidden
+  // because the mobile sender flow lives on `/m/send` and these
+  // affordances cluttered the surface for a mobile-first task.
+  it('hamburger opens a sheet with only Documents + Sign out — every other affordance hidden', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Documents' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Templates' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Sign' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Templates' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Signers' })).toBeNull();
     expect(within(dialog).getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: /download my data/i })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /delete account/i })).toBeNull();
   });
 
   it('tapping "From a template" navigates to /templates', async () => {
