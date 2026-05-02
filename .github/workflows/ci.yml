@@ -27,6 +27,14 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Default GITHUB_TOKEN scope for every job in this workflow. CI only
+# checks out source, runs tests/lint, and uploads artifacts via the
+# artifact action (which uses its own scoped path, not GITHUB_TOKEN
+# write). `contents: read` covers checkout + artifact download.
+# Tightens to least-privilege per CodeQL `actions/missing-workflow-permissions`.
+permissions:
+  contents: read
+
 # Silence the Sep 2026 Node 20 deprecation notice from GitHub by
 # opting every step into Node 24 up-front. Harmless now, and skips the
 # runtime bump when June 2 2026 flips the default.
