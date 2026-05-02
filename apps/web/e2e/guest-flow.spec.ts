@@ -40,6 +40,61 @@ interface GuestApiCallLog {
 async function installGuestMocks(page: Page): Promise<GuestApiCallLog> {
   const log: GuestApiCallLog = { contactsPostAttempts: 0 };
 
+  // Supabase auth mock — the AuthProvider now re-issues an anonymous
+  // session on hydration when `sealed.guest=1` but `getSession()` came
+  // back empty (closes the production failure mode where access tokens
+  // expired but the localStorage flag persisted, leaving the SPA acting
+  // as a guest with no JWT). Without this stub the spec would hit the
+  // real Supabase project (which has anonymous sign-ins disabled in
+  // shared envs) and the hydration fallback would drop the guest flag,
+  // bouncing the test off /document/new.
+  await page.route('**/auth/v1/signup**', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          access_token: 'e2e-anon-access-token',
+          refresh_token: 'e2e-anon-refresh-token',
+          token_type: 'bearer',
+          expires_in: 3600,
+          user: {
+            id: 'e2e-anon-user',
+            email: null,
+            is_anonymous: true,
+            aud: 'authenticated',
+            role: 'authenticated',
+          },
+        }),
+      });
+      return;
+    }
+    await route.fallback();
+  });
+  // The supabase-js client polls `/auth/v1/user` and `/auth/v1/token` once
+  // a session is loaded. Both are 200/empty here so the polling loop
+  // doesn't error out the SPA.
+  await page.route('**/auth/v1/user**', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ id: 'e2e-anon-user', is_anonymous: true }),
+    });
+  });
+  await page.route('**/auth/v1/token**', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: 'e2e-anon-access-token',
+        refresh_token: 'e2e-anon-refresh-token',
+        token_type: 'bearer',
+        expires_in: 3600,
+        user: { id: 'e2e-anon-user', is_anonymous: true },
+      }),
+    });
+  });
+
   // Real backend behavior for an unauthenticated request: 401.
   // The fix under test must NOT depend on this response succeeding.
   await page.route('**/api/contacts', async (route: Route) => {
@@ -236,5 +291,25 @@ test.describe('guest mode — full sender flow', () => {
     await senderDialog.getByRole('button', { name: /^continue$/i }).click();
     await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
+
+    // ---- Confirmation page must render the handoff summary on the
+    // server-uuid URL. Pre-fix this asserted "Document not found" because
+    // `getDocument(<server-uuid>)` returned undefined — the in-memory
+    // draft was only addressable by its local `d_xxx` id. The fix
+    // persists `envelope_id` on the local draft so post-send lookup
+    // resolves.
+    await expect(
+      page.getByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
+    ).toBeVisible();
+    await expect(page.getByText(/guest-signer@example\.com/i)).toBeVisible();
+
+    // ---- "Back to documents" must NOT bounce a guest off the dashboard
+    // (which is gated by RequireAuth, not RequireAuthOrGuest). Pre-fix
+    // the click navigated to /documents which then redirected the guest
+    // back to /document/new — flashing the editor again, which the user
+    // reported as "the screen jumps back to the signature fields screen".
+    await page.getByRole('button', { name: /back to documents/i }).click();
+    await page.waitForURL(/\/document\/new$/, { timeout: 5_000 });
+    await expect(page).toHaveURL(/\/document\/new$/);
   });
 });
