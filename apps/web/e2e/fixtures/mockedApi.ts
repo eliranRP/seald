@@ -49,7 +49,7 @@ type Handler = {
 //    like `GET /sign/<envelopeId>`, which the recipient flow uses for its
 //    own URL.
 const ROUTE_PATTERN =
-  /^https?:\/\/[^/]+(\/api\/|\/sign\/(start|me|accept-terms|fields|signature|submit|decline|pdf|esign-disclosure|intent-to-sign|withdraw-consent)|\/auth\/v1\/|\/pdf-fixture\.pdf$)/;
+  /^https?:\/\/[^/]+(\/api\/|\/sign\/(start|me|accept-terms|fields|signature|submit|decline|pdf|esign-disclosure|intent-to-sign|withdraw-consent)|\/verify\/[A-Za-z0-9]+$|\/auth\/v1\/|\/pdf-fixture\.pdf$)/;
 
 export class MockedApi {
   private readonly handlers: Handler[] = [];

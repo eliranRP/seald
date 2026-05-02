@@ -96,6 +96,7 @@ const SIGNED_PAYLOAD: VerifyResponse = {
       created_at: '2026-04-25T21:21:08Z',
     },
   ],
+  chain_intact: true,
   sealed_url: 'https://signed.example/sealed.pdf',
   audit_url: 'https://signed.example/audit.pdf',
 };
@@ -703,6 +704,65 @@ describe('VerifyPage', () => {
       // SIGNED_PAYLOAD.envelope.id = '804a6c00-2ad9-4590-…'
       expect(screen.getByText('REQ 804A6C00-2AD9')).toBeInTheDocument();
     });
+  });
+
+  // ---- Audit-chain badge (regression: API has returned `chain_intact`
+  // since Sprint 3 / PR #10 but the FE never surfaced it; the prompt's
+  // bug-floor calls this out explicitly. The verdict copy claims the
+  // seal is intact, but a tampered audit log is a separate trust
+  // failure — the user must see both checks). ------------------------
+
+  it('renders an audit-chain "intact" badge when chain_intact=true', async () => {
+    get.mockResolvedValueOnce({ data: { ...SIGNED_PAYLOAD, chain_intact: true } });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByLabelText(/audit chain status/i)).toBeInTheDocument();
+    });
+    const badge = screen.getByLabelText(/audit chain status/i);
+    expect(badge).toHaveTextContent(/intact/i);
+  });
+
+  it('renders an audit-chain "broken" warning when chain_intact=false', async () => {
+    get.mockResolvedValueOnce({ data: { ...SIGNED_PAYLOAD, chain_intact: false } });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      const badge = screen.getByLabelText(/audit chain status/i);
+      expect(badge).toHaveTextContent(/broken|tamper/i);
+    });
+  });
+
+  // ---- Download attribute (regression: prompt's bug-floor list says
+  // "Sealed-PDF download button no `download` attribute (opens in tab
+  // instead of saving)". The button copy says "Download" so users
+  // expect their browser to save the file with a friendly name —
+  // without `download`, browsers open the PDF inline and the file
+  // gets saved as the S3 presigned-URL path which is unreadable.) -----
+
+  it('sets a download attribute on the sealed-PDF Download link so browsers save instead of opening in a tab', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const dl = await screen.findByRole('link', { name: /^download$/i });
+    expect(dl).toHaveAttribute('download');
+    // The download filename should be a friendly, hash-free name derived
+    // from the envelope title (with a .pdf extension), not the raw S3
+    // presigned-URL path which contains opaque query strings.
+    const dlFilename = dl.getAttribute('download');
+    expect(dlFilename).toMatch(/\.pdf$/i);
+    expect(dlFilename).not.toMatch(/^https?:/);
+  });
+
+  it('sets a download attribute on the Audit PDF link', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const audit = await screen.findByRole('link', { name: /audit pdf/i });
+    expect(audit).toHaveAttribute('download');
+    const auditFilename = audit.getAttribute('download');
+    expect(auditFilename).toMatch(/audit/i);
+    expect(auditFilename).toMatch(/\.pdf$/i);
   });
 
   // When the API omits `original_pages` (legacy envelope, sealing failure)

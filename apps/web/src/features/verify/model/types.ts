@@ -71,6 +71,23 @@ export interface VerifyResponse {
   readonly envelope: VerifyEnvelope;
   readonly signers: ReadonlyArray<VerifySigner>;
   readonly events: ReadonlyArray<VerifyEvent>;
+  /**
+   * Tamper-evident audit chain status. The API returns this on every
+   * /verify response (see apps/api/src/verify/verify.controller.ts:86)
+   * by walking `envelope_events.prev_event_hash` via `verifyEventChain`.
+   *
+   * `false` indicates rows were mutated/inserted/deleted out-of-band
+   * — i.e. potential tampering with the audit log. The verify-page UI
+   * MUST surface this prominently as part of its trust verdict; an
+   * envelope whose seal is intact but whose audit chain is broken is
+   * still a partial trust failure (signed bytes match, but the story
+   * of who-did-what may have been altered).
+   *
+   * Defaulted to `true` only when the API omits the field for backward
+   * compatibility with old verify payloads cached client-side; new API
+   * responses always populate it.
+   */
+  readonly chain_intact: boolean;
   /** 5-minute pre-signed URL. Null until the envelope is sealed. */
   readonly sealed_url: string | null;
   /** 5-minute pre-signed URL. Null when no audit.pdf has been generated. */
