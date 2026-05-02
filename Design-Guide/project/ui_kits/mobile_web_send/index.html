@@ -1,0 +1,93 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Sealed — Mobile Web · Send a PDF</title>
+<link rel="icon" type="image/svg+xml" href="../../favicon.svg">
+<link rel="alternate icon" type="image/png" sizes="32x32" href="../../favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="../../apple-touch-icon.png">
+<link rel="manifest" href="../../site.webmanifest">
+<meta name="theme-color" content="#4F46E5">
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:var(--ink-100);}
+  #root{font-family:var(--font-sans);}
+  .mw-hub{display:flex;flex-wrap:wrap;gap:32px;justify-content:center;padding:36px 24px 60px;}
+  .mw-hub-cell{display:flex;flex-direction:column;align-items:center;gap:10px;}
+  .mw-hub-label{font-family:var(--font-mono);font-size:12px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.06em;}
+  .mw-hub-title{font-family:var(--font-serif);font-size:22px;color:var(--fg-1);font-weight:500;letter-spacing:-0.01em;}
+  .mw-page-h{font-family:var(--font-serif);font-size:34px;font-weight:500;color:var(--fg-1);letter-spacing:-0.02em;line-height:1.1;text-align:center;margin:48px 0 8px;}
+  .mw-page-sub{text-align:center;color:var(--fg-3);font-size:15px;max-width:620px;margin:0 auto 32px;line-height:1.55;}
+  .mw-section-h{font-family:var(--font-serif);font-size:26px;font-weight:500;color:var(--fg-1);letter-spacing:-0.01em;text-align:center;margin:64px 0 6px;}
+  .mw-section-sub{text-align:center;color:var(--fg-3);font-size:14px;max-width:600px;margin:0 auto 28px;line-height:1.5;}
+</style>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="../_shared/components.jsx"></script>
+<script type="text/babel" src="./mobile-web-frame.jsx"></script>
+<script type="text/babel" src="./MobileWebSend.jsx"></script>
+<script type="text/babel">
+  const { useEffect } = React;
+  function Root(){
+    useEffect(()=>{ if(window.lucide) window.lucide.createIcons(); });
+    return (
+      <div>
+        <h1 className="mw-page-h">Add a PDF on mobile web</h1>
+        <p className="mw-page-sub">
+          The sender flow as it runs on a phone browser. Six steps, one thumb.
+          Tap any CTA on the interactive phone to step through. The hub below
+          shows every step side-by-side.
+        </p>
+        {/* Interactive phone */}
+        <div style={{display:'flex',justifyContent:'center',padding:'8px 0 56px'}}>
+          <MobileWebSend/>
+        </div>
+        {/* Side-by-side hub — the canonical 6 steps */}
+        <h2 className="mw-section-h">The six steps, side-by-side</h2>
+        <p className="mw-section-sub">
+          Same flow, frozen at each stage. Every step has a sticky bottom CTA so the
+          primary action is always one thumb away.
+        </p>
+        <div className="mw-hub">
+          {['start','file','signers','place','review','sent'].map(step => (
+            <div key={step} className="mw-hub-cell">
+              <MobileWebSend initialStep={step} interactive={false}/>
+              <div className="mw-hub-label">step {['start','file','signers','place','review','sent'].indexOf(step)+1}</div>
+              <div className="mw-hub-title">{({start:'Start',file:'File ready',signers:'Add signers',place:'Place fields',review:'Review',sent:'Sent'})[step]}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Place-fields interactions — multi-page + multi-signer parity */}
+        <h2 className="mw-section-h">Place-fields interactions</h2>
+        <p className="mw-section-sub">
+          A 12-page PDF with the same controls as the desktop editor. Tap a chip in
+          the field tray to <em>arm</em> it, tap the page to drop. Tap a placed
+          field to surface the action toolbar (Pages · Signers · Delete). Apply-to-
+          pages mirrors the desktop's five modes; signer assignment supports
+          multi-select with a split-pill render.
+        </p>
+        <div className="mw-hub">
+          {[
+            { k:'place-empty',        l:'1 — empty page',              t:'Filmstrip + tray' },
+            { k:'place-armed',        l:'2 — chip armed',              t:'Tap to drop · Signature' },
+            { k:'place-pick-signer',  l:'3 — drop with 2+ signers',    t:'Picker opens (web parity)' },
+            { k:'place-selected',     l:'4 — field selected',          t:'Drag handle · toolbar' },
+            { k:'place-apply',        l:'5 — apply to pages',          t:'5 modes (parity)' },
+            { k:'place-assign',       l:'6 — assign signers',          t:'Multi-select' },
+            { k:'place-group',        l:'7 — multi-select + group',    t:'Tap each · Group · drag together' },
+            { k:'place-linked',       l:'8 — linked + multi-signer',   t:'All-but-last · split pill' },
+          ].map(v => (
+            <div key={v.k} className="mw-hub-cell">
+              <MobileWebSend initialStep={v.k} interactive={false}/>
+              <div className="mw-hub-label">{v.l}</div>
+              <div className="mw-hub-title">{v.t}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Root/>);
+</script>
+</body></html>
