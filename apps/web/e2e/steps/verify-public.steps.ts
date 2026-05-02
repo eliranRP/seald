@@ -127,7 +127,13 @@ Then(
 );
 
 Then('the audit chain status badge reads {string}', async ({ page }, expected: string) => {
-  const badge = page.getByLabel(/audit chain status/i);
+  // Playwright's `getByLabel` only resolves `aria-label` for form
+  // controls; a styled-span Tag with `aria-label="Audit chain status"`
+  // therefore needs an attribute-selector locator (vitest's
+  // testing-library is stricter and matches `aria-label` on every
+  // element, hence the difference between the unit test and the
+  // browser test).
+  const badge = page.locator('[aria-label="Audit chain status"]');
   await expect(badge).toBeVisible();
   await expect(badge).toContainText(new RegExp(expected, 'i'));
 });
