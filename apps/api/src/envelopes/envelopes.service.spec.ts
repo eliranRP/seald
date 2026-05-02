@@ -761,6 +761,43 @@ describe('EnvelopesService', () => {
         ConflictException,
       );
     });
+
+    it('attaches an adhoc signer (email+name+color) without a saved contact', async () => {
+      // Guest-mode senders synthesise signers locally (UploadRoute.synthLocalSigner)
+      // so the addSigner call has no contact uuid to resolve. The repo persists
+      // the row with `contact_id: null`; the snapshotted email/name/color come
+      // straight from the request body and no contacts row is created.
+      const sizeBefore = contacts.store.size;
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const signer = await svc.addSigner(OWNER, e.id, {
+        email: 'guest@x.com',
+        name: 'Guest Person',
+        color: '#7C3AED',
+      });
+      expect(signer.email).toBe('guest@x.com');
+      expect(signer.name).toBe('Guest Person');
+      expect(signer.color).toBe('#7C3AED');
+      // Adhoc payload must NOT spawn a contacts row.
+      expect(contacts.store.size).toBe(sizeBefore);
+    });
+
+    it('adhoc signer falls back to a default colour when none was sent', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const signer = await svc.addSigner(OWNER, e.id, {
+        email: 'no-color@x.com',
+        name: 'No Color',
+      });
+      expect(signer.color).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    });
+
+    it('rejects an adhoc payload missing email or name', async () => {
+      // Defence-in-depth: the DTO normally rejects this at the controller
+      // boundary, but the service guards against direct callers too.
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await expect(svc.addSigner(OWNER, e.id, { email: 'only-email@x.com' })).rejects.toMatchObject(
+        { message: 'signer_payload_invalid' },
+      );
+    });
   });
 
   describe('removeSigner', () => {

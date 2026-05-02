@@ -9,6 +9,30 @@ import {
 import type { FieldPlacement } from './envelopesApi';
 
 /**
+ * One entry in `SendEnvelopeInput.signers`. Two shapes (mirrors the API DTO
+ * — `apps/api/src/envelopes/dto/add-signer.dto.ts`):
+ *
+ *   - Contact-backed: `{ localId, contactId }` — sender selected a saved
+ *     contact. `contactId` is the persisted contacts-table UUID; `localId`
+ *     is whatever id the local editor uses to address this signer in
+ *     placed fields (in practice for authed users `localId === contactId`).
+ *   - Ad-hoc: `{ localId, email, name, color? }` — guest mode. The local
+ *     editor has a synthetic id (e.g. `guest-…`) which would never pass
+ *     `@IsUUID()` on the API DTO, so we send the contact details instead.
+ */
+export type SendEnvelopeSignerInput =
+  | {
+      readonly localId: string;
+      readonly contactId: string;
+    }
+  | {
+      readonly localId: string;
+      readonly email: string;
+      readonly name: string;
+      readonly color?: string;
+    };
+
+/**
  * Input snapshot for the "send this draft" orchestration. The sender editor
  * keeps everything in local state while the user is placing fields. When
  * they hit Send we replay the whole draft against the API in one shot.
@@ -16,18 +40,15 @@ import type { FieldPlacement } from './envelopesApi';
 export interface SendEnvelopeInput {
   readonly title: string;
   readonly file: File | Blob;
-  readonly signers: ReadonlyArray<{
-    /** Contact id in the Seald contacts database. */
-    readonly contactId: string;
-  }>;
+  readonly signers: ReadonlyArray<SendEnvelopeSignerInput>;
   /**
    * Fields with local (pixel / contact-id based) coordinates. The caller
-   * passes a mapper that converts the local contact id to the server-
+   * passes a mapper that converts the local signer id to the server-
    * assigned signer id plus normalized 0–1 coordinates.
    */
   readonly buildFields: (
-    /** Map: local contact id → server signer id returned by addSigner. */
-    contactIdToSignerId: ReadonlyMap<string, string>,
+    /** Map: local signer id → server signer id returned by addSigner. */
+    localSignerIdToServerSignerId: ReadonlyMap<string, string>,
   ) => ReadonlyArray<FieldPlacement>;
   /**
    * Optional sender identity for the final POST /envelopes/:id/send.
@@ -92,17 +113,25 @@ export function useSendEnvelope(): UseSendEnvelope {
       await uploadEnvelopeFile(envelope.id, input.file);
 
       setPhase('adding-signers');
-      const contactIdToSignerId = new Map<string, string>();
+      const localSignerIdToServerSignerId = new Map<string, string>();
       // Sequential — `addSigner` assigns deterministic `signing_order` based
       // on call order. Parallelising would scramble that.
       for (const s of input.signers) {
+        const payload =
+          'contactId' in s
+            ? { contact_id: s.contactId }
+            : {
+                email: s.email,
+                name: s.name,
+                ...(s.color !== undefined ? { color: s.color } : {}),
+              };
         // eslint-disable-next-line no-await-in-loop
-        const signer = await addEnvelopeSigner(envelope.id, s.contactId);
-        contactIdToSignerId.set(s.contactId, signer.id);
+        const signer = await addEnvelopeSigner(envelope.id, payload);
+        localSignerIdToServerSignerId.set(s.localId, signer.id);
       }
 
       setPhase('placing-fields');
-      const fields = input.buildFields(contactIdToSignerId);
+      const fields = input.buildFields(localSignerIdToServerSignerId);
       if (fields.length > 0) {
         await placeEnvelopeFields(envelope.id, fields);
       }

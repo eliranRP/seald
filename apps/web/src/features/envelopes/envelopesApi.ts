@@ -235,14 +235,29 @@ export async function uploadEnvelopeFile(
   return data;
 }
 
+/**
+ * Two payload shapes are accepted by the API (see
+ * `apps/api/src/envelopes/dto/add-signer.dto.ts`):
+ *
+ *   - Contact-backed: `{ contact_id }`              — sender selected a saved contact
+ *   - Ad-hoc:        `{ email, name, color? }`     — guest mode, no contacts table row
+ */
+export type AddEnvelopeSignerInput =
+  | { readonly contact_id: string }
+  | {
+      readonly email: string;
+      readonly name: string;
+      readonly color?: string;
+    };
+
 export async function addEnvelopeSigner(
   envelopeId: string,
-  contactId: string,
+  input: AddEnvelopeSignerInput,
   signal?: AbortSignal,
 ): Promise<EnvelopeSigner> {
   const { data } = await apiClient.post<EnvelopeSigner>(
     `/envelopes/${envelopeId}/signers`,
-    { contact_id: contactId },
+    input,
     configWithSignal(signal),
   );
   return data;

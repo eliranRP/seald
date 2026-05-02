@@ -158,9 +158,27 @@ export const PatchEnvelopeRequestSchema = z
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
 
-export const AddSignerRequestSchema = z.object({
+/**
+ * AddSigner accepts one of two payload shapes (mirrors `apps/api/src/envelopes/dto/add-signer.dto.ts`):
+ *
+ *   1. Contact-backed: `{ contact_id }` — sender selects a saved contact.
+ *   2. Ad-hoc:        `{ email, name, color? }` — guest mode synthesises a signer
+ *                                                  locally and never persists a contact row.
+ */
+export const AddSignerContactRequestSchema = z.object({
   contact_id: uuid,
 });
+
+export const AddSignerAdhocRequestSchema = z.object({
+  email: z.string().email(),
+  name: z.string().min(1).max(200),
+  color: hexColor.optional(),
+});
+
+export const AddSignerRequestSchema = z.union([
+  AddSignerContactRequestSchema,
+  AddSignerAdhocRequestSchema,
+]);
 export type AddSignerRequest = z.infer<typeof AddSignerRequestSchema>;
 
 const FieldPlacementInputSchema = z.object({
@@ -274,6 +292,7 @@ export const ErrorSlugs = [
   'signer_without_signature_field',
   'signer_not_in_envelope',
   'signer_email_taken',
+  'signer_payload_invalid',
   'stale_envelope',
   'remind_throttled',
   'invalid_token',
