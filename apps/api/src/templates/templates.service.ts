@@ -15,6 +15,12 @@ import { TemplatesRepository, type UpdateTemplatePatch } from './templates.repos
  */
 const MAX_EXAMPLE_PDF_BYTES = 25 * 1024 * 1024;
 const PDF_MIME = 'application/pdf';
+// `%PDF-` — same magic-byte gate as `EnvelopesService.uploadOriginal`.
+// The client-supplied `mimetype` alone is spoofable (a GIF carrying
+// `Content-Type: application/pdf` would otherwise pass), so we
+// double-check the buffer header. Caught in the QA audit
+// (qa/envelope-templates-break-tests).
+const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]);
 
 @Injectable()
 export class TemplatesService {
@@ -90,6 +96,12 @@ export class TemplatesService {
     }
     if (body.length > MAX_EXAMPLE_PDF_BYTES) {
       throw new BadRequestException('example_pdf_too_large');
+    }
+    // Magic-byte gate. Mirrors `EnvelopesService.uploadOriginal` so a
+    // mis-declared mimetype (or a content-type-confusion payload like
+    // a GIF with `application/pdf`) never reaches Storage.
+    if (body.length < PDF_MAGIC.length || !body.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
+      throw new BadRequestException('example_pdf_wrong_type');
     }
     // Confirm ownership BEFORE writing to Storage so an unauthenticated
     // or wrong-tenant caller can't pollute the bucket with bytes for a
