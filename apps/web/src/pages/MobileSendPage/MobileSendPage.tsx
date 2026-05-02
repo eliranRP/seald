@@ -6,6 +6,7 @@ import { MWStep } from './components/MWStep';
 import { MWAddSignerSheet } from './components/MWAddSignerSheet';
 import { MWApplyPagesSheet } from './components/MWApplyPagesSheet';
 import { MWAssignSignersSheet } from './components/MWAssignSignersSheet';
+import { MWMobileNav } from './components/MWMobileNav';
 import { MWStart } from './screens/MWStart';
 import { MWFile } from './screens/MWFile';
 import { MWSigners } from './screens/MWSigners';
@@ -73,9 +74,20 @@ const FIELD_TYPE_TO_API: Readonly<Record<MobileFieldType, FieldPlacement['kind']
  */
 export function MobileSendPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
+
+  // Sign-out delegated from MWMobileNav. We always land on /signin
+  // (replace history) so the back button doesn't return the user to a
+  // now-403 authed surface — same contract as AppShell.handleSignOut.
+  const handleNavSignOut = useCallback((): void => {
+    signOut()
+      .catch(() => {
+        /* AuthProvider already exposes the error; RequireAuth bounces to /signin */
+      })
+      .finally(() => navigate('/signin', { replace: true }));
+  }, [signOut, navigate]);
 
   const [step, setStep] = useState<MobileStep>('start');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -423,11 +435,18 @@ export function MobileSendPage() {
 
   return (
     <Shell>
+      {/* Slim top nav. Always visible (including the Sent step) so the
+          authed user can always reach Documents / Templates / Signers and
+          their account actions — fixing the original gap where /m/send
+          had no nav chrome at all. */}
+      <MWMobileNav onSignOut={handleNavSignOut} />
       <Scroller $padBottom={sticky ? 96 : 24}>
         {showStepper && (
           <MWStep step={stepNum} total={6} label={STEP_LABELS[step]} onBack={goBack} />
         )}
-        {step === 'start' && <MWStart onPickFile={handlePickFile} />}
+        {step === 'start' && (
+          <MWStart onPickFile={handlePickFile} onUseTemplate={() => navigate('/templates')} />
+        )}
         {step === 'file' && pdfFile && (
           <MWFile
             fileName={pdfFile.name}

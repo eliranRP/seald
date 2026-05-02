@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { renderWithProviders } from '@/test/renderWithProviders';
 
 // Mock the heavy PDF parser — jsdom can't decode PDFs and the page only
@@ -22,12 +22,42 @@ vi.mock('@/features/envelopes/useSendEnvelope', () => ({
   }),
 }));
 
+// MWMobileNav pulls in useAccountActions which would call /me APIs — stub
+// to avoid real network and keep these page tests focused on routing /
+// step-flow behaviour.
+import type * as AccountModule from '@/features/account';
+vi.mock('@/features/account', async () => {
+  const actual = await vi.importActual<typeof AccountModule>('@/features/account');
+  return {
+    ...actual,
+    useAccountActions: () => ({
+      exportData: vi.fn(async () => undefined),
+      deleteAccount: vi.fn(async () => undefined),
+      isExporting: false,
+      isDeleting: false,
+      lastError: null,
+    }),
+  };
+});
+
 import { MobileSendPage } from './MobileSendPage';
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="loc">{location.pathname}</div>;
+}
 
 function renderPage() {
   return renderWithProviders(
     <MemoryRouter initialEntries={['/m/send']}>
-      <MobileSendPage />
+      <Routes>
+        <Route path="/m/send" element={<MobileSendPage />} />
+        <Route path="/templates" element={<LocationProbe />} />
+        <Route path="/documents" element={<LocationProbe />} />
+        <Route path="/signers" element={<LocationProbe />} />
+        <Route path="/signin" element={<LocationProbe />} />
+        <Route path="/document/new" element={<LocationProbe />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -109,6 +139,30 @@ describe('MobileSendPage', () => {
     // Sheet closes, signer appears in the list.
     expect(screen.getByText(/bob builder/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /next: place fields/i })).toBeEnabled();
+  });
+
+  it('renders the mobile nav (logo + hamburger) above the start screen', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: /seald home/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open menu/i })).toBeInTheDocument();
+  });
+
+  it('hamburger opens a sheet with Documents, Templates, Signers, and Sign out', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Documents' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Templates' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Signers' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
+  });
+
+  it('tapping "From a template" navigates to /templates', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /^from a template$/i }));
+    expect(await screen.findByTestId('loc')).toHaveTextContent('/templates');
   });
 
   it('rejects an invalid email in the add-signer sheet', async () => {

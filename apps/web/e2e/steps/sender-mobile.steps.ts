@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { expect } from '@playwright/test';
 import { createBdd } from 'playwright-bdd';
 import { test } from '../fixtures/test';
@@ -11,7 +14,13 @@ const { Given, When, Then } = createBdd(test);
  * redirects authed users to `/m/send` instead of `/documents`.
  */
 
-const SAMPLE_PDF = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF', 'utf8');
+// Real single-page PDF so pdf.js parses it successfully and the place
+// step renders an interactive canvas. The previous `%PDF-1.4...` stub
+// failed to parse and the editor never reached an interactive state.
+// `__dirname` is undefined under the ESM playwright runtime — derive it
+// from `import.meta.url`.
+const STEPS_DIR = dirname(fileURLToPath(import.meta.url));
+const SAMPLE_PDF = readFileSync(resolve(STEPS_DIR, '../fixtures/sample-1page.pdf'));
 
 Given('a signed-in sender on a 375x667 phone', async ({ seededUser, mockedApi, page }) => {
   await page.setViewportSize({ width: 375, height: 667 });

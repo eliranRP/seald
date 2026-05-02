@@ -1,4 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { test, expect, type Route } from '@playwright/test';
+
+// Real single-page PDF so pdf.js parses + renders the signing canvas.
+// The earlier `%PDF-1.4...` stub never parsed and the fill page stayed
+// in its loading state, masking signature-chrome regressions.
+const SAMPLE_PDF = readFileSync(resolve(__dirname, './fixtures/sample-1page.pdf'));
 
 /**
  * Signing-flow happy path (full coverage).
@@ -170,7 +177,7 @@ test.describe('signing flow', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/pdf',
-        body: '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF',
+        body: SAMPLE_PDF,
       });
     });
   });

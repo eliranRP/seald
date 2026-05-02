@@ -91,10 +91,16 @@ const HiddenFileInput = styled.input`
 
 export interface MWStartProps {
   readonly onPickFile: (file: File) => void;
+  /**
+   * Tap-handler for the "From a template" tile. The screen stays pure
+   * (no router import) so the parent page owns navigation; this lands
+   * on `/templates` which is gated by RequireAuth + AppShell.
+   */
+  readonly onUseTemplate: () => void;
 }
 
 export function MWStart(props: MWStartProps) {
-  const { onPickFile } = props;
+  const { onPickFile, onUseTemplate } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
@@ -130,7 +136,7 @@ export function MWStart(props: MWStartProps) {
           </TileText>
           <ChevronRight size={18} aria-hidden style={{ color: 'var(--fg-4)' }} />
         </Tile>
-        <Tile type="button" disabled aria-label="From a template (coming soon)">
+        <Tile type="button" onClick={onUseTemplate} aria-label="From a template">
           <TileIcon $accent="var(--success-700)" aria-hidden>
             <LayoutTemplate size={22} />
           </TileIcon>
