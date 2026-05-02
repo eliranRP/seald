@@ -2,13 +2,16 @@ name: Chromatic
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'Design-Guide/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.editorconfig'
+    # Chromatic only diffs Storybook stories; gate PR runs on the
+    # files that can change a story's render. Pushes to main keep the
+    # paths-ignore below so every merge updates the auto-accept baseline.
+    paths:
+      - 'apps/web/**'
+      - '.storybook/**'
+      - 'packages/shared/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/chromatic.yml'
   push:
     branches: [main]
     paths-ignore:

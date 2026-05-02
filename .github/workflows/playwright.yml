@@ -9,13 +9,15 @@ name: Playwright
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'Design-Guide/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.editorconfig'
+    # Browser e2e exercises the SPA. Scope PR runs to web/shared
+    # changes; main pushes keep the broader paths-ignore so every
+    # merged HEAD is exercised in a real browser.
+    paths:
+      - 'apps/web/**'
+      - 'packages/shared/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/playwright.yml'
   push:
     branches: [main]
     paths-ignore:
