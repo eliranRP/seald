@@ -10,6 +10,12 @@ concurrency:
   group: docker-${{ github.ref }}
   cancel-in-progress: false
 
+# Default workflow scope: read-only. The `build` job overrides this
+# below to grant the additional `packages: write` (GHCR push) and
+# `id-token: write` (reserved for cosign keyless) it actually needs.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
