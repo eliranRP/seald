@@ -294,6 +294,24 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     [editTagsFor, templates],
   );
 
+  /**
+   * Escape closes the delete confirmation modal — WCAG 2.1.2 (No
+   * Keyboard Trap). Previously the modal could only be dismissed via
+   * the backdrop click or the Cancel button; keyboard-only users had
+   * no way out short of confirming the destructive action. Bound at
+   * the document level so it fires regardless of focus location
+   * inside the modal; teardown is gated on `confirmDelete` so the
+   * listener exists only while the modal is open.
+   */
+  useEffect(() => {
+    if (!confirmDelete) return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setConfirmDelete(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [confirmDelete]);
+
   const isFiltered = query.length > 0 || activeTags.length > 0;
 
   const newTemplateTile = (

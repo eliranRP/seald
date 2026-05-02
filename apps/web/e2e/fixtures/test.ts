@@ -12,6 +12,7 @@ import { UploadPage } from '../pages/UploadPage';
 import { DocumentEditorPage } from '../pages/DocumentEditorPage';
 import { SentConfirmationPage } from '../pages/SentConfirmationPage';
 import { ContactsPage } from '../pages/ContactsPage';
+import { TemplatesListPage } from '../pages/TemplatesListPage';
 import { SigningEntryPage } from '../pages/SigningEntryPage';
 import { SigningPrepPage } from '../pages/SigningPrepPage';
 import { SigningFillPage } from '../pages/SigningFillPage';
@@ -56,6 +57,7 @@ type Fixtures = {
   documentEditorPage: DocumentEditorPage;
   sentConfirmationPage: SentConfirmationPage;
   contactsPage: ContactsPage;
+  templatesListPage: TemplatesListPage;
   signingEntryPage: SigningEntryPage;
   signingPrepPage: SigningPrepPage;
   signingFillPage: SigningFillPage;
@@ -121,6 +123,9 @@ export const test = base.extend<Fixtures>({
   },
   contactsPage: async ({ page }, use) => {
     await use(new ContactsPage(page));
+  },
+  templatesListPage: async ({ page }, use) => {
+    await use(new TemplatesListPage(page));
   },
   signingEntryPage: async ({ page }, use) => {
     await use(new SigningEntryPage(page));
