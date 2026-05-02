@@ -157,4 +157,215 @@ describe('SigningPrepPage', () => {
     await userEvent.click(await screen.findByRole('button', { name: /decline this request/i }));
     expect(post).not.toHaveBeenCalled();
   });
+
+  it('Start path 401 from acceptTerms re-routes back to /sign/:envelopeId', async () => {
+    // Token-expired during the acceptTerms POST: the prep page should
+    // bounce back to the entry route so the signer can re-validate the
+    // link. This covers SigningPrepPage handleStart's 401/410 branch.
+    const expired = Object.assign(new Error('expired'), { status: 401 });
+    post.mockRejectedValueOnce(expired);
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}`);
+    });
+    // No alert banner should render — we navigated, not surfaced an error.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('Start path 410 (revoked) also re-routes back to /sign/:envelopeId', async () => {
+    const revoked = Object.assign(new Error('gone'), { status: 410 });
+    post.mockRejectedValueOnce(revoked);
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
+    await waitFor(() => {
+      expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}`);
+    });
+  });
+
+  it('Start path 5xx surfaces a recoverable error in role=alert and re-enables the button', async () => {
+    // Generic API failure during acceptTerms — the page must keep the
+    // signer on /prep, surface the message, and let them retry. The
+    // Start button must re-enable so retry is possible.
+    const boom = Object.assign(new Error('upstream is on fire'), { status: 500 });
+    post.mockRejectedValueOnce(boom);
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
+    const start = screen.getByRole('button', { name: /start signing/i });
+    await userEvent.click(start);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/upstream is on fire/i);
+    // The button must be re-enabled so the user can retry.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /start signing/i })).not.toBeDisabled();
+    });
+  });
+
+  it('Start path with no message uses a generic fallback error string', async () => {
+    // ApiErrorLike with `message` undefined is unusual but possible; the
+    // prep page falls back to a recovery hint. Covers the default branch
+    // of `e.message ?? "We could not record …"`.
+    const blank: { status: number; message?: string } = { status: 500 };
+    post.mockRejectedValueOnce(blank);
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
+    );
+    await userEvent.click(
+      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+    );
+    await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/could not record your acceptance/i);
+  });
+
+  it('NotMe button POSTs decline with reason "not-the-recipient" and routes to /declined', async () => {
+    // "Not me?" is a soft decline — handled silently (no confirm), but
+    // it must POST /sign/decline with the dedicated reason so the audit
+    // trail distinguishes it from a deliberate decline.
+    post.mockResolvedValueOnce(okResponse({ status: 'declined', envelope_status: 'declined' }));
+    renderPrep();
+    await userEvent.click(await screen.findByRole('button', { name: /not me\?/i }));
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledWith(
+        '/sign/decline',
+        { reason: 'not-the-recipient' },
+        expect.any(Object),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('__pathname__').textContent).toBe(
+        `/sign/${MOCK_ENVELOPE_ID}/declined`,
+      );
+    });
+  });
+
+  it('NotMe button swallows API failure and re-enables the rest of the UI', async () => {
+    // The intentionally-quiet handleNotMe `catch {}` branch — failure
+    // unsticks `busy` so the signer can still decline/withdraw normally.
+    post.mockRejectedValueOnce(new Error('network down'));
+    renderPrep();
+    await userEvent.click(await screen.findByRole('button', { name: /not me\?/i }));
+    // Decline button must end up enabled again (busy=false on catch).
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /decline this request/i })).not.toBeDisabled();
+    });
+  });
+
+  it('Decline path surfaces the API error message in a role=alert when the call fails', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockRejectedValueOnce(Object.assign(new Error('cannot decline now'), { status: 500 }));
+    renderPrep();
+    await userEvent.click(await screen.findByRole('button', { name: /decline this request/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/cannot decline now/i);
+    // Decline button is re-enabled on failure so the user can retry.
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /decline this request/i })).not.toBeDisabled();
+    });
+  });
+
+  it('Decline path falls back to a generic error string when `message` is missing', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockRejectedValueOnce({ status: 500 });
+    renderPrep();
+    await userEvent.click(await screen.findByRole('button', { name: /decline this request/i }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/could not decline right now/i);
+  });
+
+  it('Withdraw consent confirms, POSTs /sign/withdraw-consent, and routes to /declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockResolvedValueOnce(
+      okResponse({ status: 'consent_withdrawn', envelope_status: 'declined' }),
+    );
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /withdraw consent to sign electronically/i }),
+    );
+    await waitFor(() => {
+      // signApiClient.post(url, body, axiosConfig) — withdrawConsent
+      // calls it with no body so the second arg is `undefined`. The third
+      // arg is the axios config (always an object even when empty).
+      expect(post).toHaveBeenCalledWith('/sign/withdraw-consent', undefined, expect.any(Object));
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('__pathname__').textContent).toBe(
+        `/sign/${MOCK_ENVELOPE_ID}/declined`,
+      );
+    });
+  });
+
+  it('Withdraw consent: cancelled confirm does not POST anything', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /withdraw consent to sign electronically/i }),
+    );
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it('Withdraw consent surfaces the API error message and re-enables the button on failure', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockRejectedValueOnce(Object.assign(new Error('withdraw blew up'), { status: 500 }));
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /withdraw consent to sign electronically/i }),
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/withdraw blew up/i);
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /withdraw consent to sign electronically/i }),
+      ).not.toBeDisabled();
+    });
+  });
+
+  it('Withdraw consent falls back to a generic error string when `message` is missing', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    post.mockRejectedValueOnce({ status: 500 });
+    renderPrep();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /withdraw consent to sign electronically/i }),
+    );
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/could not record your withdrawal/i);
+  });
+
+  it('renders nothing while the session is still loading (envelope+signer null)', async () => {
+    // Slow GET: keep /sign/me pending so the provider's envelope is
+    // still null when we assert. The Content component's
+    // `if (!envelope || !signer) return null` branch is exercised.
+    let resolveGet: (value: unknown) => void = () => {};
+    get.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveGet = resolve;
+      }),
+    );
+    renderPrep();
+    // No sign-in CTA, no name, no skeleton — the page renders nothing
+    // until the session hydrates. The pathname probe stays on /prep.
+    expect(screen.queryByRole('button', { name: /start signing/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Maya Raskin')).not.toBeInTheDocument();
+    // Resolve so afterEach can clean up React act() warnings.
+    resolveGet(okResponse(makeSignMeResponse()));
+    await waitFor(() => expect(screen.getByText('Maya Raskin')).toBeInTheDocument());
+  });
 });

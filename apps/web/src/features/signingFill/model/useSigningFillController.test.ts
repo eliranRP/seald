@@ -91,8 +91,15 @@ beforeEach(() => {
   });
 });
 
-// eslint-disable-next-line import/first
-import { useSigningFillController } from './useSigningFillController';
+/* eslint-disable import/first -- we mock react-router-dom + @/features/signing
+   above and only then import the SUT, mirroring the existing pattern. */
+import {
+  useSigningFillController,
+  toUiKind,
+  fieldIsFilled,
+  fieldValue,
+  fieldLabel,
+} from './useSigningFillController';
 
 describe('useSigningFillController auto-advance', () => {
   it('advances to the next required unfilled field after a text apply', async () => {
@@ -192,5 +199,370 @@ describe('useSigningFillController auto-advance', () => {
 
     expect(scrolledPages).toEqual([]);
     expect(result.current.error).toMatch(/boom|could not save/i);
+  });
+});
+
+describe('useSigningFillController — drawers + navigation', () => {
+  it('clicking a text field opens the text drawer with the matching field', async () => {
+    session.fields = [makeField({ id: 't1', page: 1, kind: 'text' })];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(result.current.textDrawer?.field.id).toBe('t1');
+    expect(result.current.textDrawer?.kind).toBe('text');
+    // closeTextDrawer dismisses it (covers the closer used by Esc/cancel).
+    act(() => result.current.closeTextDrawer());
+    expect(result.current.textDrawer).toBeNull();
+  });
+
+  it('clicking a name-tagged text field opens the drawer with kind="name"', async () => {
+    session.fields = [makeField({ id: 'n1', page: 1, kind: 'text', link_id: 'name' })];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(result.current.textDrawer?.kind).toBe('name');
+  });
+
+  it('clicking a signature field with no remembered mark opens the signature drawer', async () => {
+    session.fields = [makeField({ id: 's1', page: 1, kind: 'signature' })];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(result.current.sigDrawer?.field.id).toBe('s1');
+    expect(result.current.sigDrawer?.kind).toBe('signature');
+    act(() => result.current.closeSigDrawer());
+    expect(result.current.sigDrawer).toBeNull();
+  });
+
+  it('handleNext scrolls to nextField and sets activeFieldId; no-op when nextField is null', () => {
+    const target = makeField({ id: 'next', page: 7, kind: 'text' });
+    session.fields = [target];
+    session.nextField = target;
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    act(() => result.current.handleNext());
+    expect(scrolledPages).toContain(7);
+    expect(result.current.activeFieldId).toBe('next');
+
+    // Now wipe nextField — handleNext should bail without scrolling.
+    scrolledPages.length = 0;
+    session.nextField = null;
+    const { result: r2 } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    act(() => r2.current.handleNext());
+    expect(scrolledPages).toEqual([]);
+    expect(r2.current.activeFieldId).toBeNull();
+  });
+
+  it('handleReview navigates to /sign/:envelopeId/review', () => {
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-42' }));
+    act(() => result.current.handleReview());
+    expect(navigate).toHaveBeenCalledWith('/sign/env-42/review');
+  });
+});
+
+describe('useSigningFillController — 401/410 token failures', () => {
+  it('text apply that returns 401 navigates back to /sign/:envelopeId without setting an error banner', async () => {
+    session.fields = [makeField({ id: 't1', page: 1, kind: 'text' })];
+    session.fillField = vi.fn(async () => {
+      throw Object.assign(new Error('expired'), { status: 401 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleTextApply('x');
+    });
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9', { replace: true });
+    expect(result.current.error).toBeNull();
+  });
+
+  it('checkbox apply that returns 410 navigates back to /sign/:envelopeId', async () => {
+    session.fields = [makeField({ id: 'c1', page: 1, kind: 'checkbox', value_boolean: false })];
+    session.fillField = vi.fn(async () => {
+      throw Object.assign(new Error('gone'), { status: 410 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9', { replace: true });
+  });
+
+  it('checkbox apply that fails with 500 surfaces an error banner and does not navigate', async () => {
+    session.fields = [makeField({ id: 'c1', page: 1, kind: 'checkbox', value_boolean: false })];
+    session.fillField = vi.fn(async () => {
+      throw Object.assign(new Error('db down'), { status: 500 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(result.current.error).toMatch(/db down|could not save/i);
+  });
+
+  it('signature apply that returns 401 navigates back to /sign/:envelopeId', async () => {
+    session.fields = [makeField({ id: 's1', page: 1, kind: 'signature' })];
+    session.setSignature = vi.fn(async () => {
+      throw Object.assign(new Error('expired'), { status: 401 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(result.current.sigDrawer?.field.id).toBe('s1');
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['x']),
+        format: 'drawn',
+      });
+    });
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9', { replace: true });
+  });
+
+  it('signature apply 413 surfaces a size-specific error message', async () => {
+    session.fields = [makeField({ id: 's1', page: 1, kind: 'signature' })];
+    session.setSignature = vi.fn(async () => {
+      throw Object.assign(new Error('too big'), { status: 413 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['x']),
+        format: 'drawn',
+      });
+    });
+    expect(result.current.error).toMatch(/too large|max 512 KB/i);
+  });
+
+  it('signature apply with no error.message uses the generic fallback', async () => {
+    session.fields = [makeField({ id: 's1', page: 1, kind: 'signature' })];
+    session.setSignature = vi.fn(async () => {
+      // Intentionally throw an object that lacks a `message` so the
+      // controller's `e.message ?? "Could not save your signature…"`
+      // fallback fires.
+      throw { status: 500 };
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['x']),
+        format: 'drawn',
+      });
+    });
+    expect(result.current.error).toMatch(/could not save your signature/i);
+  });
+
+  it('remembered-signature reuse: a 401 from setSignature on a same-kind field navigates back', async () => {
+    session.fields = [
+      makeField({ id: 's1', page: 1, kind: 'signature' }),
+      makeField({ id: 's2', page: 2, kind: 'signature' }),
+    ];
+    // Single mock that succeeds on the first call (so the remembered slot
+    // gets seeded by handleSignatureApply) and rejects with 401 on every
+    // subsequent call (the second click's remembered-reuse path). The
+    // controller destructures `setSignature` at render time, so swapping
+    // `session.setSignature` between awaits would not affect the captured
+    // reference; this conditional preserves identity instead.
+    let callIdx = 0;
+    session.setSignature = vi.fn(async (id: string) => {
+      callIdx += 1;
+      if (callIdx === 1) {
+        const f = session.fields.find((x) => x.id === id);
+        if (f) (f as { value_text: string | null }).value_text = 'data:image/png;base64,xxx';
+        return;
+      }
+      throw Object.assign(new Error('expired'), { status: 401 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleSignatureApply({ blob: new Blob(['x']), format: 'drawn' });
+    });
+    navigate.mockReset();
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[1]!);
+    });
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9', { replace: true });
+  });
+
+  it('remembered-signature reuse: a 500 from setSignature on a same-kind field surfaces an error', async () => {
+    session.fields = [
+      makeField({ id: 's1', page: 1, kind: 'signature' }),
+      makeField({ id: 's2', page: 2, kind: 'signature' }),
+    ];
+    let callIdx = 0;
+    session.setSignature = vi.fn(async (id: string) => {
+      callIdx += 1;
+      if (callIdx === 1) {
+        const f = session.fields.find((x) => x.id === id);
+        if (f) (f as { value_text: string | null }).value_text = 'data:image/png;base64,xxx';
+        return;
+      }
+      throw Object.assign(new Error('upstream'), { status: 500 });
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleSignatureApply({ blob: new Blob(['x']), format: 'drawn' });
+    });
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[1]!);
+    });
+    expect(result.current.error).toMatch(/upstream|could not apply your signature/i);
+  });
+});
+
+describe('useSigningFillController — decline + withdraw consent', () => {
+  it('decline: cancelled confirm is a no-op', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleDecline();
+    });
+    expect(session.decline).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('decline: confirmed call POSTs decline + navigates to /declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleDecline();
+    });
+    expect(session.decline).toHaveBeenCalledWith('declined-on-fill');
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9/declined', { replace: true });
+  });
+
+  it('decline: API failure unsticks busy and does NOT navigate', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    session.decline = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleDecline();
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(result.current.busy).toBe(false);
+  });
+
+  it('withdrawConsent: cancelled confirm is a no-op', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleWithdrawConsent();
+    });
+    expect(session.withdrawConsent).not.toHaveBeenCalled();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('withdrawConsent: confirmed call invokes session.withdrawConsent and navigates to /declined', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleWithdrawConsent();
+    });
+    expect(session.withdrawConsent).toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith('/sign/env-9/declined', { replace: true });
+  });
+
+  it('withdrawConsent: API failure unsticks busy', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    session.withdrawConsent = vi.fn(async () => {
+      throw new Error('upstream');
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    await act(async () => {
+      await result.current.handleWithdrawConsent();
+    });
+    expect(navigate).not.toHaveBeenCalled();
+    expect(result.current.busy).toBe(false);
+  });
+
+  it('busy guard: a second decline call while busy=true returns immediately', async () => {
+    // Hold the decline promise open so busy stays true while we fire a
+    // concurrent click.
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    session.decline = vi.fn(async () => {
+      await held;
+    });
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+    let firstP: Promise<void> = Promise.resolve();
+    act(() => {
+      firstP = result.current.handleDecline();
+    });
+    // Second invocation while busy must be a no-op (decline still 1 call).
+    await act(async () => {
+      await result.current.handleDecline();
+    });
+    expect(session.decline).toHaveBeenCalledTimes(1);
+    release();
+    await act(async () => {
+      await firstP;
+    });
+  });
+});
+
+describe('useSigningFillController — pure helpers', () => {
+  it('toUiKind treats text+link_id="name" as the "name" field type', () => {
+    const f = makeField({ id: 'x', page: 1, kind: 'text', link_id: 'name' });
+    expect(toUiKind(f)).toBe('name');
+    expect(toUiKind(makeField({ id: 'y', page: 1, kind: 'text' }))).toBe('text');
+    expect(toUiKind(makeField({ id: 'z', page: 1, kind: 'signature' }))).toBe('signature');
+  });
+
+  it('fieldIsFilled distinguishes checkbox vs text fields', () => {
+    expect(
+      fieldIsFilled(makeField({ id: 'a', page: 1, kind: 'checkbox', value_boolean: true })),
+    ).toBe(true);
+    expect(
+      fieldIsFilled(makeField({ id: 'a', page: 1, kind: 'checkbox', value_boolean: false })),
+    ).toBe(false);
+    expect(fieldIsFilled(makeField({ id: 'b', page: 1, kind: 'text', value_text: 'hi' }))).toBe(
+      true,
+    );
+    expect(fieldIsFilled(makeField({ id: 'c', page: 1, kind: 'text', value_text: '' }))).toBe(
+      false,
+    );
+  });
+
+  it('fieldValue returns the right scalar per kind, null when empty', () => {
+    expect(fieldValue(makeField({ id: 'a', page: 1, kind: 'checkbox', value_boolean: true }))).toBe(
+      true,
+    );
+    expect(fieldValue(makeField({ id: 'b', page: 1, kind: 'text', value_text: 'x' }))).toBe('x');
+    expect(fieldValue(makeField({ id: 'c', page: 1, kind: 'text' }))).toBeNull();
+    expect(fieldValue(makeField({ id: 'd', page: 1, kind: 'checkbox' }))).toBeNull();
+  });
+
+  it('fieldLabel uses link_id (when not "name") as a label override, otherwise the kind default', () => {
+    expect(
+      fieldLabel(makeField({ id: 'a', page: 1, kind: 'text', link_id: 'company' }), 'text'),
+    ).toBe('company');
+    // link_id="name" must NOT win — name is the special-case kind label.
+    expect(fieldLabel(makeField({ id: 'b', page: 1, kind: 'text', link_id: 'name' }), 'name')).toBe(
+      'Print name',
+    );
+    expect(fieldLabel(makeField({ id: 'c', page: 1, kind: 'signature' }), 'signature')).toBe(
+      'Sign here',
+    );
   });
 });
