@@ -381,7 +381,12 @@ describe('useEnvelopeDetailController — handleDownload', () => {
     );
   });
 
-  it('bundle kind fans two anchor clicks (sealed + audit) on success', async () => {
+  it('bundle kind opens the sealed PDF in a new tab and downloads the audit trail (BUG-3 regression)', async () => {
+    // Two `target="_blank"` anchors fired back-to-back lose the user
+    // gesture on the second click and Chrome/Safari swallow it as a
+    // popup. Exactly one anchor should carry `target=_blank` (sealed)
+    // and the other the `download` attribute (audit) so the audit
+    // never tries to spawn a popup.
     get.mockImplementation((_url: string, config: { params?: { kind?: string } }) => {
       const k = config?.params?.kind;
       return Promise.resolve({
@@ -389,7 +394,12 @@ describe('useEnvelopeDetailController — handleDownload', () => {
         status: 200,
       });
     });
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const clicked: Array<{ target: string; download: string; href: string }> = [];
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function captureClick(this: HTMLAnchorElement) {
+        clicked.push({ target: this.target, download: this.download, href: this.href });
+      });
     const qc = freshClient();
     const { result } = renderHook(() => useEnvelopeDetailController({ envelope: env() }), {
       wrapper: wrap(qc),
@@ -400,8 +410,15 @@ describe('useEnvelopeDetailController — handleDownload', () => {
     });
 
     expect(clickSpy).toHaveBeenCalledTimes(2);
+    const blankTabs = clicked.filter((c) => c.target === '_blank');
+    const downloads = clicked.filter((c) => c.download !== '');
+    expect(blankTabs).toHaveLength(1);
+    expect(blankTabs[0]?.href).toMatch(/sealed\.pdf$/);
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]?.href).toMatch(/audit\.pdf$/);
+    expect(downloads[0]?.target).not.toBe('_blank');
     expect(result.current.toast?.kind).toBe('success');
-    expect(result.current.toast?.text).toMatch(/Sealed PDF and audit trail/i);
+    expect(result.current.toast?.text).toMatch(/audit trail downloaded/i);
   });
 
   it('bundle kind reports the file_not_ready friendly copy when the artifact is missing', async () => {

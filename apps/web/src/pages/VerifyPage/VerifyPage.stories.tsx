@@ -110,6 +110,7 @@ const COMPLETED: VerifyResponse = {
       created_at: '2026-04-25T21:21:08Z',
     },
   ],
+  chain_intact: true,
   sealed_url: 'https://example.com/sealed.pdf',
   audit_url: 'https://example.com/audit.pdf',
 };
@@ -229,4 +230,20 @@ export const Loading: Story = {
 
 export const NotFound: Story = {
   render: () => <StoryHarness data={null} forcedState="error" />,
+};
+
+/**
+ * Tamper-evident audit chain failure. The seal itself is still valid
+ * (the PDF bytes haven't changed), but `verifyEventChain` detected a
+ * row whose `prev_event_hash` doesn't match the canonical-JSON hash of
+ * its predecessor — i.e. someone mutated/inserted/deleted an audit
+ * event out-of-band. The Integrity panel surfaces this as a red badge
+ * so a third-party verifier can see the partial trust failure even
+ * when the verdict hero remains "sealed".
+ *
+ * Pinned as its own Chromatic baseline so a regression that drops the
+ * badge or swaps the danger color is caught visually on every PR.
+ */
+export const ChainBroken: Story = {
+  render: () => <StoryHarness data={{ ...COMPLETED, chain_intact: false }} />,
 };

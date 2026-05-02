@@ -35,6 +35,7 @@ const PAYLOAD: VerifyResponse = {
   },
   signers: [],
   events: [],
+  chain_intact: true,
   sealed_url: null,
   audit_url: null,
 };

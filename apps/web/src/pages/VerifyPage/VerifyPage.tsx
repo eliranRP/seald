@@ -304,6 +304,25 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
   };
 }
 
+// Browser `download` attribute: the visible button copy says "Download",
+// so users expect the file to *save*. Without an explicit download
+// filename the browser opens the PDF in a tab and (if the user does
+// save) names the file after the S3 presigned-URL path — opaque hashes
+// + query strings, useless for a downloads folder. Slugify the envelope
+// title so the saved filename is human-readable.
+function safeDownloadName(title: string, suffix: string): string {
+  const slug = title
+    .normalize('NFKD')
+    // Strip combining accents.
+    .replace(/[\u0300-\u036f]/g, '')
+    // Anything that isn't a safe filesystem char becomes `-`.
+    .replace(/[^A-Za-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+  const base = slug.length > 0 ? slug : 'document';
+  return `${base}${suffix}.pdf`;
+}
+
 function describeEvent(ev: VerifyEvent, signers: ReadonlyArray<VerifySigner>): string {
   if (ev.signer_id) {
     const s = signers.find((x) => x.id === ev.signer_id);
@@ -500,6 +519,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   $variant="secondary"
                   target="_blank"
                   rel="noopener noreferrer"
+                  download={safeDownloadName(data.envelope.title, '-sealed')}
                 >
                   <Download aria-hidden />
                   Download
@@ -511,6 +531,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   $variant="secondary"
                   target="_blank"
                   rel="noopener noreferrer"
+                  download={safeDownloadName(data.envelope.title, '-audit')}
                 >
                   <Share2 aria-hidden />
                   Audit PDF
@@ -598,7 +619,20 @@ function VerifyContent({ data }: VerifyContentProps) {
                 />
               </IntegrityText>
             </IntegrityInner>
-            <IntegrityMeta>Seald, Inc. · trust cert RSA-4096</IntegrityMeta>
+            <IntegrityMeta>
+              <Tag
+                $tone={data.chain_intact ? 'success' : 'danger'}
+                aria-label="Audit chain status"
+                title={
+                  data.chain_intact
+                    ? 'Every audit row hashes to its predecessor (verifyEventChain).'
+                    : 'A row in the audit log fails its prev_event_hash check — possible tampering.'
+                }
+              >
+                {data.chain_intact ? 'Audit chain · intact' : 'Audit chain · broken'}
+              </Tag>
+              <span>Seald, Inc. · trust cert RSA-4096</span>
+            </IntegrityMeta>
           </Integrity>
 
           <Timeline>

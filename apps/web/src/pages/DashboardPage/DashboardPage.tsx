@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { StatCard } from '@/components/StatCard';
 import { useEnvelopesQuery } from '@/features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
+import { formatShortDate } from '@/lib/dateFormat';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   ChevronCell,
@@ -102,11 +103,16 @@ const STATUS_TONE: Record<EnvelopeStatus, BadgeTone> = {
   canceled: 'neutral',
 };
 
+/**
+ * Compact date for the dashboard table. Always includes the year when
+ * the envelope is from a different calendar year — see
+ * `apps/web/src/lib/dateFormat.ts` and the BUG-2 regression test in
+ * `dateFormat.test.ts`. Without the year, "Apr 02 2024" and
+ * "Apr 02 2026" rendered identically and senders couldn't distinguish
+ * "sent last week" from "sent two years ago".
+ */
 function formatDate(iso: string | null): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  return formatShortDate(iso);
 }
 
 /**

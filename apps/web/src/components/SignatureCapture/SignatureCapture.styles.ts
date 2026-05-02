@@ -3,6 +3,13 @@ import styled from 'styled-components';
 export const Backdrop = styled.div`
   position: fixed;
   inset: 0;
+  /* Same dvh+safe-area treatment as FieldInputDrawer — without it the
+     bottom action row (Apply / Cancel) sat behind the iOS keyboard or
+     home indicator on iPhone 13/14/15 viewports. \`100vh\` reflects the
+     LAYOUT viewport on iOS, not the visual viewport. */
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
   background: rgba(11, 18, 32, 0.5);
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
@@ -13,9 +20,14 @@ export const Backdrop = styled.div`
 export const Sheet = styled.div`
   width: 100%;
   max-width: 680px;
+  /* Cap to the visual viewport so the draw canvas + tabs + apply button
+     all stay reachable on a 667px-tall iPhone with the keyboard up.
+     Inner scroll keeps focus management predictable. */
+  max-height: 100dvh;
+  overflow-y: auto;
   background: ${({ theme }) => theme.color.paper};
   border-radius: 20px 20px 0 0;
-  padding: ${({ theme }) => theme.space[6]} 28px 28px;
+  padding: ${({ theme }) => theme.space[6]} 28px calc(28px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -10px 40px rgba(11, 18, 32, 0.2);
 `;
 

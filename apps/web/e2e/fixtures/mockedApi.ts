@@ -48,6 +48,12 @@ type Handler = {
 //    `/sign/withdraw-consent`) so we don't intercept SPA route navigations
 //    like `GET /sign/<envelopeId>`, which the recipient flow uses for its
 //    own URL.
+//  - The verify-API surface is reached via `/api/verify/...` (the
+//    verifyApiClient axios baseURL is `…/api`), so it is already covered
+//    by the `/api/` alternative. We deliberately do NOT add a bare
+//    `/verify/<code>` alternative — that would also match the browser's
+//    own SPA navigation to `/verify/<code>` and the missing-handler
+//    fallback would then 404 the page itself, blanking the SPA.
 const ROUTE_PATTERN =
   /^https?:\/\/[^/]+(\/api\/|\/sign\/(start|me|accept-terms|fields|signature|submit|decline|pdf|esign-disclosure|intent-to-sign|withdraw-consent)|\/auth\/v1\/|\/pdf-fixture\.pdf$)/;
 

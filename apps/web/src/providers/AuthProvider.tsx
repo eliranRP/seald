@@ -226,6 +226,20 @@ export function AuthProvider(props: AuthProviderProps) {
     // the Supabase project (Authentication → Providers → Anonymous); the
     // underlying error is re-surfaced so the caller can toast it.
     //
+    // Bug B fix (audit 2026-05-02): if an anonymous session is ALREADY
+    // present (e.g. user clicked "Sign in" from the AppShell, then hit
+    // "Skip" on the auth page) we must NOT call `signInAnonymously()`
+    // again — Supabase mints a brand-new anon user with a different
+    // `user.id`, orphaning every envelope the previous guest had drafted.
+    // The flag-only update is enough; the existing session keeps the
+    // Bearer JWT valid for the apiClient.
+    const { data: existing } = await supabase.auth.getSession();
+    if (existing.session?.user.is_anonymous) {
+      setGuest(true);
+      writeGuestFlag(true);
+      return;
+    }
+
     // We flip the guest flag *before* the network call so the
     // `onAuthStateChange` listener (which already filters anonymous
     // sessions out of its guest=false branch) has a coherent view if it

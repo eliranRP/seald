@@ -115,7 +115,20 @@ function Content() {
   const handleNotMe = useCallback(() => {
     // Treat "Not me" as a decline with a specific reason. Simpler than a
     // dedicated endpoint and surfaces the same audit event on the backend.
+    //
+    // BUG FIX: previously fired immediately on click — a small target near
+    // the user's avatar made accidental decline trivial on mobile. Confirm
+    // the destructive action just like `handleDecline` does. The audit
+    // event is irreversible (and emails the sender), so the one-tap UX
+    // failure mode was real.
     if (busy) return;
+    // eslint-disable-next-line no-alert -- native confirm is appropriate; mirrors handleDecline above.
+    const confirmed = window.confirm(
+      'Are you not the intended recipient?\n\n' +
+        "We'll let the sender know to send a fresh link to the right person. " +
+        'This is recorded in the audit trail and cannot be undone.',
+    );
+    if (!confirmed) return;
     (async () => {
       setBusy(true);
       try {
