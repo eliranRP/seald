@@ -19,10 +19,19 @@ const SPA_EXACT = new Set([
   '/documents',
   '/signers',
   '/contacts',
+  '/templates',
 ]);
 
 // Trailing slash matters: '/auth/' matches '/auth/foo' and '/auth' itself.
-const SPA_PREFIXES = ['/auth/', '/debug/', '/verify/', '/sign/', '/document/'];
+const SPA_PREFIXES = [
+  '/auth/',
+  '/debug/',
+  '/verify/',
+  '/sign/',
+  '/document/',
+  '/templates/',
+  '/m/',
+];
 
 function isSpaRoute(pathname) {
   if (SPA_EXACT.has(pathname)) return true;
