@@ -6,7 +6,7 @@ const Wrap = styled.div`
   padding: 8px 16px 24px;
 `;
 
-const Title = styled.div`
+const Title = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-size: 30px;
   font-weight: 500;
@@ -14,6 +14,7 @@ const Title = styled.div`
   letter-spacing: -0.02em;
   line-height: 1.1;
   padding: 8px 4px 4px;
+  margin: 0;
 `;
 
 const Subtitle = styled.div`
