@@ -151,14 +151,17 @@ describe('MobileSendPage', () => {
     expect(screen.getByRole('button', { name: /open menu/i })).toBeInTheDocument();
   });
 
-  it('hamburger opens a sheet with Documents, Templates, Signers, and Sign out', async () => {
+  // 2026-05-02: Signers tab was removed from the top nav (the Contacts
+  // page is still reachable from envelope detail / direct URL). Mobile
+  // hamburger must mirror the desktop NAV_ITEMS exactly.
+  it('hamburger opens a sheet with Documents, Sign, Templates, and Sign out (no Signers)', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Documents' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Templates' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Signers' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Signers' })).toBeNull();
     expect(within(dialog).getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
   });
 
@@ -247,6 +250,60 @@ describe('MobileSendPage', () => {
     await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'BOB@example.com');
     expect(within(dialog).getByRole('alert')).toHaveTextContent(/already on the list/i);
     expect(within(dialog).getByRole('button', { name: /^add$/i })).toBeDisabled();
+  });
+
+  // Bug C regression (2026-05-03): walk the full sender flow start → file →
+  // signers → place → review → Send and assert the Send-for-signature button
+  // actually invokes the orchestration. The previous suite mocked `runMock`
+  // but never exercised the click path, so a regression in the Send wiring
+  // (e.g. the button accidentally noop'd while disabled) would have slipped
+  // through. We assert: (a) runMock fires once, (b) it receives the title
+  // we typed, (c) it receives our PDF File, (d) signers includes the ad-hoc
+  // bob@example.com input, (e) buildFields is supplied so the API gets the
+  // placed signature box.
+  it('Send-for-signature actually invokes the orchestration with the right payload', async () => {
+    const user = userEvent.setup();
+    runMock.mockClear();
+    renderPage();
+
+    // 1. Upload PDF
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('contract.pdf')] } });
+    });
+    // 2. Continue → Signers
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    // 3. Add signer
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+    // 4. Next → Place fields. Arm Signature, click the canvas to drop one.
+    await user.click(screen.getByRole('button', { name: /next: place fields/i }));
+    await user.click(screen.getByRole('button', { name: /^signature$/i }));
+    // The canvas drop area is a positional surface with no semantic role
+    // (rule 4.6 fallback): use the data-testid the component exposes.
+    const canvas = await screen.findByTestId('mw-canvas');
+    await user.click(canvas);
+    // 5. Review
+    await user.click(screen.getByRole('button', { name: /^review/i }));
+    // 6. Send
+    await user.click(screen.getByRole('button', { name: /send for signature/i }));
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const call = runMock.mock.calls[0];
+    if (!call) throw new Error('expected runMock to have been invoked');
+    const arg = (call as ReadonlyArray<unknown>)[0] as {
+      title: string;
+      file: File;
+      signers: ReadonlyArray<{ email?: string; name?: string }>;
+      buildFields: unknown;
+    };
+    expect(arg.title).toMatch(/contract/i);
+    expect(arg.file.name).toBe('contract.pdf');
+    expect(arg.signers.some((s) => s.email === 'bob@example.com')).toBe(true);
+    expect(typeof arg.buildFields).toBe('function');
   });
 
   it('rejects an invalid email in the add-signer sheet', async () => {

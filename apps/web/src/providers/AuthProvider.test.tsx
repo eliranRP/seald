@@ -253,4 +253,53 @@ describe('AuthProvider', () => {
     expect(supabaseAuth.signInAnonymously).toHaveBeenCalledTimes(1);
     expect(result.current.guest).toBe(true);
   });
+
+  // 2026-05-02: users reported that the avatar didn't match their Google
+  // profile picture. Supabase's GoogleProvider sometimes copies the OIDC
+  // `picture` claim into `user_metadata.avatar_url` and sometimes leaves
+  // it under `user_metadata.picture` — we read both so the real photo is
+  // visible regardless of which field landed in metadata.
+  it('exposes the Google `avatar_url` from user_metadata as user.avatarUrl', async () => {
+    const session: Session = {
+      access_token: 'tok',
+      refresh_token: 'r',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: {
+        id: 'g-1',
+        email: 'g@example.com',
+        is_anonymous: false,
+        user_metadata: { avatar_url: 'https://lh3.googleusercontent.com/a/X' },
+      } as unknown as User,
+    } as unknown as Session;
+    supabaseAuth.getSession.mockResolvedValue({ data: { session } });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user?.avatarUrl).toBe('https://lh3.googleusercontent.com/a/X');
+  });
+
+  it('falls back to user_metadata.picture when avatar_url is absent (Google OIDC)', async () => {
+    const session: Session = {
+      access_token: 'tok',
+      refresh_token: 'r',
+      expires_in: 3600,
+      token_type: 'bearer',
+      user: {
+        id: 'g-2',
+        email: 'g2@example.com',
+        is_anonymous: false,
+        // Real Google ID-token claim shape — `picture` set, `avatar_url`
+        // never populated by the provider.
+        user_metadata: { picture: 'https://lh3.googleusercontent.com/a/Y' },
+      } as unknown as User,
+    } as unknown as Session;
+    supabaseAuth.getSession.mockResolvedValue({ data: { session } });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.user?.avatarUrl).toBe('https://lh3.googleusercontent.com/a/Y');
+  });
 });

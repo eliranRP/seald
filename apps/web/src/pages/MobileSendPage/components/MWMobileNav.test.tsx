@@ -60,10 +60,13 @@ describe('MWMobileNav', () => {
     expect(dialog).toHaveTextContent('jamie@seald.app');
 
     // Every nav destination is a button with the right accessible name.
+    // 2026-05-02: "Signers" was removed from the top nav (the Contacts
+    // page is reachable from envelope detail and direct URL); the
+    // hamburger must mirror that.
     expect(screen.getByRole('button', { name: 'Documents' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sign' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Templates' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Signers' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Signers' })).toBeNull();
 
     // Account actions surface as buttons too.
     expect(screen.getByRole('button', { name: /download my data/i })).toBeInTheDocument();

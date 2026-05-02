@@ -12,10 +12,12 @@ describe('NavBar', () => {
     expect(active).toHaveAttribute('aria-current', 'page');
     expect(getByRole('button', { name: 'Sign' })).not.toHaveAttribute('aria-current');
     expect(getByRole('button', { name: 'Templates' })).not.toHaveAttribute('aria-current');
-    expect(getByRole('button', { name: 'Signers' })).not.toHaveAttribute('aria-current');
     // Reports was retired in the original 4 → 3 trim; Templates was added
-    // back when the templates feature shipped (PR #11).
+    // back when the templates feature shipped (PR #11). Signers was
+    // removed from the top nav on 2026-05-02 — the Contacts page is still
+    // reachable from envelope detail and via direct URL.
     expect(queryByRole('button', { name: 'Reports' })).toBeNull();
+    expect(queryByRole('button', { name: 'Signers' })).toBeNull();
   });
 
   it('clicking an inactive item calls onSelectItem with correct id', async () => {

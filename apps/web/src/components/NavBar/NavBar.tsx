@@ -35,7 +35,6 @@ const DEFAULT_ITEMS: ReadonlyArray<NavItem> = [
   { id: 'documents', label: 'Documents' },
   { id: 'sign', label: 'Sign' },
   { id: 'templates', label: 'Templates' },
-  { id: 'signers', label: 'Signers' },
 ];
 
 interface RightClusterArgs {
