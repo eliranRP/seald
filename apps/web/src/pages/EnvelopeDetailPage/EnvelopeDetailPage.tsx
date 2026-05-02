@@ -38,6 +38,7 @@ import {
   useEnvelopeEventsQuery,
   useEnvelopeQuery,
 } from '@/features/envelopes';
+import { formatShortDateOrDash, formatTimelineWhen } from '@/lib/dateFormat';
 import {
   useCancelEnvelopeMutation,
   useDeleteEnvelopeMutation,
@@ -127,23 +128,18 @@ const TERMINAL_STATUSES: ReadonlySet<EnvelopeStatus> = new Set([
   'canceled',
 ]);
 
+/**
+ * Always-year-aware date helpers — see `apps/web/src/lib/dateFormat.ts`
+ * and `dateFormat.test.ts`. The previous in-line versions omitted the
+ * year (BUG-2), making the timeline + header indistinguishable for
+ * envelopes shipped in a prior calendar year.
+ */
 function formatWhen(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return formatTimelineWhen(iso);
 }
 
 function formatDateOnly(iso: string | null): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  return formatShortDateOrDash(iso);
 }
 
 function eventsToTimeline(
@@ -406,27 +402,44 @@ export function EnvelopeDetailPage() {
       setToast(null);
       try {
         if (kind === 'bundle') {
-          // No server-side zip bundler yet — fire sealed + audit in
-          // parallel and anchor-click each URL into its own new tab.
-          // Anchor clicks don't need a synchronously-opened stub tab,
-          // so popup blockers don't fire on the second one.
+          // BUG-3 regression — the previous "bundle" path opened TWO
+          // `target="_blank"` anchors in sequence after a Promise.all
+          // resolved. Chrome/Safari's popup heuristics treat the second
+          // window-open as detached from the user gesture (the click
+          // handler has already returned by the time the second anchor
+          // fires) and silently block it, while the success toast still
+          // claimed both tabs were opened. We now open the sealed PDF
+          // in a new tab (one user-gesture window) and trigger the
+          // audit trail as a `download` anchor on the same page — no
+          // second window, so nothing for the popup blocker to catch.
           try {
             const [sealed, audit] = await Promise.all([
               getEnvelopeDownloadUrl(envelope.id, 'sealed'),
               getEnvelopeDownloadUrl(envelope.id, 'audit'),
             ]);
-            for (const { url } of [sealed, audit]) {
-              const a = document.createElement('a');
-              a.href = url;
-              a.target = '_blank';
-              a.rel = 'noopener noreferrer';
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-            }
+            const sealedAnchor = document.createElement('a');
+            sealedAnchor.href = sealed.url;
+            sealedAnchor.target = '_blank';
+            sealedAnchor.rel = 'noopener noreferrer';
+            document.body.appendChild(sealedAnchor);
+            sealedAnchor.click();
+            sealedAnchor.remove();
+
+            const auditAnchor = document.createElement('a');
+            auditAnchor.href = audit.url;
+            // Use the `download` attribute (not target=_blank) so the
+            // browser triggers a same-document download instead of
+            // opening a popup. The server-signed URL already carries
+            // the audit filename in its Content-Disposition.
+            auditAnchor.download = `audit-${envelope.id}.pdf`;
+            auditAnchor.rel = 'noopener noreferrer';
+            document.body.appendChild(auditAnchor);
+            auditAnchor.click();
+            auditAnchor.remove();
+
             setToast({
               kind: 'success',
-              text: 'Sealed PDF and audit trail opened in new tabs.',
+              text: 'Sealed PDF opened in a new tab; audit trail downloaded.',
             });
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Download failed.';
@@ -619,7 +632,7 @@ export function EnvelopeDetailPage() {
       icon: Package,
       title: 'Full package',
       description: 'Sealed PDF + audit trail bundled together.',
-      meta: isComplete ? 'Sealed + audit in separate tabs' : 'Available once sealed',
+      meta: isComplete ? 'Sealed PDF in a tab + audit downloaded' : 'Available once sealed',
       available: isComplete,
     },
   ];
