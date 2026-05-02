@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { AuthShell } from '@/components/AuthShell';
@@ -19,6 +19,7 @@ const ErrorBanner = styled.div`
 
 const ERROR_COPY: Record<string, string> = {
   oauth: "We couldn't complete the Google sign-in. Please try again.",
+  guest: "We couldn't start a guest session. Please sign up to continue.",
 };
 
 /**
@@ -31,11 +32,21 @@ export function SignInPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { enterGuestMode } = useAuth();
-  const errorKey = params.get('error');
+  const queryError = params.get('error');
+  const [guestError, setGuestError] = useState<string | null>(null);
+  const errorKey = guestError ? 'guest' : queryError;
 
   const handleSkip = useCallback((): void => {
-    enterGuestMode();
-    navigate('/document/new');
+    setGuestError(null);
+    // enterGuestMode is async — it provisions an anonymous Supabase session
+    // so subsequent API calls have a Bearer JWT. If the project doesn't
+    // allow anonymous sign-ins, surface the failure in the existing
+    // error banner instead of silently leaving the user stuck.
+    enterGuestMode()
+      .then(() => navigate('/document/new'))
+      .catch((err: unknown) => {
+        setGuestError(err instanceof Error ? err.message : 'Could not start guest session.');
+      });
   }, [enterGuestMode, navigate]);
 
   const handleSwitch = useCallback(

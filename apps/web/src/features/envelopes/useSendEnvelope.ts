@@ -29,6 +29,13 @@ export interface SendEnvelopeInput {
     /** Map: local contact id → server signer id returned by addSigner. */
     contactIdToSignerId: ReadonlyMap<string, string>,
   ) => ReadonlyArray<FieldPlacement>;
+  /**
+   * Optional sender identity for the final POST /envelopes/:id/send.
+   * Used by guest mode (anonymous Supabase session, JWT has no email);
+   * authed callers leave both undefined and the server uses the JWT email.
+   */
+  readonly senderEmail?: string;
+  readonly senderName?: string;
 }
 
 export interface SendEnvelopeResult {
@@ -101,7 +108,10 @@ export function useSendEnvelope(): UseSendEnvelope {
       }
 
       setPhase('sending');
-      const sent = await sendEnvelope(envelope.id);
+      const payload: { sender_email?: string; sender_name?: string } = {};
+      if (input.senderEmail !== undefined) payload.sender_email = input.senderEmail;
+      if (input.senderName !== undefined) payload.sender_name = input.senderName;
+      const sent = await sendEnvelope(envelope.id, payload);
 
       setPhase('done');
       return { envelope_id: sent.id, short_code: sent.short_code };

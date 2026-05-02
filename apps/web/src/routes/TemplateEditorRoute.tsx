@@ -7,6 +7,7 @@ import { TemplateModeBanner } from '../components/TemplateModeBanner';
 import { Toast } from '../components/Toast';
 import { SendConfirmDialog } from '../components/SendConfirmDialog';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
+import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
 import { SendingOverlay } from '../components/SendingOverlay';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
@@ -379,6 +380,7 @@ export function TemplateEditorRoute() {
   const [pendingNav, setPendingNav] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [guestSenderOpen, setGuestSenderOpen] = useState(false);
   const [toast, setToast] = useState<{
     readonly title: string;
     readonly subtitle?: string | undefined;
@@ -540,58 +542,74 @@ export function TemplateEditorRoute() {
     [],
   );
 
-  const runSend = useCallback(async () => {
-    if (!draft || !draft.file) return;
-    setSendError(null);
-    if (guest) {
-      sendDocument(draft.id);
-      navigate(`/document/${draft.id}/sent`);
-      return;
-    }
-    try {
-      const result = await sendEnvelope.run({
-        title: draft.title,
-        file: draft.file,
-        signers: draft.signers.map((s) => ({ contactId: s.id })),
-        buildFields: (contactIdToSignerId) => {
-          const out: FieldPlacement[] = [];
-          for (const f of draft.fields) {
-            const normalized = toNormalized(f);
-            for (const localSignerId of f.signerIds) {
-              const serverSignerId = contactIdToSignerId.get(localSignerId);
-              if (serverSignerId) {
-                const placement: FieldPlacement = {
-                  signer_id: serverSignerId,
-                  kind: f.type as FieldKind,
-                  page: f.page,
-                  x: normalized.x,
-                  y: normalized.y,
-                  required: f.required ?? true,
-                  ...(normalized.width !== undefined ? { width: normalized.width } : {}),
-                  ...(normalized.height !== undefined ? { height: normalized.height } : {}),
-                  ...(f.linkId ? { link_id: f.linkId } : {}),
-                };
-                out.push(placement);
+  const runSend = useCallback(
+    async (senderEmail?: string, senderName?: string) => {
+      if (!draft || !draft.file) return;
+      setSendError(null);
+      try {
+        const result = await sendEnvelope.run({
+          title: draft.title,
+          file: draft.file,
+          signers: draft.signers.map((s) => ({ contactId: s.id })),
+          buildFields: (contactIdToSignerId) => {
+            const out: FieldPlacement[] = [];
+            for (const f of draft.fields) {
+              const normalized = toNormalized(f);
+              for (const localSignerId of f.signerIds) {
+                const serverSignerId = contactIdToSignerId.get(localSignerId);
+                if (serverSignerId) {
+                  const placement: FieldPlacement = {
+                    signer_id: serverSignerId,
+                    kind: f.type as FieldKind,
+                    page: f.page,
+                    x: normalized.x,
+                    y: normalized.y,
+                    required: f.required ?? true,
+                    ...(normalized.width !== undefined ? { width: normalized.width } : {}),
+                    ...(normalized.height !== undefined ? { height: normalized.height } : {}),
+                    ...(f.linkId ? { link_id: f.linkId } : {}),
+                  };
+                  out.push(placement);
+                }
               }
             }
-          }
-          return out;
-        },
-      });
-      sendDocument(draft.id);
-      navigate(`/document/${result.envelope_id}/sent`);
-    } catch (err) {
-      setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
-    }
-  }, [draft, guest, navigate, sendDocument, sendEnvelope, toNormalized]);
+            return out;
+          },
+          ...(senderEmail !== undefined ? { senderEmail } : {}),
+          ...(senderName !== undefined ? { senderName } : {}),
+        });
+        sendDocument(draft.id);
+        navigate(`/document/${result.envelope_id}/sent`);
+      } catch (err) {
+        setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
+      }
+    },
+    [draft, navigate, sendDocument, sendEnvelope, toNormalized],
+  );
 
   const handleSend = useCallback(() => {
+    // Guest mode: capture sender identity first so the API can fall back
+    // to the body when the JWT (anonymous Supabase session) lacks email.
+    if (guest) {
+      setGuestSenderOpen(true);
+      return;
+    }
     if (sourceTemplate) {
       setSendConfirmOpen(true);
       return;
     }
     runSend().catch(() => {});
-  }, [sourceTemplate, runSend]);
+  }, [guest, sourceTemplate, runSend]);
+
+  const handleGuestSenderConfirm = useCallback(
+    (email: string, name?: string) => {
+      setGuestSenderOpen(false);
+      // Guests have no persisted templates, so there's no "update
+      // template" choice to surface — go straight to send.
+      runSend(email, name).catch(() => {});
+    },
+    [runSend],
+  );
 
   const handleSendJust = useCallback(() => {
     setSendConfirmOpen(false);
@@ -809,6 +827,11 @@ export function TemplateEditorRoute() {
         onSendAndUpdate={handleSendAndUpdate}
         onJustSend={handleSendJust}
         onCancel={() => setSendConfirmOpen(false)}
+      />
+      <GuestSenderEmailDialog
+        open={guestSenderOpen}
+        onConfirm={handleGuestSenderConfirm}
+        onCancel={() => setGuestSenderOpen(false)}
       />
       {toast ? (
         <Toast

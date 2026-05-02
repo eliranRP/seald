@@ -49,7 +49,7 @@ describe('SignUpPage', () => {
 
   it('skip link enters guest mode and lands on /document/new once consent is given', async () => {
     const user = userEvent.setup();
-    const enterGuestMode = vi.fn();
+    const enterGuestMode = vi.fn(async () => undefined);
     renderSignUp({ auth: { enterGuestMode } });
 
     // Consent gates Skip in signup mode (commit 5a3f252) — tick both first so

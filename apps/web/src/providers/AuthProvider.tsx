@@ -29,7 +29,7 @@ export interface AuthContextValue {
   readonly signInWithGoogle: () => Promise<void>;
   readonly resetPassword: (email: string) => Promise<void>;
   readonly signOut: () => Promise<void>;
-  readonly enterGuestMode: () => void;
+  readonly enterGuestMode: () => Promise<void>;
   readonly exitGuestMode: () => void;
 }
 
@@ -103,7 +103,9 @@ export function AuthProvider(props: AuthProviderProps) {
       .then(({ data }) => {
         if (cancelled) return;
         setSession(data.session ?? null);
-        if (data.session) {
+        // Anonymous sessions intentionally keep `guest === true`. Only a
+        // real (named-account) sign-in flips guest off.
+        if (data.session && !data.session.user.is_anonymous) {
           setGuest(false);
           writeGuestFlag(false);
         }
@@ -115,7 +117,9 @@ export function AuthProvider(props: AuthProviderProps) {
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession ?? null);
-      if (nextSession) {
+      // Same rule as above: anonymous sign-in must not clobber the guest
+      // flag we set inside `enterGuestMode`.
+      if (nextSession && !nextSession.user.is_anonymous) {
         setGuest(false);
         writeGuestFlag(false);
       }
@@ -186,9 +190,30 @@ export function AuthProvider(props: AuthProviderProps) {
     writeGuestFlag(false);
   }, []);
 
-  const enterGuestMode = useCallback((): void => {
+  const enterGuestMode = useCallback(async (): Promise<void> => {
+    // Provision an anonymous Supabase session so the apiClient has a real
+    // Bearer JWT to attach. Without this the localStorage flag would be
+    // set but every API call would 401 — silently breaking the no-sign-up
+    // "guest" send-to-sign flow. Requires "Anonymous Sign-ins" enabled in
+    // the Supabase project (Authentication → Providers → Anonymous); the
+    // underlying error is re-surfaced so the caller can toast it.
+    //
+    // We flip the guest flag *before* the network call so the
+    // `onAuthStateChange` listener (which already filters anonymous
+    // sessions out of its guest=false branch) has a coherent view if it
+    // races us.
     setGuest(true);
     writeGuestFlag(true);
+    const { error } = await supabase.auth.signInAnonymously();
+    if (error) {
+      // Roll back so the SPA doesn't lie about a half-broken guest state.
+      setGuest(false);
+      writeGuestFlag(false);
+      throw new Error(
+        error.message ||
+          'Could not start a guest session. Anonymous sign-ins may be disabled — please sign up instead.',
+      );
+    }
   }, []);
 
   const exitGuestMode = useCallback((): void => {

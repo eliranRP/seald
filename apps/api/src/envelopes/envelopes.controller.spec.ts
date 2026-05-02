@@ -246,15 +246,44 @@ describe('EnvelopesController', () => {
   });
 
   describe('POST /envelopes/:id/send', () => {
-    it('400 sender_email_missing when JWT has no email', () => {
-      const noEmailUser: AuthUser = { id: USER.id, email: null, provider: 'email' };
-      expect(() => controller.send(noEmailUser, 'env-1', makeRequest())).toThrow(
-        BadRequestException,
+    it('uses JWT email when present and ignores body sender_email (anti-spoof)', async () => {
+      const env = makeEnvelope({ status: 'awaiting_others' });
+      svc.send.mockResolvedValue(env);
+      await controller.send(USER, 'env-1', makeRequest({ userAgent: 'Mozilla/5.0' }), {
+        sender_email: 'evil@spoof.example',
+        sender_name: 'Bad Actor',
+      });
+      expect(svc.send).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        { email: USER.email, name: null },
+        { ip: expect.any(String), user_agent: 'Mozilla/5.0' },
       );
+    });
+
+    it('falls back to body sender_email + name when JWT carries no email (anon/guest)', async () => {
+      const anon: AuthUser = { id: USER.id, email: null, provider: 'anonymous' };
+      const env = makeEnvelope({ status: 'awaiting_others' });
+      svc.send.mockResolvedValue(env);
+      await controller.send(anon, 'env-1', makeRequest({ userAgent: 'curl/8' }), {
+        sender_email: 'guest@example.com',
+        sender_name: 'Guest User',
+      });
+      expect(svc.send).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        { email: 'guest@example.com', name: 'Guest User' },
+        { ip: expect.any(String), user_agent: 'curl/8' },
+      );
+    });
+
+    it('400 sender_email_missing when JWT has no email and body is empty', () => {
+      const anon: AuthUser = { id: USER.id, email: null, provider: 'anonymous' };
+      expect(() => controller.send(anon, 'env-1', makeRequest(), {})).toThrow(BadRequestException);
       expect(svc.send).not.toHaveBeenCalled();
     });
 
-    it('threads sender email + audit metadata to service', async () => {
+    it('threads sender email + audit metadata to service when JWT has email and body omitted', async () => {
       const env = makeEnvelope({ status: 'awaiting_others' });
       svc.send.mockResolvedValue(env);
       const req = makeRequest({ userAgent: 'Mozilla/5.0' });
@@ -262,7 +291,7 @@ describe('EnvelopesController', () => {
       expect(svc.send).toHaveBeenCalledWith(
         USER.id,
         'env-1',
-        { email: USER.email },
+        { email: USER.email, name: null },
         { ip: expect.any(String), user_agent: 'Mozilla/5.0' },
       );
     });
@@ -281,20 +310,37 @@ describe('EnvelopesController', () => {
   });
 
   describe('POST /envelopes/:id/signers/:signer_id/remind', () => {
-    it('400 sender_email_missing when JWT has no email', async () => {
-      const noEmailUser: AuthUser = { id: USER.id, email: null, provider: 'email' };
-      await expect(
-        controller.remindSigner(noEmailUser, 'env-1', 'signer-1'),
-      ).rejects.toBeInstanceOf(BadRequestException);
+    it('400 sender_email_missing when JWT has no email and body is empty', async () => {
+      const anon: AuthUser = { id: USER.id, email: null, provider: 'anonymous' };
+      await expect(controller.remindSigner(anon, 'env-1', 'signer-1', {})).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       expect(svc.remindSigner).not.toHaveBeenCalled();
     });
 
-    it('returns queued and forwards sender email', async () => {
+    it('returns queued and forwards sender email from JWT (ignores body)', async () => {
       svc.remindSigner.mockResolvedValue(undefined);
-      const out = await controller.remindSigner(USER, 'env-1', 'signer-1');
+      const out = await controller.remindSigner(USER, 'env-1', 'signer-1', {
+        sender_email: 'evil@spoof.example',
+      });
       expect(out).toEqual({ status: 'queued' });
       expect(svc.remindSigner).toHaveBeenCalledWith(USER.id, 'env-1', 'signer-1', {
         email: USER.email,
+        name: null,
+      });
+    });
+
+    it('falls back to body sender_email + name when JWT carries no email (anon/guest)', async () => {
+      svc.remindSigner.mockResolvedValue(undefined);
+      const anon: AuthUser = { id: USER.id, email: null, provider: 'anonymous' };
+      const out = await controller.remindSigner(anon, 'env-1', 'signer-1', {
+        sender_email: 'guest@example.com',
+        sender_name: 'Guest User',
+      });
+      expect(out).toEqual({ status: 'queued' });
+      expect(svc.remindSigner).toHaveBeenCalledWith(USER.id, 'env-1', 'signer-1', {
+        email: 'guest@example.com',
+        name: 'Guest User',
       });
     });
   });

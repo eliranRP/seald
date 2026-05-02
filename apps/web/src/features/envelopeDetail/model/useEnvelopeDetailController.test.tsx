@@ -220,16 +220,8 @@ describe('useEnvelopeDetailController — handleSendReminder', () => {
     });
 
     expect(post).toHaveBeenCalledTimes(2);
-    expect(post).toHaveBeenCalledWith(
-      '/envelopes/env-1/signers/s1/remind',
-      undefined,
-      expect.anything(),
-    );
-    expect(post).toHaveBeenCalledWith(
-      '/envelopes/env-1/signers/s2/remind',
-      undefined,
-      expect.anything(),
-    );
+    expect(post).toHaveBeenCalledWith('/envelopes/env-1/signers/s1/remind', {}, expect.anything());
+    expect(post).toHaveBeenCalledWith('/envelopes/env-1/signers/s2/remind', {}, expect.anything());
     expect(result.current.toast).toEqual({
       kind: 'success',
       text: 'Reminder sent to 2 signers.',

@@ -73,7 +73,7 @@ describe('useSendEnvelope', () => {
     expect(placeEnvelopeFields).toHaveBeenCalledWith('env-1', [
       expect.objectContaining({ signer_id: 'server-s1', kind: 'signature' }),
     ]);
-    expect(sendEnvelope).toHaveBeenCalledWith('env-1');
+    expect(sendEnvelope).toHaveBeenCalledWith('env-1', {});
     await waitFor(() => expect(result.current.phase).toBe('done'));
   });
 
@@ -94,7 +94,31 @@ describe('useSendEnvelope', () => {
     });
 
     expect(placeEnvelopeFields).not.toHaveBeenCalled();
-    expect(sendEnvelope).toHaveBeenCalledWith('env-empty');
+    expect(sendEnvelope).toHaveBeenCalledWith('env-empty', {});
+  });
+
+  it('passes senderEmail/senderName through to sendEnvelope (guest mode)', async () => {
+    createEnvelope.mockResolvedValueOnce({ id: 'env-guest', short_code: 'SC' });
+    uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: '' });
+    sendEnvelope.mockResolvedValueOnce({ id: 'env-guest', short_code: 'SC' });
+
+    const { result } = renderHook(() => useSendEnvelope());
+
+    await act(async () => {
+      await result.current.run({
+        title: 'Guest send',
+        file: FILE,
+        signers: [],
+        buildFields: () => [],
+        senderEmail: 'guest@example.com',
+        senderName: 'Ada Lovelace',
+      });
+    });
+
+    expect(sendEnvelope).toHaveBeenCalledWith('env-guest', {
+      sender_email: 'guest@example.com',
+      sender_name: 'Ada Lovelace',
+    });
   });
 
   it('captures the first failure + exposes it on `error`', async () => {

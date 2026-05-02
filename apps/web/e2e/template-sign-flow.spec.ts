@@ -152,6 +152,69 @@ interface ApiCallLog {
 async function installMocks(page: Page): Promise<ApiCallLog> {
   const log = { contacts: 0, signFinish: 0, signPdf: 0 };
 
+  // --- Sender: envelope create + upload + signers + fields + send.
+  // Guest mode now goes through the same `/envelopes/*` API path as
+  // authed users (anonymous Supabase JWT). Mock the full chain so
+  // `useSendEnvelope` succeeds and `runSend` navigates to /sent.
+  await page.route('**/api/envelopes', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...makeBaseEnvelope(),
+          status: 'draft',
+          owner_id: 'guest',
+          sent_at: null,
+          completed_at: null,
+          signers: [],
+          fields: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/upload`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ pages: 1, sha256: 'a'.repeat(64) }),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/signers`, async (route: Route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...makeBaseSigner(), signing_order: 1 }),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/fields`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/send`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...makeBaseEnvelope(),
+        owner_id: 'guest',
+        sent_at: new Date().toISOString(),
+        completed_at: null,
+        signers: [{ ...makeBaseSigner(), signing_order: 1 }],
+        fields: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  });
+
   // --- Sender: contacts list (empty in guest mode, but the SPA may probe).
   await page.route('**/api/contacts', async (route: Route) => {
     if (route.request().method() === 'POST') {
@@ -339,6 +402,13 @@ test.describe('template + sign happy path', () => {
     // ---------------------- 3. Sender: send (guest mode → /document/:id/sent)
 
     await page.getByRole('button', { name: /send to sign/i }).click();
+    // GuestSenderEmailDialog opens first to capture the sender's email
+    // (anonymous Supabase JWT has no email claim, so the API needs it
+    // in the body). Fill it and click Continue to proceed with the send.
+    const senderDialog = page.getByRole('dialog', { name: /send as guest/i });
+    await expect(senderDialog).toBeVisible();
+    await senderDialog.getByRole('textbox').first().fill('sender@example.com');
+    await senderDialog.getByRole('button', { name: /^continue$/i }).click();
     await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
 
