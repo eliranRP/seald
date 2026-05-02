@@ -18,6 +18,16 @@ export const ActionBar = styled.div`
   position: sticky;
   top: 60px;
   z-index: ${({ theme }) => theme.z.sticky};
+
+  /* Mobile: wrap chrome to two rows so the page-toolbar + primary CTA stay
+     reachable on a 375px-wide iPhone viewport. The desktop layout
+     overflows the screen here without wrapping (rule 4.6 — keep elements
+     reachable; tested at 375x667 against the ilovepdf reference). */
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    gap: 8px;
+  }
 `;
 
 export const ProgressWrap = styled.div`
@@ -26,6 +36,13 @@ export const ProgressWrap = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+
+  /* Mobile: progress bar takes full width on its own row above the
+     toolbar/CTA cluster. */
+  @media (max-width: 768px) {
+    flex: 1 0 100%;
+    max-width: none;
+  }
 `;
 
 export const ProgressCount = styled.div`
@@ -37,6 +54,13 @@ export const ProgressCount = styled.div`
 
 export const Spacer = styled.div`
   flex: 1;
+
+  /* Mobile: the action bar wraps to a second row, so the spacer would
+     consume an entire row by itself. Drop it from the layout there and
+     let the chrome cluster naturally fill from the left. */
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 export const NextBtn = styled.button`
@@ -102,6 +126,15 @@ export const WithdrawBtn = styled.button`
     cursor: not-allowed;
     opacity: 0.5;
   }
+
+  /* Mobile: hide from the sticky chrome to keep the action row scannable.
+     The ESIGN withdraw affordance is still reachable from the
+     SigningPrepPage WithdrawLink (line ~208) and SigningReviewPage
+     WithdrawLink (line ~394) on every viewport, so removing it from the
+     fill-screen toolbar on mobile does not break the §3 promise. */
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 /**
@@ -122,6 +155,18 @@ export const CenterScroll = styled.div`
   display: flex;
   justify-content: center;
   padding: 24px 0 80px;
+
+  /* Mobile: shrink top/bottom padding so the PDF can use the
+     viewport, and let horizontal pan work since the canvas is
+     fixed at 560px (field positions are absolute against that
+     coordinate space — see CANVAS_WIDTH in SigningFillPage.tsx).
+     justify-content stays center on wider mobile but flips to
+     flex-start on narrow viewports so the doc anchors at the
+     left edge instead of clipping symmetrically. */
+  @media (max-width: 768px) {
+    padding: 12px 0 64px;
+    justify-content: flex-start;
+  }
 `;
 
 export const PagesStack = styled.div`
@@ -145,6 +190,13 @@ export const RailSlot = styled.aside`
   display: flex;
   flex-direction: column;
   align-items: stretch;
+
+  /* Mobile: page-thumb rail eats ~76px of horizontal space — drop it on
+     small viewports. Page navigation stays available via the PageToolbar
+     in the ActionBar (prev/next arrows + page indicator). */
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 export const ErrorBanner = styled.div`
@@ -155,4 +207,8 @@ export const ErrorBanner = styled.div`
   font-size: ${({ theme }) => theme.font.size.caption};
   padding: 10px 12px;
   border-radius: ${({ theme }) => theme.radius.sm};
+
+  @media (max-width: 768px) {
+    margin: 8px 12px 0;
+  }
 `;
