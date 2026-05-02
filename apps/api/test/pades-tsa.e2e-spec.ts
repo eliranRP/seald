@@ -218,9 +218,15 @@ function startFakeTsa(): Promise<{ url: string; server: Server; hits: number[] }
         const resp = buildFakeTsaResponse(imprintBytes);
         res.writeHead(200, { 'Content-Type': 'application/timestamp-reply' });
         res.end(resp);
-      } catch (err) {
-        res.writeHead(400);
-        res.end(String(err));
+      } catch {
+        // Closes CodeQL js/stack-trace-exposure: the previous handler
+        // serialized `err` (and thus its stack frames) back to the
+        // caller. Even though this fake TSA only ever talks to
+        // localhost in jest, returning a static reason keeps the alert
+        // from re-tripping and matches what a real TSA would expose
+        // via RFC 3161 status codes.
+        res.writeHead(400, { 'Content-Type': 'text/plain' });
+        res.end('bad_tsa_request');
       }
     });
   });
