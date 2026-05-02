@@ -183,6 +183,72 @@ describe('MobileSendPage', () => {
     expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
   });
 
+  // QA-2026-05-02 (Bug 3): the start screen exposes a hidden file input
+  // for "Take photo" that uses `accept="image/*"` + `capture="environment"`.
+  // pdf.js can't parse a JPEG, so we reject anything that isn't a PDF at
+  // the picker boundary and surface an inline alert.
+  it('rejects a non-PDF (camera capture) at the upload boundary', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', {
+      type: 'image/jpeg',
+    });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [jpeg] } });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/photo\.jpg/i);
+    expect(alert).toHaveTextContent(/isn't a pdf/i);
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+  });
+
+  // QA-2026-05-02 (Bug 11): pdf.js will OOM the worker on a phone for
+  // anything much over 25 MB. Hard-cap at the picker.
+  it('rejects an oversize PDF (>25 MB) at the upload boundary', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    // We don't actually need 26 MB of bytes — the picker reads .size, and
+    // jsdom's File honors a synthetic size when we pass a sized blob.
+    const big = new File([new Uint8Array(1)], 'huge.pdf', { type: 'application/pdf' });
+    Object.defineProperty(big, 'size', { value: 26 * 1024 * 1024 });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [big] } });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/huge\.pdf/i);
+    expect(alert).toHaveTextContent(/under 25 MB/i);
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+  });
+
+  // QA-2026-05-02 (Bug 5): the previous flow silently swallowed duplicate
+  // emails — Add closed the sheet but no signer landed. Now the sheet
+  // surfaces an inline alert and disables Add.
+  it('blocks adding a duplicate-email signer with an inline alert', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('test.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+
+    // First add: succeeds.
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    let dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+
+    // Second attempt with the same email: Add stays disabled and the
+    // duplicate alert is rendered.
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob B.');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'BOB@example.com');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(/already on the list/i);
+    expect(within(dialog).getByRole('button', { name: /^add$/i })).toBeDisabled();
+  });
+
   it('rejects an invalid email in the add-signer sheet', async () => {
     const user = userEvent.setup();
     renderPage();

@@ -1,6 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { SheetBackdrop, SheetGrabber, SheetSurface, SheetTitle } from '../MobileSendPage.styles';
+
+const FOCUSABLE_SELECTOR =
+  'input:not([disabled]),textarea:not([disabled]),select:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 export interface MWBottomSheetProps {
   readonly open: boolean;
@@ -18,6 +21,7 @@ export interface MWBottomSheetProps {
  */
 export function MWBottomSheet(props: MWBottomSheetProps) {
   const { open, onClose, title, children, labelledBy } = props;
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
 
   // ESC dismiss
   useEffect(() => {
@@ -39,12 +43,34 @@ export function MWBottomSheet(props: MWBottomSheetProps) {
     };
   }, [open]);
 
+  // QA-2026-05-02 (Bug 7): when the sheet opens, move focus to its first
+  // interactive element (input first, otherwise the first button) so
+  // keyboard users can act immediately without an extra tab. We defer
+  // by a microtask so the DOM is mounted; an explicit `data-autofocus`
+  // attribute on a child wins over the default first-focusable.
+  useEffect(() => {
+    if (!open) return;
+    const surface = surfaceRef.current;
+    if (!surface) return;
+    const explicit = surface.querySelector<HTMLElement>('[data-autofocus]');
+    if (explicit) {
+      explicit.focus();
+      return;
+    }
+    const focusables = surface.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+    const first =
+      Array.from(focusables).find((el) => el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') ??
+      focusables[0];
+    first?.focus();
+  }, [open]);
+
   if (!open) return null;
   const titleId =
     labelledBy ?? (title ? `mw-sheet-title-${title.replace(/\s+/g, '-')}` : undefined);
   return (
     <SheetBackdrop role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={onClose}>
       <SheetSurface
+        ref={surfaceRef}
         onClick={(e) => e.stopPropagation()}
         // Stop pointer-down too — the place-step's drag handler captures
         // pointerdown on its canvas; without this an unintentional drag

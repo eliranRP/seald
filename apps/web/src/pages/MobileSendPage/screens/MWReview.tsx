@@ -121,24 +121,9 @@ const Pill = styled.span`
   border-radius: 8px;
 `;
 
-const Textarea = styled.textarea`
-  width: 100%;
-  border: none;
-  outline: none;
-  resize: none;
-  font: inherit;
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 14px;
-  color: var(--fg-1);
-  line-height: 1.5;
-  background: transparent;
-`;
-
 export interface MWReviewProps {
   readonly title: string;
   readonly onTitle: (s: string) => void;
-  readonly message: string;
-  readonly onMessage: (s: string) => void;
   readonly signers: ReadonlyArray<MobileSigner>;
   readonly fields: ReadonlyArray<MobilePlacedField>;
   readonly fileName: string;
@@ -146,7 +131,7 @@ export interface MWReviewProps {
 }
 
 export function MWReview(props: MWReviewProps) {
-  const { title, onTitle, message, onMessage, signers, fields, fileName, totalPages } = props;
+  const { title, onTitle, signers, fields, fileName, totalPages } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
   fields.forEach((f) => {
@@ -192,16 +177,6 @@ export function MWReview(props: MWReviewProps) {
             </Pill>
           </SignerRow>
         ))}
-      </Card>
-      <Card>
-        <Eyebrow>Message (optional)</Eyebrow>
-        <Textarea
-          rows={3}
-          value={message}
-          onChange={(e) => onMessage(e.target.value)}
-          placeholder="Add a short note for your signers"
-          aria-label="Message for signers"
-        />
       </Card>
     </Wrap>
   );

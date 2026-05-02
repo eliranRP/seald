@@ -55,12 +55,18 @@ export interface MWAddSignerSheetProps {
   readonly open: boolean;
   readonly onClose: () => void;
   readonly onAdd: (input: { name: string; email: string }) => void;
+  /**
+   * QA-2026-05-02 (Bug 5): emails already in the signer list. The sheet
+   * blocks Add (and surfaces an inline error) when the typed email
+   * matches case-insensitively, so duplicates can't be added silently.
+   */
+  readonly existingEmails?: ReadonlyArray<string>;
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function MWAddSignerSheet(props: MWAddSignerSheetProps) {
-  const { open, onClose, onAdd } = props;
+  const { open, onClose, onAdd, existingEmails } = props;
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [touched, setTouched] = useState(false);
@@ -75,7 +81,10 @@ export function MWAddSignerSheet(props: MWAddSignerSheetProps) {
 
   const trimmed = { name: name.trim(), email: email.trim() };
   const validEmail = EMAIL_RE.test(trimmed.email);
-  const valid = trimmed.name.length > 0 && validEmail;
+  const lowerEmail = trimmed.email.toLowerCase();
+  const isDuplicate =
+    validEmail && (existingEmails ?? []).some((e) => e.toLowerCase() === lowerEmail);
+  const valid = trimmed.name.length > 0 && validEmail && !isDuplicate;
 
   const submit = (e: FormEvent): void => {
     e.preventDefault();
@@ -106,9 +115,10 @@ export function MWAddSignerSheet(props: MWAddSignerSheetProps) {
             type="email"
             autoComplete="email"
             aria-required
-            aria-invalid={touched && !validEmail ? true : undefined}
+            aria-invalid={(touched && !validEmail) || isDuplicate ? true : undefined}
           />
           {touched && !validEmail && <Error>Enter a valid email address.</Error>}
+          {isDuplicate && <Error role="alert">This signer is already on the list.</Error>}
         </FieldGroup>
         <Actions>
           <SecondaryBtn type="button" onClick={onClose}>

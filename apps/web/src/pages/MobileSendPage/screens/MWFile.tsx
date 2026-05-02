@@ -1,5 +1,7 @@
 import { Info, RotateCcw } from 'lucide-react';
 import styled from 'styled-components';
+import { PdfPageView } from '@/components/PdfPageView/PdfPageView';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 
 const Wrap = styled.div`
   padding: 4px 16px 24px;
@@ -17,7 +19,7 @@ const Card = styled.div`
 
 const PdfThumb = styled.div`
   width: 160px;
-  height: 208px;
+  min-height: 208px;
   border-radius: 8px;
   background: #fff;
   box-shadow:
@@ -25,6 +27,18 @@ const PdfThumb = styled.div`
     0 8px 24px rgba(11, 18, 32, 0.06);
   padding: 16px 14px;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const RealThumbWrap = styled.div`
+  /* The PdfPageView renders its own canvas at 132 px CSS width. We drop
+     the inner padding so the rasterized page fills the thumb edge-to-edge
+     instead of looking inset on a phone. */
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(11, 18, 32, 0.06) inset;
 `;
 
 const ThumbTitle = styled.div`
@@ -107,6 +121,12 @@ export interface MWFileProps {
   readonly fileName: string;
   readonly totalPages: number;
   readonly fileSizeBytes?: number;
+  /**
+   * Loaded pdf.js document for the picked file. Optional so the screen
+   * still renders during the brief window between pick and parse — when
+   * `null`, the placeholder thumbnail is shown.
+   */
+  readonly doc?: PDFDocumentProxy | null;
   readonly onReplace: () => void;
 }
 
@@ -117,16 +137,24 @@ function formatBytes(n: number): string {
 }
 
 export function MWFile(props: MWFileProps) {
-  const { fileName, totalPages, fileSizeBytes, onReplace } = props;
+  const { fileName, totalPages, fileSizeBytes, doc, onReplace } = props;
   return (
     <Wrap>
       <Card>
-        <PdfThumb aria-hidden>
-          <ThumbTitle>{fileName.replace(/\.pdf$/i, '')}</ThumbTitle>
-          <div style={{ height: 6 }} />
-          {[60, 78, 66, 88, 71, 84, 62, 96, 70, 80].map((w, i) => (
-            <ThumbLine key={`tl-${w}-${i}`} $w={w} />
-          ))}
+        <PdfThumb aria-hidden={doc ? undefined : true}>
+          {doc ? (
+            <RealThumbWrap data-testid="mw-file-thumb">
+              <PdfPageView doc={doc} pageNumber={1} width={132} />
+            </RealThumbWrap>
+          ) : (
+            <div style={{ width: '100%' }}>
+              <ThumbTitle>{fileName.replace(/\.pdf$/i, '')}</ThumbTitle>
+              <div style={{ height: 6 }} />
+              {[60, 78, 66, 88, 71, 84, 62, 96, 70, 80].map((w, i) => (
+                <ThumbLine key={`tl-${w}-${i}`} $w={w} />
+              ))}
+            </div>
+          )}
         </PdfThumb>
         <Meta>
           <Name>{fileName}</Name>

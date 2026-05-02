@@ -41,6 +41,10 @@ import {
 import { useAuth } from '@/providers/AuthProvider';
 import { useAppState } from '@/providers/AppStateProvider';
 import { usePdfDocument } from '@/lib/pdf';
+// QA-2026-05-02: hard cap on the upload boundary. pdf.js will happily try
+// to parse a 200 MB blob on a phone and either OOM the tab or hang the
+// worker for tens of seconds — neither is recoverable from the page.
+const MAX_PDF_BYTES = 25 * 1024 * 1024;
 import { useSendEnvelope } from '@/features/envelopes/useSendEnvelope';
 import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelope';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
@@ -81,7 +85,12 @@ const FIELD_TYPE_TO_API: Readonly<Record<MobileFieldType, FieldPlacement['kind']
  */
 export function MobileSendPage() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  // QA-2026-05-02 (Bug 2): pull `session` so the "Add me as signer" toggle
+  // also works for anonymous Supabase sessions. `useAuth().user` is `null`
+  // for anon sessions on purpose (NavBar, AppState gate on it), but the
+  // mobile flow's "add me" toggle should still work for guests — they're
+  // signed in, just not under a named account.
+  const { user, session, signOut } = useAuth();
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
 
@@ -99,7 +108,10 @@ export function MobileSendPage() {
   const [step, setStep] = useState<MobileStep>('start');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
-  const { numPages } = usePdfDocument(pdfFile);
+  // QA-2026-05-02 (Bug 1): consume `doc` too — wired to MWFile (preview
+  // thumbnail) and MWPlace (real page background) so the user sees their
+  // actual PDF instead of fake placeholder lines.
+  const { doc, numPages } = usePdfDocument(pdfFile);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
   const [meIncluded, setMeIncluded] = useState(false);
@@ -120,7 +132,11 @@ export function MobileSendPage() {
 
   // Review-step content
   const [title, setTitle] = useState<string>('');
-  const [message, setMessage] = useState<string>('');
+  // QA-2026-05-02 (Bug 6): the prior `message` state was wired through to
+  // MWReview but `useSendEnvelope` never forwarded it to the API, so
+  // anything the sender typed was silently dropped on send. Removed
+  // entirely until the wire DTO grows a `message` field — surfacing a
+  // dead input in the meantime is worse UX than not showing it at all.
 
   // Sent-step results
   const [sentEnvelopeId, setSentEnvelopeId] = useState<string | null>(null);
@@ -133,20 +149,29 @@ export function MobileSendPage() {
   }, [pdfFile]);
 
   // ---- "Add me as signer" toggle ----
+  // QA-2026-05-02 (Bug 2): keyed off `session.user`, not `useAuth().user`.
+  // `useAuth().user` returns null for anonymous Supabase sessions (the
+  // NavBar / AppState gate on named-account on purpose), but a guest is
+  // still authenticated and should be able to toggle "Add me as signer".
+  // We fall back to the named-account display info when present and to
+  // `session.user.email` (may be empty for anon) otherwise.
   useEffect(() => {
-    if (!user) return;
+    const sessionUser = session?.user;
+    if (!sessionUser) return;
     setSigners((prev) => {
-      const meId = `me:${user.id}`;
+      const meId = `me:${sessionUser.id}`;
       const has = prev.some((s) => s.id === meId);
       if (meIncluded && !has) {
+        const fallbackName = user?.name || sessionUser.email || 'Me';
+        const fallbackEmail = user?.email || sessionUser.email || '';
         const colorIdx = prev.length % SIGNER_COLOR_PALETTE.length;
         return [
           {
             id: meId,
-            name: user.name || user.email || 'Me',
-            email: user.email,
+            name: fallbackName,
+            email: fallbackEmail,
             color: SIGNER_COLOR_PALETTE[colorIdx] ?? '#818CF8',
-            initials: initialsFromName(user.name || user.email || 'Me'),
+            initials: initialsFromName(fallbackName),
           },
           ...prev,
         ];
@@ -154,7 +179,7 @@ export function MobileSendPage() {
       if (!meIncluded && has) return prev.filter((s) => s.id !== meId);
       return prev;
     });
-  }, [meIncluded, user]);
+  }, [meIncluded, session, user]);
 
   const totalPages = Math.max(1, numPages || 1);
 
@@ -186,9 +211,30 @@ export function MobileSendPage() {
   // Reject empty files at the boundary — pdf.js parses a zero-byte buffer
   // as a 1-page doc with no canvas content, which silently advances the
   // user to the place step with nothing to drop fields on.
+  // QA-2026-05-02 (Bug 3): also reject non-PDF MIME types — the "Take
+  // photo" tile's camera input accepts `image/*`, but pdf.js can't parse
+  // a JPEG and the worker would silently throw. Surface a clear inline
+  // error instead. QA-2026-05-02 (Bug 11): cap upload size at 25 MB —
+  // mobile devices OOM their pdf.js worker on much larger files.
   const handlePickFile = useCallback((file: File): void => {
     if (file.size === 0) {
       setFileError(`"${file.name}" is empty (0 bytes). Pick a different PDF.`);
+      return;
+    }
+    if (file.size > MAX_PDF_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      setFileError(`"${file.name}" is ${mb} MB — please choose a PDF under 25 MB.`);
+      return;
+    }
+    // `file.type` is sometimes empty (drag-drop on certain browsers); fall
+    // back to the extension. We accept either to stay friendly to picker
+    // quirks but reject anything that's clearly an image.
+    const looksLikePdf =
+      file.type === 'application/pdf' || (file.type === '' && /\.pdf$/i.test(file.name));
+    if (!looksLikePdf) {
+      setFileError(
+        `"${file.name}" isn't a PDF. Camera captures and images aren't supported yet — pick a PDF instead.`,
+      );
       return;
     }
     setFileError(null);
@@ -199,11 +245,15 @@ export function MobileSendPage() {
   }, []);
 
   // ---- signers ----
+  // QA-2026-05-02 (Bug 5): the previous implementation silently dropped
+  // duplicate-email submissions (returned `prev` unchanged) but still
+  // closed the sheet, leaving the user with no signal that nothing
+  // happened. Now we hand the duplicate check to the sheet via an
+  // `existingEmails` prop so the form blocks Add and shows an inline
+  // hint, and on success we close. The parent stays the source of truth
+  // for the signers list; the sheet only validates against it.
   const addSignerLocal = useCallback((input: SignerInput): void => {
     setSigners((prev) => {
-      if (prev.some((s) => s.email.toLowerCase() === input.email.toLowerCase())) {
-        return prev;
-      }
       const colorIdx = prev.length % SIGNER_COLOR_PALETTE.length;
       return [
         ...prev,
@@ -219,14 +269,36 @@ export function MobileSendPage() {
     setSheet(null);
   }, []);
 
+  // QA-2026-05-02 (Bug 9): when the removed signer was the only owner of
+  // a placed field, the previous implementation silently filtered the
+  // field out — so the user lost placement work with no warning. We now
+  // reassign orphaned fields to the first remaining signer (using the
+  // value of `signers` *after* the removal). Only when no signers remain
+  // do we drop the now-unassignable fields; in that case the place-step
+  // CTA is already disabled, so there's no surprise.
   const removeSigner = useCallback((id: string): void => {
-    setSigners((prev) => prev.filter((s) => s.id !== id));
-    setFields((fs) =>
-      fs
-        .map((f) => ({ ...f, signerIds: f.signerIds.filter((sid) => sid !== id) }))
-        .filter((f) => f.signerIds.length > 0),
-    );
+    setSigners((prev) => {
+      const next = prev.filter((s) => s.id !== id);
+      const fallbackId = next[0]?.id ?? null;
+      setFields((fs) =>
+        fs
+          .map((f) => {
+            if (!f.signerIds.includes(id)) return f;
+            const remaining = f.signerIds.filter((sid) => sid !== id);
+            if (remaining.length > 0) return { ...f, signerIds: remaining };
+            if (fallbackId !== null) return { ...f, signerIds: [fallbackId] };
+            return { ...f, signerIds: [] };
+          })
+          .filter((f) => f.signerIds.length > 0),
+      );
+      return next;
+    });
   }, []);
+
+  const existingSignerEmails = useMemo<ReadonlyArray<string>>(
+    () => signers.map((s) => s.email.toLowerCase()),
+    [signers],
+  );
 
   // Pull saved contacts into the local signer list as a one-shot seed when
   // the user taps "Add signer" — but only the first time. They can be
@@ -471,6 +543,7 @@ export function MobileSendPage() {
             fileName={pdfFile.name}
             totalPages={totalPages}
             fileSizeBytes={pdfFile.size}
+            doc={doc}
             onReplace={() => {
               setPdfFile(null);
               setStep('start');
@@ -491,6 +564,7 @@ export function MobileSendPage() {
             page={page}
             totalPages={totalPages}
             onPage={setPage}
+            doc={doc}
             fields={fields}
             signers={signers}
             selectedIds={selectedIds}
@@ -514,8 +588,6 @@ export function MobileSendPage() {
             <MWReview
               title={title}
               onTitle={setTitle}
-              message={message}
-              onMessage={setMessage}
               signers={signers}
               fields={fields}
               fileName={pdfFile.name}
@@ -551,7 +623,6 @@ export function MobileSendPage() {
               setFields([]);
               setSelectedIds([]);
               setTitle('');
-              setMessage('');
               setSentEnvelopeId(null);
               setSentShortCode(null);
               setStep('start');
@@ -583,6 +654,7 @@ export function MobileSendPage() {
         open={sheet === 'addSigner'}
         onClose={() => setSheet(null)}
         onAdd={addSignerLocal}
+        existingEmails={existingSignerEmails}
       />
     </Shell>
   );

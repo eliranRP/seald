@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
+import { PdfPageView } from '@/components/PdfPageView/PdfPageView';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 import {
   Calendar,
   CheckSquare,
@@ -65,17 +67,28 @@ const CanvasWrap = styled.div`
   position: relative;
 `;
 
-const Canvas = styled.div<{ $armed: boolean }>`
+const Canvas = styled.div<{ $armed: boolean; $hasDoc: boolean }>`
   background: #fff;
   box-shadow:
     0 1px 2px rgba(11, 18, 32, 0.06),
     0 12px 32px rgba(11, 18, 32, 0.08);
   border-radius: 8px;
-  padding: 24px 22px;
+  /* QA-2026-05-02 (Bug 1): when a real PDF is mounted we drop the inner
+     padding so PdfPageView fills the full canvas (which is what a phone
+     reader expects) and let intrinsic page height drive the box. The
+     placeholder still uses a 340 px height so empty-state framing stays
+     stable. */
+  padding: ${({ $hasDoc }) => ($hasDoc ? '0' : '24px 22px')};
   position: relative;
-  height: 340px;
+  ${({ $hasDoc }) => ($hasDoc ? '' : 'height: 340px;')}
   overflow: hidden;
   cursor: ${({ $armed }) => ($armed ? 'crosshair' : 'default')};
+`;
+
+const PdfBackdrop = styled.div`
+  position: relative;
+  z-index: 0;
+  pointer-events: none;
 `;
 
 const PageTitle = styled.div`
@@ -269,6 +282,11 @@ const Empty = styled.div`
   padding: 0 16px;
 `;
 
+// QA-2026-05-02 (Bug 8): conservative pixel estimate of the field-action
+// toolbar pill (label + Pages + Signers + Delete). Used to clamp the
+// toolbar's `left` so it can't overflow past the canvas right edge.
+const TOOLBAR_WIDTH_ESTIMATE = 250;
+
 function chipIcon(k: MobileFieldType, size = 14) {
   switch (k) {
     case 'sig':
@@ -290,6 +308,13 @@ export interface MWPlaceProps {
   readonly page: number;
   readonly totalPages: number;
   readonly onPage: (n: number) => void;
+  /**
+   * Loaded pdf.js document. When provided, the canvas backdrop is the
+   * real PDF page (rasterized via PdfPageView). When `null` (initial
+   * load / pre-pick), we keep the placeholder line bars — same fallback
+   * the file step uses.
+   */
+  readonly doc?: PDFDocumentProxy | null;
   readonly fields: ReadonlyArray<MobilePlacedField>;
   readonly signers: ReadonlyArray<MobileSigner>;
   readonly selectedIds: ReadonlyArray<string>;
@@ -321,6 +346,7 @@ export function MWPlace(props: MWPlaceProps) {
     page,
     totalPages,
     onPage,
+    doc,
     fields,
     signers,
     selectedIds,
@@ -341,14 +367,23 @@ export function MWPlace(props: MWPlaceProps) {
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  // QA-2026-05-02 (Bug 8): cache the canvas width so the field-action
+  // toolbar can be clamped to the right edge — without this, the dark
+  // pill (label + Pages + Signers + Delete) overflows past the canvas
+  // and gets sliced by `overflow: hidden` whenever the user picks a
+  // field near the right margin.
+  const [canvasWidth, setCanvasWidth] = useState<number>(0);
 
-  // Notify the parent of the rendered canvas size so it can clamp drags.
+  // Notify the parent of the rendered canvas size so it can clamp drags,
+  // and capture the width locally for the in-canvas toolbar clamp.
   useLayoutEffect(() => {
-    if (!onCanvasMeasured) return undefined;
     const el = canvasRef.current;
     if (!el) return undefined;
     const apply = (): void => {
-      onCanvasMeasured({ width: el.clientWidth, height: el.clientHeight });
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      setCanvasWidth(w);
+      onCanvasMeasured?.({ width: w, height: h });
     };
     apply();
     if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
@@ -438,6 +473,7 @@ export function MWPlace(props: MWPlaceProps) {
         <Canvas
           ref={canvasRef}
           $armed={Boolean(armedTool)}
+          $hasDoc={Boolean(doc)}
           data-testid="mw-canvas"
           onClick={(e) => {
             if (armedTool) {
@@ -451,11 +487,19 @@ export function MWPlace(props: MWPlaceProps) {
             }
           }}
         >
-          <PageTitle>Page {page}</PageTitle>
-          <div style={{ height: 8 }} />
-          {[60, 78, 66, 88, 71, 84, 62].map((w, i) => (
-            <PageLine key={`ln-${i}-${w}`} $w={w} />
-          ))}
+          {doc && canvasWidth > 0 ? (
+            <PdfBackdrop data-testid="mw-pdf-backdrop">
+              <PdfPageView doc={doc} pageNumber={page} width={canvasWidth} />
+            </PdfBackdrop>
+          ) : (
+            <>
+              <PageTitle>Page {page}</PageTitle>
+              <div style={{ height: 8 }} />
+              {[60, 78, 66, 88, 71, 84, 62].map((w, i) => (
+                <PageLine key={`ln-${i}-${w}`} $w={w} />
+              ))}
+            </>
+          )}
           {visible.map((f) => {
             const def = getFieldDef(f.type);
             const sel = selectedIds.includes(f.id);
@@ -524,7 +568,19 @@ export function MWPlace(props: MWPlaceProps) {
             <Toolbar
               data-testid="field-action-toolbar"
               style={{
-                left: Math.max(8, selectedSingle.x - 6),
+                // QA-2026-05-02 (Bug 8): clamp to the right edge using the
+                // measured canvas width so the toolbar can't overflow and
+                // get clipped by `overflow: hidden` on the canvas. We use
+                // a conservative 250px estimate of the toolbar's pill
+                // width (label + Pages + Signers + Delete) and only clamp
+                // when the canvas has actually been measured.
+                left:
+                  canvasWidth > 0
+                    ? Math.min(
+                        Math.max(8, canvasWidth - TOOLBAR_WIDTH_ESTIMATE - 8),
+                        Math.max(8, selectedSingle.x - 6),
+                      )
+                    : Math.max(8, selectedSingle.x - 6),
                 top: Math.max(8, selectedSingle.y - 50),
               }}
               onPointerDown={(e) => e.stopPropagation()}
