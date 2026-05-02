@@ -8,6 +8,11 @@ name: Prod diagnose (read-only SSH)
 on:
   workflow_dispatch: {}
 
+# SSH-only diagnostic — never touches the GitHub API. The workflow
+# doesn't even check out source. Empty permissions block makes that
+# explicit (CodeQL `actions/missing-workflow-permissions`).
+permissions: {}
+
 jobs:
   diagnose:
     runs-on: ubuntu-latest
