@@ -61,17 +61,96 @@ async function installGuestMocks(page: Page): Promise<GuestApiCallLog> {
     });
   });
 
-  // Any envelope-side traffic the editor may emit while we're driving it.
-  // Guest mode short-circuits the real send chain, so these are tolerant
-  // catch-alls only — no assertions read them.
-  // IMPORTANT: must be scoped to `/api/envelopes/**` — a bare `**/envelopes/**`
-  // also matches Vite dev-server module URLs like `/src/features/envelopes/*.ts`,
-  // which makes the SPA bundle fail to load and the page renders blank.
-  await page.route('**/api/envelopes/**', async (route: Route) => {
+  // Envelope chain — guest mode now POSTs through the same `/envelopes/*`
+  // API path as authed users (anonymous Supabase JWT). Mock the five-step
+  // sender chain (`useSendEnvelope.run`) so the click → /sent navigation
+  // works without a backend.
+  // IMPORTANT: scope to `/api/envelopes` — a bare `**/envelopes/**` would
+  // also match Vite dev-server module URLs like `/src/features/envelopes/*.ts`
+  // and break the SPA bundle (renders blank).
+  const ENVELOPE_ID = 'env-guest-flow-001';
+  const SIGNER_ID = 'signer-guest-flow-001';
+  await page.route('**/api/envelopes', async (route: Route) => {
+    if (route.request().method() === 'POST') {
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: ENVELOPE_ID,
+          owner_id: 'guest',
+          title: 'Untitled',
+          short_code: 'GUEST-01',
+          status: 'draft',
+          original_pages: 1,
+          expires_at: '2099-12-31T00:00:00.000Z',
+          tc_version: 'v1',
+          privacy_version: 'v1',
+          sent_at: null,
+          completed_at: null,
+          signers: [],
+          fields: [],
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/upload`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({}),
+      body: JSON.stringify({ pages: 1, sha256: 'a'.repeat(64) }),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/signers`, async (route: Route) => {
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: SIGNER_ID,
+        email: 'guest-signer@example.com',
+        name: 'Guest Signer',
+        color: '#10b981',
+        role: 'signatory',
+        signing_order: 1,
+        status: 'awaiting',
+        viewed_at: null,
+        tc_accepted_at: null,
+        signed_at: null,
+        declined_at: null,
+      }),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/fields`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}/send`, async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: ENVELOPE_ID,
+        owner_id: 'guest',
+        title: 'Untitled',
+        short_code: 'GUEST-01',
+        status: 'awaiting_others',
+        original_pages: 1,
+        expires_at: '2099-12-31T00:00:00.000Z',
+        tc_version: 'v1',
+        privacy_version: 'v1',
+        sent_at: new Date().toISOString(),
+        completed_at: null,
+        signers: [],
+        fields: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }),
     });
   });
 
@@ -147,8 +226,14 @@ test.describe('guest mode — full sender flow', () => {
     await sigTile.dragTo(canvas, { targetPosition: { x: 200, y: 240 } });
     await page.getByRole('button', { name: /^apply$/i }).click();
 
-    // ---- Send (guest mode short-circuits to /document/:id/sent locally).
+    // ---- Send. Guest mode now goes through the real `/envelopes/*` API
+    // chain (mocked above). The GuestSenderEmailDialog opens first to
+    // capture the sender's email (anonymous JWT has no email claim).
     await page.getByRole('button', { name: /send to sign/i }).click();
+    const senderDialog = page.getByRole('dialog', { name: /send as guest/i });
+    await expect(senderDialog).toBeVisible();
+    await senderDialog.getByRole('textbox').first().fill('guest-sender@example.com');
+    await senderDialog.getByRole('button', { name: /^continue$/i }).click();
     await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
   });
