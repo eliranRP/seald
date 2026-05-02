@@ -64,30 +64,21 @@ export const Page = styled.main<{ readonly $variant: 'success' | 'failed' | 'neu
   ${({ theme, $variant }) => {
     if ($variant === 'failed') {
       return css`
-        background: radial-gradient(
-            900px 360px at 50% -100px,
-            ${theme.color.danger[50]} 0%,
-            transparent 70%
-          ),
+        background:
+          radial-gradient(900px 360px at 50% -100px, ${theme.color.danger[50]} 0%, transparent 70%),
           ${theme.color.paper};
       `;
     }
     if ($variant === 'neutral') {
       return css`
-        background: radial-gradient(
-            900px 360px at 50% -100px,
-            ${theme.color.ink[100]} 0%,
-            transparent 70%
-          ),
+        background:
+          radial-gradient(900px 360px at 50% -100px, ${theme.color.ink[100]} 0%, transparent 70%),
           ${theme.color.paper};
       `;
     }
     return css`
-      background: radial-gradient(
-          900px 360px at 50% -100px,
-          ${theme.color.success[50]} 0%,
-          transparent 70%
-        ),
+      background:
+        radial-gradient(900px 360px at 50% -100px, ${theme.color.success[50]} 0%, transparent 70%),
         ${theme.color.paper};
     `;
   }}
@@ -532,7 +523,12 @@ export const IntegrityText = styled.div`
   }
 `;
 
-export const IntegrityMeta = styled.span`
+export const IntegrityMeta = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  flex-wrap: wrap;
+  justify-content: flex-end;
   font-family: ${({ theme }) => theme.font.mono};
   font-size: 11px;
   color: ${({ theme }) => theme.color.fg[3]};
