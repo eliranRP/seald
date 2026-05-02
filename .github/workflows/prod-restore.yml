@@ -21,6 +21,11 @@ name: Prod restore (.env + KMS binding cert + redeploy)
 on:
   workflow_dispatch: {}
 
+# SSH-only restore — uses DEPLOY_SSH_KEY + PROD_API_ENV secrets, never
+# the GITHUB_TOKEN. The workflow doesn't even check out source. Empty
+# permissions block makes that explicit.
+permissions: {}
+
 jobs:
   restore:
     runs-on: ubuntu-latest
