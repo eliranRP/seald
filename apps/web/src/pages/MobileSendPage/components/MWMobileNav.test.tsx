@@ -49,7 +49,7 @@ describe('MWMobileNav', () => {
     expect(hamburger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('opens the bottom sheet showing the user profile and every nav destination', async () => {
+  it('opens the bottom sheet showing the user profile, Documents nav, and Sign out — every other affordance hidden', async () => {
     const user = userEvent.setup();
     renderNav();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
@@ -59,27 +59,28 @@ describe('MWMobileNav', () => {
     expect(dialog).toHaveTextContent('Jamie Okonkwo');
     expect(dialog).toHaveTextContent('jamie@seald.app');
 
-    // Every nav destination is a button with the right accessible name.
-    // 2026-05-02: "Signers" was removed from the top nav (the Contacts
-    // page is reachable from envelope detail and direct URL); the
-    // hamburger must mirror that.
+    // 2026-05-03: product decision — the mobile hamburger only exposes
+    // Documents (the dashboard) and Sign out. Sign / Templates /
+    // Signers / Download my data / Delete account were removed from
+    // the sheet because the mobile sender flow lives on `/m/send` and
+    // these affordances cluttered the surface without serving a
+    // mobile-first task. Anyone needing those reaches them via desktop.
     expect(screen.getByRole('button', { name: 'Documents' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Sign' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Templates' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Sign' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Templates' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Signers' })).toBeNull();
 
-    // Account actions surface as buttons too.
-    expect(screen.getByRole('button', { name: /download my data/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /delete account/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /download my data/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /delete account/i })).toBeNull();
   });
 
-  it('navigates to a destination and closes the sheet', async () => {
+  it('navigates to Documents and closes the sheet', async () => {
     const user = userEvent.setup();
     renderNav();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
-    await user.click(screen.getByRole('button', { name: 'Templates' }));
-    expect(await screen.findByText('Templates page')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Documents' }));
+    expect(await screen.findByText('Documents page')).toBeInTheDocument();
   });
 
   it('triggers onSignOut when the Sign out item is activated', async () => {
@@ -91,26 +92,17 @@ describe('MWMobileNav', () => {
     expect(onSignOut).toHaveBeenCalledTimes(1);
   });
 
-  it('marks the active nav item with aria-current="page"', async () => {
+  it('marks the active Documents item with aria-current="page" when on /documents', async () => {
     const user = userEvent.setup();
-    renderNav(vi.fn(), '/templates');
-    // The route is /templates so matchNavId returns 'templates'.
-    // But our test routes only render MWMobileNav at /m/send. Render directly:
     renderWithProviders(
-      <MemoryRouter initialEntries={['/templates']}>
+      <MemoryRouter initialEntries={['/documents']}>
         <Routes>
-          <Route path="/templates" element={<MWMobileNav onSignOut={vi.fn()} />} />
+          <Route path="/documents" element={<MWMobileNav onSignOut={vi.fn()} />} />
         </Routes>
       </MemoryRouter>,
     );
-    // Open the new copy's sheet — there are two open buttons after the
-    // double render; click the last (most recently rendered).
-    const triggers = screen.getAllByRole('button', { name: /open menu/i });
-    const lastTrigger = triggers[triggers.length - 1];
-    if (!lastTrigger) throw new Error('expected at least one open-menu trigger');
-    await user.click(lastTrigger);
-    const templatesItems = screen.getAllByRole('button', { name: 'Templates' });
-    const active = templatesItems.find((el) => el.getAttribute('aria-current') === 'page');
-    expect(active).toBeDefined();
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    const documentsItem = screen.getByRole('button', { name: 'Documents' });
+    expect(documentsItem).toHaveAttribute('aria-current', 'page');
   });
 });

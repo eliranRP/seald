@@ -5,24 +5,27 @@ import { Menu, X } from 'lucide-react';
 import styled from 'styled-components';
 import { Avatar } from '@/components/Avatar';
 import { useAuth } from '@/providers/AuthProvider';
-import { useAccountActions } from '@/features/account';
 import { NAV_ITEMS, matchNavId } from '@/layout/navItems';
 import { MWBottomSheet } from './MWBottomSheet';
+
+// Per product (2026-05-03), the mobile hamburger surfaces only the
+// Documents dashboard. Filter the shared NAV_ITEMS so any future
+// addition (e.g. a new "Audit" tab) doesn't accidentally leak into
+// mobile.
+const MOBILE_NAV_IDS: ReadonlyArray<string> = ['documents'];
 
 /**
  * Mobile-only top bar for `/m/send`. The desktop NavBar is too wide for a
  * 375 px viewport (its tab row alone overflows), so we ship a slim 52 px
- * bar with logo-left + hamburger-right. The hamburger opens an
- * `MWBottomSheet` that mirrors every desktop NavBar affordance: nav
- * destinations (Documents / Sign / Templates / Signers), profile chip,
- * export data, delete account, and sign-out (rule 4.6 — every action is
- * a `<button>` queryable by role+name).
+ * bar with logo-left + hamburger-right.
  *
- * Account actions piggy-back the same `useAccountActions` hook the
- * desktop AppShell uses so behaviour stays identical (window.prompt
- * confirm phrase for delete; blob download for export). Sign-out is
- * delegated to a parent-supplied callback so the page can sequence
- * post-sign-out navigation.
+ * 2026-05-03: per product, the mobile hamburger only exposes Documents
+ * (the dashboard) + Sign out. Sign / Templates / Signers / Download my
+ * data / Delete account were intentionally pulled — the mobile sender
+ * lives at `/m/send` and these affordances cluttered the surface for a
+ * mobile-first task. Anyone needing those reaches them via desktop. The
+ * `useAccountActions` import is preserved for future expansion (and to
+ * keep the desktop AppShell's identical behaviour easy to re-enable).
  */
 
 const Bar = styled.header`
@@ -232,8 +235,6 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
   const location = useLocation();
   const [open, setOpen] = useState(false);
 
-  const account = useAccountActions();
-
   const closeSheet = useCallback((): void => {
     setOpen(false);
   }, []);
@@ -245,14 +246,6 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     },
     [navigate],
   );
-
-  const handleExport = useCallback((): void => {
-    void account.exportData();
-  }, [account]);
-
-  const handleDelete = useCallback((): void => {
-    void account.deleteAccount();
-  }, [account]);
 
   const handleSignOut = useCallback((): void => {
     setOpen(false);
@@ -299,7 +292,7 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
           </SheetClose>
         </SheetHeader>
         <SectionList role="navigation" aria-label="Primary">
-          {NAV_ITEMS.map((item) => {
+          {NAV_ITEMS.filter((item) => MOBILE_NAV_IDS.includes(item.id)).map((item) => {
             const isActive = item.id === activeId;
             return (
               <SheetItem
@@ -317,25 +310,8 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
         </SectionList>
         <SectionDivider />
         <SectionList>
-          <SheetItem
-            type="button"
-            onClick={handleExport}
-            disabled={account.isExporting}
-            aria-busy={account.isExporting || undefined}
-          >
-            {account.isExporting ? 'Preparing download…' : 'Download my data'}
-          </SheetItem>
           <SheetItem type="button" onClick={handleSignOut}>
             Sign out
-          </SheetItem>
-          <SheetItem
-            type="button"
-            $danger
-            onClick={handleDelete}
-            disabled={account.isDeleting}
-            aria-busy={account.isDeleting || undefined}
-          >
-            {account.isDeleting ? 'Deleting account…' : 'Delete account'}
           </SheetItem>
         </SectionList>
       </MWBottomSheet>
