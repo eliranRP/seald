@@ -14,27 +14,26 @@
  * so we can assert the exact mailto URL it produces and the alert messages
  * it surfaces.
  *
- * Approach: the script is an IIFE inlined in the .astro page. We read the
- * source from disk, slice out the `<script is:inline>…</script>` body, and
- * eval it after staging a minimal DOM that mirrors the form's structure.
- * That keeps the production code untouched while still asserting the user
- * contract.
+ * Approach: the handler is an IIFE shipped as `apps/landing/public/scripts/
+ * dsar.js` (externalized in F-002 so the landing site can ship a strict
+ * CSP without `'unsafe-inline'` in script-src). We read the file from
+ * disk and eval it after staging a minimal DOM that mirrors the form's
+ * structure. That keeps the production code untouched while still
+ * asserting the user contract.
+ *
+ * As a side regression for F-002, this test also asserts that the
+ * `dsar.astro` page references the external script (and does NOT carry
+ * an inline `<script is:inline>` block any more) — if someone re-inlines
+ * the handler, the CSP gate would silently break in production.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
 
+const SCRIPT_PATH = resolvePath(process.cwd(), '../landing/public/scripts/dsar.js');
+const SCRIPT = readFileSync(SCRIPT_PATH, 'utf8');
 const ASTRO_PATH = resolvePath(process.cwd(), '../landing/src/pages/dsar.astro');
 const ASTRO_SRC = readFileSync(ASTRO_PATH, 'utf8');
-
-function extractInlineScript(): string {
-  // The page has exactly one `<script is:inline>` block — the submit handler.
-  // If that ever stops being true, this test fails loudly and we can adjust.
-  const m = ASTRO_SRC.match(/<script is:inline>([\s\S]*?)<\/script>/);
-  if (!m) throw new Error('Could not find <script is:inline> in dsar.astro');
-  return m[1]!;
-}
-const SCRIPT = extractInlineScript();
 
 interface FormFieldsInput {
   readonly name?: string;
@@ -257,5 +256,14 @@ describe('DSAR form submit handler — mailto generation', () => {
     expect(body).toContain('Email: jane@example.com');
     expect(body).toContain('Jurisdiction: GDPR (European Union)');
     expect(body).toContain('some detail');
+  });
+});
+
+describe('DSAR page CSP posture (F-002)', () => {
+  it('references the externalized handler and carries no inline <script> block', () => {
+    // Strict CSP (script-src 'self' only) blocks `<script is:inline>`.
+    // The handler must live at /scripts/dsar.js and be loaded by URL.
+    expect(ASTRO_SRC).toContain('src="/scripts/dsar.js"');
+    expect(ASTRO_SRC).not.toMatch(/<script\s+is:inline\s*>/);
   });
 });
