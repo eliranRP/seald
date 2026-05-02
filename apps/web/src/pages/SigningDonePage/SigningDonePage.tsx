@@ -142,6 +142,18 @@ const UpsellBtn = styled.button`
   cursor: pointer;
 `;
 
+const UpsellError = styled.div`
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: #fecaca;
+  font-size: ${({ theme }) => theme.font.size.micro};
+  line-height: 1.4;
+  text-align: left;
+`;
+
 const ExitLink = styled.button`
   margin-top: ${({ theme }) => theme.space[6]};
   background: transparent;
@@ -187,6 +199,7 @@ export function SigningDonePage() {
   const envelopeId = params.envelopeId ?? '';
   const snap = useMemo(() => readDoneSnapshot(envelopeId), [envelopeId]);
   const [email, setEmail] = useState(snap?.recipient_email ?? '');
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   if (!snap || snap.kind !== 'submitted') {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
@@ -195,7 +208,21 @@ export function SigningDonePage() {
   const handleSave = (e: React.FormEvent): void => {
     e.preventDefault();
     const trimmed = email.trim();
-    if (!trimmed) return;
+    // Original code silently `return`-ed on empty input and forwarded
+    // any non-empty string straight to `/signup?email=…`. Signers got
+    // zero feedback when they submitted blanks, and garbage like
+    // `hello` was happily encoded into the signup URL where it failed
+    // far from the field that produced it. Validate locally and surface
+    // an inline alert so the failure point matches the field.
+    if (!trimmed) {
+      setSaveError('Please enter an email address.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setSaveError('Please enter a valid email address.');
+      return;
+    }
+    setSaveError(null);
     navigate(`/signup?email=${encodeURIComponent(trimmed)}`);
   };
 
@@ -257,7 +284,7 @@ export function SigningDonePage() {
             Create a free account to save this document, request signatures from others, and access
             your full signing history.
           </UpsellBody>
-          <UpsellForm onSubmit={handleSave}>
+          <UpsellForm onSubmit={handleSave} noValidate>
             <UpsellInput
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -267,6 +294,7 @@ export function SigningDonePage() {
             />
             <UpsellBtn type="submit">Save my copy</UpsellBtn>
           </UpsellForm>
+          {saveError ? <UpsellError role="alert">{saveError}</UpsellError> : null}
         </Upsell>
 
         <ExitLink type="button" onClick={() => navigate('/')}>
