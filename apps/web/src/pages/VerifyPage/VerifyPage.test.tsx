@@ -629,4 +629,97 @@ describe('VerifyPage', () => {
     expect(audit).toHaveAttribute('href', SIGNED_PAYLOAD.audit_url!);
     expect(audit).toHaveAttribute('rel', 'noopener noreferrer');
   });
+
+  // Defensive: a sealed envelope with NO recorded events (e.g. retention
+  // wiped them, or an old envelope from before the audit-chain landed)
+  // must still render the verdict + card without crashing on the timeline
+  // mapping. Without this, an upstream bug that returns events:[] could
+  // render a missing "Activity · 0 events" header.
+  it('renders the timeline header as "0 events" when the events array is empty', async () => {
+    const payload: VerifyResponse = { ...SIGNED_PAYLOAD, events: [] };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+    ).toBeInTheDocument();
+    // The Timeline header copy includes a singular/plural branch on the
+    // event count; the zero case must use the plural "events" form per
+    // the design guide ("0 events", not "0 event").
+    expect(screen.getByText(/activity · 0 events/i)).toBeInTheDocument();
+  });
+
+  // Defensive: a SignersFact rendered with zero signers historically
+  // crashed because the badge ("X of Y signed") divided by zero in a
+  // previous prototype. The current code computes `signed = filter().length`
+  // and `signers.length` so the math is safe; this test pins that contract.
+  it('renders "0 of 0 signed" without crashing for an envelope with no signers', async () => {
+    const payload: VerifyResponse = { ...SIGNED_PAYLOAD, signers: [] };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText(/0 of 0 signed/i)).toBeInTheDocument();
+    });
+  });
+
+  // The footer's trust statements are public claims (PAdES-LT, RFC 3161,
+  // AES-256). Removing them silently would weaken the user's verification
+  // confidence; pin them so a copy refactor needs to acknowledge the
+  // change.
+  it('renders the public trust footer with all three guarantees', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText(/aes-256 at rest/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/rfc 3161 timestamps/i)).toBeInTheDocument();
+    expect(screen.getByText(/pades-lt seal/i)).toBeInTheDocument();
+    expect(screen.getByText(/verification by seald, inc/i)).toBeInTheDocument();
+  });
+
+  // Verification URL is rendered in the facts panel using the literal
+  // `seald.nromomentum.com/verify/{short_code}` string (used by the QR
+  // code on the audit PDF). A regression where the wrong domain or path
+  // shipped would silently break the QR loop.
+  it('renders the public verification URL using the canonical seald.nromomentum.com domain', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText('seald.nromomentum.com/verify/u82ZmvdxwG3CU')).toBeInTheDocument();
+    });
+  });
+
+  // The "REQ ABCD-EFGH" header pulls the first two UUID groups from the
+  // envelope id and uppercases them. Regressing the slice or the case
+  // would silently break the design guide spec at line 586.
+  it('renders the REQ id as the first two UUID groups, uppercased', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      // SIGNED_PAYLOAD.envelope.id = '804a6c00-2ad9-4590-…'
+      expect(screen.getByText('REQ 804A6C00-2AD9')).toBeInTheDocument();
+    });
+  });
+
+  // When the API omits `original_pages` (legacy envelope, sealing failure)
+  // the doc subtitle should render an em dash placeholder + the
+  // singular/plural branch should default to "pages" (plural).
+  it('renders "— pages" when original_pages is null', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: { ...SIGNED_PAYLOAD.envelope, original_pages: null },
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      // The DocSub renders the "— pages" segment; assert by partial match
+      // since the element splits the value across spans.
+      expect(screen.getByText(/—\s*pages/i)).toBeInTheDocument();
+    });
+  });
 });

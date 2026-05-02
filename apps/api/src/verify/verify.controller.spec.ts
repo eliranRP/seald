@@ -193,4 +193,85 @@ describe('VerifyController', () => {
     expect(res.audit_url).toBeNull();
     expect(storage.createSignedUrl).not.toHaveBeenCalled();
   });
+
+  // Branch: declined / expired / canceled envelope where the audit PDF
+  // hasn't been generated yet (exists() returns false). Without this we'd
+  // silently hand the FE a presigned URL pointed at a 404, breaking the
+  // "Audit PDF" download link on the verify page. The controller must
+  // skip createSignedUrl entirely when the object isn't present.
+  it('omits audit_url when storage.exists returns false for a declined envelope', async () => {
+    const declined: Envelope = { ...ENVELOPE, status: 'declined', completed_at: null };
+    repo.findByShortCode.mockResolvedValueOnce(declined);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    storage.exists.mockResolvedValueOnce(false);
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.sealed_url).toBeNull();
+    expect(res.audit_url).toBeNull();
+    expect(storage.createSignedUrl).not.toHaveBeenCalled();
+    expect(storage.exists).toHaveBeenCalledWith(`${declined.id}/audit.pdf`);
+  });
+
+  // Same branch for the other terminal-but-not-sealed statuses. Each
+  // status has its own UI verdict on the FE (Expired / Canceled), so
+  // each must independently exercise the audit-pdf-fallback path.
+  it('checks exists() and skips audit_url for an expired envelope without an audit.pdf', async () => {
+    const expired: Envelope = { ...ENVELOPE, status: 'expired', completed_at: null };
+    repo.findByShortCode.mockResolvedValueOnce(expired);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    storage.exists.mockResolvedValueOnce(false);
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.audit_url).toBeNull();
+    expect(storage.exists).toHaveBeenCalledWith(`${expired.id}/audit.pdf`);
+  });
+
+  it('checks exists() and skips audit_url for a canceled envelope without an audit.pdf', async () => {
+    const canceled: Envelope = { ...ENVELOPE, status: 'canceled', completed_at: null };
+    repo.findByShortCode.mockResolvedValueOnce(canceled);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    storage.exists.mockResolvedValueOnce(false);
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.audit_url).toBeNull();
+    expect(storage.exists).toHaveBeenCalledWith(`${canceled.id}/audit.pdf`);
+  });
+
+  // Both pre-signed URLs use the canonical 5-minute (300 s) TTL. A drift
+  // in the TTL would silently change how long sealed/audit links are
+  // valid for downstream embedders (the QR code on the audit PDF and
+  // the "Download" buttons in the verify UI both rely on this contract).
+  it('requests both presigned URLs with a 300-second TTL on a sealed envelope', async () => {
+    repo.findByShortCode.mockResolvedValueOnce(ENVELOPE);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    storage.createSignedUrl
+      .mockResolvedValueOnce('https://signed.example/sealed.pdf')
+      .mockResolvedValueOnce('https://signed.example/audit.pdf');
+    await controller.verify('u82ZmvdxwG3CU');
+    const calls = storage.createSignedUrl.mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0]![0]).toBe(`${ENVELOPE.id}/sealed.pdf`);
+    expect(calls[0]![1]).toBe(300);
+    expect(calls[1]![0]).toBe(`${ENVELOPE.id}/audit.pdf`);
+    expect(calls[1]![1]).toBe(300);
+  });
+
+  // The redaction helper drops `decline_reason` from the signer payload —
+  // CCPA/PIPEDA both treat free-text decline reasons as PII that the
+  // sender's dashboard guards. Verify the public projection never leaks
+  // it even if the upstream entity grows the field.
+  it('only includes the documented signer fields (no decline_reason or signing_order leakage)', async () => {
+    repo.findByShortCode.mockResolvedValueOnce(ENVELOPE);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    storage.createSignedUrl
+      .mockResolvedValueOnce('https://signed.example/sealed.pdf')
+      .mockResolvedValueOnce('https://signed.example/audit.pdf');
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    const signer = res.signers[0]!;
+    expect(Object.keys(signer).sort()).toEqual(
+      ['declined_at', 'email', 'id', 'name', 'role', 'signed_at', 'status'].sort(),
+    );
+    // Internal-only attributes that exist on the entity but must not leak:
+    expect((signer as { color?: unknown }).color).toBeUndefined();
+    expect((signer as { signing_order?: unknown }).signing_order).toBeUndefined();
+    expect((signer as { viewed_at?: unknown }).viewed_at).toBeUndefined();
+    expect((signer as { tc_accepted_at?: unknown }).tc_accepted_at).toBeUndefined();
+  });
 });
