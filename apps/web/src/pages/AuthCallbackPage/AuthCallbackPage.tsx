@@ -18,16 +18,19 @@ export function AuthCallbackPage() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
+    // Defence in depth: when the provider returns an error AND a stale
+    // session somehow co-exists, the error redirect must win — otherwise
+    // we'd silently land the user on /documents and swallow the failure.
+    // Run both checks in a single effect with explicit precedence so the
+    // outcome doesn't depend on effect-flush order.
     if (params.get('error')) {
       navigate('/signin?error=oauth', { replace: true });
+      return;
     }
-  }, [params, navigate]);
-
-  useEffect(() => {
     if (!loading && user) {
       navigate('/documents', { replace: true });
     }
-  }, [loading, user, navigate]);
+  }, [params, loading, user, navigate]);
 
   return <AuthLoadingScreen />;
 }
