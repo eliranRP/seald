@@ -19,14 +19,29 @@ export const NAV_ITEMS: ReadonlyArray<NavItemEntry> = [
 ];
 
 /**
- * Derive the NavBar's active item id from the current pathname. The "Sign" tab
- * stays active throughout the signature request flow (upload → editor → sent
- * confirmation); the "Templates" tab covers `/templates` and its
- * `/templates/:id/use` apply-flow surface; everything else maps via a simple
- * prefix match.
+ * Derive the NavBar's active item id from the current pathname.
+ *
+ * IA contract:
+ *  - `/document/new` is the "Sign" tab (new-envelope upload + editor).
+ *    Once the user sends, the URL transitions to `/document/:id/sent`
+ *    which is reached from the Documents tab — `Sign` no longer applies.
+ *  - `/document/:id` (EnvelopeDetailPage) and `/document/:id/sent`
+ *    (SentConfirmationPage) are surfaced from the Documents dashboard,
+ *    so they keep "Documents" highlighted.
+ *  - `/templates` and any nested wizard surface
+ *    (`/templates/:id/use`, `/templates/:id/edit`) keep "Templates" lit.
+ *  - Everything else falls through to the simple prefix match against
+ *    NAV_ITEMS, defaulting to "documents".
+ *
+ * Audit gap (2026-05-02): previously the "Sign" tab was lit for ANY
+ * `/document/...` path, so reading an existing envelope or watching the
+ * sent-confirmation flash mis-highlighted "Sign" instead of "Documents".
  */
 export function matchNavId(pathname: string): string {
-  if (pathname === '/document/new' || pathname.startsWith('/document/')) {
+  // The new-envelope flow only owns the literal `/document/new` URL —
+  // checking equality (rather than a prefix) avoids stealing ownership
+  // of `/document/:id` from the Documents tab.
+  if (pathname === '/document/new') {
     return 'sign';
   }
   if (pathname === '/templates' || pathname.startsWith('/templates/')) {

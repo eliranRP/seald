@@ -47,6 +47,17 @@ export function CheckEmailPage() {
       </>
     );
 
+  // Bug C fix (audit 2026-05-02): the confirmation copy is the single
+  // most important message on the page — without role=status + aria-live
+  // the user (especially on a screen reader, who only hears the new
+  // heading after the route transition) loses all context for what just
+  // happened. The aria-label is mode-specific so the role announcement
+  // is meaningful even before the body text is read.
+  const statusLabel =
+    mode === 'signup'
+      ? 'Confirmation link sent — check your email'
+      : 'Password reset link sent — check your email';
+
   return (
     <AuthShell>
       <Wrap>
@@ -54,7 +65,9 @@ export function CheckEmailPage() {
           <Icon icon={MailCheck} size={26} />
         </IconBadge>
         <Title>Check your email</Title>
-        <Body>{body}</Body>
+        <Body role="status" aria-live="polite" aria-label={statusLabel}>
+          {body}
+        </Body>
         <Actions>
           <Secondary type="button" onClick={handleBack}>
             Back to sign in

@@ -101,4 +101,28 @@ describe('CheckEmailPage', () => {
     await user.click(resend);
     expect(resetPassword).not.toHaveBeenCalled();
   });
+
+  // Bug C regression (audit 2026-05-02): the success copy that confirms
+  // a reset / signup link was sent is the page's most important message,
+  // but it was rendered as a plain paragraph with no live-region role.
+  // Screen-reader users who land here from a `navigate()` transition
+  // hear the new heading and lose all context for what just happened.
+  // Per WAI-ARIA 1.2 + WCAG 2.1 SC 4.1.3 the confirmation must be in a
+  // polite live region so AT can announce it.
+  it('exposes the success copy as a polite live-region status', () => {
+    renderAt('/check-email?email=jamie%40seald.app&mode=reset');
+    const status = screen.getByRole('status', { name: /password reset link sent/i });
+    expect(status).toBeInTheDocument();
+    expect(status).toHaveAttribute('aria-live', 'polite');
+    // The address itself must be inside the announced region so AT
+    // reads it as part of the confirmation.
+    expect(status).toHaveTextContent(/jamie@seald\.app/);
+  });
+
+  it('switches the live-region label to the signup-confirmation phrasing', () => {
+    renderAt('/check-email?email=jamie%40seald.app&mode=signup');
+    const status = screen.getByRole('status', { name: /confirmation link sent/i });
+    expect(status).toBeInTheDocument();
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
 });

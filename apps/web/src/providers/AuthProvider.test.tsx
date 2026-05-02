@@ -207,4 +207,50 @@ describe('AuthProvider', () => {
     );
     expect(view.getByText('hello')).toBeInTheDocument();
   });
+
+  // Bug B regression (audit 2026-05-02): a guest who already has a live
+  // anonymous session can hit the AppShell "Sign in" → "Skip" loop. The
+  // previous implementation called `signInAnonymously()` unconditionally
+  // and Supabase returned a brand-new anon user with a different
+  // `user.id`, orphaning every envelope the previous guest had drafted.
+  // `enterGuestMode()` must be idempotent when a usable session already
+  // exists.
+  it('enterGuestMode is a no-op when an anonymous Supabase session is already present', async () => {
+    // Hydration path: anonymous session already in storage.
+    // Subsequent calls (the one made inside enterGuestMode itself)
+    // continue to return the same anon session so the idempotency check
+    // can read it.
+    supabaseAuth.getSession.mockResolvedValue({ data: { session: makeAnonSession() } });
+    window.localStorage.setItem('sealed.guest', '1');
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Hydration path already consumed (or skipped) the signInAnonymously
+    // call. Reset so the assertion below isolates the enterGuestMode call.
+    supabaseAuth.signInAnonymously.mockClear();
+
+    await act(async () => {
+      await result.current.enterGuestMode();
+    });
+
+    // The previous guest's session must be preserved — no new anon user.
+    expect(supabaseAuth.signInAnonymously).not.toHaveBeenCalled();
+    expect(result.current.guest).toBe(true);
+    expect(window.localStorage.getItem('sealed.guest')).toBe('1');
+  });
+
+  it('enterGuestMode still mints a new anonymous session when none exists', async () => {
+    // The opposite case: no session yet, so the call must go through.
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    supabaseAuth.signInAnonymously.mockClear();
+
+    await act(async () => {
+      await result.current.enterGuestMode();
+    });
+
+    expect(supabaseAuth.signInAnonymously).toHaveBeenCalledTimes(1);
+    expect(result.current.guest).toBe(true);
+  });
 });
