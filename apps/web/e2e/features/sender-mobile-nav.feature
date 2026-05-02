@@ -1,8 +1,12 @@
 Feature: Mobile sender has a real navbar at /m/send
   # The mobile sender flow used to ship without any nav chrome — authed
-  # users had no way to reach Documents / Templates / Signers or to
-  # sign out. These scenarios prove the new MWMobileNav covers the gap
-  # and that the "From a template" tile is now wired up to /templates.
+  # users had no way to reach Documents or to sign out. The MWMobileNav
+  # closes that gap. Per product (2026-05-03, PR #111), the hamburger
+  # only exposes Documents + Sign out; Templates / Signers / Sign /
+  # Download my data / Delete account were intentionally pulled to
+  # de-clutter the mobile-first surface. The contradiction (Templates
+  # absent from the hamburger but reachable from the start tile) is
+  # asserted positively in mobile-hamburger.feature.
 
   Background:
     Given a signed-in sender on a 375x667 phone
@@ -14,7 +18,6 @@ Feature: Mobile sender has a real navbar at /m/send
     Then the mobile menu shows the user name "Alice Example"
     And the mobile menu has a "Sign out" button
     And the mobile menu has a "Documents" nav button
-    And the mobile menu has a "Templates" nav button
 
   @sender @smoke @mobile
   Scenario: Sign out from the hamburger lands on /signin
