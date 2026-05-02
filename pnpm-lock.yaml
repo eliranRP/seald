@@ -19,6 +19,7 @@ overrides:
   lodash: ^4.18.0
   protobufjs: ^7.5.5
   uuid: ^14.0.0
+  cucumber-messages>uuid: 3.4.0
   tmp: ^0.2.4
 
 importers:
@@ -8467,6 +8468,11 @@ packages:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
 
+  uuid@3.4.0:
+    resolution: {integrity: sha512-HjSDRw6gZE5JMggctHBcjVak08+KEVhSIiDzFnT9S9aegmp85S/bReBVTb4QTFaRNptJ9kuYaNhnbNEOkbKb/A==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
+
   v8-compile-cache-lib@3.0.1:
     resolution: {integrity: sha512-wa7YjyUGfNZngI/vtK0UHAN+lgDCxBPCylVXGp0zu59Fz5aiGtNXaq3DhIov063MorB+VfufLh3JlF2KdTK3xg==}
 
@@ -13866,7 +13872,7 @@ snapshots:
     dependencies:
       '@types/uuid': 3.4.13
       protobufjs: 7.5.6
-      uuid: 14.0.0
+      uuid: 3.4.0
 
   damerau-levenshtein@1.0.8: {}
 
@@ -18731,6 +18737,8 @@ snapshots:
   utils-merge@1.0.1: {}
 
   uuid@14.0.0: {}
+
+  uuid@3.4.0: {}
 
   v8-compile-cache-lib@3.0.1: {}
 
