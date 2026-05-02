@@ -29,6 +29,12 @@ concurrency:
   group: deploy-cloudflare
   cancel-in-progress: false
 
+# Cloudflare Pages deploy uses CLOUDFLARE_API_TOKEN for upload + domain
+# attachment. GITHUB_TOKEN is only used by `actions/checkout`, so
+# `contents: read` is the minimum scope required.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
