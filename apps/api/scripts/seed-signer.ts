@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { Client } from 'pg';
 
+import { generateShortCode } from '../src/common/short-code';
+
 // Load `apps/api/.env` so the script can be run standalone without piping
 // `source .env`. Keeps the expected dev ergonomics: `pnpm seed:signer`.
 function loadDotenv(): void {
@@ -45,18 +47,6 @@ loadDotenv();
  * seed rows accumulate; clean them periodically with:
  *   delete from public.envelopes where title = 'SEED test envelope';
  */
-
-const SHORT_CODE_ALPHABET = '23456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ';
-const SHORT_CODE_LENGTH = 13;
-
-function generateShortCode(): string {
-  let id = '';
-  const buf = randomBytes(SHORT_CODE_LENGTH);
-  for (let i = 0; i < SHORT_CODE_LENGTH; i += 1) {
-    id += SHORT_CODE_ALPHABET[buf[i]! % SHORT_CODE_ALPHABET.length];
-  }
-  return id;
-}
 
 function generateToken(): string {
   return randomBytes(32).toString('base64url');

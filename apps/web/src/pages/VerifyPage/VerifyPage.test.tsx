@@ -296,4 +296,304 @@ describe('VerifyPage', () => {
       await screen.findByRole('heading', { name: /something went wrong/i }),
     ).toBeInTheDocument();
   });
+
+  // Verdict-hero variants — `deriveView` has one branch per envelope
+  // status. Without these the FE can render the wrong eyebrow/heading
+  // for terminal-but-not-completed envelopes (expired / canceled) and
+  // for the in-progress fallback. The strings are part of the public
+  // verify contract per Design-Guide/project/verify-flow.html so a
+  // copy regression is a real bug, not a cosmetic test.
+  it('renders the expired verdict for an expired envelope', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'expired', completed_at: null },
+      sealed_url: null,
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /this envelope.*expired/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/expired · not sealed/i)).toBeInTheDocument();
+  });
+
+  it('renders the canceled verdict for a canceled envelope', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'canceled', completed_at: null },
+      sealed_url: null,
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /this envelope was.*canceled/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/canceled · not sealed/i)).toBeInTheDocument();
+  });
+
+  // Falls through `deriveView` for every status that isn't completed /
+  // declined / expired / canceled (draft, awaiting_others, sealing).
+  // The integrity copy on this branch is "X of Y signatures recorded"
+  // — historically the place we got the "0 of N" prod bug.
+  it('renders the in-progress verdict and "X of Y signatures recorded" copy for awaiting_others', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: {
+        ...SIGNED_PAYLOAD.envelope,
+        status: 'awaiting_others',
+        completed_at: null,
+      },
+      signers: [
+        { ...SIGNED_PAYLOAD.signers[0]! },
+        {
+          ...SIGNED_PAYLOAD.signers[1]!,
+          status: 'awaiting',
+          signed_at: null,
+        },
+      ],
+      sealed_url: null,
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /awaiting.*signatures/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/in progress/i)).toBeInTheDocument();
+    // "1 of 2 signatures recorded." — the IntegrityCopy in-progress branch
+    // composes "{done} of {all} signatures recorded." across two nodes.
+    expect(screen.getByText(/1 of 2 signatures recorded/i)).toBeInTheDocument();
+    // No download button when the envelope isn't sealed yet.
+    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
+  });
+
+  // Awaiting / viewing signers must render no status icon (the spec only
+  // shows an icon for `completed` and `declined`). Without this branch
+  // covered, the SVG-rendering helper SignerStatusIcon could regress
+  // and start rendering an empty <svg> for awaiting signers (visible
+  // empty circle on the page).
+  it('renders no signer status icon for awaiting signers', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'awaiting_others', completed_at: null },
+      signers: [
+        {
+          ...SIGNED_PAYLOAD.signers[0]!,
+          status: 'awaiting',
+          signed_at: null,
+        },
+      ],
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    const { container } = render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText('Ops Ops')).toBeInTheDocument();
+    });
+    // Aria-hidden checkmark/x SVGs only exist for completed/declined.
+    // For awaiting, the SignerCheck is rendered empty.
+    const polylines = container.querySelectorAll('polyline');
+    // The verdict mark is a polyline only on the success/in-progress
+    // branch; in-progress uses a circle+path (clock), so no polyline
+    // should leak in for an awaiting signer row.
+    expect(polylines.length).toBe(0);
+  });
+
+  // actorLabel fallback — when the API emits an actor_kind we don't
+  // explicitly handle (only 'sender'/'signer'/'system' are valid today,
+  // but the union may grow), the function returns the literal "Signer".
+  // Covering the fallback protects against silent label drift.
+  it('labels a system event with no signer_id as "Sealed system" in the timeline', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      events: [
+        {
+          id: 'sys-1',
+          actor_kind: 'system',
+          event_type: 'sealed',
+          signer_id: null,
+          created_at: '2026-04-25T21:21:08Z',
+        },
+      ],
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText(/sealed system/i)).toBeInTheDocument();
+    });
+  });
+
+  it('falls back to "Signer" actor label when a signer_id has no matching roster entry', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      // signer_id points to a roster row that no longer exists (e.g.
+      // signer was hard-deleted by retention but the event row remains).
+      events: [
+        {
+          id: 'orphan-1',
+          actor_kind: 'signer',
+          event_type: 'viewed',
+          signer_id: 'ghost-id',
+          created_at: '2026-04-25T21:20:55Z',
+        },
+      ],
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      // The actor column on the orphaned row falls back to "Signer".
+      // The signer roster also renders names; "Signer" alone (not in a
+      // signer-name row) is the actor cell text.
+      const matches = screen.getAllByText(/^signer$/i);
+      expect(matches.length).toBeGreaterThan(0);
+    });
+  });
+
+  // Ensures the warn-tone branch in `toneFor` is exercised (declined /
+  // expired / canceled / job_failed / retention_deleted /
+  // session_invalidated_by_decline). Without this, a CSS regression
+  // could ship a missing warning style for terminal failure events.
+  it('renders job_failed and retention_deleted events without crashing (warn-tone branch)', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      events: [
+        {
+          id: 'jf',
+          actor_kind: 'system',
+          event_type: 'job_failed',
+          signer_id: null,
+          created_at: '2026-04-25T21:21:00Z',
+        },
+        {
+          id: 'rd',
+          actor_kind: 'system',
+          event_type: 'retention_deleted',
+          signer_id: null,
+          created_at: '2026-04-25T21:22:00Z',
+        },
+        {
+          id: 'sid',
+          actor_kind: 'system',
+          event_type: 'session_invalidated_by_decline',
+          signer_id: null,
+          created_at: '2026-04-25T21:23:00Z',
+        },
+        {
+          id: 'sic',
+          actor_kind: 'system',
+          event_type: 'session_invalidated_by_cancel',
+          signer_id: null,
+          created_at: '2026-04-25T21:24:00Z',
+        },
+      ],
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+    ).toBeInTheDocument();
+    // Each event renders the label twice (timeline title + describe line),
+    // so we assert at-least-one match rather than uniqueness.
+    expect(screen.getAllByText(/sealing job failed/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/document retention expired/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^session invalidated$/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/session invalidated \(cancel\)/i).length).toBeGreaterThan(0);
+  });
+
+  // Loading state must announce itself to assistive tech via aria-busy
+  // + role=polite. The skill spec lists this as the loading-state
+  // accessibility contract.
+  it('marks the loading skeleton with aria-busy for assistive tech', () => {
+    get.mockReturnValue(new Promise(() => {}));
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const region = screen.getByLabelText(/loading verification/i);
+    expect(region).toHaveAttribute('aria-busy');
+  });
+
+  // Error-render branch when the thrown error has a message but no
+  // `status` (e.g. a network failure surfaces "Network Error" with no
+  // HTTP response). The page should fall back to the generic heading
+  // and use the error message as the body copy.
+  it('renders the generic error heading with the error message when status is missing', async () => {
+    const err = new Error('Network down — connection lost');
+    get.mockRejectedValueOnce(err);
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { name: /something went wrong/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/network down — connection lost/i)).toBeInTheDocument();
+  });
+
+  // Error path with neither a status nor a message — should still render
+  // the generic error panel with default copy. Guards against a blank
+  // page if the API ever throws a bare `Error()` without context.
+  it('renders the default error copy when the error has no status and no message', async () => {
+    const err = new Error('');
+    get.mockRejectedValueOnce(err);
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole('heading', { name: /something went wrong/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/try again in a moment/i)).toBeInTheDocument();
+  });
+
+  // Page-count copy: "1 page" vs "N pages". Both branches matter for
+  // the doc subtitle line (rendered only when original_pages !== null).
+  it('renders singular "page" when the document has exactly one page', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: { ...SIGNED_PAYLOAD.envelope, original_pages: 1 },
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(screen.getByText(/^1 page$/i)).toBeInTheDocument();
+    });
+  });
+
+  // The download button must only render when a sealed_url is present.
+  // Sealed-but-no-URL (presigner failure / retention deletion) should
+  // hide it cleanly rather than rendering an empty link.
+  it('hides the Download button when sealed_url is null', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      sealed_url: null,
+      audit_url: null,
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { level: 1, name: /this document is sealed/i }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /audit pdf/i })).not.toBeInTheDocument();
+  });
+
+  // Both pre-signed URL buttons render with `target="_blank"` +
+  // `rel="noopener noreferrer"` — losing rel=noopener on a link to a
+  // signed S3 URL is a tab-jacking vector, so it gets a regression test.
+  it('opens the Download and Audit PDF links in a new tab with rel=noopener noreferrer', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const dl = await screen.findByRole('link', { name: /download/i });
+    expect(dl).toHaveAttribute('href', SIGNED_PAYLOAD.sealed_url!);
+    expect(dl).toHaveAttribute('target', '_blank');
+    expect(dl).toHaveAttribute('rel', 'noopener noreferrer');
+    const audit = screen.getByRole('link', { name: /audit pdf/i });
+    expect(audit).toHaveAttribute('href', SIGNED_PAYLOAD.audit_url!);
+    expect(audit).toHaveAttribute('rel', 'noopener noreferrer');
+  });
 });

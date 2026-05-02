@@ -24,7 +24,7 @@ describe('TemplateService', () => {
     }
   });
 
-  describe('every template is a self-contained MJML doc', () => {
+  describe('every template is a self-contained HTML doc', () => {
     const commonVars = {
       sender_name: 'Ada Lovelace',
       sender_email: 'ada@example.com',
@@ -111,7 +111,7 @@ describe('TemplateService', () => {
       expect(out.subject).toBe('Ada Lovelace sent you "NDA v1" to sign');
     });
 
-    it('produces valid HTML — MJML compiled to a <!doctype html> document', () => {
+    it('produces valid HTML — fragment wrapped into a <!doctype html> document', () => {
       const out = svc.render('invite', vars);
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
       expect(out.html.toLowerCase()).toContain('</html>');

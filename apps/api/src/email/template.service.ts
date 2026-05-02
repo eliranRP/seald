@@ -1,14 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import mjml2html from 'mjml';
 
 /**
  * Transactional email template registry + renderer.
  *
  * Layout — one folder per kind, three files each:
- *   src/email/templates/<kind>/body.html    — HTML body fragment (preferred)
- *                                              OR body.mjml (legacy MJML source)
+ *   src/email/templates/<kind>/body.html    — HTML body fragment
  *   src/email/templates/<kind>/body.txt     — plain-text body (mustache-ish {{var}})
  *   src/email/templates/<kind>/subject.txt  — one-line subject (mustache-ish)
  *
@@ -17,9 +15,8 @@ import mjml2html from 'mjml';
  * designer-authored fragments short and DRY — no need to inline 300 lines
  * of CSS into every template.
  *
- * At boot: each subdirectory is discovered, the fragment is wrapped (or
- * MJML compiled to HTML) once and cached. Per-send cost is just variable
- * interpolation + string concat.
+ * At boot: each subdirectory is discovered, the fragment is wrapped once
+ * and cached. Per-send cost is just variable interpolation + string concat.
  *
  * Variable interpolation uses a simple `{{var}}` replacement — no loops,
  * no conditionals. Add a templating engine if the need arises; for eight
@@ -90,34 +87,15 @@ export class TemplateService implements OnModuleInit {
   private compileOne(kind: EmailTemplateKind): void {
     const dir = resolve(this.templatesDir, kind);
     const htmlPath = resolve(dir, 'body.html');
-    const mjmlPath = resolve(dir, 'body.mjml');
     const txtPath = resolve(dir, 'body.txt');
     const subjectPath = resolve(dir, 'subject.txt');
-    if (!existsSync(txtPath) || !existsSync(subjectPath)) {
+    if (!existsSync(htmlPath) || !existsSync(txtPath) || !existsSync(subjectPath)) {
       throw new Error(
-        `TemplateService: incomplete template set at '${kind}/' — expected body.html or body.mjml + body.txt + subject.txt`,
+        `TemplateService: incomplete template set at '${kind}/' — expected body.html + body.txt + subject.txt`,
       );
     }
-    let html: string;
-    if (existsSync(htmlPath)) {
-      const fragment = readFileSync(htmlPath, 'utf8');
-      html = this.wrapFragment(kind, fragment);
-    } else if (existsSync(mjmlPath)) {
-      const mjml = readFileSync(mjmlPath, 'utf8');
-      // MJML 4 is synchronous; @types/mjml@4 still types it as async. Cast to
-      // the real runtime shape rather than awaiting a non-Promise.
-      const compiled = mjml2html(mjml, { validationLevel: 'strict' }) as unknown as {
-        html: string;
-        errors: Array<{ tagName?: string; message: string }>;
-      };
-      if (compiled.errors.length > 0) {
-        const summary = compiled.errors.map((e) => `${e.tagName ?? '?'}: ${e.message}`).join('; ');
-        throw new Error(`TemplateService: MJML errors in ${kind}/body.mjml — ${summary}`);
-      }
-      html = compiled.html;
-    } else {
-      throw new Error(`TemplateService: ${kind}/ has neither body.html nor body.mjml`);
-    }
+    const fragment = readFileSync(htmlPath, 'utf8');
+    const html = this.wrapFragment(kind, fragment);
     this.compiled.set(kind, {
       html,
       text: readFileSync(txtPath, 'utf8'),
