@@ -143,6 +143,62 @@ describe('AuthProvider', () => {
     expect(window.localStorage.getItem('sealed.guest')).toBe(null);
   });
 
+  it('hydration re-issues an anonymous session when sealed.guest=1 but getSession returns null', async () => {
+    // Reproduces the production failure mode behind the user-reported
+    // "send not sent" bug: the SPA boots with the guest flag still in
+    // localStorage (e.g. left over from a prior session whose access
+    // token has since expired) but `getSession()` resolves to null. The
+    // apiClient would attach no Bearer token and every API call would
+    // 401. The fix mints a fresh anonymous session on hydration so the
+    // guest flow works without forcing the user back through the
+    // signup → Skip flow.
+    window.localStorage.setItem('sealed.guest', '1');
+    supabaseAuth.getSession.mockResolvedValueOnce({ data: { session: null } });
+    supabaseAuth.signInAnonymously.mockResolvedValueOnce({ data: null, error: null });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(supabaseAuth.signInAnonymously).toHaveBeenCalledTimes(1);
+    // Flag stays set — the listener will pick up the new anon session.
+    expect(window.localStorage.getItem('sealed.guest')).toBe('1');
+    expect(result.current.guest).toBe(true);
+  });
+
+  it('hydration drops the guest flag if signInAnonymously fails on rehydrate', async () => {
+    // Defence in depth: when the Supabase project disables anonymous
+    // sign-ins, the rehydrate attempt returns an error. We must not
+    // leave the SPA in "acts like guest, has no JWT" purgatory — drop
+    // the flag so RequireAuthOrGuest will redirect to /signin instead.
+    window.localStorage.setItem('sealed.guest', '1');
+    supabaseAuth.getSession.mockResolvedValueOnce({ data: { session: null } });
+    supabaseAuth.signInAnonymously.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Anonymous sign-ins are disabled' },
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(supabaseAuth.signInAnonymously).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.getItem('sealed.guest')).toBe(null);
+    expect(result.current.guest).toBe(false);
+  });
+
+  it('hydration does NOT call signInAnonymously when an existing session is present', async () => {
+    // Healthy case: the persisted refresh token already produced an
+    // access token. We must not waste a round-trip minting a new anon
+    // session on top.
+    window.localStorage.setItem('sealed.guest', '1');
+    supabaseAuth.getSession.mockResolvedValueOnce({ data: { session: makeAnonSession() } });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(supabaseAuth.signInAnonymously).not.toHaveBeenCalled();
+    expect(result.current.guest).toBe(true);
+  });
+
   it('renders children without throwing', () => {
     const view = render(
       <AuthProvider>

@@ -52,6 +52,18 @@ export interface AppDocument {
    * drafts.
    */
   readonly fromTemplateFreshUpload?: boolean | undefined;
+  /**
+   * Server envelope id assigned by `POST /envelopes` once the draft has been
+   * published via `useSendEnvelope`. Stored back on the local draft so
+   * post-send navigation (which uses the server uuid in the URL) can still
+   * resolve the in-memory record by `getDocument(envelopeId)` — without this
+   * the `/document/:id/sent` and `/document/:id` routes would lose the
+   * draft state, blanking the SentConfirmationPage and the editor surface
+   * for guest senders who have no `/envelopes/:id` query fallback (their
+   * anonymous session can't retrieve a sealed envelope owned by the same
+   * anon user reliably across reloads).
+   */
+  readonly envelopeId?: string | undefined;
 }
 
 export interface AppUser {

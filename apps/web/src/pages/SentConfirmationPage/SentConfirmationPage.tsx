@@ -6,6 +6,7 @@ import { DocThumb } from '@/components/DocThumb';
 import { Skeleton } from '@/components/Skeleton';
 import { useEnvelopeQuery } from '@/features/envelopes';
 import { useAppState } from '@/providers/AppStateProvider';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   Actions,
   AuditBadge,
@@ -59,6 +60,12 @@ export function SentConfirmationPage() {
   const params = useParams<{ readonly id: string }>();
   const navigate = useNavigate();
   const { getDocument } = useAppState();
+  const { guest } = useAuth();
+  // `/documents` is gated by `RequireAuth` (not `RequireAuthOrGuest`), so a
+  // guest sender clicking "Back to documents" would get bounced back to
+  // `/document/new`. Steer them straight there to avoid the round-trip
+  // flash. Authed users continue to land on the dashboard list.
+  const documentsHref = guest ? '/document/new' : '/documents';
   const draft = params.id ? getDocument(params.id) : undefined;
 
   // Only fetch from the server when the local draft is missing — saves a
@@ -106,7 +113,7 @@ export function SentConfirmationPage() {
           <Title>Document not found</Title>
           <Body>We couldn&apos;t find this document. It may have been removed.</Body>
           <Actions>
-            <Button variant="primary" onClick={() => navigate('/documents')}>
+            <Button variant="primary" onClick={() => navigate(documentsHref)}>
               Back to documents
             </Button>
           </Actions>
@@ -117,7 +124,7 @@ export function SentConfirmationPage() {
 
   const openEnvelope = (): void => {
     if (params.id) navigate(`/document/${params.id}`);
-    else navigate('/documents');
+    else navigate(documentsHref);
   };
 
   return (
@@ -188,7 +195,7 @@ export function SentConfirmationPage() {
           <Button variant="primary" iconLeft={ShieldCheck} onClick={openEnvelope}>
             View envelope
           </Button>
-          <Button variant="secondary" iconLeft={LayoutList} onClick={() => navigate('/documents')}>
+          <Button variant="secondary" iconLeft={LayoutList} onClick={() => navigate(documentsHref)}>
             Back to documents
           </Button>
         </Actions>

@@ -43,7 +43,13 @@ export interface AppStateValue {
   readonly getDocument: (id: string) => AppDocument | undefined;
   readonly createDocument: (file: File, totalPages: number) => string;
   readonly updateDocument: (id: string, patch: Partial<AppDocument>) => void;
-  readonly sendDocument: (id: string) => void;
+  /**
+   * Mark a local draft as sent. Pass `envelopeId` when the server-side
+   * `/envelopes` POST returned an id so subsequent `getDocument(envelopeId)`
+   * lookups (used by `/document/:id/sent` and `/document/:id` after the
+   * post-send redirect) can still resolve the draft.
+   */
+  readonly sendDocument: (id: string, envelopeId?: string) => void;
   readonly deleteDocument: (id: string) => void;
   readonly addContact: (name: string, email: string) => Promise<AddSignerContact>;
   readonly updateContact: (id: string, patch: { name?: string; email?: string }) => Promise<void>;
@@ -115,7 +121,14 @@ export function AppStateProvider(props: AppStateProviderProps) {
   const loading = contactsLoading;
 
   const getDocument = useCallback(
-    (id: string): AppDocument | undefined => documents.find((d) => d.id === id),
+    // Accept either the local draft id (`d_<rand>`) or the server-assigned
+    // envelope uuid stored on the draft after `sendDocument(id, envelopeId)`.
+    // Without the envelopeId branch the post-send redirect to
+    // `/document/<envelope-uuid>/sent` would lose the local draft and
+    // `SentConfirmationPage` would render the "Document not found" fallback
+    // for guest senders.
+    (id: string): AppDocument | undefined =>
+      documents.find((d) => d.id === id || d.envelopeId === id),
     [documents],
   );
 
@@ -144,14 +157,30 @@ export function AppStateProvider(props: AppStateProviderProps) {
     setDocuments((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   }, []);
 
-  const sendDocument = useCallback((id: string): void => {
+  const sendDocument = useCallback((id: string, envelopeId?: string): void => {
     // Mark the local draft as awaiting-others so SentConfirmationPage can
     // keep rendering the handoff summary. The server-authoritative record
     // lives under `/envelopes/:id` once `useSendEnvelope` publishes the
     // draft; the dashboard will show it on next refetch.
+    //
+    // When `envelopeId` is provided we also persist it on the local draft
+    // so post-send navigation (which uses the server uuid in the URL) can
+    // still resolve the draft via `getDocument`. This is what lets the
+    // SentConfirmationPage render the handoff summary on `/document/<uuid>/sent`
+    // and lets a click on "View envelope" land back on the editor with
+    // the original draft state instead of an empty fallback.
     const nowIso = new Date().toISOString();
     setDocuments((prev) =>
-      prev.map((d) => (d.id === id ? { ...d, status: 'awaiting-others', updatedAt: nowIso } : d)),
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              status: 'awaiting-others',
+              updatedAt: nowIso,
+              ...(envelopeId !== undefined ? { envelopeId } : {}),
+            }
+          : d,
+      ),
     );
   }, []);
 
