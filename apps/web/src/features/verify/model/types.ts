@@ -25,28 +25,14 @@ export type VerifySignerStatus = 'awaiting' | 'viewing' | 'completed' | 'decline
 
 export type VerifyEventActorKind = 'sender' | 'signer' | 'system';
 
-// Mirrors `EVENT_TYPES` from packages/shared/src/envelope-contract.ts.
-// The verify response is a public projection of EnvelopeEvent, so this
-// MUST stay in lockstep with the API enum or describeEvent() will look
-// up an undefined label and crash render. Tests in VerifyPage.test.tsx
-// exercise every value to catch drift.
-export type VerifyEventType =
-  | 'created'
-  | 'sent'
-  | 'viewed'
-  | 'tc_accepted'
-  | 'field_filled'
-  | 'signed'
-  | 'all_signed'
-  | 'sealed'
-  | 'declined'
-  | 'expired'
-  | 'canceled'
-  | 'reminder_sent'
-  | 'session_invalidated_by_decline'
-  | 'session_invalidated_by_cancel'
-  | 'job_failed'
-  | 'retention_deleted';
+// Re-export the canonical EnvelopeEvent type from `shared` so the FE
+// can never drift from the API enum. The previous hand-maintained
+// union was missing `esign_disclosure_acknowledged`,
+// `intent_to_sign_confirmed`, and `consent_withdrawn`, which crashed
+// `describeEvent()` with `Cannot read properties of undefined (reading
+// 'toLowerCase')` when those events appeared on a real envelope.
+import type { EventType } from 'shared';
+export type VerifyEventType = EventType;
 
 export interface VerifyEnvelope {
   readonly id: string;

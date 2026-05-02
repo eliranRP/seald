@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-route
 import { renderWithProviders } from '../test/renderWithProviders';
 import { UploadRoute } from './UploadRoute';
 import { setTemplates } from '../features/templates';
+import * as templatesApi from '../features/templates/templatesApi';
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../test/templateFixtures';
 
 // `UploadRoute` calls `usePdfDocument` to learn the page count of the
@@ -167,6 +168,27 @@ describe('UploadRoute (template integration)', () => {
     expect(
       screen.queryByRole('button', { name: /start from a template/i }),
     ).not.toBeInTheDocument();
+  });
+
+  // Regression: previously the upload page only read the in-memory
+  // `_templates` store and never fetched from the server. A user who
+  // landed on `/document/new` first (most common entry — fresh
+  // session, deep-link, signup completion) saw no "Start from a
+  // template" CTA even with templates server-side. The CTA only
+  // appeared after they detoured through `/templates`, which is the
+  // only other page that calls `listTemplates()` on mount. Hydrate
+  // on mount here too so the entrypoint stands alone.
+  it('hydrates the templates store from the server on mount and shows the CTA', async () => {
+    setTemplates([]);
+    const listSpy = vi.spyOn(templatesApi, 'listTemplates').mockResolvedValueOnce(TEMPLATES);
+    renderAt('/document/new');
+    expect(
+      screen.queryByRole('button', { name: /start from a template/i }),
+    ).not.toBeInTheDocument();
+    expect(listSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /start from a template/i })).toBeInTheDocument();
+    });
   });
 
   // Regression: previously the picker just stamped `?template=<id>` onto

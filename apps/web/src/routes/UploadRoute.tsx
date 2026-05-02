@@ -14,9 +14,11 @@ import {
   getTemplates,
   rebindFieldsToSigners,
   resolveTemplateFields,
+  setTemplates,
   subscribeToTemplates,
   type TemplateSummary,
 } from '../features/templates';
+import { listTemplates } from '../features/templates/templatesApi';
 
 const TEMPLATE_QUERY_PARAM = 'template';
 
@@ -99,6 +101,25 @@ export function UploadRoute() {
   const [templates, setTemplatesState] = useState<ReadonlyArray<TemplateSummary>>(getTemplates);
   useEffect(() => {
     return subscribeToTemplates(() => setTemplatesState(getTemplates()));
+  }, []);
+  // Hydrate the in-memory templates store from the server on mount.
+  // Without this the "Start from a template" CTA stayed hidden for
+  // anyone who landed on `/document/new` first — the store only got
+  // populated as a side effect of visiting `/templates` (the only
+  // other page that calls `listTemplates`). Soft-fail like
+  // TemplatesListPage: guests + offline get the empty list and the
+  // CTA simply stays hidden.
+  useEffect(() => {
+    const ac = new AbortController();
+    listTemplates(ac.signal)
+      .then((rows) => {
+        setTemplates(rows);
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn('[templates] list fetch failed:', err);
+      });
+    return () => ac.abort();
   }, []);
   const [pickerOpen, setPickerOpen] = useState(false);
 
