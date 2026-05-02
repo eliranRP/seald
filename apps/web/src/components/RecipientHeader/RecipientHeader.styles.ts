@@ -14,6 +14,13 @@ export const Header = styled.header`
   align-items: center;
   padding: 0 ${({ theme }) => theme.space[6]};
   gap: ${({ theme }) => theme.space[5]};
+
+  /* Mobile: tighter padding/gaps so the doc title (the most useful piece
+     of context for a signer on a small screen) gets the full middle. */
+  @media (max-width: 768px) {
+    padding: 0 ${({ theme }) => theme.space[3]};
+    gap: ${({ theme }) => theme.space[3]};
+  }
 `;
 
 export const LogoSlot = styled.span`
