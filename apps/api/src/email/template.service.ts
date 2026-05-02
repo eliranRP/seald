@@ -140,11 +140,17 @@ ${fragment}
     if (!tpl) {
       throw new Error(`TemplateService: unknown template kind '${kind}'`);
     }
-    const interp = (s: string) => interpolate(s, vars, this.log, kind);
     return {
-      html: interp(tpl.html),
-      text: interp(tpl.text),
-      subject: interp(tpl.subject),
+      // HTML body: escape every substituted value to neutralize stored XSS
+      // / phishing-grade content injection (F-001). `*_html` keys are
+      // pre-built by the trusted fragment builders in template-fragments.ts
+      // and intentionally emit live markup — those are NOT escaped.
+      html: interpolate(tpl.html, vars, this.log, kind, true),
+      // Plain-text and subject channels have no HTML rendering context;
+      // escaping them would mangle legitimate ampersands and angle
+      // brackets in user content (e.g. "Q1 Roadmap & Pricing").
+      text: interpolate(tpl.text, vars, this.log, kind, false),
+      subject: interpolate(tpl.subject, vars, this.log, kind, false),
     };
   }
 
@@ -171,18 +177,51 @@ function prettyTitle(kind: string): string {
 
 const VAR_PATTERN = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
 
+const HTML_ESCAPE_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
+/**
+ * Escape HTML metacharacters in `input`. Mirrors the helper in
+ * `template-fragments.ts`; duplicated locally to keep the two modules
+ * decoupled (each owns its own trust boundary).
+ */
+function escapeHtml(input: string): string {
+  return input.replace(/[&<>"']/g, (ch) => HTML_ESCAPE_MAP[ch] ?? ch);
+}
+
+/**
+ * `_html`-suffixed keys carry pre-built, fragment-builder-emitted markup
+ * whose dynamic content has already been escaped at the boundary in
+ * `template-fragments.ts`. They MUST reach the rendered HTML body
+ * unchanged — escaping them would render visible angle brackets to the
+ * recipient instead of the styled signer-list / timeline blocks.
+ */
+function isTrustedHtmlKey(key: string): boolean {
+  return key.endsWith('_html');
+}
+
 function interpolate(
   source: string,
   vars: Readonly<Record<string, string | number>>,
   log: Logger,
   kind: string,
+  escapeForHtml: boolean,
 ): string {
   return source.replace(VAR_PATTERN, (_m: string, key: string): string => {
     const v = vars[key];
-    if (v !== undefined) {
-      return typeof v === 'number' ? String(v) : v;
+    if (v === undefined) {
+      log.warn(`template '${kind}' missing variable '${key}' — rendered as empty string`);
+      return '';
     }
-    log.warn(`template '${kind}' missing variable '${key}' — rendered as empty string`);
-    return '';
+    const stringified = typeof v === 'number' ? String(v) : v;
+    if (escapeForHtml && !isTrustedHtmlKey(key)) {
+      return escapeHtml(stringified);
+    }
+    return stringified;
   });
 }
