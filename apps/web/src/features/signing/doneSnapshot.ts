@@ -31,16 +31,47 @@ export function writeDoneSnapshot(snapshot: DoneSnapshot): void {
   window.sessionStorage.setItem(KEY, JSON.stringify(snapshot));
 }
 
+/**
+ * Runtime shape guard. The reader is the only consumer of the persisted
+ * payload and it is reachable from a sessionStorage write that any other
+ * tab on the same origin can perform; treat the payload as untrusted
+ * input. A missing `short_code` once made the Done page render
+ * `/verify/undefined`; a missing `recipient_email` rendered an empty
+ * `<b></b>`. Both failure modes are silent in production. Validate the
+ * minimum surface the consumers depend on, and return `null` when any of
+ * it is missing or wrong-typed so callers fall back to their no-snapshot
+ * path (a `<Navigate to="/sign/:id">` redirect).
+ */
+function isValidSnapshot(value: unknown): value is DoneSnapshot {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  if (v.kind !== 'submitted' && v.kind !== 'declined') return false;
+  if (typeof v.envelope_id !== 'string' || v.envelope_id.length === 0) return false;
+  if (typeof v.short_code !== 'string') return false;
+  if (typeof v.recipient_email !== 'string' || v.recipient_email.length === 0) return false;
+  // `title`, `timestamp` may be empty strings (server-side fallback when
+  // the cached SignMe was already cleared); allow but require the type.
+  if (typeof v.title !== 'string') return false;
+  if (typeof v.timestamp !== 'string') return false;
+  // `sender_name` is `string | null` on the wire.
+  if (v.sender_name !== null && typeof v.sender_name !== 'string') return false;
+  return true;
+}
+
 export function readDoneSnapshot(envelope_id: string): DoneSnapshot | null {
   if (typeof window === 'undefined') return null;
   const raw = window.sessionStorage.getItem(KEY);
   if (!raw) return null;
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as DoneSnapshot;
-    return parsed.envelope_id === envelope_id ? parsed : null;
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
+  if (!isValidSnapshot(parsed)) return null;
+  return parsed.envelope_id === envelope_id ? parsed : null;
 }
 
 export function clearDoneSnapshot(): void {
