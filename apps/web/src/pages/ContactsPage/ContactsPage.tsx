@@ -140,7 +140,10 @@ export function ContactsPage() {
     setDialog({ mode: 'closed' });
   };
 
-  const handleSubmit = (): void => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (): Promise<void> => {
+    if (submitting) return;
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
     if (!trimmedName) {
@@ -151,12 +154,36 @@ export function ContactsPage() {
       setError('Please enter a valid email address.');
       return;
     }
-    if (dialog.mode === 'add') {
-      addContact(trimmedName, trimmedEmail);
-    } else if (dialog.mode === 'edit') {
-      updateContact(dialog.contact.id, { name: trimmedName, email: trimmedEmail });
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (dialog.mode === 'add') {
+        await addContact(trimmedName, trimmedEmail);
+      } else if (dialog.mode === 'edit') {
+        await updateContact(dialog.contact.id, { name: trimmedName, email: trimmedEmail });
+      }
+      closeDialog();
+    } catch (err) {
+      // Bug found 2026-05-02 audit: previously the page fired the mutation
+      // and synchronously closed the dialog, so any rejection (duplicate
+      // email 409, server 500, network drop) became an unhandled promise
+      // rejection and the user saw the optimistic row appear and then
+      // vanish with no explanation. Keep the dialog open and surface the
+      // error so the user can correct + retry.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const apiError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      let message: string;
+      if (status === 409 || apiError === 'email_taken') {
+        message = 'That email is already in use by another contact.';
+      } else if (err instanceof Error && err.message) {
+        message = `Could not save contact — ${err.message}. Please try again.`;
+      } else {
+        message = 'Could not save contact. Something went wrong — please try again.';
+      }
+      setError(message);
+    } finally {
+      setSubmitting(false);
     }
-    closeDialog();
   };
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
