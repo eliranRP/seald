@@ -127,27 +127,37 @@ export function useEnvelopeDetailController({
       setToast(null);
       try {
         if (kind === 'bundle') {
-          // No server-side zip bundler yet — fire sealed + audit in parallel
-          // and anchor-click each URL into its own new tab. Anchor clicks
-          // don't need a synchronously-opened stub tab, so popup blockers
-          // don't fire on the second one.
+          // BUG-3 regression — opening two `target="_blank"` anchors
+          // back-to-back after a Promise.all loses the synchronous
+          // user-gesture for the second window-open, so Chrome/Safari
+          // popup-blockers swallow the audit tab while the toast lies
+          // about both being opened. Open the sealed PDF in a tab and
+          // trigger the audit trail as a same-document download — no
+          // second window, nothing for the blocker to catch.
           try {
             const [sealed, audit] = await Promise.all([
               getEnvelopeDownloadUrl(envelope.id, 'sealed'),
               getEnvelopeDownloadUrl(envelope.id, 'audit'),
             ]);
-            for (const { url } of [sealed, audit]) {
-              const a = document.createElement('a');
-              a.href = url;
-              a.target = '_blank';
-              a.rel = 'noopener noreferrer';
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-            }
+            const sealedAnchor = document.createElement('a');
+            sealedAnchor.href = sealed.url;
+            sealedAnchor.target = '_blank';
+            sealedAnchor.rel = 'noopener noreferrer';
+            document.body.appendChild(sealedAnchor);
+            sealedAnchor.click();
+            sealedAnchor.remove();
+
+            const auditAnchor = document.createElement('a');
+            auditAnchor.href = audit.url;
+            auditAnchor.download = `audit-${envelope.id}.pdf`;
+            auditAnchor.rel = 'noopener noreferrer';
+            document.body.appendChild(auditAnchor);
+            auditAnchor.click();
+            auditAnchor.remove();
+
             setToast({
               kind: 'success',
-              text: 'Sealed PDF and audit trail opened in new tabs.',
+              text: 'Sealed PDF opened in a new tab; audit trail downloaded.',
             });
           } catch (err) {
             const msg = err instanceof Error ? err.message : 'Download failed.';
