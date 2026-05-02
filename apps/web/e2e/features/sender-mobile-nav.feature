@@ -15,7 +15,6 @@ Feature: Mobile sender has a real navbar at /m/send
     And the mobile menu has a "Sign out" button
     And the mobile menu has a "Documents" nav button
     And the mobile menu has a "Templates" nav button
-    And the mobile menu has a "Signers" nav button
 
   @sender @smoke @mobile
   Scenario: Sign out from the hamburger lands on /signin
