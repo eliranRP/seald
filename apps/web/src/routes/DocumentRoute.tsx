@@ -243,7 +243,7 @@ export function DocumentRoute() {
           title: doc.title,
           file: doc.file,
           signers: doc.signers.map((s): SendEnvelopeSignerInput => {
-            // Guest mode signers are synthesised locally (UploadRoute
+            // Guest mode signers are synthesized locally (UploadRoute
             // `synthLocalSigner`) with a `guest-…` id that would never
             // pass the API DTO's `@IsUUID()` check. Send the contact
             // details inline instead so the server creates an ad-hoc

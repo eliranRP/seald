@@ -296,7 +296,7 @@ export class EnvelopesService {
    *   1. Contact-backed: `{ contact_id }` — the sender selected a saved
    *      contact in the editor's "Pick from contacts" dropdown.
    *   2. Ad-hoc:        `{ email, name, color? }` — guest-mode senders
-   *      synthesise signers locally (UploadRoute.synthLocalSigner) without
+   *      synthesize signers locally (UploadRoute.synthLocalSigner) without
    *      ever persisting a contact row. This branch keeps `contact_id` null
    *      on the row; the repo already supports that (AddSignerInput.contact_id
    *      is optional).
