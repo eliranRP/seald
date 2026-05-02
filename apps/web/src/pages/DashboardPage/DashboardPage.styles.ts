@@ -8,7 +8,7 @@ import styled from 'styled-components';
  *
  * BUG-1 regression: the previous fixed `1.3fr 1.5fr 1fr 180px 100px 60px`
  * grid plus `space[12]` (48px) left/right padding overflowed every
- * mobile viewport — the Status/Date/chevron columns were clipped off
+ * mobile viewport — the Status/Date/chevronron columns were clipped off
  * the right edge with no horizontal scroll affordance.
  */
 const MOBILE = '768px';
@@ -57,7 +57,7 @@ export const TableShell = styled.div`
   overflow: hidden;
 `;
 
-/** Kit spec: Document · Signers · Progress · Status · Date · chevron */
+/** Kit spec: Document · Signers · Progress · Status · Date · chevronron */
 const GRID = '1.3fr 1.5fr 1fr 180px 100px 60px';
 
 export const TableHead = styled.div`
@@ -107,11 +107,11 @@ export const TableRow = styled.button`
   @media (max-width: ${MOBILE}) {
     /* Stack each row into a single column. The doc cell stays at the top
        (primary identity), the signer/progress/status badges flow below as
-       inline-wrapping content, and the chevron tucks into the top-right
+       inline-wrapping content, and the chevronron tucks into the top-right
        so the whole row still reads as a tap target. */
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      'doc chev'
+      'doc chevron'
       'signers signers'
       'progress progress'
       'status date';
@@ -136,7 +136,7 @@ export const TableRow = styled.button`
       justify-self: end;
     }
     & > :nth-child(6) {
-      grid-area: chev;
+      grid-area: chevron;
       align-self: center;
     }
   }

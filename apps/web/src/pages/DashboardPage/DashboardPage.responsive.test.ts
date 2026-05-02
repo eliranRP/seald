@@ -53,7 +53,7 @@ describe('DashboardPage responsive styles (BUG-1 regression)', () => {
     expect(css).toMatch(/grid-template-areas/);
     // Each of the 6 children must be mapped into an area so nothing
     // falls into the wrong cell once the desktop GRID stops applying.
-    for (const area of ['doc', 'signers', 'progress', 'status', 'date', 'chev']) {
+    for (const area of ['doc', 'signers', 'progress', 'status', 'date', 'chevron']) {
       expect(css).toMatch(new RegExp(`grid-area: ${area}`));
     }
   });
