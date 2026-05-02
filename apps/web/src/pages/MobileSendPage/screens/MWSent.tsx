@@ -74,6 +74,10 @@ const DocName = styled.div`
   font-size: 14px;
   font-weight: 600;
   color: var(--fg-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const DocCode = styled.div`

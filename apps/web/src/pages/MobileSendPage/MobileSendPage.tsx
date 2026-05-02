@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
-import { Shell, Scroller, StickyBar, PrimaryBtn, SecondaryBtn } from './MobileSendPage.styles';
+import {
+  Shell,
+  Scroller,
+  StickyBar,
+  PrimaryBtn,
+  SecondaryBtn,
+  ErrorBanner,
+} from './MobileSendPage.styles';
 import { MWStep } from './components/MWStep';
 import { MWAddSignerSheet } from './components/MWAddSignerSheet';
 import { MWApplyPagesSheet } from './components/MWApplyPagesSheet';
@@ -91,6 +98,7 @@ export function MobileSendPage() {
 
   const [step, setStep] = useState<MobileStep>('start');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
   const { numPages } = usePdfDocument(pdfFile);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
@@ -175,7 +183,15 @@ export function MobileSendPage() {
   }, []);
 
   // ---- file pick ----
+  // Reject empty files at the boundary — pdf.js parses a zero-byte buffer
+  // as a 1-page doc with no canvas content, which silently advances the
+  // user to the place step with nothing to drop fields on.
   const handlePickFile = useCallback((file: File): void => {
+    if (file.size === 0) {
+      setFileError(`"${file.name}" is empty (0 bytes). Pick a different PDF.`);
+      return;
+    }
+    setFileError(null);
     setPdfFile(file);
     setFields([]);
     setSelectedIds([]);
@@ -445,7 +461,10 @@ export function MobileSendPage() {
           <MWStep step={stepNum} total={6} label={STEP_LABELS[step]} onBack={goBack} />
         )}
         {step === 'start' && (
-          <MWStart onPickFile={handlePickFile} onUseTemplate={() => navigate('/templates')} />
+          <>
+            {fileError && <ErrorBanner role="alert">{fileError}</ErrorBanner>}
+            <MWStart onPickFile={handlePickFile} onUseTemplate={() => navigate('/templates')} />
+          </>
         )}
         {step === 'file' && pdfFile && (
           <MWFile

@@ -179,3 +179,20 @@ export const SheetTitle = styled.div`
   letter-spacing: -0.01em;
   margin-bottom: 14px;
 `;
+
+/**
+ * Inline error banner shown above the Start tiles when a file pick is
+ * rejected at the boundary (e.g. 0-byte PDF). Surfaces with role="alert"
+ * so screen readers announce the rejection without the user having to
+ * re-trigger the picker.
+ */
+export const ErrorBanner = styled.div`
+  margin: 0 16px 12px;
+  padding: 12px 14px;
+  background: var(--danger-subtle, #fef2f2);
+  border: 1px solid var(--danger-200, #fecaca);
+  border-radius: 12px;
+  color: var(--danger-700, #b91c1c);
+  font-size: 13px;
+  line-height: 1.4;
+`;

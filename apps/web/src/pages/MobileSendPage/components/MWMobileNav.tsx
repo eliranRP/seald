@@ -61,6 +61,50 @@ const Brand = styled.button`
   }
 `;
 
+const BrandMark = styled.span`
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--indigo-600);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+/**
+ * Quill/seal brand mark — mirrors the inline SVG used by the desktop
+ * `NavBar.SealedMark` so the mobile bar reads as the same product. Kept
+ * inline (rather than imported as an SVG asset) so it inherits
+ * `currentColor` and ships with the component in tests/Storybook.
+ */
+function SealedMark(): ReactNode {
+  return (
+    <svg viewBox="0 0 40 40" width="14" height="14" fill="none" aria-hidden="true">
+      <g transform="translate(6, 6)">
+        <path
+          d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z"
+          fill="currentColor"
+        />
+        <path
+          d="M22 4 L 24 2 C 25 1, 26.5 1, 27.5 2 L 28 2.5 C 29 3.5, 29 5, 28 6 L 26 8 Z"
+          fill="currentColor"
+          opacity="0.7"
+        />
+        <path
+          d="M0 28 C 8 26, 18 26, 28 28"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          fill="none"
+          opacity="0.85"
+        />
+      </g>
+    </svg>
+  );
+}
+
 const HamburgerBtn = styled.button`
   width: 40px;
   height: 40px;
@@ -224,6 +268,9 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     <>
       <Bar role="banner">
         <Brand type="button" aria-label="Seald home" onClick={() => navigate('/documents')}>
+          <BrandMark aria-hidden>
+            <SealedMark />
+          </BrandMark>
           Seald
         </Brand>
         <HamburgerBtn

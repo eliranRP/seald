@@ -44,12 +44,18 @@ const ThumbLine = styled.div<{ $w: number }>`
 const Meta = styled.div`
   margin-top: 18px;
   text-align: center;
+  max-width: 100%;
+  min-width: 0;
 `;
 
 const Name = styled.div`
   font-size: 15px;
   font-weight: 600;
   color: var(--fg-1);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const Sub = styled.div`
@@ -135,9 +141,7 @@ export function MWFile(props: MWFileProps) {
       </Card>
       <Notice role="note">
         <Info size={16} aria-hidden style={{ color: 'var(--indigo-600)', marginTop: 2 }} />
-        <NoticeText>
-          We&apos;ll keep your draft as you go. Close the tab and pick up from the dashboard.
-        </NoticeText>
+        <NoticeText>Stay on this tab to finish — closing it will discard the draft.</NoticeText>
       </Notice>
     </Wrap>
   );

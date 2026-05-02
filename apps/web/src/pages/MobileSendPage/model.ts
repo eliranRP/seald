@@ -144,13 +144,20 @@ export function assignSignersToSelection(opts: AssignSignersOptions): AssignSign
     }
     const def = getFieldDef(f.type);
     const stride = def.w + 8;
-    const maxX = opts.bounds.width - def.w - 8;
+    // Right edge available for any single field's x. Floor at 0 so a
+    // canvas narrower than one field never produces a negative origin.
+    const maxX = Math.max(0, opts.bounds.width - def.w - 8);
+    // Pull the row's start position back so all N fields fit inside the
+    // canvas — without this, on tight canvases or far-right drops the
+    // later fields collapse onto `maxX` and stack on top of each other.
+    const rowSpan = Math.max(0, (opts.signerIds.length - 1) * stride);
+    const startX = Math.max(0, Math.min(f.x, maxX - rowSpan));
     opts.signerIds.forEach((sid, idx) => {
       const nid = nextFieldId('f');
       out.push({
         ...f,
         id: nid,
-        x: Math.min(maxX, f.x + idx * stride),
+        x: Math.min(maxX, startX + idx * stride),
         signerIds: [sid],
       });
       nextSelection.push(nid);

@@ -68,6 +68,10 @@ function mockFile(name: string): File {
   });
 }
 
+function emptyFile(name: string): File {
+  return new File([new Uint8Array(0)], name, { type: 'application/pdf' });
+}
+
 describe('MobileSendPage', () => {
   beforeEach(() => {
     runMock.mockClear();
@@ -163,6 +167,20 @@ describe('MobileSendPage', () => {
     renderPage();
     await user.click(screen.getByRole('button', { name: /^from a template$/i }));
     expect(await screen.findByTestId('loc')).toHaveTextContent('/templates');
+  });
+
+  it('rejects a 0-byte PDF at the upload boundary with an inline alert', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [emptyFile('blank.pdf')] } });
+    });
+    // Stays on start; surfaces a role=alert with the filename.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/blank\.pdf/i);
+    expect(alert).toHaveTextContent(/empty/i);
+    // Step did not advance to the file-confirm screen.
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
   });
 
   it('rejects an invalid email in the add-signer sheet', async () => {

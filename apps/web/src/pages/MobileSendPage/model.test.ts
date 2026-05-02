@@ -155,14 +155,36 @@ describe('mobile send · model', () => {
       expect(result.fields).toHaveLength(3);
       // Each clone is single-signer
       expect(result.fields.map((f) => f.signerIds)).toEqual([['s1'], ['s2'], ['s3']]);
-      // Strided side-by-side at f.x + idx * (180+8)
-      expect(result.fields[0]?.x).toBe(30);
-      // 30 + 188 = 218 — but maxX is 360 - 180 - 8 = 172, so all but the
-      // first are clamped right against the canvas edge.
+      // Bounds width 360, sig width 180 + 8 stride = 188, maxX = 172.
+      // Three 180-wide fields physically can't all fit, so the row pulls
+      // back to startX=0 and the trailing two clamp to maxX=172.
+      expect(result.fields[0]?.x).toBe(0);
       expect(result.fields[1]?.x).toBe(172);
       expect(result.fields[2]?.x).toBe(172);
       // Selection now points at the new ids
       expect(result.nextSelection).toEqual(result.fields.map((f) => f.id));
+    });
+
+    it('pulls the row back so a 2-signer split at the canvas right edge stays side-by-side (no stack)', () => {
+      // QA-4 (PR #108): dropping near the right edge then splitting for
+      // 2 signers would clamp both fields to maxX, stacking them on top
+      // of each other. Verify the new clamp pulls startX back so both
+      // fit, separated by a stride.
+      const fields = [field({ id: 'a', x: 320, signerIds: ['s1'] })];
+      const result = assignSignersToSelection({
+        fields,
+        selectedIds: ['a'],
+        signerIds: ['s1', 's2'],
+        bounds: BOUNDS, // width 360
+      });
+      expect(result.fields).toHaveLength(2);
+      // stride = 180+8 = 188, maxX = 172, rowSpan = 188, startX = max(0, min(320, 172-188)) = 0
+      expect(result.fields[0]?.x).toBe(0);
+      expect(result.fields[1]?.x).toBe(172);
+      // Confirm the two fields don't overlap horizontally.
+      const field0Right = (result.fields[0]?.x ?? 0) + 180;
+      const field1Left = result.fields[1]?.x ?? 0;
+      expect(field1Left).toBeGreaterThanOrEqual(field0Right - 8);
     });
 
     it('clears the source from the field list (no original remains)', () => {
