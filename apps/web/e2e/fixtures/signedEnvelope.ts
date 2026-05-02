@@ -1,4 +1,17 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { MockedApi } from './mockedApi';
+
+// Real single-page PDF served at the fake `/pdf-fixture.pdf` URL so
+// pdf.js can parse + render it. The earlier `%PDF-1.4...` stub failed
+// to parse and the signer fill page stayed blank, hiding any signature
+// chrome behind a loading state.
+//
+// `__dirname` isn't defined under the ESM playwright runtime, so derive
+// it from `import.meta.url` (the canonical ESM idiom).
+const FIXTURES_DIR = dirname(fileURLToPath(import.meta.url));
+const SAMPLE_PDF_BYTES: Buffer = readFileSync(resolve(FIXTURES_DIR, './sample-1page.pdf'));
 
 /**
  * Pre-seeds the network-level mocks for the signer flow so `@signer`
@@ -165,10 +178,12 @@ export class SignedEnvelopeFixture {
     this.api.on('GET', /\/sign\/pdf$/, {
       json: { url: '/pdf-fixture.pdf' },
     });
-    // Tiny inline PDF served at the URL above so pdf.js doesn't 404.
+    // Real single-page PDF served at the URL above so pdf.js parses it
+    // and the signer fill page renders an interactive canvas instead of
+    // a never-resolving loading shell.
     this.api.on('GET', /\/pdf-fixture\.pdf$/, {
       contentType: 'application/pdf',
-      body: '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF',
+      body: SAMPLE_PDF_BYTES,
     });
     return envelopeId;
   }

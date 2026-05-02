@@ -1,4 +1,16 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect, type Route } from '@playwright/test';
+
+// Real single-page PDF so pdf.js parses + renders the signing canvas.
+// The earlier `%PDF-1.4...` stub never parsed and the fill page stayed
+// in its loading state, masking signature-chrome regressions.
+// `__dirname` is undefined under the ESM playwright runtime — derive it
+// from `import.meta.url` (matches guest-flow / template-sign-flow specs).
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const SAMPLE_PDF = readFileSync(resolve(__dirname, './fixtures/sample-1page.pdf'));
 
 /**
  * Signing-flow happy path (full coverage).
@@ -170,7 +182,7 @@ test.describe('signing flow', () => {
       await route.fulfill({
         status: 200,
         contentType: 'application/pdf',
-        body: '%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF',
+        body: SAMPLE_PDF,
       });
     });
   });

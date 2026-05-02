@@ -9,6 +9,7 @@ import { SignUpPage } from '../pages/SignUpPage';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { UploadPage } from '../pages/UploadPage';
+import { MobileSendPage } from '../pages/MobileSendPage';
 import { DocumentEditorPage } from '../pages/DocumentEditorPage';
 import { SentConfirmationPage } from '../pages/SentConfirmationPage';
 import { ContactsPage } from '../pages/ContactsPage';
@@ -54,6 +55,7 @@ type Fixtures = {
   forgotPasswordPage: ForgotPasswordPage;
   dashboardPage: DashboardPage;
   uploadPage: UploadPage;
+  mobileSendPage: MobileSendPage;
   documentEditorPage: DocumentEditorPage;
   sentConfirmationPage: SentConfirmationPage;
   contactsPage: ContactsPage;
@@ -114,6 +116,9 @@ export const test = base.extend<Fixtures>({
   },
   uploadPage: async ({ page }, use) => {
     await use(new UploadPage(page));
+  },
+  mobileSendPage: async ({ page }, use) => {
+    await use(new MobileSendPage(page));
   },
   documentEditorPage: async ({ page }, use) => {
     await use(new DocumentEditorPage(page));

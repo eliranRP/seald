@@ -15,7 +15,6 @@ export const NAV_ITEMS: ReadonlyArray<NavItemEntry> = [
   { id: 'documents', label: 'Documents', path: '/documents' },
   { id: 'sign', label: 'Sign', path: '/document/new' },
   { id: 'templates', label: 'Templates', path: '/templates' },
-  { id: 'signers', label: 'Signers', path: '/signers' },
 ];
 
 /**

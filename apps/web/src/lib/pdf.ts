@@ -1,11 +1,55 @@
 import { useEffect, useState } from 'react';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-// Vite `?url` import returns the final emitted URL for the worker bundle at
-// both dev and build time. Loading the worker this way avoids CORS issues
-// and keeps pdfjs happy without needing any copy-to-public hack.
-// eslint-disable-next-line import/no-unresolved, import/extensions
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+// Vite `?worker&url` bundles our local worker entry (which installs the
+// Map.upsert polyfill before delegating to pdfjs's real worker). Loading
+// the worker this way avoids CORS issues and keeps pdfjs happy without a
+// copy-to-public hack.
+// eslint-disable-next-line import/no-unresolved
+import pdfjsWorkerUrl from './pdfjsWorker?worker&url';
+
+// pdfjs-dist v5 calls `getOrInsertComputed` (and the sibling `getOrInsert`)
+// from the TC39 Map/WeakMap upsert proposal — currently stage-3 and not yet
+// shipping in stable Chrome / Safari. Without these, page.render() throws
+// "...getOrInsertComputed is not a function" and the canvas paints nothing
+// (or paints partially then errors). Polyfill all four at module load,
+// before anything reaches getDocument/page.render.
+type UpsertCommon<K, V> = {
+  has(key: K): boolean;
+  get(key: K): V | undefined;
+  set(key: K, value: V): unknown;
+};
+function installUpsert<K, V>(proto: UpsertCommon<K, V>): void {
+  const p = proto as UpsertCommon<K, V> & {
+    getOrInsertComputed?: (key: K, callbackfn: (key: K) => V) => V;
+    getOrInsert?: (key: K, value: V) => V;
+  };
+  if (typeof p.getOrInsertComputed !== 'function') {
+    Object.defineProperty(proto, 'getOrInsertComputed', {
+      configurable: true,
+      writable: true,
+      value: function (this: UpsertCommon<K, V>, key: K, callbackfn: (k: K) => V): V {
+        if (this.has(key)) return this.get(key) as V;
+        const value = callbackfn(key);
+        this.set(key, value);
+        return value;
+      },
+    });
+  }
+  if (typeof p.getOrInsert !== 'function') {
+    Object.defineProperty(proto, 'getOrInsert', {
+      configurable: true,
+      writable: true,
+      value: function (this: UpsertCommon<K, V>, key: K, value: V): V {
+        if (this.has(key)) return this.get(key) as V;
+        this.set(key, value);
+        return value;
+      },
+    });
+  }
+}
+installUpsert(Map.prototype as unknown as UpsertCommon<unknown, unknown>);
+installUpsert(WeakMap.prototype as unknown as UpsertCommon<object, unknown>);
 
 // Setting the worker once at module load is the pattern pdfjs-dist
 // documents. Guard against HMR double-assignment in dev.

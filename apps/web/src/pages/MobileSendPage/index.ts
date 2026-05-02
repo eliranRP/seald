@@ -1,0 +1,1 @@
+export { MobileSendPage } from './MobileSendPage';

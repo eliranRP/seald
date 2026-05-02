@@ -30,8 +30,12 @@ describe('matchNavId', () => {
     expect(matchNavId('/templates/abc/edit')).toBe('templates');
   });
 
-  it('returns "signers" for the contacts/signers tab', () => {
-    expect(matchNavId('/signers')).toBe('signers');
+  // 2026-05-02: Signers/Contacts tab was removed from the top nav (the
+  // page is still reachable from envelope detail and direct URL, but it's
+  // no longer part of the IA). matchNavId must fall through to the
+  // default ("documents") rather than light up a tab that doesn't exist.
+  it('returns "documents" for /signers (Signers tab removed from nav)', () => {
+    expect(matchNavId('/signers')).toBe('documents');
   });
 
   // Bug A regression: existing-envelope detail must NOT highlight Sign.

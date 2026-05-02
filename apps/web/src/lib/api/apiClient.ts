@@ -42,7 +42,19 @@ function messageFromAxiosError(err: AxiosError): string {
   if (body?.message) {
     return Array.isArray(body.message) ? body.message.join(', ') : String(body.message);
   }
-  return err.response?.statusText ?? err.message ?? 'Request failed';
+  if (err.response?.statusText) {
+    return err.response.statusText;
+  }
+  // Bug C (2026-05-03): when the request never reached the server (no
+  // response object) axios reports `err.message === 'Network Error'`
+  // (ERR_NETWORK) or `'timeout of …ms exceeded'` (ECONNABORTED) — both
+  // are too cryptic for the Send banner. Rewrite to actionable copy that
+  // names the connection failure mode so the user knows it isn't their
+  // input that's wrong.
+  if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+    return "Couldn't reach the server. Check your connection and try again.";
+  }
+  return err.message ?? 'Request failed';
 }
 
 /**

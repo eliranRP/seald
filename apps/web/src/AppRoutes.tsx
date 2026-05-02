@@ -19,6 +19,7 @@ import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Code-split the authoring routes — they pull in pdfjs-dist via usePdfDocument
 // + the editor canvas, which dwarfs every other chunk. Pushing them behind
@@ -59,6 +60,13 @@ const SigningDeclinedPage = lazy(() =>
 // of styled-components + lucide icons that no other route uses (rule 2.5).
 const VerifyPage = lazy(() =>
   import('./pages/VerifyPage').then((m) => ({ default: m.VerifyPage })),
+);
+
+// Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
+// bundle doesn't pay for the editor canvas + pdfjs weight (rule 2.5). Pulled
+// in for any viewport ≤ 640px when the user lands on the app root.
+const MobileSendPage = lazy(() =>
+  import('./pages/MobileSendPage').then((m) => ({ default: m.MobileSendPage })),
 );
 
 /**
@@ -138,6 +146,19 @@ export function AppRoutes() {
           />
           <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
         </Route>
+        {/* Mobile-web send flow. Sits outside <AppShell /> on purpose — the
+            desktop NavBar would dominate a 375px viewport; the mobile flow
+            ships its own stepper + sticky CTA chrome. */}
+        <Route
+          path="/m/send"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <MobileSendPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
       </Route>
 
       <Route element={<RequireAuth />}>

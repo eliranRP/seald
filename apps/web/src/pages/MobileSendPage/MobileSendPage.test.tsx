@@ -1,0 +1,324 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { screen, fireEvent, within, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { renderWithProviders } from '@/test/renderWithProviders';
+
+// Mock the heavy PDF parser — jsdom can't decode PDFs and the page only
+// needs the page-count out of it.
+vi.mock('@/lib/pdf', () => ({
+  usePdfDocument: vi.fn(() => ({ doc: null, numPages: 3, loading: false, error: null })),
+}));
+
+// Mock the send orchestration so we can assert the wiring without making
+// real fetch calls.
+const runMock = vi.fn(async () => ({ envelope_id: 'env_xyz', short_code: 'SC-1234567890' }));
+vi.mock('@/features/envelopes/useSendEnvelope', () => ({
+  useSendEnvelope: () => ({
+    run: runMock,
+    phase: 'idle' as const,
+    error: null,
+    reset: vi.fn(),
+  }),
+}));
+
+// MWMobileNav pulls in useAccountActions which would call /me APIs — stub
+// to avoid real network and keep these page tests focused on routing /
+// step-flow behaviour.
+import type * as AccountModule from '@/features/account';
+vi.mock('@/features/account', async () => {
+  const actual = await vi.importActual<typeof AccountModule>('@/features/account');
+  return {
+    ...actual,
+    useAccountActions: () => ({
+      exportData: vi.fn(async () => undefined),
+      deleteAccount: vi.fn(async () => undefined),
+      isExporting: false,
+      isDeleting: false,
+      lastError: null,
+    }),
+  };
+});
+
+import { MobileSendPage } from './MobileSendPage';
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="loc">{location.pathname}</div>;
+}
+
+function renderPage() {
+  return renderWithProviders(
+    <MemoryRouter initialEntries={['/m/send']}>
+      <Routes>
+        <Route path="/m/send" element={<MobileSendPage />} />
+        <Route path="/templates" element={<LocationProbe />} />
+        <Route path="/documents" element={<LocationProbe />} />
+        <Route path="/signers" element={<LocationProbe />} />
+        <Route path="/signin" element={<LocationProbe />} />
+        <Route path="/document/new" element={<LocationProbe />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function mockFile(name: string): File {
+  return new File([new Uint8Array([0x25, 0x50, 0x44, 0x46])], name, {
+    type: 'application/pdf',
+  });
+}
+
+function emptyFile(name: string): File {
+  return new File([new Uint8Array(0)], name, { type: 'application/pdf' });
+}
+
+describe('MobileSendPage', () => {
+  beforeEach(() => {
+    runMock.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the start screen with three entry tiles', () => {
+    renderPage();
+    expect(screen.getByText(/new document/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /upload pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /take photo/i })).toBeInTheDocument();
+  });
+
+  it('walks from start → file when a PDF is uploaded', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('contract.pdf')] } });
+    });
+    // Step 2 chrome appears.
+    expect(screen.getByText(/confirm the file/i)).toBeInTheDocument();
+    expect(screen.getByText(/contract\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('disables Continue while no file picked, advances to signers when ready', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('nda.pdf')] } });
+    });
+    const cont = screen.getByRole('button', { name: /continue/i });
+    expect(cont).toBeEnabled();
+    await user.click(cont);
+    expect(screen.getByText(/who is signing\?/i)).toBeInTheDocument();
+  });
+
+  it('blocks the place step until at least one signer is added', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('test.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    const next = screen.getByRole('button', { name: /next: place fields/i });
+    expect(next).toBeDisabled();
+  });
+
+  it('adds a signer via the bottom sheet then enables next', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('test.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    // Sheet open
+    const dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+
+    // Sheet closes, signer appears in the list.
+    expect(screen.getByText(/bob builder/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /next: place fields/i })).toBeEnabled();
+  });
+
+  it('renders the mobile nav (logo + hamburger) above the start screen', () => {
+    renderPage();
+    expect(screen.getByRole('button', { name: /seald home/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /open menu/i })).toBeInTheDocument();
+  });
+
+  // 2026-05-02: Signers tab was removed from the top nav (the Contacts
+  // page is still reachable from envelope detail / direct URL). Mobile
+  // hamburger must mirror the desktop NAV_ITEMS exactly.
+  it('hamburger opens a sheet with Documents, Sign, Templates, and Sign out (no Signers)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Documents' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Templates' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Signers' })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: /^sign out$/i })).toBeInTheDocument();
+  });
+
+  it('tapping "From a template" navigates to /templates', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: /^from a template$/i }));
+    expect(await screen.findByTestId('loc')).toHaveTextContent('/templates');
+  });
+
+  it('rejects a 0-byte PDF at the upload boundary with an inline alert', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [emptyFile('blank.pdf')] } });
+    });
+    // Stays on start; surfaces a role=alert with the filename.
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/blank\.pdf/i);
+    expect(alert).toHaveTextContent(/empty/i);
+    // Step did not advance to the file-confirm screen.
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+  });
+
+  // QA-2026-05-02 (Bug 3): the start screen exposes a hidden file input
+  // for "Take photo" that uses `accept="image/*"` + `capture="environment"`.
+  // pdf.js can't parse a JPEG, so we reject anything that isn't a PDF at
+  // the picker boundary and surface an inline alert.
+  it('rejects a non-PDF (camera capture) at the upload boundary', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', {
+      type: 'image/jpeg',
+    });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [jpeg] } });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/photo\.jpg/i);
+    expect(alert).toHaveTextContent(/isn't a pdf/i);
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+  });
+
+  // QA-2026-05-02 (Bug 11): pdf.js will OOM the worker on a phone for
+  // anything much over 25 MB. Hard-cap at the picker.
+  it('rejects an oversize PDF (>25 MB) at the upload boundary', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    // We don't actually need 26 MB of bytes — the picker reads .size, and
+    // jsdom's File honors a synthetic size when we pass a sized blob.
+    const big = new File([new Uint8Array(1)], 'huge.pdf', { type: 'application/pdf' });
+    Object.defineProperty(big, 'size', { value: 26 * 1024 * 1024 });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [big] } });
+    });
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/huge\.pdf/i);
+    expect(alert).toHaveTextContent(/under 25 MB/i);
+    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+  });
+
+  // QA-2026-05-02 (Bug 5): the previous flow silently swallowed duplicate
+  // emails — Add closed the sheet but no signer landed. Now the sheet
+  // surfaces an inline alert and disables Add.
+  it('blocks adding a duplicate-email signer with an inline alert', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('test.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+
+    // First add: succeeds.
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    let dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+
+    // Second attempt with the same email: Add stays disabled and the
+    // duplicate alert is rendered.
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob B.');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'BOB@example.com');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(/already on the list/i);
+    expect(within(dialog).getByRole('button', { name: /^add$/i })).toBeDisabled();
+  });
+
+  // Bug C regression (2026-05-03): walk the full sender flow start → file →
+  // signers → place → review → Send and assert the Send-for-signature button
+  // actually invokes the orchestration. The previous suite mocked `runMock`
+  // but never exercised the click path, so a regression in the Send wiring
+  // (e.g. the button accidentally noop'd while disabled) would have slipped
+  // through. We assert: (a) runMock fires once, (b) it receives the title
+  // we typed, (c) it receives our PDF File, (d) signers includes the ad-hoc
+  // bob@example.com input, (e) buildFields is supplied so the API gets the
+  // placed signature box.
+  it('Send-for-signature actually invokes the orchestration with the right payload', async () => {
+    const user = userEvent.setup();
+    runMock.mockClear();
+    renderPage();
+
+    // 1. Upload PDF
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('contract.pdf')] } });
+    });
+    // 2. Continue → Signers
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    // 3. Add signer
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+    // 4. Next → Place fields. Arm Signature, click the canvas to drop one.
+    await user.click(screen.getByRole('button', { name: /next: place fields/i }));
+    await user.click(screen.getByRole('button', { name: /^signature$/i }));
+    // The canvas drop area is a positional surface with no semantic role
+    // (rule 4.6 fallback): use the data-testid the component exposes.
+    const canvas = await screen.findByTestId('mw-canvas');
+    await user.click(canvas);
+    // 5. Review
+    await user.click(screen.getByRole('button', { name: /^review/i }));
+    // 6. Send
+    await user.click(screen.getByRole('button', { name: /send for signature/i }));
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const call = runMock.mock.calls[0];
+    if (!call) throw new Error('expected runMock to have been invoked');
+    const arg = (call as ReadonlyArray<unknown>)[0] as {
+      title: string;
+      file: File;
+      signers: ReadonlyArray<{ email?: string; name?: string }>;
+      buildFields: unknown;
+    };
+    expect(arg.title).toMatch(/contract/i);
+    expect(arg.file.name).toBe('contract.pdf');
+    expect(arg.signers.some((s) => s.email === 'bob@example.com')).toBe(true);
+    expect(typeof arg.buildFields).toBe('function');
+  });
+
+  it('rejects an invalid email in the add-signer sheet', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('test.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    const dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'B');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'not-an-email');
+    // Add button stays disabled when email invalid.
+    expect(within(dialog).getByRole('button', { name: /^add$/i })).toBeDisabled();
+  });
+});

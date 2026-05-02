@@ -67,13 +67,19 @@ function deriveName(user: User): string {
 
 function toAuthUser(user: User | null | undefined): AuthUser | null {
   if (!user) return null;
-  const avatar = user.user_metadata?.avatar_url as string | undefined;
+  // Supabase/Google OIDC inconsistency: Google's standard ID-token claim
+  // is `picture`, but Supabase v2 may copy it into `user_metadata.avatar_url`
+  // OR leave it under `user_metadata.picture` (depending on provider config
+  // / when the row was created). Reading both keeps the user's real Google
+  // avatar visible regardless of which field landed in metadata.
+  const meta = user.user_metadata as Record<string, unknown> | undefined;
+  const avatarUrl = (meta?.avatar_url ?? meta?.picture) as string | undefined;
   const base: AuthUser = {
     id: user.id,
     email: user.email ?? '',
     name: deriveName(user),
   };
-  return avatar ? { ...base, avatarUrl: avatar } : base;
+  return avatarUrl ? { ...base, avatarUrl } : base;
 }
 
 export interface AuthProviderProps {

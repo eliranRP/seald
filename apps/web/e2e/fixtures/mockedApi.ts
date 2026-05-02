@@ -24,7 +24,12 @@ import type { Page, Route } from '@playwright/test';
 export type JsonResponse = {
   status?: number;
   json?: unknown;
-  body?: string;
+  /**
+   * Raw response body. Strings (JSON, HTML, …) and Buffers (binary
+   * fixtures like real PDFs) are both supported — Playwright's
+   * `route.fulfill({ body })` accepts either.
+   */
+  body?: string | Buffer;
   headers?: Record<string, string>;
   contentType?: string;
 };
