@@ -24,6 +24,15 @@ concurrency:
   group: chromatic-${{ github.ref }}
   cancel-in-progress: true
 
+# Chromatic uses its own CHROMATIC_PROJECT_TOKEN secret for the upload
+# auth — no GITHUB_TOKEN write is required for the upload itself. The
+# CLI does post a check-run / PR comment when running on PRs via the
+# Chromatic GitHub App (installed separately), not via GITHUB_TOKEN, so
+# read scope is sufficient here. Tightens per CodeQL
+# `actions/missing-workflow-permissions`.
+permissions:
+  contents: read
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
