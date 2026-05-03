@@ -158,6 +158,21 @@ describe('DrivePicker — open/close + accessibility', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('opens with initial focus on the Search input — not the Close button', async () => {
+    // Phase 6.A iter-2 LOCAL bug. The on-open focus query was
+    // `card.querySelector('input, button')`, which returns the first
+    // match in DOM order — and the close (X) button in the Header
+    // appears before the SearchInput in SearchWrap. Keyboard-only
+    // users opening the picker landed on Close, one Tab away from
+    // dismissing the modal they had just opened. Post-fix initial
+    // focus must land on the search input so a query can be typed
+    // immediately (matches Drive web app behaviour).
+    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
+    renderPicker();
+    const search = await screen.findByRole('searchbox', { name: /search drive files/i });
+    await waitFor(() => expect(document.activeElement).toBe(search));
+  });
+
   it('Tab cycles focus inside the dialog (focus trap)', async () => {
     get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
     renderPicker();

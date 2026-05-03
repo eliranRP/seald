@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { renderWithProviders } from '../../../test/renderWithProviders';
@@ -144,6 +144,71 @@ describe('IntegrationsPage', () => {
     expect(
       await screen.findByRole('alertdialog', { name: /disconnect google drive/i }),
     ).toBeInTheDocument();
+  });
+
+  it('the 503 config-error alert can be dismissed via its Close button', async () => {
+    // Phase 6.A iter-2 LOCAL bug. Pre-fix the 503 alert appeared the
+    // first time the user clicked Connect and had no way to be
+    // dismissed — it sat on top of the page until the user attempted
+    // another mutate(). Worse, on the empty-state surface the user is
+    // led to click Connect to even discover the misconfiguration, and
+    // then has no path back to a clean view. Post-fix the alert ships
+    // an explicit Dismiss button that resets the connect mutation
+    // state so the alert disappears.
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        return Promise.resolve({ data: [], status: 200 });
+      }
+      if (url === '/integrations/gdrive/oauth/url') {
+        const err: ApiError = new Error('gdrive_oauth_not_configured');
+        err.status = 503;
+        return Promise.reject(err);
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /connect google drive/i }));
+    const alert = await screen.findByRole('alert');
+    const dismiss = within(alert).getByRole('button', { name: /dismiss/i });
+    await userEvent.click(dismiss);
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+
+  it('shows an inline error inside the disconnect modal when the mutation fails', async () => {
+    // Phase 6.A iter-2 LOCAL bug. Pre-fix when the DELETE
+    // /integrations/gdrive/accounts/:id call rejected, the modal's
+    // pending state cleared but no error feedback surfaced. The user
+    // could not tell whether the click registered. Post-fix the
+    // modal renders an inline error sourced from the page's
+    // disconnect mutation and re-enables Cancel + Disconnect for
+    // retry.
+    mockedGet.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'acc-1',
+          email: 'eliran@example.com',
+          connectedAt: '2026-05-03T10:00:00Z',
+          lastUsedAt: null,
+        },
+      ],
+      status: 200,
+    });
+    const failure: ApiError = new Error('drive_disconnect_failed');
+    failure.status = 500;
+    mockedDelete.mockRejectedValueOnce(failure);
+
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: /disconnect/i }));
+    const dialog = await screen.findByRole('alertdialog', {
+      name: /disconnect google drive/i,
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: /^disconnect$/i }));
+    // Mutation rejects -> modal stays open + inline error appears.
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent(/couldn.?t disconnect/i);
+    // Both buttons usable for retry/back-out.
+    expect(within(dialog).getByRole('button', { name: /^disconnect$/i })).not.toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: /cancel/i })).not.toBeDisabled();
   });
 
   it('confirming Disconnect calls the delete mutation with the account id', async () => {
