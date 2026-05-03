@@ -63,8 +63,12 @@ export function SignInPage() {
   }, [navigate]);
 
   const handleAuthed = useCallback((): void => {
-    navigate(isMobile ? '/m/send' : '/documents');
-  }, [isMobile, navigate]);
+    // Per product (2026-05-03), authed users land on /documents regardless
+    // of viewport — the dashboard is mobile-responsive and the mobile sender
+    // is reached from inside it. The viewport branch only applies to the
+    // guest-skip flow above (which jumps straight into the sender surface).
+    navigate('/documents');
+  }, [navigate]);
 
   return (
     <AuthShell>
