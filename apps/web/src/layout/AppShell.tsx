@@ -5,6 +5,8 @@ import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useAccountActions } from '@/features/account';
+import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
+import { MWMobileNav } from '../pages/MobileSendPage/components/MWMobileNav';
 import { NAV_ITEMS, matchNavId } from './navItems';
 
 const Shell = styled.div`
@@ -112,6 +114,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const location = useLocation();
   const activeNavId = matchNavId(location.pathname);
+  const isMobile = useIsMobileViewport();
 
   const handleSelectNavItem = useCallback(
     (id: string): void => {
@@ -152,22 +155,32 @@ export function AppShell() {
 
   const mode = !user && guest ? 'guest' : 'authed';
 
+  // 2026-05-03 — at ≤640 px the desktop NavBar's tab row overflows the
+  // viewport (Templates link clips, avatar/account menu unreachable). Swap
+  // to the slim MWMobileNav already shipping on /m/send so every authed
+  // mobile surface gets a hamburger-driven drawer instead of broken chrome.
+  // Guest mode keeps the desktop NavBar (the marketing-style sign-in/up
+  // pair has no equivalent in the slim bar yet).
   return (
     <Shell>
-      <NavBar
-        items={NAV_ITEMS}
-        activeItemId={activeNavId}
-        onSelectItem={handleSelectNavItem}
-        user={user ?? undefined}
-        mode={mode}
-        onSignIn={handleSignIn}
-        onSignUp={handleSignUp}
-        onSignOut={handleSignOut}
-        onExportData={mode === 'authed' ? account.exportData : undefined}
-        onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
-        isExporting={account.isExporting}
-        isDeleting={account.isDeleting}
-      />
+      {isMobile && mode === 'authed' ? (
+        <MWMobileNav onSignOut={handleSignOut} />
+      ) : (
+        <NavBar
+          items={NAV_ITEMS}
+          activeItemId={activeNavId}
+          onSelectItem={handleSelectNavItem}
+          user={user ?? undefined}
+          mode={mode}
+          onSignIn={handleSignIn}
+          onSignUp={handleSignUp}
+          onSignOut={handleSignOut}
+          onExportData={mode === 'authed' ? account.exportData : undefined}
+          onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
+          isExporting={account.isExporting}
+          isDeleting={account.isDeleting}
+        />
+      )}
       <Content>
         <Outlet />
       </Content>
