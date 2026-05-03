@@ -65,11 +65,22 @@ jobs:
             sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
             rm -f /tmp/.env.new
 
+            # Defensive trim: a stray CR/LF in a GH secret value would
+            # break the .env line that follows (and break z.string().url()
+            # on REDIRECT_URI). Tr-strip any \r/\n inside each value, no
+            # echo of the values themselves.
+            CID=$(printf '%s' "$GDRIVE_OAUTH_CLIENT_ID" | tr -d '\r\n')
+            CSE=$(printf '%s' "$GDRIVE_OAUTH_CLIENT_SECRET" | tr -d '\r\n')
+            URI=$(printf '%s' "$GDRIVE_OAUTH_REDIRECT_URI" | tr -d '\r\n ')
+
+            echo "=== Sanity (lengths only, no values) ==="
+            echo "  CLIENT_ID len=${#CID} CLIENT_SECRET len=${#CSE} REDIRECT_URI len=${#URI}"
+
             echo "=== Append new values (no logging of values) ==="
             {
-              printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$GDRIVE_OAUTH_CLIENT_ID"
-              printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$GDRIVE_OAUTH_CLIENT_SECRET"
-              printf 'GDRIVE_OAUTH_REDIRECT_URI=%s\n' "$GDRIVE_OAUTH_REDIRECT_URI"
+              printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$CID"
+              printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$CSE"
+              printf 'GDRIVE_OAUTH_REDIRECT_URI=%s\n' "$URI"
             } | sudo tee -a "$ENV_FILE" >/dev/null
             sudo chmod 0600 "$ENV_FILE"
 
