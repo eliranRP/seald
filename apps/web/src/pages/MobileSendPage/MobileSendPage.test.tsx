@@ -171,11 +171,16 @@ describe('MobileSendPage', () => {
     expect(within(dialog).queryByRole('button', { name: /delete account/i })).toBeNull();
   });
 
-  it('tapping "From a template" navigates to /templates', async () => {
-    const user = userEvent.setup();
+  it('does not expose a "From a template" tile (templates is desktop-only)', () => {
+    // Per 2026-05-03 product refinement, mobile users are locked to
+    // /m/send and the templates list / per-template editor are
+    // desktop-only screens. The start screen used to surface a
+    // "From a template" tile that routed to /templates; AppShell now
+    // bounces every mobile visitor back to /m/send so the tile would
+    // dead-end into a redirect loop. Removing it is a positive
+    // behavior assertion: no template entry on the mobile start.
     renderPage();
-    await user.click(screen.getByRole('button', { name: /^from a template$/i }));
-    expect(await screen.findByTestId('loc')).toHaveTextContent('/templates');
+    expect(screen.queryByRole('button', { name: /^from a template$/i })).toBeNull();
   });
 
   it('rejects a 0-byte PDF at the upload boundary with an inline alert', async () => {

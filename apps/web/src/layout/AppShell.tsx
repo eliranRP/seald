@@ -154,16 +154,18 @@ export function AppShell() {
 
   const mode = !user && guest ? 'guest' : 'authed';
 
-  // 2026-05-03 (refined) — the desktop AppShell pages (/documents,
-  // /templates, /signers, /document/<id>, /document/new,
-  // /templates/:id/use, /templates/:id/edit) were not designed for a
-  // 390 px viewport: tables overlap, hero text wraps, the title
-  // char-stacks, the NavBar tab row overflows. Rather than retrofit
-  // responsiveness onto every desktop page, lock authed mobile users to
-  // the dedicated mobile sender at /m/send. Guest mode is out of scope
-  // (the marketing-style auth CTAs render fine on mobile and guests can
-  // still reach /document/new without an account from a mobile browser).
-  if (isMobile && mode === 'authed') {
+  // 2026-05-03 (refined a second time per user) — the desktop AppShell
+  // pages (/documents, /templates, /signers, /document/<id>,
+  // /document/new, /templates/:id/use, /templates/:id/edit) were not
+  // designed for a 390 px viewport: tables overlap, hero text wraps,
+  // the title char-stacks, the NavBar tab row overflows. Rather than
+  // retrofit responsiveness onto every desktop page, lock ALL mobile
+  // users — authed AND guest — to the dedicated mobile sender at
+  // /m/send. The mobile sender supports guest sessions on its own
+  // (mirroring the desktop UploadRoute), so unauthed visitors land on
+  // the mobile screens we built rather than the desktop chrome that
+  // doesn't fit the viewport.
+  if (isMobile) {
     return <Navigate to="/m/send" replace />;
   }
 

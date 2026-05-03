@@ -1,13 +1,13 @@
 Feature: Mobile sender has a real navbar at /m/send
   # The mobile sender flow used to ship without any nav chrome — authed
   # users had no way to sign out. The MWMobileNav closes that gap. Per
-  # product (2026-05-03, refined): mobile users are locked to /m/send;
-  # every desktop AppShell route bounces back here, so the hamburger
-  # exposes no nav links at all (Documents / Templates / Signers /
-  # Download my data / Delete account are reached from desktop).
-  # Identity + Sign out only. Templates remains reachable from the
-  # start-screen "From a template" CTA — its absence from the
-  # hamburger is the deliberate complement.
+  # product (2026-05-03, refined twice): mobile users are locked to
+  # /m/send; every desktop AppShell route bounces back here, so the
+  # hamburger exposes no nav links at all (Documents / Templates /
+  # Signers / Download my data / Delete account are reached from
+  # desktop). Identity + Sign out only. Templates was previously
+  # reachable from a start-screen "From a template" CTA; that tile was
+  # removed when the templates list became unreachable from a phone.
 
   Background:
     Given a signed-in sender on a 375x667 phone
@@ -24,8 +24,3 @@ Feature: Mobile sender has a real navbar at /m/send
     When the sender opens the mobile menu
     And the sender taps the menu item "Sign out"
     Then the URL is /signin
-
-  @sender @smoke @mobile
-  Scenario: Tapping the From a template tile lands on /templates
-    When the sender taps the "From a template" tile
-    Then the URL is /templates

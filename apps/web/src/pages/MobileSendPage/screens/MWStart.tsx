@@ -1,4 +1,4 @@
-import { ChevronRight, LayoutTemplate, Camera, Upload } from 'lucide-react';
+import { ChevronRight, Camera, Upload } from 'lucide-react';
 import styled from 'styled-components';
 import { useRef } from 'react';
 
@@ -91,16 +91,17 @@ const HiddenFileInput = styled.input`
 
 export interface MWStartProps {
   readonly onPickFile: (file: File) => void;
-  /**
-   * Tap-handler for the "From a template" tile. The screen stays pure
-   * (no router import) so the parent page owns navigation; this lands
-   * on `/templates` which is gated by RequireAuth + AppShell.
-   */
-  readonly onUseTemplate: () => void;
 }
 
+// 2026-05-03 (per user): the "From a template" tile was removed. The
+// templates list and per-template editor are desktop-only screens, and
+// AppShell now redirects every mobile visitor back to /m/send — so the
+// tile would have routed into a redirect loop. Picking a template from
+// a phone is a future enhancement that needs its own mobile picker;
+// for now mobile users start from a phone-side PDF (Upload PDF) or a
+// camera capture (Take photo).
 export function MWStart(props: MWStartProps) {
-  const { onPickFile, onUseTemplate } = props;
+  const { onPickFile } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
@@ -133,16 +134,6 @@ export function MWStart(props: MWStartProps) {
           <TileText>
             <TileTitle>Take photo</TileTitle>
             <TileSub>Scan a paper document</TileSub>
-          </TileText>
-          <ChevronRight size={18} aria-hidden style={{ color: 'var(--fg-4)' }} />
-        </Tile>
-        <Tile type="button" onClick={onUseTemplate} aria-label="From a template">
-          <TileIcon $accent="var(--success-700)" aria-hidden>
-            <LayoutTemplate size={22} />
-          </TileIcon>
-          <TileText>
-            <TileTitle>From a template</TileTitle>
-            <TileSub>Reuse a saved layout</TileSub>
           </TileText>
           <ChevronRight size={18} aria-hidden style={{ color: 'var(--fg-4)' }} />
         </Tile>

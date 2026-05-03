@@ -158,27 +158,12 @@ When('the sender chooses the {string} download bundle', async ({ page }, _label:
   await page.waitForTimeout(300);
 });
 
-Then('the envelope row tiles do not overflow the viewport', async ({ page }) => {
-  // Pick any envelope row by its title and assert its bounding box
-  // sits inside the 375px viewport. Without BUG-1's fix the row's
-  // intrinsic min-width (1.3fr+1.5fr+1fr+180+100+60 = ~620px content +
-  // 96px padding) would push it well past the right edge.
-  const row = page.getByRole('button', { name: /Recent NDA/i });
-  await row.waitFor();
-  const box = await row.boundingBox();
-  expect(box, 'row must have a bounding box').not.toBeNull();
-  if (!box) throw new Error('unreachable');
-  expect(box.x + box.width).toBeLessThanOrEqual(375 + 1);
-});
-
-Then('the column-header strip is hidden', async ({ page }) => {
-  // BUG-1 fix hides the TableHead at <=768px. The "Document" / "Status"
-  // headings (uppercase 11px labels) should not be visible on mobile.
-  // We assert by accessible text — they're not in any heading role, so
-  // we use a regex on the body text in the dashboard region.
-  const documentHeading = page.locator('text=/^DOCUMENT$/i').first();
-  await expect(documentHeading).toBeHidden();
-});
+// BUG-1 step defs (`Then the envelope row tiles do not overflow the
+// viewport` + `Then the column-header strip is hidden`) were removed
+// 2026-05-03 when the mobile dashboard scenario was rewritten to assert
+// the redirect to /m/send. The dashboard never renders on a phone
+// viewport now, so no overflow / column-header assertion applies. The
+// "Then the URL is /m/send" step lives in sender-mobile.steps.ts.
 
 Then('the row for the historical envelope shows its year', async ({ page }) => {
   // BUG-2: the row that points at HISTORICAL_SENT_AT (2024) must carry

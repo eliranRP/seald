@@ -9,9 +9,11 @@ Feature: Mobile hamburger only exposes Sign out
   # "let's just expose all the nav items again" regression is caught by
   # CI rather than by a frustrated mobile user.
   #
-  # Templates is reachable from the start-screen "From a template" CTA
-  # (asserted by sender-mobile-nav.feature) — its absence from the
-  # hamburger is the deliberate complement.
+  # Templates is no longer reachable from the mobile sender at all (the
+  # start-screen "From a template" tile was retired 2026-05-03 when the
+  # templates list became unreachable on a phone). Its absence from the
+  # hamburger is therefore part of a broader "templates is desktop-only"
+  # contract.
 
   Background:
     Given a signed-in sender on a 390x844 phone
