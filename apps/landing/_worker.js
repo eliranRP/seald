@@ -23,6 +23,11 @@ const SPA_EXACT = new Set([
 ]);
 
 // Trailing slash matters: '/auth/' matches '/auth/foo' and '/auth' itself.
+// `/settings/` was added 2026-05-03 with WT-B (Drive integration page) —
+// red-flag row 1 from the gdrive-feature plan, same root cause as the
+// 2026-05-02 outage where missing prefixes silently served the landing
+// HTML instead of rewriting to the SPA shell. Pinned by
+// `apps/web/src/routes/settings/integrations/_worker-spa-routing.test.ts`.
 const SPA_PREFIXES = [
   '/auth/',
   '/debug/',
@@ -31,6 +36,7 @@ const SPA_PREFIXES = [
   '/document/',
   '/templates/',
   '/m/',
+  '/settings/',
 ];
 
 function isSpaRoute(pathname) {
