@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { GDriveLogo } from './GDriveLogo';
 
@@ -7,30 +8,32 @@ import { GDriveLogo } from './GDriveLogo';
  * "Upload a PDF" button and inherits the same `secondary` variant so
  * the two affordances read as peers.
  *
- * Disabled-with-tooltip when no Drive account is connected — same
- * contract as `DriveSourceCard` on the New Document surface.
+ * When no Drive account is connected the button is replaced with a
+ * "Connect Drive in Settings" CTA that navigates to
+ * `/settings/integrations`. Same accessibility contract + rationale as
+ * `DriveSourceCard` (see that component's header comment + the Gherkin
+ * spec at `apps/web/e2e/features/gdrive/disabled-cta.feature`).
  */
 export interface DriveTemplateReplaceButtonProps {
   readonly connected: boolean;
   readonly onPickDrive: () => void;
 }
 
-const DISABLED_TOOLTIP = 'Connect Google Drive in Settings to use this.';
+const SETTINGS_INTEGRATIONS_PATH = '/settings/integrations';
 
 export function DriveTemplateReplaceButton({
   connected,
   onPickDrive,
 }: DriveTemplateReplaceButtonProps) {
+  const navigate = useNavigate();
   return (
     <Button
       variant="secondary"
-      onClick={onPickDrive}
-      disabled={!connected}
-      {...(connected ? {} : { title: DISABLED_TOOLTIP })}
+      onClick={connected ? onPickDrive : () => navigate(SETTINGS_INTEGRATIONS_PATH)}
     >
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
         <GDriveLogo size={16} />
-        Pick from Google Drive
+        {connected ? 'Pick from Google Drive' : 'Connect Drive in Settings'}
       </span>
     </Button>
   );

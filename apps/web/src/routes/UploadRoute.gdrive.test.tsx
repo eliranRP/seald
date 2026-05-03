@@ -103,13 +103,25 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     expect(cta).toBeEnabled();
   });
 
-  it('shows the Drive card with disabled CTA + tooltip when flag is on but no account', () => {
+  it('shows an enabled "Connect Drive in Settings" CTA when flag is on but no account', () => {
+    // Phase 6.A iter-1 LOCAL bug: pre-fix this surface rendered a
+    // `<button disabled title="…">` — an a11y dead-end (native title
+    // not announced for disabled buttons; not focusable; touch users
+    // see nothing). Post-fix the not-connected branch renders an
+    // enabled button whose visible label + accessible name include
+    // "Connect" and that navigates to /settings/integrations on
+    // activation. See `DriveSourceCard.test.tsx` and the Gherkin spec
+    // at `apps/web/e2e/features/gdrive/disabled-cta.feature`.
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(false);
     renderRoute();
-    const cta = screen.getByRole('button', { name: /pick from google drive/i });
-    expect(cta).toBeDisabled();
-    expect(cta).toHaveAttribute('title', 'Connect Google Drive in Settings to use this.');
+    const cta = screen.getByRole('button', { name: /connect.*settings/i });
+    expect(cta).toBeEnabled();
+    expect(cta.getAttribute('title')).toBeNull();
+    // The legacy "Pick from Google Drive" label must be gone in the
+    // not-connected state — otherwise the user is misled into
+    // expecting the picker to open.
+    expect(screen.queryByRole('button', { name: /pick from google drive/i })).toBeNull();
   });
 
   it('opens the picker when the active CTA is clicked', () => {

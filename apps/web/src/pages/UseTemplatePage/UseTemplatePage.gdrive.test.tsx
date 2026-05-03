@@ -97,13 +97,21 @@ describe('UseTemplatePage Drive integration (WT-E)', () => {
     expect(cta).toBeEnabled();
   });
 
-  it('shows the Drive button disabled with tooltip when no account is connected', () => {
+  it('shows an enabled "Connect Drive in Settings" button when no account is connected', () => {
+    // Phase 6.A iter-1 LOCAL bug companion (see DriveSourceCard
+    // post-fix rationale + the Gherkin spec at
+    // `apps/web/e2e/features/gdrive/disabled-cta.feature`). Pre-fix
+    // this surface rendered a disabled button with a `title` tooltip
+    // — invisible to screen readers, non-focusable, and unreachable
+    // on touch. Post-fix it's an enabled button whose label includes
+    // "Connect" and which navigates to /settings/integrations.
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(false);
     gotoStep1Upload();
-    const cta = screen.getByRole('button', { name: /pick from google drive/i });
-    expect(cta).toBeDisabled();
-    expect(cta).toHaveAttribute('title', 'Connect Google Drive in Settings to use this.');
+    const cta = screen.getByRole('button', { name: /connect.*settings/i });
+    expect(cta).toBeEnabled();
+    expect(cta.getAttribute('title')).toBeNull();
+    expect(screen.queryByRole('button', { name: /pick from google drive/i })).toBeNull();
   });
 
   it('opens the picker when the active CTA is clicked', () => {
