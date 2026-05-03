@@ -98,6 +98,20 @@ export const envSchema = z
      * keeping API nodes worker-disabled.
      */
     WORKER_ENABLED: z.coerce.boolean().default(false),
+
+    /**
+     * Google Drive integration (Phase 5 of the gdrive feature). Required
+     * only when `feature.gdriveIntegration` is on. The KMS key is the
+     * per-tenant CMK that wraps the per-row data key encrypting each
+     * stored OAuth refresh token (red-flag row 3 — never plaintext).
+     */
+    GDRIVE_OAUTH_CLIENT_ID: z.string().optional(),
+    GDRIVE_OAUTH_CLIENT_SECRET: z.string().optional(),
+    GDRIVE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+    GDRIVE_TOKEN_KMS_KEY_ARN: z.string().optional(),
+    GDRIVE_TOKEN_KMS_REGION: z.string().optional(),
+    GDRIVE_API_RATE_PER_USER: z.coerce.number().int().positive().optional(),
+    GDRIVE_API_RATE_WINDOW_SECONDS: z.coerce.number().int().positive().optional(),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'test') {

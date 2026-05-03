@@ -6,6 +6,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ConfigModule } from './config/config.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DbModule } from './db/db.module';
+import { GDriveModule } from './integrations/gdrive/gdrive.module';
 import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
@@ -50,6 +51,7 @@ import { StorageModule } from './storage/storage.module';
     SealingModule,
     VerifyModule,
     CronModule,
+    GDriveModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

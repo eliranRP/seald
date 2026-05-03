@@ -479,7 +479,15 @@
     "tombstones",
     "Tombstones",
     "tombstoned",
-    "Tombstoned"
+    "Tombstoned",
+    "gdrive",
+    "Gdrive",
+    "GDrive",
+    "GDRIVE",
+    "pkce",
+    "PKCE",
+    "bytea",
+    "wordprocessingml"
   ],
   "ignoreRegExpList": [
     "Base64",

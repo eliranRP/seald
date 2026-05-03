@@ -90,6 +90,30 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   contract (sorted keys, RFC 8785-ish) lives next to the helper — import
   it, don't reimplement.
 
+### Google Drive integration env vars
+
+The `apps/api/src/integrations/gdrive/` module reads these at startup:
+
+- `GDRIVE_OAUTH_CLIENT_ID` — Google Cloud Console OAuth 2.0 client ID
+- `GDRIVE_OAUTH_CLIENT_SECRET` — paired secret; must NEVER be checked in
+- `GDRIVE_OAUTH_REDIRECT_URI` — must exactly match the URI registered in
+  Google Cloud Console (e.g.
+  `https://api.seald.nromomentum.com/integrations/gdrive/oauth/callback`)
+- `GDRIVE_TOKEN_KMS_KEY_ARN` — AWS KMS CMK ARN used to wrap per-row DEKs
+  for refresh-token storage (envelope AES-256-GCM)
+- `GDRIVE_TOKEN_KMS_REGION` — AWS region for the CMK
+- `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
+- `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
+  (default `60`); WT-A-2
+
+OAuth scope is hard-coded to `https://www.googleapis.com/auth/drive.file`
+(per-file consent only). Do not broaden — picker selections grant per-file
+access at the moment of click via Google's drive.file scope.
+
+When the feature flag `feature.gdriveIntegration` is off, all routes
+404 and the env vars are unread; the same image runs dark in dev and
+hot for prod.
+
 ### Sprint history
 - **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
 - **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
