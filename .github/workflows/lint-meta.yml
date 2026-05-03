@@ -146,3 +146,28 @@ jobs:
 
       - name: Run cspell
         run: pnpm lint:spelling
+
+  # Aggregator job: succeeds if every upstream lint job is success or
+  # skipped. Branch protection points at this single job so a PR that
+  # touches no .feature files (gherkin SKIPPED) or no workflow YAML
+  # (actionlint SKIPPED) can still satisfy the required-status-checks
+  # gate.
+  lint-meta-success:
+    name: Lint Meta Success
+    runs-on: ubuntu-latest
+    needs: [lint-workflows, lint-gherkin, lint-spelling]
+    if: always()
+    steps:
+      - name: Verify all required lint jobs passed (or were skipped)
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Upstream results: $results"
+          if [[ "$results" == *failure* ]]; then
+            echo "::error::One or more upstream lint jobs failed"
+            exit 1
+          fi
+          if [[ "$results" == *cancelled* ]]; then
+            echo "::error::One or more upstream lint jobs were cancelled"
+            exit 1
+          fi
+          echo "All upstream lint jobs succeeded or were skipped — gate passes."

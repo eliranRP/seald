@@ -447,3 +447,27 @@ jobs:
 
       - name: Verify PAdES conformance
         run: pnpm --filter api exec ts-node scripts/verify-pades.ts ../../pdfs
+
+  # Aggregator job: succeeds if every upstream job is success or skipped.
+  # Branch protection points at this single job (instead of 9 individual
+  # jobs) so backend-only PRs whose web/playwright jobs are SKIPPED via
+  # paths-ignore can still satisfy the required-status-checks gate.
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [install, lint, audit, unit, web, storybook, playwright-web, e2e, pades-verify]
+    if: always()
+    steps:
+      - name: Verify all required jobs passed (or were skipped)
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Upstream results: $results"
+          if [[ "$results" == *failure* ]]; then
+            echo "::error::One or more upstream jobs failed"
+            exit 1
+          fi
+          if [[ "$results" == *cancelled* ]]; then
+            echo "::error::One or more upstream jobs were cancelled"
+            exit 1
+          fi
+          echo "All upstream jobs succeeded or were skipped — gate passes."
