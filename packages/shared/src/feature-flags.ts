@@ -6,13 +6,24 @@
  */
 export const FEATURE_FLAGS: Record<string, boolean> = {
   /**
-   * Google Drive integration (Phase 5 of the gdrive feature). Off until
-   * WT-A through WT-E all merge and the backend is verified end-to-end.
+   * Google Drive integration (Phase 5 of the gdrive feature). Activated
+   * 2026-05-03 after WT-A..WT-E shipped + Phase 6.A iter-2 a11y fixes
+   * merged (PR #127). Pre-activation the flag was `false`, which caused
+   * `GDriveController.requireFlag()` to 404 every `/integrations/gdrive/*`
+   * route on prod — the surface was reachable in the SPA but the API
+   * returned `404 not_found` for OAuth URL, accounts list, file picker.
    * When false:
    *   - api: every `/integrations/gdrive/*` route 404s.
    *   - web: source-selection cards + settings page hide the Drive surface.
+   * When true (current):
+   *   - api: routes serve. If `GDRIVE_OAUTH_CLIENT_ID` / `_CLIENT_SECRET`
+   *     are unset on the host the OAuth-URL endpoint returns 503
+   *     `gdrive_oauth_not_configured`; the SPA surfaces a dismissible
+   *     inline alert (PR #125 + #127 iter-2 Bug D path).
+   *   - web: source-selection cards + Settings → Integrations show the
+   *     Drive surface.
    */
-  gdriveIntegration: false,
+  gdriveIntegration: true,
 
   /**
    * Multi-account UI gate for the gdrive Settings page. Data model is
