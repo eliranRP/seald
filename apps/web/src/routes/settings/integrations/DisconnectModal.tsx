@@ -1,5 +1,6 @@
-import { forwardRef, useEffect, useId } from 'react';
-import { Unlink } from 'lucide-react';
+import { forwardRef, useEffect, useId, useRef } from 'react';
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { AlertTriangle, Unlink } from 'lucide-react';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
 
@@ -7,9 +8,20 @@ export interface DisconnectModalProps {
   readonly open: boolean;
   readonly accountEmail: string;
   readonly pending?: boolean | undefined;
+  /**
+   * Inline error to surface inside the modal — typically the message
+   * from a failed disconnect mutation. Shown in a `role="alert"` row
+   * above the action buttons; the buttons remain enabled so the user
+   * can retry or back out (Phase 6.A iter-2 LOCAL bug — pre-fix the
+   * modal sat silent after a failure).
+   */
+  readonly error?: string | null | undefined;
   readonly onClose: () => void;
   readonly onConfirm: () => void;
 }
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const Backdrop = styled.div`
   position: fixed;
@@ -90,6 +102,19 @@ const Footer = styled.div`
   gap: ${({ theme }) => theme.space[2]};
 `;
 
+const ErrorRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid ${({ theme }) => theme.color.danger[500]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.danger[50]};
+  color: ${({ theme }) => theme.color.danger[700]};
+  font-size: 13px;
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+`;
+
 /**
  * Destructive-confirm modal for disconnecting a Google Drive account.
  * Mirrors the design at Design-Guide/project/gdrive-integration/Integrations.jsx
@@ -103,9 +128,10 @@ const Footer = styled.div`
  * double-fire the delete.
  */
 export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>((props, ref) => {
-  const { open, accountEmail, pending, onClose, onConfirm } = props;
+  const { open, accountEmail, pending, error, onClose, onConfirm } = props;
   const titleId = useId();
   const descId = useId();
+  const cardRef = useRef<HTMLDivElement | null>(null);
 
   // Esc closes — single-purpose effect (rule 4.4).
   useEffect(() => {
@@ -124,15 +150,53 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
 
   if (!open) return null;
 
+  // Trap Tab inside the alertdialog (rule 4.6 / WCAG 2.1.2).
+  // Pre-fix Tab from any focusable inside the modal escaped to the
+  // underlying IntegrationsPage Connect button + header links;
+  // disorienting and a documented a11y antipattern for destructive
+  // confirms.
+  const onKeyDownInside = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
+    if (e.key !== 'Tab') return;
+    const card = cardRef.current;
+    if (!card) return;
+    const focusables = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    if (focusables.length === 0) return;
+    const first = focusables[0]!;
+    const last = focusables[focusables.length - 1]!;
+    const active = document.activeElement as HTMLElement | null;
+    if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  // Combine the forwarded ref with the local cardRef so both the
+  // caller and our focus-trap query target the same node.
+  const setRef = (node: HTMLDivElement | null): void => {
+    cardRef.current = node;
+    if (typeof ref === 'function') ref(node);
+    else if (ref) (ref as { current: HTMLDivElement | null }).current = node;
+  };
+
+  // While an error is showing, the mutation has already settled — the
+  // buttons must NOT remain disabled or the user has no way to retry
+  // or back out. The pending+!error gate keeps double-fire prevention
+  // intact while the request is genuinely in flight.
+  const buttonsDisabled = Boolean(pending) && !error;
+
   return (
     <Backdrop role="presentation" onClick={onClose}>
       <Card
-        ref={ref}
+        ref={setRef}
         role="alertdialog"
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descId}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDownInside}
       >
         <Header>
           <IconBubble aria-hidden>
@@ -149,16 +213,23 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
 
         <AccountChip>{accountEmail}</AccountChip>
 
+        {error ? (
+          <ErrorRow role="alert">
+            <AlertTriangle width={16} height={16} strokeWidth={1.75} aria-hidden />
+            <span>{error}</span>
+          </ErrorRow>
+        ) : null}
+
         <Footer>
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
+          <Button variant="ghost" onClick={onClose} disabled={buttonsDisabled}>
             Cancel
           </Button>
           <Button
             variant="danger"
             iconLeft={Unlink}
             onClick={onConfirm}
-            disabled={pending}
-            loading={pending}
+            disabled={buttonsDisabled}
+            loading={pending && !error}
             autoFocus
           >
             Disconnect

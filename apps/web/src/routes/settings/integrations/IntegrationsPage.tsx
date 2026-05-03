@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Eye,
   Lock,
+  X,
   XCircle,
   Cloud,
   AlertTriangle,
@@ -248,9 +249,33 @@ const ConfigAlertIconWrap = styled.span`
 `;
 
 const ConfigAlertCopy = styled.div`
+  flex: 1;
   font-size: 13px;
   color: ${({ theme }) => theme.color.fg[2]};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
+`;
+
+const ConfigAlertDismiss = styled.button`
+  border: 0;
+  background: transparent;
+  padding: 4px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  color: ${({ theme }) => theme.color.fg[3]};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  &:hover {
+    background: ${({ theme }) => theme.color.ink[100]};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
 `;
 
 const ConfigAlertTitle = styled.div`
@@ -468,13 +493,30 @@ export function IntegrationsPage() {
     connect.mutate();
   }, [connect]);
 
-  const openDisconnect = useCallback((account: GDriveAccount): void => {
-    setPendingDisconnect(account);
-  }, []);
+  const dismissConfigAlert = useCallback((): void => {
+    // Reset the connect mutation so its `error` clears + the alert
+    // unmounts. Phase 6.A iter-2 LOCAL bug — pre-fix the alert had
+    // no dismiss control, so once an admin saw the misconfigured
+    // state on first click there was no way back to a clean view
+    // until they refreshed or attempted a second click.
+    connect.reset();
+  }, [connect]);
+
+  const openDisconnect = useCallback(
+    (account: GDriveAccount): void => {
+      // Clear any prior disconnect error from a previous attempt so the
+      // newly-opened modal starts clean (the error message belongs to
+      // the previous account row, not this one).
+      disconnect.reset();
+      setPendingDisconnect(account);
+    },
+    [disconnect],
+  );
 
   const closeDisconnect = useCallback((): void => {
+    disconnect.reset();
     setPendingDisconnect(null);
-  }, []);
+  }, [disconnect]);
 
   const confirmDisconnect = useCallback((): void => {
     if (!pendingDisconnect) return;
@@ -484,6 +526,13 @@ export function IntegrationsPage() {
   }, [disconnect, pendingDisconnect]);
 
   const accounts = accountsQuery.data ?? [];
+
+  // Surface the disconnect mutation error inside the modal so the
+  // user can retry or back out — pre-fix the modal sat silent on
+  // mutation failure (Phase 6.A iter-2 LOCAL bug).
+  const disconnectErrorMessage = disconnect.error
+    ? "We couldn't disconnect that account. Please try again."
+    : null;
 
   return (
     <Page>
@@ -514,6 +563,13 @@ export function IntegrationsPage() {
             <code style={{ margin: '0 4px' }}>GDRIVE_OAUTH_CLIENT_SECRET</code>
             before connecting an account.
           </ConfigAlertCopy>
+          <ConfigAlertDismiss
+            type="button"
+            onClick={dismissConfigAlert}
+            aria-label="Dismiss configuration alert"
+          >
+            <Icon icon={X} size={14} />
+          </ConfigAlertDismiss>
         </ConfigAlert>
       ) : null}
 
@@ -538,6 +594,7 @@ export function IntegrationsPage() {
         open={pendingDisconnect !== null}
         accountEmail={pendingDisconnect?.email ?? ''}
         pending={disconnect.isPending}
+        error={disconnectErrorMessage}
         onClose={closeDisconnect}
         onConfirm={confirmDisconnect}
       />

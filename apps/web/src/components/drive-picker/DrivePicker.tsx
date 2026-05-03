@@ -127,13 +127,21 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     };
   }, [open]);
 
-  // Move initial focus to the search input on open.
+  // Move initial focus to the search input on open. Querying for
+  // `input, button` returns the first match in DOM order — and the
+  // CloseButton in the Header sits before the SearchInput, so a naive
+  // query lands focus on Close (rule 4.6 — keyboard-only users
+  // opening the picker were one Tab away from dismissing it). Prefer
+  // the search input explicitly; fall back to any focusable only if
+  // the search input is absent (defensive — token-expired / error
+  // states render no search input).
   useEffect(() => {
     if (!open) return;
     const card = cardRef.current;
     if (!card) return;
-    const first = card.querySelector<HTMLElement>('input, button');
-    first?.focus();
+    const search = card.querySelector<HTMLElement>('input[type="search"]');
+    const target = search ?? card.querySelector<HTMLElement>('input, button');
+    target?.focus();
   }, [open]);
 
   // Escape closes the modal.
