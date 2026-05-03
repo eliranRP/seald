@@ -1,0 +1,21 @@
+-- 0014_repair_gdrive_accounts_down.sql
+-- Rollback for 0014_repair_gdrive_accounts.sql.
+--
+-- 0014 is itself a forward-only repair migration whose purpose is to
+-- restore the gdrive_accounts table that an earlier boot-loop dropped
+-- and to delete the ghost ledger row that was blocking re-application
+-- of 0013. There is no clean automated rollback that wouldn't simply
+-- recreate the original outage:
+--   * Dropping gdrive_accounts here would lose any rows captured after
+--     the repair shipped (and the table is the storage for live
+--     OAuth refresh tokens, so this would break every connected user).
+--   * Re-inserting the ghost ledger row would re-arm the bug.
+--
+-- This file exists to satisfy the paired-down-script convention
+-- enforced by apps/api/test/migrations-convention.spec.ts. Operators
+-- who need to roll back 0014 must do so manually after first
+-- confirming with the on-call that no production rows would be lost,
+-- using the original 0013_gdrive_accounts_down.sql as a reference for
+-- the table+index drop (it lives next to this file in db/migrations/down/).
+
+select 'no-op: see file header for manual rollback procedure' as note;

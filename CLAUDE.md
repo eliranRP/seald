@@ -122,6 +122,32 @@ When the feature flag `feature.gdriveIntegration` is off, all routes
 404 and the env vars are unread; the same image runs dark in dev and
 hot for prod.
 
+### Database migrations
+
+`apps/api/scripts/migrate.sh` runs at container boot, glob-applies every
+top-level `*.sql` under `apps/api/db/migrations/` in lex order, and
+records applied filenames in `public.schema_migrations`. The runner is
+idempotent (already-applied filenames are skipped).
+
+- **M.1** Down/rollback scripts MUST live in `apps/api/db/migrations/down/`,
+  NEVER alongside their up-script. The runner only globs the top level;
+  a `_down.sql` file at the top level is a boot-time outage waiting to
+  happen (it gets glob-applied right after the up script and silently
+  drops the table). The runner has a defence-in-depth filter that
+  refuses to run any `*_down.sql` it finds at the top level — fix the
+  layout, do not bypass.
+- **M.2** Naming: `<id>_<name>.sql` for the up, `<id>_<name>_down.sql`
+  in `down/` for the rollback. The 4-digit id is the sort key.
+- **M.3** From id 0013 onward every up-migration MUST have a paired
+  down. `apps/api/test/migrations-convention.spec.ts` enforces both
+  rules (no top-level `_down`, paired-down exists). Migrations 0001–
+  0012 are forward-only and grandfathered in.
+- **M.4** Forward-only repair migrations are fine when a prior
+  migration left prod in a broken state — make them idempotent
+  (`create … if not exists`, `delete from schema_migrations where
+  filename = …`) so re-runs are safe. See `0014_repair_gdrive_accounts.sql`
+  for the canonical pattern.
+
 ### Sprint history
 - **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
 - **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
