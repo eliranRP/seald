@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
 import { UploadPage } from '../pages/UploadPage';
 import { SignersStepCard } from '../components/SignersStepCard';
 import type { SignersStepSigner } from '../components/SignersStepCard';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
+import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
 import { usePdfDocument } from '../lib/pdf';
+import {
+  ConversionFailedDialog,
+  ConversionProgressDialog,
+  DriveSourceCard,
+  useDriveImport,
+} from '../features/gdriveImport';
+import { useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
   getTemplates,
@@ -122,6 +131,27 @@ export function UploadRoute() {
     return () => ac.abort();
   }, []);
   const [pickerOpen, setPickerOpen] = useState(false);
+
+  // Google Drive integration (WT-E). Hidden entirely when the feature
+  // flag is off — the route renders no Drive surfaces at all so the
+  // bundle still tree-shakes the modal/picker for users on the dark
+  // build. When on, we read the connected accounts to drive the
+  // disabled-vs-active CTA state on the source card.
+  const gdriveOn = isFeatureEnabled('gdriveIntegration');
+  const accountsQuery = useGDriveAccounts();
+  const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
+  const driveAccountId = accounts[0]?.id ?? null;
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const driveImport = useDriveImport({
+    accountId: driveAccountId ?? '',
+    onReady: (file) => {
+      // Drop the converted bytes through the same handler the dropzone
+      // uses — so downstream signer collection + draft creation paths
+      // stay identical.
+      setPdfFile(file);
+      setSelectedSigners([]);
+    },
+  });
 
   // The upload-page entry doesn't host its own "use this template"
   // experience — it only gates document creation on a PDF + signers.
@@ -344,15 +374,23 @@ export function UploadRoute() {
         time the file lands.
       */}
       {!pdfFile || (pdfFile && numPages <= 0) ? (
-        <UploadPage
-          onFileSelected={handleFileSelected}
-          status={pdfFile ? 'analyzing' : 'idle'}
-          {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
-          {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
-          templateBannerTone={bannerTone}
-          {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
-          {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
-        />
+        <>
+          <UploadPage
+            onFileSelected={handleFileSelected}
+            status={pdfFile ? 'analyzing' : 'idle'}
+            {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
+            {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
+            templateBannerTone={bannerTone}
+            {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
+            {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
+          />
+          {gdriveOn ? (
+            <DriveSourceCard
+              connected={driveAccountId !== null}
+              onPickDrive={() => setDrivePickerOpen(true)}
+            />
+          ) : null}
+        </>
       ) : (
         <SignersStepCard
           mode="new"
@@ -395,6 +433,39 @@ export function UploadRoute() {
         templates={templates}
         onPick={handlePickTemplate}
         onClose={() => setPickerOpen(false)}
+      />
+      {gdriveOn && driveAccountId !== null ? (
+        <DrivePicker
+          open={drivePickerOpen}
+          accountId={driveAccountId}
+          onClose={() => setDrivePickerOpen(false)}
+          onPick={(file) => {
+            setDrivePickerOpen(false);
+            driveImport.beginImport(file);
+          }}
+        />
+      ) : null}
+      <ConversionProgressDialog
+        open={driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'}
+        fileName={
+          driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'
+            ? driveImport.state.file.name
+            : ''
+        }
+        onCancel={() => {
+          void driveImport.cancelImport();
+        }}
+      />
+      <ConversionFailedDialog
+        open={driveImport.state.kind === 'failed'}
+        errorCode={
+          driveImport.state.kind === 'failed' ? driveImport.state.error : 'conversion-failed'
+        }
+        onRetry={() => {
+          driveImport.reset();
+          setDrivePickerOpen(true);
+        }}
+        onClose={() => driveImport.reset()}
       />
     </>
   );
