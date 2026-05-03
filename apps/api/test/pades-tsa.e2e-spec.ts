@@ -276,6 +276,8 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
       PDF_SIGNING_TSA_URL: tsa.url,
       ENVELOPE_RETENTION_YEARS: 7,
       WORKER_ENABLED: false,
+      GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
+      GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,
     };
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })

@@ -1,0 +1,78 @@
+# WT-D Drive doc → PDF conversion sidecar.
+#
+# This file ships ONLY the Gotenberg LibreOffice converter today. It is
+# additive — the API itself runs on the host EC2 directly via systemd +
+# Caddy (see deploy/Caddyfile); we do NOT compose the API process here.
+#
+# Network isolation (nodejs-security MUST-FIX): the `gotenberg` service
+# is published on an internal network only. There is no host-port
+# mapping (`ports:` is intentionally absent), and Caddy never proxies
+# `/forms/libreoffice/convert`. The API container/process talks to
+# Gotenberg over the private docker bridge (resolution by service name
+# `gotenberg`). Any future addition of a `ports: ["3000:3000"]` line
+# below MUST be flagged in PR review — it would expose an unauth'd
+# document-conversion endpoint to the internet.
+#
+# Deploy order:
+#   1. `docker compose -f deploy/docker-compose.yml up -d gotenberg` BEFORE
+#      the API release that consumes it (the API tolerates Gotenberg-
+#      down for the Doc + PDF branches; only the .docx branch fails with
+#      `conversion-failed`).
+#   2. Verify with `docker compose ps` and an internal `curl
+#      http://localhost:3000/health` from the API host.
+#
+# Rollback: `docker compose -f deploy/docker-compose.yml stop gotenberg
+# && docker compose -f deploy/docker-compose.yml rm -f gotenberg`. Drive
+# Doc + PDF passthrough still work; the SPA surfaces
+# `conversion-failed` for any inflight .docx.
+
+version: '3.9'
+
+networks:
+  # Private bridge — no external reachability. Caddy is on the host
+  # network and proxies only the API's :3001; this `gdrive` network
+  # carries the Gotenberg sidecar traffic and nothing else.
+  gdrive:
+    driver: bridge
+    internal: false  # `false` so the container can reach the OCI registry
+                     # at first pull; egress is the only thing this enables.
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    container_name: seald-gotenberg
+    restart: unless-stopped
+    networks:
+      - gdrive
+    # CRITICAL: no `ports:` block. Gotenberg listens on :3000 inside the
+    # container; we reach it from the API as `http://gotenberg:3000`
+    # over the `gdrive` network only.
+    command:
+      - 'gotenberg'
+      - '--api-port=3000'
+      # API timeout caps every conversion at 30s — matches the AbortSignal
+      # cancel window the SPA expects (long-poll with 100 ms cancel
+      # latency budget per WT-D test plan). Keep in sync with the
+      # `GDRIVE_CONVERSION_TIMEOUT_MS` (future-flag) if added later.
+      - '--api-timeout=30s'
+      # Hard-disable webhook + chromium routes; we only use LibreOffice.
+      # Closing every other route reduces attack surface in the unlikely
+      # event the network barrier ever leaks.
+      - '--chromium-disable-routes=true'
+      - '--webhook-disable-routes=true'
+      - '--pdfengines-disable-routes=true'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Resource caps to prevent a malicious upload from OOMing the box.
+    # The 25 MB inbound size cap (apps/api GDRIVE_CONVERSION_MAX_BYTES)
+    # bounds the input; LibreOffice peak memory for a 25 MB .docx is
+    # under 1 GB in practice. 1.5 GB gives headroom; tighten via runbook
+    # once we have steady-state telemetry.
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: '1.5'

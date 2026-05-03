@@ -106,7 +106,7 @@ const GDriveFilesProxyProvider: Provider = {
     },
     GDriveFilesProxyProvider,
   ],
-  exports: [GDriveService],
+  exports: [GDriveService, GDriveRateLimiter],
 })
 export class GDriveModule {}
 
