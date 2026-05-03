@@ -83,9 +83,25 @@ export class GDriveController {
     }
   }
 
+  /**
+   * Fail loudly when the OAuth env vars are missing. The module factory
+   * falls back to empty strings so the api can boot dark (flag-off
+   * scenario), but once the flag is ON every OAuth route MUST have a
+   * real client id + secret. Without this check, `consentUrl` happily
+   * returned a Google URL with `client_id=` and the user got a confusing
+   * "Missing required parameter: client_id" error from Google. Mirrors
+   * the GDriveKmsService stubFail pattern in `gdrive.module.ts`.
+   */
+  private requireOAuthConfigured(): void {
+    if (!this.config.clientId || !this.config.clientSecret) {
+      throw new HttpException('gdrive_oauth_not_configured', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
   @Get('oauth/url')
   async consentUrl(@CurrentUser() user: AuthUser): Promise<{ url: string }> {
     this.requireFlag();
+    this.requireOAuthConfigured();
     const { state, codeChallenge } = this.stateStore.start(user.id);
     return {
       url: buildConsentUrl({
@@ -112,6 +128,7 @@ export class GDriveController {
     @Res({ passthrough: true }) res: { redirect(url: string): void },
   ): Promise<void> {
     this.requireFlag();
+    this.requireOAuthConfigured();
     if (error) {
       throw new HttpException(`oauth-declined: ${error}`, 400);
     }

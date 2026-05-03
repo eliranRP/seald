@@ -147,6 +147,52 @@ describe('GDriveController', () => {
     expect(out.url).toContain('access_type=offline');
   });
 
+  it('GET /oauth/url throws 503 (not a broken URL) when GDRIVE_OAUTH_CLIENT_ID is unset', async () => {
+    // Phase 6.A iter-1 round-1 LOCAL bug: when GDRIVE_OAUTH_CLIENT_ID
+    // (and/or _CLIENT_SECRET) was unset, gdrive.module.ts fell back to
+    // an empty string and consentUrl happily returned a Google consent
+    // URL with `client_id=` (empty). The user clicked Connect Google
+    // Drive and Google's error page popped up with "Missing required
+    // parameter: client_id" — confusing UX that hid the real cause
+    // (server-side misconfig). Contract: when the OAuth client id or
+    // secret are empty/unset and the feature flag is ON, the API must
+    // throw 503 ServiceUnavailable so the SPA can render a friendly
+    // "Drive integration is not configured on this server" notice
+    // instead of silently bouncing the user to a broken Google URL.
+    // Mirrors the existing GDriveKmsService stubFail pattern from
+    // gdrive.module.ts (KMS already throws when ARN/region unset).
+    const repo = new FakeRepo();
+    const kms = new GDriveKmsService(
+      new StubKmsClient(),
+      'arn:aws:kms:us-east-1:000000000000:key/k',
+    );
+    const google = new StubGoogleClient();
+    const svc = new GDriveService(repo, kms, google);
+    const state = new OAuthStateStore();
+    const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
+    const proxy: FilesProxy = async () => ({ files: [] });
+    const ctrlEmptyClient = new GDriveController(
+      svc,
+      state,
+      { ...CFG, clientId: '' },
+      limiter,
+      proxy,
+    );
+    const ctrlEmptySecret = new GDriveController(
+      svc,
+      state,
+      { ...CFG, clientSecret: '' },
+      limiter,
+      proxy,
+    );
+    await expect(ctrlEmptyClient.consentUrl(USER_1)).rejects.toMatchObject({
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+    });
+    await expect(ctrlEmptySecret.consentUrl(USER_1)).rejects.toMatchObject({
+      status: HttpStatus.SERVICE_UNAVAILABLE,
+    });
+  });
+
   it('GET /oauth/callback rejects with 400 when state nonce is unknown', async () => {
     const { ctrl } = makeController();
     await expect(
