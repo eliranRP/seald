@@ -7,17 +7,20 @@ name: Playwright
 # regressions (CSS-in-JS hydration, react-router lazy boundaries, etc.).
 
 on:
+  # Always trigger on PRs + pushes to main (no workflow-level paths
+  # filter). Each individual job is guarded by a job-level `if` based
+  # on the `changes` filter below — this lets backend-only PRs report
+  # SKIPPED checks (which the `Playwright Success` aggregator passes
+  # as success-or-skip) instead of producing no checks at all.
   pull_request:
     branches: [main]
-    # Browser e2e exercises the SPA. Scope PR runs to web/shared
-    # changes; main pushes keep the broader paths-ignore so every
-    # merged HEAD is exercised in a real browser.
-    paths:
-      - 'apps/web/**'
-      - 'packages/shared/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/playwright.yml'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'Design-Guide/**'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.editorconfig'
   push:
     branches: [main]
     paths-ignore:
@@ -42,9 +45,33 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
+  # Path filter — both browser-e2e jobs only need to run when the SPA
+  # or shared package changes. Pushes to main bypass the filter so
+  # every merged HEAD is exercised in a real browser.
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/playwright.yml'
+
   e2e-web:
     name: Web e2e (Playwright + Chromium)
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -87,6 +114,8 @@ jobs:
   bdd-e2e:
     name: BDD e2e (web)
     runs-on: ubuntu-latest
+    needs: changes
+    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -131,3 +160,27 @@ jobs:
           path: apps/web/playwright-report/
           if-no-files-found: ignore
           retention-days: 14
+
+  # Aggregator job: succeeds if every upstream playwright job is success
+  # or skipped. Branch protection points at this single job so backend-
+  # only PRs (where e2e-web + bdd-e2e are SKIPPED via the changes filter)
+  # can still satisfy the required-status-checks gate.
+  playwright-success:
+    name: Playwright Success
+    runs-on: ubuntu-latest
+    needs: [e2e-web, bdd-e2e]
+    if: always()
+    steps:
+      - name: Verify all required playwright jobs passed (or were skipped)
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Upstream results: $results"
+          if [[ "$results" == *failure* ]]; then
+            echo "::error::One or more upstream playwright jobs failed"
+            exit 1
+          fi
+          if [[ "$results" == *cancelled* ]]; then
+            echo "::error::One or more upstream playwright jobs were cancelled"
+            exit 1
+          fi
+          echo "All upstream playwright jobs succeeded or were skipped — gate passes."
