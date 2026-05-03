@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sealed — Google Drive integration</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <style>
+    html, body { margin: 0; padding: 0; background: var(--ink-50); }
+    *, *::before, *::after { box-sizing: border-box; }
+    #root { font-family: var(--font-sans); color: var(--fg-2); min-height: 100vh; }
+
+    /* Stepper — mirrors templates-flow */
+    .stepper {
+      position: fixed; bottom: 20px; left: 20px; z-index: 50;
+      display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 40px);
+      background: #fff; border: 1px solid var(--border-1);
+      border-radius: 18px; padding: 6px;
+      box-shadow: var(--shadow-md); font-family: var(--font-sans);
+    }
+    .stepper button {
+      border: none; background: transparent;
+      padding: 7px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; color: var(--fg-3); cursor: pointer;
+      transition: background 120ms var(--ease-standard), color 120ms;
+    }
+    .stepper button:hover { background: var(--ink-50); color: var(--fg-1); }
+    .stepper button.on { background: var(--ink-900); color: #fff; }
+    .stepper button:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+    .stepper .sep { width: 1px; background: var(--border-1); margin: 4px 4px; }
+    .stepper .group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--fg-4);
+      align-self: center; padding: 0 6px 0 8px;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Toast */
+    .saved-toast {
+      position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 100;
+      background: #fff; border: 1px solid var(--border-1); border-radius: 14px;
+      padding: 14px 20px; box-shadow: var(--shadow-lg);
+      display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--fg-1);
+      animation: toastIn 240ms var(--ease-standard);
+    }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translate(-50%, -8px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Shared -->
+  <script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
+  <!-- TopNav lives in signing_app/Screens.jsx — re-used as-is for chrome consistency. -->
+  <script type="text/babel" src="../ui_kits/signing_app/Screens.jsx"></script>
+
+  <!-- Surface modules -->
+  <script type="text/babel" src="./Integrations.jsx"></script>
+  <script type="text/babel" src="./DrivePicker.jsx"></script>
+  <script type="text/babel" src="./SourceCards.jsx"></script>
+  <script type="text/babel" src="./ConversionDialog.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    const ACCOUNT = {
+      name: 'Eliran Azulay',
+      email: 'eliran@example.com',
+      connectedAt: 'May 3, 2026',
+      lastUsedAt: 'May 3, 2026',
+    };
+
+    const SCREEN_GROUPS = [
+      {
+        label: 'Settings',
+        screens: [
+          { id: 'settings-empty',            label: 'Empty' },
+          { id: 'settings-connected',        label: 'Connected' },
+          { id: 'settings-disconnect-modal', label: 'Disconnect modal' },
+        ],
+      },
+      {
+        label: 'Picker',
+        screens: [
+          { id: 'picker-list',     label: 'List' },
+          { id: 'picker-selected', label: 'Selected' },
+          { id: 'picker-expired',  label: 'Token expired' },
+        ],
+      },
+      {
+        label: 'Flows',
+        screens: [
+          { id: 'new-doc',      label: 'New Document' },
+          { id: 'use-template', label: 'Use Template' },
+        ],
+      },
+      {
+        label: 'Conversion',
+        screens: [
+          { id: 'conversion-progress', label: 'Progress' },
+          { id: 'conversion-failed',   label: 'Failed' },
+        ],
+      },
+    ];
+
+    function Toast({ title, sub }) {
+      return (
+        <div className="saved-toast" role="status" aria-live="polite">
+          <span style={{
+            width: 24, height: 24, borderRadius: 999,
+            background: 'var(--success-500)', color: '#fff',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon name="check" size={14}/>
+          </span>
+          <div>
+            <div style={{ fontWeight: 600 }}>{title}</div>
+            {sub && <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{sub}</div>}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState(() => localStorage.getItem('sealed.gdrive.screen') || 'settings-empty');
+      const [toast, setToast] = useState(null);
+
+      useEffect(() => { localStorage.setItem('sealed.gdrive.screen', screen); }, [screen]);
+      useEffect(() => { if (window.lucide) window.lucide.createIcons(); });
+
+      const showToast = (title, sub) => {
+        setToast({ title, sub });
+        window.setTimeout(() => setToast(null), 2400);
+      };
+
+      // Background screen for modal-overlay states.
+      const backdropFor = (s) => {
+        if (s === 'settings-disconnect-modal' || s === 'settings-empty' || s === 'settings-connected') return 'settings';
+        if (s === 'picker-list' || s === 'picker-selected' || s === 'picker-expired') return 'new-doc';
+        if (s === 'conversion-progress' || s === 'conversion-failed') return 'new-doc';
+        return s;
+      };
+      const backdrop = backdropFor(screen);
+
+      const renderBackdrop = () => {
+        if (backdrop === 'settings') {
+          return (
+            <IntegrationsPage
+              state={screen === 'settings-empty' ? 'empty' : 'connected'}
+              account={ACCOUNT}
+              onConnect={() => { showToast('Google sign-in opened', 'Authorize the connection in the new window.'); setScreen('settings-connected'); }}
+              onDisconnect={() => setScreen('settings-disconnect-modal')}
+              onBreadcrumb={(it) => { /* no-op in mockup */ }}
+            />
+          );
+        }
+        if (backdrop === 'new-doc') {
+          return (
+            <NewDocumentScreen
+              driveConnected={true}
+              onUpload={() => showToast('Upload picker opened (demo)')}
+              onTemplate={() => showToast('Template list (demo)')}
+              onPickDrive={() => setScreen('picker-list')}
+              onConnectDrive={() => setScreen('settings-empty')}
+            />
+          );
+        }
+        if (backdrop === 'use-template') {
+          return (
+            <UseTemplateStep1
+              templateName="Acme NDA v3"
+              driveConnected={true}
+              onCancel={() => setScreen('settings-connected')}
+              onContinue={() => showToast('Continue → Signers (demo)')}
+              onUpload={() => showToast('Upload picker opened (demo)')}
+              onPickDrive={() => setScreen('picker-list')}
+              onConnectDrive={() => setScreen('settings-empty')}
+            />
+          );
+        }
+        return null;
+      };
+
+      // Resolve overlays and direct screens.
+      const renderOverlay = () => {
+        if (screen === 'settings-disconnect-modal') {
+          return (
+            <DisconnectModal
+              open
+              accountEmail={ACCOUNT.email}
+              onClose={() => setScreen('settings-connected')}
+              onConfirm={() => { showToast('Google Drive disconnected', 'Tokens deleted. Reconnect any time.'); setScreen('settings-empty'); }}
+            />
+          );
+        }
+        if (screen === 'picker-list' || screen === 'picker-selected' || screen === 'picker-expired') {
+          return (
+            <DrivePickerModal
+              open
+              state={screen === 'picker-list' ? 'list' : screen === 'picker-selected' ? 'selected' : 'expired'}
+              onClose={() => setScreen('new-doc')}
+              onUseFile={(file) => {
+                if (file.kind === 'pdf') {
+                  showToast('Imported from Drive', `${file.name} is ready.`);
+                  setScreen('new-doc');
+                } else {
+                  setScreen('conversion-progress');
+                }
+              }}
+              onReconnect={() => { showToast('Reconnect window opened', 'Authorize again to keep importing.'); setScreen('picker-list'); }}
+              onChangeSource={() => setScreen('new-doc')}
+            />
+          );
+        }
+        if (screen === 'conversion-progress') {
+          return (
+            <ConversionProgressDialog
+              open
+              fileName="Vendor agreement.docx"
+              percent={45}
+              onCancel={() => { showToast('Conversion cancelled'); setScreen('picker-list'); }}
+            />
+          );
+        }
+        if (screen === 'conversion-failed') {
+          return (
+            <ConversionFailedDialog
+              open
+              fileName="Vendor agreement.docx"
+              onClose={() => setScreen('picker-list')}
+              onPickDifferent={() => setScreen('picker-list')}
+              onUploadInstead={() => { showToast('Upload picker opened (demo)'); setScreen('new-doc'); }}
+            />
+          );
+        }
+        // For 'new-doc' and 'use-template', the backdrop IS the surface.
+        return null;
+      };
+
+      // Decide what backdrop screen to show under the overlay.
+      const directScreen = screen === 'use-template' ? (
+        <UseTemplateStep1
+          templateName="Acme NDA v3"
+          driveConnected={true}
+          onCancel={() => setScreen('settings-connected')}
+          onContinue={() => showToast('Continue → Signers (demo)')}
+          onUpload={() => showToast('Upload picker opened (demo)')}
+          onPickDrive={() => setScreen('picker-list')}
+          onConnectDrive={() => setScreen('settings-empty')}
+        />
+      ) : null;
+
+      return (
+        <div data-screen-label={`gdrive · ${screen}`}>
+          {directScreen ?? renderBackdrop()}
+          {renderOverlay()}
+          {toast && <Toast title={toast.title} sub={toast.sub}/>}
+
+          <nav className="stepper" aria-label="Mockup screen stepper">
+            {SCREEN_GROUPS.map((g, gi) => (
+              <React.Fragment key={g.label}>
+                {gi > 0 && <span className="sep" aria-hidden="true"/>}
+                <span className="group-label">{g.label}</span>
+                {g.screens.map((s) => (
+                  <button
+                    key={s.id}
+                    className={screen === s.id ? 'on' : ''}
+                    aria-current={screen === s.id ? 'true' : undefined}
+                    onClick={() => setScreen(s.id)}>
+                    {s.label}
+                  </button>
+                ))}
+              </React.Fragment>
+            ))}
+          </nav>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+  </script>
+</body>
+</html>
