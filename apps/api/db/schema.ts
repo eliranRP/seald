@@ -14,6 +14,21 @@ export interface Database {
   // Migration 0012 — bookkeeping for deleted accounts. See the migration
   // header for the GDPR Art. 17(3)(b/e) carve-out rationale.
   deleted_user_tombstones: DeletedUserTombstonesTable;
+  // Migration 0013 — Drive integration (Phase 5 WT-A).
+  gdrive_accounts: GDriveAccountsTable;
+}
+
+export interface GDriveAccountsTable {
+  id: Generated<string>;
+  user_id: string;
+  google_user_id: string;
+  google_email: string;
+  refresh_token_ciphertext: Buffer;
+  refresh_token_kms_key_arn: string;
+  scope: string;
+  connected_at: ColumnType<Date, string | undefined, never>;
+  last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  deleted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
 }
 
 export interface DeletedUserTombstonesTable {
