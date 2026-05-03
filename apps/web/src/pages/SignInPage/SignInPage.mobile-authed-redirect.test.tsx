@@ -5,13 +5,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../../test/renderWithProviders';
 import { SignInPage } from './SignInPage';
 
-// Production bug (2026-05-03): mobile users completing the password sign-in
-// were bounced to `/m/send` (the mobile sender flow) instead of the
-// mobile-responsive `/documents` dashboard. Per product, signed-in users —
-// regardless of viewport — should land on Documents so they can see their
-// existing envelopes; the mobile sender lives under "Send" within Documents.
-// Lock the rule in so a future regression that re-introduces the viewport
-// branch on `handleAuthed` is caught here, not in production.
+// Production contract (2026-05-03, refined): the desktop dashboard at
+// /documents (and the rest of the AppShell-hosted desktop surfaces) was
+// not designed for a 390 px viewport — table cells overlap, hero text
+// wraps awkwardly, the title char-stacks. Rather than retrofit
+// responsiveness onto every desktop page, mobile users are locked to
+// the dedicated mobile sender at /m/send. Desktop users still land on
+// /documents. Lock the rule in here so a future regression that flips
+// mobile back onto the desktop dashboard is caught pre-deploy.
 
 let mobileViewport = false;
 
@@ -55,13 +56,11 @@ describe('SignInPage — mobile-aware authed redirect', () => {
     ).toBeInTheDocument();
   });
 
-  it('lands a mobile user on /documents (not /m/send) after successful sign-in', async () => {
+  it('lands a mobile user on /m/send (not /documents) after successful sign-in', async () => {
     const user = userEvent.setup();
     mobileViewport = true;
     renderAt({ auth: { signInWithPassword: vi.fn(async () => undefined) } });
     await submitSignIn(user);
-    expect(
-      await screen.findByRole('heading', { name: /documents dashboard/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /mobile sender flow/i })).toBeInTheDocument();
   });
 });

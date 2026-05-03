@@ -535,7 +535,7 @@ export function MobileSendPage() {
         {step === 'start' && (
           <>
             {fileError && <ErrorBanner role="alert">{fileError}</ErrorBanner>}
-            <MWStart onPickFile={handlePickFile} onUseTemplate={() => navigate('/templates')} />
+            <MWStart onPickFile={handlePickFile} />
           </>
         )}
         {step === 'file' && pdfFile && (

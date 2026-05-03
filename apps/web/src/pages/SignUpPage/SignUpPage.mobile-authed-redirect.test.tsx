@@ -5,11 +5,10 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../../test/renderWithProviders';
 import { SignUpPage } from './SignUpPage';
 
-// Production bug (2026-05-03): mirror of SignInPage.mobile-authed-redirect —
-// after a successful signup that yields an immediate session, the page sent
-// mobile users to `/m/send` (the sender flow) instead of `/documents`. Land
-// on Documents on every viewport so the user sees their (initially empty)
-// dashboard; sending lives within Documents.
+// Production contract (2026-05-03, refined): mirror of SignInPage —
+// the desktop dashboard at /documents was not designed for a 390 px
+// viewport, so mobile users are locked to the dedicated mobile sender
+// at /m/send after sign-up. Desktop users still land on /documents.
 
 let mobileViewport = false;
 
@@ -58,15 +57,13 @@ describe('SignUpPage — mobile-aware authed redirect', () => {
     ).toBeInTheDocument();
   });
 
-  it('lands a mobile user on /documents (not /m/send) after immediate-session signup', async () => {
+  it('lands a mobile user on /m/send (not /documents) after immediate-session signup', async () => {
     const user = userEvent.setup();
     mobileViewport = true;
     renderAt({
       auth: { signUpWithPassword: vi.fn(async () => ({ needsEmailConfirmation: false })) },
     });
     await submitSignUp(user);
-    expect(
-      await screen.findByRole('heading', { name: /documents dashboard/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /mobile sender flow/i })).toBeInTheDocument();
   });
 });

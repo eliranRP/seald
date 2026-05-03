@@ -6,9 +6,11 @@ const { Given, When, Then } = createBdd(test);
 
 /**
  * Steps for `sender-mobile-nav.feature`. Reuses the seeded-user
- * Background step from sender-mobile.steps.ts and exercises the new
- * MWMobileNav (hamburger → bottom-sheet) plus the wired-up "From a
- * template" tile.
+ * Background step from sender-mobile.steps.ts and exercises the
+ * MWMobileNav (hamburger → bottom-sheet). The "From a template" tile
+ * step + `Then the URL is /templates` step were retired 2026-05-03 when
+ * the templates list became unreachable from a mobile viewport (every
+ * AppShell route now redirects to /m/send).
  */
 
 Given('the sender visits \\/m\\/send', async ({ page }) => {
@@ -31,11 +33,11 @@ When('the sender taps the menu item {string}', async ({ page }, label: string) =
     .click();
 });
 
-When('the sender taps the {string} tile', async ({ page }, name: string) => {
-  // The start-step tiles use aria-label as their accessible name
-  // (e.g. "From a template").
-  await page.getByRole('button', { name: new RegExp(`^${name}$`, 'i') }).click();
-});
+// `When the sender taps the "<name>" tile` was retired 2026-05-03 with
+// the deletion of the "From a template" tile (templates list is
+// desktop-only; mobile users redirect to /m/send if they reach
+// /templates). The two remaining tiles ("Upload PDF" / "Take photo")
+// have their own dedicated steps in mobile-photo-capture.steps.ts.
 
 Then('the mobile menu shows the user name {string}', async ({ page }, name: string) => {
   await expect(page.getByRole('dialog')).toContainText(name);
@@ -58,7 +60,4 @@ Then('the URL is \\/signin', async ({ page }) => {
   expect(page.url()).toMatch(/\/signin$/);
 });
 
-Then('the URL is \\/templates', async ({ page }) => {
-  await page.waitForURL(/\/templates$/);
-  expect(page.url()).toMatch(/\/templates$/);
-});
+// `Then the URL is /templates` retired 2026-05-03 (see header comment).

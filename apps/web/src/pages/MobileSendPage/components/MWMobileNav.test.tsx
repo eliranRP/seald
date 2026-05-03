@@ -49,7 +49,7 @@ describe('MWMobileNav', () => {
     expect(hamburger).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('opens the bottom sheet showing the user profile, Documents nav, and Sign out — every other affordance hidden', async () => {
+  it('opens the bottom sheet showing only the user profile and Sign out — every other affordance hidden', async () => {
     const user = userEvent.setup();
     renderNav();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
@@ -59,13 +59,13 @@ describe('MWMobileNav', () => {
     expect(dialog).toHaveTextContent('Jamie Okonkwo');
     expect(dialog).toHaveTextContent('jamie@seald.app');
 
-    // 2026-05-03: product decision — the mobile hamburger only exposes
-    // Documents (the dashboard) and Sign out. Sign / Templates /
-    // Signers / Download my data / Delete account were removed from
-    // the sheet because the mobile sender flow lives on `/m/send` and
-    // these affordances cluttered the surface without serving a
-    // mobile-first task. Anyone needing those reaches them via desktop.
-    expect(screen.getByRole('button', { name: 'Documents' })).toBeInTheDocument();
+    // 2026-05-03 (refined): mobile users are locked to /m/send; every
+    // desktop AppShell route bounces back here. The hamburger drawer
+    // therefore exposes no nav links at all (a "Documents" tap would
+    // route to /documents which the AppShell guard would immediately
+    // redirect back to /m/send — a no-op that reads as broken). Identity
+    // + Sign out only.
+    expect(screen.queryByRole('button', { name: 'Documents' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Sign' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Templates' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Signers' })).toBeNull();
@@ -75,14 +75,6 @@ describe('MWMobileNav', () => {
     expect(screen.queryByRole('button', { name: /delete account/i })).toBeNull();
   });
 
-  it('navigates to Documents and closes the sheet', async () => {
-    const user = userEvent.setup();
-    renderNav();
-    await user.click(screen.getByRole('button', { name: /open menu/i }));
-    await user.click(screen.getByRole('button', { name: 'Documents' }));
-    expect(await screen.findByText('Documents page')).toBeInTheDocument();
-  });
-
   it('triggers onSignOut when the Sign out item is activated', async () => {
     const onSignOut = vi.fn();
     const user = userEvent.setup();
@@ -90,19 +82,5 @@ describe('MWMobileNav', () => {
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     await user.click(screen.getByRole('button', { name: /^sign out$/i }));
     expect(onSignOut).toHaveBeenCalledTimes(1);
-  });
-
-  it('marks the active Documents item with aria-current="page" when on /documents', async () => {
-    const user = userEvent.setup();
-    renderWithProviders(
-      <MemoryRouter initialEntries={['/documents']}>
-        <Routes>
-          <Route path="/documents" element={<MWMobileNav onSignOut={vi.fn()} />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-    await user.click(screen.getByRole('button', { name: /open menu/i }));
-    const documentsItem = screen.getByRole('button', { name: 'Documents' });
-    expect(documentsItem).toHaveAttribute('aria-current', 'page');
   });
 });

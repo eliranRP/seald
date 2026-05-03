@@ -2,9 +2,12 @@ Feature: Sender lifecycle regressions — dashboard responsiveness, dates, downl
 
   These three scenarios pin the sender-side bugs surfaced by the
   qa/sender-lifecycle-bdd audit:
-    BUG-1 (UI)    : the dashboard had zero media queries, so iPhone-class
-                    viewports clipped the table columns and crushed the
-                    StatGrid tiles to ~70px wide.
+    BUG-1 (UX)    : superseded 2026-05-03 — see scenario note below.
+                    Originally about retrofitting media queries onto the
+                    desktop dashboard for an iPhone viewport. Per
+                    product, mobile users are now locked to /m/send so
+                    the dashboard never renders on a phone; the new
+                    contract is "redirect, don't degrade".
     BUG-2 (UX)    : envelope dates rendered without the year on every
                     sender surface, so PMs could not distinguish an
                     envelope sent last month from one sent two years ago.
@@ -17,11 +20,15 @@ Feature: Sender lifecycle regressions — dashboard responsiveness, dates, downl
     Given a signed-in sender with a historical and a recent envelope
 
   @smoke @sender @regression
-  Scenario: Dashboard rows stack into a single column on a phone-sized viewport (BUG-1)
+  Scenario: Mobile sender opening the dashboard is bounced to /m/send (BUG-1, refined)
+    # Phase-2 of the mobile-locked-to-/m/send contract: rather than
+    # making /documents responsive, we redirect every mobile visitor to
+    # the dedicated mobile sender at /m/send. The dashboard is desktop-
+    # only on purpose. Asserts the redirect fires from the desktop
+    # dashboard URL on a 375 px viewport.
     Given the viewport is sized to an iPhone (375x812)
     When the sender opens the dashboard
-    Then the envelope row tiles do not overflow the viewport
-    And the column-header strip is hidden
+    Then the URL is /m/send
 
   @smoke @sender @regression
   Scenario: Older envelope dates include the year on the dashboard (BUG-2)
