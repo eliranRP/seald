@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Bookmark, Info, UploadCloud } from 'lucide-react';
+import { isFeatureEnabled } from 'shared';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { Button } from '@/components/Button';
 import { DropArea } from '@/components/DropArea';
@@ -9,6 +10,14 @@ import { SignersStepCard } from '@/components/SignersStepCard';
 import type { SignersStepSigner } from '@/components/SignersStepCard';
 import { TemplateFlowHeader } from '@/components/TemplateFlowHeader';
 import type { TemplateFlowMode } from '@/components/TemplateFlowHeader';
+import { DrivePicker } from '@/components/drive-picker';
+import {
+  ConversionFailedDialog,
+  ConversionProgressDialog,
+  DriveTemplateReplaceButton,
+  useDriveImport,
+} from '@/features/gdriveImport';
+import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
   getTemplates,
@@ -170,6 +179,29 @@ export function UseTemplatePage() {
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [tipOpen, setTipOpen] = useState(false);
+
+  // Google Drive integration (WT-E). The replace-with row in step 1
+  // exposes a "Pick from Google Drive" peer to "Upload a PDF" when the
+  // feature flag is on. The same picker + conversion + dialogs as the
+  // New Document surface — we reuse the orchestrator hook so doc-byte
+  // handling stays identical across both flows (watchpoint #6).
+  const gdriveOn = isFeatureEnabled('gdriveIntegration');
+  const accountsQuery = useGDriveAccounts();
+  const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
+  const driveAccountId = accounts[0]?.id ?? null;
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const driveImport = useDriveImport({
+    accountId: driveAccountId ?? '',
+    onReady: (file) => {
+      // Drop the converted PDF into the wizard's pendingFile slot —
+      // every downstream branch (continueToSigners, continueToEditor)
+      // already handles a `pendingFile` from upload, so the Drive path
+      // converges with the existing flow without a new code path.
+      setUploadError(null);
+      setPendingFile(file);
+      setDocChoice('upload');
+    },
+  });
   const [renamedTitle, setRenamedTitle] = useState<string | null>(() =>
     isNewTemplate ? 'Untitled template' : null,
   );
@@ -471,17 +503,27 @@ export function UseTemplatePage() {
                     </Button>
                   </SavedDocCard>
                 ) : (
-                  <DropArea
-                    onFileSelected={(f) => {
-                      setUploadError(null);
-                      setPendingFile(f);
-                    }}
-                    onError={(_, message) => setUploadError(message)}
-                    heading={template ? 'Drop a different PDF' : 'Drop a sample PDF'}
-                    subheading={
-                      template ? 'Saved layout will snap onto it · up to 25 MB' : 'up to 25 MB'
-                    }
-                  />
+                  <>
+                    <DropArea
+                      onFileSelected={(f) => {
+                        setUploadError(null);
+                        setPendingFile(f);
+                      }}
+                      onError={(_, message) => setUploadError(message)}
+                      heading={template ? 'Drop a different PDF' : 'Drop a sample PDF'}
+                      subheading={
+                        template ? 'Saved layout will snap onto it · up to 25 MB' : 'up to 25 MB'
+                      }
+                    />
+                    {gdriveOn ? (
+                      <div style={{ marginTop: 12 }}>
+                        <DriveTemplateReplaceButton
+                          connected={driveAccountId !== null}
+                          onPickDrive={() => setDrivePickerOpen(true)}
+                        />
+                      </div>
+                    ) : null}
+                  </>
                 )}
                 {uploadError ? <FooterHint role="alert">{uploadError}</FooterHint> : null}
               </>
@@ -509,6 +551,39 @@ export function UseTemplatePage() {
           continueLabel="Continue to fields"
         />
       ) : null}
+      {gdriveOn && driveAccountId !== null ? (
+        <DrivePicker
+          open={drivePickerOpen}
+          accountId={driveAccountId}
+          onClose={() => setDrivePickerOpen(false)}
+          onPick={(file) => {
+            setDrivePickerOpen(false);
+            driveImport.beginImport(file);
+          }}
+        />
+      ) : null}
+      <ConversionProgressDialog
+        open={driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'}
+        fileName={
+          driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'
+            ? driveImport.state.file.name
+            : ''
+        }
+        onCancel={() => {
+          void driveImport.cancelImport();
+        }}
+      />
+      <ConversionFailedDialog
+        open={driveImport.state.kind === 'failed'}
+        errorCode={
+          driveImport.state.kind === 'failed' ? driveImport.state.error : 'conversion-failed'
+        }
+        onRetry={() => {
+          driveImport.reset();
+          setDrivePickerOpen(true);
+        }}
+        onClose={() => driveImport.reset()}
+      />
     </Page>
   );
 }
