@@ -1,5 +1,6 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../../auth/auth-user';
+import { IS_PUBLIC_KEY } from '../../auth/public.decorator';
 import { GDriveController, type FilesProxy } from './gdrive.controller';
 import { GDriveService, type GoogleOAuthClient } from './gdrive.service';
 import { GDriveKmsService, type KmsClientPort } from './gdrive-kms.service';
@@ -195,6 +196,22 @@ describe('GDriveController', () => {
     // The row remains but `deleted_at` is set; listForUser filters it out.
     expect(repo.rows.get(acc.id)?.deletedAt).toBeTruthy();
     expect(await repo.listForUser('user-1')).toHaveLength(0);
+  });
+
+  // Regression for Phase 6 prod-bug-loop finding (2026-05-03):
+  // /oauth/callback is reached by Google's top-level browser redirect,
+  // which carries no Supabase JWT. Without @Public(), the global
+  // APP_GUARD AuthGuard rejects the redirect with 401 missing_token
+  // before the controller's requireFlag() runs — every Drive
+  // connection attempt would 401 in production. The unit tests below
+  // call the controller method directly and bypass the guard, so this
+  // metadata assertion is the only place that catches the omission.
+  it('GET /oauth/callback is marked @Public() so Google redirects bypass the global AuthGuard', () => {
+    const meta: unknown = Reflect.getMetadata(
+      IS_PUBLIC_KEY,
+      GDriveController.prototype.oauthCallback,
+    );
+    expect(meta).toBe(true);
   });
 
   it('feature flag off → every route 404s', async () => {
