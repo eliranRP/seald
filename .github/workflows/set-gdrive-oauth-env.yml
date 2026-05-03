@@ -1,0 +1,97 @@
+name: Set GDrive OAuth env vars on prod (.env append + api restart)
+
+# One-shot operator workflow. SSHes into the EC2 host and idempotently
+# appends `GDRIVE_OAUTH_CLIENT_ID`, `GDRIVE_OAUTH_CLIENT_SECRET`, and
+# `GDRIVE_OAUTH_REDIRECT_URI` to `/opt/seald/apps/api/.env` (mode 0600),
+# then force-recreates the api container so the new values are picked up.
+#
+# Idempotent: re-running deletes any existing `^GDRIVE_OAUTH_*=` lines
+# before appending the new values, so re-runs serve as rotation.
+#
+# Durability note: `prod-restore.yml` rewrites `/opt/seald/apps/api/.env`
+# from the `PROD_API_ENV` GH secret. To survive a restore, fold these
+# 3 keys into PROD_API_ENV (or, preferably, into AWS Secrets Manager
+# via `seed-secrets-manager.yml` after adding them to TIER2_KEYS). The
+# host-side append is the immediate fix; durable storage is a follow-up.
+#
+# Manual trigger only — never on push.
+
+on:
+  workflow_dispatch: {}
+
+# SSH-only — uses DEPLOY_SSH_KEY + the 3 GDRIVE_OAUTH_* secrets.
+permissions: {}
+
+jobs:
+  set_env:
+    name: Append GDRIVE_OAUTH_* to host .env + restart api
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: SSH append + restart
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
+          GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
+          GDRIVE_OAUTH_REDIRECT_URI: ${{ secrets.GDRIVE_OAUTH_REDIRECT_URI }}
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 6m
+          envs: GDRIVE_OAUTH_CLIENT_ID,GDRIVE_OAUTH_CLIENT_SECRET,GDRIVE_OAUTH_REDIRECT_URI
+          # Strip the secrets from the script log if anything ever echoes
+          # them. appleboy/ssh-action uses `set -x` only when explicitly
+          # requested; we never enable it. The `tee` calls below redirect
+          # stdout to /dev/null so the values do not appear in the run log.
+          script: |
+            set -euo pipefail
+
+            ENV_FILE=/opt/seald/apps/api/.env
+
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "ERROR: $ENV_FILE not found — host may be in an unexpected state. Run prod-restore.yml first." >&2
+              exit 1
+            fi
+
+            echo "=== Pre-state (count of GDRIVE_OAUTH_* lines, no values) ==="
+            sudo grep -cE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' "$ENV_FILE" || true
+
+            echo "=== Strip any existing GDRIVE_OAUTH_* lines (idempotent rotate) ==="
+            sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
+            sudo grep -vE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' \
+              "$ENV_FILE" > /tmp/.env.new
+            sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
+            rm -f /tmp/.env.new
+
+            echo "=== Append new values (no logging of values) ==="
+            {
+              printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$GDRIVE_OAUTH_CLIENT_ID"
+              printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$GDRIVE_OAUTH_CLIENT_SECRET"
+              printf 'GDRIVE_OAUTH_REDIRECT_URI=%s\n' "$GDRIVE_OAUTH_REDIRECT_URI"
+            } | sudo tee -a "$ENV_FILE" >/dev/null
+            sudo chmod 0600 "$ENV_FILE"
+
+            echo "=== Post-state (count of GDRIVE_OAUTH_* lines, no values) ==="
+            sudo grep -cE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' "$ENV_FILE"
+
+            echo "=== Force-recreate api container ==="
+            cd /opt/seald
+            sudo docker compose up -d --force-recreate api
+
+            echo "=== Wait for api healthcheck (max 90s) ==="
+            for i in $(seq 1 30); do
+              status=$(sudo docker inspect -f '{{.State.Health.Status}}' \
+                $(sudo docker compose ps -q api) 2>/dev/null || echo unknown)
+              echo "  [$i/30] api health=$status"
+              if [ "$status" = "healthy" ]; then
+                echo 'api healthy.'
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "ERROR: api never reached healthy state" >&2
+            sudo docker compose logs --tail=80 api
+            exit 1
