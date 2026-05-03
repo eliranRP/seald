@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { GDriveLogo } from './GDriveLogo';
 
@@ -8,13 +9,21 @@ import { GDriveLogo } from './GDriveLogo';
  *
  * The card is feature-flag gated at the call site — when
  * `feature.gdriveIntegration` is OFF, the route does not render this
- * component at all. When it IS on but no account is connected, the CTA
- * is disabled with a tooltip pointing the sender to Settings.
+ * component at all. When it IS on but no account is connected, the
+ * Pick CTA is replaced with an enabled "Connect Drive in Settings"
+ * button that navigates to `/settings/integrations`. Pre-fix the CTA
+ * was a `<button disabled title="…">` — the native `title` attribute
+ * isn't announced by screen readers on a disabled button, the button
+ * isn't focusable, and touch users get no tooltip at all (a dead-end
+ * surface). See `DriveSourceCard.test.tsx` + the Gherkin spec at
+ * `apps/web/e2e/features/gdrive/disabled-cta.feature`.
  */
 export interface DriveSourceCardProps {
   readonly connected: boolean;
   readonly onPickDrive: () => void;
 }
+
+const SETTINGS_INTEGRATIONS_PATH = '/settings/integrations';
 
 const Card = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
@@ -56,9 +65,8 @@ const Description = styled.p`
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
 
-const DISABLED_TOOLTIP = 'Connect Google Drive in Settings to use this.';
-
 export function DriveSourceCard({ connected, onPickDrive }: DriveSourceCardProps) {
+  const navigate = useNavigate();
   return (
     <Card>
       <IconBox aria-hidden>
@@ -70,14 +78,15 @@ export function DriveSourceCard({ connected, onPickDrive }: DriveSourceCardProps
           Pick a PDF, Google Doc, or Word document from your Drive. Per-file access only.
         </Description>
       </Body>
-      <Button
-        variant={connected ? 'primary' : 'secondary'}
-        onClick={onPickDrive}
-        disabled={!connected}
-        {...(connected ? {} : { title: DISABLED_TOOLTIP })}
-      >
-        Pick from Google Drive
-      </Button>
+      {connected ? (
+        <Button variant="primary" onClick={onPickDrive}>
+          Pick from Google Drive
+        </Button>
+      ) : (
+        <Button variant="secondary" onClick={() => navigate(SETTINGS_INTEGRATIONS_PATH)}>
+          Connect Drive in Settings
+        </Button>
+      )}
     </Card>
   );
 }

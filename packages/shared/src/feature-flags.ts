@@ -23,6 +23,25 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
 
 export type FeatureFlag = 'gdriveIntegration' | 'gdriveMultiAccount';
 
+/**
+ * Runtime override hook for tests / local walkthroughs. Production never
+ * sets this global, so this branch is dead code in shipped builds. The
+ * Playwright BDD harness uses `addInitScript` to inject a flag override
+ * before the SPA boots so an e2e scenario tagged "feature flag is on"
+ * can render the gated surface without flipping the static constant.
+ */
+interface FeatureOverrideHost {
+  readonly __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>>;
+}
+
+function readOverride(flag: FeatureFlag): boolean | undefined {
+  if (typeof globalThis === 'undefined') return undefined;
+  const overrides = (globalThis as unknown as FeatureOverrideHost).__SEALD_FEATURE_OVERRIDES__;
+  return overrides ? overrides[flag] : undefined;
+}
+
 export function isFeatureEnabled(flag: FeatureFlag): boolean {
+  const override = readOverride(flag);
+  if (override !== undefined) return override;
   return FEATURE_FLAGS[flag] === true;
 }
