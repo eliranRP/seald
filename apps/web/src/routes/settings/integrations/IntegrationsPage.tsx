@@ -1,7 +1,16 @@
 import { useCallback, useState } from 'react';
-import { Link as LinkIcon, ChevronRight, Eye, Lock, XCircle, Cloud } from 'lucide-react';
+import {
+  Link as LinkIcon,
+  ChevronRight,
+  Eye,
+  Lock,
+  XCircle,
+  Cloud,
+  AlertTriangle,
+} from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
+import type { ApiError } from '@/lib/api/apiClient';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
@@ -213,6 +222,41 @@ const ComingSoonHeader = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
   opacity: 0.65;
+`;
+
+const ConfigAlert = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.bg.sunken};
+`;
+
+const ConfigAlertIconWrap = styled.span`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[2]};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`;
+
+const ConfigAlertCopy = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[2]};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+`;
+
+const ConfigAlertTitle = styled.div`
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  margin-bottom: 2px;
 `;
 
 const ComingSoonIconWrap = styled.div`
@@ -456,6 +500,22 @@ export function IntegrationsPage() {
           explicitly pick.
         </Subtitle>
       </Hero>
+
+      {(connect.error as ApiError | null)?.status === 503 ? (
+        <ConfigAlert role="alert">
+          <ConfigAlertIconWrap aria-hidden>
+            <Icon icon={AlertTriangle} size={16} />
+          </ConfigAlertIconWrap>
+          <ConfigAlertCopy>
+            <ConfigAlertTitle>Drive integration is not configured on this server</ConfigAlertTitle>
+            The server is missing its Google OAuth credentials. Ask your admin to set
+            <code style={{ margin: '0 4px' }}>GDRIVE_OAUTH_CLIENT_ID</code>
+            and
+            <code style={{ margin: '0 4px' }}>GDRIVE_OAUTH_CLIENT_SECRET</code>
+            before connecting an account.
+          </ConfigAlertCopy>
+        </ConfigAlert>
+      ) : null}
 
       <CardStack>
         <GDriveCard

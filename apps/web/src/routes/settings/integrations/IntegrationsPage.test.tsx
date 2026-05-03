@@ -15,7 +15,7 @@ vi.mock('../../../lib/api/apiClient', () => ({
 const openSpy = vi.fn();
 Object.defineProperty(window, 'open', { value: openSpy, writable: true });
 
-import { apiClient } from '../../../lib/api/apiClient';
+import { apiClient, type ApiError } from '../../../lib/api/apiClient';
 const mockedGet = apiClient.get as ReturnType<typeof vi.fn>;
 const mockedDelete = apiClient.delete as ReturnType<typeof vi.fn>;
 
@@ -96,6 +96,34 @@ describe('IntegrationsPage', () => {
     // The "Connected" status badge surfaces — query by exact text so the
     // sub-line ("Connected May 3, 2026 · Last used …") doesn't collide.
     expect(screen.getByText('Connected')).toBeInTheDocument();
+  });
+
+  it('shows a friendly inline alert and does NOT open Google when /oauth/url returns 503', async () => {
+    // Phase 6.A iter-1 round-1 LOCAL bug companion: when the API
+    // returns 503 `gdrive_oauth_not_configured` (server missing
+    // GDRIVE_OAUTH_CLIENT_ID / _CLIENT_SECRET), the page must surface a
+    // friendly alert ("Drive integration is not configured on this
+    // server") instead of bouncing the user to a broken Google URL.
+    // Pre-fix behaviour: window.open() was called with whatever the
+    // (now-throwing) call resolved to — the user saw Google's
+    // "Missing required parameter: client_id" error page.
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        return Promise.resolve({ data: [], status: 200 });
+      }
+      if (url === '/integrations/gdrive/oauth/url') {
+        const err: ApiError = new Error('gdrive_oauth_not_configured');
+        err.status = 503;
+        return Promise.reject(err);
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+    renderPage();
+    const button = await screen.findByRole('button', { name: /connect google drive/i });
+    await userEvent.click(button);
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/not configured/i);
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   it('opens the Disconnect confirm modal when the user clicks Disconnect', async () => {
