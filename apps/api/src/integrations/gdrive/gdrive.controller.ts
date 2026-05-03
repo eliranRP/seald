@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { isFeatureEnabled } from 'shared';
 import { CurrentUser } from '../../auth/current-user.decorator';
+import { Public } from '../../auth/public.decorator';
 import type { AuthUser } from '../../auth/auth-user';
 import { GDriveService } from './gdrive.service';
 import { OAuthStateStore, buildConsentUrl } from './oauth-pkce';
@@ -97,9 +98,13 @@ export class GDriveController {
   }
 
   @Get('oauth/callback')
+  @Public()
   // The callback is reached via Google's redirect — the user's browser, not
   // an authed JSON caller. We rely on the `state` nonce (single-use, 10
-  // min TTL) for CSRF + identity binding.
+  // min TTL) for CSRF + identity binding. @Public() opts the route out of
+  // the global APP_GUARD AuthGuard, which would otherwise 401 the redirect
+  // before requireFlag() even runs (no Supabase JWT on a top-level browser
+  // redirect from accounts.google.com).
   async oauthCallback(
     @Query('code') code: string,
     @Query('state') state: string,
