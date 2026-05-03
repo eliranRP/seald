@@ -112,6 +112,22 @@ export const envSchema = z
     GDRIVE_TOKEN_KMS_REGION: z.string().optional(),
     GDRIVE_API_RATE_PER_USER: z.coerce.number().int().positive().optional(),
     GDRIVE_API_RATE_WINDOW_SECONDS: z.coerce.number().int().positive().optional(),
+    /**
+     * WT-D Drive doc → PDF conversion. The Gotenberg sidecar is
+     * network-isolated inside the docker-compose stack (NOT publicly
+     * routed via Caddy); the API talks to it on the internal network
+     * at `http://gotenberg:3000`. Override only when running outside
+     * compose (e.g. integration tests or a separate sidecar host).
+     */
+    GDRIVE_GOTENBERG_URL: z.string().url().default('http://gotenberg:3000'),
+    /**
+     * Hard size cap for inbound Drive bytes + outbound Gotenberg PDFs.
+     * Default 25 MiB matches the WT-A-1 contract (`file-too-large`
+     * error code returned to the SPA at this threshold). Raising it
+     * without re-checking the Gotenberg memory budget will OOM the
+     * sidecar — change only with a deliberate runbook entry.
+     */
+    GDRIVE_CONVERSION_MAX_BYTES: z.coerce.number().int().positive().default(26_214_400),
   })
   .superRefine((env, ctx) => {
     if (env.NODE_ENV !== 'test') {

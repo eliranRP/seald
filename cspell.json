@@ -487,7 +487,10 @@
     "pkce",
     "PKCE",
     "bytea",
-    "wordprocessingml"
+    "wordprocessingml",
+    "Gotenberg",
+    "gotenberg",
+    "unwired"
   ],
   "ignoreRegExpList": [
     "Base64",

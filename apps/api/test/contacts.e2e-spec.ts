@@ -32,6 +32,8 @@ const TEST_ENV: AppEnv = {
   PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
   ENVELOPE_RETENTION_YEARS: 7,
   WORKER_ENABLED: false,
+  GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
+  GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,
 };
 
 const PROTECTED_ROUTES = [

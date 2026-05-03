@@ -105,6 +105,14 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
 - `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
 - `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
   (default `60`); WT-A-2
+- `GDRIVE_GOTENBERG_URL` — internal URL of the Gotenberg sidecar
+  (default `http://gotenberg:3000`); WT-D. The sidecar runs on the
+  private `gdrive` docker network only — never exposed publicly via
+  Caddy. See `deploy/docker-compose.yml` for the deploy contract.
+- `GDRIVE_CONVERSION_MAX_BYTES` — hard size cap for Drive bytes in and
+  Gotenberg PDFs out (default `26214400` = 25 MiB); WT-D. Raising it
+  without re-checking the Gotenberg memory budget will OOM the
+  sidecar.
 
 OAuth scope is hard-coded to `https://www.googleapis.com/auth/drive.file`
 (per-file consent only). Do not broaden — picker selections grant per-file
