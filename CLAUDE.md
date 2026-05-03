@@ -159,6 +159,18 @@ at 1440 / 1920 / 2560 / 3440. Skip a layer only when it genuinely
 doesn't apply (e.g. backend-only change skips UI), and document the
 skip in the report.
 
+### Production bug-fix / feature loop
+
+Whenever the user reports a production bug, asks to add a feature, or
+asks to change a UI component on the live app, invoke the
+[`seald-prod-bug-loop` skill](~/.claude/skills/seald-prod-bug-loop/SKILL.md)
+and run its 6-phase loop: (1) verify on prod with screenshots,
+(2) write a failing test, (3) fix, (4) PR + CI + merge, (5) re-verify
+on prod after deploy with fresh screenshots, (6) loop back if any bug
+regressed. The loop is not complete until every reported bug shows
+postfix proof from production. Use parallel agents and worktrees for
+multi-bug batches.
+
 ### Phase 3 deferrals
 
 All five MVP deferrals were resolved on 2026-04-24. See
