@@ -65,18 +65,20 @@ describe('RedirectWhenAuthed', () => {
     expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
   });
 
-  it('bounces a signed-in mobile visitor to /documents (the mobile-responsive dashboard) — never to /m/send', () => {
-    // Production bug (2026-05-03): mobile users were sent to /m/send, the
-    // sender flow, instead of the Documents dashboard. The dashboard already
-    // adapts to mobile, and product wants Documents to be the post-auth
-    // landing on every viewport so users see their existing envelopes; the
-    // mobile sender now lives inside Documents.
+  it('bounces a signed-in mobile visitor to /m/send (the dedicated mobile sender) — never the desktop dashboard', () => {
+    // Production contract (2026-05-03, refined): the desktop dashboard
+    // and the rest of the AppShell-hosted desktop surfaces were not
+    // designed for a 390 px viewport (table cells overlap, hero text
+    // wraps awkwardly, the title char-stacks). Rather than retrofit
+    // responsiveness onto every desktop page, mobile users are locked
+    // to the dedicated mobile sender at /m/send. Desktop visitors
+    // still see /documents.
     authState = {
       ...baseAuth,
       user: { id: 'u1', email: 'a@b.co', name: 'Alex' },
     };
     mobileViewport = true;
     renderAt('/signin');
-    expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
+    expect(screen.getByText('mobile send page')).toBeInTheDocument();
   });
 });

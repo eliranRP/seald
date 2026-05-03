@@ -57,12 +57,12 @@ export function SignUpPage() {
   );
 
   const handleAuthed = useCallback((): void => {
-    // Per product (2026-05-03), authed users land on /documents regardless
-    // of viewport — the dashboard is mobile-responsive and the mobile sender
-    // is reached from inside it. The viewport branch only applies to the
-    // guest-skip flow above (which jumps straight into the sender surface).
-    navigate('/documents');
-  }, [navigate]);
+    // Per product (2026-05-03, refined): mirror of SignInPage.handleAuthed —
+    // the desktop dashboard wasn't designed for 390 px, so mobile users are
+    // locked to the dedicated mobile sender at /m/send after sign-up.
+    // Desktop visitors still land on /documents.
+    navigate(isMobile ? '/m/send' : '/documents');
+  }, [isMobile, navigate]);
 
   return (
     <AuthShell>

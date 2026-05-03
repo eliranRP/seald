@@ -151,17 +151,18 @@ describe('MobileSendPage', () => {
     expect(screen.getByRole('button', { name: /open menu/i })).toBeInTheDocument();
   });
 
-  // 2026-05-03: per product, the mobile hamburger only exposes
-  // Documents + Sign out — every other affordance (Sign, Templates,
-  // Signers, Download my data, Delete account) is intentionally hidden
-  // because the mobile sender flow lives on `/m/send` and these
-  // affordances cluttered the surface for a mobile-first task.
-  it('hamburger opens a sheet with only Documents + Sign out — every other affordance hidden', async () => {
+  // 2026-05-03 (refined): mobile users are locked to /m/send; every
+  // desktop AppShell route bounces back here. The hamburger drawer
+  // therefore exposes no nav links at all (a "Documents" tap would
+  // route to /documents which the AppShell guard would immediately
+  // redirect back to /m/send — a no-op that reads as broken). Identity
+  // + Sign out only.
+  it('hamburger opens a sheet with only Sign out — every nav affordance hidden', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByRole('button', { name: 'Documents' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Documents' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Sign' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Templates' })).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Signers' })).toBeNull();

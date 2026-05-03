@@ -1,12 +1,11 @@
 import { useCallback } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useAccountActions } from '@/features/account';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
-import { MWMobileNav } from '../pages/MobileSendPage/components/MWMobileNav';
 import { NAV_ITEMS, matchNavId } from './navItems';
 
 const Shell = styled.div`
@@ -155,32 +154,35 @@ export function AppShell() {
 
   const mode = !user && guest ? 'guest' : 'authed';
 
-  // 2026-05-03 — at ≤640 px the desktop NavBar's tab row overflows the
-  // viewport (Templates link clips, avatar/account menu unreachable). Swap
-  // to the slim MWMobileNav already shipping on /m/send so every authed
-  // mobile surface gets a hamburger-driven drawer instead of broken chrome.
-  // Guest mode keeps the desktop NavBar (the marketing-style sign-in/up
-  // pair has no equivalent in the slim bar yet).
+  // 2026-05-03 (refined) — the desktop AppShell pages (/documents,
+  // /templates, /signers, /document/<id>, /document/new,
+  // /templates/:id/use, /templates/:id/edit) were not designed for a
+  // 390 px viewport: tables overlap, hero text wraps, the title
+  // char-stacks, the NavBar tab row overflows. Rather than retrofit
+  // responsiveness onto every desktop page, lock authed mobile users to
+  // the dedicated mobile sender at /m/send. Guest mode is out of scope
+  // (the marketing-style auth CTAs render fine on mobile and guests can
+  // still reach /document/new without an account from a mobile browser).
+  if (isMobile && mode === 'authed') {
+    return <Navigate to="/m/send" replace />;
+  }
+
   return (
     <Shell>
-      {isMobile && mode === 'authed' ? (
-        <MWMobileNav onSignOut={handleSignOut} />
-      ) : (
-        <NavBar
-          items={NAV_ITEMS}
-          activeItemId={activeNavId}
-          onSelectItem={handleSelectNavItem}
-          user={user ?? undefined}
-          mode={mode}
-          onSignIn={handleSignIn}
-          onSignUp={handleSignUp}
-          onSignOut={handleSignOut}
-          onExportData={mode === 'authed' ? account.exportData : undefined}
-          onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
-          isExporting={account.isExporting}
-          isDeleting={account.isDeleting}
-        />
-      )}
+      <NavBar
+        items={NAV_ITEMS}
+        activeItemId={activeNavId}
+        onSelectItem={handleSelectNavItem}
+        user={user ?? undefined}
+        mode={mode}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+        onSignOut={handleSignOut}
+        onExportData={mode === 'authed' ? account.exportData : undefined}
+        onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
+        isExporting={account.isExporting}
+        isDeleting={account.isDeleting}
+      />
       <Content>
         <Outlet />
       </Content>

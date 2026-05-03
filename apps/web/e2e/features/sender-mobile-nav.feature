@@ -1,23 +1,23 @@
 Feature: Mobile sender has a real navbar at /m/send
   # The mobile sender flow used to ship without any nav chrome — authed
-  # users had no way to reach Documents or to sign out. The MWMobileNav
-  # closes that gap. Per product (2026-05-03, PR #111), the hamburger
-  # only exposes Documents + Sign out; Templates / Signers / Sign /
-  # Download my data / Delete account were intentionally pulled to
-  # de-clutter the mobile-first surface. The contradiction (Templates
-  # absent from the hamburger but reachable from the start tile) is
-  # asserted positively in mobile-hamburger.feature.
+  # users had no way to sign out. The MWMobileNav closes that gap. Per
+  # product (2026-05-03, refined): mobile users are locked to /m/send;
+  # every desktop AppShell route bounces back here, so the hamburger
+  # exposes no nav links at all (Documents / Templates / Signers /
+  # Download my data / Delete account are reached from desktop).
+  # Identity + Sign out only. Templates remains reachable from the
+  # start-screen "From a template" CTA — its absence from the
+  # hamburger is the deliberate complement.
 
   Background:
     Given a signed-in sender on a 375x667 phone
     And the sender visits /m/send
 
   @sender @smoke @mobile
-  Scenario: Hamburger menu exposes profile and account actions
+  Scenario: Hamburger menu exposes profile and Sign out
     When the sender opens the mobile menu
     Then the mobile menu shows the user name "Alice Example"
     And the mobile menu has a "Sign out" button
-    And the mobile menu has a "Documents" nav button
 
   @sender @smoke @mobile
   Scenario: Sign out from the hamburger lands on /signin

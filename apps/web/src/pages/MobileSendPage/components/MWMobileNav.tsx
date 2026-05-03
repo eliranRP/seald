@@ -8,11 +8,14 @@ import { useAuth } from '@/providers/AuthProvider';
 import { NAV_ITEMS, matchNavId } from '@/layout/navItems';
 import { MWBottomSheet } from './MWBottomSheet';
 
-// Per product (2026-05-03), the mobile hamburger surfaces only the
-// Documents dashboard. Filter the shared NAV_ITEMS so any future
-// addition (e.g. a new "Audit" tab) doesn't accidentally leak into
-// mobile.
-const MOBILE_NAV_IDS: ReadonlyArray<string> = ['documents'];
+// Per product (2026-05-03, refined): mobile users are locked to /m/send;
+// every desktop AppShell route bounces back here. The hamburger drawer
+// therefore exposes no nav links at all (a "Documents" tap would route
+// to /documents which the AppShell guard would immediately redirect
+// back to /m/send — a no-op that reads as broken). Identity + Sign out
+// only. Filter remains in place so a future additive item to the
+// shared NAV_ITEMS list can opt in explicitly.
+const MOBILE_NAV_IDS: ReadonlyArray<string> = [];
 
 /**
  * Mobile-only top bar for `/m/send`. The desktop NavBar is too wide for a
@@ -260,7 +263,7 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
   return (
     <>
       <Bar role="banner">
-        <Brand type="button" aria-label="Seald home" onClick={() => navigate('/documents')}>
+        <Brand type="button" aria-label="Seald home" onClick={() => navigate('/m/send')}>
           <BrandMark aria-hidden>
             <SealedMark />
           </BrandMark>
