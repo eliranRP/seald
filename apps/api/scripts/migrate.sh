@@ -30,8 +30,20 @@ SQL
 # List applied filenames once so we don't round-trip per file.
 APPLIED=$(psql "$DATABASE_URL" -At -c "select filename from public.schema_migrations")
 
-for file in $(ls "$MIGRATIONS_DIR"/*.sql | sort); do
+# Forward-only: glob the top-level *.sql files. Down/rollback scripts live
+# in $MIGRATIONS_DIR/down/ and are NOT applied by this runner — operators
+# run them manually for incident rollback. The `*_down.sql` filter below
+# is a defence-in-depth guard against an operator dropping a down file at
+# the top level by mistake (the prod-bug-loop on 2026-05-03 caught one
+# that destroyed gdrive_accounts on every container boot).
+for file in $(ls "$MIGRATIONS_DIR"/*.sql 2>/dev/null | sort); do
   name=$(basename "$file")
+  case "$name" in
+    *_down.sql)
+      echo "migrate: refuse to apply $name as a forward migration (move to db/migrations/down/)" >&2
+      exit 1
+      ;;
+  esac
   if echo "$APPLIED" | grep -Fxq "$name"; then
     echo "migrate: skip $name (already applied)"
     continue
