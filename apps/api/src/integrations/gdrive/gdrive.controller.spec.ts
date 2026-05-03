@@ -1,10 +1,11 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../../auth/auth-user';
-import { GDriveController } from './gdrive.controller';
+import { GDriveController, type FilesProxy } from './gdrive.controller';
 import { GDriveService, type GoogleOAuthClient } from './gdrive.service';
 import { GDriveKmsService, type KmsClientPort } from './gdrive-kms.service';
 import { type GDriveAccount, type GDriveRepository } from './gdrive.repository';
 import { OAuthStateStore } from './oauth-pkce';
+import { GDriveRateLimiter } from './rate-limiter';
 import { FEATURE_FLAGS } from 'shared';
 
 class FakeRepo implements GDriveRepository {
@@ -76,19 +77,51 @@ const CFG = {
   appPublicUrl: 'http://localhost:5173',
 };
 
-function makeController(): {
+interface ProxyCall {
+  accessToken: string;
+  mimeFilter: 'pdf' | 'doc' | 'docx' | 'all';
+}
+
+function makeController(opts?: { capacity?: number; windowMs?: number; proxyImpl?: FilesProxy }): {
   ctrl: GDriveController;
   repo: FakeRepo;
   google: StubGoogleClient;
   state: OAuthStateStore;
+  proxyCalls: ProxyCall[];
+  setProxy(impl: FilesProxy): void;
+  limiter: GDriveRateLimiter;
 } {
   const repo = new FakeRepo();
   const kms = new GDriveKmsService(new StubKmsClient(), 'arn:aws:kms:us-east-1:000000000000:key/k');
   const google = new StubGoogleClient();
   const svc = new GDriveService(repo, kms, google);
   const state = new OAuthStateStore();
-  const ctrl = new GDriveController(svc, state, CFG);
-  return { ctrl, repo, google, state };
+  const limiter = new GDriveRateLimiter({
+    capacity: opts?.capacity ?? 30,
+    windowMs: opts?.windowMs ?? 60_000,
+  });
+  const proxyCalls: ProxyCall[] = [];
+  let proxy: FilesProxy =
+    opts?.proxyImpl ??
+    (async (): Promise<{
+      files: ReadonlyArray<{ id: string; name: string; mimeType: string }>;
+    }> => ({ files: [{ id: 'f1', name: 'a.pdf', mimeType: 'application/pdf' }] }));
+  const wrappedProxy: FilesProxy = (args) => {
+    proxyCalls.push(args);
+    return proxy(args);
+  };
+  const ctrl = new GDriveController(svc, state, CFG, limiter, wrappedProxy);
+  return {
+    ctrl,
+    repo,
+    google,
+    state,
+    proxyCalls,
+    setProxy(impl: FilesProxy) {
+      proxy = impl;
+    },
+    limiter,
+  };
 }
 
 describe('GDriveController', () => {
@@ -172,28 +205,145 @@ describe('GDriveController', () => {
     await expect(
       ctrl.deleteAccount('00000000-0000-0000-0000-000000000000', USER_1),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(() => ctrl.listFiles(USER_1, 'acc-1', 'all')).toThrow(NotFoundException);
+    await expect(
+      ctrl.listFiles(USER_1, '00000000-0000-0000-0000-000000000aaa', 'all'),
+    ).rejects.toBeInstanceOf(NotFoundException);
     await expect(ctrl.oauthCallback('c', 's', undefined, fakeRes())).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
 
-  // WT-A-2 contract: GET /files is intentionally a 501 stub in WT-A-1.
-  // The full rate-limited Drive proxy lands in `feature/gdrive-files-proxy`.
-  // This test pins the contract so WT-A-2 must explicitly remove/replace
-  // it when it wires the real proxy in.
-  it('GET /files returns 501 not-implemented (WT-A-2 stub contract)', () => {
-    const { ctrl } = makeController();
-    let caught: unknown;
-    try {
-      ctrl.listFiles(USER_1, 'acc-1', 'pdf');
-    } catch (err) {
-      caught = err;
+  // WT-A-2: real Drive files proxy. Replaces the WT-A-1 501 stub.
+  describe('GET /files (WT-A-2)', () => {
+    async function seedAccount(
+      ctrl: GDriveController,
+      state: OAuthStateStore,
+      userId = 'user-1',
+    ): Promise<string> {
+      const started = state.start(userId);
+      await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
+      const accs = await ctrl.listAccounts({ id: userId, email: 'x', provider: 'google' });
+      const first = accs[0];
+      if (!first) throw new Error('no acc');
+      return first.id;
     }
-    expect(caught).toBeInstanceOf(HttpException);
-    const httpErr = caught as HttpException;
-    expect(httpErr.getStatus()).toBe(HttpStatus.NOT_IMPLEMENTED);
-    expect(httpErr.getResponse()).toMatchObject({ code: 'not-implemented' });
+
+    it('happy path: invokes the proxy with a fresh access token + mime filter, returns files', async () => {
+      const { ctrl, state, proxyCalls } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      const out = await ctrl.listFiles(USER_1, accountId, 'pdf');
+      expect(out).toEqual({ files: [{ id: 'f1', name: 'a.pdf', mimeType: 'application/pdf' }] });
+      expect(proxyCalls).toHaveLength(1);
+      expect(proxyCalls[0]?.mimeFilter).toBe('pdf');
+      expect(proxyCalls[0]?.accessToken).toBe('at-refreshed');
+    });
+
+    it('rejects 400 unsupported-mime when mimeFilter is not in the allow-list', async () => {
+      const { ctrl, state } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      await expect(
+        ctrl.listFiles(USER_1, accountId, 'exe' as unknown as 'all'),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: expect.objectContaining({ code: 'unsupported-mime' }),
+      });
+    });
+
+    it('rejects 400 when accountId is not a UUID', async () => {
+      const { ctrl } = makeController();
+      await expect(ctrl.listFiles(USER_1, 'not-a-uuid', 'pdf')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('returns 429 with Retry-After header when rate limit is hit', async () => {
+      const { ctrl, state } = makeController({ capacity: 1, windowMs: 60_000 });
+      const accountId = await seedAccount(ctrl, state);
+      await ctrl.listFiles(USER_1, accountId, 'pdf');
+      let caught: unknown;
+      try {
+        await ctrl.listFiles(USER_1, accountId, 'pdf');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(HttpException);
+      const httpErr = caught as HttpException;
+      expect(httpErr.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      const resp = httpErr.getResponse() as { code?: string; retryAfter?: number };
+      expect(resp.code).toBe('rate-limited');
+      expect(typeof resp.retryAfter).toBe('number');
+      expect(resp.retryAfter).toBeGreaterThan(0);
+    });
+
+    it('rate-limit cache key is userId, NOT accountId (so rotating accountIds cannot bypass)', async () => {
+      const { ctrl, state } = makeController({ capacity: 1, windowMs: 60_000 });
+      const a1 = await seedAccount(ctrl, state);
+      // Second connect for same user — overwrites the cached row but should
+      // share the same per-user bucket (capacity:1 → second call should 429).
+      const started2 = state.start('user-1');
+      await ctrl.oauthCallback('the-code', started2.state, undefined, fakeRes());
+      const a2 = (await ctrl.listAccounts(USER_1))[1]?.id ?? a1;
+      await ctrl.listFiles(USER_1, a1, 'pdf');
+      await expect(ctrl.listFiles(USER_1, a2, 'pdf')).rejects.toMatchObject({
+        status: 429,
+      });
+    });
+
+    it('maps Drive 401 → 401 token-expired (SPA reconnects)', async () => {
+      const { ctrl, state, setProxy } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      setProxy(async () => {
+        throw new Error('drive_files_list_failed: 401');
+      });
+      await expect(ctrl.listFiles(USER_1, accountId, 'pdf')).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ code: 'token-expired' }),
+      });
+    });
+
+    it('maps Drive 403 → 403 oauth-declined (per-file consent revoked)', async () => {
+      const { ctrl, state, setProxy } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      setProxy(async () => {
+        throw new Error('drive_files_list_failed: 403');
+      });
+      await expect(ctrl.listFiles(USER_1, accountId, 'pdf')).rejects.toMatchObject({
+        status: 403,
+        response: expect.objectContaining({ code: 'oauth-declined' }),
+      });
+    });
+
+    it('maps Drive 5xx → 502 drive-upstream-error (token never leaked in message)', async () => {
+      const { ctrl, state, setProxy } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      setProxy(async () => {
+        throw new Error('drive_files_list_failed: 503');
+      });
+      let caught: unknown;
+      try {
+        await ctrl.listFiles(USER_1, accountId, 'pdf');
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(HttpException);
+      const httpErr = caught as HttpException;
+      expect(httpErr.getStatus()).toBe(HttpStatus.BAD_GATEWAY);
+      const resp = httpErr.getResponse() as { code?: string; message?: string };
+      expect(resp.code).toBe('drive-upstream-error');
+      // Defence in depth: even though `Error.message` could carry token
+      // text, the response body must NOT echo internal error strings.
+      expect(JSON.stringify(resp)).not.toContain('at-refreshed');
+      expect(JSON.stringify(resp)).not.toContain('rt-from-google');
+    });
+
+    it('returns NotFound when accountId belongs to another user (no existence leak)', async () => {
+      const { ctrl, state } = makeController();
+      const accountId = await seedAccount(ctrl, state, 'user-1');
+      const otherUser: AuthUser = { id: 'user-2', email: 'u2@example.com', provider: 'google' };
+      await expect(ctrl.listFiles(otherUser, accountId, 'pdf')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
   });
 });
 

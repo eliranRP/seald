@@ -19,6 +19,8 @@ import type { AuthUser } from '../../auth/auth-user';
 import { GDriveService } from './gdrive.service';
 import { OAuthStateStore, buildConsentUrl } from './oauth-pkce';
 import type { GDriveAccountView } from './dto/account.dto';
+import { GDriveRateLimiter, RateLimitedError } from './rate-limiter';
+import { TokenExpiredError } from './dto/error-codes';
 
 /**
  * OAuth + Drive proxy routes for the Drive integration.
@@ -37,6 +39,16 @@ export interface GDriveConfig {
 }
 
 export const GDRIVE_CONFIG = Symbol('GDRIVE_CONFIG');
+export const GDRIVE_FILES_PROXY = Symbol('GDRIVE_FILES_PROXY');
+
+const SUPPORTED_MIME_FILTERS: ReadonlySet<'pdf' | 'doc' | 'docx' | 'all'> = new Set([
+  'pdf',
+  'doc',
+  'docx',
+  'all',
+]);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface DriveFile {
   id: string;
@@ -60,6 +72,8 @@ export class GDriveController {
     private readonly svc: GDriveService,
     @Inject(OAuthStateStore) private readonly stateStore: OAuthStateStore,
     @Inject(GDRIVE_CONFIG) private readonly config: GDriveConfig,
+    @Inject(GDriveRateLimiter) private readonly rateLimiter: GDriveRateLimiter,
+    @Inject(GDRIVE_FILES_PROXY) private readonly filesProxy: FilesProxy,
   ) {}
 
   private requireFlag(): void {
@@ -133,21 +147,94 @@ export class GDriveController {
     await this.svc.revokeAccount(id, user.id);
   }
 
-  // TODO(WT-A-2): rate-limited Drive files proxy lives in follow-up PR
-  // (`feature/gdrive-files-proxy`). Stubbed at 501 here so WT-A-1 can
-  // ship without dead injection points (no orphan rate-limiter or
-  // files-proxy providers in this PR — see decisions.md Phase 5
-  // corrected verdict).
+  /**
+   * Server-side proxy over Drive `files.list`. Defence in depth:
+   *  - Per-user rate limiting (cache key = `user.id`, NEVER `accountId`,
+   *    so rotating accountIds cannot bypass the bucket).
+   *  - mimeFilter validated against the allow-list before reaching
+   *    `files-proxy.ts` — even though the proxy keys into a `Record`,
+   *    rejecting at the edge with `unsupported-mime` keeps the wire
+   *    contract honest and prevents a TS-cast bypass.
+   *  - Account ownership check (via `svc.getAccessToken` →
+   *    `requireOwnedAccount`) — NotFound on mismatch (no existence leak).
+   *  - Drive-side errors are mapped to the existing `GDriveErrorCode`
+   *    taxonomy; we never echo the upstream error body or the access
+   *    token into the response.
+   */
   @Get('files')
-  listFiles(
-    @CurrentUser() _user: AuthUser,
-    @Query('accountId') _accountId: string,
-    @Query('mimeFilter') _mimeFilter: 'pdf' | 'doc' | 'docx' | 'all' = 'all',
-  ): never {
+  async listFiles(
+    @CurrentUser() user: AuthUser,
+    @Query('accountId') accountId: string,
+    @Query('mimeFilter') mimeFilter: 'pdf' | 'doc' | 'docx' | 'all' = 'all',
+  ): Promise<{ files: ReadonlyArray<DriveFile> }> {
     this.requireFlag();
-    throw new HttpException(
-      { code: 'not-implemented', message: 'gdrive_files_proxy_pending_wt_a2' },
-      HttpStatus.NOT_IMPLEMENTED,
+    if (!accountId || !UUID_RE.test(accountId)) {
+      throw new BadRequestException({
+        code: 'invalid-account-id',
+        message: 'accountId_must_be_uuid',
+      });
+    }
+    if (!SUPPORTED_MIME_FILTERS.has(mimeFilter)) {
+      throw new HttpException(
+        { code: 'unsupported-mime', message: 'mime_filter_not_in_allow_list' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    try {
+      await this.rateLimiter.acquire(user.id);
+    } catch (err) {
+      if (err instanceof RateLimitedError) {
+        throw new HttpException(
+          {
+            code: 'rate-limited',
+            message: 'gdrive_rate_limited',
+            retryAfter: Math.ceil(err.retryAfterMs / 1000),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw err;
+    }
+    // Resolve account → fresh access token. Throws NotFound when the
+    // account does not belong to the caller (existence leak guard).
+    const { accessToken } = await this.svc.getAccessToken(accountId, user.id);
+    try {
+      return await this.filesProxy({ accessToken, mimeFilter });
+    } catch (err) {
+      throw mapDriveError(err);
+    }
+  }
+}
+
+function mapDriveError(err: unknown): HttpException {
+  if (err instanceof TokenExpiredError) {
+    return new HttpException(
+      { code: 'token-expired', message: 'reconnect_required' },
+      HttpStatus.UNAUTHORIZED,
     );
   }
+  if (err instanceof Error) {
+    const m = /drive_files_list_failed:\s*(\d{3})/.exec(err.message);
+    if (m && m[1]) {
+      const status = Number(m[1]);
+      if (status === 401) {
+        return new HttpException(
+          { code: 'token-expired', message: 'reconnect_required' },
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+      if (status === 403) {
+        return new HttpException(
+          { code: 'oauth-declined', message: 'permission_denied_or_consent_revoked' },
+          HttpStatus.FORBIDDEN,
+        );
+      }
+    }
+  }
+  // Default: opaque 502. Body deliberately omits `err.message` so we
+  // never echo a Drive-side body or any upstream-leaked secret.
+  return new HttpException(
+    { code: 'drive-upstream-error', message: 'drive_request_failed' },
+    HttpStatus.BAD_GATEWAY,
+  );
 }
