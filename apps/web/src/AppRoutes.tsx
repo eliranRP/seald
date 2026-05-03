@@ -34,6 +34,18 @@ const TemplateEditorRoute = lazy(() =>
   import('./routes/TemplateEditorRoute').then((m) => ({ default: m.TemplateEditorRoute })),
 );
 
+// `/settings/integrations` — WT-B Drive integration page. Lazy because
+// the gdrive feature is gated behind `feature.gdriveIntegration` and
+// the typical first-time visitor won't reach this surface; keeping it
+// out of the dashboard chunk avoids paying for the OAuth scaffolding
+// up-front. Lives inside <AppShell /> so the existing mobile-redirect
+// rule (640 px → /m/send) covers it without a new redirect (rule 4.4).
+const IntegrationsPage = lazy(() =>
+  import('./routes/settings/integrations/IntegrationsPage').then((m) => ({
+    default: m.IntegrationsPage,
+  })),
+);
+
 // Code-split every signing page so recipients don't pay for the sender
 // bundle's Supabase / react-pdf weight on initial load.
 const SigningEntryPage = lazy(() =>
@@ -184,6 +196,14 @@ export function AppRoutes() {
             element={
               <Suspense fallback={<AuthLoadingScreen />}>
                 <TemplateEditorRoute />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/settings/integrations"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <IntegrationsPage />
               </Suspense>
             }
           />
