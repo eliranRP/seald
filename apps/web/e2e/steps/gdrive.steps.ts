@@ -6,15 +6,23 @@ const { Given, When, Then } = createBdd(test);
 
 /**
  * Steps for `features/gdrive/disabled-cta.feature`. Covers the Phase 6.A
- * iter-1 LOCAL bug: pre-fix the Drive CTA on `/document/new` and on the
- * `/templates/:id/use` Step 1 "Upload a new one" panel was a
- * `<button disabled title="…">` (an a11y dead-end — native `title` is
- * not announced on disabled buttons, the button isn't focusable, touch
- * users see no tooltip). Post-fix it's an enabled, focusable
- * "Connect Drive in Settings" button that navigates to
- * `/settings/integrations`.
+ * iter-1 LOCAL bug + the 2026-05-04 (commit 901515b) follow-up:
  *
- * Two harness contortions worth flagging:
+ *   - Pre-fix the Drive CTA on `/document/new` and on the
+ *     `/templates/:id/use` Step 1 "Upload a new one" panel was a
+ *     `<button disabled title="…">` (an a11y dead-end — native `title`
+ *     is not announced on disabled buttons, the button isn't focusable,
+ *     touch users see no tooltip).
+ *   - The first patch made it an enabled "Connect Drive in Settings"
+ *     button that navigated to `/settings/integrations`. That broke
+ *     flow continuity (the user lost their upload context).
+ *   - Current contract: enabled "Connect Google Drive" button that
+ *     opens the OAuth popup INLINE via `useConnectGDrive().mutate()`.
+ *     The popup posts back through the AppShell-mounted message
+ *     listener and the accounts query flips to connected without
+ *     leaving the wizard.
+ *
+ * Three harness contortions worth flagging:
  *
  *  1. **Feature-flag override.** The static `FEATURE_FLAGS` constant in
  *     `packages/shared/src/feature-flags.ts` is `false` for
@@ -31,6 +39,14 @@ const { Given, When, Then } = createBdd(test);
  *     hydrates by navigating to `/templates` first (the list page DOES
  *     fetch /api/templates on mount), then SPA-navigates to the wizard
  *     URL via history.pushState + popstate so module state survives.
+ *
+ *  3. **window.open shim.** `useConnectGDrive` calls
+ *     `window.open(url, 'gdrive-oauth', POPUP_FEATURES)` after fetching
+ *     the consent URL. We can't actually load Google's consent page in
+ *     CI, so the activation step replaces `window.open` with a stub
+ *     that records the URL it was called with — that gives us an
+ *     observable signal that the click triggered the inline OAuth
+ *     mutation without burning a real popup.
  */
 
 const FLAG_OVERRIDE_INIT_SCRIPT = `(function () {
@@ -42,6 +58,8 @@ const FLAG_OVERRIDE_INIT_SCRIPT = `(function () {
   );
 })();`;
 
+const STUB_OAUTH_URL = 'https://accounts.google.test/o/oauth2/v2/auth?stub=1';
+
 Given('the gdriveIntegration feature flag is on', async ({ page }) => {
   await page.addInitScript(FLAG_OVERRIDE_INIT_SCRIPT);
 });
@@ -51,16 +69,21 @@ Given(
   async ({ seededUser, mockedApi }) => {
     await seededUser.signInAs();
     // useGDriveAccounts hits /api/integrations/gdrive/accounts. An empty
-    // array is the "connected=false" branch — drives the "Connect Drive
-    // in Settings" button rendering on both /document/new and
+    // array is the "connected=false" branch — drives the "Connect
+    // Google Drive" button rendering on both /document/new and
     // /templates/:id/use.
     mockedApi.on('GET', /\/api\/integrations\/gdrive\/accounts(\?|$)/, { json: [] });
-    // The settings/integrations destination renders cleanly with the
-    // same empty-list response — the "navigates to" assertion just
-    // waits for the URL to change, but we still want the page to mount
-    // without bubbling an unmocked-route 404 into the React tree.
   },
 );
+
+Given('the Drive OAuth URL endpoint returns a stubbed consent URL', async ({ mockedApi }) => {
+  // useConnectGDrive() GETs /api/integrations/gdrive/oauth/url before
+  // calling window.open. Stubbing the response lets the activation
+  // assertion observe a deterministic URL handed to the popup shim.
+  mockedApi.on('GET', /\/api\/integrations\/gdrive\/oauth\/url(\?|$)/, {
+    json: { url: STUB_OAUTH_URL },
+  });
+});
 
 When('the sender visits {string}', async ({ page }, url: string) => {
   if (/^\/templates\/[^/]+\/use(\?|$)/.test(url)) {
@@ -71,8 +94,6 @@ When('the sender visits {string}', async ({ page }, url: string) => {
     // via /templates first (TemplatesListPage calls listTemplates() on
     // mount), then SPA-navigate so the store survives.
     await page.goto('/templates');
-    // Wait for the list to render at least one template card so we
-    // know /api/templates resolved and the store is hydrated.
     await expect(page.getByRole('heading', { name: /templates/i }).first()).toBeVisible();
     await page.evaluate((target) => {
       window.history.pushState({}, '', target);
@@ -127,19 +148,64 @@ Then(
 );
 
 Then('that button is not disabled', async ({ page }) => {
-  // The two scenarios both target the "Connect Drive in Settings" CTA.
-  // Querying by accessible name keeps this step generic across both
-  // surfaces (rule 4.6 — query by role/name, not test id).
-  const cta = page.getByRole('button', { name: /connect.*settings/i });
+  // Both scenarios target the "Connect Google Drive" CTA. Querying by
+  // accessible name keeps this step generic across both surfaces
+  // (rule 4.6 — query by role/name, not test id).
+  const cta = page.getByRole('button', { name: /connect google drive/i });
   await expect(cta).toBeEnabled();
   await expect(cta).not.toHaveAttribute('disabled', /.*/);
 });
 
-Then('activating that button navigates to {string}', async ({ page }, url: string) => {
-  const cta = page.getByRole('button', { name: /connect.*settings/i });
-  await cta.click();
-  await page.waitForURL(new RegExp(url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\?|$)'));
-});
+Then(
+  'activating that button opens the Drive OAuth popup without leaving {string}',
+  async ({ page }, expectedPath: string) => {
+    // Replace window.open with a recording stub BEFORE the click so we
+    // capture the URL `useConnectGDrive` hands to it. We resolve the
+    // stub via a page-side promise so the assertion below can await
+    // the actual call rather than racing it.
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __seald_oauth_open_url?: string;
+        __seald_oauth_open_resolve?: (url: string) => void;
+        __seald_oauth_open_promise?: Promise<string>;
+      };
+      w.__seald_oauth_open_promise = new Promise<string>((resolve) => {
+        w.__seald_oauth_open_resolve = resolve;
+      });
+      const origOpen = window.open.bind(window);
+      window.open = ((url?: string | URL, target?: string, features?: string) => {
+        const href = typeof url === 'string' ? url : (url?.toString() ?? '');
+        w.__seald_oauth_open_url = href;
+        w.__seald_oauth_open_resolve?.(href);
+        // Returning null mirrors a popup-blocked browser; the mutation
+        // resolves anyway and we avoid actually loading the OAuth URL.
+        void target;
+        void features;
+        void origOpen;
+        return null;
+      }) as typeof window.open;
+    });
+
+    const before = new URL(page.url());
+    const cta = page.getByRole('button', { name: /connect google drive/i });
+    await cta.click();
+
+    const openedUrl = await page.evaluate(async () => {
+      const w = window as unknown as { __seald_oauth_open_promise?: Promise<string> };
+      if (!w.__seald_oauth_open_promise) return '';
+      return w.__seald_oauth_open_promise;
+    });
+
+    expect(openedUrl).toMatch(/^https:\/\/accounts\.google\.test\//);
+
+    // The post-fix contract requires no navigation away from the
+    // wizard. URL.pathname comparison is enough — the stubbed open()
+    // returns null so the SPA doesn't redirect.
+    const after = new URL(page.url());
+    expect(after.pathname).toBe(before.pathname);
+    expect(after.pathname).toBe(expectedPath.split('?')[0]);
+  },
+);
 
 Then(
   'no element on the page relies on the native `title` attribute to convey the connect-in-settings hint',

@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { GDriveLogo } from './GDriveLogo';
 
@@ -8,32 +7,36 @@ import { GDriveLogo } from './GDriveLogo';
  * "Upload a PDF" button and inherits the same `secondary` variant so
  * the two affordances read as peers.
  *
- * When no Drive account is connected the button is replaced with a
- * "Connect Drive in Settings" CTA that navigates to
- * `/settings/integrations`. Same accessibility contract + rationale as
- * `DriveSourceCard` (see that component's header comment + the Gherkin
- * spec at `apps/web/e2e/features/gdrive/disabled-cta.feature`).
+ * When no Drive account is connected the button label flips to
+ * "Connect Google Drive" and `onConnect` fires — which the caller wires
+ * to `useConnectGDrive().mutate()` so the OAuth popup opens within the
+ * user gesture (modern browsers block popups from non-gesture context).
+ * Pre-2026-05-04 this navigated to `/settings/integrations`, breaking
+ * flow continuity. The popup-bridge work (BroadcastChannel + AppShell-
+ * mounted message listener) lets the consent flow complete inline and
+ * flips the accounts query to "connected" so the button auto-updates.
  */
 export interface DriveTemplateReplaceButtonProps {
   readonly connected: boolean;
   readonly onPickDrive: () => void;
+  /**
+   * Called when the user clicks the disconnected-state CTA. Wire to
+   * `useConnectGDrive().mutate()` at the call site so the OAuth popup
+   * opens within the user gesture.
+   */
+  readonly onConnect: () => void;
 }
-
-const SETTINGS_INTEGRATIONS_PATH = '/settings/integrations';
 
 export function DriveTemplateReplaceButton({
   connected,
   onPickDrive,
+  onConnect,
 }: DriveTemplateReplaceButtonProps) {
-  const navigate = useNavigate();
   return (
-    <Button
-      variant="secondary"
-      onClick={connected ? onPickDrive : () => navigate(SETTINGS_INTEGRATIONS_PATH)}
-    >
+    <Button variant="secondary" onClick={connected ? onPickDrive : onConnect}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
         <GDriveLogo size={16} />
-        {connected ? 'Pick from Google Drive' : 'Connect Drive in Settings'}
+        {connected ? 'Pick from Google Drive' : 'Connect Google Drive'}
       </span>
     </Button>
   );

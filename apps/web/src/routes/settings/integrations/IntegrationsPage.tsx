@@ -492,8 +492,15 @@ export function IntegrationsPage() {
   // Bug F (Phase 6.A iter-2 PROD, 2026-05-04). The OAuth-callback popup
   // lands here with `?connected=1`. Bridge it back to the opener +
   // close the popup; in same-tab fallback (popup blocker), refresh
-  // accounts inline. The companion listener wires the parent tab so
-  // the connected row appears the moment the popup posts back.
+  // accounts inline.
+  //
+  // The companion listener is also mounted at `AppShell` (so any authed
+  // surface — UploadRoute, UseTemplatePage, etc. — flips to "connected"
+  // when the popup posts back). Mounting it here too is intentional
+  // belt-and-suspenders: it keeps this page testable in isolation
+  // (renderPage() doesn't include AppShell), and React Query dedupes
+  // concurrent invalidations against the same query key, so the
+  // double-mount has no observable cost in production.
   const isOAuthPopupBridge = useGDriveOAuthCallbackBridge(isCallbackReturn);
   useGDriveOAuthMessageListener();
 

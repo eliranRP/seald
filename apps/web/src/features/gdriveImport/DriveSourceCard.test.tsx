@@ -2,42 +2,35 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import { seald } from '@/styles/theme';
 import { DriveSourceCard } from './DriveSourceCard';
 
 /**
- * RED gate for the Phase 6.A iter-1 round-1 LOCAL bug:
+ * Discoverability + flow-continuity contract for the New Document
+ * (Sign) flow's "From Google Drive" source card.
  *
- *   When the gdrive feature flag is on but no Drive account is
- *   connected, `DriveSourceCard` rendered a `<button disabled
- *   title="Connect Google Drive in Settings to use this." />`. The
- *   `title` attribute is invisible to screen readers on a disabled
- *   button, the button isn't focusable, and there's no clickable path
- *   to `/settings/integrations` — a dead-end CTA.
+ *   - connected=true  -> "Pick from Google Drive" calls `onPickDrive`.
+ *   - connected=false -> "Connect Google Drive" calls `onConnect`.
  *
- * Post-fix: the not-connected branch renders an enabled, navigable
- * affordance whose accessible name says "Connect" and which routes to
- * `/settings/integrations` on activation. See Gherkin spec at
- * `apps/web/e2e/features/gdrive/disabled-cta.feature`.
+ * Pre-fix the disconnected branch said "Connect Drive in Settings" and
+ * navigated to `/settings/integrations`, which broke the user out of
+ * the upload flow. The OAuth-popup bridge (BroadcastChannel — Bug I)
+ * already lets us open the consent flow inline, so the card now just
+ * calls a caller-supplied `onConnect`. The caller (UploadRoute) wires
+ * that to `useConnectGDrive().mutate()` and the AppShell-mounted
+ * message listener flips the accounts query to "connected" the moment
+ * the popup posts back — the card auto-flips to its connected state.
  */
-
 function renderCard(props: Partial<React.ComponentProps<typeof DriveSourceCard>> = {}) {
   return render(
     <ThemeProvider theme={seald}>
-      <MemoryRouter initialEntries={['/document/new']}>
-        <Routes>
-          <Route
-            path="/document/new"
-            element={
-              <DriveSourceCard
-                connected={props.connected ?? false}
-                onPickDrive={props.onPickDrive ?? vi.fn()}
-              />
-            }
-          />
-          <Route path="/settings/integrations" element={<div>integrations-page</div>} />
-        </Routes>
+      <MemoryRouter>
+        <DriveSourceCard
+          connected={props.connected ?? false}
+          onPickDrive={props.onPickDrive ?? vi.fn()}
+          onConnect={props.onConnect ?? vi.fn()}
+        />
       </MemoryRouter>
     </ThemeProvider>,
   );
@@ -45,31 +38,26 @@ function renderCard(props: Partial<React.ComponentProps<typeof DriveSourceCard>>
 
 describe('DriveSourceCard', () => {
   describe('when connected=false', () => {
-    it('renders an enabled button with "Connect" in its accessible name (no disabled+title dead-end)', () => {
+    it('renders an enabled "Connect Google Drive" button (no disabled+title dead-end)', () => {
       renderCard({ connected: false });
-      const cta = screen.getByRole('button', { name: /connect.*settings/i });
+      const cta = screen.getByRole('button', { name: /connect google drive/i });
       expect(cta).toBeInTheDocument();
       expect(cta).toBeEnabled();
     });
 
-    it('does NOT rely on the native `title` attribute for the connect-in-settings hint', () => {
+    it('does NOT rely on the native `title` attribute for the connect hint', () => {
       renderCard({ connected: false });
-      const cta = screen.getByRole('button', { name: /connect.*settings/i });
-      // The fix replaces the title-tooltip pattern with a visible label.
+      const cta = screen.getByRole('button', { name: /connect google drive/i });
       expect(cta.getAttribute('title')).toBeNull();
     });
 
-    it('navigates to /settings/integrations when activated', async () => {
-      renderCard({ connected: false });
-      const cta = screen.getByRole('button', { name: /connect.*settings/i });
-      await userEvent.click(cta);
-      expect(await screen.findByText('integrations-page')).toBeInTheDocument();
-    });
-
-    it('does NOT call onPickDrive when the user activates the connect CTA', async () => {
+    it('calls onConnect (not onPickDrive) when activated — connect happens inline, no navigation', async () => {
+      const onConnect = vi.fn();
       const onPickDrive = vi.fn();
-      renderCard({ connected: false, onPickDrive });
-      await userEvent.click(screen.getByRole('button', { name: /connect.*settings/i }));
+      renderCard({ connected: false, onConnect, onPickDrive });
+      const cta = screen.getByRole('button', { name: /connect google drive/i });
+      await userEvent.click(cta);
+      expect(onConnect).toHaveBeenCalledTimes(1);
       expect(onPickDrive).not.toHaveBeenCalled();
     });
   });
@@ -81,11 +69,13 @@ describe('DriveSourceCard', () => {
       expect(pick).toBeEnabled();
     });
 
-    it('calls onPickDrive when clicked', async () => {
+    it('calls onPickDrive (not onConnect) when clicked', async () => {
       const onPickDrive = vi.fn();
-      renderCard({ connected: true, onPickDrive });
+      const onConnect = vi.fn();
+      renderCard({ connected: true, onPickDrive, onConnect });
       await userEvent.click(screen.getByRole('button', { name: /pick from google drive/i }));
       expect(onPickDrive).toHaveBeenCalledTimes(1);
+      expect(onConnect).not.toHaveBeenCalled();
     });
   });
 });

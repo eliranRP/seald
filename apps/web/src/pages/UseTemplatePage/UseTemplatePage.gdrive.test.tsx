@@ -7,11 +7,15 @@ import { setTemplates } from '../../features/templates';
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import * as flagsModule from 'shared';
 
+const connectMutateMock = vi.fn();
 vi.mock('../../routes/settings/integrations/useGDriveAccounts', () => ({
   useGDriveAccounts: vi.fn(),
   GDRIVE_ACCOUNTS_KEY: ['integrations', 'gdrive', 'accounts'],
-  useConnectGDrive: vi.fn(),
+  // The disconnected-state CTA wires to `useConnectGDrive().mutate()`
+  // so the OAuth popup opens within the user gesture.
+  useConnectGDrive: () => ({ mutate: connectMutateMock }),
   useDisconnectGDrive: vi.fn(),
+  useGDriveOAuthMessageListener: vi.fn(),
 }));
 
 import * as gdriveAccountsHook from '../../routes/settings/integrations/useGDriveAccounts';
@@ -97,21 +101,23 @@ describe('UseTemplatePage Drive integration (WT-E)', () => {
     expect(cta).toBeEnabled();
   });
 
-  it('shows an enabled "Connect Drive in Settings" button when no account is connected', () => {
-    // Phase 6.A iter-1 LOCAL bug companion (see DriveSourceCard
-    // post-fix rationale + the Gherkin spec at
-    // `apps/web/e2e/features/gdrive/disabled-cta.feature`). Pre-fix
-    // this surface rendered a disabled button with a `title` tooltip
-    // — invisible to screen readers, non-focusable, and unreachable
-    // on touch. Post-fix it's an enabled button whose label includes
-    // "Connect" and which navigates to /settings/integrations.
+  it('shows an enabled "Connect Google Drive" button when no account is connected, and opens the OAuth popup inline (no /settings navigation)', () => {
+    // 2026-05-04 flow-continuity fix: pre-fix the disconnected branch
+    // navigated to /settings/integrations, breaking the user out of
+    // the template wizard. Post-fix the inline-popup bridge
+    // (BroadcastChannel + AppShell-mounted message listener) lets the
+    // consent flow complete without leaving the wizard. See
+    // `DriveTemplateReplaceButton.test.tsx` for the component contract.
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(false);
+    connectMutateMock.mockClear();
     gotoStep1Upload();
-    const cta = screen.getByRole('button', { name: /connect.*settings/i });
+    const cta = screen.getByRole('button', { name: /connect google drive/i });
     expect(cta).toBeEnabled();
     expect(cta.getAttribute('title')).toBeNull();
     expect(screen.queryByRole('button', { name: /pick from google drive/i })).toBeNull();
+    fireEvent.click(cta);
+    expect(connectMutateMock).toHaveBeenCalledTimes(1);
   });
 
   it('opens the picker when the active CTA is clicked', () => {

@@ -1,5 +1,4 @@
 import styled from 'styled-components';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { GDriveLogo } from './GDriveLogo';
 
@@ -10,20 +9,29 @@ import { GDriveLogo } from './GDriveLogo';
  * The card is feature-flag gated at the call site — when
  * `feature.gdriveIntegration` is OFF, the route does not render this
  * component at all. When it IS on but no account is connected, the
- * Pick CTA is replaced with an enabled "Connect Drive in Settings"
- * button that navigates to `/settings/integrations`. Pre-fix the CTA
- * was a `<button disabled title="…">` — the native `title` attribute
- * isn't announced by screen readers on a disabled button, the button
- * isn't focusable, and touch users get no tooltip at all (a dead-end
- * surface). See `DriveSourceCard.test.tsx` + the Gherkin spec at
- * `apps/web/e2e/features/gdrive/disabled-cta.feature`.
+ * Pick CTA is replaced with an enabled "Connect Google Drive" button
+ * that calls the caller-supplied `onConnect` (which opens the OAuth
+ * popup inline — no full-page navigation away from the upload flow).
+ *
+ * Pre-2026-05-04 the disconnected CTA navigated to
+ * `/settings/integrations`, breaking flow continuity (the user lost
+ * their upload context). With the popup-bridge work (Bug F/G/H/I) the
+ * consent flow can complete in a popup and signal the parent tab via
+ * BroadcastChannel; AppShell mounts the listener so the accounts query
+ * flips to "connected" inline and this card auto-updates to its
+ * connected branch.
  */
 export interface DriveSourceCardProps {
   readonly connected: boolean;
   readonly onPickDrive: () => void;
+  /**
+   * Called when the user clicks the disconnected-state CTA. Wire to
+   * `useConnectGDrive().mutate()` at the call site so the OAuth popup
+   * opens within the user gesture — modern browsers block popups
+   * opened from a non-gesture context.
+   */
+  readonly onConnect: () => void;
 }
-
-const SETTINGS_INTEGRATIONS_PATH = '/settings/integrations';
 
 const Card = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
@@ -65,8 +73,7 @@ const Description = styled.p`
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
 
-export function DriveSourceCard({ connected, onPickDrive }: DriveSourceCardProps) {
-  const navigate = useNavigate();
+export function DriveSourceCard({ connected, onPickDrive, onConnect }: DriveSourceCardProps) {
   return (
     <Card>
       <IconBox aria-hidden>
@@ -83,8 +90,8 @@ export function DriveSourceCard({ connected, onPickDrive }: DriveSourceCardProps
           Pick from Google Drive
         </Button>
       ) : (
-        <Button variant="secondary" onClick={() => navigate(SETTINGS_INTEGRATIONS_PATH)}>
-          Connect Drive in Settings
+        <Button variant="secondary" onClick={onConnect}>
+          Connect Google Drive
         </Button>
       )}
     </Card>

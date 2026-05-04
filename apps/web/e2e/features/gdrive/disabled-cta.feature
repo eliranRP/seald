@@ -1,4 +1,4 @@
-Feature: Drive picker CTA — accessible path to Settings when no account is connected
+Feature: Drive picker CTA — inline OAuth connect from Sign + Template flows
   # Phase 6.A iter-1 round-1 LOCAL bug. Found 2026-05-03 walking the
   # gdrive feature surface end-to-end on localhost.
   #
@@ -17,28 +17,34 @@ Feature: Drive picker CTA — accessible path to Settings when no account is con
   # ~1s. There is no clickable path from these surfaces to
   # `/settings/integrations`.
   #
-  # Post-fix: when `connected=false`, the surface MUST render an
-  # enabled, focusable affordance whose visible label and accessible
-  # name include "Connect" and which navigates to
-  # `/settings/integrations` on activation. No reliance on `title`.
+  # Post-fix (2026-05-04, commit 901515b): the previous fix navigated to
+  # `/settings/integrations`, which broke flow continuity (the user lost
+  # their upload context). The current contract is stricter: when
+  # `connected=false`, the surface MUST render an enabled, focusable
+  # "Connect Google Drive" button that opens the OAuth popup INLINE via
+  # `useConnectGDrive().mutate()`. The popup posts back through the
+  # AppShell-mounted message listener and the accounts query flips to
+  # connected without leaving the wizard. No reliance on `title`. No
+  # navigation away from the current route on activation.
 
   Background:
     Given the gdriveIntegration feature flag is on
     And no Google Drive account is connected for the signed-in user
+    And the Drive OAuth URL endpoint returns a stubbed consent URL
 
   @gdrive @a11y @smoke
-  Scenario: /document/new exposes an enabled "Connect Drive in Settings" CTA
+  Scenario: /document/new exposes an enabled "Connect Google Drive" CTA that opens OAuth inline
     When the sender visits "/document/new"
-    Then the Drive source card renders a button with accessible name matching /connect.*settings/i
+    Then the Drive source card renders a button with accessible name matching /connect google drive/i
     And that button is not disabled
-    And activating that button navigates to "/settings/integrations"
+    And activating that button opens the Drive OAuth popup without leaving "/document/new"
     And no element on the page relies on the native `title` attribute to convey the connect-in-settings hint
 
   @gdrive @a11y @smoke
-  Scenario: /templates/:id/use Upload-new step exposes an enabled "Connect Drive in Settings" CTA
+  Scenario: /templates/:id/use Upload-new step exposes an enabled "Connect Google Drive" CTA that opens OAuth inline
     Given a template with id "475e2154-b1f8-45ee-877a-be8a0ef1eb67" exists
     When the sender visits "/templates/475e2154-b1f8-45ee-877a-be8a0ef1eb67/use"
     And the sender selects the "Upload a new one" document source
-    Then the Drive replace button renders with accessible name matching /connect.*settings/i
+    Then the Drive replace button renders with accessible name matching /connect google drive/i
     And that button is not disabled
-    And activating that button navigates to "/settings/integrations"
+    And activating that button opens the Drive OAuth popup without leaving "/templates/475e2154-b1f8-45ee-877a-be8a0ef1eb67/use"
