@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { CheckCircle2, FileText, ShieldCheck, Sparkles } from 'lucide-react';
+import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { Icon } from '@/components/Icon';
-import { readDoneSnapshot } from '@/features/signing';
+import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
 
 /**
  * T-18 — keep this in sync with `ENVELOPE_RETENTION_YEARS` (default `7`)
@@ -58,22 +58,71 @@ const Body = styled.p`
 
 const Actions = styled.div`
   margin-top: ${({ theme }) => theme.space[8]};
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
 `;
 
-const SecondaryBtn = styled.button`
-  padding: 12px 18px;
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[1]};
-  cursor: pointer;
+// Shared button base — applied to both <a> (enabled) and <button>
+// (disabled / sealing) so screen-readers see consistent visual chrome
+// regardless of element. Mobile breakpoint (≤ 640 px) snaps the action
+// row to full-width per CLAUDE.md mobile lock contract.
+const buttonBase = `
+  padding: 14px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 15px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+`;
+
+const PrimaryDownloadLink = styled.a`
+  ${buttonBase}
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.ink[900]};
+  &:hover {
+    background: ${({ theme }) => theme.color.ink[700]};
+  }
+  @media (max-width: 640px) {
+    width: 100%;
+  }
+`;
+
+const PrimaryDownloadBtn = styled.button`
+  ${buttonBase}
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.ink[900]};
+  &:disabled {
+    background: ${({ theme }) => theme.color.ink[200]};
+    color: ${({ theme }) => theme.color.fg[3]};
+    border-color: ${({ theme }) => theme.color.ink[200]};
+    cursor: not-allowed;
+  }
+  @media (max-width: 640px) {
+    width: 100%;
+  }
+`;
+
+const DownloadHint = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: 1.4;
+`;
+
+const DownloadError = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.danger[700]};
+  line-height: 1.4;
 `;
 
 const Upsell = styled.div`
@@ -201,9 +250,19 @@ export function SigningDonePage() {
   const [email, setEmail] = useState(snap?.recipient_email ?? '');
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // Poll the public verify endpoint for this envelope's seal status.
+  // Hook is always mounted (rule 4.4 — single responsibility) but the
+  // query is gated by `enabled: shortCode.length > 0` inside the hook,
+  // so this is safe even when the snapshot is missing on the next line.
+  const verify = useSealedDownload(snap?.short_code ?? '');
+
   if (!snap || snap.kind !== 'submitted') {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
+
+  const sealedUrl = verify.data?.envelope.status === 'completed' ? verify.data.sealed_url : null;
+  const isSealing = !sealedUrl && !verify.isError;
+  const downloadName = safeDownloadName(snap.title, '-signed');
 
   const handleSave = (e: React.FormEvent): void => {
     e.preventDefault();
@@ -246,10 +305,40 @@ export function SigningDonePage() {
         </Body>
 
         <Actions>
-          <SecondaryBtn type="button" disabled>
-            <Icon icon={FileText} size={14} />
-            Check your email for the signed copy
-          </SecondaryBtn>
+          {sealedUrl ? (
+            <PrimaryDownloadLink
+              href={sealedUrl}
+              download={downloadName}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Icon icon={Download} size={16} />
+              Download signed PDF (.pdf)
+            </PrimaryDownloadLink>
+          ) : (
+            <PrimaryDownloadBtn type="button" disabled aria-busy={isSealing}>
+              <Icon icon={Download} size={16} />
+              {isSealing ? 'Preparing signed PDF…' : 'Download signed PDF (.pdf)'}
+            </PrimaryDownloadBtn>
+          )}
+          {isSealing ? (
+            <DownloadHint>
+              We&apos;re finalising the seal. This usually takes a few seconds.
+            </DownloadHint>
+          ) : null}
+          {verify.isError && !sealedUrl ? (
+            <DownloadError role="alert">
+              We couldn&apos;t prepare the signed PDF right now. A copy has been emailed to you; you
+              can also download it any time from{' '}
+              <a
+                href={`/verify/${snap.short_code}`}
+                style={{ color: 'inherit', textDecoration: 'underline' }}
+              >
+                /verify/{snap.short_code}
+              </a>
+              .
+            </DownloadError>
+          ) : null}
         </Actions>
 
         <RetentionCard>

@@ -1,10 +1,48 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderSigningRoute } from '../../test/renderSigningRoute';
 import { MOCK_ENVELOPE_ID } from '../../test/signingApiMock';
 import { writeDoneSnapshot } from '../../features/signing';
 import { SigningDonePage } from './SigningDonePage';
+
+vi.mock('../../lib/api/verifyApiClient', () => ({
+  verifyApiClient: { get: vi.fn() },
+}));
+
+// eslint-disable-next-line import/first, import/order
+import { verifyApiClient } from '../../lib/api/verifyApiClient';
+
+const verifyGet = verifyApiClient.get as unknown as ReturnType<typeof vi.fn>;
+
+const COMPLETED_PAYLOAD = {
+  envelope: {
+    id: MOCK_ENVELOPE_ID,
+    title: 'Master Services Agreement',
+    short_code: 'TESTDONE00001',
+    status: 'completed' as const,
+    original_pages: 2,
+    original_sha256: null,
+    sealed_sha256: null,
+    tc_version: '1',
+    privacy_version: '1',
+    sent_at: '2026-04-25T21:20:50Z',
+    completed_at: '2026-04-25T21:21:08Z',
+    expires_at: '2026-05-25T21:20:50Z',
+  },
+  signers: [],
+  events: [],
+  chain_intact: true,
+  sealed_url: 'https://signed.example/sealed.pdf?sig=stub',
+  audit_url: 'https://signed.example/audit.pdf?sig=stub',
+};
+
+const SEALING_PAYLOAD = {
+  ...COMPLETED_PAYLOAD,
+  envelope: { ...COMPLETED_PAYLOAD.envelope, status: 'sealing' as const, completed_at: null },
+  sealed_url: null,
+  audit_url: null,
+};
 
 function renderDone() {
   return renderSigningRoute(<SigningDonePage />, {
@@ -15,6 +53,11 @@ function renderDone() {
 
 beforeEach(() => {
   window.sessionStorage.clear();
+  verifyGet.mockReset();
+  // Default: pretend no snapshot has been seeded yet — tests that
+  // exercise the verify path explicitly seed the snapshot AND wire up
+  // a verify response.
+  verifyGet.mockResolvedValue({ data: COMPLETED_PAYLOAD });
 });
 
 describe('SigningDonePage', () => {
@@ -195,6 +238,101 @@ describe('SigningDonePage', () => {
       await waitFor(() => {
         expect(screen.getByTestId('__pathname__').textContent).toBe('/signup');
       });
+    });
+  });
+
+  describe('Download signed PDF (post-sign action)', () => {
+    // The recipient lands here right after submitting; the seal worker
+    // is async so we may arrive while the envelope is still in
+    // `sealing` state. The button must:
+    //   - render disabled with "Preparing signed PDF…" while sealing
+    //   - flip to an enabled link with the sealed_url + a slugified
+    //     `download="…-signed.pdf"` filename once status === 'completed'
+    //   - poll the public verify endpoint (the only surface available
+    //     after the signer-session cookie is cleared by /sign/submit)
+    //   - surface an inline alert when the public verify endpoint
+    //     errors and there is still no sealed copy
+
+    function seedSnapshot() {
+      writeDoneSnapshot({
+        kind: 'submitted',
+        envelope_id: MOCK_ENVELOPE_ID,
+        short_code: 'TESTDONE00099',
+        title: 'Master Services Agreement',
+        sender_name: 'Eliran Azulay',
+        recipient_email: 'maya@example.com',
+        timestamp: '2026-04-25T21:21:08Z',
+      });
+    }
+
+    it('renders an enabled "Download signed PDF" link with slugified filename when the envelope is sealed', async () => {
+      seedSnapshot();
+      verifyGet.mockResolvedValue({ data: COMPLETED_PAYLOAD });
+      renderDone();
+
+      const link = await screen.findByRole('link', { name: /download signed pdf/i });
+      expect(link).toHaveAttribute('href', COMPLETED_PAYLOAD.sealed_url);
+      expect(link).toHaveAttribute('download', 'Master-Services-Agreement-signed.pdf');
+      expect(link).toHaveAttribute('target', '_blank');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
+
+    it('queries the public /verify endpoint (cookie-less) keyed by the snapshot short_code', async () => {
+      seedSnapshot();
+      verifyGet.mockResolvedValue({ data: COMPLETED_PAYLOAD });
+      renderDone();
+
+      await screen.findByRole('link', { name: /download signed pdf/i });
+      expect(verifyGet).toHaveBeenCalledWith(
+        '/verify/TESTDONE00099',
+        expect.objectContaining({ signal: expect.anything() }),
+      );
+    });
+
+    it('renders the action disabled with a "preparing" hint while the envelope is still sealing', async () => {
+      seedSnapshot();
+      verifyGet.mockResolvedValue({ data: SEALING_PAYLOAD });
+      renderDone();
+
+      const button = await screen.findByRole('button', { name: /preparing signed pdf/i });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute('aria-busy', 'true');
+      // No download link until completion.
+      expect(screen.queryByRole('link', { name: /download signed pdf/i })).toBeNull();
+    });
+
+    it('flips from disabled "preparing" to enabled link when the seal completes on a later poll', async () => {
+      seedSnapshot();
+      verifyGet
+        .mockResolvedValueOnce({ data: SEALING_PAYLOAD })
+        .mockResolvedValue({ data: COMPLETED_PAYLOAD });
+      renderDone();
+
+      // First render: disabled / preparing.
+      await screen.findByRole('button', { name: /preparing signed pdf/i });
+      // Eventually: enabled link (poll picks up the completed payload).
+      const link = await screen.findByRole(
+        'link',
+        { name: /download signed pdf/i },
+        {
+          timeout: 5_000,
+        },
+      );
+      expect(link).toHaveAttribute('href', COMPLETED_PAYLOAD.sealed_url);
+    });
+
+    it('surfaces an inline alert when the verify request errors and no sealed_url is available', async () => {
+      seedSnapshot();
+      // react-query default retries are disabled in renderSigningRoute,
+      // and the hook's own retry: 1 still surfaces the failure once both
+      // attempts reject. Reject every time so the test is deterministic.
+      verifyGet.mockRejectedValue(new Error('network'));
+      renderDone();
+
+      const alert = await screen.findByRole('alert', undefined, { timeout: 5_000 });
+      expect(alert).toHaveTextContent(/couldn.?t prepare the signed pdf/i);
+      // Disabled fallback button is still present.
+      expect(screen.getByRole('button', { name: /download signed pdf/i })).toBeDisabled();
     });
   });
 });
