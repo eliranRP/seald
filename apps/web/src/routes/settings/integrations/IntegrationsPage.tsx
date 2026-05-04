@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Link as LinkIcon,
   ChevronRight,
@@ -21,6 +22,8 @@ import {
   useGDriveAccounts,
   useConnectGDrive,
   useDisconnectGDrive,
+  useGDriveOAuthCallbackBridge,
+  useGDriveOAuthMessageListener,
   type GDriveAccount,
 } from './useGDriveAccounts';
 import { DisconnectModal } from './DisconnectModal';
@@ -483,6 +486,17 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
  * page still renders cleanly in dev when the flag is off.
  */
 export function IntegrationsPage() {
+  const [searchParams] = useSearchParams();
+  const isCallbackReturn = searchParams.has('connected');
+
+  // Bug F (Phase 6.A iter-2 PROD, 2026-05-04). The OAuth-callback popup
+  // lands here with `?connected=1`. Bridge it back to the opener +
+  // close the popup; in same-tab fallback (popup blocker), refresh
+  // accounts inline. The companion listener wires the parent tab so
+  // the connected row appears the moment the popup posts back.
+  const isOAuthPopupBridge = useGDriveOAuthCallbackBridge(isCallbackReturn);
+  useGDriveOAuthMessageListener();
+
   const accountsQuery = useGDriveAccounts();
   const connect = useConnectGDrive();
   const disconnect = useDisconnectGDrive();
@@ -533,6 +547,17 @@ export function IntegrationsPage() {
   const disconnectErrorMessage = disconnect.error
     ? "We couldn't disconnect that account. Please try again."
     : null;
+
+  // Popup-bridge mode: don't render the integrations UI — the bridge
+  // effect is firing window.close() this tick. Show a tiny ack so the
+  // popup doesn't briefly flash the empty state before closing.
+  if (isOAuthPopupBridge) {
+    return (
+      <Page aria-live="polite">
+        <Subtitle>Connection successful — closing this window.</Subtitle>
+      </Page>
+    );
+  }
 
   return (
     <Page>
