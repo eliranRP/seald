@@ -51,6 +51,24 @@ resource "godaddy_domain_record" "a_records" {
   }
 
   depends_on = [aws_eip.api]
+
+  # The n3integration/godaddy provider treats the `record` set as
+  # AUTHORITATIVE — every record on the zone that isn't enumerated
+  # here gets DELETED on apply (see header comment lines 3-16). In
+  # practice the operator adds records directly via the GoDaddy
+  # console (DKIM, DMARC, MX, GSC verification, n8n integration,
+  # SES feedback, etc.) and we cannot — and should not — keep this
+  # config in lockstep.
+  #
+  # `ignore_changes = [record]` makes TF stop reconciling the record
+  # set after the resource is created. Records added/removed outside
+  # of TF survive untouched. The trade-off: if you later need to
+  # change `var.godaddy_subdomain` or the EIP that api.seald points
+  # at, you must do it manually in the GoDaddy console (or
+  # temporarily remove this lifecycle block, apply, then add it back).
+  lifecycle {
+    ignore_changes = [record]
+  }
 }
 
 # ---------------------------------------------------------------
@@ -77,5 +95,12 @@ resource "godaddy_domain_record" "cname_records" {
     name = var.godaddy_web_subdomain
     data = var.godaddy_web_cname_target
     ttl  = var.godaddy_record_ttl
+  }
+
+  # Same authoritative-set caveat as a_records above. Freeze the
+  # record set against TF-driven reconciliation so console-managed
+  # CNAMEs (e.g. _domainconnect, dev subdomains) survive.
+  lifecycle {
+    ignore_changes = [record]
   }
 }
