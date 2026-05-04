@@ -490,7 +490,9 @@
     "wordprocessingml",
     "Gotenberg",
     "gotenberg",
-    "unwired"
+    "unwired",
+    "KARN",
+    "KREG"
   ],
   "ignoreRegExpList": [
     "Base64",
