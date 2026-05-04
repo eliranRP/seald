@@ -1,45 +1,62 @@
-name: Strip GDRIVE_PICKER_* from prod .env (force Secrets Manager fallback) + restart api
+name: Set GDRIVE_PICKER_* on prod .env + restart api
 
-# One-shot operator workflow. The api container's entrypoint preferences
-# env_file values over Secrets Manager: it only fills a key from the
-# secret blob when the variable is currently UNSET (`[ -z "${VAR+x}" ]`).
-# If `apps/api/.env` on EC2 has `GDRIVE_PICKER_DEVELOPER_KEY=` /
-# `GDRIVE_PICKER_APP_ID=` (set-but-empty placeholder lines), the
-# Secrets Manager fallback never fires and the picker controller
-# returns 503 → SPA renders "Drive picker isn't available".
+# One-shot operator workflow. SSHes into the EC2 host and idempotently
+# (re)writes the 2 GDrive Picker runtime env vars to
+# `/opt/seald/apps/api/.env` (mode 0600), then force-recreates the api
+# container so the new values are picked up:
 #
-# This workflow strips those lines so the entrypoint pulls real values
-# from AWS Secrets Manager (id $SEALD_API_SECRET_ID, region us-east-2).
-# Idempotent — running it on a host that already lacks those lines is
-# a no-op (defensive grep -v + force-recreate).
+#   - GDRIVE_PICKER_DEVELOPER_KEY  (Google Cloud API key for the Picker API,
+#                                   referrer-restricted to seald.nromomentum.com
+#                                   in Google Cloud Console)
+#   - GDRIVE_PICKER_APP_ID         (Google Cloud project number, e.g. 588870694508)
+#
+# Why this exists: the api container's entrypoint preferences env_file
+# values over AWS Secrets Manager. On this host, `SEALD_API_SECRET_ID`
+# is unset, so the Secrets Manager fetch is skipped entirely — the env_file
+# is the only source of runtime env vars. Without these two keys the
+# `/integrations/gdrive/picker-credentials` route returns 503 and the
+# SPA renders "Drive picker isn't available — please contact your administrator".
+#
+# Idempotent: re-running deletes any existing `^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=`
+# lines before appending, so re-runs serve as rotation.
+#
+# Mirrors `set-gdrive-oauth-env.yml`'s strip-then-append pattern.
 #
 # Durability note: `prod-restore.yml` rewrites `/opt/seald/apps/api/.env`
-# from the `PROD_API_ENV` GH secret. If PROD_API_ENV contains empty
-# `GDRIVE_PICKER_*=` lines, this workflow needs to be re-run after any
-# restore. The durable fix is to remove those lines from PROD_API_ENV.
+# from the `PROD_API_ENV` GH secret. To survive a restore, fold these
+# 2 keys into PROD_API_ENV. The host-side append is the immediate fix;
+# durable storage is a follow-up.
 #
 # Manual trigger only.
 
 on:
   workflow_dispatch: {}
 
-# SSH-only — uses DEPLOY_SSH_KEY. No secret values are read or echoed.
+# SSH-only — uses DEPLOY_SSH_KEY + the 2 GDRIVE_PICKER_* secrets.
 permissions: {}
 
 jobs:
-  strip_env:
-    name: Strip GDRIVE_PICKER_* from .env + restart api
+  set_env:
+    name: Append GDRIVE_PICKER_* to host .env + restart api
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - name: SSH strip + restart
+      - name: SSH append + restart
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          GDRIVE_PICKER_DEVELOPER_KEY: ${{ secrets.GDRIVE_PICKER_DEVELOPER_KEY }}
+          GDRIVE_PICKER_APP_ID: ${{ secrets.GDRIVE_PICKER_APP_ID }}
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
           command_timeout: 6m
+          envs: GDRIVE_PICKER_DEVELOPER_KEY,GDRIVE_PICKER_APP_ID
+          # Strip the secrets from the script log if anything ever echoes
+          # them. appleboy/ssh-action uses `set -x` only when explicitly
+          # requested; we never enable it. The `tee` calls below redirect
+          # stdout to /dev/null so the values do not appear in the run log.
           script: |
             set -euo pipefail
 
@@ -50,20 +67,36 @@ jobs:
               exit 1
             fi
 
-            echo "=== Pre-state (counts of GDRIVE_PICKER_* lines, no values) ==="
+            echo "=== Pre-state (counts, no values) ==="
             sudo grep -cE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' "$ENV_FILE" || true
 
-            echo "=== Strip any GDRIVE_PICKER_* lines (idempotent) ==="
+            echo "=== Strip any existing GDRIVE_PICKER_* lines (idempotent rotate) ==="
             sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
             sudo grep -vE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' \
               "$ENV_FILE" > /tmp/.env.new
             sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
             rm -f /tmp/.env.new
 
-            echo "=== Post-state (should be 0) ==="
-            sudo grep -cE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' "$ENV_FILE" || true
+            # Defensive trim: a stray CR/LF in a GH secret value would
+            # break the .env line that follows. Tr-strip any \r/\n inside
+            # each value, no echo of the values themselves.
+            DK=$(printf '%s' "$GDRIVE_PICKER_DEVELOPER_KEY" | tr -d '\r\n ')
+            AID=$(printf '%s' "$GDRIVE_PICKER_APP_ID" | tr -d '\r\n ')
 
-            echo "=== Force-recreate api container (Secrets Manager fills picker keys at boot) ==="
+            echo "=== Sanity (lengths only, no values) ==="
+            echo "  DEVELOPER_KEY len=${#DK} APP_ID len=${#AID}"
+
+            echo "=== Append new values (no logging of values) ==="
+            {
+              printf 'GDRIVE_PICKER_DEVELOPER_KEY=%s\n' "$DK"
+              printf 'GDRIVE_PICKER_APP_ID=%s\n' "$AID"
+            } | sudo tee -a "$ENV_FILE" >/dev/null
+            sudo chmod 0600 "$ENV_FILE"
+
+            echo "=== Post-state (counts, no values) ==="
+            sudo grep -cE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' "$ENV_FILE"
+
+            echo "=== Force-recreate api container ==="
             cd /opt/seald
             sudo docker compose up -d --force-recreate api
 
