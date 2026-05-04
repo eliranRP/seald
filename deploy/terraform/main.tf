@@ -260,6 +260,28 @@ resource "aws_instance" "api" {
 
   tags        = merge(local.common_tags, { Name = "${var.project}-api" })
   volume_tags = local.common_tags
+
+  # The `data.aws_ami.ubuntu_arm64` source uses `most_recent = true`
+  # (see line 53), so every Canonical AMI publish silently changes the
+  # resolved id and would force a replacement of the running prod
+  # instance — destroying Docker volumes, the live `.env`, and every
+  # in-flight envelope. That is unacceptable as a side-effect of
+  # unrelated TF applies (e.g. the gdrive_token_kms module landing).
+  #
+  # `ignore_changes = [ami]` tells TF to keep using whatever AMI the
+  # instance was originally booted from. To intentionally rebuild on a
+  # newer AMI, taint the instance (`terraform taint aws_instance.api`)
+  # or set `var.ami_id` to the new id and re-apply.
+  #
+  # `user_data` is also ignored: the bootstrap script already ran on
+  # first boot; updates to it should ship via Docker compose pulls,
+  # not a host rebuild.
+  lifecycle {
+    ignore_changes = [
+      ami,
+      user_data,
+    ]
+  }
 }
 
 # --------------------------------------------------------------------
