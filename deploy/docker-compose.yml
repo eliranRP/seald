@@ -1,5 +1,17 @@
-# WT-D Drive doc → PDF conversion sidecar.
+# WT-D Drive doc → PDF conversion sidecar — HISTORICAL / DEPRECATED.
 #
+# As of 2026-05-04 the canonical Gotenberg sidecar definition lives in
+# the repo-root `docker-compose.yml`, alongside `api` and `caddy`, so
+# the existing deploy step (`docker compose up -d --build` against
+# /opt/seald/docker-compose.yml on the EC2 host) brings the sidecar up
+# automatically AND on the same default bridge network as the API.
+# This file is kept around for historical reference and standalone
+# Gotenberg restarts; do NOT edit the sidecar contract here without
+# mirroring the change to the root compose. A separate cleanup PR
+# will delete this file once we're confident no operator runbook
+# still references it.
+#
+# Original notes (still accurate):
 # This file ships ONLY the Gotenberg LibreOffice converter today. It is
 # additive — the API itself runs on the host EC2 directly via systemd +
 # Caddy (see deploy/Caddyfile); we do NOT compose the API process here.
