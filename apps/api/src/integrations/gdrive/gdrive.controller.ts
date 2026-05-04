@@ -37,6 +37,22 @@ export interface GDriveConfig {
   readonly clientSecret: string;
   readonly redirectUri: string;
   readonly appPublicUrl: string;
+  /**
+   * Google Cloud API key with the Picker API enabled. Vended to the SPA
+   * via `/integrations/gdrive/picker-credentials` so the client can
+   * construct a `google.picker.PickerBuilder`. Public-ish (referrer
+   * restricted in Google Cloud Console) but kept on the server so the
+   * SPA bundle does not bake it in and it can be rotated without a
+   * frontend redeploy.
+   */
+  readonly pickerDeveloperKey: string;
+  /**
+   * Google Cloud project number (numeric, e.g. `123456789012`). Required
+   * by the Picker API for app identification — not a secret, but pulled
+   * from env for the same rotation/deploy-decoupling reason as the
+   * developer key above.
+   */
+  readonly pickerAppId: string;
 }
 
 export const GDRIVE_CONFIG = Symbol('GDRIVE_CONFIG');
@@ -95,6 +111,23 @@ export class GDriveController {
   private requireOAuthConfigured(): void {
     if (!this.config.clientId || !this.config.clientSecret) {
       throw new HttpException('gdrive_oauth_not_configured', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  /**
+   * Mirrors `requireOAuthConfigured` for the Picker-specific env vars
+   * (`GDRIVE_PICKER_DEVELOPER_KEY` + `GDRIVE_PICKER_APP_ID`). The SPA's
+   * Path A flow needs both to construct a `google.picker.PickerBuilder`;
+   * if either is empty we want a 503 so the frontend can render a
+   * deliberate "Drive picker not configured on this server" notice
+   * instead of silently building a broken picker call.
+   */
+  private requirePickerConfigured(): void {
+    if (!this.config.pickerDeveloperKey || !this.config.pickerAppId) {
+      throw new HttpException(
+        { code: 'gdrive_picker_not_configured', message: 'gdrive_picker_not_configured' },
+        HttpStatus.SERVICE_UNAVAILABLE,
+      );
     }
   }
 
@@ -230,6 +263,73 @@ export class GDriveController {
     try {
       return await this.filesProxy({ accessToken, mimeFilter });
     } catch (err) {
+      throw mapDriveError(err);
+    }
+  }
+
+  /**
+   * Vends the credentials the SPA needs to construct a Google Picker UI
+   * (`google.picker.PickerBuilder`). Returns:
+   *  - `accessToken`: short-lived (~1h) OAuth access token freshly
+   *    minted from the user's stored refresh token. Required by Picker
+   *    to authenticate the in-iframe Drive UI as the user. The refresh
+   *    token NEVER leaves the API — only this short-lived access token.
+   *  - `developerKey`: Google Cloud API key with Picker API enabled,
+   *    referrer-restricted in Cloud Console. Public-ish but kept
+   *    server-side for rotation without a redeploy.
+   *  - `appId`: Google Cloud project number; required by the Picker
+   *    API for app identification.
+   *
+   * Defence in depth — same shape as `/files`:
+   *  - Feature-flag-gated (404 when off).
+   *  - 503 when OAuth or Picker env vars are unset.
+   *  - 400 on non-UUID accountId.
+   *  - Per-user rate limit (cache key = `user.id`).
+   *  - Account ownership check inside `getAccessToken` (NotFound on
+   *    mismatch — no existence leak).
+   *  - Drive-side errors mapped via the shared `mapDriveError`
+   *    (TokenExpired → 401 token-expired, etc).
+   */
+  @Get('picker-credentials')
+  async pickerCredentials(
+    @CurrentUser() user: AuthUser,
+    @Query('accountId') accountId: string,
+  ): Promise<{ accessToken: string; developerKey: string; appId: string }> {
+    this.requireFlag();
+    this.requireOAuthConfigured();
+    this.requirePickerConfigured();
+    if (!accountId || !UUID_RE.test(accountId)) {
+      throw new BadRequestException({
+        code: 'invalid-account-id',
+        message: 'accountId_must_be_uuid',
+      });
+    }
+    try {
+      await this.rateLimiter.acquire(user.id);
+    } catch (err) {
+      if (err instanceof RateLimitedError) {
+        throw new HttpException(
+          {
+            code: 'rate-limited',
+            message: 'gdrive_rate_limited',
+            retryAfter: Math.ceil(err.retryAfterMs / 1000),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw err;
+    }
+    try {
+      const { accessToken } = await this.svc.getAccessToken(accountId, user.id);
+      return {
+        accessToken,
+        developerKey: this.config.pickerDeveloperKey,
+        appId: this.config.pickerAppId,
+      };
+    } catch (err) {
+      // Preserve NotFound (account not owned by caller) — that's a
+      // controller-level 404, not a Drive-upstream error.
+      if (err instanceof NotFoundException) throw err;
       throw mapDriveError(err);
     }
   }

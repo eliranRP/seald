@@ -113,6 +113,32 @@ export const envSchema = z
     GDRIVE_API_RATE_PER_USER: z.coerce.number().int().positive().optional(),
     GDRIVE_API_RATE_WINDOW_SECONDS: z.coerce.number().int().positive().optional(),
     /**
+     * Google Picker API credentials. Vended to the SPA via
+     * `GET /integrations/gdrive/picker-credentials` so the client can
+     * construct a `google.picker.PickerBuilder` (Path A fix for the
+     * empty Drive picker bug — staying on `drive.file` scope and using
+     * Google's official picker UI which grants per-file access at
+     * click time).
+     *
+     * `GDRIVE_PICKER_DEVELOPER_KEY` is a Google Cloud API key with the
+     * Picker API enabled. Referrer-restricted in Google Cloud Console
+     * (production: `seald.nromomentum.com`). Public-ish but kept
+     * server-side so the SPA bundle does not bake it in and we can
+     * rotate without a frontend redeploy.
+     *
+     * `GDRIVE_PICKER_APP_ID` is the Google Cloud project number
+     * (numeric, e.g. `123456789012`). Required by the Picker API for
+     * app identification — not a secret, but pulled from env for the
+     * same rotation/decoupling reason.
+     *
+     * When either is unset, `/integrations/gdrive/picker-credentials`
+     * returns 503 so the SPA can render a friendly "Drive picker not
+     * configured on this server" notice instead of silently building
+     * a broken picker call.
+     */
+    GDRIVE_PICKER_DEVELOPER_KEY: z.string().optional(),
+    GDRIVE_PICKER_APP_ID: z.string().optional(),
+    /**
      * WT-D Drive doc → PDF conversion. The Gotenberg sidecar is
      * network-isolated inside the docker-compose stack (NOT publicly
      * routed via Caddy); the API talks to it on the internal network

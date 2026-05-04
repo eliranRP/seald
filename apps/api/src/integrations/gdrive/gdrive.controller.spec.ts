@@ -117,6 +117,8 @@ const CFG = {
   clientSecret: 'csecret',
   redirectUri: 'http://localhost:3000/integrations/gdrive/oauth/callback',
   appPublicUrl: 'http://localhost:5173',
+  pickerDeveloperKey: 'test-dev-key',
+  pickerAppId: 'test-app-id',
 };
 
 interface ProxyCall {
@@ -449,6 +451,134 @@ describe('GDriveController', () => {
       const accountId = await seedAccount(ctrl, state, 'user-1');
       const otherUser: AuthUser = { id: 'user-2', email: 'u2@example.com', provider: 'google' };
       await expect(ctrl.listFiles(otherUser, accountId, 'pdf')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
+
+  // PR 2a: picker-credentials endpoint backs the Google Picker UI in the
+  // SPA (Path A fix for the empty Drive picker bug). The frontend rewrite
+  // ships in PR 2b — this describe block locks the wire contract.
+  describe('GET /picker-credentials', () => {
+    async function seedAccount(
+      ctrl: GDriveController,
+      state: OAuthStateStore,
+      userId = 'user-1',
+    ): Promise<string> {
+      const started = state.start(userId);
+      await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
+      const accs = await ctrl.listAccounts({ id: userId, email: 'x', provider: 'google' });
+      const first = accs[0];
+      if (!first) throw new Error('no acc');
+      return first.id;
+    }
+
+    it('returns { accessToken, developerKey, appId } for an owned account when env is fully configured', async () => {
+      const { ctrl, state } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      const out = await ctrl.pickerCredentials(USER_1, accountId);
+      expect(out).toEqual({
+        accessToken: 'at-refreshed',
+        developerKey: 'test-dev-key',
+        appId: 'test-app-id',
+      });
+    });
+
+    it('rejects 400 when accountId is not a UUID', async () => {
+      const { ctrl } = makeController();
+      await expect(ctrl.pickerCredentials(USER_1, 'not-a-uuid')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('feature flag off → 404 NotFoundException', async () => {
+      (FEATURE_FLAGS as Record<string, boolean>).gdriveIntegration = false;
+      const { ctrl } = makeController();
+      await expect(
+        ctrl.pickerCredentials(USER_1, '00000000-0000-0000-0000-000000000aaa'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws 503 when developerKey env is empty (mirrors requireOAuthConfigured)', async () => {
+      const repo = new FakeRepo();
+      const kms = new GDriveKmsService(
+        new StubKmsClient(),
+        'arn:aws:kms:us-east-1:000000000000:key/k',
+      );
+      const google = new StubGoogleClient();
+      const svc = new GDriveService(repo, kms, google);
+      const state = new OAuthStateStore();
+      const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
+      const proxy: FilesProxy = async () => ({ files: [] });
+      const ctrl = new GDriveController(
+        svc,
+        state,
+        { ...CFG, pickerDeveloperKey: '' },
+        limiter,
+        proxy,
+      );
+      await expect(
+        ctrl.pickerCredentials(USER_1, '00000000-0000-0000-0000-000000000aaa'),
+      ).rejects.toMatchObject({ status: HttpStatus.SERVICE_UNAVAILABLE });
+    });
+
+    it('throws 503 when appId env is empty', async () => {
+      const repo = new FakeRepo();
+      const kms = new GDriveKmsService(
+        new StubKmsClient(),
+        'arn:aws:kms:us-east-1:000000000000:key/k',
+      );
+      const google = new StubGoogleClient();
+      const svc = new GDriveService(repo, kms, google);
+      const state = new OAuthStateStore();
+      const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
+      const proxy: FilesProxy = async () => ({ files: [] });
+      const ctrl = new GDriveController(svc, state, { ...CFG, pickerAppId: '' }, limiter, proxy);
+      await expect(
+        ctrl.pickerCredentials(USER_1, '00000000-0000-0000-0000-000000000aaa'),
+      ).rejects.toMatchObject({ status: HttpStatus.SERVICE_UNAVAILABLE });
+    });
+
+    it('returns 429 with retryAfter when rate limit is exhausted', async () => {
+      const { ctrl, state } = makeController({ capacity: 1, windowMs: 60_000 });
+      const accountId = await seedAccount(ctrl, state);
+      await ctrl.pickerCredentials(USER_1, accountId);
+      let caught: unknown;
+      try {
+        await ctrl.pickerCredentials(USER_1, accountId);
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(HttpException);
+      const httpErr = caught as HttpException;
+      expect(httpErr.getStatus()).toBe(HttpStatus.TOO_MANY_REQUESTS);
+      const resp = httpErr.getResponse() as { code?: string; retryAfter?: number };
+      expect(resp.code).toBe('rate-limited');
+      expect(typeof resp.retryAfter).toBe('number');
+      expect(resp.retryAfter).toBeGreaterThan(0);
+    });
+
+    it('maps token-expired (Drive 401 from refresh) → 401', async () => {
+      const { ctrl, state, google } = makeController();
+      const accountId = await seedAccount(ctrl, state);
+      // Force the next refreshAccessToken() to reject with the
+      // taxonomy's TokenExpiredError — same pattern getAccessToken uses
+      // when the refresh fails with 401 invalid_grant.
+      const { TokenExpiredError } = await import('./dto/error-codes');
+      google.refreshAccessToken = async (): Promise<never> => {
+        throw new TokenExpiredError('reconnect_required');
+      };
+      await expect(ctrl.pickerCredentials(USER_1, accountId)).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ code: 'token-expired' }),
+      });
+    });
+
+    it('returns NotFound when accountId belongs to another user (no existence leak)', async () => {
+      const { ctrl, state } = makeController();
+      const accountId = await seedAccount(ctrl, state, 'user-1');
+      const otherUser: AuthUser = { id: 'user-2', email: 'u2@example.com', provider: 'google' };
+      await expect(ctrl.pickerCredentials(otherUser, accountId)).rejects.toBeInstanceOf(
         NotFoundException,
       );
     });

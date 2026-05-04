@@ -113,6 +113,21 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
   Gotenberg PDFs out (default `26214400` = 25 MiB); WT-D. Raising it
   without re-checking the Gotenberg memory budget will OOM the
   sidecar.
+- `GDRIVE_PICKER_DEVELOPER_KEY` — Google Cloud API key with the Picker
+  API enabled (referrer-restricted to `seald.nromomentum.com` in prod).
+  Vended to the SPA via `GET /integrations/gdrive/picker-credentials`
+  so it can construct a `google.picker.PickerBuilder`. Path A fix for
+  the empty Drive picker bug — staying on `drive.file` scope and using
+  Google's official picker UI (per-file access granted at click time).
+- `GDRIVE_PICKER_APP_ID` — Google Cloud project number (the long
+  numeric, e.g. `123456789012`). Required by the Picker API for app
+  identification. Public-ish but kept server-side so the SPA bundle
+  does not bake it in and we can rotate without a frontend redeploy.
+
+When either picker var is unset,
+`/integrations/gdrive/picker-credentials` returns 503 and the SPA
+renders a friendly "Drive picker not configured on this server"
+notice.
 
 OAuth scope is hard-coded to `https://www.googleapis.com/auth/drive.file`
 (per-file consent only). Do not broaden — picker selections grant per-file
