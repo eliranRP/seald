@@ -229,10 +229,22 @@ export interface MWMobileNavProps {
    * `navigate('/signin', { replace: true })`).
    */
   readonly onSignOut: () => void | Promise<void>;
+  /**
+   * Optional. When provided, the hamburger drawer surfaces a
+   * "Download original PDF" item that fires this callback. The page is
+   * responsible for the actual download (it owns the PDF blob/URL).
+   * Disable by passing `undefined` (e.g. before a file is picked).
+   */
+  readonly onDownloadOriginalPdf?: (() => void) | undefined;
+  /**
+   * When `true`, the download item shows a busy state and is disabled to
+   * suppress repeat clicks while a fetch is in flight.
+   */
+  readonly downloadOriginalPdfBusy?: boolean | undefined;
 }
 
 export function MWMobileNav(props: MWMobileNavProps): ReactNode {
-  const { onSignOut } = props;
+  const { onSignOut, onDownloadOriginalPdf, downloadOriginalPdfBusy } = props;
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -254,6 +266,12 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     setOpen(false);
     void Promise.resolve(onSignOut());
   }, [onSignOut]);
+
+  const handleDownloadOriginal = useCallback((): void => {
+    if (!onDownloadOriginalPdf) return;
+    setOpen(false);
+    onDownloadOriginalPdf();
+  }, [onDownloadOriginalPdf]);
 
   const activeId = matchNavId(location.pathname);
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'You';
@@ -313,6 +331,16 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
         </SectionList>
         <SectionDivider />
         <SectionList>
+          {onDownloadOriginalPdf ? (
+            <SheetItem
+              type="button"
+              onClick={handleDownloadOriginal}
+              disabled={downloadOriginalPdfBusy === true}
+              aria-label="Download original PDF"
+            >
+              Download original PDF
+            </SheetItem>
+          ) : null}
           <SheetItem type="button" onClick={handleSignOut}>
             Sign out
           </SheetItem>

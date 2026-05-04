@@ -10,7 +10,8 @@ import { RecipientHeader } from '@/components/RecipientHeader';
 import { SignatureCapture } from '@/components/SignatureCapture';
 import { SignerField } from '@/components/SignerField';
 import type { SignerFieldKind } from '@/components/SignerField';
-import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import { useDownloadPdf } from '@/features/downloadPdf';
+import { getPdfSignedUrl, SigningSessionProvider, useSigningSession } from '@/features/signing';
 import {
   fieldIsFilled,
   fieldLabel,
@@ -107,6 +108,15 @@ function Content() {
     zoomOutDisabled,
   } = useDocumentZoomNav({ totalPages, resetKey: pdfSrc });
 
+  // Download original (unsigned) PDF — fetches the same short-lived signed
+  // URL the viewer uses, wraps it in a Blob, and triggers a hidden-anchor
+  // click. Lives at the page level so the busy/error state can drive the
+  // header chrome.
+  const { download: downloadPdf, busy: downloadBusy } = useDownloadPdf({
+    getUrl: () => getPdfSignedUrl(),
+    filename: envelope?.title ?? 'document',
+  });
+
   if (!envelope) return null;
 
   return (
@@ -115,6 +125,14 @@ function Content() {
         docTitle={envelope.title}
         docId={envelope.short_code}
         stepLabel={`${completedRequired} of ${requiredCount} fields`}
+        downloadPdfBusy={downloadBusy}
+        onDownloadPdf={() => {
+          downloadPdf().catch(() => {
+            /* error surfaced via hook state; intentionally swallowed at
+               the click boundary so React's onClick doesn't see an
+               unhandled rejection (rule 4.4 — one responsibility). */
+          });
+        }}
       />
       <ActionBar>
         <ProgressWrap>

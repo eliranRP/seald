@@ -1,9 +1,10 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
-import { X as XIcon } from 'lucide-react';
+import { Download, X as XIcon } from 'lucide-react';
 import { Icon } from '../Icon';
 import type { RecipientHeaderProps } from './RecipientHeader.types';
 import {
+  DownloadButton,
   Divider,
   ExitButton,
   Header,
@@ -46,7 +47,17 @@ function SealedMark(): ReactNode {
 }
 
 export const RecipientHeader = forwardRef<HTMLElement, RecipientHeaderProps>((props, ref) => {
-  const { docTitle, docId, senderName, stepLabel, onExit, logo, ...rest } = props;
+  const {
+    docTitle,
+    docId,
+    senderName,
+    stepLabel,
+    onExit,
+    logo,
+    onDownloadPdf,
+    downloadPdfBusy,
+    ...rest
+  } = props;
 
   const logoNode: ReactNode = logo ?? <SealedMark />;
 
@@ -67,6 +78,17 @@ export const RecipientHeader = forwardRef<HTMLElement, RecipientHeaderProps>((pr
         </Meta>
       </MiddleStack>
       {stepLabel !== undefined && stepLabel !== '' ? <StepChip>{stepLabel}</StepChip> : null}
+      {onDownloadPdf ? (
+        <DownloadButton
+          type="button"
+          aria-label="Download original PDF"
+          title="Download original PDF"
+          onClick={onDownloadPdf}
+          disabled={downloadPdfBusy === true}
+        >
+          <Icon icon={Download} size={16} />
+        </DownloadButton>
+      ) : null}
       {onExit ? (
         <ExitButton type="button" aria-label="Exit" onClick={onExit}>
           <Icon icon={XIcon} size={16} />
