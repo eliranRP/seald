@@ -23,13 +23,17 @@ export interface NotConfiguredStateProps {
 }
 
 export function NotConfiguredState({ onClose }: NotConfiguredStateProps): JSX.Element {
+  // 2026-05-04 — prior copy named the missing env vars
+  // (GDRIVE_PICKER_DEVELOPER_KEY / GDRIVE_PICKER_APP_ID) directly in
+  // a user-facing modal. End users can't act on env-var names; admins
+  // already have the operational details in CLAUDE.md. Keep this copy
+  // user-friendly and point at "an administrator" instead.
   return (
     <Card role="alert">
-      <Title>Drive picker is not configured</Title>
+      <Title>Drive picker isn&rsquo;t available</Title>
       <Body>
-        Drive picker is not configured on this server. An administrator needs to set
-        <code> GDRIVE_PICKER_DEVELOPER_KEY</code> and <code>GDRIVE_PICKER_APP_ID</code> before this
-        feature is available.
+        Picking from Google Drive isn&rsquo;t available on this server right now. Please contact
+        your administrator.
       </Body>
       <Actions>
         <Button variant="primary" type="button" onClick={onClose}>
