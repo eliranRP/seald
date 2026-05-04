@@ -66,6 +66,45 @@ export class GDrivePgRepository implements GDriveRepository {
     return toDomain(inserted);
   }
 
+  async findActiveByUserAndGoogleUser(
+    userId: string,
+    googleUserId: string,
+  ): Promise<GDriveAccount | null> {
+    const r = await this.db
+      .selectFrom('gdrive_accounts')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .where('google_user_id', '=', googleUserId)
+      .where('deleted_at', 'is', null)
+      .executeTakeFirst();
+    return r ? toDomain(r) : null;
+  }
+
+  async replaceToken(args: {
+    id: string;
+    refreshTokenCiphertext: Buffer;
+    refreshTokenKmsKeyArn: string;
+    scope: string;
+    googleEmail: string;
+  }): Promise<GDriveAccount> {
+    // `connected_at` is intentionally NOT bumped — it records the first
+    // OAuth grant for this (user, googleUser) pair. Reconnects rotate
+    // the token but preserve the original connection date for audit.
+    const updated = await this.db
+      .updateTable('gdrive_accounts')
+      .set({
+        refresh_token_ciphertext: args.refreshTokenCiphertext,
+        refresh_token_kms_key_arn: args.refreshTokenKmsKeyArn,
+        scope: args.scope,
+        google_email: args.googleEmail,
+        last_used_at: null,
+      })
+      .where('id', '=', args.id)
+      .returningAll()
+      .executeTakeFirstOrThrow();
+    return toDomain(updated);
+  }
+
   async softDelete(id: string, userId: string): Promise<boolean> {
     const r = await this.db
       .updateTable('gdrive_accounts')

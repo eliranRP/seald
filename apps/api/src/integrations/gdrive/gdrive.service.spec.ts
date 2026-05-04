@@ -7,14 +7,61 @@ class FakeRepo implements GDriveRepository {
   rows = new Map<string, GDriveAccount>();
   async findByIdForUser(id: string, userId: string): Promise<GDriveAccount | null> {
     const r = this.rows.get(id);
-    return r && r.userId === userId ? r : null;
+    return r && r.userId === userId && !r.deletedAt ? r : null;
   }
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
-    return [...this.rows.values()].filter((r) => r.userId === userId);
+    return [...this.rows.values()].filter((r) => r.userId === userId && !r.deletedAt);
   }
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
+    // Enforce the partial UNIQUE index from migration 0013_gdrive_accounts.sql:
+    //   create unique index gdrive_accounts_user_google_uniq
+    //     on gdrive_accounts (user_id, google_user_id) where deleted_at is null;
+    // Without this, the fake silently accepts duplicates and Bug H is
+    // unreproducible in unit tests. Match the real Postgres error so the
+    // service layer can branch on it (or, post-fix, avoid hitting it).
+    for (const r of this.rows.values()) {
+      if (!r.deletedAt && r.userId === row.userId && r.googleUserId === row.googleUserId) {
+        const e = new Error(
+          'duplicate key value violates unique constraint "gdrive_accounts_user_google_uniq"',
+        ) as Error & { code?: string };
+        e.code = '23505';
+        throw e;
+      }
+    }
     this.rows.set(row.id, row);
     return row;
+  }
+  async findActiveByUserAndGoogleUser(
+    userId: string,
+    googleUserId: string,
+  ): Promise<GDriveAccount | null> {
+    return (
+      [...this.rows.values()].find(
+        (r) => r.userId === userId && r.googleUserId === googleUserId && !r.deletedAt,
+      ) ?? null
+    );
+  }
+  async replaceToken(args: {
+    id: string;
+    refreshTokenCiphertext: Buffer;
+    refreshTokenKmsKeyArn: string;
+    scope: string;
+    googleEmail: string;
+  }): Promise<GDriveAccount> {
+    const r = this.rows.get(args.id);
+    if (!r) throw new Error('replaceToken: row not found');
+    // Preserve the original connectedAt — it's immutable in the real
+    // schema (ColumnType<…, never>) and represents the first OAuth grant.
+    const next: GDriveAccount = {
+      ...r,
+      refreshTokenCiphertext: args.refreshTokenCiphertext,
+      refreshTokenKmsKeyArn: args.refreshTokenKmsKeyArn,
+      scope: args.scope,
+      googleEmail: args.googleEmail,
+      lastUsedAt: null,
+    };
+    this.rows.set(args.id, next);
+    return next;
   }
   async softDelete(id: string, _userId: string): Promise<boolean> {
     const r = this.rows.get(id);
@@ -43,9 +90,17 @@ class StubGoogleClient implements GoogleOAuthClient {
   refreshDelayMs = 0;
   refreshFailWith: 'invalid_grant' | null = null;
   abortObserved = false;
+  exchange = {
+    refreshToken: 'rt-from-google',
+    accessToken: 'at-from-google',
+    expiresAt: Date.now() + 3600_000,
+    googleUserId: 'g-1',
+    googleEmail: 'a@example.com',
+    scope: 'https://www.googleapis.com/auth/drive.file',
+  };
 
-  async exchangeCode(): Promise<never> {
-    throw new Error('not used in this spec');
+  async exchangeCode(): Promise<typeof this.exchange> {
+    return this.exchange;
   }
   async refreshAccessToken(
     _refreshToken: string,
@@ -155,5 +210,66 @@ describe('GDriveService', () => {
     await seedAccount(repo, kms, 'rt');
     await expect(svc.getAccessToken('acc-1', 'user-2')).rejects.toThrow();
     await expect(svc.getAccessToken('missing', 'user-1')).rejects.toThrow();
+  });
+
+  // Bug H (Phase 6.A iter-2 PROD, 2026-05-04). Connecting the same Google
+  // account twice for the same user fired the partial UNIQUE
+  //   gdrive_accounts (user_id, google_user_id) WHERE deleted_at IS NULL
+  // and surfaced as `internal_error` (500) on the API callback — popup
+  // never reached the bridge page, never closed. Fix: completeOAuth is
+  // idempotent — finds the existing active row, rotates the refresh
+  // token in place, returns the existing id.
+  describe('completeOAuth idempotency (Bug H)', () => {
+    it('reconnecting the same Google account reuses the existing row', async () => {
+      // First connect → row inserted.
+      google.exchange = { ...google.exchange, refreshToken: 'rt-1', googleUserId: 'g-1' };
+      const id1 = await svc.completeOAuth({
+        userId: 'u-1',
+        code: 'code-1',
+        codeVerifier: 'v-1',
+      });
+
+      // Second connect for the SAME (user, google) pair must NOT throw
+      // a duplicate-key error — it should land on the existing row.
+      google.exchange = { ...google.exchange, refreshToken: 'rt-2', googleUserId: 'g-1' };
+      const id2 = await svc.completeOAuth({
+        userId: 'u-1',
+        code: 'code-2',
+        codeVerifier: 'v-2',
+      });
+
+      expect(id2).toBe(id1);
+      const accs = await repo.listForUser('u-1');
+      expect(accs).toHaveLength(1);
+    });
+
+    it('reconnecting rotates the encrypted refresh token in place', async () => {
+      google.exchange = { ...google.exchange, refreshToken: 'rt-old', googleUserId: 'g-1' };
+      await svc.completeOAuth({ userId: 'u-1', code: 'code-1', codeVerifier: 'v-1' });
+
+      google.exchange = { ...google.exchange, refreshToken: 'rt-new', googleUserId: 'g-1' };
+      await svc.completeOAuth({ userId: 'u-1', code: 'code-2', codeVerifier: 'v-2' });
+
+      const [acc] = await repo.listForUser('u-1');
+      if (!acc) throw new Error('expected one account');
+      const decrypted = await kms.decrypt(acc.refreshTokenCiphertext, acc.refreshTokenKmsKeyArn);
+      expect(decrypted).toBe('rt-new');
+    });
+
+    it('different users connecting the same Google account each get their own row', async () => {
+      google.exchange = { ...google.exchange, refreshToken: 'rt-a', googleUserId: 'g-shared' };
+      const idA = await svc.completeOAuth({
+        userId: 'u-A',
+        code: 'code-A',
+        codeVerifier: 'v-A',
+      });
+      google.exchange = { ...google.exchange, refreshToken: 'rt-b', googleUserId: 'g-shared' };
+      const idB = await svc.completeOAuth({
+        userId: 'u-B',
+        code: 'code-B',
+        codeVerifier: 'v-B',
+      });
+      expect(idA).not.toBe(idB);
+    });
   });
 });

@@ -27,6 +27,28 @@ export interface GDriveRepository {
   findByIdForUser(id: string, userId: string): Promise<GDriveAccount | null>;
   listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>>;
   insert(row: GDriveAccount): Promise<GDriveAccount>;
+  /**
+   * Look up an active (non-soft-deleted) row by (userId, googleUserId).
+   * Used by `completeOAuth` to make reconnect idempotent — the partial
+   * UNIQUE index `gdrive_accounts_user_google_uniq` would otherwise
+   * fire a 23505 on the second insert (Bug H).
+   */
+  findActiveByUserAndGoogleUser(
+    userId: string,
+    googleUserId: string,
+  ): Promise<GDriveAccount | null>;
+  /**
+   * Rotate an existing row's encrypted refresh token + scope + email
+   * in place. The (userId, googleUserId) pair is immutable for the row;
+   * this is the idempotent counterpart to insert.
+   */
+  replaceToken(args: {
+    id: string;
+    refreshTokenCiphertext: Buffer;
+    refreshTokenKmsKeyArn: string;
+    scope: string;
+    googleEmail: string;
+  }): Promise<GDriveAccount>;
   softDelete(id: string, userId: string): Promise<boolean>;
   touchLastUsed(id: string): Promise<void>;
 }
