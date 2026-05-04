@@ -68,6 +68,38 @@ output "sealing_kms_iam_policy_arn" {
   value       = var.enable_kms_sealing ? module.sealing_kms[0].iam_policy_arn : null
 }
 
+# --------------------------------------------------------------------
+# Google Drive token KMS outputs — surface the values needed by the
+# API runtime (GDRIVE_TOKEN_KMS_KEY_ARN, GDRIVE_TOKEN_KMS_REGION)
+# consumed by DriveKmsService.fromEnv. All null when
+# var.enable_gdrive_token_kms = false.
+# --------------------------------------------------------------------
+
+output "gdrive_token_kms_key_arn" {
+  description = "ARN of the Google Drive token wrapping KMS key. Goes into GDRIVE_TOKEN_KMS_KEY_ARN. Null when enable_gdrive_token_kms = false."
+  value       = var.enable_gdrive_token_kms ? module.gdrive_token_kms[0].key_arn : null
+}
+
+output "gdrive_token_kms_key_id" {
+  description = "Bare key id (UUID) for the Drive token wrapping key. Diagnostics-only; the API uses the ARN form."
+  value       = var.enable_gdrive_token_kms ? module.gdrive_token_kms[0].key_id : null
+}
+
+output "gdrive_token_kms_alias" {
+  description = "Stable alias (alias/seald-gdrive-token-<env>) for the Drive token wrapping key. Use in runbooks and the AWS console."
+  value       = var.enable_gdrive_token_kms ? module.gdrive_token_kms[0].key_alias : null
+}
+
+output "gdrive_token_kms_region" {
+  description = "Region the Drive token KMS key lives in. Goes into GDRIVE_TOKEN_KMS_REGION."
+  value       = var.enable_gdrive_token_kms ? module.gdrive_token_kms[0].region : null
+}
+
+output "gdrive_token_kms_iam_policy_arn" {
+  description = "ARN of the kms:GenerateDataKey + kms:Decrypt IAM policy. Attach to additional roles as needed."
+  value       = var.enable_gdrive_token_kms ? module.gdrive_token_kms[0].iam_policy_arn : null
+}
+
 output "api_iam_role_name" {
   description = "Name of the IAM role attached to the API EC2 instance profile. The sealing-kms module attaches its kms:Sign policy to this role by default."
   value       = aws_iam_role.api.name

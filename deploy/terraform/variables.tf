@@ -100,6 +100,40 @@ variable "sealing_api_role_name" {
   default     = null
 }
 
+# ---------- Google Drive token KMS (envelope encryption for refresh tokens) ----------
+
+variable "enable_gdrive_token_kms" {
+  description = <<-EOT
+    Provision the symmetric AES-256 KMS key that wraps Google Drive
+    OAuth refresh tokens (DriveKmsService envelope encryption). Default
+    true so prod gets it on first apply; flip to false in non-prod
+    tfvars where the gdriveIntegration feature flag is off (no tokens
+    are written, the key would just incur the per-key/month charge).
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "gdrive_token_environment" {
+  description = "Environment slug fed into the gdrive-token-kms module (alias suffix + tags). Defaults to `prod` because that's the only env the integration currently runs in."
+  type        = string
+  default     = "prod"
+}
+
+variable "gdrive_token_api_role_name" {
+  description = <<-EOT
+    Override the IAM role that gets the kms:GenerateDataKey + kms:Decrypt
+    policy attachment on the Drive token wrapping key. When null (the
+    default), the gdrive-token-kms module auto-attaches to
+    aws_iam_role.api.name (the instance profile role created in
+    main.tf). Set this to a different role name only if you're running
+    the API somewhere other than the EC2 instance profile. Set to
+    empty string "" to provision the policy without attaching it.
+  EOT
+  type        = string
+  default     = null
+}
+
 # ---------- GoDaddy DNS (optional) ----------
 
 variable "godaddy_enabled" {

@@ -302,3 +302,31 @@ module "sealing_kms" {
   # + Purpose tags to the key + IAM policy.
   enable_resource_tags = true
 }
+
+# --------------------------------------------------------------------
+# Google Drive token wrapping key (symmetric AES-256, ENCRYPT_DECRYPT).
+#
+# Backs apps/api/src/integrations/gdrive/gdrive-kms.service.ts. Per-row
+# DEK envelope encryption: the API calls kms:GenerateDataKey to mint a
+# 256-bit DEK + ciphertext per refresh-token write, and kms:Decrypt to
+# unwrap on read. The DEK never persists; only its KMS-wrapped form
+# does. Loss of the CMK = loss of every stored refresh token (users
+# must re-consent), hence the maximum 30-day deletion window in the
+# module.
+#
+# After apply, surface the two outputs into the API host's .env file
+# as GDRIVE_TOKEN_KMS_KEY_ARN + GDRIVE_TOKEN_KMS_REGION (handled by
+# .github/workflows/set-gdrive-oauth-env.yml).
+# --------------------------------------------------------------------
+module "gdrive_token_kms" {
+  count  = var.enable_gdrive_token_kms ? 1 : 0
+  source = "./modules/gdrive-token-kms"
+
+  environment   = var.gdrive_token_environment
+  api_role_name = coalesce(var.gdrive_token_api_role_name, aws_iam_role.api.name)
+  tags          = local.common_tags
+  # Same kms:TagResource gate as sealing_kms above. The deployer role
+  # already grants those perms (granted for sealing_kms), so safe to
+  # turn on from first apply.
+  enable_resource_tags = true
+}
