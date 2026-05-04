@@ -65,6 +65,12 @@ export interface DocsViewBuilder {
    * have `enableFeature(Feature.SUPPORT_DRIVES)` set as well.
    */
   setEnableDrives(enable: boolean): DocsViewBuilder;
+  /**
+   * Filter the view to starred items only. Combined with
+   * `setOwnedByMe(true)` produces the canonical "Starred" tab —
+   * the user's own files filtered to starred.
+   */
+  setStarred(starred: boolean): DocsViewBuilder;
 }
 
 export interface PickerNamespace {

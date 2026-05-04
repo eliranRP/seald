@@ -33,6 +33,7 @@ interface DocsViewSpy {
   readonly setSelectFolderEnabledCalls: ReadonlyArray<unknown>;
   readonly setOwnedByMeCalls: ReadonlyArray<unknown>;
   readonly setEnableDrivesCalls: ReadonlyArray<unknown>;
+  readonly setStarredCalls: ReadonlyArray<boolean | undefined>;
 }
 
 interface PickerSpyState {
@@ -80,6 +81,7 @@ function installGooglePickerStub(): PickerSpyState {
     const setSelectFolderEnabledCalls: unknown[] = [];
     const setOwnedByMeCalls: unknown[] = [];
     const setEnableDrivesCalls: unknown[] = [];
+    const setStarredCalls: Array<boolean | undefined> = [];
 
     const view: Record<string, (arg: unknown) => unknown> = {
       setMimeTypes(arg) {
@@ -105,6 +107,10 @@ function installGooglePickerStub(): PickerSpyState {
         setEnableDrivesCalls.push(arg);
         return view;
       },
+      setStarred(arg) {
+        setStarredCalls.push(typeof arg === 'boolean' ? arg : undefined);
+        return view;
+      },
     };
 
     docsViews.push({
@@ -113,6 +119,7 @@ function installGooglePickerStub(): PickerSpyState {
       setSelectFolderEnabledCalls,
       setOwnedByMeCalls,
       setEnableDrivesCalls,
+      setStarredCalls,
     });
 
     return view;
@@ -252,36 +259,65 @@ describe('DrivePicker — happy path', () => {
     renderPicker({ mimeFilter: 'pdf' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
     const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
-    // One application/pdf entry per DocsView (3 views, see below).
-    expect(mimeCalls).toEqual(['application/pdf', 'application/pdf', 'application/pdf']);
+    // One application/pdf entry per DocsView (4 views: Starred, My
+    // Drive, Shared with me, Shared drives).
+    expect(mimeCalls).toEqual([
+      'application/pdf',
+      'application/pdf',
+      'application/pdf',
+      'application/pdf',
+    ]);
   });
 
   /*
-   * 2026-05-04 — re-introduces multiple DocsViews to match Google's
-   * canonical import-file UX (My Drive / Shared with me / Shared
-   * drives), after PR #146 collapsed the picker to one view as a
-   * tactical fix for three duplicate "Google Drive" tabs caused by
-   * passing ViewId.DOCS thrice. Now the views are differentiated by
-   * ownership / shared-drives flags, so the picker labels each tab
-   * distinctly.
+   * 2026-05-04 — adds a Starred tab in front of the three views that
+   * shipped in PR #149 (My Drive / Shared with me / Shared drives).
+   * Putting Starred first matches the canonical Google import-file UX
+   * (Sheets/Slides put Recent first; we don't have a Recent surface
+   * yet, so Starred leads). Each view is differentiated by
+   * ownership / shared-drives / starred flags so the picker labels
+   * every tab distinctly.
    */
-  it('configures three views: My Drive, Shared with me, Shared drives', async () => {
+  it('configures four views in order: Starred, My Drive, Shared with me, Shared drives', async () => {
     fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
     renderPicker({ mimeFilter: 'all' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
-    expect(pickerSpy.docsViewCtor).toHaveBeenCalledTimes(3);
-    expect(pickerSpy.addView).toHaveBeenCalledTimes(3);
-    expect(pickerSpy.docsViews).toHaveLength(3);
-    const [myDrive, sharedWithMe, sharedDrives] = pickerSpy.docsViews;
-    // My Drive — owned-by-me=true.
+    expect(pickerSpy.docsViewCtor).toHaveBeenCalledTimes(4);
+    expect(pickerSpy.addView).toHaveBeenCalledTimes(4);
+    expect(pickerSpy.docsViews).toHaveLength(4);
+    const [starred, myDrive, sharedWithMe, sharedDrives] = pickerSpy.docsViews;
+    // Starred — setStarred(true), no enable-drives.
+    expect(starred?.setStarredCalls).toEqual([true]);
+    expect(starred?.setEnableDrivesCalls).toEqual([]);
+    // My Drive — owned-by-me=true, no setStarred call.
     expect(myDrive?.setOwnedByMeCalls).toEqual([true]);
     expect(myDrive?.setEnableDrivesCalls).toEqual([]);
+    expect(myDrive?.setStarredCalls).toEqual([]);
     // Shared with me — owned-by-me=false.
     expect(sharedWithMe?.setOwnedByMeCalls).toEqual([false]);
     expect(sharedWithMe?.setEnableDrivesCalls).toEqual([]);
     // Shared drives — enable-drives=true (no ownership filter).
     expect(sharedDrives?.setEnableDrivesCalls).toEqual([true]);
     expect(sharedDrives?.setOwnedByMeCalls).toEqual([]);
+  });
+
+  it('Starred view applies the same MIME filter as the other tabs', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'all' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    const expectedMimes =
+      'application/pdf,application/vnd.google-apps.document,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const [starred] = pickerSpy.docsViews;
+    expect(starred?.setMimeTypesCalls).toEqual([expectedMimes]);
+  });
+
+  it('Starred view enables folder navigation but disables folder-as-result', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'all' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    const [starred] = pickerSpy.docsViews;
+    expect(starred?.setIncludeFoldersCalls).toEqual([true]);
+    expect(starred?.setSelectFolderEnabledCalls).toEqual([false]);
   });
 
   it('enables SUPPORT_DRIVES feature on the picker builder', async () => {
@@ -292,14 +328,14 @@ describe('DrivePicker — happy path', () => {
     expect(pickerSpy.enableFeatureCalls).toContain('sdr');
   });
 
-  it('all three views apply the comma-joined MIME-type filter for the requested mimeFilter', async () => {
+  it('all four views apply the comma-joined MIME-type filter for the requested mimeFilter', async () => {
     fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
     renderPicker({ mimeFilter: 'all' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
     const expectedMimes =
       'application/pdf,application/vnd.google-apps.document,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
-    expect(mimeCalls).toEqual([expectedMimes, expectedMimes, expectedMimes]);
+    expect(mimeCalls).toEqual([expectedMimes, expectedMimes, expectedMimes, expectedMimes]);
     // And per-view: each DocsView called setMimeTypes exactly once
     // with the same comma-joined filter.
     for (const view of pickerSpy.docsViews) {
