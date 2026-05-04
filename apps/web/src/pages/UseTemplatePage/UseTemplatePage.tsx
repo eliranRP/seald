@@ -17,7 +17,10 @@ import {
   DriveTemplateReplaceButton,
   useDriveImport,
 } from '@/features/gdriveImport';
-import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
+import {
+  useConnectGDrive,
+  useGDriveAccounts,
+} from '@/routes/settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
   getTemplates,
@@ -189,6 +192,10 @@ export function UseTemplatePage() {
   const accountsQuery = useGDriveAccounts();
   const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = accounts[0]?.id ?? null;
+  const connectDrive = useConnectGDrive();
+  const handleConnectDrive = useCallback((): void => {
+    connectDrive.mutate();
+  }, [connectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const driveImport = useDriveImport({
     accountId: driveAccountId ?? '',
@@ -520,6 +527,7 @@ export function UseTemplatePage() {
                         <DriveTemplateReplaceButton
                           connected={driveAccountId !== null}
                           onPickDrive={() => setDrivePickerOpen(true)}
+                          onConnect={handleConnectDrive}
                         />
                       </div>
                     ) : null}

@@ -6,6 +6,7 @@ import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useAccountActions } from '@/features/account';
+import { useGDriveOAuthMessageListener } from '@/routes/settings/integrations/useGDriveAccounts';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { NAV_ITEMS, matchNavId } from './navItems';
 
@@ -152,6 +153,16 @@ export function AppShell() {
   }, [signOut, navigate]);
 
   const account = useAccountActions({ onAccountDeleted });
+
+  // Inline OAuth-popup bridge — when "Connect Google Drive" fires from
+  // any authed surface (UploadRoute, UseTemplatePage, IntegrationsPage),
+  // the popup posts back via `postMessage` + a same-origin
+  // BroadcastChannel. Mounting the listener at AppShell ensures the
+  // parent tab catches the signal regardless of which page the user
+  // launched the connect flow from. Pre-fix only IntegrationsPage
+  // mounted it, so the inline-flow connect only worked when the user
+  // happened to be on /settings/integrations.
+  useGDriveOAuthMessageListener();
 
   const mode = !user && guest ? 'guest' : 'authed';
 

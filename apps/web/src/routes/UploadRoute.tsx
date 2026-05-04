@@ -17,7 +17,7 @@ import {
   DriveSourceCard,
   useDriveImport,
 } from '../features/gdriveImport';
-import { useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
+import { useConnectGDrive, useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
   getTemplates,
@@ -141,6 +141,10 @@ export function UploadRoute() {
   const accountsQuery = useGDriveAccounts();
   const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = accounts[0]?.id ?? null;
+  const connectDrive = useConnectGDrive();
+  const handleConnectDrive = useCallback((): void => {
+    connectDrive.mutate();
+  }, [connectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const driveImport = useDriveImport({
     accountId: driveAccountId ?? '',
@@ -388,6 +392,7 @@ export function UploadRoute() {
             <DriveSourceCard
               connected={driveAccountId !== null}
               onPickDrive={() => setDrivePickerOpen(true)}
+              onConnect={handleConnectDrive}
             />
           ) : null}
         </>

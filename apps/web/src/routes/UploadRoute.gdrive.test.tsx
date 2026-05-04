@@ -5,11 +5,16 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../test/renderWithProviders';
 import * as flagsModule from 'shared';
 
+const connectMutateMock = vi.fn();
 vi.mock('./settings/integrations/useGDriveAccounts', () => ({
   useGDriveAccounts: vi.fn(),
   GDRIVE_ACCOUNTS_KEY: ['integrations', 'gdrive', 'accounts'],
-  useConnectGDrive: vi.fn(),
+  // The disconnected-state CTA wires to `useConnectGDrive().mutate()`
+  // — return a minimal mutation shape so the inline-popup connect path
+  // doesn't blow up under test.
+  useConnectGDrive: () => ({ mutate: connectMutateMock }),
   useDisconnectGDrive: vi.fn(),
+  useGDriveOAuthMessageListener: vi.fn(),
 }));
 
 import * as gdriveAccountsHook from './settings/integrations/useGDriveAccounts';
@@ -103,25 +108,29 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     expect(cta).toBeEnabled();
   });
 
-  it('shows an enabled "Connect Drive in Settings" CTA when flag is on but no account', () => {
-    // Phase 6.A iter-1 LOCAL bug: pre-fix this surface rendered a
-    // `<button disabled title="…">` — an a11y dead-end (native title
-    // not announced for disabled buttons; not focusable; touch users
-    // see nothing). Post-fix the not-connected branch renders an
-    // enabled button whose visible label + accessible name include
-    // "Connect" and that navigates to /settings/integrations on
-    // activation. See `DriveSourceCard.test.tsx` and the Gherkin spec
-    // at `apps/web/e2e/features/gdrive/disabled-cta.feature`.
+  it('shows an enabled "Connect Google Drive" CTA when flag is on but no account, and opens the OAuth popup inline (no /settings navigation)', () => {
+    // 2026-05-04 flow-continuity fix: the disconnected CTA used to
+    // navigate to /settings/integrations, which broke the user out of
+    // the upload flow. With the OAuth-popup bridge in place
+    // (BroadcastChannel + AppShell-mounted message listener) the
+    // consent flow can complete in a popup without leaving the page —
+    // the accounts query auto-flips the card to its connected state
+    // when the popup posts back. See `DriveSourceCard.test.tsx`.
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(false);
+    connectMutateMock.mockClear();
     renderRoute();
-    const cta = screen.getByRole('button', { name: /connect.*settings/i });
+    const cta = screen.getByRole('button', { name: /connect google drive/i });
     expect(cta).toBeEnabled();
     expect(cta.getAttribute('title')).toBeNull();
     // The legacy "Pick from Google Drive" label must be gone in the
     // not-connected state — otherwise the user is misled into
     // expecting the picker to open.
     expect(screen.queryByRole('button', { name: /pick from google drive/i })).toBeNull();
+    fireEvent.click(cta);
+    // Activating the CTA fires the connect mutation (which opens the
+    // OAuth popup inline) — never navigates away.
+    expect(connectMutateMock).toHaveBeenCalledTimes(1);
   });
 
   it('opens the picker when the active CTA is clicked', () => {
