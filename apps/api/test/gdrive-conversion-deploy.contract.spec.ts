@@ -99,7 +99,23 @@ describe('root docker-compose.yml — Gotenberg co-deploy contract', () => {
     expect(gotBlock).toMatch(/cpus:\s*['"]?1\.5['"]?/);
   });
 
-  it('hard-disables non-LibreOffice routes via the gotenberg command', () => {
+  it('hard-disables non-LibreOffice routes via the gotenberg command (v8 flag set)', () => {
+    // Phase-6 prod-bug-loop regression (2026-05-04): the previous flag
+    // set was copied from a gotenberg v7 reference and contained
+    // `--webhook-disable-routes=true`, which gotenberg v8 rejects with
+    // `unknown flag: --webhook-disable-routes` (captured via the
+    // prod-diagnose workflow on prod after the PR #148 deploy). The
+    // container exited with code 2 and entered a restart loop, so the
+    // API got `fetch failed` on every .docx Drive conversion.
+    //
+    // v8 renamed the webhook route disabler from
+    //   --webhook-disable-routes (v7)
+    // to
+    //   --webhook-disable (v8 — disables the whole webhook feature).
+    //
+    // chromium-disable-routes and pdfengines-disable-routes still exist
+    // in v8 and are kept. We assert the corrected flag set so a future
+    // copy-paste of v7 flags fails CI here, not on prod.
     const gotMatch = compose.match(
       /^ {2}gotenberg:\s*$([\s\S]*?)(?=^ {2}[a-z0-9_-]+:\s*$|^volumes:|^networks:)/m,
     );
@@ -108,7 +124,13 @@ describe('root docker-compose.yml — Gotenberg co-deploy contract', () => {
     expect(gotBlock).toMatch(/--api-port=3000/);
     expect(gotBlock).toMatch(/--api-timeout=30s/);
     expect(gotBlock).toMatch(/--chromium-disable-routes=true/);
-    expect(gotBlock).toMatch(/--webhook-disable-routes=true/);
+    expect(gotBlock).toMatch(/--webhook-disable=true/);
     expect(gotBlock).toMatch(/--pdfengines-disable-routes=true/);
+    // Defence-in-depth: a v7-era `--webhook-disable-routes` flag must
+    // never reappear as an actual command-line entry, since it would
+    // crash the sidecar at boot on v8. We only flag the YAML list-item
+    // form (a leading `-`/`'`) so that a comment that explains the
+    // historical flag name doesn't trip this guard.
+    expect(gotBlock).not.toMatch(/^\s*-\s*'--webhook-disable-routes/m);
   });
 });
