@@ -27,6 +27,14 @@ const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
 const fetchMock = fetchPickerCredentials as unknown as ReturnType<typeof vi.fn>;
 const useGoogleApiMock = useGoogleApi as unknown as ReturnType<typeof vi.fn>;
 
+interface DocsViewSpy {
+  readonly setMimeTypesCalls: ReadonlyArray<unknown>;
+  readonly setIncludeFoldersCalls: ReadonlyArray<unknown>;
+  readonly setSelectFolderEnabledCalls: ReadonlyArray<unknown>;
+  readonly setOwnedByMeCalls: ReadonlyArray<unknown>;
+  readonly setEnableDrivesCalls: ReadonlyArray<unknown>;
+}
+
 interface PickerSpyState {
   readonly setOAuthToken: ReturnType<typeof vi.fn>;
   readonly setDeveloperKey: ReturnType<typeof vi.fn>;
@@ -36,11 +44,19 @@ interface PickerSpyState {
   readonly setCallback: ReturnType<typeof vi.fn>;
   readonly build: ReturnType<typeof vi.fn>;
   readonly setVisible: ReturnType<typeof vi.fn>;
+  readonly enableFeature: ReturnType<typeof vi.fn>;
+  /** All `setMimeTypes` calls aggregated across every DocsView. */
   readonly setMimeTypes: ReturnType<typeof vi.fn>;
+  /** All `setIncludeFolders` calls aggregated across every DocsView. */
   readonly setIncludeFolders: ReturnType<typeof vi.fn>;
+  /** All `setSelectFolderEnabled` calls aggregated across every DocsView. */
   readonly setSelectFolderEnabled: ReturnType<typeof vi.fn>;
   readonly docsViewCtor: ReturnType<typeof vi.fn>;
   readonly pickerBuilderCtor: ReturnType<typeof vi.fn>;
+  /** First-arg of every `enableFeature` invocation, in order. */
+  readonly enableFeatureCalls: ReadonlyArray<string>;
+  /** One entry per `new DocsView()` invocation, in construction order. */
+  readonly docsViews: ReadonlyArray<DocsViewSpy>;
   triggerCallback: (data: PickerCallbackData) => void;
 }
 
@@ -49,32 +65,71 @@ let pickerSpy: PickerSpyState;
 function installGooglePickerStub(): PickerSpyState {
   let registered: ((data: PickerCallbackData) => void) | null = null;
   const setVisible = vi.fn();
-  const docsViewBuilder: {
-    setMimeTypes: ReturnType<typeof vi.fn>;
-    setIncludeFolders: ReturnType<typeof vi.fn>;
-    setSelectFolderEnabled: ReturnType<typeof vi.fn>;
-  } = {
-    setMimeTypes: vi.fn(),
-    setIncludeFolders: vi.fn(),
-    setSelectFolderEnabled: vi.fn(),
-  };
-  docsViewBuilder.setMimeTypes.mockReturnValue(docsViewBuilder);
-  docsViewBuilder.setIncludeFolders.mockReturnValue(docsViewBuilder);
-  docsViewBuilder.setSelectFolderEnabled.mockReturnValue(docsViewBuilder);
-  const setMimeTypes = docsViewBuilder.setMimeTypes;
-  const setIncludeFolders = docsViewBuilder.setIncludeFolders;
-  const setSelectFolderEnabled = docsViewBuilder.setSelectFolderEnabled;
+
+  // Aggregated spies — collect calls across every DocsView instance so
+  // existing single-view tests keep working unchanged.
+  const setMimeTypesAll = vi.fn();
+  const setIncludeFoldersAll = vi.fn();
+  const setSelectFolderEnabledAll = vi.fn();
+
+  const docsViews: DocsViewSpy[] = [];
 
   function DocsViewCtorImpl(this: unknown): unknown {
-    return docsViewBuilder;
+    const setMimeTypesCalls: unknown[] = [];
+    const setIncludeFoldersCalls: unknown[] = [];
+    const setSelectFolderEnabledCalls: unknown[] = [];
+    const setOwnedByMeCalls: unknown[] = [];
+    const setEnableDrivesCalls: unknown[] = [];
+
+    const view: Record<string, (arg: unknown) => unknown> = {
+      setMimeTypes(arg) {
+        setMimeTypesCalls.push(arg);
+        setMimeTypesAll(arg);
+        return view;
+      },
+      setIncludeFolders(arg) {
+        setIncludeFoldersCalls.push(arg);
+        setIncludeFoldersAll(arg);
+        return view;
+      },
+      setSelectFolderEnabled(arg) {
+        setSelectFolderEnabledCalls.push(arg);
+        setSelectFolderEnabledAll(arg);
+        return view;
+      },
+      setOwnedByMe(arg) {
+        setOwnedByMeCalls.push(arg);
+        return view;
+      },
+      setEnableDrives(arg) {
+        setEnableDrivesCalls.push(arg);
+        return view;
+      },
+    };
+
+    docsViews.push({
+      setMimeTypesCalls,
+      setIncludeFoldersCalls,
+      setSelectFolderEnabledCalls,
+      setOwnedByMeCalls,
+      setEnableDrivesCalls,
+    });
+
+    return view;
   }
   const docsViewCtor = vi.fn(DocsViewCtorImpl as () => unknown);
+
+  const enableFeatureCalls: string[] = [];
 
   const builder = {
     setOAuthToken: vi.fn(),
     setDeveloperKey: vi.fn(),
     setAppId: vi.fn(),
     setOrigin: vi.fn(),
+    enableFeature: vi.fn((name: string) => {
+      enableFeatureCalls.push(name);
+      return builder;
+    }),
     addView: vi.fn(),
     setCallback: vi.fn(function setCallbackImpl(cb: (data: PickerCallbackData) => void) {
       registered = cb;
@@ -99,6 +154,7 @@ function installGooglePickerStub(): PickerSpyState {
       DocsView: docsViewCtor,
       ViewId: { DOCS: 'DOCS' },
       Action: { PICKED: 'picked', CANCEL: 'cancel', LOADED: 'loaded' },
+      Feature: { SUPPORT_DRIVES: 'sdr' },
     },
   };
 
@@ -111,11 +167,14 @@ function installGooglePickerStub(): PickerSpyState {
     setCallback: builder.setCallback,
     build: builder.build,
     setVisible,
-    setMimeTypes,
-    setIncludeFolders,
-    setSelectFolderEnabled,
+    enableFeature: builder.enableFeature,
+    setMimeTypes: setMimeTypesAll,
+    setIncludeFolders: setIncludeFoldersAll,
+    setSelectFolderEnabled: setSelectFolderEnabledAll,
     docsViewCtor,
     pickerBuilderCtor,
+    enableFeatureCalls,
+    docsViews,
     triggerCallback: (data) => {
       if (!registered) throw new Error('callback not registered yet');
       registered(data);
@@ -188,44 +247,76 @@ describe('DrivePicker — happy path', () => {
     expect(pickerSpy.setVisible).toHaveBeenCalledWith(true);
   });
 
-  it('mimeFilter="pdf" configures a single application/pdf view', async () => {
+  it('mimeFilter="pdf" applies application/pdf to every view', async () => {
     fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
     renderPicker({ mimeFilter: 'pdf' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
     const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
-    expect(mimeCalls).toEqual(['application/pdf']);
+    // One application/pdf entry per DocsView (3 views, see below).
+    expect(mimeCalls).toEqual(['application/pdf', 'application/pdf', 'application/pdf']);
   });
 
   /*
-   * 2026-05-04 — production bug: with mimeFilter="all" (the default
-   * for UploadRoute), the picker rendered THREE identical "Google
-   * Drive" tabs — one per DocsView we added. Google's picker labels
-   * each tab from the ViewId, so passing the same ViewId.DOCS three
-   * times produces three duplicate tabs. Folders were also missing
-   * because every view filtered by file MIME (folders have their
-   * own application/vnd.google-apps.folder MIME). Fix is to use a
-   * single DocsView with comma-joined MIME types + setIncludeFolders.
+   * 2026-05-04 — re-introduces multiple DocsViews to match Google's
+   * canonical import-file UX (My Drive / Shared with me / Shared
+   * drives), after PR #146 collapsed the picker to one view as a
+   * tactical fix for three duplicate "Google Drive" tabs caused by
+   * passing ViewId.DOCS thrice. Now the views are differentiated by
+   * ownership / shared-drives flags, so the picker labels each tab
+   * distinctly.
    */
-  it('mimeFilter="all" configures a SINGLE view with comma-joined MIMEs (no duplicate tabs)', async () => {
+  it('configures three views: My Drive, Shared with me, Shared drives', async () => {
     fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
     renderPicker({ mimeFilter: 'all' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
-    expect(pickerSpy.docsViewCtor).toHaveBeenCalledTimes(1);
-    expect(pickerSpy.addView).toHaveBeenCalledTimes(1);
-    const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
-    expect(mimeCalls).toEqual([
-      'application/pdf,application/vnd.google-apps.document,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    ]);
+    expect(pickerSpy.docsViewCtor).toHaveBeenCalledTimes(3);
+    expect(pickerSpy.addView).toHaveBeenCalledTimes(3);
+    expect(pickerSpy.docsViews).toHaveLength(3);
+    const [myDrive, sharedWithMe, sharedDrives] = pickerSpy.docsViews;
+    // My Drive — owned-by-me=true.
+    expect(myDrive?.setOwnedByMeCalls).toEqual([true]);
+    expect(myDrive?.setEnableDrivesCalls).toEqual([]);
+    // Shared with me — owned-by-me=false.
+    expect(sharedWithMe?.setOwnedByMeCalls).toEqual([false]);
+    expect(sharedWithMe?.setEnableDrivesCalls).toEqual([]);
+    // Shared drives — enable-drives=true (no ownership filter).
+    expect(sharedDrives?.setEnableDrivesCalls).toEqual([true]);
+    expect(sharedDrives?.setOwnedByMeCalls).toEqual([]);
   });
 
-  it('enables folder navigation so users can browse into Drive folders', async () => {
+  it('enables SUPPORT_DRIVES feature on the picker builder', async () => {
     fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
     renderPicker({ mimeFilter: 'all' });
     await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
-    // Folders visible in the file list…
-    expect(pickerSpy.setIncludeFolders).toHaveBeenCalledWith(true);
-    // …but not selectable (we only accept files, not folders).
-    expect(pickerSpy.setSelectFolderEnabled).toHaveBeenCalledWith(false);
+    // 'sdr' is the runtime value of google.picker.Feature.SUPPORT_DRIVES.
+    expect(pickerSpy.enableFeatureCalls).toContain('sdr');
+  });
+
+  it('all three views apply the comma-joined MIME-type filter for the requested mimeFilter', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'all' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    const expectedMimes =
+      'application/pdf,application/vnd.google-apps.document,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
+    expect(mimeCalls).toEqual([expectedMimes, expectedMimes, expectedMimes]);
+    // And per-view: each DocsView called setMimeTypes exactly once
+    // with the same comma-joined filter.
+    for (const view of pickerSpy.docsViews) {
+      expect(view.setMimeTypesCalls).toEqual([expectedMimes]);
+    }
+  });
+
+  it('enables folder navigation on every view so users can browse into Drive folders', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'all' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    for (const view of pickerSpy.docsViews) {
+      // Folders visible in the file list…
+      expect(view.setIncludeFoldersCalls).toEqual([true]);
+      // …but not selectable (we only accept files, not folders).
+      expect(view.setSelectFolderEnabledCalls).toEqual([false]);
+    }
   });
 
   it('sets builder origin to window.location.origin so picker postMessage works', async () => {

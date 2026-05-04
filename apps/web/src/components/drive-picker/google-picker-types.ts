@@ -37,6 +37,12 @@ export interface PickerBuilder {
    * preview deployments).
    */
   setOrigin(origin: string): PickerBuilder;
+  /**
+   * Toggle a builder-level feature flag. We use this to enable
+   * `SUPPORT_DRIVES` so the "Shared drives" tab can list shared-drive
+   * content in addition to My Drive.
+   */
+  enableFeature(name: string): PickerBuilder;
   addView(view: unknown): PickerBuilder;
   setCallback(cb: (data: PickerCallbackData) => void): PickerBuilder;
   build(): PickerInstance;
@@ -48,6 +54,17 @@ export interface DocsViewBuilder {
   setIncludeFolders(include: boolean): DocsViewBuilder;
   /** When false, folders are visible but not selectable as a result. */
   setSelectFolderEnabled(enabled: boolean): DocsViewBuilder;
+  /**
+   * Filter the view by ownership.
+   *   - `true`  → "My Drive" tab (only files owned by the user).
+   *   - `false` → "Shared with me" tab (files shared with the user).
+   */
+  setOwnedByMe(owned: boolean): DocsViewBuilder;
+  /**
+   * Show shared-drive content in this view. Requires the builder to
+   * have `enableFeature(Feature.SUPPORT_DRIVES)` set as well.
+   */
+  setEnableDrives(enable: boolean): DocsViewBuilder;
 }
 
 export interface PickerNamespace {
@@ -58,6 +75,9 @@ export interface PickerNamespace {
     readonly PICKED: 'picked';
     readonly CANCEL: 'cancel';
     readonly LOADED: 'loaded';
+  };
+  readonly Feature: {
+    readonly SUPPORT_DRIVES: 'sdr';
   };
 }
 

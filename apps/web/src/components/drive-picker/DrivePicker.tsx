@@ -117,21 +117,29 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       .setAppId(creds.creds.appId)
       // Required for cross-origin postMessage from the picker iframe
       // back to our SPA. Picker prod is at docs.google.com.
-      .setOrigin(window.location.origin);
+      .setOrigin(window.location.origin)
+      // Required for the "Shared drives" tab below to actually list
+      // shared-drive content. The DocsView flag alone is not enough —
+      // Google requires the builder-level feature flag too.
+      .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
-    // 2026-05-04 — single DocsView with comma-joined MIME types
-    // instead of one view per MIME. Reasons:
-    //   1. The picker labels each tab from its ViewId; passing
-    //      ViewId.DOCS three times rendered three identical
-    //      "Google Drive" tabs in prod.
-    //   2. setMimeTypes accepts a comma-separated list per
-    //      Google's Picker API ref:
-    //      https://developers.google.com/drive/picker/reference#docs-view
-    //   3. setIncludeFolders(true) re-enables folder navigation,
-    //      which was lost because every per-MIME view filtered
-    //      folders out (folders have application/vnd.google-apps.folder).
-    //      setSelectFolderEnabled(false) keeps "Select" disabled
-    //      until the user clicks an actual file.
+    // 2026-05-04 — three DocsViews, one per canonical Google import-
+    // file tab (My Drive / Shared with me / Shared drives). PR #146
+    // collapsed this to a single view as a tactical fix for three
+    // duplicate "Google Drive" tabs caused by passing the same
+    // `ViewId.DOCS` three times without distinguishing flags. Now
+    // each view is differentiated by ownership / shared-drives flags
+    // so the picker labels each tab distinctly:
+    //   1. My Drive       → setOwnedByMe(true)
+    //   2. Shared with me → setOwnedByMe(false)
+    //   3. Shared drives  → setEnableDrives(true) +
+    //                       builder.enableFeature(SUPPORT_DRIVES)
+    // All three apply the same comma-joined MIME-type filter and keep
+    // setIncludeFolders(true)/setSelectFolderEnabled(false) so users
+    // can browse into folders but only select files. OAuth scope
+    // remains pinned to drive.file (per CLAUDE.md) — the picker grants
+    // per-file access at click time regardless of which tab the user
+    // picks from, including shared drives.
     //
     // KNOWN ISSUE — Google-side: the modular picker's thumbnail
     // requests to lh3.googleusercontent.com return without a
@@ -139,11 +147,28 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     // them with net::ERR_BLOCKED_BY_ORB. The picker still works
     // for selection — only the thumbnail previews stay grey. Track:
     // https://issuetracker.google.com (modular picker thumbnails).
-    const view = new picker.DocsView(picker.ViewId.DOCS)
-      .setMimeTypes(MIMES_FOR_FILTER[mimeFilter].join(','))
+    const mimes = MIMES_FOR_FILTER[mimeFilter].join(',');
+
+    const myDriveView = new picker.DocsView(picker.ViewId.DOCS)
+      .setOwnedByMe(true)
+      .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
-    builder.addView(view);
+    builder.addView(myDriveView);
+
+    const sharedWithMeView = new picker.DocsView(picker.ViewId.DOCS)
+      .setOwnedByMe(false)
+      .setMimeTypes(mimes)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false);
+    builder.addView(sharedWithMeView);
+
+    const sharedDrivesView = new picker.DocsView(picker.ViewId.DOCS)
+      .setEnableDrives(true)
+      .setMimeTypes(mimes)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false);
+    builder.addView(sharedDrivesView);
 
     builder.setCallback((data) => {
       if (data.action === 'picked') {
