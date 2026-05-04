@@ -2,9 +2,9 @@ import 'reflect-metadata';
 import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
-import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
+import { securityHeaders } from './security-headers';
 import { APP_ENV } from './config/config.module';
 import type { AppEnv } from './config/env.schema';
 
@@ -77,9 +77,9 @@ async function bootstrap() {
     maxAge: 600,
   });
 
-  // Security headers: Helmet defaults cover X-Content-Type-Options,
-  // Strict-Transport-Security, X-Frame-Options, Referrer-Policy, etc.
-  app.use(helmet());
+  // Security headers — see security-headers.ts for the rationale on
+  // disabling Cross-Origin-Opener-Policy (Bug I).
+  app.use(securityHeaders());
 
   // JSON / urlencoded body limits — file uploads use FileInterceptor with
   // their own multer limits, so 1mb here just bounds JSON payloads.

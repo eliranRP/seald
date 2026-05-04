@@ -47,10 +47,10 @@ import { AppRoutes } from '../../AppRoutes';
 describe('AppRoutes /oauth/gdrive/callback (Bug G — bypass mobile redirect)', () => {
   beforeEach(() => {
     mobileViewport = true;
-    // Popup mode: opener is set, so the bridge renders the "Connecting
-    // Drive…" surface (and would postMessage + close — both no-ops on
-    // window mocks below). The "Connecting Drive…" marker is the proof
-    // we did NOT mobile-redirect to /m/send.
+    // Popup mode: opener is set, so the bridge renders the "Drive
+    // connected" surface (and would postMessage + close — both no-ops
+    // on window mocks below). The marker text is the proof we did NOT
+    // mobile-redirect to /m/send.
     Object.defineProperty(window, 'opener', {
       value: { postMessage: vi.fn() } as unknown as Window,
       writable: true,
@@ -72,6 +72,6 @@ describe('AppRoutes /oauth/gdrive/callback (Bug G — bypass mobile redirect)', 
     // Pin: the bridge surface renders. If the route were inside AppShell,
     // the mobile-viewport guard would have replaced this with the
     // MobileSendPage at /m/send and the marker text below would be absent.
-    expect(await screen.findByText(/connecting drive/i)).toBeInTheDocument();
+    expect(await screen.findByText(/drive connected|connecting drive/i)).toBeInTheDocument();
   });
 });

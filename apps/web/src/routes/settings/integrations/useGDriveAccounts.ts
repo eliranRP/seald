@@ -11,6 +11,18 @@ import { apiClient, type ApiError } from '@/lib/api/apiClient';
 export const GDRIVE_OAUTH_COMPLETE_MESSAGE = 'gdrive-oauth-complete' as const;
 type GdriveOAuthCompleteMessage = { readonly type: typeof GDRIVE_OAUTH_COMPLETE_MESSAGE };
 
+/**
+ * Same-origin BroadcastChannel name used as a belt-and-suspenders
+ * fallback alongside `window.opener.postMessage`. The api currently
+ * sends `Cross-Origin-Opener-Policy: same-origin` — and Chrome 120+
+ * is rolling out stricter COOP defaults — so opener references can be
+ * severed at any time. BroadcastChannel works between any same-origin
+ * tabs regardless of opener state, so the parent receives the
+ * connect signal even when COOP nukes the postMessage path.
+ * Bug I (Phase 6.A iter-2 PROD, 2026-05-04).
+ */
+export const GDRIVE_OAUTH_BROADCAST_CHANNEL = 'seald-gdrive-oauth' as const;
+
 function isOAuthCompleteMessage(data: unknown): data is GdriveOAuthCompleteMessage {
   return (
     typeof data === 'object' &&
@@ -142,13 +154,32 @@ export function useGDriveOAuthCallbackBridge(isCallbackReturn: boolean): boolean
 export function useGDriveOAuthMessageListener(): void {
   const qc = useQueryClient();
   useEffect(() => {
-    function handler(event: MessageEvent): void {
-      if (event.origin !== window.location.origin) return;
-      if (!isOAuthCompleteMessage(event.data)) return;
+    function invalidate(): void {
       void qc.invalidateQueries({ queryKey: GDRIVE_ACCOUNTS_KEY });
     }
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
+    function postMessageHandler(event: MessageEvent): void {
+      if (event.origin !== window.location.origin) return;
+      if (!isOAuthCompleteMessage(event.data)) return;
+      invalidate();
+    }
+    window.addEventListener('message', postMessageHandler);
+
+    // Belt-and-suspenders: BroadcastChannel works between same-origin
+    // tabs even when COOP severs `window.opener`. SSR-safe — guard on
+    // typeof for older browsers / non-browser environments.
+    let channel: BroadcastChannel | null = null;
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(GDRIVE_OAUTH_BROADCAST_CHANNEL);
+      channel.onmessage = (event: MessageEvent) => {
+        if (!isOAuthCompleteMessage(event.data)) return;
+        invalidate();
+      };
+    }
+
+    return () => {
+      window.removeEventListener('message', postMessageHandler);
+      channel?.close();
+    };
   }, [qc]);
 }
 
