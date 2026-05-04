@@ -317,6 +317,70 @@ describe('MobileSendPage', () => {
     expect(typeof arg.buildFields).toBe('function');
   });
 
+  /*
+   * Production bug (2026-05-04): every mobile send returned 400 Bad
+   * Request. Root cause — `buildFields` emitted field placements with
+   * keys `w` and `h` instead of the API DTO's required `width` /
+   * `height`. Nest's global ValidationPipe runs with `whitelist:true,
+   * forbidNonWhitelisted:true` so unknown properties throw 400. The
+   * desktop code path (DocumentRoute.tsx) used the correct keys, so
+   * desktop send was unaffected. The mismatch survived TypeScript
+   * because `FieldPlacement.width`/`height` are optional, so an
+   * extra-property literal slipped through generic inference on
+   * `flatMap<FieldPlacement>(...)`.
+   *
+   * Pin the wire shape so the rename can never silently regress.
+   */
+  it('Send-for-signature buildFields emits width/height (not w/h) for the API', async () => {
+    const user = userEvent.setup();
+    runMock.mockClear();
+    renderPage();
+
+    // Walk: file → signers → place → review → Send (mirrors the
+    // earlier orchestration test).
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('contract.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+    await user.click(screen.getByRole('button', { name: /next: place fields/i }));
+    await user.click(screen.getByRole('button', { name: /^signature$/i }));
+    const canvas = await screen.findByTestId('mw-canvas');
+    await user.click(canvas);
+    await user.click(screen.getByRole('button', { name: /^review/i }));
+    await user.click(screen.getByRole('button', { name: /send for signature/i }));
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const call = runMock.mock.calls[0];
+    if (!call) throw new Error('expected runMock to have been invoked');
+    const arg = (call as ReadonlyArray<unknown>)[0] as {
+      buildFields: (localToServer: Map<string, string>) => ReadonlyArray<Record<string, unknown>>;
+      signers: ReadonlyArray<{ localId: string; email?: string }>;
+    };
+    // Build a localToServer mapping from the signers the page passed in,
+    // so buildFields can resolve every local id to a server id.
+    const localToServer = new Map<string, string>();
+    for (const s of arg.signers) {
+      localToServer.set(s.localId, `srv-${s.localId}`);
+    }
+    const placements = arg.buildFields(localToServer);
+    expect(placements.length).toBeGreaterThan(0);
+    for (const p of placements) {
+      // Wire-shape contract: the API requires `width`/`height` and the
+      // ValidationPipe rejects any extra property — so `w`/`h` MUST
+      // not appear and `width`/`height` MUST be present numbers.
+      expect(p).not.toHaveProperty('w');
+      expect(p).not.toHaveProperty('h');
+      expect(typeof p['width']).toBe('number');
+      expect(typeof p['height']).toBe('number');
+    }
+  });
+
   it('rejects an invalid email in the add-signer sheet', async () => {
     const user = userEvent.setup();
     renderPage();
