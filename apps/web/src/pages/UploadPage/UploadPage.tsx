@@ -135,6 +135,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     onError,
     title = DEFAULT_TITLE,
     subtitle = DEFAULT_SUBTITLE,
+    hideHeader = false,
     dropHeading = DEFAULT_DROP_HEADING,
     dropSubheading,
     chooseLabel = DEFAULT_CHOOSE,
@@ -251,10 +252,12 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     <Body {...rest} ref={ref}>
       <Main>
         <Inner>
-          <div>
-            <Heading>{title}</Heading>
-            <Subtitle>{subtitle}</Subtitle>
-          </div>
+          {hideHeader ? null : (
+            <div>
+              <Heading>{title}</Heading>
+              <Subtitle>{subtitle}</Subtitle>
+            </div>
+          )}
           {templateBannerTitle ? (
             <TemplateBanner
               $tone={templateBannerTone}
