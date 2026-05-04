@@ -1,8 +1,9 @@
 # Single-node deploy template for Seald.
 #
 # Runs the API + in-process worker behind Caddy (auto-HTTPS + reverse
-# proxy). Postgres and Storage live in Supabase so we don't provision
-# them here.
+# proxy), plus the Gotenberg LibreOffice sidecar that the Drive
+# integration uses to convert .docx selections to PDF. Postgres and
+# Storage live in Supabase so we don't provision them here.
 #
 # Usage:
 #   1. Copy .env.example to .env and fill in:
@@ -20,6 +21,18 @@
 #   2. docker compose up -d
 #   3. Cron: 'curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" \
 #            http://localhost:3000/internal/cron/expire' every 15 min.
+#
+# Gotenberg (Drive .docx → PDF):
+#   The `gotenberg` service is co-deployed with the API on the compose
+#   default bridge network so the API resolves it as
+#   `http://gotenberg:3000` (matches the GDRIVE_GOTENBERG_URL default
+#   in apps/api/src/config/env.schema.ts). It is intentionally NOT
+#   published to the host (no `ports:` block) — the LibreOffice convert
+#   endpoint must remain unreachable from the public internet, since
+#   Gotenberg ships without authentication. Resource caps (1.5 GB RAM /
+#   1.5 vCPU) bound a malicious upload from OOMing the box; the 25 MB
+#   inbound size cap (apps/api GDRIVE_CONVERSION_MAX_BYTES) bounds the
+#   input. Doc + PDF Drive branches do not depend on Gotenberg.
 
 services:
   api:
@@ -51,6 +64,11 @@ services:
     # signer is configured for the local-P12 path.
     volumes:
       - /opt/seald/secrets:/opt/seald/secrets:ro
+    # Wait for the LibreOffice sidecar before accepting traffic so the
+    # first .docx Drive conversion after a deploy doesn't race a still-
+    # booting Gotenberg.
+    depends_on:
+      - gotenberg
     healthcheck:
       test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
       interval: 30s
@@ -61,6 +79,49 @@ services:
     cap_drop: ["ALL"]
     security_opt:
       - no-new-privileges:true
+
+  gotenberg:
+    # WT-D Drive doc → PDF conversion sidecar. Definition mirrors
+    # deploy/docker-compose.yml (kept around as historical reference;
+    # the canonical sidecar config now lives here so a single
+    # `docker compose up -d --build` brings the whole stack up).
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    # CRITICAL: no `ports:` block. Gotenberg listens on :3000 inside
+    # the container; we reach it from the API as `http://gotenberg:3000`
+    # over the compose default bridge network only. Adding a
+    # `ports: ["3000:3000"]` line here would expose an unauth'd
+    # /forms/libreoffice/convert endpoint to the public internet —
+    # flag any such PR in review.
+    command:
+      - 'gotenberg'
+      - '--api-port=3000'
+      # API timeout caps every conversion at 30s — matches the
+      # AbortSignal cancel window the SPA expects (long-poll with
+      # 100 ms cancel latency budget per WT-D test plan). Keep in sync
+      # with `GDRIVE_CONVERSION_TIMEOUT_MS` (future-flag) if added.
+      - '--api-timeout=30s'
+      # Hard-disable webhook + chromium routes; we only use LibreOffice.
+      # Closing every other route reduces attack surface in the unlikely
+      # event the network barrier ever leaks.
+      - '--chromium-disable-routes=true'
+      - '--webhook-disable-routes=true'
+      - '--pdfengines-disable-routes=true'
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Resource caps to prevent a malicious upload from OOMing the box.
+    # The 25 MB inbound size cap (apps/api GDRIVE_CONVERSION_MAX_BYTES)
+    # bounds the input; LibreOffice peak memory for a 25 MB .docx is
+    # under 1 GB in practice. 1.5 GB gives headroom; tighten via runbook
+    # once we have steady-state telemetry.
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: '1.5'
 
   caddy:
     image: caddy:2.8-alpine
