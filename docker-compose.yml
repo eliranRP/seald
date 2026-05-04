@@ -104,8 +104,16 @@ services:
       # Hard-disable webhook + chromium routes; we only use LibreOffice.
       # Closing every other route reduces attack surface in the unlikely
       # event the network barrier ever leaks.
+      #
+      # NOTE: gotenberg v8 renamed the webhook flag from
+      # `--webhook-disable-routes` (v7) to `--webhook-disable` (the
+      # whole feature is gone, not just the routes). Booting v8 with the
+      # v7 spelling exits with `unknown flag: --webhook-disable-routes`
+      # and the container restart-loops; see contract test
+      # apps/api/test/gdrive-conversion-deploy.contract.spec.ts which
+      # pins the v8 flag set.
       - '--chromium-disable-routes=true'
-      - '--webhook-disable-routes=true'
+      - '--webhook-disable=true'
       - '--pdfengines-disable-routes=true'
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
