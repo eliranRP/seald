@@ -3,9 +3,27 @@ import type { GoogleOAuthClient } from './gdrive.service';
 /**
  * Minimal `fetch`-based Google OAuth client. Skips the `googleapis` SDK
  * (~250 KB) so the API bundle stays small. The three endpoints we need:
- *   - POST https://oauth2.googleapis.com/token   (code exchange + refresh)
- *   - GET  https://www.googleapis.com/oauth2/v3/userinfo (email + sub)
- *   - POST https://oauth2.googleapis.com/revoke  (revoke at Google)
+ *   - POST https://oauth2.googleapis.com/token            (code exchange + refresh)
+ *   - GET  https://www.googleapis.com/drive/v3/about?fields=user
+ *                                                          (email + permissionId)
+ *   - POST https://oauth2.googleapis.com/revoke           (revoke at Google)
+ *
+ * Identity-source note: we deliberately do NOT call
+ * https://www.googleapis.com/oauth2/v3/userinfo here. That endpoint
+ * requires the `openid email` scopes, which would broaden our consent
+ * beyond `https://www.googleapis.com/auth/drive.file` (the
+ * scope-minimization contract codified in CLAUDE.md). The Drive API
+ * `about.get?fields=user` endpoint is reachable under `drive.file`
+ * alone and returns the same identifying fields:
+ *   - `user.permissionId`   → stable per-user id (= what userinfo's
+ *                              `sub` claim provides; persisted as
+ *                              gdrive_accounts.google_user_id)
+ *   - `user.emailAddress`   → consenting-account email (gdrive_accounts.google_email)
+ *   - `user.displayName`    → unused today, available if the UI ever
+ *                              wants a friendlier label
+ * This change was forced by the 2026-05-04 prod incident where the
+ * userinfo call returned 403 under drive.file scope and the OAuth
+ * callback threw `google_oauth_userinfo_failed` → 500.
  *
  * `invalid_grant` from the refresh endpoint is the "user revoked access"
  * signal — surfaced upward so the service maps it to TokenExpiredError.
@@ -55,17 +73,21 @@ export class FetchGoogleOAuthClient implements GoogleOAuthClient {
     if (!tokenJson.refresh_token) {
       throw new Error('google_oauth_no_refresh_token: prompt=consent missing?');
     }
-    const userRes = await this.fetchImpl('https://www.googleapis.com/oauth2/v3/userinfo', {
+    // Identity lookup under drive.file scope (see header comment for why
+    // this is `about.get` and NOT `oauth2/v3/userinfo`).
+    const aboutRes = await this.fetchImpl('https://www.googleapis.com/drive/v3/about?fields=user', {
       headers: { authorization: `Bearer ${tokenJson.access_token}` },
     });
-    if (!userRes.ok) throw new Error('google_oauth_userinfo_failed');
-    const user = (await userRes.json()) as { sub: string; email: string };
+    if (!aboutRes.ok) throw new Error('google_oauth_about_failed');
+    const aboutJson = (await aboutRes.json()) as {
+      user: { permissionId: string; emailAddress: string };
+    };
     return {
       refreshToken: tokenJson.refresh_token,
       accessToken: tokenJson.access_token,
       expiresAt: Date.now() + tokenJson.expires_in * 1000,
-      googleUserId: user.sub,
-      googleEmail: user.email,
+      googleUserId: aboutJson.user.permissionId,
+      googleEmail: aboutJson.user.emailAddress,
       scope: tokenJson.scope,
     };
   }
