@@ -107,4 +107,28 @@ describe('UserMenu', () => {
     await userEvent.click(item);
     expect(onDeleteAccount).not.toHaveBeenCalled();
   });
+
+  // Discoverability: /settings/integrations was added by the Drive-feature work
+  // but had no entry in the avatar dropdown — so authed users could not reach
+  // it without typing the URL. The gdrive-feature-manager skill forbids new
+  // top-level NAV_ITEMS, so the avatar dropdown is the natural home.
+  it('renders an Integrations menuitem when onOpenIntegrations is provided', async () => {
+    const onOpenIntegrations = vi.fn();
+    const { getByRole, queryByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} onOpenIntegrations={onOpenIntegrations} />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    await userEvent.click(getByRole('menuitem', { name: /integrations/i }));
+    expect(onOpenIntegrations).toHaveBeenCalledTimes(1);
+    // Activating an item closes the menu — same contract as Sign out / Export.
+    expect(queryByRole('menu')).toBeNull();
+  });
+
+  it('does NOT render Integrations when onOpenIntegrations is absent', async () => {
+    const { getByRole, queryByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    expect(queryByRole('menuitem', { name: /integrations/i })).toBeNull();
+  });
 });
