@@ -1,12 +1,20 @@
-name: Set GDrive OAuth env vars on prod (.env append + api restart)
+name: Set GDrive OAuth + KMS env vars on prod (.env append + api restart)
 
 # One-shot operator workflow. SSHes into the EC2 host and idempotently
-# appends `GDRIVE_OAUTH_CLIENT_ID`, `GDRIVE_OAUTH_CLIENT_SECRET`, and
-# `GDRIVE_OAUTH_REDIRECT_URI` to `/opt/seald/apps/api/.env` (mode 0600),
-# then force-recreates the api container so the new values are picked up.
+# appends the 5 GDrive runtime env vars to `/opt/seald/apps/api/.env`
+# (mode 0600), then force-recreates the api container so the new values
+# are picked up:
 #
-# Idempotent: re-running deletes any existing `^GDRIVE_OAUTH_*=` lines
-# before appending the new values, so re-runs serve as rotation.
+#   - GDRIVE_OAUTH_CLIENT_ID
+#   - GDRIVE_OAUTH_CLIENT_SECRET
+#   - GDRIVE_OAUTH_REDIRECT_URI
+#   - GDRIVE_TOKEN_KMS_KEY_ARN  (envelope-wrap CMK ARN, from terraform
+#                                output gdrive_token_kms_key_arn)
+#   - GDRIVE_TOKEN_KMS_REGION   (region the CMK lives in)
+#
+# Idempotent: re-running deletes any existing `^GDRIVE_OAUTH_*=` /
+# `^GDRIVE_TOKEN_KMS_*=` lines before appending the new values, so
+# re-runs serve as rotation.
 #
 # Durability note: `prod-restore.yml` rewrites `/opt/seald/apps/api/.env`
 # from the `PROD_API_ENV` GH secret. To survive a restore, fold these
@@ -24,7 +32,7 @@ permissions: {}
 
 jobs:
   set_env:
-    name: Append GDRIVE_OAUTH_* to host .env + restart api
+    name: Append GDRIVE_OAUTH_* + GDRIVE_TOKEN_KMS_* to host .env + restart api
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -34,13 +42,15 @@ jobs:
           GDRIVE_OAUTH_CLIENT_ID: ${{ secrets.GDRIVE_OAUTH_CLIENT_ID }}
           GDRIVE_OAUTH_CLIENT_SECRET: ${{ secrets.GDRIVE_OAUTH_CLIENT_SECRET }}
           GDRIVE_OAUTH_REDIRECT_URI: ${{ secrets.GDRIVE_OAUTH_REDIRECT_URI }}
+          GDRIVE_TOKEN_KMS_KEY_ARN: ${{ secrets.GDRIVE_TOKEN_KMS_KEY_ARN }}
+          GDRIVE_TOKEN_KMS_REGION: ${{ secrets.GDRIVE_TOKEN_KMS_REGION }}
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
           command_timeout: 6m
-          envs: GDRIVE_OAUTH_CLIENT_ID,GDRIVE_OAUTH_CLIENT_SECRET,GDRIVE_OAUTH_REDIRECT_URI
+          envs: GDRIVE_OAUTH_CLIENT_ID,GDRIVE_OAUTH_CLIENT_SECRET,GDRIVE_OAUTH_REDIRECT_URI,GDRIVE_TOKEN_KMS_KEY_ARN,GDRIVE_TOKEN_KMS_REGION
           # Strip the secrets from the script log if anything ever echoes
           # them. appleboy/ssh-action uses `set -x` only when explicitly
           # requested; we never enable it. The `tee` calls below redirect
@@ -55,12 +65,13 @@ jobs:
               exit 1
             fi
 
-            echo "=== Pre-state (count of GDRIVE_OAUTH_* lines, no values) ==="
+            echo "=== Pre-state (counts, no values) ==="
             sudo grep -cE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' "$ENV_FILE" || true
+            sudo grep -cE '^GDRIVE_TOKEN_KMS_(KEY_ARN|REGION)=' "$ENV_FILE" || true
 
-            echo "=== Strip any existing GDRIVE_OAUTH_* lines (idempotent rotate) ==="
+            echo "=== Strip any existing GDRIVE_* lines (idempotent rotate) ==="
             sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
-            sudo grep -vE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' \
+            sudo grep -vE '^GDRIVE_(OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)|TOKEN_KMS_(KEY_ARN|REGION))=' \
               "$ENV_FILE" > /tmp/.env.new
             sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
             rm -f /tmp/.env.new
@@ -72,20 +83,26 @@ jobs:
             CID=$(printf '%s' "$GDRIVE_OAUTH_CLIENT_ID" | tr -d '\r\n')
             CSE=$(printf '%s' "$GDRIVE_OAUTH_CLIENT_SECRET" | tr -d '\r\n')
             URI=$(printf '%s' "$GDRIVE_OAUTH_REDIRECT_URI" | tr -d '\r\n ')
+            KARN=$(printf '%s' "$GDRIVE_TOKEN_KMS_KEY_ARN" | tr -d '\r\n ')
+            KREG=$(printf '%s' "$GDRIVE_TOKEN_KMS_REGION" | tr -d '\r\n ')
 
             echo "=== Sanity (lengths only, no values) ==="
             echo "  CLIENT_ID len=${#CID} CLIENT_SECRET len=${#CSE} REDIRECT_URI len=${#URI}"
+            echo "  KMS_KEY_ARN len=${#KARN} KMS_REGION len=${#KREG}"
 
             echo "=== Append new values (no logging of values) ==="
             {
               printf 'GDRIVE_OAUTH_CLIENT_ID=%s\n' "$CID"
               printf 'GDRIVE_OAUTH_CLIENT_SECRET=%s\n' "$CSE"
               printf 'GDRIVE_OAUTH_REDIRECT_URI=%s\n' "$URI"
+              printf 'GDRIVE_TOKEN_KMS_KEY_ARN=%s\n' "$KARN"
+              printf 'GDRIVE_TOKEN_KMS_REGION=%s\n' "$KREG"
             } | sudo tee -a "$ENV_FILE" >/dev/null
             sudo chmod 0600 "$ENV_FILE"
 
-            echo "=== Post-state (count of GDRIVE_OAUTH_* lines, no values) ==="
+            echo "=== Post-state (counts, no values) ==="
             sudo grep -cE '^GDRIVE_OAUTH_(CLIENT_ID|CLIENT_SECRET|REDIRECT_URI)=' "$ENV_FILE"
+            sudo grep -cE '^GDRIVE_TOKEN_KMS_(KEY_ARN|REGION)=' "$ENV_FILE"
 
             echo "=== Force-recreate api container ==="
             cd /opt/seald
