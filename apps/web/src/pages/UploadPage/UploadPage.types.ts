@@ -33,6 +33,13 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   // Dropzone copy / limits -----------------------------------------------
   readonly title?: string | undefined;
   readonly subtitle?: string | undefined;
+  /**
+   * When `true`, the page-level `title` + `subtitle` block is omitted —
+   * useful when the host page already renders its own header chrome
+   * (e.g. the templates wizard's `DocumentTitleRow`) and only wants to
+   * embed the dropzone surface. Defaults to `false`.
+   */
+  readonly hideHeader?: boolean | undefined;
   readonly dropHeading?: string | undefined;
   readonly dropSubheading?: ReactNode | undefined;
   readonly chooseLabel?: string | undefined;
