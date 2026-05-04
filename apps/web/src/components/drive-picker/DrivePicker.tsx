@@ -114,12 +114,36 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     const builder = new picker.PickerBuilder()
       .setOAuthToken(creds.creds.accessToken)
       .setDeveloperKey(creds.creds.developerKey)
-      .setAppId(creds.creds.appId);
+      .setAppId(creds.creds.appId)
+      // Required for cross-origin postMessage from the picker iframe
+      // back to our SPA. Picker prod is at docs.google.com.
+      .setOrigin(window.location.origin);
 
-    for (const mime of MIMES_FOR_FILTER[mimeFilter]) {
-      const view = new picker.DocsView(picker.ViewId.DOCS).setMimeTypes(mime);
-      builder.addView(view);
-    }
+    // 2026-05-04 — single DocsView with comma-joined MIME types
+    // instead of one view per MIME. Reasons:
+    //   1. The picker labels each tab from its ViewId; passing
+    //      ViewId.DOCS three times rendered three identical
+    //      "Google Drive" tabs in prod.
+    //   2. setMimeTypes accepts a comma-separated list per
+    //      Google's Picker API ref:
+    //      https://developers.google.com/drive/picker/reference#docs-view
+    //   3. setIncludeFolders(true) re-enables folder navigation,
+    //      which was lost because every per-MIME view filtered
+    //      folders out (folders have application/vnd.google-apps.folder).
+    //      setSelectFolderEnabled(false) keeps "Select" disabled
+    //      until the user clicks an actual file.
+    //
+    // KNOWN ISSUE — Google-side: the modular picker's thumbnail
+    // requests to lh3.googleusercontent.com return without a
+    // Cross-Origin-Resource-Policy header, so Chrome's ORB blocks
+    // them with net::ERR_BLOCKED_BY_ORB. The picker still works
+    // for selection — only the thumbnail previews stay grey. Track:
+    // https://issuetracker.google.com (modular picker thumbnails).
+    const view = new picker.DocsView(picker.ViewId.DOCS)
+      .setMimeTypes(MIMES_FOR_FILTER[mimeFilter].join(','))
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false);
+    builder.addView(view);
 
     builder.setCallback((data) => {
       if (data.action === 'picked') {

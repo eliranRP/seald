@@ -30,6 +30,13 @@ export interface PickerBuilder {
   setOAuthToken(token: string): PickerBuilder;
   setDeveloperKey(key: string): PickerBuilder;
   setAppId(id: string): PickerBuilder;
+  /**
+   * Required when the picker iframe is embedded in a different origin
+   * than the parent — without it, Google's picker can't postMessage
+   * back the selection. Defensive even when origins match (HMR /
+   * preview deployments).
+   */
+  setOrigin(origin: string): PickerBuilder;
   addView(view: unknown): PickerBuilder;
   setCallback(cb: (data: PickerCallbackData) => void): PickerBuilder;
   build(): PickerInstance;
@@ -37,6 +44,10 @@ export interface PickerBuilder {
 
 export interface DocsViewBuilder {
   setMimeTypes(mimes: string): DocsViewBuilder;
+  /** Show folders in the listing so the user can navigate into them. */
+  setIncludeFolders(include: boolean): DocsViewBuilder;
+  /** When false, folders are visible but not selectable as a result. */
+  setSelectFolderEnabled(enabled: boolean): DocsViewBuilder;
 }
 
 export interface PickerNamespace {
