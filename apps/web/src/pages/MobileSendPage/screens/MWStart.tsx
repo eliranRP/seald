@@ -1,6 +1,8 @@
 import { ChevronRight, Camera, Upload } from 'lucide-react';
 import styled from 'styled-components';
 import { useRef } from 'react';
+import { isFeatureEnabled } from 'shared';
+import { GDriveLogo } from '@/features/gdriveImport/GDriveLogo';
 
 const Wrap = styled.div`
   padding: 8px 16px 24px;
@@ -91,6 +93,12 @@ const HiddenFileInput = styled.input`
 
 export interface MWStartProps {
   readonly onPickFile: (file: File) => void;
+  /**
+   * Tapping the "Import from Google Drive" tile. When undefined, the
+   * tile hides — feature flag off, or the parent page hasn't wired the
+   * Drive picker yet.
+   */
+  readonly onPickFromDrive?: () => void;
 }
 
 // 2026-05-03 (per user): the "From a template" tile was removed. The
@@ -101,9 +109,13 @@ export interface MWStartProps {
 // for now mobile users start from a phone-side PDF (Upload PDF) or a
 // camera capture (Take photo).
 export function MWStart(props: MWStartProps) {
-  const { onPickFile } = props;
+  const { onPickFile, onPickFromDrive } = props;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
+  // The Drive tile only renders when (a) the feature flag is on and (b)
+  // the parent has wired a handler. Both gates must hold so the dark
+  // build still tree-shakes the picker via the parent's flag check.
+  const showDriveTile = isFeatureEnabled('gdriveIntegration') && Boolean(onPickFromDrive);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const f = e.target.files?.[0];
@@ -137,6 +149,18 @@ export function MWStart(props: MWStartProps) {
           </TileText>
           <ChevronRight size={18} aria-hidden style={{ color: 'var(--fg-4)' }} />
         </Tile>
+        {showDriveTile && (
+          <Tile type="button" onClick={onPickFromDrive} aria-label="Import from Google Drive">
+            <TileIcon $accent="var(--indigo-600)" aria-hidden>
+              <GDriveLogo size={22} />
+            </TileIcon>
+            <TileText>
+              <TileTitle>Import from Google Drive</TileTitle>
+              <TileSub>Pick a file from your Drive</TileSub>
+            </TileText>
+            <ChevronRight size={18} aria-hidden style={{ color: 'var(--fg-4)' }} />
+          </Tile>
+        )}
       </Tiles>
       <HiddenFileInput
         ref={inputRef}

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
+import { isFeatureEnabled } from 'shared';
+import { MobileDrivePicker } from '@/components/mobile/MobileDrivePicker';
+import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
 import {
   Shell,
   Scroller,
@@ -84,8 +87,15 @@ const FIELD_TYPE_TO_API: Readonly<Record<MobileFieldType, FieldPlacement['kind']
  * desktop nav bar would dominate a 375 px viewport); the mobile flow has
  * its own stepper + sticky CTA.
  */
+// API base URL for full-page OAuth redirect. iOS Safari's popup blocker
+// silently swallows `window.open()` outside a synchronous user gesture
+// chain, so the mobile flow uses a top-level navigation. Pulled at
+// module-init from Vite's env (rule 3.2: no `any`).
+const GDRIVE_API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+
 export function MobileSendPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   // QA-2026-05-02 (Bug 2): pull `session` so the "Add me as signer" toggle
   // also works for anonymous Supabase sessions. `useAuth().user` is `null`
   // for anon sessions on purpose (NavBar, AppState gate on it), but the
@@ -133,6 +143,52 @@ export function MobileSendPage() {
          onClick doesn't see an unhandled rejection (rule 4.4). */
     });
   }, [downloadPdfFile, pdfFile]);
+
+  // ---- Google Drive integration (Phase 5, mobile-only) ----
+  // The picker is fully gated behind `feature.gdriveIntegration` AND a
+  // connected account; the dark build never mounts it. The OAuth flow
+  // is full-page redirect (Q2 in clarifications-mobile.md): iOS Safari
+  // silently blocks popup-based auth, and the redirect target carries a
+  // `return=/m/send/drive` so we can re-open the picker on come-back.
+  const gdriveOn = isFeatureEnabled('gdriveIntegration');
+  const accountsQuery = useGDriveAccounts();
+  const driveAccounts = gdriveOn ? (accountsQuery.data ?? []) : [];
+  const driveAccountId = driveAccounts[0]?.id ?? null;
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+
+  const beginDriveOAuth = useCallback((): void => {
+    if (!GDRIVE_API_BASE) return;
+    const ret = encodeURIComponent('/m/send/drive');
+    window.location.href = `${GDRIVE_API_BASE}/integrations/gdrive/oauth/start?return=${ret}`;
+  }, []);
+
+  const handlePickFromDrive = useCallback((): void => {
+    if (driveAccountId) {
+      setDrivePickerOpen(true);
+      return;
+    }
+    beginDriveOAuth();
+  }, [driveAccountId, beginDriveOAuth]);
+
+  const reauthorizeDrive = useCallback((): void => {
+    if (!GDRIVE_API_BASE) return;
+    const ret = encodeURIComponent('/m/send/drive');
+    window.location.href = `${GDRIVE_API_BASE}/integrations/gdrive/oauth/start?return=${ret}&prompt=consent`;
+  }, []);
+
+  // Auto-open the picker when the OAuth callback returned us to
+  // /m/send?gdrive_connected=1. Strip the param after consuming so a
+  // back-then-forward doesn't re-open the sheet uninvited (rule 4.4 —
+  // one effect, one responsibility).
+  useEffect(() => {
+    if (!gdriveOn) return;
+    if (searchParams.get('gdrive_connected') !== '1') return;
+    if (!driveAccountId) return;
+    setDrivePickerOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('gdrive_connected');
+    setSearchParams(next, { replace: true });
+  }, [gdriveOn, searchParams, driveAccountId, setSearchParams]);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
   const [meIncluded, setMeIncluded] = useState(false);
@@ -563,7 +619,10 @@ export function MobileSendPage() {
         {step === 'start' && (
           <>
             {fileError && <ErrorBanner role="alert">{fileError}</ErrorBanner>}
-            <MWStart onPickFile={handlePickFile} />
+            <MWStart
+              onPickFile={handlePickFile}
+              {...(gdriveOn ? { onPickFromDrive: handlePickFromDrive } : {})}
+            />
           </>
         )}
         {step === 'file' && pdfFile && (
@@ -684,6 +743,24 @@ export function MobileSendPage() {
         onAdd={addSignerLocal}
         existingEmails={existingSignerEmails}
       />
+
+      {/* Mobile Drive picker (Phase 5). Fully gated by the feature
+          flag + a connected account — the dark build never mounts it.
+          On pick, the imported PDF goes through the same handlePickFile
+          boundary as the upload and camera tiles so file-type / size
+          rejection stays consistent. */}
+      {gdriveOn && driveAccountId && (
+        <MobileDrivePicker
+          open={drivePickerOpen}
+          accountId={driveAccountId}
+          onClose={() => setDrivePickerOpen(false)}
+          onReconnect={reauthorizeDrive}
+          onPick={(file) => {
+            setDrivePickerOpen(false);
+            handlePickFile(file);
+          }}
+        />
+      )}
     </Shell>
   );
 }
