@@ -28,6 +28,10 @@ const SPA_EXACT = new Set([
 // 2026-05-02 outage where missing prefixes silently served the landing
 // HTML instead of rewriting to the SPA shell. Pinned by
 // `apps/web/src/routes/settings/integrations/_worker-spa-routing.test.ts`.
+// `/oauth/` was added 2026-05-04 with Bug G (Drive OAuth popup-bridge
+// route mounted outside AppShell to bypass the mobile-redirect rule).
+// Pinned by
+// `apps/web/src/pages/GDriveOAuthCallbackPage/_worker-spa-routing.test.ts`.
 const SPA_PREFIXES = [
   '/auth/',
   '/debug/',
@@ -37,6 +41,7 @@ const SPA_PREFIXES = [
   '/templates/',
   '/m/',
   '/settings/',
+  '/oauth/',
 ];
 
 function isSpaRoute(pathname) {

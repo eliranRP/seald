@@ -207,12 +207,16 @@ describe('GDriveController', () => {
     ).rejects.toMatchObject({ message: expect.stringContaining('oauth-declined') });
   });
 
-  it('GET /oauth/callback persists an account row and redirects to /settings/integrations', async () => {
+  it('GET /oauth/callback persists an account row and redirects to the popup-bridge route', async () => {
+    // Bug G (Phase 6.A iter-2 PROD, 2026-05-04): redirect target is the
+    // dedicated `/oauth/gdrive/callback` bridge (mounted OUTSIDE
+    // <AppShell />) so the popup is not mobile-redirected to /m/send
+    // before its postMessage + window.close() effect can run.
     const { ctrl, state, repo } = makeController();
     const started = state.start('user-1');
     const res = fakeRes();
     await ctrl.oauthCallback('the-code', started.state, undefined, res);
-    expect(res.redirectedTo).toMatch(/\/settings\/integrations/);
+    expect(res.redirectedTo).toMatch(/\/oauth\/gdrive\/callback\?connected=1/);
     const accounts = await repo.listForUser('user-1');
     expect(accounts).toHaveLength(1);
     expect(accounts[0]?.googleEmail).toBe('user@example.com');

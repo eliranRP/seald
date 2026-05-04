@@ -142,7 +142,14 @@ export class GDriveController {
       code,
       codeVerifier: entry.codeVerifier,
     });
-    res.redirect(`${this.config.appPublicUrl}/settings/integrations?connected=1`);
+    // Bug G (2026-05-04): redirect to the dedicated OAuth callback
+    // route mounted OUTSIDE <AppShell />. Landing on
+    // /settings/integrations directly tripped AppShell's mobile-redirect
+    // rule (≤ 640 px → /m/send) on the 480 × 720 popup, so the popup
+    // never closed. The new bridge page handles popup mode (postMessage
+    // back to the opener + window.close()) and same-tab fallback
+    // (redirects back to /settings/integrations?connected=1).
+    res.redirect(`${this.config.appPublicUrl}/oauth/gdrive/callback?connected=1`);
   }
 
   @Get('accounts')
