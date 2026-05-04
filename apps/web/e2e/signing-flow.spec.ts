@@ -168,6 +168,22 @@ test.describe('signing flow', () => {
       });
     });
 
+    // GET /verify/<short_code> → SigningDonePage now polls this endpoint
+    // (via useSealedDownload) so the recipient can download the sealed
+    // PDF. Without a mock the polling errors out and the Done page
+    // renders the failure-fallback alert (no Hero heading).
+    await page.route('**/verify/TEST-001', async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          envelope: { id: ENVELOPE_ID, short_code: 'TEST-001', status: 'completed' },
+          sealed_url: 'https://example.test/sealed.pdf',
+          chain_intact: true,
+        }),
+      });
+    });
+
     // GET /sign/pdf → tiny inline fixture so pdf.js doesn't 404 on the
     // fill page. Content is intentionally minimal; the fill page renders
     // even if rasterization fails.

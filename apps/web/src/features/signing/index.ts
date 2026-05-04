@@ -47,5 +47,7 @@ export type {
 } from './signingApi';
 export { readDoneSnapshot, writeDoneSnapshot, clearDoneSnapshot } from './doneSnapshot';
 export type { DoneSnapshot } from './doneSnapshot';
+export { useSealedDownload, SEALED_DOWNLOAD_KEY } from './useSealedDownload';
+export { safeDownloadName } from './safeDownloadName';
 export { reportSignerEvent, setSignerReporter } from './telemetry';
 export type { SignerEvent, SignerReporter } from './telemetry';
