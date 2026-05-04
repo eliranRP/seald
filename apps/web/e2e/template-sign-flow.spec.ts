@@ -358,6 +358,21 @@ async function installMocks(page: Page): Promise<ApiCallLog> {
     });
   });
 
+  // --- /verify/<short_code> — SigningDonePage polls this to surface
+  // the sealed-PDF download link. Without a mock the polling errors and
+  // the Done page renders the failure-fallback alert.
+  await page.route('**/verify/TPL-SIGN-01', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        envelope: { id: ENVELOPE_ID, short_code: 'TPL-SIGN-01', status: 'completed' },
+        sealed_url: 'https://example.test/sealed.pdf',
+        chain_intact: true,
+      }),
+    });
+  });
+
   // --- Signer PDF — small inline fixture so pdf.js doesn't 404 on /fill.
   await page.route('**/sign/pdf', async (route: Route) => {
     log.signPdf += 1;
