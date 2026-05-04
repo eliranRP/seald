@@ -492,7 +492,9 @@
     "gotenberg",
     "unwired",
     "KARN",
-    "KREG"
+    "KREG",
+    "HSTS",
+    "hsts"
   ],
   "ignoreRegExpList": [
     "Base64",
