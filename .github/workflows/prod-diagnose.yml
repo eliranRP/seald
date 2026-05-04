@@ -60,6 +60,13 @@ jobs:
             sudo docker inspect -f '{{json .State.Health}}' \
               $(sudo docker compose ps -q api) 2>&1 | head -200 || true
 
+            echo '=== docker compose logs gotenberg (last 200) ==='
+            sudo docker compose logs --tail=200 gotenberg 2>&1 || true
+
+            echo '=== docker inspect gotenberg state ==='
+            sudo docker inspect -f '{{json .State}}' \
+              $(sudo docker compose ps -q gotenberg) 2>&1 | head -200 || true
+
             echo '=== disk space ==='
             df -h / /opt 2>&1 || true
 
