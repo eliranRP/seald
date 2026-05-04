@@ -1,0 +1,84 @@
+name: Strip GDRIVE_PICKER_* from prod .env (force Secrets Manager fallback) + restart api
+
+# One-shot operator workflow. The api container's entrypoint preferences
+# env_file values over Secrets Manager: it only fills a key from the
+# secret blob when the variable is currently UNSET (`[ -z "${VAR+x}" ]`).
+# If `apps/api/.env` on EC2 has `GDRIVE_PICKER_DEVELOPER_KEY=` /
+# `GDRIVE_PICKER_APP_ID=` (set-but-empty placeholder lines), the
+# Secrets Manager fallback never fires and the picker controller
+# returns 503 → SPA renders "Drive picker isn't available".
+#
+# This workflow strips those lines so the entrypoint pulls real values
+# from AWS Secrets Manager (id $SEALD_API_SECRET_ID, region us-east-2).
+# Idempotent — running it on a host that already lacks those lines is
+# a no-op (defensive grep -v + force-recreate).
+#
+# Durability note: `prod-restore.yml` rewrites `/opt/seald/apps/api/.env`
+# from the `PROD_API_ENV` GH secret. If PROD_API_ENV contains empty
+# `GDRIVE_PICKER_*=` lines, this workflow needs to be re-run after any
+# restore. The durable fix is to remove those lines from PROD_API_ENV.
+#
+# Manual trigger only.
+
+on:
+  workflow_dispatch: {}
+
+# SSH-only — uses DEPLOY_SSH_KEY. No secret values are read or echoed.
+permissions: {}
+
+jobs:
+  strip_env:
+    name: Strip GDRIVE_PICKER_* from .env + restart api
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: SSH strip + restart
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 6m
+          script: |
+            set -euo pipefail
+
+            ENV_FILE=/opt/seald/apps/api/.env
+
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "ERROR: $ENV_FILE not found — host may be in an unexpected state. Run prod-restore.yml first." >&2
+              exit 1
+            fi
+
+            echo "=== Pre-state (counts of GDRIVE_PICKER_* lines, no values) ==="
+            sudo grep -cE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' "$ENV_FILE" || true
+
+            echo "=== Strip any GDRIVE_PICKER_* lines (idempotent) ==="
+            sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
+            sudo grep -vE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' \
+              "$ENV_FILE" > /tmp/.env.new
+            sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
+            rm -f /tmp/.env.new
+
+            echo "=== Post-state (should be 0) ==="
+            sudo grep -cE '^GDRIVE_PICKER_(DEVELOPER_KEY|APP_ID)=' "$ENV_FILE" || true
+
+            echo "=== Force-recreate api container (Secrets Manager fills picker keys at boot) ==="
+            cd /opt/seald
+            sudo docker compose up -d --force-recreate api
+
+            echo "=== Wait for api healthcheck (max 90s) ==="
+            for i in $(seq 1 30); do
+              status=$(sudo docker inspect -f '{{.State.Health.Status}}' \
+                $(sudo docker compose ps -q api) 2>/dev/null || echo unknown)
+              echo "  [$i/30] api health=$status"
+              if [ "$status" = "healthy" ]; then
+                echo "api healthy."
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "ERROR: api never reached healthy state" >&2
+            sudo docker compose logs --tail=80 api
+            exit 1
