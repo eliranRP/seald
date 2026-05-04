@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
 import styled from 'styled-components';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
@@ -154,6 +155,17 @@ export function AppShell() {
 
   const mode = !user && guest ? 'guest' : 'authed';
 
+  // Discoverability for /settings/integrations — only an entry in the
+  // avatar dropdown when the feature is on AND the user is authed. Guest
+  // mode + flag-off both render the menu without the row, so the dropdown
+  // stays lean. The `gdrive-feature-manager` skill forbids new top-level
+  // NAV_ITEMS, so this is the canonical home for the entry point.
+  const handleOpenIntegrations = useCallback((): void => {
+    navigate('/settings/integrations');
+  }, [navigate]);
+  const onOpenIntegrations =
+    mode === 'authed' && isFeatureEnabled('gdriveIntegration') ? handleOpenIntegrations : undefined;
+
   // 2026-05-03 (refined a second time per user) — the desktop AppShell
   // pages (/documents, /templates, /signers, /document/<id>,
   // /document/new, /templates/:id/use, /templates/:id/edit) were not
@@ -182,6 +194,7 @@ export function AppShell() {
         onSignOut={handleSignOut}
         onExportData={mode === 'authed' ? account.exportData : undefined}
         onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
+        onOpenIntegrations={onOpenIntegrations}
         isExporting={account.isExporting}
         isDeleting={account.isDeleting}
       />

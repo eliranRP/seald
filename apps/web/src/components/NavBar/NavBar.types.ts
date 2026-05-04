@@ -32,6 +32,13 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
   readonly onExportData?: (() => void) | undefined;
   /** Optional — wires the UserMenu's "Delete account" danger item. */
   readonly onDeleteAccount?: (() => void) | undefined;
+  /**
+   * Optional — wires the UserMenu's "Integrations" item that navigates
+   * to /settings/integrations (Google Drive feature). Pass `undefined`
+   * to hide the item (e.g. when the feature flag is off, or in guest
+   * mode).
+   */
+  readonly onOpenIntegrations?: (() => void) | undefined;
   /** Mirrors UserMenu.isExporting; disables the item while in flight. */
   readonly isExporting?: boolean | undefined;
   /** Mirrors UserMenu.isDeleting; disables the item while in flight. */

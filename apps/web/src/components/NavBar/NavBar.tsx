@@ -45,6 +45,7 @@ interface RightClusterArgs {
   readonly onSignOut: (() => void) | undefined;
   readonly onExportData: (() => void) | undefined;
   readonly onDeleteAccount: (() => void) | undefined;
+  readonly onOpenIntegrations: (() => void) | undefined;
   readonly isExporting: boolean;
   readonly isDeleting: boolean;
 }
@@ -58,6 +59,7 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
     onSignOut,
     onExportData,
     onDeleteAccount,
+    onOpenIntegrations,
     isExporting,
     isDeleting,
   } = args;
@@ -88,6 +90,7 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
         onSignOut={onSignOut}
         {...(onExportData ? { onExportData } : {})}
         {...(onDeleteAccount ? { onDeleteAccount } : {})}
+        {...(onOpenIntegrations ? { onOpenIntegrations } : {})}
         isExporting={isExporting}
         isDeleting={isDeleting}
       />
@@ -140,6 +143,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     onSignOut,
     onExportData,
     onDeleteAccount,
+    onOpenIntegrations,
     isExporting = false,
     isDeleting = false,
     ...rest
@@ -206,6 +210,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
           onSignOut,
           onExportData,
           onDeleteAccount,
+          onOpenIntegrations,
           isExporting,
           isDeleting,
         })}

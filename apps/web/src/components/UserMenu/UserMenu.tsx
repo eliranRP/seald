@@ -15,6 +15,7 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
     onSignOut,
     onExportData,
     onDeleteAccount,
+    onOpenIntegrations,
     isExporting = false,
     isDeleting = false,
     ...rest
@@ -55,6 +56,12 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
     setOpen(false);
     onDeleteAccount();
   }, [onDeleteAccount]);
+
+  const handleOpenIntegrations = useCallback((): void => {
+    if (!onOpenIntegrations) return;
+    setOpen(false);
+    onOpenIntegrations();
+  }, [onOpenIntegrations]);
 
   // Forward the external ref to the wrapper, but keep the internal ref for
   // outside-click detection.
@@ -99,6 +106,11 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
               aria-busy={isExporting || undefined}
             >
               {isExporting ? 'Preparing download…' : 'Download my data'}
+            </Item>
+          ) : null}
+          {onOpenIntegrations ? (
+            <Item type="button" role="menuitem" onClick={handleOpenIntegrations}>
+              Integrations
             </Item>
           ) : null}
           <Item type="button" role="menuitem" onClick={handleSignOut}>
