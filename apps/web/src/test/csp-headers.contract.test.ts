@@ -71,6 +71,24 @@ describe('CSP contract — apps/landing/public/_headers', () => {
   });
 
   /**
+   * Production bug (2026-05-04): after a user signed, the optimistic
+   * signature preview rendered through `URL.createObjectURL(blob)` in
+   * `useSigning.ts` was blocked by CSP — the network panel showed
+   * `blob:https://seald.nromomentum.com/...` as `(blocked:csp)`. Our
+   * `img-src` allowed `data:` but not `blob:`. Pin the allowance so a
+   * future tightening that drops `blob:` re-breaks the signature
+   * preview at unit-test time, not on prod.
+   *
+   * blob: URLs are same-origin object URLs — they cannot leak data
+   * cross-origin and are widely accepted as safe for img-src.
+   */
+  it('img-src allows blob: so optimistic signature previews render', () => {
+    const csp = loadCsp();
+    const sources = directive(csp, 'img-src');
+    expect(sources).toContain('blob:');
+  });
+
+  /**
    * Production bug (2026-05-04): with the Drive picker backend wired
    * up and `GDRIVE_PICKER_DEVELOPER_KEY`/`GDRIVE_PICKER_APP_ID` loaded
    * on the API host, end users still saw "Couldn't load Google's
