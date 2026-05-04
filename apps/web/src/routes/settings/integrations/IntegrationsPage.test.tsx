@@ -31,6 +31,13 @@ describe('IntegrationsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     openSpy.mockReset();
+    // Reset OAuth-popup-bridge mocks between tests so a popup-mode case
+    // doesn't leak into the next render.
+    Object.defineProperty(window, 'opener', {
+      value: null,
+      writable: true,
+      configurable: true,
+    });
   });
 
   it('renders the breadcrumb + page title (no SettingsLayout / left rail)', async () => {
@@ -209,6 +216,144 @@ describe('IntegrationsPage', () => {
     // Both buttons usable for retry/back-out.
     expect(within(dialog).getByRole('button', { name: /^disconnect$/i })).not.toBeDisabled();
     expect(within(dialog).getByRole('button', { name: /cancel/i })).not.toBeDisabled();
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Bug F (Phase 6.A iter-2 PROD, 2026-05-04). After the userinfo→about
+  // fix shipped (PR #132), the OAuth round-trip succeeds at the API but
+  // the popup never closes and the parent tab never refreshes — the
+  // user has to manually close the popup and reload /settings/integrations
+  // to see the connected row. The fix is a postMessage handshake:
+  //   - popup lands on /settings/integrations?connected=1, posts
+  //     { type: 'gdrive-oauth-complete' } to window.opener (same-origin
+  //     SPA), then window.close()
+  //   - parent listens for that message + invalidates the accounts query
+  //   - same-tab fallback (no opener — popup blocker collapsed it into
+  //     the parent tab) strips ?connected=1 + invalidates inline
+  // ────────────────────────────────────────────────────────────────────
+
+  it('popup mode: posts gdrive-oauth-complete to opener and closes the window', async () => {
+    const postMessageSpy = vi.fn();
+    const closeSpy = vi.fn();
+    const fakeOpener = { postMessage: postMessageSpy, closed: false } as unknown as Window;
+    Object.defineProperty(window, 'opener', {
+      value: fakeOpener,
+      writable: true,
+      configurable: true,
+    });
+    Object.defineProperty(window, 'close', {
+      value: closeSpy,
+      writable: true,
+      configurable: true,
+    });
+    mockedGet.mockResolvedValue({ data: [], status: 200 });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/settings/integrations?connected=1']}>
+        <IntegrationsPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(postMessageSpy).toHaveBeenCalledWith(
+        { type: 'gdrive-oauth-complete' },
+        window.location.origin,
+      );
+    });
+    await waitFor(() => expect(closeSpy).toHaveBeenCalled());
+  });
+
+  it('same-tab fallback (no opener + ?connected=1): refetches accounts so the row appears', async () => {
+    let getCallCount = 0;
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        getCallCount += 1;
+        if (getCallCount === 1) {
+          return Promise.resolve({ data: [], status: 200 });
+        }
+        return Promise.resolve({
+          data: [
+            {
+              id: 'acc-1',
+              email: 'eliran@example.com',
+              connectedAt: '2026-05-04T10:00:00Z',
+              lastUsedAt: null,
+            },
+          ],
+          status: 200,
+        });
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/settings/integrations?connected=1']}>
+        <IntegrationsPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('eliran@example.com')).toBeInTheDocument();
+    expect(getCallCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it('parent: same-origin gdrive-oauth-complete message invalidates the accounts query', async () => {
+    let getCallCount = 0;
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        getCallCount += 1;
+        if (getCallCount === 1) {
+          return Promise.resolve({ data: [], status: 200 });
+        }
+        return Promise.resolve({
+          data: [
+            {
+              id: 'acc-1',
+              email: 'eliran@example.com',
+              connectedAt: '2026-05-04T10:00:00Z',
+              lastUsedAt: null,
+            },
+          ],
+          status: 200,
+        });
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+    renderPage();
+    await screen.findByRole('button', { name: /connect google drive/i });
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'gdrive-oauth-complete' },
+        origin: window.location.origin,
+      }),
+    );
+
+    expect(await screen.findByText('eliran@example.com')).toBeInTheDocument();
+  });
+
+  it('parent: ignores oauth-complete messages from a foreign origin (CSRF defence)', async () => {
+    let getCallCount = 0;
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        getCallCount += 1;
+        return Promise.resolve({ data: [], status: 200 });
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+    renderPage();
+    await screen.findByRole('button', { name: /connect google drive/i });
+    const initialCount = getCallCount;
+
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'gdrive-oauth-complete' },
+        origin: 'https://evil.example.com',
+      }),
+    );
+
+    // Wait one tick so any handler would have fired.
+    await new Promise((r) => setTimeout(r, 50));
+    expect(getCallCount).toBe(initialCount);
   });
 
   it('confirming Disconnect calls the delete mutation with the account id', async () => {

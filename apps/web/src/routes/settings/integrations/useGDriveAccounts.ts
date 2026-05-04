@@ -1,5 +1,23 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient, type ApiError } from '@/lib/api/apiClient';
+
+/**
+ * Postmessage envelope sent by the OAuth-callback popup back to its
+ * opener (the SPA tab that triggered the connect click). Same-origin
+ * only — the listener cross-checks `event.origin` against the SPA's
+ * own origin so a foreign tab cannot poke the parent into refetching.
+ */
+export const GDRIVE_OAUTH_COMPLETE_MESSAGE = 'gdrive-oauth-complete' as const;
+type GdriveOAuthCompleteMessage = { readonly type: typeof GDRIVE_OAUTH_COMPLETE_MESSAGE };
+
+function isOAuthCompleteMessage(data: unknown): data is GdriveOAuthCompleteMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as { type?: unknown }).type === GDRIVE_OAUTH_COMPLETE_MESSAGE
+  );
+}
 
 /**
  * View model for a connected Google Drive account, mirroring the API
@@ -62,6 +80,76 @@ export function useConnectGDrive() {
       window.open(res.data.url, 'gdrive-oauth', POPUP_FEATURES);
     },
   });
+}
+
+/**
+ * Bridge effect for the OAuth-callback popup landing page. The API
+ * redirects the popup to `/settings/integrations?connected=1` after a
+ * successful token exchange. This hook detects that landing and either:
+ *   - Popup mode: postMessage `gdrive-oauth-complete` back to the
+ *     opener (same-origin SPA tab) so the parent invalidates its
+ *     accounts query, then `window.close()` the popup.
+ *   - Same-tab fallback (no opener — popup-blocker collapsed it into
+ *     the parent tab): invalidate the accounts query inline.
+ *
+ * Returns a flag the page can use to render a tiny "Closing…" surface
+ * so the popup doesn't briefly flash the full integrations UI before
+ * dying. Bug F (Phase 6.A iter-2 PROD, 2026-05-04).
+ */
+export function useGDriveOAuthCallbackBridge(isCallbackReturn: boolean): boolean {
+  const qc = useQueryClient();
+  const opener = typeof window !== 'undefined' ? window.opener : null;
+  const isPopupBridge = isCallbackReturn && Boolean(opener) && opener !== window;
+  useEffect(() => {
+    if (!isCallbackReturn) return;
+    if (opener && opener !== window) {
+      try {
+        (opener as Window).postMessage(
+          { type: GDRIVE_OAUTH_COMPLETE_MESSAGE },
+          window.location.origin,
+        );
+      } catch {
+        // postMessage on a same-origin opener should not throw, but if
+        // the parent has navigated away the call is a no-op — fall
+        // through to window.close() so the popup still goes away.
+      }
+      window.close();
+      return;
+    }
+    // Same-tab fallback: popup blocker collapsed the popup into the
+    // parent tab, so we land on /settings/integrations?connected=1
+    // inline. We can't rely on window.postMessage-to-self in every
+    // environment (jsdom test runner drops the origin), so invalidate
+    // the accounts query directly. Defer with a macrotask
+    // (setTimeout 0) so the initial fetch from useGDriveAccounts has
+    // settled before the invalidate fires — invalidate during an
+    // in-flight fetch is deduped, leaving the empty list visible.
+    const timer = setTimeout(() => {
+      void qc.invalidateQueries({ queryKey: GDRIVE_ACCOUNTS_KEY });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [isCallbackReturn, opener, qc]);
+  return isPopupBridge;
+}
+
+/**
+ * Companion listener for the parent SPA tab. Subscribes to `message`
+ * events and, when a same-origin `gdrive-oauth-complete` arrives,
+ * invalidates the accounts query so the connected row appears without
+ * a reload. Pairs with `useGDriveOAuthCallbackBridge` running inside
+ * the popup.
+ */
+export function useGDriveOAuthMessageListener(): void {
+  const qc = useQueryClient();
+  useEffect(() => {
+    function handler(event: MessageEvent): void {
+      if (event.origin !== window.location.origin) return;
+      if (!isOAuthCompleteMessage(event.data)) return;
+      void qc.invalidateQueries({ queryKey: GDRIVE_ACCOUNTS_KEY });
+    }
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [qc]);
 }
 
 /**
