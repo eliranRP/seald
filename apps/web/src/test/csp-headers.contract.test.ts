@@ -69,4 +69,45 @@ describe('CSP contract — apps/landing/public/_headers', () => {
     expect(sources).toContain('data:');
     expect(sources).toContain('https://static.cloudflareinsights.com');
   });
+
+  /**
+   * Production bug (2026-05-04): with the Drive picker backend wired
+   * up and `GDRIVE_PICKER_DEVELOPER_KEY`/`GDRIVE_PICKER_APP_ID` loaded
+   * on the API host, end users still saw "Couldn't load Google's
+   * Drive picker — The Google picker library failed to load." The
+   * SPA's CSP `script-src 'self' https://static.cloudflareinsights.com`
+   * blocked `https://apis.google.com/js/api.js` (the bootstrap script
+   * `useGoogleApi` injects), the `connect-src` blocked the Picker /
+   * Drive API XHRs, and `default-src 'self'` (no `frame-src`
+   * override) blocked the picker's iframe at `docs.google.com`. Pin
+   * the contract so a future tightening that re-breaks any of these
+   * fails CI here, not on prod.
+   */
+  describe('Drive picker allowances', () => {
+    it('script-src allows https://apis.google.com so gapi loader can fetch /js/api.js', () => {
+      const csp = loadCsp();
+      const sources = directive(csp, 'script-src');
+      expect(sources).toContain('https://apis.google.com');
+    });
+
+    it('connect-src allows Google APIs so picker can reach Drive + Picker endpoints', () => {
+      const csp = loadCsp();
+      const sources = directive(csp, 'connect-src');
+      const allowsGoogleApis = sources.some(
+        (s) => s === 'https://www.googleapis.com' || s === 'https://*.googleapis.com',
+      );
+      expect(
+        allowsGoogleApis,
+        `connect-src missing googleapis.com host (got: ${sources.join(' ')})`,
+      ).toBe(true);
+      expect(sources).toContain('https://content.googleapis.com');
+    });
+
+    it('frame-src allows https://docs.google.com so the picker iframe renders', () => {
+      const csp = loadCsp();
+      const sources = directive(csp, 'frame-src');
+      expect(sources).toContain('https://docs.google.com');
+      expect(sources).toContain('https://accounts.google.com');
+    });
+  });
 });
