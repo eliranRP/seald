@@ -14,7 +14,6 @@ import { usePdfDocument } from '../lib/pdf';
 import {
   ConversionFailedDialog,
   ConversionProgressDialog,
-  DriveSourceCard,
   useDriveImport,
 } from '../features/gdriveImport';
 import { useConnectGDrive, useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
@@ -378,24 +377,19 @@ export function UploadRoute() {
         time the file lands.
       */}
       {!pdfFile || (pdfFile && numPages <= 0) ? (
-        <>
-          <UploadPage
-            onFileSelected={handleFileSelected}
-            status={pdfFile ? 'analyzing' : 'idle'}
-            {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
-            {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
-            templateBannerTone={bannerTone}
-            {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
-            {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
-          />
-          {gdriveOn ? (
-            <DriveSourceCard
-              connected={driveAccountId !== null}
-              onPickDrive={() => setDrivePickerOpen(true)}
-              onConnect={handleConnectDrive}
-            />
-          ) : null}
-        </>
+        <UploadPage
+          onFileSelected={handleFileSelected}
+          status={pdfFile ? 'analyzing' : 'idle'}
+          {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
+          {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
+          templateBannerTone={bannerTone}
+          {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
+          {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
+          {...(gdriveOn && driveAccountId !== null
+            ? { onPickDrive: () => setDrivePickerOpen(true) }
+            : {})}
+          {...(gdriveOn && driveAccountId === null ? { onConnectDrive: handleConnectDrive } : {})}
+        />
       ) : (
         <SignersStepCard
           mode="new"

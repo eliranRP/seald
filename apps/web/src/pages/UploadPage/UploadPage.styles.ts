@@ -331,6 +331,17 @@ export const TemplatePromptDivider = styled.div`
 
 export const TemplatePromptHint = styled.span``;
 
+/**
+ * Vertical pipe between the Template and Drive secondary actions in
+ * the dropzone footer prompt row. Decorative — `aria-hidden` at the
+ * call site so screen readers don't announce a stray pipe character.
+ */
+export const TemplatePromptDot = styled.span`
+  color: ${({ theme }) => theme.color.fg[4]};
+  font-size: 12px;
+  user-select: none;
+`;
+
 export const TemplatePromptLink = styled.button`
   appearance: none;
   background: transparent;

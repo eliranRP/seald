@@ -2,8 +2,6 @@ export {
   ConversionFailedDialog,
   MESSAGES as CONVERSION_FAILED_MESSAGES,
 } from './ConversionFailedDialog';
-export { DriveSourceCard } from './DriveSourceCard';
-export type { DriveSourceCardProps } from './DriveSourceCard';
 export { DriveTemplateReplaceButton } from './DriveTemplateReplaceButton';
 export type { ConversionFailedDialogProps } from './ConversionFailedDialog';
 export { ConversionProgressDialog } from './ConversionProgressDialog';
