@@ -44,9 +44,16 @@ data "aws_region" "current" {}
 # - customer_master_key_spec = SYMMETRIC_DEFAULT — required for
 #   GenerateDataKey / Decrypt envelope-encryption pattern.
 # - key_usage = ENCRYPT_DECRYPT — paired with the spec above.
-# - enable_key_rotation = true — AWS supports automatic annual rotation
-#   for symmetric CMKs at zero cost. Past ciphertexts remain decryptable
-#   (KMS keeps prior key material) so rotation is transparent to the API.
+# - enable_key_rotation is intentionally OMITTED (defaults to false).
+#   AWS supports automatic annual rotation for symmetric CMKs, but
+#   enabling it requires kms:EnableKeyRotation on the deployer
+#   principal. The bootstrap `seald-github-actions` IAM user does not
+#   currently hold that permission (it was never needed for the
+#   sealing-kms key, which is asymmetric and cannot rotate). Adding
+#   the perm + flipping this flag back on is tracked as a separate
+#   hardening follow-up — the wrap algorithm (AES-256-GCM via envelope
+#   encryption) is the security boundary; periodic rotation is a
+#   defence-in-depth nice-to-have, not a blocker for the OAuth flow.
 # - deletion_window_in_days = 30 — losing the key means every persisted
 #   refresh token is unrecoverable and every connected user must
 #   re-consent. Maximum window gives plenty of recovery time.
@@ -55,7 +62,6 @@ resource "aws_kms_key" "gdrive_token" {
   description              = "Seald Google Drive OAuth token wrapping key (${var.environment}) — symmetric ENCRYPT_DECRYPT, used by DriveKmsService"
   customer_master_key_spec = "SYMMETRIC_DEFAULT"
   key_usage                = "ENCRYPT_DECRYPT"
-  enable_key_rotation      = true
   deletion_window_in_days  = 30
   is_enabled               = true
 
