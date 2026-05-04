@@ -4,7 +4,6 @@ import { ArrowRight, Bookmark, Info, UploadCloud } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { Button } from '@/components/Button';
-import { DropArea } from '@/components/DropArea';
 import { Icon } from '@/components/Icon';
 import { SignersStepCard } from '@/components/SignersStepCard';
 import type { SignersStepSigner } from '@/components/SignersStepCard';
@@ -14,9 +13,9 @@ import { DrivePicker } from '@/components/drive-picker';
 import {
   ConversionFailedDialog,
   ConversionProgressDialog,
-  DriveTemplateReplaceButton,
   useDriveImport,
 } from '@/features/gdriveImport';
+import { UploadPage } from '@/pages/UploadPage';
 import {
   useConnectGDrive,
   useGDriveAccounts,
@@ -36,8 +35,6 @@ import {
   NotFoundCard,
   NotFoundLede,
   NotFoundTitle,
-  NewDocHeading,
-  NewDocLede,
   Page,
   SavedDocBody,
   SavedDocCard,
@@ -380,19 +377,7 @@ export function UseTemplatePage() {
       {step === 1 ? (
         <StepBody>
           <StepInner $wide>
-            {isNewTemplate ? (
-              // New-mode hero: matches the design guide's UploadScreen
-              // (`Design-Guide/.../UseTemplate.jsx` DocumentStep mode 'new').
-              // Big serif heading + lede over the dropzone — no segmented
-              // chooser because there's no saved doc to fall back to.
-              <div>
-                <NewDocHeading>Upload an example document</NewDocHeading>
-                <NewDocLede>
-                  A representative copy works best — we&apos;ll use it to place fields. Real
-                  documents go in later.
-                </NewDocLede>
-              </div>
-            ) : (
+            {!isNewTemplate ? (
               <DocumentTitleRow>
                 <DocumentTitle>Document</DocumentTitle>
                 <TooltipWrap
@@ -415,7 +400,7 @@ export function UseTemplatePage() {
                   ) : null}
                 </TooltipWrap>
               </DocumentTitleRow>
-            )}
+            ) : null}
 
             {!isNewTemplate ? (
               <Segmented role="radiogroup" aria-label="Document source">
@@ -510,28 +495,39 @@ export function UseTemplatePage() {
                     </Button>
                   </SavedDocCard>
                 ) : (
-                  <>
-                    <DropArea
-                      onFileSelected={(f) => {
-                        setUploadError(null);
-                        setPendingFile(f);
-                      }}
-                      onError={(_, message) => setUploadError(message)}
-                      heading={template ? 'Drop a different PDF' : 'Drop a sample PDF'}
-                      subheading={
-                        template ? 'Saved layout will snap onto it · up to 25 MB' : 'up to 25 MB'
-                      }
-                    />
-                    {gdriveOn ? (
-                      <div style={{ marginTop: 12 }}>
-                        <DriveTemplateReplaceButton
-                          connected={driveAccountId !== null}
-                          onPickDrive={() => setDrivePickerOpen(true)}
-                          onConnect={handleConnectDrive}
-                        />
-                      </div>
-                    ) : null}
-                  </>
+                  // Reuse the Sign-flow's UploadPage so the secondary
+                  // actions row (Drive picker / Connect Drive) lives
+                  // INSIDE the dropzone — same layout pattern as
+                  // `/document/new`. Pre-2026-05-04 the templates flow
+                  // hosted Drive as a wide standalone card below the
+                  // dropzone (DriveTemplateReplaceButton); the inline
+                  // composition matches the operator design feedback
+                  // and treats Drive as a peer of "Choose file".
+                  <UploadPage
+                    hideHeader={!isNewTemplate}
+                    {...(isNewTemplate
+                      ? {
+                          title: 'Upload an example document',
+                          subtitle:
+                            "A representative copy works best — we'll use it to place fields. Real documents go in later.",
+                        }
+                      : {})}
+                    dropHeading={template ? 'Drop a different PDF' : 'Drop a sample PDF'}
+                    {...(template
+                      ? { dropSubheading: 'Saved layout will snap onto it · up to 25 MB' }
+                      : {})}
+                    onFileSelected={(f) => {
+                      setUploadError(null);
+                      setPendingFile(f);
+                    }}
+                    onError={(_, message) => setUploadError(message)}
+                    {...(gdriveOn && driveAccountId !== null
+                      ? { onPickDrive: () => setDrivePickerOpen(true) }
+                      : {})}
+                    {...(gdriveOn && driveAccountId === null
+                      ? { onConnectDrive: handleConnectDrive }
+                      : {})}
+                  />
                 )}
                 {uploadError ? <FooterHint role="alert">{uploadError}</FooterHint> : null}
               </>

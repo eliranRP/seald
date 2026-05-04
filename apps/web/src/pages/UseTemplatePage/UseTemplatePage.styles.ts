@@ -53,30 +53,6 @@ export const StepLede = styled.p`
   max-width: 560px;
 `;
 
-/**
- * "Upload an example document" — Step 1 heading used by the `new`
- * mode path (no segmented chooser, just an upload prompt).
- * Centered hero-style heading + lede, mirrors the design guide's
- * UploadScreen visuals.
- */
-export const NewDocHeading = styled.h1`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: 36px;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  letter-spacing: -0.02em;
-  line-height: 1.15;
-  margin: 0;
-  color: ${({ theme }) => theme.color.fg[1]};
-`;
-
-export const NewDocLede = styled.p`
-  font-size: 14px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  margin: 8px 0 0;
-  line-height: 1.55;
-  max-width: 640px;
-`;
-
 export const StepFooter = styled.div`
   display: flex;
   align-items: center;
