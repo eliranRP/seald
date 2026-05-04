@@ -101,8 +101,15 @@ export class GDriveService {
 
   /**
    * Completes the OAuth dance: exchanges `code` for tokens, encrypts the
-   * refresh token via KMS envelope, and inserts a new `gdrive_accounts`
-   * row owned by `userId`. Returns the inserted row id.
+   * refresh token via KMS envelope, and persists a `gdrive_accounts` row
+   * owned by `userId`. Returns the row id.
+   *
+   * Idempotent on (userId, googleUserId): if an active row already exists
+   * for that pair, rotate its token in place and return its id. Without
+   * this short-circuit, the partial UNIQUE index
+   * `gdrive_accounts_user_google_uniq` (migration 0013) fires a Postgres
+   * 23505 on the second connect and the popup surfaces `internal_error`
+   * (Bug H, Phase 6.A iter-2 PROD, 2026-05-04).
    */
   async completeOAuth(args: {
     userId: string;
@@ -111,6 +118,23 @@ export class GDriveService {
   }): Promise<string> {
     const exchange = await this.google.exchangeCode(args.code, args.codeVerifier);
     const enc = await this.kms.encrypt(exchange.refreshToken);
+    const existing = await this.repo.findActiveByUserAndGoogleUser(
+      args.userId,
+      exchange.googleUserId,
+    );
+    if (existing) {
+      await this.repo.replaceToken({
+        id: existing.id,
+        refreshTokenCiphertext: enc.ciphertext,
+        refreshTokenKmsKeyArn: enc.kmsKeyArn,
+        scope: exchange.scope,
+        googleEmail: exchange.googleEmail,
+      });
+      // Drop any cached access token tied to the old refresh token so the
+      // next getAccessToken() pulls a fresh one.
+      this.cache.delete(existing.id);
+      return existing.id;
+    }
     const id = newUuid();
     await this.repo.insert({
       id,

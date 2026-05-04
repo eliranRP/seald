@@ -83,6 +83,36 @@ class InMemoryGDriveRepo implements GDriveRepository {
     this.rows.set(row.id, row);
     return row;
   }
+  async findActiveByUserAndGoogleUser(
+    userId: string,
+    googleUserId: string,
+  ): Promise<GDriveAccount | null> {
+    return (
+      [...this.rows.values()].find(
+        (r) => r.userId === userId && r.googleUserId === googleUserId && !r.deletedAt,
+      ) ?? null
+    );
+  }
+  async replaceToken(args: {
+    id: string;
+    refreshTokenCiphertext: Buffer;
+    refreshTokenKmsKeyArn: string;
+    scope: string;
+    googleEmail: string;
+  }): Promise<GDriveAccount> {
+    const r = this.rows.get(args.id);
+    if (!r) throw new Error('replaceToken: row not found');
+    const next: GDriveAccount = {
+      ...r,
+      refreshTokenCiphertext: args.refreshTokenCiphertext,
+      refreshTokenKmsKeyArn: args.refreshTokenKmsKeyArn,
+      scope: args.scope,
+      googleEmail: args.googleEmail,
+      lastUsedAt: null,
+    };
+    this.rows.set(args.id, next);
+    return next;
+  }
   async softDelete(id: string, userId: string): Promise<boolean> {
     const r = this.rows.get(id);
     if (!r || r.userId !== userId) return false;
