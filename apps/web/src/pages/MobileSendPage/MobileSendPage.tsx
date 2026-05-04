@@ -455,8 +455,11 @@ export function MobileSendPage() {
             const yPct = canvasBounds.height > 0 ? f.y / canvasBounds.height : 0;
             // Approximate normalized field size — the API expects 0–1 box
             // coords. Mobile's fixed pixel widths scale uniformly.
-            const wPct = canvasBounds.width > 0 ? 80 / canvasBounds.width : 0.25;
-            const hPct = canvasBounds.height > 0 ? 28 / canvasBounds.height : 0.08;
+            // The DTO requires `width`/`height` keys; emitting `w`/`h`
+            // here caused every mobile send to 400 because Nest's
+            // ValidationPipe runs with `forbidNonWhitelisted: true`.
+            const widthPct = canvasBounds.width > 0 ? 80 / canvasBounds.width : 0.25;
+            const heightPct = canvasBounds.height > 0 ? 28 / canvasBounds.height : 0.08;
             return f.signerIds.flatMap((sid) => {
               const serverId = localToServer.get(sid);
               if (!serverId) return [];
@@ -465,8 +468,8 @@ export function MobileSendPage() {
                 page: p,
                 x: xPct,
                 y: yPct,
-                w: wPct,
-                h: hPct,
+                width: widthPct,
+                height: heightPct,
                 kind: FIELD_TYPE_TO_API[f.type],
                 ...(f.type === 'txt' || f.type === 'chk' ? { required: true } : {}),
               }));
