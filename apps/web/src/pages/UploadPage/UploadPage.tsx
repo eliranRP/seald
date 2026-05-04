@@ -3,6 +3,7 @@ import type { ChangeEvent, DragEvent, JSX, MouseEvent } from 'react';
 import { LayoutTemplate, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { GDriveLogo } from '@/features/gdriveImport/GDriveLogo';
 import type { UploadPageErrorCode, UploadPageProps } from './UploadPage.types';
 import {
   Actions,
@@ -32,6 +33,7 @@ import {
   TemplateBannerStrong,
   TemplateBannerText,
   TemplatePromptDivider,
+  TemplatePromptDot,
   TemplatePromptHint,
   TemplatePromptLink,
 } from './UploadPage.styles';
@@ -144,6 +146,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     templateBannerTone = 'info',
     onClearTemplate,
     onPickTemplate,
+    onPickDrive,
+    onConnectDrive,
     ...rest
   } = props;
 
@@ -291,19 +295,59 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                 </Button>
               </Actions>
               {error ? <ErrorText id={errorId}>{error}</ErrorText> : null}
-              {onPickTemplate ? (
+              {/*
+                Secondary-actions row. Hosts the "Start from a template"
+                CTA and (when the gdrive flag is on) the "Pick from /
+                Connect Google Drive" CTA side-by-side. Pre-2026-05-04
+                Drive lived in a wide standalone card below the
+                dropzone — too much visual weight relative to the
+                primary "Choose file" affordance. The compact-row
+                composition matches the design feedback and treats
+                Drive as a peer of templates.
+              */}
+              {onPickTemplate || onPickDrive || onConnectDrive ? (
                 <TemplatePromptDivider>
-                  <TemplatePromptHint>Already have a layout saved?</TemplatePromptHint>
-                  <TemplatePromptLink
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPickTemplate();
-                    }}
-                  >
-                    <Icon icon={LayoutTemplate} size={14} />
-                    Start from a template
-                  </TemplatePromptLink>
+                  {onPickTemplate ? (
+                    <TemplatePromptHint>Already have a layout saved?</TemplatePromptHint>
+                  ) : null}
+                  {onPickTemplate ? (
+                    <TemplatePromptLink
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPickTemplate();
+                      }}
+                    >
+                      <Icon icon={LayoutTemplate} size={14} />
+                      Start from a template
+                    </TemplatePromptLink>
+                  ) : null}
+                  {onPickTemplate && (onPickDrive || onConnectDrive) ? (
+                    <TemplatePromptDot aria-hidden>·</TemplatePromptDot>
+                  ) : null}
+                  {onPickDrive ? (
+                    <TemplatePromptLink
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPickDrive();
+                      }}
+                    >
+                      <GDriveLogo size={14} />
+                      Pick from Google Drive
+                    </TemplatePromptLink>
+                  ) : onConnectDrive ? (
+                    <TemplatePromptLink
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConnectDrive();
+                      }}
+                    >
+                      <GDriveLogo size={14} />
+                      Connect Google Drive
+                    </TemplatePromptLink>
+                  ) : null}
                 </TemplatePromptDivider>
               ) : null}
               <HiddenFileInput

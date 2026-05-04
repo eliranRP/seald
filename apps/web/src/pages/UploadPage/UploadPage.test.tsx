@@ -116,6 +116,49 @@ describe('UploadPage', () => {
     expect(onPickTemplate).toHaveBeenCalledTimes(1);
   });
 
+  // 2026-05-04 — Drive entry was previously a separate full-width
+  // <DriveSourceCard> below the dropzone. Per design feedback we
+  // collapse it into the dropzone footer next to "Start from a
+  // template" so the Sign flow has a single secondary-actions row.
+  // The contract: caller supplies EITHER onPickDrive (connected
+  // account) OR onConnectDrive (no account yet, popup-OAuth flow);
+  // when neither is supplied the link is hidden entirely (feature
+  // flag off path).
+  it('hides the Drive CTA when neither onPickDrive nor onConnectDrive is supplied', () => {
+    renderPage();
+    expect(
+      screen.queryByRole('button', { name: /pick from google drive/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /connect google drive/i })).not.toBeInTheDocument();
+  });
+
+  it('renders "Pick from Google Drive" + fires onPickDrive when supplied', () => {
+    const onPickDrive = vi.fn();
+    renderPage({ onPickDrive });
+    const cta = screen.getByRole('button', { name: /pick from google drive/i });
+    fireEvent.click(cta);
+    expect(onPickDrive).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders "Connect Google Drive" + fires onConnectDrive when supplied', () => {
+    const onConnectDrive = vi.fn();
+    renderPage({ onConnectDrive });
+    const cta = screen.getByRole('button', { name: /connect google drive/i });
+    fireEvent.click(cta);
+    expect(onConnectDrive).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the Drive link alongside the template link in the same prompt row', () => {
+    // Both supplied — the prompt row hosts both options, separated
+    // by a divider. Asserts they share the same parent so a future
+    // refactor doesn't accidentally re-orphan the Drive link into a
+    // separate card row.
+    renderPage({ onPickTemplate: vi.fn(), onPickDrive: vi.fn() });
+    const tpl = screen.getByRole('button', { name: /start from a template/i });
+    const drv = screen.getByRole('button', { name: /pick from google drive/i });
+    expect(tpl.parentElement).toBe(drv.parentElement);
+  });
+
   it('has no axe violations', async () => {
     const { container } = renderPage();
     expect(await axe(container)).toHaveNoViolations();

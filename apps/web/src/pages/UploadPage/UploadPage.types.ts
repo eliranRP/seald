@@ -69,4 +69,23 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
    * template is chosen. Hidden when there are no templates yet.
    */
   readonly onPickTemplate?: (() => void) | undefined;
+
+  // Google Drive integration --------------------------------------------
+  /**
+   * When supplied, a "Pick from Google Drive" CTA is rendered in the
+   * same dropzone-footer prompt row as `onPickTemplate`. Use this
+   * branch when the user has at least one connected Drive account —
+   * clicking opens the Drive picker. Mutually exclusive with
+   * `onConnectDrive`: callers pass exactly one based on connection
+   * state (the alternate is the OAuth popup wiring).
+   */
+  readonly onPickDrive?: (() => void) | undefined;
+  /**
+   * When supplied, a "Connect Google Drive" CTA is rendered in the
+   * same prompt row. Used when the user has the feature flag on but
+   * no connected Drive account yet — clicking opens the OAuth popup
+   * inline (see `useConnectGDrive().mutate()`). Mutually exclusive
+   * with `onPickDrive`.
+   */
+  readonly onConnectDrive?: (() => void) | undefined;
 }
