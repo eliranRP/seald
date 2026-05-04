@@ -102,6 +102,8 @@ const GDriveFilesProxyProvider: Provider = {
           env.GDRIVE_OAUTH_REDIRECT_URI ??
           'http://localhost:3000/integrations/gdrive/oauth/callback',
         appPublicUrl: env.APP_PUBLIC_URL,
+        pickerDeveloperKey: env.GDRIVE_PICKER_DEVELOPER_KEY ?? '',
+        pickerAppId: env.GDRIVE_PICKER_APP_ID ?? '',
       }),
     },
     GDriveFilesProxyProvider,
