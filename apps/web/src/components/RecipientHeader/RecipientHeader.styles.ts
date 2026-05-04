@@ -80,6 +80,33 @@ export const StepChip = styled.span`
   flex-shrink: 0;
 `;
 
+export const DownloadButton = styled.button`
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[3]};
+  cursor: pointer;
+  flex-shrink: 0;
+  &:hover:not(:disabled) {
+    color: ${({ theme }) => theme.color.fg[1]};
+    background: ${({ theme }) => theme.color.ink[100]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+`;
+
 export const ExitButton = styled.button`
   appearance: none;
   display: inline-flex;

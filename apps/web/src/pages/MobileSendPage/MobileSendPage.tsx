@@ -40,6 +40,7 @@ import {
 } from './types';
 import { useAuth } from '@/providers/AuthProvider';
 import { useAppState } from '@/providers/AppStateProvider';
+import { useDownloadPdf } from '@/features/downloadPdf';
 import { usePdfDocument } from '@/lib/pdf';
 // QA-2026-05-02: hard cap on the upload boundary. pdf.js will happily try
 // to parse a 200 MB blob on a phone and either OOM the tab or hang the
@@ -112,6 +113,26 @@ export function MobileSendPage() {
   // thumbnail) and MWPlace (real page background) so the user sees their
   // actual PDF instead of fake placeholder lines.
   const { doc, numPages } = usePdfDocument(pdfFile);
+
+  // Download the original (unsigned) PDF the sender just picked. Surfaced
+  // in the hamburger drawer when a file is loaded — gives the sender a
+  // copy for their records before sending. Drives off the local `File`
+  // (no network round-trip; the bytes are already in memory). The hook
+  // sanitises the filename and appends `.pdf` if missing.
+  const { download: downloadPdfFile, busy: downloadPdfBusy } = useDownloadPdf({
+    getBlob: () => {
+      if (!pdfFile) throw new Error('No file picked');
+      return pdfFile;
+    },
+    filename: pdfFile?.name ?? 'document.pdf',
+  });
+  const handleDownloadOriginalPdf = useCallback((): void => {
+    if (!pdfFile) return;
+    downloadPdfFile().catch(() => {
+      /* hook tracks its own error; click boundary swallows so React's
+         onClick doesn't see an unhandled rejection (rule 4.4). */
+    });
+  }, [downloadPdfFile, pdfFile]);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
   const [meIncluded, setMeIncluded] = useState(false);
@@ -527,7 +548,11 @@ export function MobileSendPage() {
           authed user can always reach Documents / Templates / Signers and
           their account actions — fixing the original gap where /m/send
           had no nav chrome at all. */}
-      <MWMobileNav onSignOut={handleNavSignOut} />
+      <MWMobileNav
+        onSignOut={handleNavSignOut}
+        downloadOriginalPdfBusy={downloadPdfBusy}
+        {...(pdfFile ? { onDownloadOriginalPdf: handleDownloadOriginalPdf } : {})}
+      />
       <Scroller $padBottom={sticky ? 96 : 24}>
         {showStepper && (
           <MWStep step={stepNum} total={6} label={STEP_LABELS[step]} onBack={goBack} />
