@@ -17,6 +17,7 @@ import { SignUpPage } from './pages/SignUpPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
+import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -120,6 +121,13 @@ export function AppRoutes() {
 
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route path="/debug/auth" element={<DebugAuthPage />} />
+
+      {/* Drive OAuth popup-bridge — MUST live OUTSIDE <AppShell /> so the
+          mobile-redirect rule (≤ 640 px → /m/send) does NOT fire on the
+          480 × 720 popup before the postMessage + close effect can run.
+          Bug G (Phase 6.A iter-2 PROD, 2026-05-04). Pinned by
+          apps/web/src/pages/GDriveOAuthCallbackPage/AppRoutes.gdrive-oauth-callback.test.tsx. */}
+      <Route path="/oauth/gdrive/callback" element={<GDriveOAuthCallbackPage />} />
 
       {/* Public verify surface. Anyone with a 13-char short_code can pull
           the envelope's metadata + audit timeline. No auth gate. */}
