@@ -123,23 +123,26 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       // Google requires the builder-level feature flag too.
       .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
-    // 2026-05-04 — three DocsViews, one per canonical Google import-
-    // file tab (My Drive / Shared with me / Shared drives). PR #146
-    // collapsed this to a single view as a tactical fix for three
-    // duplicate "Google Drive" tabs caused by passing the same
-    // `ViewId.DOCS` three times without distinguishing flags. Now
-    // each view is differentiated by ownership / shared-drives flags
-    // so the picker labels each tab distinctly:
-    //   1. My Drive       → setOwnedByMe(true)
-    //   2. Shared with me → setOwnedByMe(false)
-    //   3. Shared drives  → setEnableDrives(true) +
+    // 2026-05-04 — four DocsViews, one per canonical Google import-
+    // file tab. PR #146 collapsed this to a single view as a tactical
+    // fix for duplicate "Google Drive" tabs caused by passing the
+    // same `ViewId.DOCS` without distinguishing flags. PR #149
+    // re-introduced three views (My Drive / Shared with me / Shared
+    // drives). This change prepends a Starred tab so the final order
+    // matches Google's canonical import-file UX (Sheets/Slides put
+    // Recent first; we don't have a Recent surface yet, so Starred
+    // leads):
+    //   1. Starred       → setStarred(true) + setOwnedByMe(true)
+    //   2. My Drive      → setOwnedByMe(true)
+    //   3. Shared with me → setOwnedByMe(false)
+    //   4. Shared drives → setEnableDrives(true) +
     //                       builder.enableFeature(SUPPORT_DRIVES)
-    // All three apply the same comma-joined MIME-type filter and keep
+    // All four apply the same comma-joined MIME-type filter and keep
     // setIncludeFolders(true)/setSelectFolderEnabled(false) so users
     // can browse into folders but only select files. OAuth scope
-    // remains pinned to drive.file (per CLAUDE.md) — the picker grants
-    // per-file access at click time regardless of which tab the user
-    // picks from, including shared drives.
+    // remains pinned to drive.file (per CLAUDE.md) — the Starred
+    // filter is a client-side picker capability, not a scope
+    // expansion; per-file access is still granted at click time.
     //
     // KNOWN ISSUE — Google-side: the modular picker's thumbnail
     // requests to lh3.googleusercontent.com return without a
@@ -148,6 +151,14 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     // for selection — only the thumbnail previews stay grey. Track:
     // https://issuetracker.google.com (modular picker thumbnails).
     const mimes = MIMES_FOR_FILTER[mimeFilter].join(',');
+
+    const starredView = new picker.DocsView(picker.ViewId.DOCS)
+      .setStarred(true)
+      .setOwnedByMe(true)
+      .setMimeTypes(mimes)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false);
+    builder.addView(starredView);
 
     const myDriveView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(true)
