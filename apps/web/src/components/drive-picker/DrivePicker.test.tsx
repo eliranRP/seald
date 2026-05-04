@@ -1,267 +1,258 @@
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { seald } from '@/styles/theme';
 
-vi.mock('@/lib/api/apiClient', () => ({
-  apiClient: {
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn(),
-    delete: vi.fn(),
-  },
+vi.mock('./pickerCredentialsApi', () => ({
+  fetchPickerCredentials: vi.fn(),
+}));
+
+vi.mock('./useGoogleApi', () => ({
+  useGoogleApi: vi.fn(),
 }));
 
 // eslint-disable-next-line import/first
-import { apiClient } from '@/lib/api/apiClient';
+import { fetchPickerCredentials } from './pickerCredentialsApi';
 // eslint-disable-next-line import/first
-import { DrivePicker, PICKER_HEIGHT_PX, PICKER_WIDTH_PX } from './index';
+import { useGoogleApi } from './useGoogleApi';
 // eslint-disable-next-line import/first
-import type { DriveFile } from './index';
-
-const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+import { DrivePicker } from './DrivePicker';
+// eslint-disable-next-line import/first
+import type { PickerCallbackData } from './google-picker-types';
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';
 
-const PDF_FILE: DriveFile = {
-  id: 'f-pdf',
-  name: 'Acme MSA - signed.pdf',
-  mimeType: 'application/pdf',
-  modifiedTime: '2026-04-28T12:00:00Z',
-  size: '14000',
-};
+const fetchMock = fetchPickerCredentials as unknown as ReturnType<typeof vi.fn>;
+const useGoogleApiMock = useGoogleApi as unknown as ReturnType<typeof vi.fn>;
 
-const DOC_FILE: DriveFile = {
-  id: 'f-doc',
-  name: '2026 NDA template.gdoc',
-  mimeType: 'application/vnd.google-apps.document',
-  modifiedTime: '2026-05-01T00:00:00Z',
-};
-
-const DOCX_FILE: DriveFile = {
-  id: 'f-docx',
-  name: 'Vendor agreement.docx',
-  mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  modifiedTime: '2026-04-01T00:00:00Z',
-};
-
-const UNSUPPORTED: DriveFile = {
-  id: 'f-evil',
-  name: 'malware.exe',
-  mimeType: 'application/x-msdownload',
-};
-
-function buildQueryClient(): QueryClient {
-  return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0, staleTime: 0 },
-      mutations: { retry: false },
-    },
-  });
+interface PickerSpyState {
+  readonly setOAuthToken: ReturnType<typeof vi.fn>;
+  readonly setDeveloperKey: ReturnType<typeof vi.fn>;
+  readonly setAppId: ReturnType<typeof vi.fn>;
+  readonly addView: ReturnType<typeof vi.fn>;
+  readonly setCallback: ReturnType<typeof vi.fn>;
+  readonly build: ReturnType<typeof vi.fn>;
+  readonly setVisible: ReturnType<typeof vi.fn>;
+  readonly setMimeTypes: ReturnType<typeof vi.fn>;
+  readonly docsViewCtor: ReturnType<typeof vi.fn>;
+  readonly pickerBuilderCtor: ReturnType<typeof vi.fn>;
+  triggerCallback: (data: PickerCallbackData) => void;
 }
 
-function renderPicker(propsOverride: Partial<React.ComponentProps<typeof DrivePicker>> = {}) {
+let pickerSpy: PickerSpyState;
+
+function installGooglePickerStub(): PickerSpyState {
+  let registered: ((data: PickerCallbackData) => void) | null = null;
+  const setVisible = vi.fn();
+  const docsViewBuilder: { setMimeTypes: ReturnType<typeof vi.fn> } = {
+    setMimeTypes: vi.fn(),
+  };
+  docsViewBuilder.setMimeTypes.mockReturnValue(docsViewBuilder);
+  const setMimeTypes = docsViewBuilder.setMimeTypes;
+
+  function DocsViewCtorImpl(this: unknown): unknown {
+    return docsViewBuilder;
+  }
+  const docsViewCtor = vi.fn(DocsViewCtorImpl as () => unknown);
+
+  const builder = {
+    setOAuthToken: vi.fn(),
+    setDeveloperKey: vi.fn(),
+    setAppId: vi.fn(),
+    addView: vi.fn(),
+    setCallback: vi.fn(function setCallbackImpl(cb: (data: PickerCallbackData) => void) {
+      registered = cb;
+      return builder;
+    }),
+    build: vi.fn().mockReturnValue({ setVisible }),
+  };
+  builder.setOAuthToken.mockReturnValue(builder);
+  builder.setDeveloperKey.mockReturnValue(builder);
+  builder.setAppId.mockReturnValue(builder);
+  builder.addView.mockReturnValue(builder);
+
+  function PickerBuilderCtorImpl(this: unknown): unknown {
+    return builder;
+  }
+  const pickerBuilderCtor = vi.fn(PickerBuilderCtorImpl as () => unknown);
+
+  (window as unknown as { google: unknown }).google = {
+    picker: {
+      PickerBuilder: pickerBuilderCtor,
+      DocsView: docsViewCtor,
+      ViewId: { DOCS: 'DOCS' },
+      Action: { PICKED: 'picked', CANCEL: 'cancel', LOADED: 'loaded' },
+    },
+  };
+
+  return {
+    setOAuthToken: builder.setOAuthToken,
+    setDeveloperKey: builder.setDeveloperKey,
+    setAppId: builder.setAppId,
+    addView: builder.addView,
+    setCallback: builder.setCallback,
+    build: builder.build,
+    setVisible,
+    setMimeTypes,
+    docsViewCtor,
+    pickerBuilderCtor,
+    triggerCallback: (data) => {
+      if (!registered) throw new Error('callback not registered yet');
+      registered(data);
+    },
+  };
+}
+
+interface RenderOptions {
+  readonly open?: boolean;
+  readonly mimeFilter?: 'pdf' | 'doc' | 'docx' | 'all';
+  readonly accountId?: string;
+}
+
+function renderPicker(opts: RenderOptions = {}) {
   const onClose = vi.fn();
   const onPick = vi.fn();
   const onReconnect = vi.fn();
-  const qc = buildQueryClient();
   function Wrapper({ children }: { readonly children: ReactNode }) {
-    return (
-      <ThemeProvider theme={seald}>
-        <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-      </ThemeProvider>
-    );
+    return <ThemeProvider theme={seald}>{children}</ThemeProvider>;
   }
   const utils = render(
     <DrivePicker
-      open
+      open={opts.open ?? true}
       onClose={onClose}
       onPick={onPick}
-      accountId={ACCOUNT_ID}
-      mimeFilter="all"
+      accountId={opts.accountId ?? ACCOUNT_ID}
+      mimeFilter={opts.mimeFilter ?? 'pdf'}
       onReconnect={onReconnect}
-      {...propsOverride}
     />,
     { wrapper: Wrapper },
   );
-  return { ...utils, onClose, onPick, onReconnect, qc };
+  return { ...utils, onClose, onPick, onReconnect };
 }
 
 beforeEach(() => {
-  get.mockReset();
+  fetchMock.mockReset();
+  useGoogleApiMock.mockReset();
+  // Default: ready, no error.
+  useGoogleApiMock.mockReturnValue({ ready: true, error: null, retry: vi.fn() });
+  pickerSpy = installGooglePickerStub();
 });
 
 afterEach(() => {
-  vi.useRealTimers();
+  delete (window as unknown as { google?: unknown }).google;
 });
 
-describe('DrivePicker — open/close + accessibility', () => {
-  it('renders nothing when open=false', () => {
-    get.mockResolvedValue({ data: { files: [] }, status: 200 });
-    const { onClose, onPick } = (() => {
-      const oc = vi.fn();
-      const op = vi.fn();
-      const qc = buildQueryClient();
-      render(
-        <ThemeProvider theme={seald}>
-          <QueryClientProvider client={qc}>
-            <DrivePicker
-              open={false}
-              onClose={oc}
-              onPick={op}
-              accountId={ACCOUNT_ID}
-              mimeFilter="all"
-            />
-          </QueryClientProvider>
-        </ThemeProvider>,
-      );
-      return { onClose: oc, onPick: op };
-    })();
+describe('DrivePicker — closed', () => {
+  it('renders nothing when open=false and does not fetch credentials', () => {
+    fetchMock.mockResolvedValue({ accessToken: 'x', developerKey: 'y', appId: 'z' });
+    renderPicker({ open: false });
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(onClose).not.toHaveBeenCalled();
-    expect(onPick).not.toHaveBeenCalled();
-  });
-
-  it('renders the dialog with the locked 760×600 dimensions', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    renderPicker();
-    const dialog = await screen.findByRole('dialog', { name: /pick from google drive/i });
-    expect(dialog).toBeInTheDocument();
-    // The hard-locked design constants must remain 760×600 (Phase 3
-    // watchpoint #4). Asserting the constants directly here means a PR
-    // touching the styles file will fail this test if the values drift.
-    expect(PICKER_WIDTH_PX).toBe(760);
-    expect(PICKER_HEIGHT_PX).toBe(600);
-  });
-
-  it('Escape closes the dialog', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    const { onClose } = renderPicker();
-    await screen.findByRole('dialog');
-    fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-  });
-
-  it('clicking the backdrop closes; clicking the card does not', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    const { onClose } = renderPicker();
-    const dialog = await screen.findByRole('dialog');
-    // Click on the dialog itself — should NOT close.
-    fireEvent.click(dialog);
-    expect(onClose).not.toHaveBeenCalled();
-    // Click on the backdrop wrapper (parent of the dialog) — SHOULD close.
-    const backdrop = dialog.parentElement!;
-    fireEvent.click(backdrop);
-    expect(onClose).toHaveBeenCalled();
-  });
-
-  it('opens with initial focus on the Search input — not the Close button', async () => {
-    // Phase 6.A iter-2 LOCAL bug. The on-open focus query was
-    // `card.querySelector('input, button')`, which returns the first
-    // match in DOM order — and the close (X) button in the Header
-    // appears before the SearchInput in SearchWrap. Keyboard-only
-    // users opening the picker landed on Close, one Tab away from
-    // dismissing the modal they had just opened. Post-fix initial
-    // focus must land on the search input so a query can be typed
-    // immediately (matches Drive web app behaviour).
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    renderPicker();
-    const search = await screen.findByRole('searchbox', { name: /search drive files/i });
-    await waitFor(() => expect(document.activeElement).toBe(search));
-  });
-
-  it('Tab cycles focus inside the dialog (focus trap)', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    renderPicker();
-    const dialog = await screen.findByRole('dialog');
-    const focusables = within(dialog).getAllByRole('button');
-    // The Cancel + close-picker + Use this file buttons should all be
-    // present; trap should mean the last button's Tab wraps to the
-    // first focusable (the search input).
-    expect(focusables.length).toBeGreaterThanOrEqual(2);
-    const last = focusables[focusables.length - 1]!;
-    last.focus();
-    fireEvent.keyDown(dialog, { key: 'Tab' });
-    // Trap fires preventDefault + focuses first focusable (the
-    // search input). We assert focus moved off `last` rather than
-    // asserting the exact next element so the test is robust to
-    // additions of new focusable rows.
-    expect(document.activeElement).not.toBe(last);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe('DrivePicker — file list interactions', () => {
-  it('clicking a row selects it and Use this file fires onPick', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE, DOC_FILE] }, status: 200 });
-    const { onPick } = renderPicker();
-    const row = await screen.findByRole('option', { name: /acme msa - signed/i });
-    await userEvent.click(row);
-    expect(row).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(screen.getByRole('button', { name: /^use this file$/i }));
-    expect(onPick).toHaveBeenCalledTimes(1);
-    expect(onPick).toHaveBeenCalledWith(PDF_FILE);
-  });
-
-  it('Use this file is disabled until something is picked', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE] }, status: 200 });
-    renderPicker();
-    await screen.findByRole('option', { name: /acme msa/i });
-    expect(screen.getByRole('button', { name: /^use this file$/i })).toBeDisabled();
-  });
-
-  it('strips client-side any file outside the supported MIME allow-list', async () => {
-    get.mockResolvedValue({
-      data: { files: [PDF_FILE, UNSUPPORTED, DOCX_FILE] },
-      status: 200,
+describe('DrivePicker — happy path', () => {
+  it('fetches credentials and constructs the Google picker on open', async () => {
+    fetchMock.mockResolvedValue({
+      accessToken: 'at-fresh',
+      developerKey: 'dev-key',
+      appId: 'app-id',
     });
-    renderPicker();
-    await screen.findByRole('option', { name: /acme msa/i });
-    expect(screen.getByRole('option', { name: /vendor agreement\.docx/i })).toBeInTheDocument();
-    // The unsupported entry must NEVER reach the DOM, even though the
-    // server (in this test) returned it. Defence in depth.
-    expect(screen.queryByRole('option', { name: /malware\.exe/i })).toBeNull();
+    renderPicker({ accountId: 'owned-acct', mimeFilter: 'pdf' });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('owned-acct'));
+    await waitFor(() => expect(pickerSpy.pickerBuilderCtor).toHaveBeenCalledTimes(1));
+    expect(pickerSpy.setOAuthToken).toHaveBeenCalledWith('at-fresh');
+    expect(pickerSpy.setDeveloperKey).toHaveBeenCalledWith('dev-key');
+    expect(pickerSpy.setAppId).toHaveBeenCalledWith('app-id');
+    expect(pickerSpy.setVisible).toHaveBeenCalledWith(true);
   });
 
-  it('renders the empty-folder state when there are no files', async () => {
-    get.mockResolvedValue({ data: { files: [] }, status: 200 });
-    renderPicker();
-    expect(await screen.findByText(/this folder is empty/i)).toBeInTheDocument();
+  it('mimeFilter="pdf" configures a single application/pdf view', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'pdf' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
+    expect(mimeCalls).toEqual(['application/pdf']);
   });
 
-  it('renders the no-results state when the search filters everything out', async () => {
-    get.mockResolvedValue({ data: { files: [PDF_FILE, DOC_FILE] }, status: 200 });
-    renderPicker();
-    const search = await screen.findByRole('searchbox', { name: /search drive files/i });
-    await userEvent.type(search, 'zzzzznope');
-    expect(await screen.findByText(/no files match/i)).toBeInTheDocument();
+  it('mimeFilter="all" configures pdf + gdoc + docx views', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    renderPicker({ mimeFilter: 'all' });
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    const mimeCalls = pickerSpy.setMimeTypes.mock.calls.map((c: unknown[]) => c[0]);
+    expect(mimeCalls).toEqual([
+      'application/pdf',
+      'application/vnd.google-apps.document',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ]);
+  });
+
+  it('callback action="picked" forwards the doc to onPick + closes', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    const { onPick, onClose } = renderPicker();
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    pickerSpy.triggerCallback({
+      action: 'picked',
+      docs: [{ id: 'doc-42', name: 'Acme.pdf', mimeType: 'application/pdf' }],
+    });
+    expect(onPick).toHaveBeenCalledWith({
+      id: 'doc-42',
+      name: 'Acme.pdf',
+      mimeType: 'application/pdf',
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('callback action="cancel" closes without onPick', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    const { onPick, onClose } = renderPicker();
+    await waitFor(() => expect(pickerSpy.setVisible).toHaveBeenCalled());
+    pickerSpy.triggerCallback({ action: 'cancel' });
+    expect(onPick).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('DrivePicker — token-expired flow', () => {
-  it('shows the Reconnect CTA on HTTP 401 and single-flights repeated clicks', async () => {
-    const apiError = Object.assign(new Error('reconnect_required'), { status: 401 });
-    get.mockRejectedValue(apiError);
-
-    let release: (() => void) | undefined;
-    const onReconnect = vi.fn().mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          release = () => resolve();
-        }),
-    );
-    renderPicker({ onReconnect });
-
-    const reconnectBtn = await screen.findByRole('button', { name: /^reconnect$/i });
-    // Three rapid clicks — only one consent popup must be in flight.
-    await userEvent.click(reconnectBtn);
-    await userEvent.click(reconnectBtn);
-    await userEvent.click(reconnectBtn);
-    expect(onReconnect).toHaveBeenCalledTimes(1);
-    // Resolve the in-flight reconnect; the next click is now allowed.
-    release?.();
+describe('DrivePicker — error states', () => {
+  it('401 from credentials triggers onReconnect + onClose; picker is NOT built', async () => {
+    const err = Object.assign(new Error('reconnect_required'), { status: 401 });
+    fetchMock.mockRejectedValue(err);
+    const { onReconnect, onClose } = renderPicker();
     await waitFor(() => expect(onReconnect).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(pickerSpy.pickerBuilderCtor).not.toHaveBeenCalled();
+  });
+
+  it('503 from credentials renders "not configured" notice + Close button', async () => {
+    const err = Object.assign(new Error('service_unavailable'), { status: 503 });
+    fetchMock.mockRejectedValue(err);
+    const { onClose } = renderPicker();
+    expect(
+      await screen.findByRole('heading', { name: /drive picker is not configured/i }),
+    ).toBeInTheDocument();
+    expect(pickerSpy.pickerBuilderCtor).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /^close$/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('gapi load failure renders Retry button that re-attempts the load', async () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    const retry = vi.fn();
+    useGoogleApiMock.mockReturnValue({ ready: false, error: new Error('load failed'), retry });
+    renderPicker();
+    const retryBtn = await screen.findByRole('button', { name: /retry/i });
+    await userEvent.click(retryBtn);
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('while loading, renders an aria-live="polite" status indicator', () => {
+    fetchMock.mockResolvedValue({ accessToken: 'a', developerKey: 'b', appId: 'c' });
+    useGoogleApiMock.mockReturnValue({ ready: false, error: null, retry: vi.fn() });
+    renderPicker();
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
   });
 });
