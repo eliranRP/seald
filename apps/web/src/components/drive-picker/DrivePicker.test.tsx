@@ -230,9 +230,20 @@ describe('DrivePicker — error states', () => {
     const err = Object.assign(new Error('service_unavailable'), { status: 503 });
     fetchMock.mockRejectedValue(err);
     const { onClose } = renderPicker();
-    expect(
-      await screen.findByRole('heading', { name: /drive picker is not configured/i }),
-    ).toBeInTheDocument();
+    const heading = await screen.findByRole('heading', {
+      name: /drive picker isn['’]t available/i,
+    });
+    expect(heading).toBeInTheDocument();
+    // 2026-05-04 — the prior copy leaked env var names
+    // (GDRIVE_PICKER_DEVELOPER_KEY / GDRIVE_PICKER_APP_ID) into a
+    // user-facing modal. End users can't act on env-var names; the
+    // friendly copy should point them at an administrator instead.
+    const dialog = heading.closest('[role="alert"]');
+    expect(dialog).not.toBeNull();
+    const text = dialog?.textContent ?? '';
+    expect(text).not.toMatch(/GDRIVE_PICKER_DEVELOPER_KEY/);
+    expect(text).not.toMatch(/GDRIVE_PICKER_APP_ID/);
+    expect(text).toMatch(/administrator/i);
     expect(pickerSpy.pickerBuilderCtor).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /^close$/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
