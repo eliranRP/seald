@@ -22,7 +22,8 @@ module.exports = {
     // via unhandledRejection. Allow IIFE void expressions only via `void`.
     '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: true }],
     // Rule 2.1 — never `throw 'string'` / `throw { code: 1 }`; preserves stack traces.
-    '@typescript-eslint/no-throw-literal': 'error',
+    // Renamed from `no-throw-literal` in @typescript-eslint v8.
+    '@typescript-eslint/only-throw-error': 'error',
     // Rule 8.1 — Pino + Nest Logger only; raw console.log loses correlation ids
     // and pollutes structured-log pipelines. Scripts opt out via override below.
     'no-console': 'error',
