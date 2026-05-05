@@ -73,8 +73,8 @@ export interface DocsViewBuilder {
   setStarred(starred: boolean): DocsViewBuilder;
   /**
    * Switch the view between grid (thumbnails) and list mode.
-   * With `drive.readonly` scope, GRID mode works and shows thumbnails.
-   * LIST mode can be used as a fallback if thumbnails cause issues.
+   * With `drive.file` scope only, use LIST mode — GRID thumbnails require
+   * `drive.readonly` which is a RESTRICTED scope needing a paid CASA audit.
    */
   setMode(mode: unknown): DocsViewBuilder;
   /**
@@ -90,9 +90,9 @@ export interface PickerNamespace {
   readonly DocsView: new (viewId?: unknown) => DocsViewBuilder;
   readonly ViewId: { readonly DOCS: unknown };
   readonly DocsViewMode: {
-    /** Grid layout with thumbnail previews (requires drive.readonly scope). */
+    /** Grid layout with thumbnail previews (requires drive.readonly — RESTRICTED scope). */
     readonly GRID: unknown;
-    /** List layout — no thumbnails, fallback mode. */
+    /** List layout — works with drive.file scope only. */
     readonly LIST: unknown;
   };
   readonly Action: {
