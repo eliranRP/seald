@@ -20,12 +20,15 @@ jobs:
     steps:
       - name: SSH read-only diagnostic
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
           command_timeout: 4m
+          envs: SSH_USER
           script: |
             set -uo pipefail
             echo '=== whoami / pwd ==='
@@ -77,4 +80,4 @@ jobs:
 
             echo '=== bash history hint (last 30 from root if any) ==='
             sudo bash -c 'tail -n 30 ~/.bash_history 2>/dev/null || true'
-            sudo bash -c 'tail -n 30 /home/${{ secrets.DEPLOY_SSH_USER }}/.bash_history 2>/dev/null || true'
+            sudo bash -c "tail -n 30 /home/${SSH_USER}/.bash_history 2>/dev/null || true"
