@@ -1,0 +1,10 @@
+# Trivy ignore file for known false positives or accepted risks
+# Format: CVE ID per line, with optional comment
+#
+# Add entries here when a vulnerability:
+# - Is a false positive for our usage
+# - Has no available fix yet and is accepted risk
+# - Only affects dev dependencies not shipped to production
+#
+# Example:
+# CVE-2023-XXXXX  # dev-only dependency, not in production bundle
