@@ -8,362 +8,234 @@
   <link rel="stylesheet" href="../colors_and_type.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Dancing+Script:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    html, body { margin: 0; padding: 0; background: var(--ink-50); }
+    html, body { margin: 0; padding: 0; background: var(--ink-50); overflow-x: hidden; }
     *, *::before, *::after { box-sizing: border-box; }
     #root { font-family: var(--font-sans); color: var(--fg-2); min-height: 100vh; }
 
     .stepper {
       position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100;
-      display: flex; gap: 6px; flex-wrap: wrap;
-      background: #fff; border: 1px solid var(--border-1);
-      border-radius: 18px; padding: 6px;
-      box-shadow: var(--shadow-md); font-family: var(--font-sans);
+      display: flex; gap: 6px; background: #fff; border: 1px solid var(--border-1);
+      border-radius: 18px; padding: 6px; box-shadow: var(--shadow-md);
     }
     .stepper button {
-      border: none; background: transparent;
-      padding: 7px 12px; border-radius: 999px;
+      border: none; background: transparent; padding: 7px 12px; border-radius: 999px;
       font-size: 12px; font-weight: 600; color: var(--fg-3); cursor: pointer;
-      transition: background 120ms, color 120ms;
     }
     .stepper button:hover { background: var(--ink-50); color: var(--fg-1); }
     .stepper button.on { background: var(--ink-900); color: #fff; }
 
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    @keyframes slideUp {
-      from { transform: translateY(20px); opacity: 0; }
-      to   { transform: translateY(0); opacity: 1; }
-    }
     @keyframes slideInLeft {
       from { transform: translateX(-100%) translateY(-50%); opacity: 0; }
       to   { transform: translateX(0) translateY(-50%); opacity: 1; }
     }
-    @keyframes signPop {
-      0%   { transform: scale(1); }
-      40%  { transform: scale(1.05); }
-      100% { transform: scale(1); }
-    }
+    @keyframes signPop { 0% { transform: scale(1); } 40% { transform: scale(1.05); } 100% { transform: scale(1); } }
 
-    .action-bar {
-      position: sticky; top: 60px; z-index: 30;
-      height: 48px; background: #fff;
+    /* Header */
+    .hdr {
+      position: sticky; top: 0; z-index: 30; height: 52px;
+      background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-1);
-      display: flex; align-items: center; padding: 0 24px; gap: 14px;
+      display: flex; align-items: center; padding: 0 16px; gap: 12;
     }
-    .action-bar .progress-track {
-      flex: 1; max-width: 420px; height: 4px;
-      background: var(--ink-100); border-radius: 2px; overflow: hidden;
-    }
-    .action-bar .progress-fill {
-      height: 100%; background: var(--indigo-600);
-      border-radius: 2px; transition: width 300ms;
-    }
-    .action-bar .count {
-      font-size: 11px; font-family: var(--font-mono); color: var(--fg-3);
-    }
-    .action-bar .spacer { flex: 1; }
+    .hdr select { border: 1px solid var(--border-1); border-radius: 6px; padding: 4px 8px; font-size: 12px; background: #fff; color: var(--fg-2); }
 
-    .recipient-header {
-      position: sticky; top: 0; z-index: 30;
-      height: 60px; background: rgba(255,255,255,.92);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--border-1);
-      display: flex; align-items: center; padding: 0 24px; gap: 16px;
-    }
-    .recipient-header .divider { width: 1px; height: 18px; background: var(--border-1); }
-    .recipient-header .title { font-size: 14px; font-weight: 600; color: var(--fg-1); }
-    .recipient-header .meta { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
-    .recipient-header .chip {
-      padding: 4px 12px; background: var(--ink-100);
-      border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--fg-2);
-    }
-    .recipient-header .icon-btn {
-      width: 32px; height: 32px; border: 1px solid var(--border-1);
-      border-radius: 8px; background: transparent; cursor: pointer;
-      display: inline-flex; align-items: center; justify-content: center; color: var(--fg-2);
-    }
+    /* Main layout: left gutter + PDF + right sidebar */
+    .main { display: flex; min-height: calc(100vh - 52px); }
+    .gutter { width: 48px; flex-shrink: 0; background: var(--ink-100); border-right: 1px solid var(--border-1); position: relative; }
+    .center { flex: 1; background: #e8e8e8; display: flex; justify-content: center; padding: 28px 0 100px; overflow-y: auto; }
+    .sidebar { width: 280px; flex-shrink: 0; background: #fff; border-left: 1px solid var(--border-1); padding: 20px 16px; display: flex; flex-direction: column; }
 
-    .pdf-canvas {
-      flex: 1; display: flex; align-items: flex-start;
-      justify-content: center; padding: 32px 0 100px;
-      background: #e8e8e8; min-height: calc(100vh - 108px);
-    }
-    .pdf-page {
-      width: 560px; min-height: 740px; background: #fff;
+    /* PDF page */
+    .page {
+      width: 520px; min-height: 700px; background: #fff;
       box-shadow: var(--shadow-md); border-radius: 2px;
-      padding: 48px 44px; font-size: 13px; color: var(--fg-1);
+      padding: 40px 38px; font-size: 12px; color: var(--fg-1);
       line-height: 1.7; position: relative;
     }
-    .pdf-page h4 { font-size: 14px; font-weight: 700; margin: 16px 0 6px; }
-    .pdf-page table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; }
-    .pdf-page th { text-align: left; font-weight: 700; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-2); }
-    .pdf-page td { padding: 4px 8px; border-bottom: 1px solid var(--border-1); }
+    .page h4 { font-size: 13px; font-weight: 700; margin: 14px 0 4px; }
+    .page table { width: 100%; border-collapse: collapse; font-size: 11px; margin: 6px 0; }
+    .page th { text-align: left; font-weight: 700; font-size: 10px; padding: 3px 6px; border-bottom: 1px solid var(--border-2); }
+    .page td { padding: 3px 6px; border-bottom: 1px solid var(--border-1); }
 
-    .sig-field {
-      position: absolute; border-radius: 8px;
-      display: flex; flex-direction: column;
-      align-items: flex-start; justify-content: center;
-      padding: 6px 12px; gap: 2px;
-      transition: background 140ms, border-color 140ms, box-shadow 200ms;
-      cursor: pointer;
+    /* Fields on PDF */
+    .fld {
+      position: absolute; border-radius: 6px; display: flex; flex-direction: column;
+      align-items: flex-start; justify-content: center; padding: 4px 10px; gap: 1px;
+      cursor: pointer; transition: background 140ms, box-shadow 200ms;
     }
-    .sig-field.unfilled { border: 1.5px dashed; }
-    .sig-field.active { box-shadow: 0 0 0 4px rgba(99,102,241,.15); }
-    .sig-field.filled { border: 1.5px solid; animation: signPop 300ms; }
-    .sig-field .label { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
-    .sig-field .line { width: 70%; height: 0; border-bottom: 1.5px solid; opacity: .5; align-self: center; }
+    .fld.uf { border: 1.5px dashed; }
+    .fld.ac { box-shadow: 0 0 0 4px rgba(99,102,241,.15); }
+    .fld.fi { border: 1.5px solid; animation: signPop 300ms; }
+    .fld .fl { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+    .fld .ln { width: 65%; height: 0; border-bottom: 1.5px solid; opacity: .4; align-self: center; }
 
-    .page-rail {
-      position: fixed; right: 20px; top: 140px;
-      display: flex; flex-direction: column; gap: 8px; align-items: center;
+    /* Left gutter: margin indicator */
+    .gutter-dot {
+      position: absolute; right: -1px; width: 32px; height: 28px;
+      background: #C0392B; border-radius: 6px 0 0 6px;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 6px rgba(192,57,43,.2);
     }
-    .page-rail .rl { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
-    .page-rail .th { width: 52px; height: 68px; background: #fff; border: 1.5px solid var(--border-1); border-radius: 4px; position: relative; cursor: pointer; }
-    .page-rail .th.on { border-color: var(--indigo-500); }
-    .page-rail .th .dot { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 999px; background: var(--indigo-600); }
-    .page-rail .tn { font-size: 11px; color: var(--fg-3); text-align: center; }
-
-    .signing-layout { display: flex; min-height: calc(100vh - 108px); }
-
-    .annotation {
-      position: fixed; top: 120px; left: 20px; z-index: 50;
-      background: #fff; border: 1px solid var(--border-1); border-radius: 12px;
-      padding: 12px 16px; box-shadow: var(--shadow-md);
-      font-size: 12px; color: var(--fg-2); max-width: 260px; line-height: 1.6;
-    }
-    .annotation strong { color: var(--fg-1); }
-    .annotation em { color: var(--indigo-600); font-style: normal; font-weight: 600; }
   </style>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
 </head>
 <body>
-  <div id="root"></div>
+<div id="root"></div>
+<script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
+<script type="text/babel" src="./SignatureSettingsPanel.jsx"></script>
+<script type="text/babel" src="./SignatureCaptureModal.jsx"></script>
+<script type="text/babel" src="./ReviewSidebar.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+const NAME = 'Eliran Azulay, Managing Member';
+const INI  = 'EAMM';
 
-  <script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
-  <script type="text/babel" src="./SignatureSettingsPanel.jsx"></script>
-  <script type="text/babel" src="./SignatureCaptureModal.jsx"></script>
-  <script type="text/babel" src="./ReviewSidebar.jsx"></script>
+const SCREENS = [
+  { id:'idle',       label:'1. Start' },
+  { id:'at-field',   label:'2. At field' },
+  { id:'one-signed', label:'3. Signed → Next' },
+  { id:'scrolled',   label:'4. Scrolled away' },
+  { id:'all-done',   label:'5. All done' },
+  { id:'modal',      label:'6. Edit signature' },
+];
 
-  <script type="text/babel">
-    const { useState } = React;
-    const SIGNER = 'Eliran Azulay, Managing Member';
-    const INITIALS = 'EAMM';
+const FLD = {
+  sig: { x:190, y:400, w:180, h:50 },
+  ini: { x:190, y:470, w:80,  h:36 },
+};
 
-    const SCREENS = [
-      { id: 'idle',          label: '1. Start' },
-      { id: 'field-active',  label: '2. At field' },
-      { id: 'one-signed',    label: '3. One signed' },
-      { id: 'scrolled',      label: '4. Scrolled away' },
-      { id: 'all-done',      label: '5. All done' },
-      { id: 'settings',      label: 'Settings' },
-    ];
+function App() {
+  const [screen, setScreen] = useState('idle');
+  const [modalOpen, setModalOpen] = useState(false);
 
-    const NOTES = {
-      idle:         '<strong>Start</strong> — sticky left margin. Tap to jump to the first field.',
-      'field-active': 'Start disappeared. Field is <em>active</em> (indigo glow). <strong>One tap on the field = signed</strong> with the default name. No capture sheet needed.',
-      'one-signed': 'Signature auto-applied (<em>"' + SIGNER + '"</em> in Caveat). <strong>Next</strong> appears on the <em>left margin</em> pointing to the initials field.',
-      scrolled:     'User scrolled away. <strong>Start reappears</strong> on the left to guide them back.',
-      'all-done':   'Both fields filled. No buttons. Green <em>Finish signing</em> in the action bar.',
-      settings:     '<strong>Settings gear</strong> (optional): change font, redraw, or upload a signature. Only if the user wants to customize — the default <em>just works</em>.',
-    };
+  const sigSigned = ['one-signed','scrolled','all-done','modal'].includes(screen);
+  const iniSigned = screen === 'all-done';
+  const sigActive = screen === 'at-field';
+  const iniActive = screen === 'one-signed';
+  const filled = iniSigned ? 2 : (sigSigned ? 1 : 0);
+  const showStart = screen === 'idle' || screen === 'scrolled';
+  const showNext  = screen === 'one-signed';
 
-    const F = {
-      sig: { x: 220, y: 430, w: 200, h: 56 },
-      ini: { x: 220, y: 510, w: 90,  h: 40 },
-    };
+  function fldClick(kind) {
+    if (screen === 'at-field')   setScreen('one-signed');
+    if (screen === 'one-signed') setScreen('all-done');
+  }
 
-    function Header({ filled }) {
-      return (
-        <div className="recipient-header">
-          <img src="../assets/logo.svg" height="22" alt="Seald" />
-          <div className="divider" />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="title">UNCONDITIONAL WAIVER - 5.05.2026</div>
-            <div className="meta">byRE1P8aFRvz</div>
-          </div>
-          <div className="chip">{filled} of 2 fields</div>
-          <button className="icon-btn"><Icon name="download" size={16}/></button>
+  return (
+    <div>
+      {/* Header */}
+      <div className="hdr">
+        <select><option>UNCONDITIONAL WAIVER - 5.05.2026</option></select>
+        <div style={{ flex:1 }} />
+      </div>
+
+      <div className="main">
+        {/* Left gutter with margin indicators */}
+        <div className="gutter">
+          {sigActive && <div className="gutter-dot" style={{ top: FLD.sig.y + 10 }}><Icon name="pen-tool" size={13} style={{ color:'#fff' }}/></div>}
+          {iniActive && <div className="gutter-dot" style={{ top: FLD.ini.y + 4 }}><Icon name="pen-tool" size={13} style={{ color:'#fff' }}/></div>}
         </div>
-      );
-    }
 
-    function Bar({ filled, allDone }) {
-      return (
-        <div className="action-bar">
-          <div className="progress-track"><div className="progress-fill" style={{ width: (filled/2*100)+'%' }}/></div>
-          <span className="count">{filled}/2</span>
-          <div className="spacer" />
-          <div style={{ display:'inline-flex', gap:4, padding:'4px 8px', background:'#fff', border:'1px solid var(--border-1)', borderRadius:8, alignItems:'center' }}>
-            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="settings" size={14}/></button>
-            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-2)' }}><Icon name="chevron-left" size={14}/></button>
-            <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--fg-2)', padding:'0 4px' }}>1 / 3</span>
-            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-2)' }}><Icon name="chevron-right" size={14}/></button>
-            <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--fg-2)', padding:'0 4px' }}>100%</span>
-            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="minus" size={14}/></button>
-            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="plus" size={14}/></button>
-          </div>
-          <Button variant="secondary" size="sm">Decline</Button>
-          <span style={{ fontSize:13, color:'var(--fg-3)', textDecoration:'underline', cursor:'pointer' }}>Withdraw consent</span>
-          {allDone && <Button variant="primary" size="sm" icon="check" style={{ background:'var(--success-500)' }}>Finish signing</Button>}
-        </div>
-      );
-    }
+        {/* Center: PDF */}
+        <div className="center">
+          <div className="page">
+            <h4 style={{ fontSize:14, marginTop:0 }}>UNCONDITIONAL WAIVER AND RELEASE ON FINAL PAYMENT</h4>
+            <p><strong>Project:</strong> 624 Orchard Hill Dr, Pittsburgh, PA 15238</p>
+            <p><strong>Contract Date:</strong> After contract works</p>
+            <p><strong>Original Contract Amount:</strong></p>
+            <p><strong>Final Contract Amount</strong> (including all change orders): $__________</p>
+            <h4>PAYMENT ACKNOWLEDGMENT</h4>
+            <p>The undersigned Contractor acknowledges the following payments for the above-referenced Project.</p>
+            <h4 style={{ fontSize:11 }}>PREVIOUSLY PAID AMOUNTS:</h4>
+            <table><thead><tr><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td>Outside</td><td>Paint of concrete platform</td><td>$125.00</td></tr>
+              <tr><td>Transport</td><td>Take Box to garbage</td><td>$180.00</td></tr>
+              <tr><td>Transport</td><td>Take Material to Hayson</td><td>$150.00</td></tr>
+              <tr><td>Outside Work</td><td>Organize sidewalk from main stairs to entrance</td><td>$300.00</td></tr>
+              <tr><td>Outside Work-Material</td><td></td><td>$76.59</td></tr>
+            </tbody></table>
+            <p style={{ fontWeight:700, marginTop:8 }}>SUBTOTAL (PREVIOUSLY PAID) <span style={{ float:'right' }}>$831.59</span></p>
 
-    function Rail() {
-      return (
-        <div className="page-rail">
-          <span className="rl">1/3</span>
-          <div className="th on"><div className="dot"/></div><span className="tn">1</span>
-          <div className="th"/><span className="tn">2</span>
-          <div className="th"/><span className="tn">3</span>
-        </div>
-      );
-    }
-
-    function Page({ screen, onFieldClick, onSettingsClick }) {
-      const sigActive  = screen === 'field-active';
-      const sigSigned  = ['one-signed','scrolled','all-done','settings'].includes(screen);
-      const iniActive  = screen === 'one-signed';
-      const iniSigned  = screen === 'all-done';
-
-      function fieldStyle(pos, active, signed, baseColor) {
-        const color = signed ? 'var(--success-500)' : (active ? 'var(--indigo-500)' : baseColor);
-        const bg    = signed ? 'rgba(16,185,129,.08)' : (active ? 'rgba(99,102,241,.08)' : baseColor.replace(')', ',.10)').replace('rgba','rgba').replace('rgb(','rgba('));
-        return {
-          left: pos.x, top: pos.y, width: pos.w, height: pos.h,
-          borderColor: color,
-          background: signed ? 'rgba(16,185,129,.08)' : (active ? 'rgba(99,102,241,.08)' : 'rgba(212,129,122,.10)'),
-          color: signed ? 'var(--success-700)' : (active ? 'var(--indigo-700)' : '#8B4513'),
-        };
-      }
-
-      return (
-        <div className="pdf-page">
-          <h4>UNCONDITIONAL WAIVER AND RELEASE ON FINAL PAYMENT</h4>
-          <p><strong>Project:</strong> 624 Orchard Hill Dr, Pittsburgh, PA 15238</p>
-          <p><strong>Contract Date:</strong> After contract works</p>
-          <p><strong>Final Contract Amount</strong> (including all change orders): $__________</p>
-          <h4>PAYMENT ACKNOWLEDGMENT</h4>
-          <p>The undersigned Contractor acknowledges the following payments.</p>
-          <h4 style={{ fontSize: 12 }}>PREVIOUSLY PAID AMOUNTS:</h4>
-          <table><thead><tr><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
-          <tbody>
-            <tr><td>Outside</td><td>Paint of concrete platform</td><td>$125.00</td></tr>
-            <tr><td>Transport</td><td>Take Box to garbage</td><td>$180.00</td></tr>
-            <tr><td>Transport</td><td>Take Material to Hayson</td><td>$150.00</td></tr>
-            <tr><td>Outside Work</td><td>Organize sidewalk</td><td>$300.00</td></tr>
-          </tbody></table>
-
-          {/* Signature field */}
-          <div className={`sig-field ${sigSigned ? 'filled' : 'unfilled'} ${sigActive ? 'active' : ''}`}
-            style={fieldStyle(F.sig, sigActive, sigSigned, 'rgba(212,129,122,1)')}
-            onClick={() => !sigSigned && onFieldClick('sig')}>
-            {sigSigned ? (
-              <>
-                <span className="label"><Icon name="check" size={12}/> Signed</span>
-                <span style={{ fontFamily:"'Caveat',cursive", fontSize:16, color:'var(--fg-1)', fontWeight:500 }}>{SIGNER}</span>
-              </>
-            ) : (
-              <>
-                <span className="label"><Icon name="pen-tool" size={12}/> Signature</span>
-                <span className="line" style={{ borderColor:'inherit' }}/>
-              </>
-            )}
-          </div>
-
-          {/* Initials field */}
-          <div className={`sig-field ${iniSigned ? 'filled' : 'unfilled'} ${iniActive ? 'active' : ''}`}
-            style={fieldStyle(F.ini, iniActive, iniSigned, 'rgba(212,129,122,1)')}
-            onClick={() => !iniSigned && onFieldClick('ini')}>
-            {iniSigned ? (
-              <span className="label"><Icon name="check" size={11}/> <span style={{ fontFamily:"'Caveat',cursive", fontSize:18, fontWeight:500 }}>{INITIALS}</span></span>
-            ) : (
-              <>
-                <span className="label" style={{ fontSize:11 }}><Icon name="type" size={11}/> Initials</span>
-                <span className="line" style={{ borderColor:'inherit' }}/>
-              </>
-            )}
-          </div>
-
-          {/* Margin indicator on active field */}
-          {sigActive && <FieldMarginIndicator position={F.sig} />}
-          {iniActive && <FieldMarginIndicator position={F.ini} />}
-
-          {/* Settings gear on the page — only in settings screen */}
-          {screen === 'settings' && (
-            <div style={{ position:'absolute', bottom:16, left:16, width:250 }}>
-              <SignatureSettingsSection
-                hasSignatureFields={true} hasInitialsFields={true}
-                signerName={SIGNER} signatureImage={null} initialsImage={null}
-                onEditSignature={onSettingsClick} onEditInitials={onSettingsClick}
-              />
+            {/* Signature field */}
+            <div className={`fld ${sigSigned?'fi':'uf'} ${sigActive?'ac':''}`}
+              style={{
+                left:FLD.sig.x, top:FLD.sig.y, width:FLD.sig.w, height:FLD.sig.h,
+                borderColor: sigSigned?'var(--success-500)':(sigActive?'var(--indigo-500)':'rgba(212,129,122,1)'),
+                background: sigSigned?'rgba(16,185,129,.06)':(sigActive?'rgba(99,102,241,.06)':'rgba(212,129,122,.08)'),
+                color: sigSigned?'var(--success-700)':(sigActive?'var(--indigo-700)':'#8B4513'),
+              }}
+              onClick={() => fldClick('sig')}>
+              {sigSigned ? (
+                <><span className="fl"><Icon name="check" size={11}/> Signed</span>
+                <span style={{ fontFamily:"'Caveat',cursive", fontSize:15, color:'var(--fg-1)', fontWeight:500 }}>{NAME}</span></>
+              ) : (
+                <><span className="fl"><Icon name="pen-tool" size={11}/> Signature</span><span className="ln" style={{ borderColor:'inherit' }}/></>
+              )}
             </div>
-          )}
-        </div>
-      );
-    }
 
-    function App() {
-      const [screen, setScreen] = useState('idle');
-      const [captureOpen, setCaptureOpen] = useState(false);
-
-      const filled = ['one-signed','scrolled'].includes(screen) ? 1 : (screen === 'all-done' ? 2 : 0);
-      const showStart = screen === 'idle' || screen === 'scrolled';
-      const showNext  = screen === 'one-signed';
-
-      return (
-        <div>
-          <Header filled={filled} />
-          <Bar filled={filled} allDone={screen === 'all-done'} />
-
-          <div className="signing-layout">
-            <div className="pdf-canvas">
-              <Page
-                screen={screen}
-                onFieldClick={(kind) => {
-                  if (screen === 'field-active') setScreen('one-signed');
-                  else if (screen === 'one-signed') setScreen('all-done');
-                }}
-                onSettingsClick={() => setCaptureOpen(true)}
-              />
+            {/* Initials field */}
+            <div className={`fld ${iniSigned?'fi':'uf'} ${iniActive?'ac':''}`}
+              style={{
+                left:FLD.ini.x, top:FLD.ini.y, width:FLD.ini.w, height:FLD.ini.h,
+                borderColor: iniSigned?'var(--success-500)':(iniActive?'var(--indigo-500)':'rgba(212,129,122,1)'),
+                background: iniSigned?'rgba(16,185,129,.06)':(iniActive?'rgba(99,102,241,.06)':'rgba(212,129,122,.08)'),
+                color: iniSigned?'var(--success-700)':(iniActive?'var(--indigo-700)':'#8B4513'),
+              }}
+              onClick={() => fldClick('ini')}>
+              {iniSigned ? (
+                <span className="fl"><Icon name="check" size={10}/> <span style={{ fontFamily:"'Caveat',cursive", fontSize:16 }}>{INI}</span></span>
+              ) : (
+                <><span className="fl" style={{ fontSize:10 }}><Icon name="type" size={10}/> Initials</span><span className="ln" style={{ borderColor:'inherit' }}/></>
+              )}
             </div>
           </div>
+        </div>
 
-          <Rail />
-
-          {/* LEFT MARGIN: Start or Next — same position, same style */}
-          {showStart && <LeftMarginButton label="Start" icon="pen-tool" onClick={() => setScreen('field-active')} />}
-          {showNext  && <LeftMarginButton label="Next"  icon="arrow-right" onClick={() => setScreen('field-active')} />}
-
-          {/* Annotation */}
-          <div className="annotation" dangerouslySetInnerHTML={{ __html: NOTES[screen] || '' }} />
-
-          {/* Settings capture modal */}
-          <SignatureCaptureModal
-            open={captureOpen}
-            kind="signature"
-            signerName={SIGNER}
-            onCancel={() => setCaptureOpen(false)}
-            onApply={() => setCaptureOpen(false)}
+        {/* Right sidebar */}
+        <div className="sidebar">
+          <SignOptionsPanel
+            signerName={NAME}
+            filled={filled} total={2}
+            onEditSignature={() => { setScreen('modal'); setModalOpen(true); }}
+            onDecline={() => alert('Decline')}
+            onRefuse={() => alert('Refuse')}
+            onSign={() => alert('Sign')}
           />
-
-          {/* Stepper */}
-          <div className="stepper">
-            {SCREENS.map(s => (
-              <button key={s.id} className={screen === s.id ? 'on' : ''} onClick={() => { setScreen(s.id); setCaptureOpen(false); }}>
-                {s.label}
-              </button>
-            ))}
-          </div>
         </div>
-      );
-    }
+      </div>
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+      {/* Left margin: Start / Next */}
+      {showStart && <LeftMarginButton label="Start" icon="pen-tool" onClick={() => setScreen('at-field')} />}
+      {showNext  && <LeftMarginButton label="Next"  icon="arrow-right" onClick={() => setScreen('at-field')} />}
+
+      {/* Signature details modal */}
+      <SignatureCaptureModal
+        open={modalOpen || screen === 'modal'}
+        signerName={NAME}
+        onCancel={() => { setModalOpen(false); if (screen === 'modal') setScreen('one-signed'); }}
+        onApply={() => { setModalOpen(false); if (screen === 'modal') setScreen('one-signed'); }}
+      />
+
+      {/* Stepper */}
+      <div className="stepper">
+        {SCREENS.map(s => (
+          <button key={s.id} className={screen === s.id ? 'on' : ''} onClick={() => { setScreen(s.id); setModalOpen(s.id === 'modal'); }}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
 </body>
 </html>
