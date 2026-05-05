@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { Check, Plus, Tag } from 'lucide-react';
 import { Icon } from '@/components/Icon';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { tagColorFor } from '@/features/templates';
 import type { TagEditorPopoverProps } from './TagEditorPopover.types';
 import {
@@ -28,17 +29,7 @@ export const TagEditorPopover = forwardRef<HTMLDivElement, TagEditorPopoverProps
   const { open, currentTags, allTags, onToggle, onCreate, onClose, ...rest } = props;
   const [draft, setDraft] = useState('');
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  useEscapeKey(onClose, open);
 
   // Reset the draft each time the popover opens for a new card —
   // otherwise residual text would leak across openings.

@@ -439,7 +439,7 @@ describe('VerifyPage', () => {
   // explicitly handle (only 'sender'/'signer'/'system' are valid today,
   // but the union may grow), the function returns the literal "Signer".
   // Covering the fallback protects against silent label drift.
-  it('labels a system event with no signer_id as "Sealed system" in the timeline', async () => {
+  it('labels a system event with no signer_id as "Seald system" in the timeline', async () => {
     const payload: VerifyResponse = {
       ...SIGNED_PAYLOAD,
       events: [
@@ -456,7 +456,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     await waitFor(() => {
-      expect(screen.getByText(/sealed system/i)).toBeInTheDocument();
+      expect(screen.getByText(/seald system/i)).toBeInTheDocument();
     });
   });
 

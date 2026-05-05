@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
-import { extractSignature } from '@signpdf/utils';
 import forge from 'node-forge';
 import { appendArchiveTimestamp } from './archive-timestamp';
 import {
@@ -9,6 +8,7 @@ import {
   type CertWithMetadata,
 } from './cert-chain-extractor';
 import { appendDssIncrementalUpdate } from './dss-incremental-update';
+import { extractCmsFromPdf, sliceDerSequence } from './pades-verify-helpers';
 import { RevocationFetcher } from './revocation-fetcher';
 import { TsaClient } from './tsa-client';
 
@@ -22,8 +22,8 @@ import { TsaClient } from './tsa-client';
  *
  * High-level pipeline per .upgradeToBLt():
  *   1. Locate the existing PAdES signature inside `/Sig.Contents`. We use
- *      @signpdf/utils.extractSignature which finds the first /ByteRange
- *      and returns the CMS bytes between the gaps.
+ *      our own `extractCmsFromPdf` + `sliceDerSequence` helpers (rule S.5:
+ *      NEVER use @signpdf/utils.extractSignature — it corrupts CMS).
  *   2. Parse the CMS as ASN.1 and extract every Certificate from the
  *      SignedData.certificates SET. Also dig out the embedded TST
  *      (id-aa-timeStampToken unsigned attribute) and parse ITS cert
@@ -80,10 +80,11 @@ export class DssInjector {
   async upgradeToBLt(signedPdf: Buffer): Promise<Buffer> {
     let cmsAsn1: forge.asn1.Asn1;
     try {
-      const { signature } = extractSignature(signedPdf);
-      const cmsBytes =
-        typeof signature === 'string' ? signature : (signature as Buffer).toString('binary');
-      cmsAsn1 = forge.asn1.fromDer(cmsBytes);
+      // Rule S.5: NEVER use @signpdf/utils.extractSignature — it strips
+      // trailing 0x00 bytes and corrupts CMS. Use our own helpers instead.
+      const { contentsHexDecoded } = extractCmsFromPdf(signedPdf);
+      const cmsBuffer = sliceDerSequence(contentsHexDecoded);
+      cmsAsn1 = forge.asn1.fromDer(cmsBuffer.toString('binary'));
     } catch (err) {
       this.logger.warn(
         `DSS upgrade skipped — unable to extract CMS from signed PDF: ${(err as Error).message}`,
@@ -270,5 +271,8 @@ function embedDssDictionary(
  * collision resistance — just an identifier).
  */
 export function computeVriKey(signatureContents: Buffer): string {
+  // SHA-1 is required by PAdES/DSS spec (ETSI EN 319 142-1 §6.3) for VRI key
+  // computation. This is NOT a security use — it's a lookup identifier only.
+  // eslint-disable-next-line no-restricted-syntax -- SHA-1 mandated by spec for VRI keys
   return createHash('sha1').update(signatureContents).digest('hex').toUpperCase();
 }

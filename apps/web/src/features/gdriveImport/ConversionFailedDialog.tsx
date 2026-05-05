@@ -1,5 +1,6 @@
-import { useEffect, useId } from 'react';
+import { useId } from 'react';
 import { Button } from '@/components/Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { ConversionErrorCode } from './conversionApi';
 import { Backdrop, Card, Description, Footer, Title } from './dialogStyles';
 
@@ -42,19 +43,7 @@ export function ConversionFailedDialog({
   const titleId = useId();
   const descId = useId();
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
+  useEscapeKey(onClose, open);
 
   if (!open) return null;
 

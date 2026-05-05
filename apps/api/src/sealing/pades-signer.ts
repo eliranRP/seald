@@ -114,8 +114,10 @@ export class P12PadesSigner extends PadesSigner {
       contactInfo: 'seald',
       name: 'Seald',
       location: 'Seald',
-      // 16 KB handles sha256 + cert chain + TSA TST comfortably.
-      signatureLength: 16384,
+      // 20 KB accommodates sha256 + full AATL certificate chains + TSA TST.
+      // AATL-trusted CAs (e.g. GlobalSign, DigiCert) often carry 4-5 certs
+      // at ~2 KB each plus the TST; 16 KB was too tight for some chains.
+      signatureLength: 20480,
       // Override the @signpdf default ('adbe.pkcs7.detached', a legacy CMS
       // marker that does NOT signal PAdES conformance) with the ETSI
       // subfilter that PAdES baseline B-B/B-T mandates. Verifiers like
