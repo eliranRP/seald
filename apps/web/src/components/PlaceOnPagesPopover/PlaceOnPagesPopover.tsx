@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent as ReactKeyboardEvent, MouseEvent } from 'react';
 import { Button } from '../Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { PlaceOnPagesPopoverProps, PlacePagesMode } from './PlaceOnPagesPopover.types';
 import {
   Backdrop,
@@ -82,19 +83,7 @@ export const PlaceOnPagesPopover = forwardRef<HTMLDivElement, PlaceOnPagesPopove
       }
     }, [open, mode]);
 
-    useEffect(() => {
-      if (!open) return undefined;
-      const handleKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onCancel();
-        }
-      };
-      window.addEventListener('keydown', handleKey);
-      return () => {
-        window.removeEventListener('keydown', handleKey);
-      };
-    }, [open, onCancel]);
+    useEscapeKey(onCancel, open);
 
     const handleBackdropClick = useCallback(() => {
       onCancel();

@@ -90,11 +90,34 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
   });
 
+  it('rejects APP_PUBLIC_URL containing localhost in production', () => {
+    expect(() =>
+      parseEnv({
+        ...minimalTest,
+        NODE_ENV: 'production',
+        APP_PUBLIC_URL: 'http://localhost:5173',
+      }),
+    ).toThrow(/APP_PUBLIC_URL.*must not contain localhost/);
+  });
+
+  it('rejects CORS_ORIGIN containing localhost in production', () => {
+    expect(() =>
+      parseEnv({
+        ...minimalTest,
+        NODE_ENV: 'production',
+        APP_PUBLIC_URL: 'https://seald.app',
+        CORS_ORIGIN: 'http://localhost:5173',
+      }),
+    ).toThrow(/CORS_ORIGIN.*must not contain localhost/);
+  });
+
   it('requires signer session + cron + metrics secrets in production', () => {
     expect(() =>
       parseEnv({
         ...minimalTest,
         NODE_ENV: 'production',
+        APP_PUBLIC_URL: 'https://seald.app',
+        CORS_ORIGIN: 'https://seald.app',
       }),
     ).toThrow(/SIGNER_SESSION_SECRET/);
   });
@@ -104,6 +127,8 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
       parseEnv({
         ...minimalTest,
         NODE_ENV: 'production',
+        APP_PUBLIC_URL: 'https://seald.app',
+        CORS_ORIGIN: 'https://seald.app',
         SIGNER_SESSION_SECRET: '0'.repeat(64),
         CRON_SECRET: '1'.repeat(64),
         METRICS_SECRET: '2'.repeat(64),

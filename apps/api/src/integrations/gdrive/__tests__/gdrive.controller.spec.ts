@@ -178,19 +178,17 @@ describe('GDriveController', () => {
     (FEATURE_FLAGS as Record<string, boolean>).gdriveIntegration = false;
   });
 
-  it('GET /oauth/url returns a Google consent URL with drive.file + drive.readonly scopes (NOT broad drive)', async () => {
+  it('GET /oauth/url returns a Google consent URL with drive.file scope only (no restricted scopes)', async () => {
     const { ctrl } = makeController();
     const out = await ctrl.consentUrl(USER_1);
     expect(out.url).toContain('accounts.google.com/o/oauth2/v2/auth');
     expect(out.url).toContain('drive.file');
-    expect(out.url).toContain('drive.readonly');
-    // Crucially, the scope parameter must NOT contain the broad `drive`
-    // scope (which would grant full read+write). Extract just the scope
-    // value and verify it only has drive.file and drive.readonly.
+    // Must NOT contain drive.readonly (RESTRICTED scope requiring paid CASA
+    // audit) or the broad `drive` scope (full read+write).
     const scopeParam = decodeURIComponent(new URL(out.url).searchParams.get('scope') ?? '');
     const scopes = scopeParam.split(' ');
     expect(scopes).toContain('https://www.googleapis.com/auth/drive.file');
-    expect(scopes).toContain('https://www.googleapis.com/auth/drive.readonly');
+    expect(scopes).not.toContain('https://www.googleapis.com/auth/drive.readonly');
     expect(scopes).not.toContain('https://www.googleapis.com/auth/drive');
     expect(out.url).toContain('code_challenge_method=S256');
     expect(out.url).toContain('access_type=offline');

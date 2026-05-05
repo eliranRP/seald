@@ -1,7 +1,14 @@
-import { forwardRef, useEffect, useId } from 'react';
+import { forwardRef, useId } from 'react';
 import { Button } from '../Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
+import {
+  DialogBackdrop,
+  DialogCard,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from '../DialogPrimitives';
 import type { ExitConfirmDialogProps } from './ExitConfirmDialog.types';
-import { Backdrop, Card, Description, Footer, Title } from './ExitConfirmDialog.styles';
 
 /**
  * L3 widget — lightweight confirm dialog for the "leave without sending"
@@ -28,25 +35,13 @@ export const ExitConfirmDialog = forwardRef<HTMLDivElement, ExitConfirmDialogPro
     const titleId = useId();
     const descId = useId();
 
-    useEffect(() => {
-      if (!open) return undefined;
-      const onKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onCancel();
-        }
-      };
-      window.addEventListener('keydown', onKey);
-      return () => {
-        window.removeEventListener('keydown', onKey);
-      };
-    }, [open, onCancel]);
+    useEscapeKey(onCancel, open);
 
     if (!open) return null;
 
     return (
-      <Backdrop role="presentation" onClick={onCancel}>
-        <Card
+      <DialogBackdrop role="presentation" onClick={onCancel}>
+        <DialogCard
           ref={ref}
           role="alertdialog"
           aria-modal="true"
@@ -55,18 +50,18 @@ export const ExitConfirmDialog = forwardRef<HTMLDivElement, ExitConfirmDialogPro
           onClick={(e) => e.stopPropagation()}
           {...rest}
         >
-          <Title id={titleId}>{title}</Title>
-          <Description id={descId}>{description}</Description>
-          <Footer>
+          <DialogTitle id={titleId}>{title}</DialogTitle>
+          <DialogDescription id={descId}>{description}</DialogDescription>
+          <DialogFooter>
             <Button variant="ghost" onClick={onCancel}>
               {cancelLabel}
             </Button>
             <Button variant="danger" onClick={onConfirm} autoFocus>
               {confirmLabel}
             </Button>
-          </Footer>
-        </Card>
-      </Backdrop>
+          </DialogFooter>
+        </DialogCard>
+      </DialogBackdrop>
     );
   },
 );

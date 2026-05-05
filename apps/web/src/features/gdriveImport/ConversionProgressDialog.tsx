@@ -1,5 +1,6 @@
-import { useEffect, useId } from 'react';
+import { useId } from 'react';
 import { Button } from '@/components/Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import {
   Backdrop,
   Card,
@@ -35,19 +36,7 @@ export function ConversionProgressDialog({
   const titleId = useId();
   const descId = useId();
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open, onCancel]);
+  useEscapeKey(onCancel, open);
 
   if (!open) return null;
 

@@ -323,7 +323,7 @@ export function SigningDonePage() {
           )}
           {isSealing ? (
             <DownloadHint>
-              We&apos;re finalising the seal. This usually takes a few seconds.
+              We&apos;re finalizing the seal. This usually takes a few seconds.
             </DownloadHint>
           ) : null}
           {verify.isError && !sealedUrl ? (
