@@ -29,9 +29,31 @@ import {
   UploadArea,
 } from './SignatureCapture.styles';
 
-const CAPTURE_WIDTH = 600;
-const CAPTURE_HEIGHT = 200;
+export const CAPTURE_WIDTH = 600;
+export const CAPTURE_HEIGHT = 200;
 const DRAW_COLOR = '#0B1220';
+
+/**
+ * Compute the font size that makes `text` fit within `maxWidth` pixels.
+ * Starts at `maxFontSize` and shrinks by 2px until it fits or hits
+ * `minFontSize`. Exported for testing.
+ */
+export function computeScaledFontSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxFontSize: number,
+  minFontSize: number,
+  maxWidth: number,
+  fontFamily: string,
+): number {
+  let fontSize = maxFontSize;
+  ctx.font = `500 ${fontSize}px ${fontFamily}`;
+  while (fontSize > minFontSize && ctx.measureText(text).width > maxWidth) {
+    fontSize -= 2;
+    ctx.font = `500 ${fontSize}px ${fontFamily}`;
+  }
+  return fontSize;
+}
 
 async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -51,18 +73,11 @@ function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTML
     ctx.fillStyle = 'rgba(0,0,0,0)';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = DRAW_COLOR;
-    // Auto-scale: start at the preferred size and shrink until the text
-    // fits within the canvas width (with padding). Prevents long names
-    // like "Eliran Azulay, Managing member" from being clipped.
     const maxFontSize = kind === 'initials' ? 110 : 78;
-    const minFontSize = 28;
     const maxTextWidth = canvas.width - 40; // 20px padding each side
-    let fontSize = maxFontSize;
-    ctx.font = `500 ${fontSize}px Caveat, cursive`;
-    while (fontSize > minFontSize && ctx.measureText(text).width > maxTextWidth) {
-      fontSize -= 2;
-      ctx.font = `500 ${fontSize}px Caveat, cursive`;
-    }
+    const fontFamily = 'Caveat, cursive';
+    const fontSize = computeScaledFontSize(ctx, text, maxFontSize, 28, maxTextWidth, fontFamily);
+    ctx.font = `500 ${fontSize}px ${fontFamily}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
