@@ -311,6 +311,102 @@ describe('GDriveController', () => {
     expect(meta).toBe(true);
   });
 
+  // BUG 1 fix: GET /oauth/start — full-page redirect for mobile browsers
+  // that block popups (iOS Safari). Same consent URL generation as
+  // /oauth/url but issues a 302 redirect instead of returning JSON.
+  describe('GET /oauth/start (mobile full-page OAuth redirect)', () => {
+    it('redirects to Google consent URL with drive.file scope', async () => {
+      const { ctrl } = makeController();
+      const res = fakeRes();
+      await ctrl.oauthStart(USER_1, '/m/send/drive', res);
+      expect(res.redirectedTo).toContain('accounts.google.com/o/oauth2/v2/auth');
+      expect(res.redirectedTo).toContain('drive.file');
+      expect(res.redirectedTo).toContain('code_challenge_method=S256');
+    });
+
+    it('stores returnPath in state so callback redirects to it', async () => {
+      const { ctrl, state } = makeController();
+      const res = fakeRes();
+      await ctrl.oauthStart(USER_1, '/m/send/drive', res);
+      // Extract state param from the redirect URL
+      const url = new URL(res.redirectedTo!);
+      const stateParam = url.searchParams.get('state');
+      expect(stateParam).toBeTruthy();
+      const entry = state.consume(stateParam!);
+      expect(entry).not.toBeNull();
+      expect(entry!.returnPath).toBe('/m/send/drive');
+      expect(entry!.userId).toBe('user-1');
+    });
+
+    it('sanitizes return param: rejects absolute URLs (open-redirect prevention)', async () => {
+      const { ctrl, state } = makeController();
+      const res = fakeRes();
+      await ctrl.oauthStart(USER_1, 'https://evil.com/steal', res);
+      // Should still redirect to Google (the route works) but returnPath
+      // should be undefined in the state (rejected by sanitization).
+      expect(res.redirectedTo).toContain('accounts.google.com');
+      const url = new URL(res.redirectedTo!);
+      const stateParam = url.searchParams.get('state');
+      const entry = state.consume(stateParam!);
+      expect(entry!.returnPath).toBeUndefined();
+    });
+
+    it('sanitizes return param: rejects protocol-relative URLs (//evil.com)', async () => {
+      const { ctrl, state } = makeController();
+      const res = fakeRes();
+      await ctrl.oauthStart(USER_1, '//evil.com/steal', res);
+      const url = new URL(res.redirectedTo!);
+      const stateParam = url.searchParams.get('state');
+      const entry = state.consume(stateParam!);
+      expect(entry!.returnPath).toBeUndefined();
+    });
+
+    it('works without return param (returnPath is undefined in state)', async () => {
+      const { ctrl, state } = makeController();
+      const res = fakeRes();
+      await ctrl.oauthStart(USER_1, undefined, res);
+      expect(res.redirectedTo).toContain('accounts.google.com');
+      const url = new URL(res.redirectedTo!);
+      const stateParam = url.searchParams.get('state');
+      const entry = state.consume(stateParam!);
+      expect(entry!.returnPath).toBeUndefined();
+    });
+
+    it('throws 503 when OAuth client id is unset', async () => {
+      const repo = new FakeRepo();
+      const kms = new GDriveKmsService(
+        new StubKmsClient(),
+        'arn:aws:kms:us-east-1:000000000000:key/k',
+      );
+      const google = new StubGoogleClient();
+      const svc = new GDriveService(repo, kms, google);
+      const stateStore = new OAuthStateStore();
+      const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
+      const proxy: FilesProxy = async () => ({ files: [] });
+      const ctrl = new GDriveController(svc, stateStore, { ...CFG, clientId: '' }, limiter, proxy);
+      await expect(ctrl.oauthStart(USER_1, '/m/send', fakeRes())).rejects.toMatchObject({
+        status: HttpStatus.SERVICE_UNAVAILABLE,
+      });
+    });
+  });
+
+  // BUG 1 fix: callback redirects to returnPath when present in state
+  it('GET /oauth/callback redirects to returnPath (mobile flow) instead of popup-bridge when state carries returnPath', async () => {
+    const { ctrl, state } = makeController();
+    const started = state.start('user-1', { returnPath: '/m/send/drive' });
+    const res = fakeRes();
+    await ctrl.oauthCallback('the-code', started.state, undefined, res);
+    expect(res.redirectedTo).toBe('http://localhost:5173/m/send/drive?connected=1');
+  });
+
+  it('GET /oauth/callback falls back to popup-bridge when state has no returnPath', async () => {
+    const { ctrl, state } = makeController();
+    const started = state.start('user-1');
+    const res = fakeRes();
+    await ctrl.oauthCallback('the-code', started.state, undefined, res);
+    expect(res.redirectedTo).toBe('http://localhost:5173/oauth/gdrive/callback?connected=1');
+  });
+
   it('feature flag off → every route 404s', async () => {
     (FEATURE_FLAGS as Record<string, boolean>).gdriveIntegration = false;
     const { ctrl } = makeController();
@@ -323,6 +419,9 @@ describe('GDriveController', () => {
       ctrl.listFiles(USER_1, '00000000-0000-0000-0000-000000000aaa', 'all'),
     ).rejects.toBeInstanceOf(NotFoundException);
     await expect(ctrl.oauthCallback('c', 's', undefined, fakeRes())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    await expect(ctrl.oauthStart(USER_1, '/m/send', fakeRes())).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });

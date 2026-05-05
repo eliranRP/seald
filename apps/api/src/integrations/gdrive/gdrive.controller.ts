@@ -146,6 +146,42 @@ export class GDriveController {
     };
   }
 
+  /**
+   * Full-page OAuth redirect for mobile browsers (iOS Safari blocks
+   * popups). Accepts `?return=<path>` — the SPA path to redirect the
+   * user to after the OAuth callback completes. Generates the consent
+   * URL server-side and issues a 302 redirect so the browser navigates
+   * straight to Google without a round-trip JSON fetch.
+   *
+   * The `return` path is stored in the OAuth state entry so the callback
+   * handler can redirect back to the correct SPA route once the flow
+   * completes (instead of the default popup-bridge page).
+   */
+  @Get('oauth/start')
+  async oauthStart(
+    @CurrentUser() user: AuthUser,
+    @Query('return') returnPath: string | undefined,
+    @Res({ passthrough: true }) res: { redirect(url: string): void },
+  ): Promise<void> {
+    this.requireFlag();
+    this.requireOAuthConfigured();
+    // Validate the return path: must be a relative SPA path (starts with /)
+    // to prevent open-redirect attacks. Strip anything that looks like a
+    // protocol or double-slash prefix.
+    const opts: { returnPath?: string } = {};
+    if (returnPath && /^\/[^/]/.test(returnPath)) {
+      opts.returnPath = returnPath;
+    }
+    const { state, codeChallenge } = this.stateStore.start(user.id, opts);
+    const url = buildConsentUrl({
+      clientId: this.config.clientId,
+      redirectUri: this.config.redirectUri,
+      state,
+      codeChallenge,
+    });
+    res.redirect(url);
+  }
+
   @Get('oauth/callback')
   @Public()
   // The callback is reached via Google's redirect — the user's browser, not
@@ -182,7 +218,18 @@ export class GDriveController {
     // never closed. The new bridge page handles popup mode (postMessage
     // back to the opener + window.close()) and same-tab fallback
     // (redirects back to /settings/integrations?connected=1).
-    res.redirect(`${this.config.appPublicUrl}/oauth/gdrive/callback?connected=1`);
+    //
+    // Mobile full-page flow: when the state carries a `returnPath` (set
+    // by the `oauth/start` endpoint), redirect directly to that SPA path
+    // with `?connected=1` appended. This avoids the popup-bridge page
+    // entirely — mobile Safari never opened a popup, so there's nothing
+    // to close.
+    if (entry.returnPath) {
+      const sep = entry.returnPath.includes('?') ? '&' : '?';
+      res.redirect(`${this.config.appPublicUrl}${entry.returnPath}${sep}connected=1`);
+    } else {
+      res.redirect(`${this.config.appPublicUrl}/oauth/gdrive/callback?connected=1`);
+    }
   }
 
   @Get('accounts')
