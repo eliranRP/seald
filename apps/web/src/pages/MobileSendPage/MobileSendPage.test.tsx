@@ -72,9 +72,34 @@ function emptyFile(name: string): File {
   return new File([new Uint8Array(0)], name, { type: 'application/pdf' });
 }
 
+// Image stub: the "Take photo" tile feeds JPEGs through `imageFileToPdf`
+// which constructs `new Image()` and waits for onload. jsdom doesn't
+// decode image bytes, so without this stub the conversion hangs
+// forever. Tests that need decode-failure override this in-place.
+class StubImage {
+  public width = 800;
+
+  public height = 600;
+
+  public naturalWidth = 800;
+
+  public naturalHeight = 600;
+
+  public onload: (() => void) | null = null;
+
+  public onerror: ((err: unknown) => void) | null = null;
+
+  set src(_value: string) {
+    queueMicrotask(() => {
+      if (this.onload) this.onload();
+    });
+  }
+}
+
 describe('MobileSendPage', () => {
   beforeEach(() => {
     runMock.mockClear();
+    (globalThis as unknown as { Image: typeof StubImage }).Image = StubImage;
   });
 
   afterEach(() => {
@@ -197,11 +222,12 @@ describe('MobileSendPage', () => {
     expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
   });
 
-  // QA-2026-05-02 (Bug 3): the start screen exposes a hidden file input
-  // for "Take photo" that uses `accept="image/*"` + `capture="environment"`.
-  // pdf.js can't parse a JPEG, so we reject anything that isn't a PDF at
-  // the picker boundary and surface an inline alert.
-  it('rejects a non-PDF (camera capture) at the upload boundary', async () => {
+  // 2026-05-04: the start screen exposes a hidden file input for
+  // "Take photo" that uses `accept="image/*"` + `capture="environment"`.
+  // We now convert the image to a single-page PDF in the browser and
+  // continue through the existing send pipeline. This test stubs the
+  // conversion util to keep the page test focused on the wiring.
+  it('converts a camera-capture JPEG into a PDF and advances to the file step', async () => {
     renderPage();
     const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
     const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', {
@@ -210,10 +236,41 @@ describe('MobileSendPage', () => {
     await act(async () => {
       fireEvent.change(input, { target: { files: [jpeg] } });
     });
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/photo\.jpg/i);
-    expect(alert).toHaveTextContent(/isn't a pdf/i);
-    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+    // Advances to step 2 with a PDF-renamed file.
+    expect(await screen.findByText(/confirm the file/i)).toBeInTheDocument();
+    expect(screen.getByText(/photo\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('shows a friendly alert when image-to-PDF conversion fails', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    // Override the Image stub for this test only — fail every decode.
+    const RealImage = (globalThis as unknown as { Image: unknown }).Image;
+    class FailImage {
+      public onload: (() => void) | null = null;
+
+      public onerror: ((err: unknown) => void) | null = null;
+
+      set src(_v: string) {
+        queueMicrotask(() => {
+          if (this.onerror) this.onerror(new Error('decode failed'));
+        });
+      }
+    }
+    (globalThis as unknown as { Image: typeof FailImage }).Image = FailImage;
+    try {
+      const broken = new File([new Uint8Array([0xff, 0xd8])], 'broken.jpg', {
+        type: 'image/jpeg',
+      });
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [broken] } });
+      });
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/couldn(’|')t convert/i);
+      expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+    } finally {
+      (globalThis as unknown as { Image: unknown }).Image = RealImage;
+    }
   });
 
   // QA-2026-05-02 (Bug 11): pdf.js will OOM the worker on a phone for
@@ -315,6 +372,70 @@ describe('MobileSendPage', () => {
     expect(arg.file.name).toBe('contract.pdf');
     expect(arg.signers.some((s) => s.email === 'bob@example.com')).toBe(true);
     expect(typeof arg.buildFields).toBe('function');
+  });
+
+  /*
+   * Production bug (2026-05-04): every mobile send returned 400 Bad
+   * Request. Root cause — `buildFields` emitted field placements with
+   * keys `w` and `h` instead of the API DTO's required `width` /
+   * `height`. Nest's global ValidationPipe runs with `whitelist:true,
+   * forbidNonWhitelisted:true` so unknown properties throw 400. The
+   * desktop code path (DocumentRoute.tsx) used the correct keys, so
+   * desktop send was unaffected. The mismatch survived TypeScript
+   * because `FieldPlacement.width`/`height` are optional, so an
+   * extra-property literal slipped through generic inference on
+   * `flatMap<FieldPlacement>(...)`.
+   *
+   * Pin the wire shape so the rename can never silently regress.
+   */
+  it('Send-for-signature buildFields emits width/height (not w/h) for the API', async () => {
+    const user = userEvent.setup();
+    runMock.mockClear();
+    renderPage();
+
+    // Walk: file → signers → place → review → Send (mirrors the
+    // earlier orchestration test).
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [mockFile('contract.pdf')] } });
+    });
+    await user.click(screen.getByRole('button', { name: /continue/i }));
+    await user.click(screen.getByRole('button', { name: /add signer/i }));
+    const dialog = await screen.findByRole('dialog', { name: /add a signer/i });
+    await user.type(within(dialog).getByPlaceholderText(/full name/i), 'Bob Builder');
+    await user.type(within(dialog).getByPlaceholderText(/name@example\.com/i), 'bob@example.com');
+    await user.click(within(dialog).getByRole('button', { name: /^add$/i }));
+    await user.click(screen.getByRole('button', { name: /next: place fields/i }));
+    await user.click(screen.getByRole('button', { name: /^signature$/i }));
+    const canvas = await screen.findByTestId('mw-canvas');
+    await user.click(canvas);
+    await user.click(screen.getByRole('button', { name: /^review/i }));
+    await user.click(screen.getByRole('button', { name: /send for signature/i }));
+
+    expect(runMock).toHaveBeenCalledTimes(1);
+    const call = runMock.mock.calls[0];
+    if (!call) throw new Error('expected runMock to have been invoked');
+    const arg = (call as ReadonlyArray<unknown>)[0] as {
+      buildFields: (localToServer: Map<string, string>) => ReadonlyArray<Record<string, unknown>>;
+      signers: ReadonlyArray<{ localId: string; email?: string }>;
+    };
+    // Build a localToServer mapping from the signers the page passed in,
+    // so buildFields can resolve every local id to a server id.
+    const localToServer = new Map<string, string>();
+    for (const s of arg.signers) {
+      localToServer.set(s.localId, `srv-${s.localId}`);
+    }
+    const placements = arg.buildFields(localToServer);
+    expect(placements.length).toBeGreaterThan(0);
+    for (const p of placements) {
+      // Wire-shape contract: the API requires `width`/`height` and the
+      // ValidationPipe rejects any extra property — so `w`/`h` MUST
+      // not appear and `width`/`height` MUST be present numbers.
+      expect(p).not.toHaveProperty('w');
+      expect(p).not.toHaveProperty('h');
+      expect(typeof p['width']).toBe('number');
+      expect(typeof p['height']).toBe('number');
+    }
   });
 
   it('rejects an invalid email in the add-signer sheet', async () => {
