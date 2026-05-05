@@ -83,6 +83,14 @@ const MobileSendPage = lazy(() =>
   import('./pages/MobileSendPage').then((m) => ({ default: m.MobileSendPage })),
 );
 
+// Mobile integrations settings screen — connect/disconnect Google Drive.
+// Lazy-loaded alongside MobileSendPage (same audience, same reason).
+const MobileIntegrationsPage = lazy(() =>
+  import('./pages/MobileSendPage/screens/MWIntegrations').then((m) => ({
+    default: m.MWIntegrations,
+  })),
+);
+
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
  * signer-scoped error boundary. Recipients only download signing modules
@@ -193,6 +201,16 @@ export function AppRoutes() {
             opens once the new account row is in the React-Query cache.
             Lives outside <AppShell /> for the same reason as /m/send. */}
         <Route path="/m/send/drive" element={<MobileGdriveReturnPage />} />
+        {/* Mobile integrations settings — connect/disconnect Google Drive.
+            Lives outside <AppShell /> for the same reason as /m/send. */}
+        <Route
+          path="/m/send/settings"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <MobileIntegrationsPage />
+            </Suspense>
+          }
+        />
       </Route>
 
       <Route element={<RequireAuth />}>
