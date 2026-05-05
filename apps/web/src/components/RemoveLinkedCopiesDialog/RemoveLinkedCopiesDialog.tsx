@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useId, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type {
   RemoveLinkedCopiesDialogProps,
   RemoveLinkedScope,
@@ -40,22 +41,13 @@ export const RemoveLinkedCopiesDialog = forwardRef<HTMLDivElement, RemoveLinkedC
     // Default to the safer scope — removing just the page the user is on.
     const [scope, setScope] = useState<RemoveLinkedScope>('only-this');
 
-    // Single open-lifecycle effect (rule 4.4 — one responsibility per
-    // useEffect). On open: reset scope to the safe default so a previous
-    // "All pages" selection doesn't silently carry over, AND wire the
-    // Escape-key listener; both concerns share the same dependency
-    // (`open`) and lifetime, so they belong together.
-    useEffect((): (() => void) | undefined => {
-      if (!open) return undefined;
-      setScope('only-this');
-      const handleKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') onCancel();
-      };
-      window.addEventListener('keydown', handleKey);
-      return (): void => {
-        window.removeEventListener('keydown', handleKey);
-      };
-    }, [open, onCancel]);
+    // Reset scope to the safe default when dialog opens so a previous
+    // "All pages" selection doesn't silently carry over.
+    useEffect((): void => {
+      if (open) setScope('only-this');
+    }, [open]);
+
+    useEscapeKey(onCancel, open);
 
     const handleBackdropClick = useCallback((): void => {
       onCancel();

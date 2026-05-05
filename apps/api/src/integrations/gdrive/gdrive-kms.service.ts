@@ -74,7 +74,10 @@ export class GDriveKmsService {
     return new GDriveKmsService(new AwsKmsClient(new KMSClient({ region })), arn);
   }
 
-  async encrypt(plaintext: string): Promise<{ ciphertext: Buffer; kmsKeyArn: string }> {
+  async encrypt(
+    plaintext: string,
+    aad?: Buffer,
+  ): Promise<{ ciphertext: Buffer; kmsKeyArn: string }> {
     let dataKey: { plaintext: Buffer; ciphertextBlob: Buffer };
     try {
       dataKey = await this.client.generateDataKey(this.keyArn);
@@ -82,19 +85,28 @@ export class GDriveKmsService {
       // Re-throw with a generic message — never echo the plaintext.
       throw new Error('gdrive_kms_encrypt_failed');
     }
-    const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', dataKey.plaintext, iv);
-    const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    const wrappedLen = Buffer.alloc(4);
-    wrappedLen.writeUInt32BE(dataKey.ciphertextBlob.length, 0);
-    return {
-      ciphertext: Buffer.concat([wrappedLen, dataKey.ciphertextBlob, iv, tag, enc]),
-      kmsKeyArn: this.keyArn,
-    };
+    try {
+      const iv = randomBytes(12);
+      const cipher = createCipheriv('aes-256-gcm', dataKey.plaintext, iv);
+      // Bind ciphertext to the row via AAD (Additional Authenticated Data).
+      // Without AAD an attacker with DB write access could swap encrypted
+      // tokens between rows (cryptography-expert §6.2).
+      if (aad) cipher.setAAD(aad);
+      const enc = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
+      const tag = cipher.getAuthTag();
+      const wrappedLen = Buffer.alloc(4);
+      wrappedLen.writeUInt32BE(dataKey.ciphertextBlob.length, 0);
+      return {
+        ciphertext: Buffer.concat([wrappedLen, dataKey.ciphertextBlob, iv, tag, enc]),
+        kmsKeyArn: this.keyArn,
+      };
+    } finally {
+      // Zero the plaintext data key so it doesn't linger in heap memory.
+      dataKey.plaintext.fill(0);
+    }
   }
 
-  async decrypt(ciphertext: Buffer, _kmsKeyArn: string): Promise<string> {
+  async decrypt(ciphertext: Buffer, _kmsKeyArn: string, aad?: Buffer): Promise<string> {
     if (ciphertext.length < 4 + 12 + 16) throw new Error('gdrive_kms_decrypt_failed');
     const wrappedLen = ciphertext.readUInt32BE(0);
     const offset = 4 + wrappedLen;
@@ -108,9 +120,17 @@ export class GDriveKmsService {
     } catch {
       throw new Error('gdrive_kms_decrypt_failed');
     }
-    const decipher = createDecipheriv('aes-256-gcm', dataKey, iv);
-    decipher.setAuthTag(tag);
-    const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
-    return dec.toString('utf8');
+    try {
+      const decipher = createDecipheriv('aes-256-gcm', dataKey, iv);
+      // Must match the AAD used at encryption time; mismatches cause an auth
+      // tag failure — prevents cross-row token swaps (cryptography-expert §6.2).
+      if (aad) decipher.setAAD(aad);
+      decipher.setAuthTag(tag);
+      const dec = Buffer.concat([decipher.update(enc), decipher.final()]);
+      return dec.toString('utf8');
+    } finally {
+      // Zero the plaintext data key so it doesn't linger in heap memory.
+      dataKey.fill(0);
+    }
   }
 }

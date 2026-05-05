@@ -1,7 +1,8 @@
-import { forwardRef, useCallback, useEffect, useId } from 'react';
+import { forwardRef, useCallback, useId } from 'react';
 import { ArrowRight, Bookmark, Save, Send } from 'lucide-react';
 import { Button } from '../Button';
 import { Icon } from '../Icon';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { SendConfirmDialogProps } from './SendConfirmDialog.types';
 import {
   Backdrop,
@@ -41,17 +42,7 @@ export const SendConfirmDialog = forwardRef<HTMLDivElement, SendConfirmDialogPro
     const titleId = useId();
     const descId = useId();
 
-    useEffect(() => {
-      if (!open) return undefined;
-      const onKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onCancel();
-        }
-      };
-      window.addEventListener('keydown', onKey);
-      return () => window.removeEventListener('keydown', onKey);
-    }, [open, onCancel]);
+    useEscapeKey(onCancel, open);
 
     const handleBackdrop = useCallback(() => onCancel(), [onCancel]);
 
