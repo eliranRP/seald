@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seald — Signature Settings (Design Guide)</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Dancing+Script:wght@400;500;700&family=Handlee&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: var(--ink-50); }
+    *, *::before, *::after { box-sizing: border-box; }
+    #root { font-family: var(--font-sans); color: var(--fg-2); min-height: 100vh; }
+
+    /* Stepper — bottom nav for switching design screens */
+    .stepper {
+      position: fixed; bottom: 20px; left: 20px; z-index: 50;
+      display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 40px);
+      background: #fff; border: 1px solid var(--border-1);
+      border-radius: 18px; padding: 6px;
+      box-shadow: var(--shadow-md); font-family: var(--font-sans);
+    }
+    .stepper button {
+      border: none; background: transparent;
+      padding: 7px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; color: var(--fg-3); cursor: pointer;
+      transition: background 120ms, color 120ms;
+    }
+    .stepper button:hover { background: var(--ink-50); color: var(--fg-1); }
+    .stepper button.on { background: var(--ink-900); color: #fff; }
+    .stepper .sep { width: 1px; background: var(--border-1); margin: 4px 4px; }
+    .stepper .group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--fg-4);
+      align-self: center; padding: 0 6px 0 8px;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Canvas area behind the sidebar — simulates the PDF document */
+    .canvas-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background: #e8e8e8;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .canvas-bg .page {
+      width: 600px; height: 780px; background: #fff;
+      box-shadow: 0 2px 12px rgba(0,0,0,.1); border-radius: 4px;
+      padding: 60px 50px; font-size: 14px; color: #333; line-height: 1.7;
+    }
+    .canvas-bg .page h3 { font-size: 16px; font-weight: 700; margin: 20px 0 8px; }
+    .canvas-bg .sig-field {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 200px; height: 60px; border: 2px dashed #d4817a;
+      border-radius: 8px; background: rgba(212,129,122,.08);
+      color: #d4817a; font-size: 12px; font-weight: 600;
+      margin: 8px 0;
+    }
+
+    /* Sidebar overlay */
+    .sidebar-area {
+      position: fixed; right: 0; top: 0; bottom: 0; z-index: 10;
+      display: flex; align-items: center; padding-right: 24px;
+    }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Components -->
+  <script type="text/babel" src="./SignatureSettingsPanel.jsx"></script>
+  <script type="text/babel" src="./SignatureCaptureModal.jsx"></script>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const SCREENS = [
+      { id: 'sidebar-before',     label: 'Before signing' },
+      { id: 'sidebar-after',      label: 'After signing' },
+      { id: 'modal-signature',    label: 'Edit signature' },
+      { id: 'modal-initials',     label: 'Edit initials' },
+      { id: 'sidebar-sig-only',   label: 'Sig only (no initials)' },
+      { id: 'mobile',             label: 'Mobile view' },
+    ];
+
+    /* Fake PDF page background */
+    function FakePdfPage() {
+      return (
+        <div className="canvas-bg">
+          <div className="page">
+            <h3>EFFECTIVE DATE</h3>
+            <p>This Waiver and Release shall be effective immediately upon execution.</p>
+            <p style={{ marginTop: 8 }}>Date: May 5, 2026</p>
+            <div style={{ marginTop: 40 }}>
+              <p>Owner: LLC NRO Momentum</p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                Owner Signature: <span className="sig-field">Signature</span>
+              </p>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                Owner Initials: <span className="sig-field" style={{ width: 100 }}>Initials</span>
+              </p>
+              <p style={{ marginTop: 12 }}>Owner Printed Name: Eliran Azulay, Managing Member</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState('sidebar-before');
+      const [modalOpen, setModalOpen] = useState(false);
+      const [modalKind, setModalKind] = useState('signature');
+
+      const openModal = (kind) => {
+        setModalKind(kind);
+        setModalOpen(true);
+      };
+
+      return (
+        <div>
+          <FakePdfPage />
+
+          {/* Sidebar screens */}
+          {(screen === 'sidebar-before' || screen === 'sidebar-after' || screen === 'sidebar-sig-only') && (
+            <div className="sidebar-area">
+              <SignOptionsPanel
+                state={{
+                  signerName: 'Eliran Azulay, Managing Member',
+                  signatureImage: screen === 'sidebar-after' ? null : null,
+                  initialsImage: null,
+                  hasSignatureFields: true,
+                  hasInitialsFields: screen !== 'sidebar-sig-only',
+                  remainingFields: screen === 'sidebar-after' ? 0 : (screen === 'sidebar-sig-only' ? 1 : 2),
+                }}
+                onEditSignature={() => openModal('signature')}
+                onEditInitials={() => openModal('initials')}
+                onDecline={() => alert('Decline clicked')}
+                onSign={() => alert('Sign clicked')}
+              />
+            </div>
+          )}
+
+          {/* Modal screens */}
+          {(screen === 'modal-signature' || screen === 'modal-initials') && (
+            <div>
+              <div className="sidebar-area" style={{ opacity: 0.3, pointerEvents: 'none' }}>
+                <SignOptionsPanel
+                  state={{
+                    signerName: 'Eliran Azulay, Managing Member',
+                    signatureImage: null, initialsImage: null,
+                    hasSignatureFields: true, hasInitialsFields: true,
+                    remainingFields: 2,
+                  }}
+                  onEditSignature={() => {}} onEditInitials={() => {}}
+                  onDecline={() => {}} onSign={() => {}}
+                />
+              </div>
+              <SignatureCaptureModal
+                open={true}
+                kind={screen === 'modal-initials' ? 'initials' : 'signature'}
+                signerName="Eliran Azulay, Managing Member"
+                onCancel={() => setScreen('sidebar-before')}
+                onApply={(result) => { setScreen('sidebar-before'); }}
+              />
+            </div>
+          )}
+
+          {/* Mobile view */}
+          {screen === 'mobile' && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 20,
+              background: '#fff', display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{
+                padding: '16px 20px', borderBottom: '1px solid #eee',
+                fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-sans)',
+              }}>
+                Sign options
+              </div>
+              <div style={{ padding: 20, flex: 1, overflow: 'auto' }}>
+                <SignatureSettingsSection
+                  hasSignatureFields={true}
+                  hasInitialsFields={true}
+                  signerName="Eliran Azulay, Managing Member"
+                  signatureImage={null}
+                  initialsImage={null}
+                  onEditSignature={() => openModal('signature')}
+                  onEditInitials={() => openModal('initials')}
+                />
+                <div style={{ marginTop: 16 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', margin: '0 0 10px' }}>
+                    Validation options
+                  </h3>
+                  <button style={{
+                    width: '100%', padding: '12px 16px',
+                    border: '1px solid #d0d0d0', borderRadius: 10,
+                    background: '#fff', fontSize: 14, fontWeight: 500,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  }}>
+                    Decline document
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '12px 20px 24px', borderTop: '1px solid #eee' }}>
+                <div style={{ fontSize: 13, color: '#888', marginBottom: 8 }}>2 fields to fill in</div>
+                <button style={{
+                  width: '100%', padding: '18px', border: 'none', borderRadius: 14,
+                  background: 'linear-gradient(135deg, #e8a09a, #d4817a)',
+                  fontSize: 18, fontWeight: 600, color: '#fff',
+                }}>
+                  Sign
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Stepper */}
+          <div className="stepper">
+            <span className="group-label">Screens</span>
+            {SCREENS.map(s => (
+              <button
+                key={s.id}
+                className={screen === s.id ? 'on' : ''}
+                onClick={() => { setScreen(s.id); setModalOpen(false); }}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
