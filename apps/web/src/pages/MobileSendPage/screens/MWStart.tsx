@@ -90,7 +90,9 @@ const HiddenFileInput = styled.input`
 `;
 
 export interface MWStartProps {
-  readonly onPickFile: (file: File) => void;
+  // Returns Promise<void> so the parent can run async work (e.g. image →
+  // PDF conversion) without TS complaining about the floating promise.
+  readonly onPickFile: (file: File) => void | Promise<void>;
 }
 
 // 2026-05-03 (per user): the "From a template" tile was removed. The
@@ -107,7 +109,18 @@ export function MWStart(props: MWStartProps) {
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const f = e.target.files?.[0];
-    if (f) onPickFile(f);
+    if (f) {
+      // The parent may run async work (image → PDF). We deliberately
+      // don't await — the picker shouldn't block the input element
+      // freeing its file handle. Errors surface as inline alerts in the
+      // parent, never as unhandled promise rejections.
+      const result = onPickFile(f);
+      if (result instanceof Promise) {
+        result.catch(() => {
+          /* parent surfaces the failure via fileError state */
+        });
+      }
+    }
     // Reset so re-picking the same file fires onChange again.
     e.target.value = '';
   };
