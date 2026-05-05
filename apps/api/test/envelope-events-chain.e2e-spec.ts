@@ -103,7 +103,9 @@ describe('envelope-events chain integrity (e2e)', () => {
     readonly short_code: string;
   }> {
     counter += 1;
-    const short_code = `chn_e2e_${String(counter).padStart(5, '0')}`; // 13 chars
+    // Use base-58 safe chars (no 0, O, I, l, underscores) so the code
+    // passes isValidShortCode validation added in PR #200.
+    const short_code = `chne2eT${String(counter).padStart(6, '2')}`; // 13 chars, base-58 safe
     const draft = await envelopesRepo.createDraft({
       owner_id: USER_A,
       title: 'Chain integrity envelope',
