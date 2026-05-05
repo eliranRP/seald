@@ -1,137 +1,164 @@
-/**
- * Signature Capture Modal — opened when the user clicks the gear icon
- * on a signature/initials preview card.
- *
- * Shows: name input, initials input, font selector with 4 options,
- * and Cancel/Apply actions.
- */
+/* @jsx React.createElement */
+/* Signature Capture Modal — bottom sheet matching the existing
+   SignatureCapture component's visual language. */
 
-const FONTS = [
-  { id: 'caveat',    family: "'Caveat', cursive",         label: 'Caveat' },
-  { id: 'dancing',   family: "'Dancing Script', cursive", label: 'Dancing Script' },
-  { id: 'sans',      family: "'Inter', sans-serif",       label: 'Inter' },
-  { id: 'handlee',   family: "'Handlee', cursive",        label: 'Handlee' },
+const SIG_FONTS = [
+  { id: 'caveat',  family: "'Caveat', cursive",         label: 'Caveat' },
+  { id: 'dancing', family: "'Dancing Script', cursive", label: 'Dancing Script' },
+  { id: 'inter',   family: "'Inter', sans-serif",       label: 'Inter' },
+  { id: 'serif',   family: "'Source Serif 4', serif",   label: 'Source Serif' },
 ];
 
 function SignatureCaptureModal({ open, kind, signerName, onCancel, onApply }) {
-  const [name, setName] = React.useState(signerName);
-  const [initials, setInitials] = React.useState(() =>
-    signerName.replace(/[,.\-]/g, ' ').split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('')
+  const [name, setName] = useState(signerName);
+  const [initials, setInitials] = useState(
+    () => signerName.replace(/[,.\-]/g, ' ').split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join('')
   );
-  const [selectedFont, setSelectedFont] = React.useState('caveat');
-  const [tab, setTab] = React.useState('type'); // type | draw
+  const [selectedFont, setSelectedFont] = useState('caveat');
+  const [tab, setTab] = useState('type');
+  const [focused, setFocused] = useState(null);
 
   if (!open) return null;
-
   const kindLabel = kind === 'initials' ? 'initials' : 'signature';
   const displayText = kind === 'initials' ? initials : name;
 
   return (
+    /* Backdrop — matches ink-900 at 50% */
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,.4)',
-      animation: 'fadeIn 200ms ease',
+      position: 'fixed', inset: 0, zIndex: 90,
+      background: 'rgba(11, 18, 32, 0.5)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      animation: 'fadeIn 200ms',
     }}>
+      {/* Sheet — bottom-sheet pattern matching SignatureCapture.styles.ts */}
       <div style={{
-        background: '#fff', borderRadius: 16, width: 480, maxWidth: '92vw',
-        padding: '28px 28px 20px', boxShadow: '0 8px 32px rgba(0,0,0,.15)',
+        background: '#fff', width: '100%', maxWidth: 680,
+        borderRadius: '20px 20px 0 0',
+        padding: '24px 28px 28px',
+        boxShadow: '0 -10px 40px rgba(11, 18, 32, 0.2)',
         fontFamily: 'var(--font-sans)',
+        animation: 'slideUp 240ms var(--ease-standard)',
       }}>
-        {/* Title */}
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 20px', color: '#1a1a1a' }}>
-          Set your {kindLabel} details
-        </h2>
+        {/* Header row */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h2 style={{
+            fontSize: 18, fontWeight: 500, margin: 0,
+            fontFamily: 'var(--font-serif)', color: 'var(--fg-1)',
+          }}>
+            Set your {kindLabel} details
+          </h2>
+          <button
+            onClick={onCancel}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: 4, borderRadius: 8, color: 'var(--fg-3)',
+              display: 'inline-flex',
+            }}
+            aria-label="Close"
+          >
+            <Icon name="x" size={18} />
+          </button>
+        </div>
 
         {/* Name + Initials inputs */}
         <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4, display: 'block' }}>
-              Full name:
-            </label>
+            <label style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--fg-2)',
+              marginBottom: 6, display: 'block',
+            }}>Full name:</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
+              onFocus={() => setFocused('name')}
+              onBlur={() => setFocused(null)}
               style={{
-                width: '100%', padding: '10px 12px', border: '1px solid #d0d0d0',
-                borderRadius: 8, fontSize: 14, outline: 'none',
-                borderBottom: '2px solid #d4817a',
+                width: '100%', padding: '12px 16px',
+                border: `1px solid ${focused === 'name' ? 'var(--indigo-500)' : 'var(--border-2)'}`,
+                borderRadius: 12, fontSize: 14, outline: 'none',
+                boxShadow: focused === 'name' ? 'var(--shadow-focus)' : 'none',
+                fontFamily: 'var(--font-sans)', color: 'var(--fg-1)',
+                transition: 'border-color 120ms, box-shadow 120ms',
               }}
             />
           </div>
-          <div style={{ width: 90 }}>
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#666', marginBottom: 4, display: 'block' }}>
-              Initials:
-            </label>
+          <div style={{ width: 100 }}>
+            <label style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--fg-2)',
+              marginBottom: 6, display: 'block',
+            }}>Initials:</label>
             <input
               value={initials}
               onChange={e => setInitials(e.target.value)}
+              onFocus={() => setFocused('initials')}
+              onBlur={() => setFocused(null)}
               style={{
-                width: '100%', padding: '10px 12px', border: '1px solid #d0d0d0',
-                borderRadius: 8, fontSize: 14, outline: 'none',
+                width: '100%', padding: '12px 16px',
+                border: `1px solid ${focused === 'initials' ? 'var(--indigo-500)' : 'var(--border-2)'}`,
+                borderRadius: 12, fontSize: 14, outline: 'none',
+                boxShadow: focused === 'initials' ? 'var(--shadow-focus)' : 'none',
+                fontFamily: 'var(--font-sans)', color: 'var(--fg-1)',
+                transition: 'border-color 120ms, box-shadow 120ms',
               }}
             />
           </div>
         </div>
 
-        {/* Tabs: Signature / Initials type selector */}
+        {/* Tabs — matching SignatureCapture tab bar */}
         <div style={{
-          display: 'flex', gap: 0, borderBottom: '1px solid #eee', marginBottom: 12,
+          display: 'inline-flex', gap: 4, padding: 4,
+          background: 'var(--ink-100)', borderRadius: 12,
+          marginBottom: 14,
         }}>
           {['type', 'draw'].map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
               style={{
-                border: 'none', background: 'none', cursor: 'pointer',
-                padding: '8px 16px', fontSize: 13, fontWeight: 600,
-                color: tab === t ? '#d4817a' : '#888',
-                borderBottom: tab === t ? '2px solid #d4817a' : '2px solid transparent',
+                border: 'none', cursor: 'pointer',
+                padding: '6px 14px', borderRadius: 8,
+                fontSize: 13, fontWeight: 600,
+                fontFamily: 'var(--font-sans)',
+                background: tab === t ? '#fff' : 'transparent',
+                color: tab === t ? 'var(--fg-1)' : 'var(--fg-3)',
+                boxShadow: tab === t ? 'var(--shadow-sm)' : 'none',
+                transition: 'background 120ms, color 120ms',
+                display: 'flex', alignItems: 'center', gap: 6,
               }}
             >
-              {t === 'type' ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z"/></svg>
-                  {kind === 'initials' ? 'Initials' : 'Signature'}
-                </span>
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                  Draw
-                </span>
-              )}
+              <Icon name={t === 'type' ? 'pen-tool' : 'paintbrush'} size={13} />
+              {t === 'type' ? (kind === 'initials' ? 'Initials' : 'Signature') : 'Draw'}
             </button>
           ))}
         </div>
 
-        {/* Font options (type tab) */}
+        {/* Font selector (type tab) */}
         {tab === 'type' && (
           <div style={{
-            border: '1px solid #eee', borderRadius: 10, padding: 8,
-            maxHeight: 180, overflow: 'auto',
+            border: '1px solid var(--border-1)',
+            borderRadius: 12, overflow: 'hidden',
           }}>
-            {FONTS.map(font => (
+            {SIG_FONTS.map((font, i) => (
               <label
                 key={font.id}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '10px 12px', borderRadius: 8, cursor: 'pointer',
-                  background: selectedFont === font.id ? '#faf5f5' : 'transparent',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 16px', cursor: 'pointer',
+                  background: selectedFont === font.id ? 'var(--indigo-50)' : 'transparent',
+                  borderBottom: i < SIG_FONTS.length - 1 ? '1px solid var(--border-1)' : 'none',
                   transition: 'background 100ms',
                 }}
-                onMouseEnter={e => { if (selectedFont !== font.id) e.currentTarget.style.background = '#f8f8f8'; }}
-                onMouseLeave={e => { if (selectedFont !== font.id) e.currentTarget.style.background = 'transparent'; }}
               >
                 <input
-                  type="radio"
-                  name="font"
+                  type="radio" name="sig-font"
                   checked={selectedFont === font.id}
                   onChange={() => setSelectedFont(font.id)}
-                  style={{ accentColor: '#d4817a' }}
+                  style={{ accentColor: 'var(--indigo-600)', width: 16, height: 16 }}
                 />
                 <span style={{
-                  fontFamily: font.family, fontSize: 20, color: '#1a1a1a',
+                  fontFamily: font.family, fontSize: 22, color: 'var(--fg-1)',
                   whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  flex: 1,
                 }}>
                   {displayText || 'Preview'}
                 </span>
@@ -140,41 +167,31 @@ function SignatureCaptureModal({ open, kind, signerName, onCancel, onApply }) {
           </div>
         )}
 
-        {/* Draw tab placeholder */}
+        {/* Draw canvas (draw tab) */}
         {tab === 'draw' && (
           <div style={{
-            border: '1px dashed #ccc', borderRadius: 10,
-            height: 160, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', color: '#999', fontSize: 14,
+            border: '1.5px dashed var(--border-2)',
+            borderRadius: 12, height: 180,
+            background: 'var(--ink-50)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: 'var(--fg-4)', fontSize: 14,
           }}>
-            Draw your {kindLabel} here
+            <div style={{ textAlign: 'center' }}>
+              <Icon name="pen-tool" size={24} style={{ marginBottom: 8, opacity: 0.4 }} />
+              <div>Draw your {kindLabel} here</div>
+            </div>
           </div>
         )}
 
-        {/* Actions */}
+        {/* Footer — matches SignatureCapture button pattern */}
         <div style={{
-          display: 'flex', justifyContent: 'flex-end', gap: 10,
-          marginTop: 16, paddingTop: 12, borderTop: '1px solid #eee',
+          display: 'flex', justifyContent: 'flex-end', gap: 8,
+          marginTop: 20,
         }}>
-          <button
-            onClick={onCancel}
-            style={{
-              border: 'none', background: 'none', cursor: 'pointer',
-              padding: '8px 16px', fontSize: 14, fontWeight: 500, color: '#666',
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onApply({ name, initials, font: selectedFont })}
-            style={{
-              border: 'none', borderRadius: 8, cursor: 'pointer',
-              padding: '8px 20px', fontSize: 14, fontWeight: 600,
-              background: '#d4817a', color: '#fff',
-            }}
-          >
+          <Button variant="secondary" size="md" onClick={onCancel}>Cancel</Button>
+          <Button variant="dark" size="md" onClick={() => onApply({ name, initials, font: selectedFont })}>
             Apply
-          </button>
+          </Button>
         </div>
       </div>
     </div>
