@@ -1,0 +1,45 @@
+name: Restart Gotenberg sidecar on prod
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  restart:
+    name: Restart Gotenberg container
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: SSH restart
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 3m
+          script: |
+            set -euo pipefail
+            cd /opt/seald
+
+            echo "=== Current state ==="
+            sudo docker compose ps gotenberg
+
+            echo "=== Restarting gotenberg ==="
+            sudo docker compose restart gotenberg
+
+            echo "=== Waiting for healthy (max 60s) ==="
+            for i in $(seq 1 20); do
+              status=$(sudo docker inspect -f '{{.State.Health.Status}}' \
+                $(sudo docker compose ps -q gotenberg) 2>/dev/null || echo unknown)
+              echo "  [$i/20] gotenberg health=$status"
+              if [ "$status" = "healthy" ]; then
+                echo "gotenberg healthy."
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "WARNING: gotenberg still not healthy after 60s"
+            sudo docker compose logs --tail=30 gotenberg
