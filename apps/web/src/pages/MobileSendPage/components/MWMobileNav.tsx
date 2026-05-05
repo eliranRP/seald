@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X } from 'lucide-react';
+import { Cloud, Menu, X } from 'lucide-react';
 import styled from 'styled-components';
+import { isFeatureEnabled } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { useAuth } from '@/providers/AuthProvider';
 import { NAV_ITEMS, matchNavId } from '@/layout/navItems';
@@ -273,6 +274,12 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     onDownloadOriginalPdf();
   }, [onDownloadOriginalPdf]);
 
+  const handleOpenIntegrations = useCallback((): void => {
+    setOpen(false);
+    navigate('/m/send/settings');
+  }, [navigate]);
+
+  const gdriveOn = isFeatureEnabled('gdriveIntegration');
   const activeId = matchNavId(location.pathname);
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'You';
   const displayEmail = user?.email ?? '';
@@ -341,6 +348,12 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
               Download original PDF
             </SheetItem>
           ) : null}
+          {gdriveOn && (
+            <SheetItem type="button" onClick={handleOpenIntegrations}>
+              <Cloud size={20} aria-hidden />
+              Integrations
+            </SheetItem>
+          )}
           <SheetItem type="button" onClick={handleSignOut}>
             Sign out
           </SheetItem>
