@@ -92,7 +92,8 @@ class StubGoogleClient implements GoogleOAuthClient {
     expiresAt: Date.now() + 3600_000,
     googleUserId: 'g-sub-1',
     googleEmail: 'user@example.com',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
   };
   filesListReturns: { files: ReadonlyArray<{ id: string; name: string; mimeType: string }> } = {
     files: [{ id: 'f1', name: 'doc.pdf', mimeType: 'application/pdf' }],

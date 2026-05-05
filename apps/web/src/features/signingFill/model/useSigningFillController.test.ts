@@ -424,6 +424,110 @@ describe('useSigningFillController — 401/410 token failures', () => {
     });
     expect(result.current.error).toMatch(/upstream|could not apply your signature/i);
   });
+
+  it('remembered-initials auto-apply sends kind="initials" so it does not overwrite the signature path', async () => {
+    // Scenario: 1 signature field + 2 initials fields (duplicated across pages).
+    // The signer draws signature, then draws initials. The 2nd initials field
+    // auto-applies the remembered initials — it MUST send kind='initials' so
+    // the backend writes to the initials storage path, not the signature path.
+    session.fields = [
+      makeField({ id: 'sig1', page: 1, kind: 'signature' }),
+      makeField({ id: 'ini1', page: 1, kind: 'initials' }),
+      makeField({ id: 'ini2', page: 2, kind: 'initials' }),
+    ];
+
+    const calls: Array<{ id: string; input: Record<string, unknown> }> = [];
+    session.setSignature = vi.fn(async (id: string, input: Record<string, unknown>) => {
+      calls.push({ id, input });
+      const f = session.fields.find((x) => x.id === id);
+      if (f) (f as { value_text: string | null }).value_text = 'data:image/png;base64,xxx';
+    });
+
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-dup' }));
+
+    // 1. Click sig1 → opens sig drawer (no remembered signature)
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    expect(result.current.sigDrawer?.kind).toBe('signature');
+
+    // Apply signature via drawer
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['sig-png'], { type: 'image/png' }),
+        format: 'drawn',
+      });
+    });
+
+    // 2. Click ini1 → opens sig drawer for initials (no remembered initials)
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[1]!);
+    });
+    expect(result.current.sigDrawer?.kind).toBe('initials');
+
+    // Apply initials via drawer
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['ini-png'], { type: 'image/png' }),
+        format: 'typed',
+        font: 'DancingScript',
+      });
+    });
+
+    // 3. Click ini2 → should AUTO-apply remembered initials (no drawer)
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[2]!);
+    });
+    // The drawer should NOT have opened because the remembered slot is populated
+    expect(result.current.sigDrawer).toBeNull();
+
+    // Verify the auto-apply call passed kind='initials'
+    const autoApplyCall = calls.find((c) => c.id === 'ini2');
+    expect(autoApplyCall).toBeDefined();
+    expect(autoApplyCall!.input).toHaveProperty('kind', 'initials');
+
+    // Also verify the explicit drawer calls passed correct kinds
+    const sigCall = calls.find((c) => c.id === 'sig1');
+    expect(sigCall!.input).toHaveProperty('kind', 'signature');
+    const iniCall = calls.find((c) => c.id === 'ini1');
+    expect(iniCall!.input).toHaveProperty('kind', 'initials');
+  });
+
+  it('remembered-signature auto-apply sends kind="signature" for the 2nd signature field', async () => {
+    session.fields = [
+      makeField({ id: 'sig1', page: 1, kind: 'signature' }),
+      makeField({ id: 'sig2', page: 2, kind: 'signature' }),
+    ];
+
+    const calls: Array<{ id: string; input: Record<string, unknown> }> = [];
+    session.setSignature = vi.fn(async (id: string, input: Record<string, unknown>) => {
+      calls.push({ id, input });
+      const f = session.fields.find((x) => x.id === id);
+      if (f) (f as { value_text: string | null }).value_text = 'data:image/png;base64,xxx';
+    });
+
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-dup2' }));
+
+    // Draw signature on first field via drawer
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+    await act(async () => {
+      await result.current.handleSignatureApply({
+        blob: new Blob(['sig-png'], { type: 'image/png' }),
+        format: 'drawn',
+      });
+    });
+
+    // Click second signature field — auto-applies
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[1]!);
+    });
+
+    const autoCall = calls.find((c) => c.id === 'sig2');
+    expect(autoCall).toBeDefined();
+    expect(autoCall!.input).toHaveProperty('kind', 'signature');
+  });
 });
 
 describe('useSigningFillController — decline + withdraw consent', () => {

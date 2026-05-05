@@ -179,6 +179,7 @@ export function useSigningFillController({
             await setSignature(field.id, {
               blob: remembered.blob,
               format: remembered.format,
+              kind: uiKind,
               ...(remembered.font !== undefined ? { font: remembered.font } : {}),
               ...(remembered.stroke_count !== undefined
                 ? { stroke_count: remembered.stroke_count }

@@ -124,8 +124,8 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
     // Four DocsViews with explicit labels to avoid duplicate tab names.
-    // Now using GRID mode (default) since the `drive.readonly` scope
-    // allows Google's picker to load thumbnail images from
+    // Now using GRID mode since the `drive.readonly` scope allows
+    // Google's picker to load thumbnail images from
     // lh3.googleusercontent.com without ORB issues. Tab order:
     //   1. Starred        → setStarred(true), NO ownership filter
     //   2. My Drive       → setOwnedByMe(true)
