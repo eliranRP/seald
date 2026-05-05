@@ -72,9 +72,34 @@ function emptyFile(name: string): File {
   return new File([new Uint8Array(0)], name, { type: 'application/pdf' });
 }
 
+// Image stub: the "Take photo" tile feeds JPEGs through `imageFileToPdf`
+// which constructs `new Image()` and waits for onload. jsdom doesn't
+// decode image bytes, so without this stub the conversion hangs
+// forever. Tests that need decode-failure override this in-place.
+class StubImage {
+  public width = 800;
+
+  public height = 600;
+
+  public naturalWidth = 800;
+
+  public naturalHeight = 600;
+
+  public onload: (() => void) | null = null;
+
+  public onerror: ((err: unknown) => void) | null = null;
+
+  set src(_value: string) {
+    queueMicrotask(() => {
+      if (this.onload) this.onload();
+    });
+  }
+}
+
 describe('MobileSendPage', () => {
   beforeEach(() => {
     runMock.mockClear();
+    (globalThis as unknown as { Image: typeof StubImage }).Image = StubImage;
   });
 
   afterEach(() => {
@@ -197,11 +222,12 @@ describe('MobileSendPage', () => {
     expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
   });
 
-  // QA-2026-05-02 (Bug 3): the start screen exposes a hidden file input
-  // for "Take photo" that uses `accept="image/*"` + `capture="environment"`.
-  // pdf.js can't parse a JPEG, so we reject anything that isn't a PDF at
-  // the picker boundary and surface an inline alert.
-  it('rejects a non-PDF (camera capture) at the upload boundary', async () => {
+  // 2026-05-04: the start screen exposes a hidden file input for
+  // "Take photo" that uses `accept="image/*"` + `capture="environment"`.
+  // We now convert the image to a single-page PDF in the browser and
+  // continue through the existing send pipeline. This test stubs the
+  // conversion util to keep the page test focused on the wiring.
+  it('converts a camera-capture JPEG into a PDF and advances to the file step', async () => {
     renderPage();
     const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
     const jpeg = new File([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], 'photo.jpg', {
@@ -210,10 +236,41 @@ describe('MobileSendPage', () => {
     await act(async () => {
       fireEvent.change(input, { target: { files: [jpeg] } });
     });
-    const alert = await screen.findByRole('alert');
-    expect(alert).toHaveTextContent(/photo\.jpg/i);
-    expect(alert).toHaveTextContent(/isn't a pdf/i);
-    expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+    // Advances to step 2 with a PDF-renamed file.
+    expect(await screen.findByText(/confirm the file/i)).toBeInTheDocument();
+    expect(screen.getByText(/photo\.pdf/i)).toBeInTheDocument();
+  });
+
+  it('shows a friendly alert when image-to-PDF conversion fails', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/pdf file/i) as HTMLInputElement;
+    // Override the Image stub for this test only — fail every decode.
+    const RealImage = (globalThis as unknown as { Image: unknown }).Image;
+    class FailImage {
+      public onload: (() => void) | null = null;
+
+      public onerror: ((err: unknown) => void) | null = null;
+
+      set src(_v: string) {
+        queueMicrotask(() => {
+          if (this.onerror) this.onerror(new Error('decode failed'));
+        });
+      }
+    }
+    (globalThis as unknown as { Image: typeof FailImage }).Image = FailImage;
+    try {
+      const broken = new File([new Uint8Array([0xff, 0xd8])], 'broken.jpg', {
+        type: 'image/jpeg',
+      });
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [broken] } });
+      });
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(/couldn(’|')t convert/i);
+      expect(screen.queryByText(/confirm the file/i)).not.toBeInTheDocument();
+    } finally {
+      (globalThis as unknown as { Image: unknown }).Image = RealImage;
+    }
   });
 
   // QA-2026-05-02 (Bug 11): pdf.js will OOM the worker on a phone for

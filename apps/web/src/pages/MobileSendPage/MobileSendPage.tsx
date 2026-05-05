@@ -45,6 +45,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useAppState } from '@/providers/AppStateProvider';
 import { useDownloadPdf } from '@/features/downloadPdf';
 import { usePdfDocument } from '@/lib/pdf';
+import { imageFileToPdf } from '@/utils/imageToPdf';
 // QA-2026-05-02: hard cap on the upload boundary. pdf.js will happily try
 // to parse a 200 MB blob on a phone and either OOM the tab or hang the
 // worker for tens of seconds — neither is recoverable from the page.
@@ -288,34 +289,53 @@ export function MobileSendPage() {
   // Reject empty files at the boundary — pdf.js parses a zero-byte buffer
   // as a 1-page doc with no canvas content, which silently advances the
   // user to the place step with nothing to drop fields on.
-  // QA-2026-05-02 (Bug 3): also reject non-PDF MIME types — the "Take
-  // photo" tile's camera input accepts `image/*`, but pdf.js can't parse
-  // a JPEG and the worker would silently throw. Surface a clear inline
-  // error instead. QA-2026-05-02 (Bug 11): cap upload size at 25 MB —
-  // mobile devices OOM their pdf.js worker on much larger files.
-  const handlePickFile = useCallback((file: File): void => {
+  // 2026-05-04: the "Take photo" tile uses `accept="image/*"` +
+  // `capture="environment"`. We now convert the JPEG/PNG into a single-
+  // page A4 PDF in the browser via `imageFileToPdf` and continue the
+  // existing pipeline unchanged — no server changes needed. HEIC and
+  // other unknown formats fall into the catch and surface a friendly
+  // alert. QA-2026-05-02 (Bug 11): cap upload size at 25 MB — mobile
+  // devices OOM their pdf.js worker on much larger files.
+  const [isConverting, setIsConverting] = useState(false);
+  const handlePickFile = useCallback(async (file: File): Promise<void> => {
     if (file.size === 0) {
-      setFileError(`"${file.name}" is empty (0 bytes). Pick a different PDF.`);
+      setFileError(`"${file.name}" is empty (0 bytes). Pick a different file.`);
       return;
     }
     if (file.size > MAX_PDF_BYTES) {
       const mb = (file.size / (1024 * 1024)).toFixed(1);
-      setFileError(`"${file.name}" is ${mb} MB — please choose a PDF under 25 MB.`);
+      setFileError(`"${file.name}" is ${mb} MB — please choose a file under 25 MB.`);
       return;
     }
     // `file.type` is sometimes empty (drag-drop on certain browsers); fall
-    // back to the extension. We accept either to stay friendly to picker
-    // quirks but reject anything that's clearly an image.
+    // back to the extension.
     const looksLikePdf =
       file.type === 'application/pdf' || (file.type === '' && /\.pdf$/i.test(file.name));
-    if (!looksLikePdf) {
-      setFileError(
-        `"${file.name}" isn't a PDF. Camera captures and images aren't supported yet — pick a PDF instead.`,
-      );
+    const looksLikeImage =
+      file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name);
+
+    let resolved: File;
+    if (looksLikePdf) {
+      resolved = file;
+    } else if (looksLikeImage) {
+      setFileError(null);
+      setIsConverting(true);
+      try {
+        resolved = await imageFileToPdf(file);
+      } catch {
+        setFileError(
+          `We couldn't convert "${file.name}" to a PDF. Try a JPEG or PNG, or upload a PDF instead.`,
+        );
+        return;
+      } finally {
+        setIsConverting(false);
+      }
+    } else {
+      setFileError(`"${file.name}" isn't a PDF or supported image. Pick a PDF, JPEG, or PNG.`);
       return;
     }
     setFileError(null);
-    setPdfFile(file);
+    setPdfFile(resolved);
     setFields([]);
     setSelectedIds([]);
     setStep('file');
@@ -619,6 +639,11 @@ export function MobileSendPage() {
         {step === 'start' && (
           <>
             {fileError && <ErrorBanner role="alert">{fileError}</ErrorBanner>}
+            {isConverting && (
+              <ErrorBanner role="status" aria-live="polite">
+                Converting photo to PDF…
+              </ErrorBanner>
+            )}
             <MWStart
               onPickFile={handlePickFile}
               {...(gdriveOn ? { onPickFromDrive: handlePickFromDrive } : {})}
