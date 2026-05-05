@@ -59,9 +59,11 @@ function base64url(b: Buffer): string {
 }
 
 /**
- * Build the Google OAuth consent URL. Scope is `drive.file` (per-file
- * authorization) NOT `drive` (full account) — Phase 4 red-flag row 12,
- * Phase 1 Q5. Test asserts the literal string.
+ * Build the Google OAuth consent URL. Scopes:
+ * - `drive.file` — per-file authorization (NOT full `drive` scope)
+ * - `drive.metadata.readonly` — read-only file metadata (thumbnails,
+ *   names, MIME types) so the picker can render GRID mode with previews.
+ * Phase 4 red-flag row 12, Phase 1 Q5. Test asserts the literal string.
  */
 export function buildConsentUrl(args: {
   clientId: string;
@@ -73,7 +75,8 @@ export function buildConsentUrl(args: {
     client_id: args.clientId,
     redirect_uri: args.redirectUri,
     response_type: 'code',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
     access_type: 'offline',
     prompt: 'consent',
     state: args.state,

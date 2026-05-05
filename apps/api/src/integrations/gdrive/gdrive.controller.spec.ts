@@ -92,7 +92,8 @@ class StubGoogleClient implements GoogleOAuthClient {
     expiresAt: Date.now() + 3600_000,
     googleUserId: 'g-sub-1',
     googleEmail: 'user@example.com',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
   };
   filesListReturns: { files: ReadonlyArray<{ id: string; name: string; mimeType: string }> } = {
     files: [{ id: 'f1', name: 'doc.pdf', mimeType: 'application/pdf' }],
@@ -177,15 +178,16 @@ describe('GDriveController', () => {
     (FEATURE_FLAGS as Record<string, boolean>).gdriveIntegration = false;
   });
 
-  it('GET /oauth/url returns a Google consent URL with drive.file scope (NOT drive)', async () => {
+  it('GET /oauth/url returns a Google consent URL with drive.file + drive.metadata.readonly scopes (NOT broad drive)', async () => {
     const { ctrl } = makeController();
     const out = await ctrl.consentUrl(USER_1);
     expect(out.url).toContain('accounts.google.com/o/oauth2/v2/auth');
     expect(out.url).toContain('scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fdrive.file');
+    expect(out.url).toContain('drive.metadata.readonly');
     // Crucially, it must NOT include the broad `drive` scope or
-    // `drive.readonly`. Negative assertion is the contract guard.
+    // `drive.readonly` (without the metadata qualifier). Negative assertion is the contract guard.
     expect(out.url).not.toMatch(/scope=https%3A%2F%2Fwww\.googleapis\.com%2Fauth%2Fdrive(&|$)/);
-    expect(out.url).not.toContain('drive.readonly');
+    expect(out.url).not.toMatch(/drive\.readonly(?![\w.])/);
     expect(out.url).toContain('code_challenge_method=S256');
     expect(out.url).toContain('access_type=offline');
   });
