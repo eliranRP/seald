@@ -8,6 +8,7 @@ import {
   useGDriveAccounts,
   useDisconnectGDrive,
 } from '@/routes/settings/integrations/useGDriveAccounts';
+import { apiClient } from '@/lib/api/apiClient';
 import { DisconnectModal } from '@/routes/settings/integrations/DisconnectModal';
 
 const Page = styled.div`
@@ -181,9 +182,16 @@ export function MWIntegrations(): ReactNode {
     navigate('/m/send');
   }, [navigate]);
 
-  const handleConnect = useCallback((): void => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL as string;
-    window.location.href = `${apiBase}/integrations/gdrive/oauth/start?return=/m/send/drive`;
+  const handleConnect = useCallback(async (): Promise<void> => {
+    try {
+      const ret = encodeURIComponent('/m/send/drive');
+      const res = await apiClient.get<{ url: string }>(
+        `/integrations/gdrive/oauth/url?return=${ret}`,
+      );
+      window.location.href = res.data.url;
+    } catch {
+      // Silently fail — user can retry.
+    }
   }, []);
 
   const handleDisconnectClick = useCallback((id: string, email: string): void => {

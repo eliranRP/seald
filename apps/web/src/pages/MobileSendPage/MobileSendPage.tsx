@@ -6,6 +6,7 @@ import { DrivePicker } from '@/components/drive-picker';
 import type { DriveFile } from '@/components/drive-picker';
 import { useDriveImport } from '@/features/gdriveImport';
 import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
+import { apiClient } from '@/lib/api/apiClient';
 import {
   Shell,
   Scroller,
@@ -94,7 +95,8 @@ const FIELD_TYPE_TO_API: Readonly<Record<MobileFieldType, FieldPlacement['kind']
 // silently swallows `window.open()` outside a synchronous user gesture
 // chain, so the mobile flow uses a top-level navigation. Pulled at
 // module-init from Vite's env (rule 3.2: no `any`).
-const GDRIVE_API_BASE = import.meta.env.VITE_API_BASE_URL as string | undefined;
+// Removed GDRIVE_API_BASE — mobile OAuth now uses apiClient.get('/oauth/url')
+// which carries the JWT auth header automatically.
 
 export function MobileSendPage() {
   const navigate = useNavigate();
@@ -159,10 +161,19 @@ export function MobileSendPage() {
   const driveAccountId = driveAccounts[0]?.id ?? null;
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
 
-  const beginDriveOAuth = useCallback((): void => {
-    if (!GDRIVE_API_BASE) return;
-    const ret = encodeURIComponent('/m/send/drive');
-    window.location.href = `${GDRIVE_API_BASE}/integrations/gdrive/oauth/start?return=${ret}`;
+  const beginDriveOAuth = useCallback(async (): Promise<void> => {
+    try {
+      const ret = encodeURIComponent('/m/send/drive');
+      const res = await apiClient.get<{ url: string }>(
+        `/integrations/gdrive/oauth/url?return=${ret}`,
+      );
+      // Full-page redirect (not popup) — iOS Safari blocks window.open.
+      // The return path is stored in OAuth state so the callback redirects
+      // to /m/send/drive → /m/send?gdrive_connected=1.
+      window.location.href = res.data.url;
+    } catch {
+      // Silently fail — the user can retry by tapping the tile again.
+    }
   }, []);
 
   const handlePickFromDrive = useCallback((): void => {
@@ -173,10 +184,17 @@ export function MobileSendPage() {
     beginDriveOAuth();
   }, [driveAccountId, beginDriveOAuth]);
 
-  const reauthorizeDrive = useCallback((): void => {
-    if (!GDRIVE_API_BASE) return;
-    const ret = encodeURIComponent('/m/send/drive');
-    window.location.href = `${GDRIVE_API_BASE}/integrations/gdrive/oauth/start?return=${ret}&prompt=consent`;
+  const reauthorizeDrive = useCallback(async (): Promise<void> => {
+    try {
+      // Re-consent forces the user to re-approve scopes (e.g. after scope change).
+      const res = await apiClient.get<{ url: string }>('/integrations/gdrive/oauth/url');
+      // Append prompt=consent to force re-approval.
+      const url = new URL(res.data.url);
+      url.searchParams.set('prompt', 'consent');
+      window.location.href = url.toString();
+    } catch {
+      // Silently fail.
+    }
   }, []);
 
   // Auto-open the picker when the OAuth callback returned us to

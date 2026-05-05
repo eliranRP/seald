@@ -132,10 +132,21 @@ export class GDriveController {
   }
 
   @Get('oauth/url')
-  async consentUrl(@CurrentUser() user: AuthUser): Promise<{ url: string }> {
+  async consentUrl(
+    @CurrentUser() user: AuthUser,
+    @Query('return') returnPath?: string,
+  ): Promise<{ url: string }> {
     this.requireFlag();
     this.requireOAuthConfigured();
-    const { state, codeChallenge } = this.stateStore.start(user.id);
+    // Sanitize returnPath: must start with '/' (relative) to prevent open-redirect.
+    const safePath =
+      returnPath && returnPath.startsWith('/') && !returnPath.startsWith('//')
+        ? returnPath
+        : undefined;
+    const { state, codeChallenge } = this.stateStore.start(
+      user.id,
+      safePath ? { returnPath: safePath } : undefined,
+    );
     return {
       url: buildConsentUrl({
         clientId: this.config.clientId,
