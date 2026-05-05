@@ -75,7 +75,7 @@ export const DocumentCanvas = forwardRef<HTMLDivElement, DocumentCanvasProps>((p
       ) : null}
       {!isPdfMode && isPdfParsing ? (
         <LoadingPaper role="status" aria-live="polite" aria-label="Loading document">
-          <LoadingSpinner aria-hidden />
+          <LoadingSpinner $size={32} $borderWidth={3} aria-hidden />
           <span>Loading document…</span>
         </LoadingPaper>
       ) : null}

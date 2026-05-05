@@ -94,22 +94,4 @@ export const LoadingPaper = styled.div`
   font-size: 13px;
 `;
 
-/**
- * Same CSS-only spinner as PdfPageView, duplicated here to keep DocumentCanvas
- * self-contained (no cross-component style import). Kept small so a change in
- * one place is easy to mirror in the other.
- */
-export const LoadingSpinner = styled.div`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  border: 3px solid ${({ theme }) => theme.color.ink[100]};
-  border-top-color: ${({ theme }) => theme.color.indigo[600]};
-  animation: doc-canvas-spin 0.8s linear infinite;
-
-  @keyframes doc-canvas-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
+export { Spinner as LoadingSpinner } from '@/components/shared/Spinner';

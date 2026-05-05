@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 
 /**
  * Outer page surface. Centered card on a light app background — the
@@ -99,17 +100,13 @@ export const SignerName = styled.div`
   font-size: 14px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const SignerEmail = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const OrdinalChip = styled.span`

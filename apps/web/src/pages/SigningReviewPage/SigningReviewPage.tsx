@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
 import { BookmarkPlus, Info, PenTool } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
@@ -174,14 +175,8 @@ const Toast = styled.div`
   border-radius: ${({ theme }) => theme.radius.sm};
 `;
 
-const ErrorBanner = styled.div`
+const ErrorBanner = styled(SharedErrorBanner)`
   margin-top: ${({ theme }) => theme.space[4]};
-  background: ${({ theme }) => theme.color.danger[50]};
-  border: 1px solid ${({ theme }) => theme.color.danger[500]};
-  color: ${({ theme }) => theme.color.danger[700]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radius.sm};
 `;
 
 interface ApiErrorLike extends Error {

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
 import { AuthShell } from '@/components/AuthShell';
 import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
@@ -8,13 +9,7 @@ import { pathForAuthMode } from '@/layout/authPaths';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
-const ErrorBanner = styled.div`
-  background: ${({ theme }) => theme.color.danger[50]};
-  border: 1px solid ${({ theme }) => theme.color.danger[500]};
-  color: ${({ theme }) => theme.color.danger[700]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radius.sm};
+const ErrorBanner = styled(SharedErrorBanner)`
   margin: 0 0 ${({ theme }) => theme.space[4]};
 `;
 

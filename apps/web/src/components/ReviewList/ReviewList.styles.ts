@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 
 export const Root = styled.div`
   background: ${({ theme }) => theme.color.paper};
@@ -41,9 +42,7 @@ export const LabelText = styled.div`
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  ${truncateText}
 `;
 
 export const PageText = styled.div`
@@ -54,9 +53,7 @@ export const PageText = styled.div`
 
 export const ValueSlot = styled.div`
   max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  ${truncateText}
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
   text-align: right;

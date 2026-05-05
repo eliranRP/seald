@@ -1,4 +1,5 @@
 import styled, { css, keyframes, type DefaultTheme } from 'styled-components';
+import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
 
 type StepState = 'done' | 'active' | 'pending';
 
@@ -252,12 +253,9 @@ export const Footer = styled.div`
   gap: ${({ theme }) => theme.space[3]};
 `;
 
-export const ErrorBanner = styled.div`
+export const ErrorBanner = styled(SharedErrorBanner)`
   margin-top: ${({ theme }) => theme.space[5]};
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
-  background: ${({ theme }) => theme.color.danger[50]};
-  color: ${({ theme }) => theme.color.danger[700]};
-  border: 1px solid ${({ theme }) => theme.color.danger[500]};
   border-radius: ${({ theme }) => theme.radius.md};
   font-size: 13px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};

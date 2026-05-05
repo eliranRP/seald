@@ -51,21 +51,4 @@ export const LoadingOverlay = styled.div`
   pointer-events: none;
 `;
 
-/**
- * Minimal CSS-only spinner so we don't pull in an SVG dep or ship a GIF.
- * Animates an indigo border-arc around a transparent circle.
- */
-export const Spinner = styled.div`
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 2.5px solid ${({ theme }) => theme.color.ink[100]};
-  border-top-color: ${({ theme }) => theme.color.indigo[600]};
-  animation: pdf-page-spin 0.8s linear infinite;
-
-  @keyframes pdf-page-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
+export { Spinner } from '@/components/shared/Spinner';

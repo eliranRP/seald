@@ -113,7 +113,7 @@ export const PdfPageView = forwardRef<HTMLDivElement, PdfPageViewProps>((props, 
       <PageCanvas ref={canvasRef} />
       {rendering && !error ? (
         <LoadingOverlay role="status" aria-live="polite" aria-label="Rendering page">
-          <Spinner aria-hidden />
+          <Spinner $size={28} $borderWidth={2.5} aria-hidden />
           <span>Rendering page {pageNumber}…</span>
         </LoadingOverlay>
       ) : null}

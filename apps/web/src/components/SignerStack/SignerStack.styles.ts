@@ -1,4 +1,5 @@
 import styled, { type DefaultTheme } from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 import type { SignerStackStatus } from './SignerStack.types';
 
 export const ringColor = (t: DefaultTheme, status: SignerStackStatus): string => {
@@ -114,16 +115,12 @@ export const PopoverMeta = styled.div`
 export const PopoverName = styled.span`
   color: ${({ theme }) => theme.color.fg[1]};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const PopoverEmail = styled.span`
   color: ${({ theme }) => theme.color.fg[3]};
   font-family: ${({ theme }) => theme.font.mono};
   font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
