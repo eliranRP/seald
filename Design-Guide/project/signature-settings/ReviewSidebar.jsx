@@ -1,102 +1,73 @@
 /* @jsx React.createElement */
-/* ReviewSidebar — the signing page's review panel that contains
-   Settings, Validation options, and the Sign CTA.
-   Matches the actual SigningReviewPage layout. */
+/* FieldActionButton — floating button anchored to the active field
+   on the PDF canvas. Follows the user as they sign through fields.
 
-function ReviewSidebar({ state, onEditSignature, onEditInitials, onDecline, onSign }) {
-  const {
-    signerName, signatureImage, initialsImage,
-    hasSignatureFields, hasInitialsFields, remainingFields,
-  } = state;
-  const [declineHover, setDeclineHover] = useState(false);
-  const [signHover, setSignHover] = useState(false);
+   States:
+   - "Start"      → first unfilled field, user hasn't signed yet
+   - "Sign here"  → active signature/initials field, tap to open capture
+   - "Next field" → just signed one field, button moves to the next
+   - hidden       → all fields filled (review mode)
+*/
 
+function FieldActionButton({ label, position, onClick }) {
+  const [hover, setHover] = useState(false);
+  if (!position) return null;
   return (
     <div style={{
-      width: 320, background: '#fff', borderRadius: 16,
-      border: '1px solid var(--border-1)',
-      padding: '20px 18px 18px',
-      fontFamily: 'var(--font-sans)',
-      display: 'flex', flexDirection: 'column',
-      boxShadow: 'var(--shadow-paper)',
+      position: 'absolute',
+      left: position.x - 60,
+      top: position.y + position.h + 8,
+      zIndex: 10,
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      animation: 'fadeIn 200ms var(--ease-standard)',
     }}>
-      {/* Title */}
-      <h2 style={{
-        fontSize: 18, fontWeight: 500, margin: '0 0 14px', textAlign: 'center',
-        fontFamily: 'var(--font-serif)', color: 'var(--fg-1)',
-      }}>
-        Sign options
-      </h2>
-      <div style={{ width: '100%', height: 1, background: 'var(--border-1)', marginBottom: 14 }} />
+      {/* Connector line from field to button */}
+      <div style={{
+        width: 2, height: 8,
+        background: 'var(--indigo-300)',
+        borderRadius: 1,
+      }} />
+      <button
+        onClick={onClick}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        style={{
+          border: 'none', cursor: 'pointer',
+          padding: '10px 22px', borderRadius: 999,
+          background: '#C0392B',
+          color: '#fff', fontSize: 14, fontWeight: 600,
+          fontFamily: 'var(--font-sans)',
+          display: 'flex', alignItems: 'center', gap: 8,
+          boxShadow: hover
+            ? '0 4px 16px rgba(192,57,43,.35)'
+            : '0 2px 8px rgba(192,57,43,.25)',
+          transform: hover ? 'scale(1.03)' : 'scale(1)',
+          transition: 'transform 80ms, box-shadow 80ms',
+        }}
+      >
+        <Icon name="pen-tool" size={14} />
+        {label}
+      </button>
+    </div>
+  );
+}
 
-      {/* Settings section */}
-      <SignatureSettingsSection
-        hasSignatureFields={hasSignatureFields}
-        hasInitialsFields={hasInitialsFields}
-        signerName={signerName}
-        signatureImage={signatureImage}
-        initialsImage={initialsImage}
-        onEditSignature={onEditSignature}
-        onEditInitials={onEditInitials}
-      />
-
-      {/* Validation options */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{
-          fontSize: 13, fontWeight: 600, color: 'var(--fg-2)', marginBottom: 8,
-        }}>Validation options</div>
-        <button
-          onClick={onDecline}
-          onMouseEnter={() => setDeclineHover(true)}
-          onMouseLeave={() => setDeclineHover(false)}
-          style={{
-            width: '100%', padding: '10px 14px',
-            border: '1px solid var(--border-1)', borderRadius: 8,
-            background: declineHover ? 'var(--ink-50)' : '#fff',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--fg-2)',
-            transition: 'background 120ms var(--ease-standard)',
-          }}
-        >
-          <Icon name="reply" size={14} />
-          Decline document
-        </button>
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      {/* Footer */}
-      <div>
-        <div style={{
-          fontSize: 11, fontFamily: 'var(--font-mono)',
-          color: 'var(--fg-3)', marginBottom: 8,
-        }}>
-          {remainingFields} field{remainingFields !== 1 ? 's' : ''} to fill in
-        </div>
-        <button
-          onClick={onSign}
-          onMouseEnter={() => setSignHover(true)}
-          onMouseLeave={() => setSignHover(false)}
-          style={{
-            width: '100%', padding: '14px 20px',
-            border: 'none', borderRadius: 12,
-            background: remainingFields === 0 ? 'var(--success-500)' : 'var(--indigo-600)',
-            cursor: 'pointer', fontSize: 15, fontWeight: 600,
-            color: '#fff', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', gap: 10,
-            boxShadow: signHover ? 'var(--shadow-md)' : 'var(--shadow-sm)',
-            transform: signHover ? 'scale(1.01)' : 'scale(1)',
-            transition: 'transform 80ms, box-shadow 80ms, background 120ms',
-          }}
-        >
-          {remainingFields === 0 ? (
-            <><Icon name="check" size={18} /> Finish signing</>
-          ) : (
-            <><Icon name="arrow-right-circle" size={18} /> Sign</>
-          )}
-        </button>
-      </div>
+/* FieldActionPill — the red pill that sits on the left margin of the
+   page, aligned with the active field. */
+function FieldMarginIndicator({ position }) {
+  if (!position) return null;
+  return (
+    <div style={{
+      position: 'absolute',
+      left: -48,
+      top: position.y + (position.h / 2) - 16,
+      width: 36, height: 32,
+      background: '#C0392B',
+      borderRadius: '8px 0 0 8px',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 2px 6px rgba(192,57,43,.2)',
+    }}>
+      <Icon name="pen-tool" size={14} style={{ color: '#fff' }} />
     </div>
   );
 }

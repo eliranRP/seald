@@ -14,7 +14,6 @@
     *, *::before, *::after { box-sizing: border-box; }
     #root { font-family: var(--font-sans); color: var(--fg-2); min-height: 100vh; }
 
-    /* Stepper */
     .stepper {
       position: fixed; bottom: 20px; left: 20px; z-index: 100;
       display: flex; gap: 6px; flex-wrap: wrap; max-width: calc(100vw - 40px);
@@ -43,7 +42,29 @@
       to   { transform: translateY(0); opacity: 1; }
     }
 
-    /* Recipient header — matches RecipientHeader.styles.ts */
+    /* Action bar — matches the real SigningFillPage */
+    .action-bar {
+      position: sticky; top: 60px; z-index: 30;
+      height: 48px; background: #fff;
+      border-bottom: 1px solid var(--border-1);
+      display: flex; align-items: center;
+      padding: 0 24px; gap: 14px;
+    }
+    .action-bar .progress-track {
+      flex: 1; max-width: 420px; height: 4px;
+      background: var(--ink-100); border-radius: 2px; overflow: hidden;
+    }
+    .action-bar .progress-fill {
+      height: 100%; background: var(--indigo-600);
+      border-radius: 2px; transition: width 300ms;
+    }
+    .action-bar .count {
+      font-size: 11px; font-family: var(--font-mono); color: var(--fg-3);
+      white-space: nowrap;
+    }
+    .action-bar .spacer { flex: 1; }
+
+    /* Recipient header */
     .recipient-header {
       position: sticky; top: 0; z-index: 30;
       height: 60px; min-height: 60px;
@@ -51,56 +72,84 @@
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border-1);
       display: flex; align-items: center;
-      padding: 0 24px; gap: 20px;
+      padding: 0 24px; gap: 16px;
     }
-    .recipient-header .divider {
-      width: 1px; height: 18px; background: var(--border-1);
-    }
-    .recipient-header .title {
-      font-size: 14px; font-weight: 600; color: var(--fg-1);
-    }
-    .recipient-header .meta {
-      font-size: 11px; font-family: var(--font-mono);
-      color: var(--fg-3);
-    }
+    .recipient-header .divider { width: 1px; height: 18px; background: var(--border-1); }
+    .recipient-header .title { font-size: 14px; font-weight: 600; color: var(--fg-1); }
+    .recipient-header .meta { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
     .recipient-header .chip {
       padding: 4px 12px; background: var(--ink-100);
-      border-radius: 999px; font-size: 11px;
-      font-weight: 600; color: var(--fg-2);
+      border-radius: 999px; font-size: 11px; font-weight: 600; color: var(--fg-2);
+    }
+    .recipient-header .icon-btn {
+      width: 32px; height: 32px; border: 1px solid var(--border-1);
+      border-radius: 8px; background: transparent; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--fg-2);
     }
 
-    /* PDF canvas area */
+    /* PDF canvas */
     .pdf-canvas {
       flex: 1; display: flex; align-items: flex-start;
       justify-content: center; padding: 32px 0;
-      background: #e8e8e8;
-      min-height: calc(100vh - 60px);
+      background: #e8e8e8; min-height: calc(100vh - 108px);
     }
     .pdf-page {
       width: 560px; min-height: 740px; background: #fff;
       box-shadow: var(--shadow-md); border-radius: 2px;
-      padding: 48px 44px; font-size: 14px; color: var(--fg-1);
+      padding: 48px 44px; font-size: 13px; color: var(--fg-1);
       line-height: 1.7; position: relative;
     }
-    .pdf-page h4 { font-size: 15px; font-weight: 700; margin: 20px 0 8px; }
-    .sig-box {
-      display: inline-flex; align-items: center; justify-content: center;
-      border: 1.5px dashed var(--indigo-400); border-radius: 8px;
-      background: rgba(99, 102, 241, 0.08);
-      color: var(--indigo-700); font-size: 12px; font-weight: 600;
-      padding: 4px 12px; gap: 6px;
+    .pdf-page h4 { font-size: 14px; font-weight: 700; margin: 16px 0 6px; }
+    .pdf-page table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; }
+    .pdf-page th { text-align: left; font-weight: 700; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-2); }
+    .pdf-page td { padding: 4px 8px; border-bottom: 1px solid var(--border-1); }
+
+    /* Signature field on PDF — matches SignerField.styles.ts */
+    .sig-field-on-pdf {
+      position: absolute;
+      border: 1.5px dashed;
+      border-radius: 8px;
+      display: flex; flex-direction: column;
+      align-items: flex-start; justify-content: center;
+      padding: 6px 12px; gap: 2px;
+      transition: background 140ms, border-color 140ms, box-shadow 140ms;
+      cursor: pointer;
+    }
+    .sig-field-on-pdf.active {
+      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+    }
+    .sig-field-on-pdf .field-label {
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .sig-field-on-pdf .field-line {
+      width: 70%; height: 0;
+      border-bottom: 1.5px solid;
+      opacity: 0.5; align-self: center;
     }
 
-    /* Layout */
-    .signing-layout {
-      display: flex; min-height: calc(100vh - 60px);
+    /* Page thumbnail rail */
+    .page-rail {
+      position: fixed; right: 20px; top: 140px;
+      display: flex; flex-direction: column; gap: 8px;
+      align-items: center;
     }
-    .sidebar-area {
-      width: 360px; display: flex; align-items: flex-start;
-      justify-content: center; padding: 32px 20px;
-      border-left: 1px solid var(--border-1);
-      background: var(--ink-50);
+    .page-rail .rail-label { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
+    .page-rail .thumb {
+      width: 52px; height: 68px; background: #fff;
+      border: 1.5px solid var(--border-1); border-radius: 4px;
+      position: relative; cursor: pointer;
     }
+    .page-rail .thumb.active { border-color: var(--indigo-500); }
+    .page-rail .thumb .dot {
+      position: absolute; top: 4px; right: 4px;
+      width: 10px; height: 10px; border-radius: 999px;
+      background: var(--indigo-600);
+    }
+    .page-rail .thumb-num { font-size: 11px; color: var(--fg-3); text-align: center; }
+
+    .signing-layout { display: flex; min-height: calc(100vh - 108px); }
   </style>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
@@ -110,10 +159,7 @@
 <body>
   <div id="root"></div>
 
-  <!-- Shared UI -->
   <script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
-
-  <!-- Feature modules -->
   <script type="text/babel" src="./SignatureSettingsPanel.jsx"></script>
   <script type="text/babel" src="./SignatureCaptureModal.jsx"></script>
   <script type="text/babel" src="./ReviewSidebar.jsx"></script>
@@ -121,25 +167,32 @@
   <script type="text/babel">
     const { useState } = React;
 
+    const SIGNER = 'Eliran Azulay, Managing Member';
+
     const SCREEN_GROUPS = [
       {
-        label: 'Sidebar',
+        label: 'Flow',
         screens: [
-          { id: 'review-both',     label: 'Sig + Initials' },
-          { id: 'review-sig-only', label: 'Sig only' },
-          { id: 'review-done',     label: 'All filled' },
+          { id: 'before-start',   label: 'Before start' },
+          { id: 'sign-here',      label: 'Sign here' },
+          { id: 'capture-open',   label: 'Capture open' },
+          { id: 'signed-next',    label: 'Signed → next' },
+          { id: 'all-done',       label: 'All done' },
         ],
       },
       {
-        label: 'Capture',
+        label: 'Settings',
         screens: [
-          { id: 'edit-signature', label: 'Edit signature' },
-          { id: 'edit-initials',  label: 'Edit initials' },
+          { id: 'settings-card',  label: 'Sig settings' },
         ],
       },
     ];
 
-    const SIGNER = 'Eliran Azulay, Managing Member';
+    /* Field positions on the PDF page */
+    const FIELDS = {
+      signature: { x: 220, y: 440, w: 200, h: 56 },
+      initials:  { x: 220, y: 520, w: 90,  h: 40 },
+    };
 
     function RecipientHeader() {
       return (
@@ -147,94 +200,209 @@
           <img src="../assets/logo.svg" height="22" alt="Seald" />
           <div className="divider" />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="title">Lien Waiver — NRO Momentum</div>
-            <div className="meta">CODE XYZA123 · 3 pages</div>
+            <div className="title">UNCONDITIONAL WAIVER - 5.05.2026</div>
+            <div className="meta">byRE1P8aFRvz</div>
           </div>
-          <div className="chip">
-            <span>Step 2 of 3</span>
-          </div>
+          <div className="chip">0 of 1 fields</div>
+          <button className="icon-btn"><Icon name="download" size={16} /></button>
         </div>
       );
     }
 
-    function FakePdf() {
+    function ActionBar({ filled, total, screen }) {
+      const pct = total > 0 ? (filled / total * 100) : 0;
+      return (
+        <div className="action-bar">
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: pct + '%' }} />
+          </div>
+          <span className="count">{filled}/{total}</span>
+          <div className="spacer" />
+          {/* Page toolbar */}
+          <div style={{ display: 'inline-flex', gap: 4, padding: '4px 8px', background: '#fff', border: '1px solid var(--border-1)', borderRadius: 8, alignItems: 'center' }}>
+            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="settings" size={14}/></button>
+            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-2)' }}><Icon name="chevron-left" size={14}/></button>
+            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', padding: '0 4px' }}>1 / 3</span>
+            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-2)' }}><Icon name="chevron-right" size={14}/></button>
+            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', padding: '0 4px' }}>100%</span>
+            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="minus" size={14}/></button>
+            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="plus" size={14}/></button>
+          </div>
+          <Button variant="secondary" size="sm">Decline</Button>
+          <span style={{ fontSize: 13, color: 'var(--fg-3)', textDecoration: 'underline', cursor: 'pointer' }}>Withdraw consent</span>
+          {/* Next field button REMOVED from here — now on the PDF */}
+        </div>
+      );
+    }
+
+    function PageRail() {
+      return (
+        <div className="page-rail">
+          <span className="rail-label">1/3</span>
+          <div className="thumb active"><div className="dot" /></div>
+          <span className="thumb-num">1</span>
+          <div className="thumb" />
+          <span className="thumb-num">2</span>
+          <div className="thumb" />
+          <span className="thumb-num">3</span>
+        </div>
+      );
+    }
+
+    function PdfPage({ screen, onFieldClick, onSettingsClick }) {
+      const sigActive = screen === 'sign-here' || screen === 'before-start';
+      const sigSigned = screen === 'signed-next' || screen === 'all-done';
+      const iniActive = screen === 'signed-next';
+      const iniSigned = screen === 'all-done';
+
+      const sigColor = sigSigned ? 'var(--success-500)' : 'var(--indigo-500)';
+      const sigBg = sigSigned ? 'rgba(16,185,129,.08)' : 'rgba(99,102,241,.08)';
+      const iniColor = iniSigned ? 'var(--success-500)' : (iniActive ? 'var(--indigo-500)' : 'rgba(212,129,122,1)');
+      const iniBg = iniSigned ? 'rgba(16,185,129,.08)' : (iniActive ? 'rgba(99,102,241,.08)' : 'rgba(212,129,122,.12)');
+
+      /* Floating button config */
+      let btnLabel = null;
+      let btnPos = null;
+      if (screen === 'before-start') { btnLabel = 'Start'; btnPos = FIELDS.signature; }
+      if (screen === 'sign-here')    { btnLabel = 'Sign here'; btnPos = FIELDS.signature; }
+      if (screen === 'signed-next')  { btnLabel = 'Next field'; btnPos = FIELDS.initials; }
+
       return (
         <div className="pdf-page">
-          <h4>EFFECTIVE DATE</h4>
-          <p>This Waiver and Release shall be effective immediately upon execution.</p>
-          <p>Date: May 5, 2026</p>
-          <div style={{ marginTop: 32 }}>
-            <p><strong>Owner:</strong> LLC NRO Momentum</p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0' }}>
-              <span>Owner Signature:</span>
-              <span className="sig-box" style={{ width: 200, height: 56, flexDirection: 'column', gap: 2 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Icon name="pen-tool" size={12} /> Signature
+          <h4>UNCONDITIONAL WAIVER AND RELEASE ON FINAL PAYMENT</h4>
+          <p><strong>Project:</strong> 624 Orchard Hill Dr, Pittsburgh, PA 15238</p>
+          <p><strong>Contract Date:</strong> After contract works</p>
+          <p><strong>Original Contract Amount:</strong></p>
+          <p><strong>Final Contract Amount</strong> (including all change orders): $__________</p>
+
+          <h4>PAYMENT ACKNOWLEDGMENT</h4>
+          <p>The undersigned Contractor acknowledges the following payments for the above-referenced Project.</p>
+
+          <h4 style={{ fontSize: 12 }}>PREVIOUSLY PAID AMOUNTS:</h4>
+          <table>
+            <thead><tr><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+            <tbody>
+              <tr><td>Outside</td><td>Paint of concrete platform</td><td>$125.00</td></tr>
+              <tr><td>Transport</td><td>Take Box to garbage</td><td>$180.00</td></tr>
+              <tr><td>Transport</td><td>Take Material to Hayson</td><td>$150.00</td></tr>
+              <tr><td>Outside Work</td><td>Organize sidewalk from main stairs</td><td>$300.00</td></tr>
+            </tbody>
+          </table>
+
+          {/* Signature field */}
+          <div
+            className={`sig-field-on-pdf ${sigActive ? 'active' : ''}`}
+            style={{
+              left: FIELDS.signature.x, top: FIELDS.signature.y,
+              width: FIELDS.signature.w, height: FIELDS.signature.h,
+              borderColor: sigColor, background: sigBg,
+              color: sigSigned ? 'var(--success-700)' : 'var(--indigo-700)',
+            }}
+            onClick={() => !sigSigned && onFieldClick('signature')}
+          >
+            {sigSigned ? (
+              <>
+                <span className="field-label"><Icon name="check" size={12} /> Signed</span>
+                <span style={{ fontFamily: "'Caveat',cursive", fontSize: 16, color: 'var(--fg-1)' }}>
+                  {SIGNER}
                 </span>
-                <span style={{ width: '70%', height: 0, borderBottom: '1px solid var(--indigo-300)' }} />
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0' }}>
-              <span>Owner Initials:</span>
-              <span className="sig-box" style={{ width: 90, height: 44, flexDirection: 'column', gap: 2 }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                  <Icon name="type" size={11} /> Initials
-                </span>
-                <span style={{ width: '60%', height: 0, borderBottom: '1px solid var(--indigo-300)' }} />
-              </span>
-            </div>
-            <p><strong>Owner Printed Name:</strong> Eliran Azulay, Managing Member</p>
+              </>
+            ) : (
+              <>
+                <span className="field-label"><Icon name="pen-tool" size={12} /> Signature</span>
+                <span className="field-line" style={{ borderColor: sigColor }} />
+              </>
+            )}
           </div>
+
+          {/* Margin indicator for active field */}
+          {sigActive && <FieldMarginIndicator position={FIELDS.signature} />}
+          {iniActive && <FieldMarginIndicator position={FIELDS.initials} />}
+
+          {/* Initials field */}
+          <div
+            className={`sig-field-on-pdf ${iniActive ? 'active' : ''}`}
+            style={{
+              left: FIELDS.initials.x, top: FIELDS.initials.y,
+              width: FIELDS.initials.w, height: FIELDS.initials.h,
+              borderColor: iniColor, background: iniBg,
+              color: iniSigned ? 'var(--success-700)' : (iniActive ? 'var(--indigo-700)' : '#8B4513'),
+            }}
+            onClick={() => !iniSigned && onFieldClick('initials')}
+          >
+            {iniSigned ? (
+              <span className="field-label"><Icon name="check" size={11} /> EA</span>
+            ) : (
+              <>
+                <span className="field-label" style={{ fontSize: 11 }}><Icon name="type" size={11} /> Initials</span>
+                <span className="field-line" style={{ borderColor: iniColor }} />
+              </>
+            )}
+          </div>
+
+          {/* Floating action button on the PDF */}
+          {btnLabel && (
+            <FieldActionButton
+              label={btnLabel}
+              position={btnPos}
+              onClick={() => onFieldClick(btnPos === FIELDS.signature ? 'signature' : 'initials')}
+            />
+          )}
+
+          {/* Signature settings gear — bottom-left of page */}
+          {screen === 'settings-card' && (
+            <div style={{ position: 'absolute', bottom: 20, left: 20 }}>
+              <SignatureSettingsSection
+                hasSignatureFields={true}
+                hasInitialsFields={true}
+                signerName={SIGNER}
+                signatureImage={null}
+                initialsImage={null}
+                onEditSignature={onSettingsClick}
+                onEditInitials={onSettingsClick}
+              />
+            </div>
+          )}
         </div>
       );
     }
 
     function App() {
-      const [screen, setScreen] = useState('review-both');
+      const [screen, setScreen] = useState('before-start');
+      const [captureOpen, setCaptureOpen] = useState(false);
 
-      const sidebarState = (opts = {}) => ({
-        signerName: SIGNER,
-        signatureImage: null,
-        initialsImage: null,
-        hasSignatureFields: true,
-        hasInitialsFields: opts.noInitials ? false : true,
-        remainingFields: opts.done ? 0 : (opts.noInitials ? 1 : 2),
-      });
-
-      const showModal = screen === 'edit-signature' || screen === 'edit-initials';
+      const filled = screen === 'all-done' ? 2 : (screen === 'signed-next' ? 1 : 0);
 
       return (
         <div>
           <RecipientHeader />
+          <ActionBar filled={filled} total={2} screen={screen} />
 
           <div className="signing-layout">
-            {/* PDF area */}
             <div className="pdf-canvas">
-              <FakePdf />
-            </div>
-
-            {/* Sidebar */}
-            <div className="sidebar-area" style={{ opacity: showModal ? 0.3 : 1, pointerEvents: showModal ? 'none' : 'auto' }}>
-              <ReviewSidebar
-                state={sidebarState({
-                  noInitials: screen === 'review-sig-only',
-                  done: screen === 'review-done',
-                })}
-                onEditSignature={() => setScreen('edit-signature')}
-                onEditInitials={() => setScreen('edit-initials')}
-                onDecline={() => alert('Decline clicked')}
-                onSign={() => alert('Sign clicked')}
+              <PdfPage
+                screen={screen}
+                onFieldClick={(kind) => {
+                  if (screen === 'before-start') setScreen('sign-here');
+                  else setCaptureOpen(true);
+                }}
+                onSettingsClick={() => setCaptureOpen(true)}
               />
             </div>
           </div>
 
+          <PageRail />
+
           {/* Capture modal */}
           <SignatureCaptureModal
-            open={showModal}
-            kind={screen === 'edit-initials' ? 'initials' : 'signature'}
+            open={captureOpen || screen === 'capture-open'}
+            kind="signature"
             signerName={SIGNER}
-            onCancel={() => setScreen('review-both')}
-            onApply={() => setScreen('review-both')}
+            onCancel={() => { setCaptureOpen(false); if (screen === 'capture-open') setScreen('sign-here'); }}
+            onApply={() => {
+              setCaptureOpen(false);
+              if (screen === 'sign-here' || screen === 'capture-open') setScreen('signed-next');
+            }}
           />
 
           {/* Stepper */}
@@ -244,7 +412,7 @@
                 {gi > 0 && <div className="sep" />}
                 <span className="group-label">{g.label}</span>
                 {g.screens.map(s => (
-                  <button key={s.id} className={screen === s.id ? 'on' : ''} onClick={() => setScreen(s.id)}>
+                  <button key={s.id} className={screen === s.id ? 'on' : ''} onClick={() => { setScreen(s.id); setCaptureOpen(false); }}>
                     {s.label}
                   </button>
                 ))}
