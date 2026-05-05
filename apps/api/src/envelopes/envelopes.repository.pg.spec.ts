@@ -11,8 +11,12 @@ import {
 /**
  * Tiny helpers. Short codes are validated at the wire boundary to length 13;
  * we generate a stable pattern here so tests don't collide.
+ * Rule 3.3 — counter is reset in beforeEach to avoid hidden inter-test coupling.
  */
 let shortCodeCounter = 0;
+beforeEach(() => {
+  shortCodeCounter = 0;
+});
 function nextShortCode(): string {
   shortCodeCounter += 1;
   // 13 chars: 'SC' + 11 digits (zero-padded).

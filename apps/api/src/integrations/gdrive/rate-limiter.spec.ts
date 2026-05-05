@@ -54,10 +54,14 @@ describe('GDriveRateLimiter', () => {
   });
 
   it('error message carries the `rate-limited` code', async () => {
+    expect.assertions(2);
     const limiter = new GDriveRateLimiter({ capacity: 0, windowMs: 1000, clock });
-    await limiter.acquire('user-A').catch((err: unknown) => {
+
+    try {
+      await limiter.acquire('user-A');
+    } catch (err: unknown) {
       expect(err).toBeInstanceOf(RateLimitedError);
       expect((err as RateLimitedError).code).toBe('rate-limited');
-    });
+    }
   });
 });

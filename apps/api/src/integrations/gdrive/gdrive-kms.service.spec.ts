@@ -58,11 +58,15 @@ describe('GDriveKmsService', () => {
   });
 
   it('encrypt failure surfaces as an Error (no plaintext in message)', async () => {
+    expect.assertions(2);
     kms.fail = 'generate';
-    await expect(svc.encrypt('top-secret')).rejects.toThrow();
-    await svc.encrypt('top-secret').catch((err: unknown) => {
+
+    try {
+      await svc.encrypt('top-secret');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(Error);
       expect(String((err as Error).message)).not.toContain('top-secret');
-    });
+    }
   });
 
   it('decrypt with mismatched ciphertext fails', async () => {
