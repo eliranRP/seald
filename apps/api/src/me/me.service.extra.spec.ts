@@ -139,7 +139,7 @@ describe('MeService.exportAll — storage warning log path', () => {
     const m = makeMocks();
     // Throwing a non-Error so the `String(err)` fallback path runs.
     (m.storage.createSignedUrl as jest.Mock).mockImplementation(async () => {
-      // eslint-disable-next-line no-throw-literal, @typescript-eslint/no-throw-literal
+      // eslint-disable-next-line no-throw-literal, @typescript-eslint/only-throw-error
       throw 'plain_string_error';
     });
     const svc = build(m);
