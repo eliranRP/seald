@@ -123,38 +123,30 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       // Google requires the builder-level feature flag too.
       .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
-    // 2026-05-04 — four DocsViews, one per canonical Google import-
-    // file tab. PR #146 collapsed this to a single view as a tactical
-    // fix for duplicate "Google Drive" tabs caused by passing the
-    // same `ViewId.DOCS` without distinguishing flags. PR #149
-    // re-introduced three views (My Drive / Shared with me / Shared
-    // drives). This change prepends a Starred tab so the final order
-    // matches Google's canonical import-file UX (Sheets/Slides put
-    // Recent first; we don't have a Recent surface yet, so Starred
-    // leads):
-    //   1. Starred       → setStarred(true) + setOwnedByMe(true)
-    //   2. My Drive      → setOwnedByMe(true)
+    // Four DocsViews with explicit labels to avoid duplicate tab names.
+    // Each view uses LIST mode (not GRID) to work around the thumbnail
+    // ORB issue with drive.file scope. Tab order:
+    //   1. Starred        → setStarred(true) + setOwnedByMe(true)
+    //   2. My Drive       → setOwnedByMe(true)
     //   3. Shared with me → setOwnedByMe(false)
-    //   4. Shared drives → setEnableDrives(true) +
-    //                       builder.enableFeature(SUPPORT_DRIVES)
-    // All four apply the same comma-joined MIME-type filter and keep
-    // setIncludeFolders(true)/setSelectFolderEnabled(false) so users
-    // can browse into folders but only select files. OAuth scope
-    // remains pinned to drive.file (per CLAUDE.md) — the Starred
-    // filter is a client-side picker capability, not a scope
-    // expansion; per-file access is still granted at click time.
-    //
-    // KNOWN ISSUE — Google-side: the modular picker's thumbnail
-    // requests to lh3.googleusercontent.com return without a
-    // Cross-Origin-Resource-Policy header, so Chrome's ORB blocks
-    // them with net::ERR_BLOCKED_BY_ORB. The picker still works
-    // for selection — only the thumbnail previews stay grey. Track:
-    // https://issuetracker.google.com (modular picker thumbnails).
+    //   4. Shared drives  → setEnableDrives(true)
+    // All four apply the same MIME-type filter and keep
+    // setIncludeFolders(true)/setSelectFolderEnabled(false). OAuth
+    // scope remains drive.file — per-file access granted at click time.
+    // FIX: Use LIST mode instead of GRID (default). With the
+    // drive.file scope, Google's picker can't load thumbnail images
+    // from lh3.googleusercontent.com — Chrome's ORB blocks them
+    // because the response lacks Cross-Origin-Resource-Policy. LIST
+    // mode avoids thumbnails entirely while keeping full functionality.
+    // See: https://issuetracker.google.com/issues/311256289
     const mimes = MIMES_FOR_FILTER[mimeFilter].join(',');
+    const listMode = picker.DocsViewMode.LIST;
 
     const starredView = new picker.DocsView(picker.ViewId.DOCS)
       .setStarred(true)
       .setOwnedByMe(true)
+      .setLabel('Starred')
+      .setMode(listMode)
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -162,6 +154,8 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
 
     const myDriveView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(true)
+      .setLabel('My Drive')
+      .setMode(listMode)
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -169,6 +163,8 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
 
     const sharedWithMeView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(false)
+      .setLabel('Shared with me')
+      .setMode(listMode)
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -176,6 +172,8 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
 
     const sharedDrivesView = new picker.DocsView(picker.ViewId.DOCS)
       .setEnableDrives(true)
+      .setLabel('Shared drives')
+      .setMode(listMode)
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
