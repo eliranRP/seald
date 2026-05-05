@@ -18,6 +18,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
+import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -187,6 +188,11 @@ export function AppRoutes() {
             </ErrorBoundary>
           }
         />
+        {/* Bounce-back from Google's OAuth consent for the mobile flow.
+            Forwards into /m/send?gdrive_connected=1 so the picker auto-
+            opens once the new account row is in the React-Query cache.
+            Lives outside <AppShell /> for the same reason as /m/send. */}
+        <Route path="/m/send/drive" element={<MobileGdriveReturnPage />} />
       </Route>
 
       <Route element={<RequireAuth />}>
