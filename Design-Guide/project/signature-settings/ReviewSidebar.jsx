@@ -1,16 +1,8 @@
 /* @jsx React.createElement */
-/* FieldActionButton — sticky left-margin button that guides the signer.
+/* Left-margin buttons: Start / Next — sticky on the left edge.
+   Both share the same position and visual style. */
 
-   Lifecycle:
-   1. "Start"      → sticky on left margin, always visible on scroll.
-                      Clicking scrolls to the first field and disappears.
-   2. (hidden)     → while a field is active and in viewport.
-   3. "Next"       → after signing a field, appears at next unfilled field.
-                      If user scrolls away, reverts to sticky "Start" on left.
-   4. (hidden)     → all fields filled.
-*/
-
-function StickyStartButton({ onClick }) {
+function LeftMarginButton({ label, icon, onClick }) {
   const [hover, setHover] = useState(false);
   return (
     <div style={{
@@ -40,51 +32,14 @@ function StickyStartButton({ onClick }) {
           transition: 'transform 100ms, box-shadow 100ms',
         }}
       >
-        <Icon name="pen-tool" size={16} />
-        Start
+        <Icon name={icon} size={16} />
+        {label}
       </button>
     </div>
   );
 }
 
-function NextFieldButton({ position, onClick }) {
-  const [hover, setHover] = useState(false);
-  if (!position) return null;
-  return (
-    <div style={{
-      position: 'absolute',
-      left: position.x - 70,
-      top: position.y + (position.h / 2) - 18,
-      zIndex: 10,
-      animation: 'fadeIn 200ms var(--ease-standard)',
-    }}>
-      <button
-        onClick={onClick}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-        style={{
-          border: 'none', cursor: 'pointer',
-          padding: '10px 20px',
-          borderRadius: 999,
-          background: '#C0392B',
-          color: '#fff', fontSize: 14, fontWeight: 600,
-          fontFamily: 'var(--font-sans)',
-          display: 'flex', alignItems: 'center', gap: 8,
-          boxShadow: hover
-            ? '0 4px 16px rgba(192,57,43,.35)'
-            : '0 2px 8px rgba(192,57,43,.25)',
-          transform: hover ? 'scale(1.03)' : 'scale(1)',
-          transition: 'transform 80ms, box-shadow 80ms',
-        }}
-      >
-        <Icon name="arrow-right" size={14} />
-        Next
-      </button>
-    </div>
-  );
-}
-
-/* Red margin indicator — sits on the left edge of the page */
+/* Red margin indicator — sits on the left edge of the PDF page */
 function FieldMarginIndicator({ position }) {
   if (!position) return null;
   return (

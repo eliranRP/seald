@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="../colors_and_type.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Dancing+Script:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Source+Serif+4:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     html, body { margin: 0; padding: 0; background: var(--ink-50); }
     *, *::before, *::after { box-sizing: border-box; }
@@ -25,16 +25,10 @@
       border: none; background: transparent;
       padding: 7px 12px; border-radius: 999px;
       font-size: 12px; font-weight: 600; color: var(--fg-3); cursor: pointer;
-      transition: background 120ms var(--ease-standard), color 120ms;
+      transition: background 120ms, color 120ms;
     }
     .stepper button:hover { background: var(--ink-50); color: var(--fg-1); }
     .stepper button.on { background: var(--ink-900); color: #fff; }
-    .stepper .sep { width: 1px; background: var(--border-1); margin: 4px 4px; }
-    .stepper .group-label {
-      font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
-      text-transform: uppercase; color: var(--fg-4);
-      align-self: center; padding: 0 6px 0 8px;
-    }
 
     @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes slideUp {
@@ -44,6 +38,11 @@
     @keyframes slideInLeft {
       from { transform: translateX(-100%) translateY(-50%); opacity: 0; }
       to   { transform: translateX(0) translateY(-50%); opacity: 1; }
+    }
+    @keyframes signPop {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.05); }
+      100% { transform: scale(1); }
     }
 
     .action-bar {
@@ -61,7 +60,7 @@
       border-radius: 2px; transition: width 300ms;
     }
     .action-bar .count {
-      font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); white-space: nowrap;
+      font-size: 11px; font-family: var(--font-mono); color: var(--fg-3);
     }
     .action-bar .spacer { flex: 1; }
 
@@ -101,50 +100,40 @@
     .pdf-page th { text-align: left; font-weight: 700; font-size: 11px; padding: 4px 8px; border-bottom: 1px solid var(--border-2); }
     .pdf-page td { padding: 4px 8px; border-bottom: 1px solid var(--border-1); }
 
-    .sig-field-on-pdf {
-      position: absolute; border: 1.5px dashed; border-radius: 8px;
+    .sig-field {
+      position: absolute; border-radius: 8px;
       display: flex; flex-direction: column;
       align-items: flex-start; justify-content: center;
       padding: 6px 12px; gap: 2px;
-      transition: background 140ms, border-color 140ms, box-shadow 140ms;
+      transition: background 140ms, border-color 140ms, box-shadow 200ms;
       cursor: pointer;
     }
-    .sig-field-on-pdf.active { box-shadow: 0 0 0 4px rgba(99,102,241,.15); }
-    .sig-field-on-pdf .field-label {
-      font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px;
-    }
-    .sig-field-on-pdf .field-line {
-      width: 70%; height: 0; border-bottom: 1.5px solid; opacity: .5; align-self: center;
-    }
+    .sig-field.unfilled { border: 1.5px dashed; }
+    .sig-field.active { box-shadow: 0 0 0 4px rgba(99,102,241,.15); }
+    .sig-field.filled { border: 1.5px solid; animation: signPop 300ms; }
+    .sig-field .label { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .sig-field .line { width: 70%; height: 0; border-bottom: 1.5px solid; opacity: .5; align-self: center; }
 
     .page-rail {
       position: fixed; right: 20px; top: 140px;
       display: flex; flex-direction: column; gap: 8px; align-items: center;
     }
-    .page-rail .rail-label { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
-    .page-rail .thumb {
-      width: 52px; height: 68px; background: #fff;
-      border: 1.5px solid var(--border-1); border-radius: 4px;
-      position: relative; cursor: pointer;
-    }
-    .page-rail .thumb.active { border-color: var(--indigo-500); }
-    .page-rail .thumb .dot {
-      position: absolute; top: 4px; right: 4px;
-      width: 10px; height: 10px; border-radius: 999px; background: var(--indigo-600);
-    }
-    .page-rail .thumb-num { font-size: 11px; color: var(--fg-3); text-align: center; }
+    .page-rail .rl { font-size: 11px; font-family: var(--font-mono); color: var(--fg-3); }
+    .page-rail .th { width: 52px; height: 68px; background: #fff; border: 1.5px solid var(--border-1); border-radius: 4px; position: relative; cursor: pointer; }
+    .page-rail .th.on { border-color: var(--indigo-500); }
+    .page-rail .th .dot { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 999px; background: var(--indigo-600); }
+    .page-rail .tn { font-size: 11px; color: var(--fg-3); text-align: center; }
 
     .signing-layout { display: flex; min-height: calc(100vh - 108px); }
 
-    /* Status annotation */
-    .screen-annotation {
+    .annotation {
       position: fixed; top: 120px; left: 20px; z-index: 50;
       background: #fff; border: 1px solid var(--border-1); border-radius: 12px;
       padding: 12px 16px; box-shadow: var(--shadow-md);
-      font-size: 12px; color: var(--fg-2); max-width: 240px;
-      line-height: 1.5;
+      font-size: 12px; color: var(--fg-2); max-width: 260px; line-height: 1.6;
     }
-    .screen-annotation strong { color: var(--fg-1); }
+    .annotation strong { color: var(--fg-1); }
+    .annotation em { color: var(--indigo-600); font-style: normal; font-weight: 600; }
   </style>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
@@ -162,33 +151,32 @@
   <script type="text/babel">
     const { useState } = React;
     const SIGNER = 'Eliran Azulay, Managing Member';
+    const INITIALS = 'EAMM';
 
     const SCREENS = [
-      { id: 'idle',          label: '1. Idle (Start visible)' },
-      { id: 'field-active',  label: '2. Field active' },
-      { id: 'capture',       label: '3. Capture open' },
-      { id: 'signed-next',   label: '4. Signed → Next' },
-      { id: 'scrolled-away', label: '5. Scrolled away' },
-      { id: 'all-done',      label: '6. All done' },
-      { id: 'settings',      label: 'Sig settings' },
+      { id: 'idle',          label: '1. Start' },
+      { id: 'field-active',  label: '2. At field' },
+      { id: 'one-signed',    label: '3. One signed' },
+      { id: 'scrolled',      label: '4. Scrolled away' },
+      { id: 'all-done',      label: '5. All done' },
+      { id: 'settings',      label: 'Settings' },
     ];
 
-    const ANNOTATIONS = {
-      'idle':          '<strong>Start</strong> button is sticky on the left margin. Always visible. User hasn\'t interacted yet.',
-      'field-active':  'User clicked <strong>Start</strong>. Page scrolled to first field. Field is active (indigo glow). Start button <strong>disappeared</strong>.',
-      'capture':       'User tapped the active field. <strong>Capture bottom-sheet</strong> opens. Type / Draw / Upload tabs.',
-      'signed-next':   'User signed the field. <strong>"Next"</strong> button appears at the next unfilled field. Margin indicator moves.',
-      'scrolled-away': 'User scrolled away from the next field without acting. <strong>Start reappears</strong> on the left margin (sticky).',
-      'all-done':      'All fields filled. No buttons. Progress bar at 100%. Green <strong>"Finish signing"</strong> replaces "Next field" in the action bar.',
-      'settings':      '<strong>Settings</strong> section: preview cards for signature + initials. Gear icon opens the capture modal to change.',
+    const NOTES = {
+      idle:         '<strong>Start</strong> — sticky left margin. Tap to jump to the first field.',
+      'field-active': 'Start disappeared. Field is <em>active</em> (indigo glow). <strong>One tap on the field = signed</strong> with the default name. No capture sheet needed.',
+      'one-signed': 'Signature auto-applied (<em>"' + SIGNER + '"</em> in Caveat). <strong>Next</strong> appears on the <em>left margin</em> pointing to the initials field.',
+      scrolled:     'User scrolled away. <strong>Start reappears</strong> on the left to guide them back.',
+      'all-done':   'Both fields filled. No buttons. Green <em>Finish signing</em> in the action bar.',
+      settings:     '<strong>Settings gear</strong> (optional): change font, redraw, or upload a signature. Only if the user wants to customize — the default <em>just works</em>.',
     };
 
-    const FIELDS = {
-      signature: { x: 220, y: 440, w: 200, h: 56 },
-      initials:  { x: 220, y: 520, w: 90,  h: 40 },
+    const F = {
+      sig: { x: 220, y: 430, w: 200, h: 56 },
+      ini: { x: 220, y: 510, w: 90,  h: 40 },
     };
 
-    function RecipientHeader({ filled, total }) {
+    function Header({ filled }) {
       return (
         <div className="recipient-header">
           <img src="../assets/logo.svg" height="22" alt="Seald" />
@@ -197,57 +185,61 @@
             <div className="title">UNCONDITIONAL WAIVER - 5.05.2026</div>
             <div className="meta">byRE1P8aFRvz</div>
           </div>
-          <div className="chip">{filled} of {total} fields</div>
-          <button className="icon-btn"><Icon name="download" size={16} /></button>
+          <div className="chip">{filled} of 2 fields</div>
+          <button className="icon-btn"><Icon name="download" size={16}/></button>
         </div>
       );
     }
 
-    function ActionBar({ filled, total, allDone }) {
-      const pct = total > 0 ? (filled / total * 100) : 0;
+    function Bar({ filled, allDone }) {
       return (
         <div className="action-bar">
-          <div className="progress-track"><div className="progress-fill" style={{ width: pct + '%' }} /></div>
-          <span className="count">{filled}/{total}</span>
+          <div className="progress-track"><div className="progress-fill" style={{ width: (filled/2*100)+'%' }}/></div>
+          <span className="count">{filled}/2</span>
           <div className="spacer" />
-          <div style={{ display: 'inline-flex', gap: 4, padding: '4px 8px', background: '#fff', border: '1px solid var(--border-1)', borderRadius: 8, alignItems: 'center' }}>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="settings" size={14}/></button>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-2)' }}><Icon name="chevron-left" size={14}/></button>
-            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', padding: '0 4px' }}>1 / 3</span>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-2)' }}><Icon name="chevron-right" size={14}/></button>
-            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--fg-2)', padding: '0 4px' }}>100%</span>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="minus" size={14}/></button>
-            <button style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '2px 4px', borderRadius: 4, color: 'var(--fg-3)' }}><Icon name="plus" size={14}/></button>
+          <div style={{ display:'inline-flex', gap:4, padding:'4px 8px', background:'#fff', border:'1px solid var(--border-1)', borderRadius:8, alignItems:'center' }}>
+            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="settings" size={14}/></button>
+            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-2)' }}><Icon name="chevron-left" size={14}/></button>
+            <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--fg-2)', padding:'0 4px' }}>1 / 3</span>
+            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-2)' }}><Icon name="chevron-right" size={14}/></button>
+            <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--fg-2)', padding:'0 4px' }}>100%</span>
+            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="minus" size={14}/></button>
+            <button style={{ border:'none', background:'transparent', cursor:'pointer', padding:'2px 4px', borderRadius:4, color:'var(--fg-3)' }}><Icon name="plus" size={14}/></button>
           </div>
           <Button variant="secondary" size="sm">Decline</Button>
-          <span style={{ fontSize: 13, color: 'var(--fg-3)', textDecoration: 'underline', cursor: 'pointer' }}>Withdraw consent</span>
-          {allDone && <Button variant="primary" size="sm" icon="check" style={{ background: 'var(--success-500)' }}>Finish signing</Button>}
+          <span style={{ fontSize:13, color:'var(--fg-3)', textDecoration:'underline', cursor:'pointer' }}>Withdraw consent</span>
+          {allDone && <Button variant="primary" size="sm" icon="check" style={{ background:'var(--success-500)' }}>Finish signing</Button>}
         </div>
       );
     }
 
-    function PageRail() {
+    function Rail() {
       return (
         <div className="page-rail">
-          <span className="rail-label">1/3</span>
-          <div className="thumb active"><div className="dot" /></div>
-          <span className="thumb-num">1</span>
-          <div className="thumb" /><span className="thumb-num">2</span>
-          <div className="thumb" /><span className="thumb-num">3</span>
+          <span className="rl">1/3</span>
+          <div className="th on"><div className="dot"/></div><span className="tn">1</span>
+          <div className="th"/><span className="tn">2</span>
+          <div className="th"/><span className="tn">3</span>
         </div>
       );
     }
 
-    function PdfPage({ screen, onFieldClick, onSettingsClick }) {
-      const sigActive = screen === 'field-active';
-      const sigSigned = ['signed-next','scrolled-away','all-done'].includes(screen);
-      const iniActive = screen === 'signed-next';
-      const iniSigned = screen === 'all-done';
+    function Page({ screen, onFieldClick, onSettingsClick }) {
+      const sigActive  = screen === 'field-active';
+      const sigSigned  = ['one-signed','scrolled','all-done','settings'].includes(screen);
+      const iniActive  = screen === 'one-signed';
+      const iniSigned  = screen === 'all-done';
 
-      const sigColor = sigSigned ? 'var(--success-500)' : (sigActive ? 'var(--indigo-500)' : 'rgba(212,129,122,1)');
-      const sigBg    = sigSigned ? 'rgba(16,185,129,.08)' : (sigActive ? 'rgba(99,102,241,.08)' : 'rgba(212,129,122,.12)');
-      const iniColor = iniSigned ? 'var(--success-500)' : (iniActive ? 'var(--indigo-500)' : 'rgba(212,129,122,1)');
-      const iniBg    = iniSigned ? 'rgba(16,185,129,.08)' : (iniActive ? 'rgba(99,102,241,.08)' : 'rgba(212,129,122,.12)');
+      function fieldStyle(pos, active, signed, baseColor) {
+        const color = signed ? 'var(--success-500)' : (active ? 'var(--indigo-500)' : baseColor);
+        const bg    = signed ? 'rgba(16,185,129,.08)' : (active ? 'rgba(99,102,241,.08)' : baseColor.replace(')', ',.10)').replace('rgba','rgba').replace('rgb(','rgba('));
+        return {
+          left: pos.x, top: pos.y, width: pos.w, height: pos.h,
+          borderColor: color,
+          background: signed ? 'rgba(16,185,129,.08)' : (active ? 'rgba(99,102,241,.08)' : 'rgba(212,129,122,.10)'),
+          color: signed ? 'var(--success-700)' : (active ? 'var(--indigo-700)' : '#8B4513'),
+        };
+      }
 
       return (
         <div className="pdf-page">
@@ -258,53 +250,52 @@
           <h4>PAYMENT ACKNOWLEDGMENT</h4>
           <p>The undersigned Contractor acknowledges the following payments.</p>
           <h4 style={{ fontSize: 12 }}>PREVIOUSLY PAID AMOUNTS:</h4>
-          <table>
-            <thead><tr><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
-            <tbody>
-              <tr><td>Outside</td><td>Paint of concrete platform</td><td>$125.00</td></tr>
-              <tr><td>Transport</td><td>Take Box to garbage</td><td>$180.00</td></tr>
-              <tr><td>Transport</td><td>Take Material to Hayson</td><td>$150.00</td></tr>
-              <tr><td>Outside Work</td><td>Organize sidewalk</td><td>$300.00</td></tr>
-            </tbody>
-          </table>
+          <table><thead><tr><th>Category</th><th>Description</th><th>Amount</th></tr></thead>
+          <tbody>
+            <tr><td>Outside</td><td>Paint of concrete platform</td><td>$125.00</td></tr>
+            <tr><td>Transport</td><td>Take Box to garbage</td><td>$180.00</td></tr>
+            <tr><td>Transport</td><td>Take Material to Hayson</td><td>$150.00</td></tr>
+            <tr><td>Outside Work</td><td>Organize sidewalk</td><td>$300.00</td></tr>
+          </tbody></table>
 
           {/* Signature field */}
-          <div className={`sig-field-on-pdf ${sigActive ? 'active' : ''}`}
-            style={{ left: FIELDS.signature.x, top: FIELDS.signature.y, width: FIELDS.signature.w, height: FIELDS.signature.h, borderColor: sigColor, background: sigBg, color: sigSigned ? 'var(--success-700)' : (sigActive ? 'var(--indigo-700)' : '#8B4513') }}
-            onClick={() => !sigSigned && onFieldClick('signature')}>
+          <div className={`sig-field ${sigSigned ? 'filled' : 'unfilled'} ${sigActive ? 'active' : ''}`}
+            style={fieldStyle(F.sig, sigActive, sigSigned, 'rgba(212,129,122,1)')}
+            onClick={() => !sigSigned && onFieldClick('sig')}>
             {sigSigned ? (
-              <><span className="field-label"><Icon name="check" size={12}/> Signed</span>
-              <span style={{ fontFamily: "'Caveat',cursive", fontSize: 16, color: 'var(--fg-1)' }}>{SIGNER}</span></>
+              <>
+                <span className="label"><Icon name="check" size={12}/> Signed</span>
+                <span style={{ fontFamily:"'Caveat',cursive", fontSize:16, color:'var(--fg-1)', fontWeight:500 }}>{SIGNER}</span>
+              </>
             ) : (
-              <><span className="field-label"><Icon name="pen-tool" size={12}/> Signature</span>
-              <span className="field-line" style={{ borderColor: sigColor }} /></>
+              <>
+                <span className="label"><Icon name="pen-tool" size={12}/> Signature</span>
+                <span className="line" style={{ borderColor:'inherit' }}/>
+              </>
             )}
           </div>
 
           {/* Initials field */}
-          <div className={`sig-field-on-pdf ${iniActive ? 'active' : ''}`}
-            style={{ left: FIELDS.initials.x, top: FIELDS.initials.y, width: FIELDS.initials.w, height: FIELDS.initials.h, borderColor: iniColor, background: iniBg, color: iniSigned ? 'var(--success-700)' : (iniActive ? 'var(--indigo-700)' : '#8B4513') }}
-            onClick={() => !iniSigned && onFieldClick('initials')}>
+          <div className={`sig-field ${iniSigned ? 'filled' : 'unfilled'} ${iniActive ? 'active' : ''}`}
+            style={fieldStyle(F.ini, iniActive, iniSigned, 'rgba(212,129,122,1)')}
+            onClick={() => !iniSigned && onFieldClick('ini')}>
             {iniSigned ? (
-              <span className="field-label"><Icon name="check" size={11}/> EA</span>
+              <span className="label"><Icon name="check" size={11}/> <span style={{ fontFamily:"'Caveat',cursive", fontSize:18, fontWeight:500 }}>{INITIALS}</span></span>
             ) : (
-              <><span className="field-label" style={{ fontSize: 11 }}><Icon name="type" size={11}/> Initials</span>
-              <span className="field-line" style={{ borderColor: iniColor }} /></>
+              <>
+                <span className="label" style={{ fontSize:11 }}><Icon name="type" size={11}/> Initials</span>
+                <span className="line" style={{ borderColor:'inherit' }}/>
+              </>
             )}
           </div>
 
-          {/* Margin indicator for active field */}
-          {sigActive && <FieldMarginIndicator position={FIELDS.signature} />}
-          {iniActive && <FieldMarginIndicator position={FIELDS.initials} />}
+          {/* Margin indicator on active field */}
+          {sigActive && <FieldMarginIndicator position={F.sig} />}
+          {iniActive && <FieldMarginIndicator position={F.ini} />}
 
-          {/* "Next" pill at the next unfilled field (after signing one) */}
-          {screen === 'signed-next' && (
-            <NextFieldButton position={FIELDS.initials} onClick={() => onFieldClick('initials')} />
-          )}
-
-          {/* Settings cards overlay */}
+          {/* Settings gear on the page — only in settings screen */}
           {screen === 'settings' && (
-            <div style={{ position: 'absolute', bottom: 20, left: 20, width: 260 }}>
+            <div style={{ position:'absolute', bottom:16, left:16, width:250 }}>
               <SignatureSettingsSection
                 hasSignatureFields={true} hasInitialsFields={true}
                 signerName={SIGNER} signatureImage={null} initialsImage={null}
@@ -320,47 +311,44 @@
       const [screen, setScreen] = useState('idle');
       const [captureOpen, setCaptureOpen] = useState(false);
 
-      const filled = ['signed-next','scrolled-away'].includes(screen) ? 1 : (screen === 'all-done' ? 2 : 0);
-      const showStickyStart = screen === 'idle' || screen === 'scrolled-away';
+      const filled = ['one-signed','scrolled'].includes(screen) ? 1 : (screen === 'all-done' ? 2 : 0);
+      const showStart = screen === 'idle' || screen === 'scrolled';
+      const showNext  = screen === 'one-signed';
 
       return (
         <div>
-          <RecipientHeader filled={filled} total={2} />
-          <ActionBar filled={filled} total={2} allDone={screen === 'all-done'} />
+          <Header filled={filled} />
+          <Bar filled={filled} allDone={screen === 'all-done'} />
 
           <div className="signing-layout">
             <div className="pdf-canvas">
-              <PdfPage
+              <Page
                 screen={screen}
                 onFieldClick={(kind) => {
-                  if (screen === 'field-active' || screen === 'signed-next') setCaptureOpen(true);
+                  if (screen === 'field-active') setScreen('one-signed');
+                  else if (screen === 'one-signed') setScreen('all-done');
                 }}
                 onSettingsClick={() => setCaptureOpen(true)}
               />
             </div>
           </div>
 
-          <PageRail />
+          <Rail />
 
-          {/* Sticky "Start" button on the left margin */}
-          {showStickyStart && (
-            <StickyStartButton onClick={() => setScreen('field-active')} />
-          )}
+          {/* LEFT MARGIN: Start or Next — same position, same style */}
+          {showStart && <LeftMarginButton label="Start" icon="pen-tool" onClick={() => setScreen('field-active')} />}
+          {showNext  && <LeftMarginButton label="Next"  icon="arrow-right" onClick={() => setScreen('field-active')} />}
 
-          {/* Annotation — explains what's happening in each screen */}
-          <div className="screen-annotation" dangerouslySetInnerHTML={{ __html: ANNOTATIONS[screen] || '' }} />
+          {/* Annotation */}
+          <div className="annotation" dangerouslySetInnerHTML={{ __html: NOTES[screen] || '' }} />
 
-          {/* Capture modal */}
+          {/* Settings capture modal */}
           <SignatureCaptureModal
-            open={captureOpen || screen === 'capture'}
+            open={captureOpen}
             kind="signature"
             signerName={SIGNER}
-            onCancel={() => { setCaptureOpen(false); if (screen === 'capture') setScreen('field-active'); }}
-            onApply={() => {
-              setCaptureOpen(false);
-              if (screen === 'capture' || screen === 'field-active') setScreen('signed-next');
-              else if (screen === 'signed-next') setScreen('all-done');
-            }}
+            onCancel={() => setCaptureOpen(false)}
+            onApply={() => setCaptureOpen(false)}
           />
 
           {/* Stepper */}
