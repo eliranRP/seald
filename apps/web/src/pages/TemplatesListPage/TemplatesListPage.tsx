@@ -61,10 +61,11 @@ const ACTIVE_TAG_VISIBLE = 3;
 
 function matchesQuery(template: TemplateSummary, query: string): boolean {
   if (!query) return true;
-  const q = query.toLowerCase();
-  if (template.name.toLowerCase().includes(q)) return true;
-  if (template.description && template.description.toLowerCase().includes(q)) return true;
-  if ((template.tags ?? []).some((t) => t.toLowerCase().includes(q))) return true;
+  const loweredQuery = query.toLowerCase();
+  if (template.name.toLowerCase().includes(loweredQuery)) return true;
+  if (template.description && template.description.toLowerCase().includes(loweredQuery))
+    return true;
+  if ((template.tags ?? []).some((tag) => tag.toLowerCase().includes(loweredQuery))) return true;
   return false;
 }
 
@@ -358,9 +359,9 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
           {activeTags.length > 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {activeTags.slice(0, ACTIVE_TAG_VISIBLE).map((tag) => {
-                const c = tagColorFor(tag);
+                const tagColor = tagColorFor(tag);
                 return (
-                  <ActiveTagPill key={tag} $bg={c.bg} $fg={c.fg}>
+                  <ActiveTagPill key={tag} $bg={tagColor.bg} $fg={tagColor.fg}>
                     {tag}
                     <ActiveTagRemove
                       type="button"
@@ -409,12 +410,12 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
               <EmptyState role="status">No templates match your filter.</EmptyState>
             ) : null}
             {grouped.map((g) => {
-              const c = tagColorFor(g.tag);
+              const groupColor = tagColorFor(g.tag);
               return (
                 <GroupSection key={g.tag}>
                   <GroupHeader>
-                    <GroupTagPill $bg={c.bg} $fg={c.fg}>
-                      <GroupTagDot $color={c.fg} aria-hidden />
+                    <GroupTagPill $bg={groupColor.bg} $fg={groupColor.fg}>
+                      <GroupTagDot $color={groupColor.fg} aria-hidden />
                       {g.tag}
                     </GroupTagPill>
                     <GroupCount>{g.items.length}</GroupCount>

@@ -274,16 +274,16 @@ export function MobileSendPage() {
 
   // ---- step navigation ----
   const goNext = useCallback((): void => {
-    setStep((s) => {
-      const i = MOBILE_STEP_ORDER.indexOf(s);
-      return MOBILE_STEP_ORDER[Math.min(i + 1, MOBILE_STEP_ORDER.length - 1)] ?? s;
+    setStep((current) => {
+      const currentIndex = MOBILE_STEP_ORDER.indexOf(current);
+      return MOBILE_STEP_ORDER[Math.min(currentIndex + 1, MOBILE_STEP_ORDER.length - 1)] ?? current;
     });
   }, []);
 
   const goBack = useCallback((): void => {
-    setStep((s) => {
-      const i = MOBILE_STEP_ORDER.indexOf(s);
-      return MOBILE_STEP_ORDER[Math.max(0, i - 1)] ?? s;
+    setStep((current) => {
+      const currentIndex = MOBILE_STEP_ORDER.indexOf(current);
+      return MOBILE_STEP_ORDER[Math.max(0, currentIndex - 1)] ?? current;
     });
   }, []);
 
@@ -413,15 +413,15 @@ export function MobileSendPage() {
   const handleCanvasTap = useCallback(
     (pos: { x: number; y: number }): void => {
       if (!armedTool) return;
-      const f = buildDroppedField({
+      const droppedField = buildDroppedField({
         type: armedTool,
         page,
         position: pos,
         firstSignerId: signers[0]?.id,
       });
-      setFields((fs) => [...fs, f]);
+      setFields((prev) => [...prev, droppedField]);
       setArmedTool(null);
-      setSelectedIds([f.id]);
+      setSelectedIds([droppedField.id]);
       if (signers.length > 1) {
         setAssignSeedAll(true);
         setSheet('assign');
@@ -511,12 +511,12 @@ export function MobileSendPage() {
       // Build contact-id'd inputs when we recognize the local signer as a
       // saved contact (id matches), else send name+email so the API mints
       // an ad-hoc signer. `me:<uid>` always falls into the ad-hoc path.
-      const sendSigners: ReadonlyArray<SendEnvelopeSignerInput> = signers.map((s) => {
-        const c = contacts.find((c2) => c2.id === s.id);
-        if (c) {
-          return { localId: s.id, contactId: c.id };
+      const sendSigners: ReadonlyArray<SendEnvelopeSignerInput> = signers.map((signer) => {
+        const matchingContact = contacts.find((contact) => contact.id === signer.id);
+        if (matchingContact) {
+          return { localId: signer.id, contactId: matchingContact.id };
         }
-        return { localId: s.id, name: s.name, email: s.email, color: s.color };
+        return { localId: signer.id, name: signer.name, email: signer.email, color: signer.color };
       });
 
       const out = await runSend({

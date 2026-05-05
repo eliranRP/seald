@@ -37,6 +37,7 @@ import type { TemplateSummary } from '../features/templates';
 
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 740;
+const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -394,8 +395,8 @@ export function TemplateEditorRoute() {
 
   useEffect(() => {
     if (!toast) return undefined;
-    const t = window.setTimeout(() => setToast(null), 4000);
-    return () => window.clearTimeout(t);
+    const toastTimer = window.setTimeout(() => setToast(null), TOAST_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(toastTimer);
   }, [toast]);
 
   const headerTitle = renamedTitle ?? sourceTemplate?.name ?? 'New template';

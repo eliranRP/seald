@@ -187,12 +187,12 @@ export function fieldsOnPage(
 
 /** Pages that have at least one field linked (used by the filmstrip). */
 export function pagesWithFields(fields: ReadonlyArray<MobilePlacedField>): ReadonlySet<number> {
-  const s = new Set<number>();
-  fields.forEach((f) => {
-    const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
-    linked.forEach((p) => s.add(p));
+  const occupiedPages = new Set<number>();
+  fields.forEach((field) => {
+    const linked = field.linkedPages.length > 0 ? field.linkedPages : [field.page];
+    linked.forEach((pageNum) => occupiedPages.add(pageNum));
   });
-  return s;
+  return occupiedPages;
 }
 
 export const MOBILE_STEP_ORDER: ReadonlyArray<MobileStep> = [
@@ -205,13 +205,13 @@ export const MOBILE_STEP_ORDER: ReadonlyArray<MobileStep> = [
 ];
 
 export function previousStep(step: MobileStep): MobileStep {
-  const i = MOBILE_STEP_ORDER.indexOf(step);
-  if (i <= 0) return MOBILE_STEP_ORDER[0]!;
-  return MOBILE_STEP_ORDER[i - 1] ?? step;
+  const currentIndex = MOBILE_STEP_ORDER.indexOf(step);
+  if (currentIndex <= 0) return MOBILE_STEP_ORDER[0]!;
+  return MOBILE_STEP_ORDER[currentIndex - 1] ?? step;
 }
 
 export function nextStep(step: MobileStep): MobileStep {
-  const i = MOBILE_STEP_ORDER.indexOf(step);
-  if (i < 0 || i >= MOBILE_STEP_ORDER.length - 1) return step;
-  return MOBILE_STEP_ORDER[i + 1] ?? step;
+  const currentIndex = MOBILE_STEP_ORDER.indexOf(step);
+  if (currentIndex < 0 || currentIndex >= MOBILE_STEP_ORDER.length - 1) return step;
+  return MOBILE_STEP_ORDER[currentIndex + 1] ?? step;
 }

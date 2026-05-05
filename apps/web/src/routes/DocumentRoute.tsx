@@ -29,6 +29,7 @@ import { createTemplate, updateTemplate } from '../features/templates/templatesA
 // draft and normalized to 0–1 just before the send hits the backend.
 const CANVAS_WIDTH = 560;
 const CANVAS_HEIGHT = 740;
+const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -432,8 +433,8 @@ export function DocumentRoute() {
   // recurs.
   useEffect(() => {
     if (!toast) return undefined;
-    const id = window.setTimeout(() => setToast(null), 4000);
-    return () => window.clearTimeout(id);
+    const toastTimer = window.setTimeout(() => setToast(null), TOAST_AUTO_DISMISS_MS);
+    return () => window.clearTimeout(toastTimer);
   }, [toast]);
 
   // Build the contextual banner for templates flow. Three copies:

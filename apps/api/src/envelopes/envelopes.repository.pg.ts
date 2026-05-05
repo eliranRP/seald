@@ -51,21 +51,22 @@ type EventRow = Selectable<EnvelopeEventsTable>;
  */
 function isShortCodeUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: string; constraint?: string; message?: string };
-  if (e.code !== '23505') return false;
-  if (e.constraint === 'envelopes_short_code_key') return true;
-  if (typeof e.message === 'string' && e.message.toLowerCase().includes('short_code')) return true;
+  const pgError = err as { code?: string; constraint?: string; message?: string };
+  if (pgError.code !== '23505') return false;
+  if (pgError.constraint === 'envelopes_short_code_key') return true;
+  if (typeof pgError.message === 'string' && pgError.message.toLowerCase().includes('short_code'))
+    return true;
   return false;
 }
 
 function isPrevHashUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: string; constraint?: string; message?: string };
-  if (e.code !== '23505') return false;
-  if (e.constraint === 'envelope_events_envelope_prev_hash_unique') return true;
+  const pgError = err as { code?: string; constraint?: string; message?: string };
+  if (pgError.code !== '23505') return false;
+  if (pgError.constraint === 'envelope_events_envelope_prev_hash_unique') return true;
   if (
-    typeof e.message === 'string' &&
-    e.message.includes('envelope_events_envelope_prev_hash_unique')
+    typeof pgError.message === 'string' &&
+    pgError.message.includes('envelope_events_envelope_prev_hash_unique')
   ) {
     return true;
   }
@@ -74,26 +75,26 @@ function isPrevHashUniqueViolation(err: unknown): boolean {
 
 function isSignerEmailUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: string; constraint?: string; message?: string };
-  if (e.code !== '23505') return false;
-  if (e.constraint === 'envelope_signers_envelope_id_email_key') return true;
+  const pgError = err as { code?: string; constraint?: string; message?: string };
+  if (pgError.code !== '23505') return false;
+  if (pgError.constraint === 'envelope_signers_envelope_id_email_key') return true;
   if (
-    typeof e.message === 'string' &&
-    e.message.includes('envelope_signers_envelope_id_email_key')
+    typeof pgError.message === 'string' &&
+    pgError.message.includes('envelope_signers_envelope_id_email_key')
   ) {
     return true;
   }
-  if (typeof e.message === 'string' && e.message.includes('Key (envelope_id,email)')) {
+  if (typeof pgError.message === 'string' && pgError.message.includes('Key (envelope_id,email)')) {
     return true;
   }
   return false;
 }
 
-function toIso(d: Date | null): string | null {
-  return d === null ? null : new Date(d).toISOString();
+function toIso(date: Date | null): string | null {
+  return date === null ? null : new Date(date).toISOString();
 }
-function toIsoReq(d: Date): string {
-  return new Date(d).toISOString();
+function toIsoRequired(date: Date): string {
+  return new Date(date).toISOString();
 }
 function asNumber(v: unknown): number {
   // pg-mem sometimes returns numeric columns (x,y,width,height) as strings.
@@ -164,13 +165,13 @@ function toEnvelopeDomain(
     sender_name: envelope.sender_name,
     sent_at: toIso(envelope.sent_at),
     completed_at: toIso(envelope.completed_at),
-    expires_at: toIsoReq(envelope.expires_at),
+    expires_at: toIsoRequired(envelope.expires_at),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
     signers: signers.map(toSignerDomain),
     fields: fields.map(toFieldDomain),
-    created_at: toIsoReq(envelope.created_at),
-    updated_at: toIsoReq(envelope.updated_at),
+    created_at: toIsoRequired(envelope.created_at),
+    updated_at: toIsoRequired(envelope.updated_at),
   };
 }
 
@@ -192,7 +193,7 @@ function toEventDomain(row: EventRow): EnvelopeEvent {
     ip: row.ip,
     user_agent: row.user_agent,
     metadata,
-    created_at: toIsoReq(row.created_at),
+    created_at: toIsoRequired(row.created_at),
   };
 }
 
@@ -205,9 +206,9 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
     original_pages: row.original_pages,
     sent_at: toIso(row.sent_at),
     completed_at: toIso(row.completed_at),
-    expires_at: toIsoReq(row.expires_at),
-    created_at: toIsoReq(row.created_at),
-    updated_at: toIsoReq(row.updated_at),
+    expires_at: toIsoRequired(row.expires_at),
+    created_at: toIsoRequired(row.created_at),
+    updated_at: toIsoRequired(row.updated_at),
     signers: signerRows.map((s) => ({
       id: s.id,
       name: s.name,
@@ -340,7 +341,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       q = q.where('status', 'in', [...opts.statuses]);
     }
     if (opts.cursor) {
-      const c = opts.cursor;
+      const cursor = opts.cursor;
       // Keyset: (updated_at, id) < (cursor.updated_at, cursor.id), desc order.
       // `updated_at` is typed with `never` for the writes-side of Kysely's
       // ColumnType, so we compare via sql. pg-mem does not implement the
@@ -348,7 +349,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       // explicit OR/AND — this also matches verbatim what real Postgres does
       // under the hood for row comparisons.
       q = q.where(
-        sql<boolean>`(updated_at < ${sql.lit(c.updated_at)}::timestamptz) or (updated_at = ${sql.lit(c.updated_at)}::timestamptz and id < ${sql.lit(c.id)}::uuid)`,
+        sql<boolean>`(updated_at < ${sql.lit(cursor.updated_at)}::timestamptz) or (updated_at = ${sql.lit(cursor.updated_at)}::timestamptz and id < ${sql.lit(cursor.id)}::uuid)`,
       );
     }
     const rows = await q.execute();
@@ -376,7 +377,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
 
     const items = page.map((row) => toListItem(row, signersByEnvelope.get(row.id) ?? []));
     const last = page[page.length - 1];
-    const next_cursor = hasMore && last ? encodeCursor(toIsoReq(last.updated_at), last.id) : null;
+    const next_cursor =
+      hasMore && last ? encodeCursor(toIsoRequired(last.updated_at), last.id) : null;
     return { items, next_cursor };
   }
 
