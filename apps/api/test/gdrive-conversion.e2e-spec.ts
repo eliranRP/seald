@@ -399,12 +399,14 @@ describe('Drive doc → PDF conversion (WT-D) — e2e', () => {
       .set(auth(tokenA))
       .send({ accountId: ACCOUNT_ID, fileId: 'x', mimeType: 'application/pdf' });
     expect(post.status).toBe(404);
+    // Use a valid UUID format (ParseUUIDPipe rejects non-UUIDs with 422)
+    const fakeUuid = '00000000-0000-4000-8000-000000000000';
     const get = await request(app.getHttpServer())
-      .get('/integrations/gdrive/conversion/anything')
+      .get(`/integrations/gdrive/conversion/${fakeUuid}`)
       .set(auth(tokenA));
     expect(get.status).toBe(404);
     const del = await request(app.getHttpServer())
-      .delete('/integrations/gdrive/conversion/anything')
+      .delete(`/integrations/gdrive/conversion/${fakeUuid}`)
       .set(auth(tokenA));
     expect(del.status).toBe(404);
   });
