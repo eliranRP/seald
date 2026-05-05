@@ -96,7 +96,8 @@ class StubGoogleClient implements GoogleOAuthClient {
     expiresAt: Date.now() + 3600_000,
     googleUserId: 'g-1',
     googleEmail: 'a@example.com',
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
   };
 
   async exchangeCode(): Promise<typeof this.exchange> {
@@ -146,7 +147,8 @@ async function seedAccount(
     googleEmail: 'a@example.com',
     refreshTokenCiphertext: enc.ciphertext,
     refreshTokenKmsKeyArn: enc.kmsKeyArn,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
     connectedAt: new Date().toISOString(),
     lastUsedAt: null,
     deletedAt: null,
