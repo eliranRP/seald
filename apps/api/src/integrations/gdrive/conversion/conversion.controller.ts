@@ -9,6 +9,7 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
 import { isFeatureEnabled } from 'shared';
@@ -102,7 +103,7 @@ export class ConversionController {
   @Get(':jobId')
   async poll(
     @CurrentUser() user: AuthUser,
-    @Param('jobId') jobId: string,
+    @Param('jobId', ParseUUIDPipe) jobId: string,
   ): Promise<ConversionJobView> {
     this.requireFlag();
     const view = this.gateway.view(jobId, user.id);
@@ -112,7 +113,10 @@ export class ConversionController {
 
   @Delete(':jobId')
   @HttpCode(204)
-  async cancel(@CurrentUser() user: AuthUser, @Param('jobId') jobId: string): Promise<void> {
+  async cancel(
+    @CurrentUser() user: AuthUser,
+    @Param('jobId', ParseUUIDPipe) jobId: string,
+  ): Promise<void> {
     this.requireFlag();
     const ok = this.gateway.cancel(jobId, user.id);
     if (!ok) throw new NotFoundException('job_not_found_or_terminal');

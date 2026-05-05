@@ -1,7 +1,9 @@
 import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import type { EnvelopeEvent } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { isValidShortCode } from '../envelopes/short-code';
 import { StorageService } from '../storage/storage.service';
 
 /**
@@ -34,7 +36,14 @@ export class VerifyController {
   ) {}
 
   @Get(':short_code')
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
   async verify(@Param('short_code') short_code: string): Promise<VerifyResponse> {
+    // Validate short_code format before hitting the database — rejects
+    // injection payloads and limits enumeration surface (OW-3.2, rule 2.1).
+    // Returns 404 (not 400) to avoid leaking format expectations to scanners.
+    if (!isValidShortCode(short_code)) {
+      throw new NotFoundException('envelope_not_found');
+    }
     const envelope = await this.repo.findByShortCode(short_code);
     if (!envelope) throw new NotFoundException('envelope_not_found');
 
