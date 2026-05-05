@@ -138,7 +138,7 @@ export class GDriveController {
   ): Promise<{ url: string }> {
     this.requireFlag();
     this.requireOAuthConfigured();
-    // Sanitise returnPath: must start with '/' (relative) to prevent open-redirect.
+    // Sanitize returnPath: must start with '/' (relative) to prevent open-redirect.
     const safePath =
       returnPath && returnPath.startsWith('/') && !returnPath.startsWith('//')
         ? returnPath
