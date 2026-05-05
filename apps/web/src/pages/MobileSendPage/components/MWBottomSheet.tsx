@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { SheetBackdrop, SheetGrabber, SheetSurface, SheetTitle } from '../MobileSendPage.styles';
 
 const FOCUSABLE_SELECTOR =
@@ -23,15 +24,7 @@ export function MWBottomSheet(props: MWBottomSheetProps) {
   const { open, onClose, title, children, labelledBy } = props;
   const surfaceRef = useRef<HTMLDivElement | null>(null);
 
-  // ESC dismiss
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
+  useEscapeKey(onClose, open);
 
   // Lock body scroll while open
   useEffect(() => {
