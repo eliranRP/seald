@@ -1,5 +1,5 @@
 import helmet from 'helmet';
-import type { RequestHandler } from 'express';
+import type { RequestHandler, Request, Response, NextFunction } from 'express';
 
 /**
  * Helmet middleware factory for the API.
@@ -23,7 +23,20 @@ import type { RequestHandler } from 'express';
  * Bug I (Phase 6.A iter-2 PROD, 2026-05-04).
  */
 export function securityHeaders(): RequestHandler {
-  return helmet({
+  const helmetMiddleware = helmet({
     crossOriginOpenerPolicy: false,
   });
+
+  // Compose helmet with a Permissions-Policy header (nodejs-security 7.5).
+  // Helmet does not set this by default — we lock down capabilities the API
+  // never uses so a compromised page context cannot request them.
+  return (req: Request, res: Response, next: NextFunction): void => {
+    helmetMiddleware(req, res, () => {
+      res.setHeader(
+        'Permissions-Policy',
+        'geolocation=(), camera=(), microphone=(), payment=(), usb=()',
+      );
+      next();
+    });
+  };
 }

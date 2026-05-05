@@ -106,7 +106,7 @@ describe('Verify endpoint (e2e)', () => {
     // (`vrfy_e2e_NN` -> 13 chars when zero-padded to 4 digits + 'v').
     seedCounter += 1;
     const n = String(seedCounter).padStart(4, '0');
-    const short_code = `vrfy_e2e_${n}`; // 13 chars
+    const short_code = `vrfye2eT${n}2`; // 13 chars, base-58 safe
     const draft = await envelopesRepo.createDraft({
       owner_id: USER_A,
       title: 'Verify e2e test envelope',
