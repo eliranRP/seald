@@ -129,9 +129,10 @@ When either picker var is unset,
 renders a friendly "Drive picker not configured on this server"
 notice.
 
-OAuth scope is hard-coded to `https://www.googleapis.com/auth/drive.file`
-(per-file consent only). Do not broaden — picker selections grant per-file
-access at the moment of click via Google's drive.file scope.
+OAuth scopes are `drive.file` (per-file write access for files
+opened/created by our app) + `drive.readonly` (read-only access to all
+files — enables thumbnails, starred listing, full file enumeration in
+picker). Do not add the broad `drive` scope (full read+write).
 
 When the feature flag `feature.gdriveIntegration` is off, all routes
 404 and the env vars are unread; the same image runs dark in dev and
