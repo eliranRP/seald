@@ -156,6 +156,25 @@ export const envSchema = z
     GDRIVE_CONVERSION_MAX_BYTES: z.coerce.number().int().positive().default(26_214_400),
   })
   .superRefine((env, ctx) => {
+    if (env.NODE_ENV === 'production') {
+      if (/localhost|127\.0\.0\.1/.test(env.APP_PUBLIC_URL)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['APP_PUBLIC_URL'],
+          message:
+            'APP_PUBLIC_URL must not contain localhost in production — set it to the public web origin (e.g. https://seald.nromomentum.com)',
+        });
+      }
+      if (/localhost|127\.0\.0\.1/.test(env.CORS_ORIGIN)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['CORS_ORIGIN'],
+          message:
+            'CORS_ORIGIN must not contain localhost in production — set it to the public web origin (e.g. https://seald.nromomentum.com)',
+        });
+      }
+    }
+
     if (env.NODE_ENV !== 'test') {
       for (const key of ['SIGNER_SESSION_SECRET', 'CRON_SECRET', 'METRICS_SECRET'] as const) {
         const value = env[key];
