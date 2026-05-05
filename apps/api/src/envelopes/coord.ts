@@ -85,6 +85,6 @@ export function denormalizeRect(rect: NormalizedRect, page: PageDimensions): Pix
  * drawImage({ x, y }) after multiplying the normalized x by page_w.
  */
 export function flipYForPdfLib(norm_y: number, norm_h: number | null, page_h: number): number {
-  const h = norm_h ?? 0;
-  return page_h * (1 - norm_y - h);
+  const normalizedHeight = norm_h ?? 0;
+  return page_h * (1 - norm_y - normalizedHeight);
 }

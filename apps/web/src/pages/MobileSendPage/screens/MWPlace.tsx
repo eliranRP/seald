@@ -25,6 +25,9 @@ import {
   type MobileSigner,
 } from '../types';
 
+/** Minimum pointer movement (px) before a tap becomes a drag gesture. */
+const DRAG_THRESHOLD_PX = 4;
+
 const Section = styled.div`
   padding: 0;
   position: relative;
@@ -380,10 +383,10 @@ export function MWPlace(props: MWPlaceProps) {
     const el = canvasRef.current;
     if (!el) return undefined;
     const apply = (): void => {
-      const w = el.clientWidth;
-      const h = el.clientHeight;
-      setCanvasWidth(w);
-      onCanvasMeasured?.({ width: w, height: h });
+      const measuredWidth = el.clientWidth;
+      const measuredHeight = el.clientHeight;
+      setCanvasWidth(measuredWidth);
+      onCanvasMeasured?.({ width: measuredWidth, height: measuredHeight });
     };
     apply();
     if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
@@ -413,31 +416,34 @@ export function MWPlace(props: MWPlaceProps) {
   };
 
   const onFieldPointerMove = (e: React.PointerEvent<HTMLDivElement>): void => {
-    const d = dragRef.current;
-    if (!d || e.pointerId !== d.pointerId) return;
-    const dx = e.clientX - d.startX;
-    const dy = e.clientY - d.startY;
-    if (!d.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
-      d.moved = true;
-      setDragTargetId(d.fieldId);
+    const drag = dragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    const deltaX = e.clientX - drag.startX;
+    const deltaY = e.clientY - drag.startY;
+    if (
+      !drag.moved &&
+      (Math.abs(deltaX) > DRAG_THRESHOLD_PX || Math.abs(deltaY) > DRAG_THRESHOLD_PX)
+    ) {
+      drag.moved = true;
+      setDragTargetId(drag.fieldId);
     }
-    if (d.moved) setDragOffset({ x: dx, y: dy });
+    if (drag.moved) setDragOffset({ x: deltaX, y: deltaY });
   };
 
   const onFieldPointerUp = (e: React.PointerEvent<HTMLDivElement>): void => {
-    const d = dragRef.current;
-    if (!d) return;
+    const drag = dragRef.current;
+    if (!drag) return;
     dragRef.current = null;
-    if (d.moved) {
-      const dx = e.clientX - d.startX;
-      const dy = e.clientY - d.startY;
-      const ids = d.wasSelected ? selectedIds : [d.fieldId];
-      onCommitDrag(ids, dx, dy);
-      if (!d.wasSelected) onTapField(d.fieldId, true);
+    if (drag.moved) {
+      const deltaX = e.clientX - drag.startX;
+      const deltaY = e.clientY - drag.startY;
+      const ids = drag.wasSelected ? selectedIds : [drag.fieldId];
+      onCommitDrag(ids, deltaX, deltaY);
+      if (!drag.wasSelected) onTapField(drag.fieldId, true);
       setDragOffset({ x: 0, y: 0 });
       setDragTargetId(null);
     } else {
-      onTapField(d.fieldId, false);
+      onTapField(drag.fieldId, false);
     }
   };
 

@@ -81,25 +81,25 @@ export function PageFilmstrip(props: PageFilmstripProps) {
   return (
     <Strip role="tablist" aria-label="Pages">
       {Array.from({ length: totalPages }, (_, i) => {
-        const n = i + 1;
-        const active = n === currentPage;
-        const has = withFields.has(n);
+        const pageNumber = i + 1;
+        const active = pageNumber === currentPage;
+        const hasFields = withFields.has(pageNumber);
         return (
           <Thumb
-            key={`page-thumb-${n}`}
+            key={`page-thumb-${pageNumber}`}
             type="button"
             $active={active}
             role="tab"
             aria-selected={active}
-            aria-label={has ? `Page ${n}, has fields` : `Page ${n}`}
-            onClick={() => onPage(n)}
+            aria-label={hasFields ? `Page ${pageNumber}, has fields` : `Page ${pageNumber}`}
+            onClick={() => onPage(pageNumber)}
           >
             <ThumbLine $w={32} aria-hidden />
             <ThumbLine $w={28} aria-hidden />
             <ThumbLine $w={30} aria-hidden />
             <ThumbLine $w={24} aria-hidden />
-            {has && <Dot aria-hidden />}
-            <PageNum $active={active}>{n}</PageNum>
+            {hasFields && <Dot aria-hidden />}
+            <PageNum $active={active}>{pageNumber}</PageNum>
           </Thumb>
         );
       })}

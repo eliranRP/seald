@@ -120,13 +120,13 @@ export function MWStart(props: MWStartProps) {
   const showDriveTile = isFeatureEnabled('gdriveIntegration') && Boolean(onPickFromDrive);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>): void => {
-    const f = e.target.files?.[0];
-    if (f) {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
       // The parent may run async work (image → PDF). We deliberately
       // don't await — the picker shouldn't block the input element
       // freeing its file handle. Errors surface as inline alerts in the
       // parent, never as unhandled promise rejections.
-      const result = onPickFile(f);
+      const result = onPickFile(selectedFile);
       if (result instanceof Promise) {
         result.catch(() => {
           /* parent surfaces the failure via fileError state */
