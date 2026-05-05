@@ -1,0 +1,84 @@
+name: Set APP_PUBLIC_URL + CORS_ORIGIN on prod (.env append + api restart)
+
+# One-shot operator workflow. SSHes into the EC2 host and idempotently
+# sets APP_PUBLIC_URL and CORS_ORIGIN in `/opt/seald/apps/api/.env`,
+# then force-recreates the api container so the new values are picked up.
+#
+# Without APP_PUBLIC_URL set, the API embeds `localhost:5173` in audit
+# trail PDFs, QR codes, verify links, and signing invitation emails.
+# PR #193 added a fail-fast guard that rejects localhost values in
+# production — so the API won't start until this is set.
+#
+# Idempotent: re-running deletes any existing `^APP_PUBLIC_URL=` /
+# `^CORS_ORIGIN=` lines before appending the new values.
+#
+# Manual trigger only — never on push.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  set_env:
+    name: Append APP_PUBLIC_URL + CORS_ORIGIN to host .env + restart api
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: SSH append + restart
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 6m
+          script: |
+            set -euo pipefail
+
+            ENV_FILE=/opt/seald/apps/api/.env
+            PUBLIC_URL="https://seald.nromomentum.com"
+
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "ERROR: $ENV_FILE not found — host may be in an unexpected state." >&2
+              exit 1
+            fi
+
+            echo "=== Pre-state ==="
+            sudo grep -cE '^(APP_PUBLIC_URL|CORS_ORIGIN)=' "$ENV_FILE" || echo "0 matches"
+
+            echo "=== Strip any existing lines (idempotent) ==="
+            sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
+            sudo grep -vE '^(APP_PUBLIC_URL|CORS_ORIGIN)=' "$ENV_FILE" > /tmp/.env.new
+            sudo install -m 0600 /tmp/.env.new "$ENV_FILE"
+            rm -f /tmp/.env.new
+
+            echo "=== Append new values ==="
+            {
+              printf 'APP_PUBLIC_URL=%s\n' "$PUBLIC_URL"
+              printf 'CORS_ORIGIN=%s\n' "$PUBLIC_URL"
+            } | sudo tee -a "$ENV_FILE" >/dev/null
+            sudo chmod 0600 "$ENV_FILE"
+
+            echo "=== Post-state ==="
+            sudo grep -cE '^(APP_PUBLIC_URL|CORS_ORIGIN)=' "$ENV_FILE"
+
+            echo "=== Force-recreate api container ==="
+            cd /opt/seald
+            sudo docker compose up -d --force-recreate api
+
+            echo "=== Wait for api healthcheck (max 90s) ==="
+            for i in $(seq 1 30); do
+              status=$(sudo docker inspect -f '{{.State.Health.Status}}' \
+                $(sudo docker compose ps -q api) 2>/dev/null || echo unknown)
+              echo "  [$i/30] api health=$status"
+              if [ "$status" = "healthy" ]; then
+                echo 'api healthy.'
+                exit 0
+              fi
+              sleep 3
+            done
+
+            echo "ERROR: api never reached healthy state" >&2
+            sudo docker compose logs --tail=80 api
+            exit 1
