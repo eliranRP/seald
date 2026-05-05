@@ -4,6 +4,7 @@ import { Plus, X } from 'lucide-react';
 import { AddSignerDropdown } from '../AddSignerDropdown';
 import type { AddSignerContact } from '../AddSignerDropdown';
 import { Button } from '../Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type {
   CreateSignatureRequestDialogProps,
   CreateSignatureRequestDialogSigner,
@@ -66,18 +67,7 @@ export const CreateSignatureRequestDialog = forwardRef<
     if (!open) setPickerOpen(false);
   }, [open]);
 
-  useEffect((): (() => void) | undefined => {
-    if (!open) return undefined;
-    const handleKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        onCancel();
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return (): void => {
-      window.removeEventListener('keydown', handleKey);
-    };
-  }, [open, onCancel]);
+  useEscapeKey(onCancel, open);
 
   const handleBackdropClick = useCallback((): void => {
     onCancel();

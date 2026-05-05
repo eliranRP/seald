@@ -154,9 +154,9 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   sent: 'Envelope sent',
   viewed: 'Document viewed',
   tc_accepted: 'Terms accepted',
-  esign_disclosure_acknowledged: 'E-sign disclosure acknowledged',
+  esign_disclosure_acknowledged: 'ESIGN disclosure acknowledged',
   intent_to_sign_confirmed: 'Intent to sign confirmed',
-  consent_withdrawn: 'E-sign consent withdrawn',
+  consent_withdrawn: 'ESIGN consent withdrawn',
   field_filled: 'Field filled',
   signed: 'Signature captured',
   all_signed: 'All signers complete',
@@ -337,7 +337,7 @@ function actorLabel(ev: VerifyEvent, signers: ReadonlyArray<VerifySigner>): stri
     if (s) return s.name;
   }
   if (ev.actor_kind === 'sender') return 'Sender';
-  if (ev.actor_kind === 'system') return 'Sealed system';
+  if (ev.actor_kind === 'system') return 'Seald system';
   return 'Signer';
 }
 

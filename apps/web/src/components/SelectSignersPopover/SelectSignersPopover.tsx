@@ -2,6 +2,7 @@ import { forwardRef, useCallback, useEffect, useId, useRef, useState } from 'rea
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '../Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import type { SelectSignersPopoverProps } from './SelectSignersPopover.types';
 import {
   Backdrop,
@@ -44,18 +45,7 @@ export const SelectSignersPopover = forwardRef<HTMLDivElement, SelectSignersPopo
       }
     }, [open, initialSelectedIds]);
 
-    useEffect((): (() => void) | undefined => {
-      if (!open) return undefined;
-      const handleKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') {
-          onCancel();
-        }
-      };
-      window.addEventListener('keydown', handleKey);
-      return (): void => {
-        window.removeEventListener('keydown', handleKey);
-      };
-    }, [open, onCancel]);
+    useEscapeKey(onCancel, open);
 
     const toggle = useCallback((id: string): void => {
       setSelectedIds((prev) => {

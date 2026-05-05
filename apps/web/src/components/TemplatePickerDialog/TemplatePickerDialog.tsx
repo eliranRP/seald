@@ -3,6 +3,7 @@ import { ChevronRight, FileText, LayoutTemplate, PenTool, Search, X } from 'luci
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { TagFilterMenu } from '@/components/TagFilterMenu';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { tagColorFor } from '@/features/templates';
 import type { TemplateSummary } from '@/features/templates';
 import {
@@ -75,19 +76,7 @@ export function TemplatePickerDialog({
     setActiveTags([]);
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
+  useEscapeKey(onClose, open);
 
   const allTags = useMemo(() => {
     const set = new Set<string>();

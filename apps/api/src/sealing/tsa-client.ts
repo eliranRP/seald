@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import forge from 'node-forge';
 import { APP_ENV } from '../config/config.module';
@@ -296,8 +296,10 @@ function parseGeneralizedTime(raw: string): string {
 }
 
 function randomPositiveBigInt(lengthBytes: number): string {
-  const bytes = forge.random.getBytesSync(lengthBytes);
+  // Use the OS CSPRNG (crypto.randomBytes) — forge.random.getBytesSync uses a
+  // userspace PRNG which is less secure for cryptographic nonces.
+  const buf = randomBytes(lengthBytes);
   // Clear the high bit so the INTEGER is unambiguously non-negative.
-  const cleared = String.fromCharCode(bytes.charCodeAt(0) & 0x7f) + bytes.slice(1);
-  return cleared;
+  buf[0] = buf[0]! & 0x7f;
+  return buf.toString('binary');
 }
