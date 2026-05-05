@@ -165,7 +165,7 @@ export function SigningEntryPage() {
       <Card>
         {state === 'loading' ? (
           <div style={{ display: 'grid', gap: 20, placeItems: 'center' }}>
-            <Spinner aria-hidden="true" />
+            <Spinner $size={24} aria-hidden="true" />
             <Title>{copy.title}</Title>
             <Body>{copy.body}</Body>
           </div>

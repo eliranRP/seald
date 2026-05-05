@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 
 /**
  * Mobile breakpoint for the dashboard chrome. Below this width we stack
@@ -153,9 +154,7 @@ export const DocTitle = styled.div`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
   font-size: 14px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const DocCode = styled.div`

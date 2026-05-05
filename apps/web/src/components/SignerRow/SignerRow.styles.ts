@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 
 export const Row = styled.div`
   display: flex;
@@ -22,18 +23,14 @@ export const Name = styled.span`
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const Email = styled.span`
   font-family: ${({ theme }) => theme.font.sans};
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const MenuButton = styled.button`

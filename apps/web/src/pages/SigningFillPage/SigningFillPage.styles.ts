@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
 
 export const Page = styled.div`
   display: flex;
@@ -199,14 +200,8 @@ export const RailSlot = styled.aside`
   }
 `;
 
-export const ErrorBanner = styled.div`
+export const ErrorBanner = styled(SharedErrorBanner)`
   margin: 12px 24px 0;
-  background: ${({ theme }) => theme.color.danger[50]};
-  border: 1px solid ${({ theme }) => theme.color.danger[500]};
-  color: ${({ theme }) => theme.color.danger[700]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radius.sm};
 
   @media (max-width: 768px) {
     margin: 8px 12px 0;

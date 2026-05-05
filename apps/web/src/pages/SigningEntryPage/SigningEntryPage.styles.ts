@@ -35,19 +35,7 @@ export const Body = styled.p`
   line-height: 1.6;
 `;
 
-export const Spinner = styled.span`
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  border: 2px solid ${({ theme }) => theme.color.ink[200]};
-  border-top-color: ${({ theme }) => theme.color.ink[900]};
-  animation: sign-spin 0.8s linear infinite;
-  @keyframes sign-spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
+export { Spinner } from '@/components/shared/Spinner';
 
 export const MailtoLink = styled.a`
   display: inline-block;

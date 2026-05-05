@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { truncateText } from '@/styles/mixins';
 
 export const Header = styled.header`
   position: sticky;
@@ -52,18 +53,14 @@ export const Title = styled.span`
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const Meta = styled.span`
   font-family: ${({ theme }) => theme.font.mono};
   font-size: ${({ theme }) => theme.font.size.micro};
   color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  ${truncateText}
 `;
 
 export const StepChip = styled.span`

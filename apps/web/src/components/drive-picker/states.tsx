@@ -11,7 +11,7 @@ import { Actions, Body, Card, Spinner, Title } from './DrivePicker.styles';
 export function LoadingOverlay(): JSX.Element {
   return (
     <Card role="status" aria-live="polite" aria-label="Loading Google Drive picker">
-      <Spinner aria-hidden />
+      <Spinner $size={28} $borderWidth={3} aria-hidden />
       <Title>Opening Google Drive…</Title>
       <Body>Fetching a fresh access token and loading Google&rsquo;s picker UI.</Body>
     </Card>

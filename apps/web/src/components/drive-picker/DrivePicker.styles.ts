@@ -58,17 +58,4 @@ export const Actions = styled.div`
   margin-top: 4px;
 `;
 
-export const Spinner = styled.div`
-  width: 28px;
-  height: 28px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  border: 3px solid ${({ theme }) => theme.color.ink[100]};
-  border-top-color: ${({ theme }) => theme.color.indigo[500]};
-  animation: spin 0.9s linear infinite;
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-`;
+export { Spinner } from '@/components/shared/Spinner';
