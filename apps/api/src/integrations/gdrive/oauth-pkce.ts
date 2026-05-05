@@ -16,6 +16,8 @@ export interface OAuthStateEntry {
   codeVerifier: string;
   userId: string;
   expiresAt: number;
+  /** SPA path to redirect to after the OAuth callback completes (mobile full-page flow). */
+  returnPath?: string;
 }
 
 export class OAuthStateStore {
@@ -25,16 +27,23 @@ export class OAuthStateStore {
     private readonly clock: () => number = Date.now,
   ) {}
 
-  start(userId: string): { state: string; codeVerifier: string; codeChallenge: string } {
+  start(
+    userId: string,
+    opts?: { returnPath?: string },
+  ): { state: string; codeVerifier: string; codeChallenge: string } {
     const codeVerifier = base64url(randomBytes(64));
     const codeChallenge = base64url(createHash('sha256').update(codeVerifier).digest());
     const state = base64url(randomBytes(32));
     this.gc();
-    this.store.set(state, {
+    const entry: OAuthStateEntry = {
       codeVerifier,
       userId,
       expiresAt: this.clock() + this.ttlMs,
-    });
+    };
+    if (opts?.returnPath !== undefined) {
+      entry.returnPath = opts.returnPath;
+    }
+    this.store.set(state, entry);
     return { state, codeVerifier, codeChallenge };
   }
 
