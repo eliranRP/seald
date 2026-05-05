@@ -1,0 +1,29 @@
+# Gitleaks configuration for seald monorepo
+# https://github.com/gitleaks/gitleaks#configuration
+
+title = "seald gitleaks config"
+
+[extend]
+useDefault = true
+
+# Paths to ignore during scanning
+[allowlist]
+paths = [
+  '''node_modules/''',
+  '''pnpm-lock\.yaml''',
+  '''dist/''',
+  '''\.next/''',
+  '''coverage/''',
+  '''\.env\.local\.example''',
+  '''apps/api/test/''',
+  '''\.storybook/''',
+]
+
+# Known test/placeholder values that are not real secrets
+[[rules]]
+id = "placeholder-supabase-key"
+description = "Placeholder Supabase key in example env files"
+regex = '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1v'''
+[rules.allowlist]
+regexTarget = "match"
+regexes = ['''.*''']
