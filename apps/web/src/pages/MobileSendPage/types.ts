@@ -79,17 +79,17 @@ export function parseCustomPages(
   totalPages: number,
   fallbackPage: number,
 ): ReadonlyArray<number> {
-  const set = new Set<number>();
+  const pageSet = new Set<number>();
   raw
     .split(',')
-    .map((s) => s.trim())
+    .map((segment) => segment.trim())
     .filter(Boolean)
-    .forEach((tok) => {
-      const n = Number.parseInt(tok, 10);
-      if (Number.isInteger(n) && n >= 1 && n <= totalPages) set.add(n);
+    .forEach((token) => {
+      const pageNum = Number.parseInt(token, 10);
+      if (Number.isInteger(pageNum) && pageNum >= 1 && pageNum <= totalPages) pageSet.add(pageNum);
     });
-  if (set.size === 0) return [fallbackPage];
-  return Array.from(set).sort((a, b) => a - b);
+  if (pageSet.size === 0) return [fallbackPage];
+  return Array.from(pageSet).sort((a, b) => a - b);
 }
 
 /** Resolve an apply-mode + custom list into the `linkedPages` array. */

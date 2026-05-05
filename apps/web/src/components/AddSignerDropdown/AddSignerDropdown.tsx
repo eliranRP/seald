@@ -63,10 +63,13 @@ export const AddSignerDropdown = forwardRef<HTMLDivElement, AddSignerDropdownPro
       // In multi-select mode already-selected contacts stay visible so the user
       // can uncheck them; in single-pick mode they're excluded as before.
       const excluded = multi ? [] : (existingContactIds ?? []);
-      const q = query.toLowerCase();
-      return contacts.filter((c) => {
-        if (excluded.includes(c.id)) return false;
-        return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+      const loweredQuery = query.toLowerCase();
+      return contacts.filter((contact) => {
+        if (excluded.includes(contact.id)) return false;
+        return (
+          contact.name.toLowerCase().includes(loweredQuery) ||
+          contact.email.toLowerCase().includes(loweredQuery)
+        );
       });
     }, [contacts, existingContactIds, query, multi]);
 

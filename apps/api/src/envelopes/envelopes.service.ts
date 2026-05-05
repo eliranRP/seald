@@ -755,22 +755,22 @@ export class EnvelopesService {
 
 /** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
 function formatUtc(iso: string): string {
-  const d = new Date(iso);
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mi = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi} UTC`;
+  const date = new Date(iso);
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  const hours = String(date.getUTCHours()).padStart(2, '0');
+  const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
 }
 
 function formatExpiresAt(iso: string): string {
   // e.g., "2026-05-24 14:30 UTC" — deliberate over-simplification; templates
   // render this verbatim so consistency matters more than i18n for MVP.
-  const d = new Date(iso);
-  const pad = (n: number) => n.toString().padStart(2, '0');
+  const date = new Date(iso);
+  const pad = (num: number) => num.toString().padStart(2, '0');
   return (
-    `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ` +
-    `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())} ` +
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())} UTC`
   );
 }

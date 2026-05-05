@@ -49,13 +49,13 @@ function decodeImageDims(dataUrl: string): Promise<ImageDims> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const w = img.naturalWidth || img.width;
-      const h = img.naturalHeight || img.height;
-      if (!w || !h) {
+      const naturalWidth = img.naturalWidth || img.width;
+      const naturalHeight = img.naturalHeight || img.height;
+      if (!naturalWidth || !naturalHeight) {
         reject(new Error('Image has zero dimensions.'));
         return;
       }
-      resolve({ width: w, height: h, dataUrl });
+      resolve({ width: naturalWidth, height: naturalHeight, dataUrl });
     };
     img.onerror = () => reject(new Error("We couldn't decode that photo."));
     img.src = dataUrl;
@@ -65,27 +65,27 @@ function decodeImageDims(dataUrl: string): Promise<ImageDims> {
 interface FitBox {
   readonly x: number;
   readonly y: number;
-  readonly w: number;
-  readonly h: number;
+  readonly width: number;
+  readonly height: number;
 }
 
 function fitContain(
-  imgW: number,
-  imgH: number,
-  pageW: number,
-  pageH: number,
+  imageWidth: number,
+  imageHeight: number,
+  pageWidth: number,
+  pageHeight: number,
   margin: number,
 ): FitBox {
-  const maxW = pageW - margin * 2;
-  const maxH = pageH - margin * 2;
-  const scale = Math.min(maxW / imgW, maxH / imgH);
-  const w = imgW * scale;
-  const h = imgH * scale;
+  const maxContentWidth = pageWidth - margin * 2;
+  const maxContentHeight = pageHeight - margin * 2;
+  const scale = Math.min(maxContentWidth / imageWidth, maxContentHeight / imageHeight);
+  const scaledWidth = imageWidth * scale;
+  const scaledHeight = imageHeight * scale;
   return {
-    x: (pageW - w) / 2,
-    y: (pageH - h) / 2,
-    w,
-    h,
+    x: (pageWidth - scaledWidth) / 2,
+    y: (pageHeight - scaledHeight) / 2,
+    width: scaledWidth,
+    height: scaledHeight,
   };
 }
 
@@ -125,7 +125,7 @@ export async function imageFileToPdf(file: File): Promise<File> {
   const dims = await decodeImageDims(dataUrl);
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
   const box = fitContain(dims.width, dims.height, A4_WIDTH_MM, A4_HEIGHT_MM, PAGE_MARGIN_MM);
-  pdf.addImage(dataUrl, jsPdfFormat(dataUrl), box.x, box.y, box.w, box.h);
+  pdf.addImage(dataUrl, jsPdfFormat(dataUrl), box.x, box.y, box.width, box.height);
   // `arraybuffer` output skips the Blob wrapper — jsdom's polyfilled
   // Blob doesn't implement `.arrayBuffer()`, so the unit test would
   // otherwise need a Blob shim. Real browsers return the same bytes

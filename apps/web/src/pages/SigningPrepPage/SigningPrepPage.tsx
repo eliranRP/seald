@@ -61,12 +61,12 @@ function Content() {
       await acknowledgeEsignDisclosure(ESIGN_DISCLOSURE_VERSION);
       navigate(`/sign/${envelopeId}/fill`);
     } catch (err) {
-      const e = err as ApiErrorLike;
-      if (e.status === 401 || e.status === 410) {
+      const apiError = err as ApiErrorLike;
+      if (apiError.status === 401 || apiError.status === 410) {
         navigate(`/sign/${envelopeId}`, { replace: true });
         return;
       }
-      setError(e.message ?? 'We could not record your acceptance. Please try again.');
+      setError(apiError.message ?? 'We could not record your acceptance. Please try again.');
       setBusy(false);
     }
   }, [acceptTerms, acknowledgeEsignDisclosure, ready, envelope, envelopeId, navigate, signer]);
@@ -84,8 +84,8 @@ function Content() {
       navigate(`/sign/${envelopeId}/declined`, { replace: true });
     } catch (err) {
       setBusy(false);
-      const e = err as ApiErrorLike;
-      setError(e.message ?? 'We could not decline right now. Please try again.');
+      const apiError = err as ApiErrorLike;
+      setError(apiError.message ?? 'We could not decline right now. Please try again.');
     }
   }, [busy, decline, envelopeId, navigate]);
 
@@ -107,8 +107,10 @@ function Content() {
       navigate(`/sign/${envelopeId}/declined`, { replace: true });
     } catch (err) {
       setBusy(false);
-      const e = err as ApiErrorLike;
-      setError(e.message ?? 'We could not record your withdrawal right now. Please try again.');
+      const apiError = err as ApiErrorLike;
+      setError(
+        apiError.message ?? 'We could not record your withdrawal right now. Please try again.',
+      );
     }
   }, [busy, envelopeId, navigate, withdrawConsent]);
 

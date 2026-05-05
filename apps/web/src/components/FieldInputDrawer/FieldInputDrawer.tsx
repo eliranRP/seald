@@ -68,7 +68,7 @@ export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps
     if (!open) return undefined;
     setValue(initialValue ?? '');
     setTouched(false);
-    const t = setTimeout(() => inputRef.current?.focus(), 0);
+    const focusTimer = setTimeout(() => inputRef.current?.focus(), 0);
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         onCancel();
@@ -98,7 +98,7 @@ export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps
     }
     document.addEventListener('keydown', onKey);
     return () => {
-      clearTimeout(t);
+      clearTimeout(focusTimer);
       document.removeEventListener('keydown', onKey);
     };
   }, [open, initialValue, onCancel]);
