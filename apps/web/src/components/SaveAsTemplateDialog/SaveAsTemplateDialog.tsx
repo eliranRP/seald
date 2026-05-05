@@ -1,16 +1,10 @@
 import { forwardRef, useEffect, useId, useState } from 'react';
 import { Button } from '../Button';
 import { TextField } from '../TextField';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { DialogBackdrop, DialogDescription, DialogFooter, DialogTitle } from '../DialogPrimitives';
 import type { SaveAsTemplateDialogProps } from './SaveAsTemplateDialog.types';
-import {
-  Backdrop,
-  Card,
-  Description,
-  FieldGroup,
-  Footer,
-  Textarea,
-  Title,
-} from './SaveAsTemplateDialog.styles';
+import { Card, FieldGroup, Textarea } from './SaveAsTemplateDialog.styles';
 
 /**
  * L3 widget — modal that prompts for a title + description when the signer
@@ -37,19 +31,7 @@ export const SaveAsTemplateDialog = forwardRef<HTMLFormElement, SaveAsTemplateDi
       setDescription(defaultDescription);
     }, [open, defaultTitle, defaultDescription]);
 
-    useEffect(() => {
-      if (!open) return undefined;
-      const onKey = (e: KeyboardEvent): void => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onCancel();
-        }
-      };
-      window.addEventListener('keydown', onKey);
-      return () => {
-        window.removeEventListener('keydown', onKey);
-      };
-    }, [open, onCancel]);
+    useEscapeKey(onCancel, open);
 
     if (!open) return null;
 
@@ -63,7 +45,7 @@ export const SaveAsTemplateDialog = forwardRef<HTMLFormElement, SaveAsTemplateDi
     }
 
     return (
-      <Backdrop role="presentation" onClick={onCancel}>
+      <DialogBackdrop role="presentation" onClick={onCancel}>
         <Card
           ref={ref}
           role="dialog"
@@ -74,11 +56,11 @@ export const SaveAsTemplateDialog = forwardRef<HTMLFormElement, SaveAsTemplateDi
           onSubmit={handleSubmit}
           {...rest}
         >
-          <Title id={titleId}>Save as template</Title>
-          <Description id={descId}>
+          <DialogTitle id={titleId}>Save as template</DialogTitle>
+          <DialogDescription id={descId}>
             Templates remember the field layout so you can reuse it on a new PDF without redoing the
             placements.
-          </Description>
+          </DialogDescription>
 
           <TextField
             label="Template name"
@@ -99,16 +81,16 @@ export const SaveAsTemplateDialog = forwardRef<HTMLFormElement, SaveAsTemplateDi
             />
           </FieldGroup>
 
-          <Footer>
+          <DialogFooter>
             <Button variant="ghost" type="button" onClick={onCancel}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" disabled={!canSave}>
               Save template
             </Button>
-          </Footer>
+          </DialogFooter>
         </Card>
-      </Backdrop>
+      </DialogBackdrop>
     );
   },
 );

@@ -1,8 +1,9 @@
-import { forwardRef, useEffect, useId, useRef } from 'react';
+import { forwardRef, useId, useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { AlertTriangle, Unlink } from 'lucide-react';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 export interface DisconnectModalProps {
   readonly open: boolean;
@@ -133,20 +134,7 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
   const descId = useId();
   const cardRef = useRef<HTMLDivElement | null>(null);
 
-  // Esc closes — single-purpose effect (rule 4.4).
-  useEffect(() => {
-    if (!open) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => {
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [open, onClose]);
+  useEscapeKey(onClose, open);
 
   if (!open) return null;
 
