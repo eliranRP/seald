@@ -25,10 +25,27 @@ import {
   uploadEnvelopeFile,
 } from './envelopesApi';
 
-export const ENVELOPES_KEY = ['envelopes'] as const;
-export const ENVELOPE_KEY = (id: string): readonly [string, string] => ['envelope', id] as const;
-export const ENVELOPE_EVENTS_KEY = (id: string): readonly [string, string, string] =>
-  ['envelope', id, 'events'] as const;
+/**
+ * Hierarchical query-key factory for envelope queries (RQ-1.1, RQ-1.4).
+ * All keys share the `['envelopes']` root so a single
+ * `invalidateQueries({ queryKey: envelopeKeys.all })` sweeps the entire
+ * family — lists, details, and events alike.
+ */
+export const envelopeKeys = {
+  all: ['envelopes'] as const,
+  lists: () => [...envelopeKeys.all, 'list'] as const,
+  list: (params: ListEnvelopesParams) => [...envelopeKeys.lists(), params] as const,
+  details: () => [...envelopeKeys.all, 'detail'] as const,
+  detail: (id: string) => [...envelopeKeys.details(), id] as const,
+  events: (id: string) => [...envelopeKeys.all, 'detail', id, 'events'] as const,
+} as const;
+
+/** @deprecated Use `envelopeKeys.all` — kept for backward compat with tests. */
+export const ENVELOPES_KEY = envelopeKeys.all;
+/** @deprecated Use `envelopeKeys.detail(id)` — kept for backward compat. */
+export const ENVELOPE_KEY = (id: string) => envelopeKeys.detail(id);
+/** @deprecated Use `envelopeKeys.events(id)` — kept for backward compat. */
+export const ENVELOPE_EVENTS_KEY = (id: string) => envelopeKeys.events(id);
 
 /**
  * Lists the signed-in user's envelopes. Pass `enabled: false` for guests
@@ -36,7 +53,7 @@ export const ENVELOPE_EVENTS_KEY = (id: string): readonly [string, string, strin
  */
 export function useEnvelopesQuery(enabled: boolean, params: ListEnvelopesParams = {}) {
   return useQuery<EnvelopeListResponse>({
-    queryKey: [...ENVELOPES_KEY, params],
+    queryKey: envelopeKeys.list(params),
     queryFn: ({ signal }) => listEnvelopes(params, signal),
     enabled,
   });
@@ -44,7 +61,7 @@ export function useEnvelopesQuery(enabled: boolean, params: ListEnvelopesParams 
 
 export function useEnvelopeQuery(id: string, enabled: boolean) {
   return useQuery<Envelope>({
-    queryKey: ENVELOPE_KEY(id),
+    queryKey: envelopeKeys.detail(id),
     queryFn: ({ signal }) => getEnvelope(id, signal),
     enabled: enabled && Boolean(id),
   });
@@ -57,7 +74,7 @@ export function useEnvelopeQuery(id: string, enabled: boolean) {
  */
 export function useEnvelopeEventsQuery(id: string, enabled: boolean) {
   return useQuery<EnvelopeEventsResponse>({
-    queryKey: ENVELOPE_EVENTS_KEY(id),
+    queryKey: envelopeKeys.events(id),
     queryFn: ({ signal }) => listEnvelopeEvents(id, signal),
     enabled: enabled && Boolean(id),
   });
@@ -68,8 +85,8 @@ export function useCreateEnvelopeMutation() {
   return useMutation<Envelope, Error, { readonly title: string }>({
     mutationFn: (input) => createEnvelope(input),
     onSuccess: (envelope) => {
-      qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
-      qc.setQueryData(ENVELOPE_KEY(envelope.id), envelope);
+      qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
+      qc.setQueryData(envelopeKeys.detail(envelope.id), envelope);
     },
   });
 }
@@ -84,7 +101,7 @@ export function useUploadEnvelopeFileMutation() {
   return useMutation<{ readonly pages: number; readonly sha256: string }, Error, UploadFileArgs>({
     mutationFn: ({ envelopeId, file }) => uploadEnvelopeFile(envelopeId, file),
     onSuccess: (_result, args) => {
-      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(args.envelopeId) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(args.envelopeId) });
     },
   });
 }
@@ -98,7 +115,7 @@ export function useAddEnvelopeSignerMutation() {
   return useMutation<EnvelopeSigner, Error, AddSignerArgs>({
     mutationFn: ({ envelopeId, ...input }) => addEnvelopeSigner(envelopeId, input),
     onSuccess: (_signer, args) => {
-      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(args.envelopeId) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(args.envelopeId) });
     },
   });
 }
@@ -113,7 +130,7 @@ export function useRemoveEnvelopeSignerMutation() {
   return useMutation<void, Error, RemoveSignerArgs>({
     mutationFn: ({ envelopeId, signerId }) => removeEnvelopeSigner(envelopeId, signerId),
     onSuccess: (_void, args) => {
-      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(args.envelopeId) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(args.envelopeId) });
     },
   });
 }
@@ -128,7 +145,7 @@ export function usePlaceEnvelopeFieldsMutation() {
   return useMutation<ReadonlyArray<EnvelopeField>, Error, PlaceFieldsArgs>({
     mutationFn: ({ envelopeId, fields }) => placeEnvelopeFields(envelopeId, fields),
     onSuccess: (_fields, args) => {
-      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(args.envelopeId) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(args.envelopeId) });
     },
   });
 }
@@ -138,8 +155,8 @@ export function useSendEnvelopeMutation() {
   return useMutation<Envelope, Error, string>({
     mutationFn: (id) => sendEnvelope(id),
     onSuccess: (envelope) => {
-      qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
-      qc.setQueryData(ENVELOPE_KEY(envelope.id), envelope);
+      qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
+      qc.setQueryData(envelopeKeys.detail(envelope.id), envelope);
     },
   });
 }
@@ -149,7 +166,7 @@ export function useDeleteEnvelopeMutation() {
   return useMutation<void, Error, string>({
     mutationFn: (id) => deleteEnvelope(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
+      qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
     },
   });
 }
@@ -165,13 +182,16 @@ export function useCancelEnvelopeMutation() {
   return useMutation<CancelEnvelopeResponse, Error, string>({
     mutationFn: (id) => cancelEnvelope(id),
     onSuccess: (_res, id) => {
-      // Invalidate both the list and the detail query so the UI re-pulls
-      // the canonical `canceled` status. Don't optimistically setQueryData
-      // — the API also recomputes signers.access_token_hash side-effects
-      // and we want the next read to round-trip.
-      qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
-      qc.invalidateQueries({ queryKey: ENVELOPE_KEY(id) });
-      qc.invalidateQueries({ queryKey: ENVELOPE_EVENTS_KEY(id) });
+      // Invalidate the entire envelope family (lists + this detail + events)
+      // so the UI re-pulls the canonical `canceled` status. Don't
+      // optimistically setQueryData — the API also recomputes
+      // signers.access_token_hash side-effects and we want the next read
+      // to round-trip. With hierarchical keys a single `envelopeKeys.all`
+      // invalidation would catch everything, but we scope narrowly to
+      // avoid unnecessary refetches on unrelated detail queries.
+      qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.events(id) });
     },
   });
 }

@@ -190,12 +190,16 @@ describe('GDriveService', () => {
   });
 
   it('expired refresh-token branch surfaces TokenExpiredError (code: token-expired)', async () => {
+    expect.assertions(2);
     await seedAccount(repo, kms, 'rt-revoked');
     google.refreshFailWith = 'invalid_grant';
-    await expect(svc.getAccessToken('acc-1', 'user-1')).rejects.toBeInstanceOf(TokenExpiredError);
-    await svc.getAccessToken('acc-1', 'user-1').catch((err: unknown) => {
+
+    try {
+      await svc.getAccessToken('acc-1', 'user-1');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(TokenExpiredError);
       expect((err as TokenExpiredError).code).toBe('token-expired');
-    });
+    }
   });
 
   it('AbortSignal aborts an in-flight token issuance', async () => {

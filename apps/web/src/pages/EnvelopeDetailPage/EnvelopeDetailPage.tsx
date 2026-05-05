@@ -30,9 +30,7 @@ import type { DownloadMenuItem } from '@/components/DownloadMenu';
 import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import { Skeleton } from '@/components/Skeleton';
 import {
-  ENVELOPES_KEY,
-  ENVELOPE_EVENTS_KEY,
-  ENVELOPE_KEY,
+  envelopeKeys,
   getEnvelopeDownloadUrl,
   remindEnvelopeSigner,
   useEnvelopeEventsQuery,
@@ -490,8 +488,8 @@ export function EnvelopeDetailPage() {
     const sent = results.filter((r) => r.status === 'fulfilled').length;
     const failed = results.length - sent;
     setRemindInFlight(false);
-    qc.invalidateQueries({ queryKey: ENVELOPE_EVENTS_KEY(envelope.id) });
-    qc.invalidateQueries({ queryKey: ENVELOPE_KEY(envelope.id) });
+    qc.invalidateQueries({ queryKey: envelopeKeys.events(envelope.id) });
+    qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) });
     if (failed === 0) {
       setToast({
         kind: 'success',
@@ -523,7 +521,7 @@ export function EnvelopeDetailPage() {
     if (envelope.status === 'draft') {
       deleteEnvelope.mutate(envelope.id, {
         onSuccess: () => {
-          qc.invalidateQueries({ queryKey: ENVELOPES_KEY });
+          qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
           navigate('/documents');
         },
         onError: (err) => {
