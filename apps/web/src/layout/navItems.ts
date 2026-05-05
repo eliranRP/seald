@@ -14,6 +14,7 @@ export interface NavItemEntry {
 export const NAV_ITEMS: ReadonlyArray<NavItemEntry> = [
   { id: 'documents', label: 'Documents', path: '/documents' },
   { id: 'sign', label: 'Sign', path: '/document/new' },
+  { id: 'signers', label: 'Contacts', path: '/signers' },
   { id: 'templates', label: 'Templates', path: '/templates' },
 ];
 
@@ -42,6 +43,9 @@ export function matchNavId(pathname: string): string {
   // of `/document/:id` from the Documents tab.
   if (pathname === '/document/new') {
     return 'sign';
+  }
+  if (pathname === '/signers' || pathname.startsWith('/signers/')) {
+    return 'signers';
   }
   if (pathname === '/templates' || pathname.startsWith('/templates/')) {
     return 'templates';

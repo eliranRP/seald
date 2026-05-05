@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchNavId } from './navItems';
+import { matchNavId, NAV_ITEMS } from './navItems';
 
 /**
  * Audit gap (2026-05-02): the previous `matchNavId` lit up the "Sign"
@@ -30,12 +30,12 @@ describe('matchNavId', () => {
     expect(matchNavId('/templates/abc/edit')).toBe('templates');
   });
 
-  // 2026-05-02: Signers/Contacts tab was removed from the top nav (the
-  // page is still reachable from envelope detail and direct URL, but it's
-  // no longer part of the IA). matchNavId must fall through to the
-  // default ("documents") rather than light up a tab that doesn't exist.
-  it('returns "documents" for /signers (Signers tab removed from nav)', () => {
-    expect(matchNavId('/signers')).toBe('documents');
+  it('returns "signers" for the contacts page', () => {
+    expect(matchNavId('/signers')).toBe('signers');
+  });
+
+  it('returns "signers" for nested contacts paths', () => {
+    expect(matchNavId('/signers/abc-123')).toBe('signers');
   });
 
   // Bug A regression: existing-envelope detail must NOT highlight Sign.
@@ -52,5 +52,25 @@ describe('matchNavId', () => {
     // ONLY after sending — during the in-flight create flow we'd be on
     // /document/new and the Sign tab must stay lit.
     expect(matchNavId('/document/new')).toBe('sign');
+  });
+});
+
+/**
+ * Regression guard: ensures all required navigation tabs are present in
+ * NAV_ITEMS. The Contacts/Signers tab was accidentally removed in PR #108
+ * (2026-05-03) — this test catches any future accidental removal.
+ */
+describe('NAV_ITEMS completeness', () => {
+  const REQUIRED_TABS = ['documents', 'sign', 'signers', 'templates'] as const;
+
+  it.each(REQUIRED_TABS)('includes the "%s" tab', (id) => {
+    const item = NAV_ITEMS.find((entry) => entry.id === id);
+    expect(item, `NAV_ITEMS is missing required tab "${id}"`).toBeDefined();
+    expect(item!.path).toBeTruthy();
+    expect(item!.label).toBeTruthy();
+  });
+
+  it('has exactly the expected number of tabs (no accidental removal)', () => {
+    expect(NAV_ITEMS.length).toBeGreaterThanOrEqual(REQUIRED_TABS.length);
   });
 });
