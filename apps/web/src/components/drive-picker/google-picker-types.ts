@@ -73,10 +73,8 @@ export interface DocsViewBuilder {
   setStarred(starred: boolean): DocsViewBuilder;
   /**
    * Switch the view between grid (thumbnails) and list mode.
-   * With `drive.file` scope, thumbnails are blocked by Chrome's ORB
-   * because the picker can't access lh3.googleusercontent.com without
-   * broader permissions. Use `DocsViewMode.LIST` to avoid grey
-   * thumbnails while keeping full file-selection functionality.
+   * With `drive.readonly` scope, GRID mode works and shows thumbnails.
+   * LIST mode can be used as a fallback if thumbnails cause issues.
    */
   setMode(mode: unknown): DocsViewBuilder;
   /**
@@ -92,9 +90,9 @@ export interface PickerNamespace {
   readonly DocsView: new (viewId?: unknown) => DocsViewBuilder;
   readonly ViewId: { readonly DOCS: unknown };
   readonly DocsViewMode: {
-    /** Grid layout with thumbnail previews. */
+    /** Grid layout with thumbnail previews (requires drive.readonly scope). */
     readonly GRID: unknown;
-    /** List layout — no thumbnails, works with drive.file scope. */
+    /** List layout — no thumbnails, fallback mode. */
     readonly LIST: unknown;
   };
   readonly Action: {
