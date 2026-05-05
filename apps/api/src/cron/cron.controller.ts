@@ -7,7 +7,7 @@ import {
   Post,
   UnauthorizedException,
 } from '@nestjs/common';
-import { timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Public } from '../auth/public.decorator';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -93,10 +93,16 @@ export class CronController {
  * Constant-time string compare for shared secrets. Avoids the early-exit
  * leak in `===` that lets an attacker probe a secret one character at a
  * time with timing measurements.
+ *
+ * Defence in depth: HMAC-compare both values so the comparison is always
+ * the same length (32 bytes) regardless of input. This eliminates the
+ * length-oracle that a naive `if (a.length !== b.length) return false`
+ * would leak. The HMAC key is ephemeral — it only needs to be consistent
+ * within a single comparison, not across requests.
  */
 function safeCompare(a: string, b: string): boolean {
-  const aBuf = Buffer.from(a);
-  const bBuf = Buffer.from(b);
-  if (aBuf.length !== bBuf.length) return false;
-  return timingSafeEqual(aBuf, bBuf);
+  const key = randomBytes(32);
+  const hmacA = createHmac('sha256', key).update(a).digest();
+  const hmacB = createHmac('sha256', key).update(b).digest();
+  return timingSafeEqual(hmacA, hmacB);
 }
