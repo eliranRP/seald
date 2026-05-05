@@ -51,8 +51,18 @@ function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTML
     ctx.fillStyle = 'rgba(0,0,0,0)';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = DRAW_COLOR;
-    const fontSize = kind === 'initials' ? 110 : 78;
+    // Auto-scale: start at the preferred size and shrink until the text
+    // fits within the canvas width (with padding). Prevents long names
+    // like "Eliran Azulay, Managing member" from being clipped.
+    const maxFontSize = kind === 'initials' ? 110 : 78;
+    const minFontSize = 28;
+    const maxTextWidth = canvas.width - 40; // 20px padding each side
+    let fontSize = maxFontSize;
     ctx.font = `500 ${fontSize}px Caveat, cursive`;
+    while (fontSize > minFontSize && ctx.measureText(text).width > maxTextWidth) {
+      fontSize -= 2;
+      ctx.font = `500 ${fontSize}px Caveat, cursive`;
+    }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);

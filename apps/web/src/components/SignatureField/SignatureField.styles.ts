@@ -5,12 +5,23 @@ export const FieldRoot = styled.div<{
   $height: number;
   $selected: boolean;
   $filled: boolean;
+  $hasSignatureLine?: boolean;
 }>`
   width: ${({ $width }) => `${$width}px`};
   height: ${({ $height }) => `${$height}px`};
   display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
+  ${({ $hasSignatureLine }) =>
+    $hasSignatureLine
+      ? css`
+          flex-direction: column;
+          align-items: flex-start;
+          justify-content: center;
+          gap: 4px;
+        `
+      : css`
+          align-items: center;
+          gap: ${({ theme }) => theme.space[2]};
+        `}
   padding: 0 ${({ theme }) => theme.space[3]};
   border: 1.5px dashed ${({ theme }) => theme.color.indigo[400]};
   border-radius: ${({ theme }) => theme.radius.sm};
@@ -37,4 +48,23 @@ export const FieldRoot = styled.div<{
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+
+  /* Icon + label row when in signature-line layout */
+  ${({ $hasSignatureLine }) =>
+    $hasSignatureLine &&
+    css`
+      > span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+    `}
+`;
+
+/** Horizontal line showing where the signature will be placed. */
+export const SignatureLine = styled.div`
+  width: 80%;
+  height: 0;
+  border-bottom: 1.5px solid ${({ theme }) => theme.color.indigo[300]};
+  align-self: center;
 `;

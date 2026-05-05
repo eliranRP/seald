@@ -4,7 +4,7 @@ import { Check, PenTool, Calendar, Type, Square, Mail } from 'lucide-react';
 import type { FieldKind } from '@/types/sealdTypes';
 import { Icon } from '../Icon';
 import type { SignatureFieldProps } from './SignatureField.types';
-import { FieldRoot } from './SignatureField.styles';
+import { FieldRoot, SignatureLine } from './SignatureField.styles';
 
 const KIND_LABEL: Record<FieldKind, string> = {
   signature: 'Signature',
@@ -49,6 +49,8 @@ export const SignatureField = forwardRef<HTMLDivElement, SignatureFieldProps>((p
     onKeyDown?.(e);
   };
 
+  const showSignatureLine = (kind === 'signature' || kind === 'initials') && !filled;
+
   return (
     <FieldRoot
       {...rest}
@@ -61,10 +63,23 @@ export const SignatureField = forwardRef<HTMLDivElement, SignatureFieldProps>((p
       $height={height}
       $selected={selected}
       $filled={filled}
+      $hasSignatureLine={showSignatureLine}
       onKeyDown={handleKeyDown}
     >
-      <Icon icon={KindIcon} size={16} />
-      <span>{kindLabel}</span>
+      {showSignatureLine ? (
+        <>
+          <span>
+            <Icon icon={KindIcon} size={16} />
+            {kindLabel}
+          </span>
+          <SignatureLine />
+        </>
+      ) : (
+        <>
+          <Icon icon={KindIcon} size={16} />
+          <span>{kindLabel}</span>
+        </>
+      )}
     </FieldRoot>
   );
 });
