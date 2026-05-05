@@ -160,6 +160,8 @@ export function MobileSendPage() {
   const driveAccounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = driveAccounts[0]?.id ?? null;
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [driveImporting, setDriveImporting] = useState(false);
+  const [driveImportError, setDriveImportError] = useState<string | null>(null);
 
   const beginDriveOAuth = useCallback(async (): Promise<void> => {
     try {
@@ -664,6 +666,14 @@ export function MobileSendPage() {
                 Converting photo to PDF…
               </ErrorBanner>
             )}
+            {driveImporting && (
+              <ErrorBanner role="status" aria-live="polite">
+                Importing file from Google Drive…
+              </ErrorBanner>
+            )}
+            {driveImportError && (
+              <ErrorBanner role="alert">Google Drive import failed. Please try again.</ErrorBanner>
+            )}
             <MWStart
               onPickFile={handlePickFile}
               {...(gdriveOn ? { onPickFromDrive: handlePickFromDrive } : {})}
@@ -801,7 +811,13 @@ export function MobileSendPage() {
           onReconnect={reauthorizeDrive}
           onFile={(file) => {
             setDrivePickerOpen(false);
+            setDriveImporting(false);
+            setDriveImportError(null);
             handlePickFile(file);
+          }}
+          onImportStateChange={(importing, error) => {
+            setDriveImporting(importing);
+            setDriveImportError(error ?? null);
           }}
         />
       )}
@@ -822,16 +838,30 @@ interface DrivePickerBridgeProps {
   readonly accountId: string;
   readonly onReconnect: () => void;
   readonly onFile: (file: File) => void;
+  readonly onImportStateChange?: (importing: boolean, error?: string) => void;
 }
 
 function DrivePickerBridge(props: DrivePickerBridgeProps) {
-  const { open, onClose, accountId, onReconnect, onFile } = props;
+  const { open, onClose, accountId, onReconnect, onFile, onImportStateChange } = props;
   const importer = useDriveImport({
     accountId,
     onReady: (file) => {
+      onImportStateChange?.(false);
       onFile(file);
     },
   });
+
+  // Notify parent of import state changes so it can show a loading banner.
+  useEffect(() => {
+    const { kind } = importer.state;
+    if (kind === 'starting' || kind === 'running') {
+      onImportStateChange?.(true);
+    } else if (kind === 'failed') {
+      const errorMsg =
+        'error' in importer.state ? String(importer.state.error) : 'conversion-failed';
+      onImportStateChange?.(false, errorMsg);
+    }
+  }, [importer.state, onImportStateChange]);
 
   return (
     <DrivePicker
