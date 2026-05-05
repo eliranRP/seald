@@ -124,29 +124,24 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
     // Four DocsViews with explicit labels to avoid duplicate tab names.
-    // Each view uses LIST mode (not GRID) to work around the thumbnail
-    // ORB issue with drive.file scope. Tab order:
+    // Tab order:
     //   1. Starred        → setStarred(true) + setOwnedByMe(true)
     //   2. My Drive       → setOwnedByMe(true)
     //   3. Shared with me → setOwnedByMe(false)
     //   4. Shared drives  → setEnableDrives(true)
     // All four apply the same MIME-type filter and keep
     // setIncludeFolders(true)/setSelectFolderEnabled(false). OAuth
-    // scope remains drive.file — per-file access granted at click time.
-    // FIX: Use LIST mode instead of GRID (default). With the
-    // drive.file scope, Google's picker can't load thumbnail images
-    // from lh3.googleusercontent.com — Chrome's ORB blocks them
-    // because the response lacks Cross-Origin-Resource-Policy. LIST
-    // mode avoids thumbnails entirely while keeping full functionality.
-    // See: https://issuetracker.google.com/issues/311256289
+    // scopes are drive.file (per-file access at click time) +
+    // drive.metadata.readonly (allows thumbnail access for GRID mode).
+    // Previously used LIST mode to work around ORB blocking thumbnails
+    // under drive.file-only scope — resolved by adding metadata scope.
     const mimes = MIMES_FOR_FILTER[mimeFilter].join(',');
-    const listMode = picker.DocsViewMode.LIST;
 
     const starredView = new picker.DocsView(picker.ViewId.DOCS)
       .setStarred(true)
       .setOwnedByMe(true)
       .setLabel('Starred')
-      .setMode(listMode)
+
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -155,7 +150,7 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     const myDriveView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(true)
       .setLabel('My Drive')
-      .setMode(listMode)
+
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -164,7 +159,7 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     const sharedWithMeView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(false)
       .setLabel('Shared with me')
-      .setMode(listMode)
+
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
@@ -173,7 +168,7 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
     const sharedDrivesView = new picker.DocsView(picker.ViewId.DOCS)
       .setEnableDrives(true)
       .setLabel('Shared drives')
-      .setMode(listMode)
+
       .setMimeTypes(mimes)
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);

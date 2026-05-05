@@ -25,7 +25,8 @@ describe('FetchGoogleOAuthClient.exchangeCode', () => {
     access_token: 'access-tok',
     refresh_token: 'refresh-tok',
     expires_in: 3600,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope:
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
   };
 
   const aboutJson = {
@@ -98,7 +99,9 @@ describe('FetchGoogleOAuthClient.exchangeCode', () => {
     expect(result.googleEmail).toBe('eliran@example.com');
     expect(result.refreshToken).toBe('refresh-tok');
     expect(result.accessToken).toBe('access-tok');
-    expect(result.scope).toBe('https://www.googleapis.com/auth/drive.file');
+    expect(result.scope).toBe(
+      'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.metadata.readonly',
+    );
   });
 
   it('passes the access token as a Bearer credential when calling drive about', async () => {
