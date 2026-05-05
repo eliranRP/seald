@@ -1614,9 +1614,12 @@ function TermsGrid({ terms }: { terms: ReadonlyArray<TermDef> }): React.ReactEle
 
 function ReferenceLinks(): React.ReactElement {
   const links = [
-    { label: 'Seald signature user guide', url: 'seald.nromomentum.com/help/guides' },
-    { label: 'Seald terms and conditions', url: 'seald.nromomentum.com/help/terms' },
-    { label: 'Seald signature privacy notice', url: 'seald.nromomentum.com/help/privacy' },
+    { label: 'Seald terms of service', url: 'seald.nromomentum.com/legal/terms' },
+    { label: 'Seald privacy policy', url: 'seald.nromomentum.com/legal/privacy' },
+    {
+      label: 'Seald ESIGN consumer disclosure',
+      url: 'seald.nromomentum.com/legal/esign-disclosure',
+    },
   ];
   return (
     <View style={styles.refsCard}>
