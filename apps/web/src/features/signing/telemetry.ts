@@ -39,10 +39,10 @@ export type SignerEvent =
       readonly message: string;
     }
   // Mobile Google Drive integration (Phase 5). Three additive variants
-  // emitted from `<MobileDrivePicker />` when the sender on /m/send taps
-  // the "Import from Google Drive" tile, picks a file from the sheet,
-  // and the conversion completes. Uses the same reporter seam so a host
-  // build can swap the no-op for PostHog/Datadog without forking.
+  // emitted from the Drive picker on /m/send when the sender taps
+  // "Import from Google Drive", picks a file, and the conversion
+  // completes. Uses the same reporter seam so a host build can swap the
+  // no-op for PostHog/Datadog without forking.
   | { readonly type: 'mobile.gdrive.picker_open'; readonly account_id: string }
   | {
       readonly type: 'mobile.gdrive.file_selected';

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
-import { MobileDrivePicker } from '@/components/mobile/MobileDrivePicker';
+import { DrivePicker } from '@/components/drive-picker';
+import type { DriveFile } from '@/components/drive-picker';
+import { useDriveImport } from '@/features/gdriveImport';
 import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
 import {
   Shell,
@@ -769,23 +771,59 @@ export function MobileSendPage() {
         existingEmails={existingSignerEmails}
       />
 
-      {/* Mobile Drive picker (Phase 5). Fully gated by the feature
-          flag + a connected account — the dark build never mounts it.
-          On pick, the imported PDF goes through the same handlePickFile
-          boundary as the upload and camera tiles so file-type / size
-          rejection stays consistent. */}
+      {/* Google Drive picker — uses the desktop DrivePicker component which
+          renders responsively at mobile widths (375px+). The picker returns
+          DriveFile metadata; DrivePickerBridge converts it via useDriveImport
+          (Gotenberg) and pipes the resulting File through handlePickFile. */}
       {gdriveOn && driveAccountId && (
-        <MobileDrivePicker
+        <DrivePickerBridge
           open={drivePickerOpen}
           accountId={driveAccountId}
           onClose={() => setDrivePickerOpen(false)}
           onReconnect={reauthorizeDrive}
-          onPick={(file) => {
+          onFile={(file) => {
             setDrivePickerOpen(false);
             handlePickFile(file);
           }}
         />
       )}
     </Shell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DrivePickerBridge — adapts the desktop DrivePicker (which returns DriveFile
+// metadata) to MobileSendPage's handlePickFile (which expects a real File).
+// useDriveImport runs the same Gotenberg conversion the old MobileDrivePicker
+// used internally.
+// ---------------------------------------------------------------------------
+
+interface DrivePickerBridgeProps {
+  readonly open: boolean;
+  readonly onClose: () => void;
+  readonly accountId: string;
+  readonly onReconnect: () => void;
+  readonly onFile: (file: File) => void;
+}
+
+function DrivePickerBridge(props: DrivePickerBridgeProps) {
+  const { open, onClose, accountId, onReconnect, onFile } = props;
+  const importer = useDriveImport({
+    accountId,
+    onReady: (file) => {
+      onFile(file);
+    },
+  });
+
+  return (
+    <DrivePicker
+      open={open}
+      onClose={onClose}
+      accountId={accountId}
+      onReconnect={onReconnect}
+      onPick={(driveFile: DriveFile) => {
+        importer.beginImport(driveFile);
+      }}
+    />
   );
 }
