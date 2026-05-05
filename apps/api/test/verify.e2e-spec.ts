@@ -105,8 +105,10 @@ describe('Verify endpoint (e2e)', () => {
     // collide in the in-memory repo. Format keeps the 13-char width
     // (`vrfy_e2e_NN` -> 13 chars when zero-padded to 4 digits + 'v').
     seedCounter += 1;
-    const n = String(seedCounter).padStart(4, '0');
-    const short_code = `vrfye2eT${n}2`; // 13 chars, base-58 safe
+    // Base-58 safe: use alphabet chars for the counter suffix (no 0, 1, I, O, l)
+    const SAFE = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const c = SAFE[seedCounter % SAFE.length]!;
+    const short_code = `vrfye2eT2222${c}`; // 13 chars, all base-58 safe
     const draft = await envelopesRepo.createDraft({
       owner_id: USER_A,
       title: 'Verify e2e test envelope',
