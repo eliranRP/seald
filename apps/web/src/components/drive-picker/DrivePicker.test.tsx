@@ -111,6 +111,12 @@ function installGooglePickerStub(): PickerSpyState {
         setStarredCalls.push(typeof arg === 'boolean' ? arg : undefined);
         return view;
       },
+      setMode() {
+        return view;
+      },
+      setLabel() {
+        return view;
+      },
     };
 
     docsViews.push({
@@ -160,6 +166,7 @@ function installGooglePickerStub(): PickerSpyState {
       PickerBuilder: pickerBuilderCtor,
       DocsView: docsViewCtor,
       ViewId: { DOCS: 'DOCS' },
+      DocsViewMode: { GRID: 'GRID', LIST: 'LIST' },
       Action: { PICKED: 'picked', CANCEL: 'cancel', LOADED: 'loaded' },
       Feature: { SUPPORT_DRIVES: 'sdr' },
     },
