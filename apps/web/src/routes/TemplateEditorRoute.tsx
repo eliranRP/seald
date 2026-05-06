@@ -36,7 +36,7 @@ import {
 import type { TemplateSummary } from '../features/templates';
 
 const CANVAS_WIDTH = 560;
-const CANVAS_HEIGHT = 740;
+const CANVAS_HEIGHT_FALLBACK = 740;
 const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
@@ -534,18 +534,29 @@ export function TemplateEditorRoute() {
 
   // ---- Send-to-sign (using mode primary) -------------------------------
 
+  // Compute actual canvas height from the PDF aspect ratio so
+  // field Y normalization matches the rendered page height.
+  const [tplCanvasHeight, setTplCanvasHeight] = useState(CANVAS_HEIGHT_FALLBACK);
+  useEffect(() => {
+    if (!pdfDoc) return;
+    void pdfDoc.getPage(1).then((page) => {
+      const vp = page.getViewport({ scale: 1 });
+      setTplCanvasHeight(CANVAS_WIDTH * (vp.height / vp.width));
+    });
+  }, [pdfDoc]);
+
   const toNormalized = useCallback(
     (field: PlacedFieldValue): Pick<FieldPlacement, 'x' | 'y' | 'width' | 'height'> => {
       const widthPx = field.width ?? DEFAULT_PX[field.type as FieldKind]?.w ?? DEFAULT_PX.text.w;
       const heightPx = field.height ?? DEFAULT_PX[field.type as FieldKind]?.h ?? DEFAULT_PX.text.h;
       return {
         x: Math.max(0, Math.min(1, field.x / CANVAS_WIDTH)),
-        y: Math.max(0, Math.min(1, field.y / CANVAS_HEIGHT)),
+        y: Math.max(0, Math.min(1, field.y / tplCanvasHeight)),
         width: Math.max(0, Math.min(1, widthPx / CANVAS_WIDTH)),
-        height: Math.max(0, Math.min(1, heightPx / CANVAS_HEIGHT)),
+        height: Math.max(0, Math.min(1, heightPx / tplCanvasHeight)),
       };
     },
-    [],
+    [tplCanvasHeight],
   );
 
   const runSend = useCallback(
