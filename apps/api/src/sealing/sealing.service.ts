@@ -265,27 +265,17 @@ export class SealingService {
         const h = (f.height ?? defaultHeight(f.kind)) * ph;
         const x = f.x * pw;
 
-        // Y correction: the web editor's canvas is 560×740px, but the
-        // PDF at 560px wide is 560/pageWidth * pageHeight tall (~791px
-        // for A4). The editor normalizes y by dividing by 740 (canvas
-        // height) instead of 791 (rendered PDF height), creating a
-        // systematic ~6.5% vertical offset. Correct by scaling f.y.
-        const CANVAS_W = 560;
-        const CANVAS_H = 740;
-        const renderedPdfH = ph * (CANVAS_W / pw);
-        const correctedY = f.y * (CANVAS_H / renderedPdfH);
-        const y = ph - correctedY * ph - h;
+        // Flip y: wire contract y is from top, pdf-lib y is from bottom.
+        const y = ph - f.y * ph - h;
 
         if (f.kind === 'signature') {
           if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
         } else if (f.kind === 'initials') {
           if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Draw at the corrected y position
-          const cbY = y;
           page.drawRectangle({
             x,
-            y: cbY,
+            y,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -296,7 +286,7 @@ export class SealingService {
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
             const left = x + inset;
-            const bottom = cbY + inset;
+            const bottom = y + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -312,12 +302,17 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email — baseline at the guide line position.
+          // text / date / email — center text vertically in the field box.
+          // pdf-lib drawText y = text baseline position.
+          // Place baseline at field center minus half the font descent.
           const text = f.value_text ?? '';
+          const fontSize = Math.min(h * 0.6, 12);
+          // Approximate: baseline at ~40% from bottom centers the visible
+          // text body (ascenders above, descenders below the baseline).
           page.drawText(text, {
             x: x + 4,
-            y,
-            size: Math.min(h * 0.4, 12),
+            y: y + h * 0.35,
+            size: fontSize,
             font: helvetica,
             color: rgb(0, 0, 0),
           });
