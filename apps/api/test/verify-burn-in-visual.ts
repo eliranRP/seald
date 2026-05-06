@@ -94,23 +94,8 @@ iframe{border:none;width:620px;height:880px;}</style>
   const htmlPath = '/tmp/burn-in-visual.html';
   writeFileSync(htmlPath, html);
 
-  // Step 3: Screenshot with Playwright
-  try {
-    const pw2 = require(
-      resolve(__dirname, '../../../node_modules/.pnpm/playwright@1.59.1/node_modules/playwright'),
-    );
-    const browser = await pw2.chromium.launch({ headless: true });
-    const ctx = await browser.newContext({ viewport: { width: 700, height: 920 } });
-    const pg = await ctx.newPage();
-    await pg.goto(`file://${htmlPath}`);
-    await pg.waitForTimeout(3000); // wait for PDF to render in iframe
-    await pg.screenshot({ path: '/tmp/burn-in-visual.png', fullPage: true });
-    console.log('Screenshot: /tmp/burn-in-visual.png');
-    await browser.close();
-  } catch (e) {
-    console.log('Playwright not available — open the HTML manually:');
-    console.log(`  open ${htmlPath}`);
-  }
+  // Step 3: Open manually — Playwright PDF rendering is unreliable in headless
+  console.log(`Open in browser: open ${htmlPath}`);
 
   // Also save a standalone HTML with the PDF embedded
   console.log(`HTML: ${htmlPath}`);
