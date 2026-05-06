@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { APP_ENV } from '../config/config.module';
+import { burnInField } from './burn-in-fields';
 import type { AppEnv } from '../config/env.schema';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import {
@@ -258,77 +259,12 @@ export class SealingService {
       for (const f of signerFields) {
         const pageIdx = Math.max(0, f.page - 1);
         if (pageIdx >= pages.length) continue;
-        const page = pages[pageIdx]!;
-        const pw = page.getWidth();
-        const ph = page.getHeight();
-        const w = (f.width ?? defaultWidth(f.kind)) * pw;
-        const h = (f.height ?? defaultHeight(f.kind)) * ph;
-        const x = f.x * pw;
-
-        // Flip y: wire contract y is from top, pdf-lib y is from bottom.
-        const y = ph - f.y * ph - h;
-
-        // The PlacedField tile has a header (icon + label) at the top and
-        // a "SIGN ID" eyebrow at the bottom. The guide line — which the
-        // user aligns with the document line — sits at ~60% from the top
-        // of the tile (= 40% from the bottom). Render content at the
-        // guide line position so the burn-in matches the visual placement.
-        //
-        // In PDF coords (bottom-origin): guideY = y + h * 0.4
-        // Render content inside the field box. The stored (x, y, w, h)
-        // define the box exactly as the user placed it. Content renders
-        // inside the box — no external offsets.
-        if (f.kind === 'signature') {
-          // 15% up, 30% left — calibrated with burn-in-e2e.ts
-          if (sigImg)
-            page.drawImage(sigImg, { x: x - w * 0.3, y: y + h * 0.15, width: w, height: h });
-        } else if (f.kind === 'initials') {
-          // 15% up
-          if (initialsImg) page.drawImage(initialsImg, { x, y: y + h * 0.15, width: w, height: h });
-        } else if (f.kind === 'checkbox') {
-          // 35% up
-          const cbY = y + h * 0.35;
-          page.drawRectangle({
-            x,
-            y: cbY,
-            width: w,
-            height: h,
-            borderColor: rgb(0, 0, 0),
-            borderWidth: 0.5,
-          });
-          if (f.value_boolean === true) {
-            const inset = Math.min(w, h) * 0.18;
-            const innerW = w - inset * 2;
-            const innerH = h - inset * 2;
-            const left = x + inset;
-            const bottom = cbY + inset;
-            const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
-            page.drawLine({
-              start: { x: left, y: bottom + innerH * 0.6 },
-              end: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
-              thickness: stroke,
-              color: rgb(0, 0, 0),
-            });
-            page.drawLine({
-              start: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
-              end: { x: left + innerW, y: bottom + innerH * 0.95 },
-              thickness: stroke,
-              color: rgb(0, 0, 0),
-            });
-          }
-        } else {
-          // text / date / email
-          const text = f.value_text ?? '';
-          // Per-kind nudge calibrated with burn-in-e2e.ts
-          const textNudge = f.kind === 'date' ? 0.55 : f.kind === 'email' ? 0.85 : 0.7;
-          page.drawText(text, {
-            x: x + 4,
-            y: y + h * textNudge,
-            size: 12,
-            font: helvetica,
-            color: rgb(0, 0, 0),
-          });
-        }
+        burnInField(pages[pageIdx]!, f, {
+          sigImg,
+          initialsImg,
+          helvetica,
+          helveticaBold: helvetica, // bold unused for text fields
+        });
       }
     }
 
@@ -340,21 +276,6 @@ export class SealingService {
     const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
-}
-
-/** pdf-lib expects signatures ~25% page width if no explicit width. */
-function defaultWidth(kind: EnvelopeField['kind']): number {
-  if (kind === 'signature') return 0.25;
-  if (kind === 'initials') return 0.08;
-  if (kind === 'checkbox') return 0.03;
-  return 0.2;
-}
-
-function defaultHeight(kind: EnvelopeField['kind']): number {
-  if (kind === 'signature') return 0.06;
-  if (kind === 'initials') return 0.04;
-  if (kind === 'checkbox') return 0.03;
-  return 0.03;
 }
 
 function sha256Hex(buf: Buffer): string {
