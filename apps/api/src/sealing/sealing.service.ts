@@ -268,14 +268,30 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
+        // Per-field-type offsets calibrated with the interactive burn-in
+        // adjuster tool against "Sig test.pdf". These account for the
+        // PlacedField tile's header/eyebrow padding, the positioning
+        // guide line position, and pdf-lib's baseline rendering.
+        const OFFSETS: Record<string, { y: number; x: number }> = {
+          signature: { y: 39, x: 37 },
+          initials: { y: 46, x: 37 },
+          date: { y: 30, x: 24 },
+          text: { y: 44, x: 34 },
+          checkbox: { y: 33, x: 50 },
+          email: { y: 62, x: 15 },
+        };
+        const off = OFFSETS[f.kind] ?? { y: 35, x: 20 };
+        const adjX = x + off.x;
+        const adjY = y + off.y;
+
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
+          if (sigImg) page.drawImage(sigImg, { x: adjX, y: adjY, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
+          if (initialsImg) page.drawImage(initialsImg, { x: adjX, y: adjY, width: w, height: h });
         } else if (f.kind === 'checkbox') {
           page.drawRectangle({
-            x,
-            y,
+            x: adjX,
+            y: adjY,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -285,8 +301,8 @@ export class SealingService {
             const inset = Math.min(w, h) * 0.18;
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
-            const left = x + inset;
-            const bottom = y + inset;
+            const left = adjX + inset;
+            const bottom = adjY + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -302,17 +318,12 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email — center text vertically in the field box.
-          // pdf-lib drawText y = text baseline position.
-          // Place baseline at field center minus half the font descent.
+          // text / date / email
           const text = f.value_text ?? '';
-          const fontSize = Math.min(h * 0.6, 12);
-          // Approximate: baseline at ~40% from bottom centers the visible
-          // text body (ascenders above, descenders below the baseline).
           page.drawText(text, {
-            x: x + 4,
-            y: y + h * 0.35,
-            size: fontSize,
+            x: adjX,
+            y: adjY,
+            size: 12,
             font: helvetica,
             color: rgb(0, 0, 0),
           });
