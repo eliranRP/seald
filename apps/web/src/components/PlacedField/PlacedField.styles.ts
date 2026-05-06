@@ -247,6 +247,17 @@ export const TileSignatureLine = styled.div`
   margin: 2px 0;
 `;
 
+/** Small checkbox square inside the tile — shows field type visually. */
+export const TileCheckbox = styled.div<{ readonly $color: string }>`
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid ${({ $color }) => $color};
+  border-radius: 2px;
+  align-self: center;
+  margin: 2px 0;
+  opacity: 0.5;
+`;
+
 export const TileEyebrow = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
   font-size: 9px;

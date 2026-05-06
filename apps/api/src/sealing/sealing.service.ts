@@ -267,50 +267,40 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
+        // Nudge all field types up by 15% of field height — the web
+        // editor's PlacedField tile includes a header row (icon + label)
+        // and SIGN ID eyebrow that shift the visual content area lower
+        // than the stored y coordinate. Without this offset, burn-in
+        // content renders below where the user positioned the field.
+        const yOffset = h * 0.15;
+        const adjY = y + yOffset;
+
         if (f.kind === 'signature') {
-          // Nudge signature up by 15% of field height — the web editor's
-          // PlacedField tile includes a header row (icon + "Signature" label)
-          // and a SIGN ID eyebrow that aren't part of the actual signature
-          // area. Without this offset, the centered signature image renders
-          // lower than where the user visually positioned it.
-          const sigYOffset = h * 0.15;
-          if (sigImg) page.drawImage(sigImg, { x, y: y + sigYOffset, width: w, height: h });
+          if (sigImg) page.drawImage(sigImg, { x, y: adjY, width: w, height: h });
         } else if (f.kind === 'initials') {
-          const iniYOffset = h * 0.15;
-          if (initialsImg)
-            page.drawImage(initialsImg, { x, y: y + iniYOffset, width: w, height: h });
+          if (initialsImg) page.drawImage(initialsImg, { x, y: adjY, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Outline first.
           page.drawRectangle({
             x,
-            y,
+            y: adjY,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
             borderWidth: 0.5,
           });
           if (f.value_boolean === true) {
-            // Real vector checkmark (✓). pdf-lib's StandardFonts.Helvetica
-            // is a WinAnsi font — U+2713 is not encoded — so prior code
-            // that called drawText('X', ...) rendered the literal letter
-            // X instead of a tick. Draw two line segments forming the
-            // canonical down-stroke + up-stroke shape, scaled to fit
-            // inside the box with a small inset.
             const inset = Math.min(w, h) * 0.18;
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
             const left = x + inset;
-            const bottom = y + inset;
+            const bottom = adjY + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
-            // Down-stroke: upper-left corner (left, bottom + 0.6 * h) →
-            // lower-middle pivot (left + 0.4 * w, bottom + 0.15 * h).
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
               end: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
               thickness: stroke,
               color: rgb(0, 0, 0),
             });
-            // Up-stroke: pivot → upper-right corner.
             page.drawLine({
               start: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
               end: { x: left + innerW, y: bottom + innerH * 0.95 },
@@ -319,11 +309,11 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email — render value_text as-is in Helvetica.
+          // text / date / email
           const text = f.value_text ?? '';
           page.drawText(text, {
             x,
-            y: y + h * 0.25,
+            y: adjY + h * 0.25,
             size: Math.min(h * 0.7, 14),
             font: helvetica,
             color: rgb(0, 0, 0),
