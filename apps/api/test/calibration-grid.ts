@@ -100,33 +100,7 @@ async function run() {
       const kind = FIELD_KINDS[i]!;
       const nx = xSlots[i]!;
 
-      // Red cross at the stored normalised point
-      const crossX = nx * pw;
-      const crossY = ph - ny * ph;
-      drawCross(page, crossX, crossY, 12, rgb(1, 0, 0), 1.2);
-      page.drawText(kind, {
-        x: crossX - 5,
-        y: crossY + 16,
-        size: 8,
-        font: helvetica,
-        color: rgb(0.6, 0, 0),
-      });
-
-      // Blue field box outline for reference
-      const w = defaultWidth(kind) * pw;
-      const h = defaultHeight(kind) * ph;
-      const y = ph - ny * ph - h;
-      page.drawRectangle({
-        x: nx * pw,
-        y,
-        width: w,
-        height: h,
-        borderColor: rgb(0.4, 0.7, 1),
-        borderWidth: 0.5,
-        opacity: 0.3,
-      });
-
-      // ── Call the REAL burnInField function ──
+      // ── Call the REAL burnInField function FIRST (so cross draws on top) ──
       const field: BurnInField = {
         kind,
         x: nx,
@@ -138,24 +112,32 @@ async function run() {
         value_boolean: kind === 'checkbox' ? true : undefined,
       };
       burnInField(page, field, assets);
-    }
 
-    page.drawText(
-      'Red cross = stored (x,y)    Blue box = field box    Content = real burnInField() output',
-      {
-        x: 20,
-        y: 15,
+      // Red cross ON TOP of the content at the stored normalised point
+      const crossX = nx * pw;
+      const crossY = ph - ny * ph;
+      drawCross(page, crossX, crossY, 15, rgb(1, 0, 0), 2);
+      page.drawText(kind, {
+        x: crossX - 5,
+        y: crossY + 18,
         size: 8,
         font: helvetica,
-        color: rgb(0.3, 0.3, 0.3),
-      },
-    );
+        color: rgb(0.6, 0, 0),
+      });
+    }
+
+    page.drawText('Red cross = stored (x,y) — should be at CENTER of content', {
+      x: 20,
+      y: 15,
+      size: 8,
+      font: helvetica,
+      color: rgb(0.3, 0.3, 0.3),
+    });
   }
 
   // ── Pages 2-7: One page per field kind, all 7 grid points ──
   for (const kind of FIELD_KINDS) {
     const page = doc.addPage([PAGE_W, PAGE_H]);
-    const pw = page.getWidth();
     const ph = page.getHeight();
 
     page.drawText(`"${kind}" — burnInField() at all 7 calibration points`, {
@@ -170,33 +152,7 @@ async function run() {
       const nx = pt.xPt / PAGE_W;
       const ny = pt.yPt / PAGE_H;
 
-      // Red cross at exact target
-      const crossX = pt.xPt;
-      const crossY = ph - pt.yPt;
-      drawCross(page, crossX, crossY, 12, rgb(1, 0, 0), 1.2);
-      page.drawText(pt.label, {
-        x: crossX + 14,
-        y: crossY + 14,
-        size: 8,
-        font: helvetica,
-        color: rgb(0.6, 0, 0),
-      });
-
-      // Blue field box
-      const w = defaultWidth(kind) * pw;
-      const h = defaultHeight(kind) * ph;
-      const y = ph - ny * ph - h;
-      page.drawRectangle({
-        x: nx * pw,
-        y,
-        width: w,
-        height: h,
-        borderColor: rgb(0.4, 0.7, 1),
-        borderWidth: 0.5,
-        opacity: 0.3,
-      });
-
-      // ── Call the REAL burnInField function ──
+      // ── Call the REAL burnInField function FIRST ──
       const field: BurnInField = {
         kind,
         x: nx,
@@ -208,6 +164,18 @@ async function run() {
         value_boolean: kind === 'checkbox' ? true : undefined,
       };
       burnInField(page, field, assets);
+
+      // Red cross ON TOP at the stored point
+      const crossX = pt.xPt;
+      const crossY = ph - pt.yPt;
+      drawCross(page, crossX, crossY, 15, rgb(1, 0, 0), 2);
+      page.drawText(pt.label, {
+        x: crossX + 16,
+        y: crossY + 16,
+        size: 8,
+        font: helvetica,
+        color: rgb(0.6, 0, 0),
+      });
     }
   }
 

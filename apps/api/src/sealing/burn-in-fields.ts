@@ -9,8 +9,8 @@ import { rgb } from 'pdf-lib';
 
 export interface BurnInField {
   kind: string;
-  x: number; // normalised 0-1
-  y: number; // normalised 0-1, from top
+  x: number; // normalized 0-1
+  y: number; // normalized 0-1, from top
   width?: number | null | undefined;
   height?: number | null | undefined;
   value_text?: string | null | undefined;
