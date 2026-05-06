@@ -267,31 +267,17 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
-        // Nudge field content up — the web editor's PlacedField tile
-        // includes a header row (icon + label) and SIGN ID eyebrow that
-        // shift the visual content area lower than the stored y coord.
-        // Checkbox fields are small (24×24) and don't have the same
-        // proportional header offset, so they use a smaller nudge.
-        const yOffset = f.kind === 'checkbox' ? h * 0.05 : h * 0.15;
-        const adjY = y + yOffset;
-
+        // Render content directly at the stored field position — no
+        // external offsets. The field coordinates (x, y, w, h) already
+        // represent exactly where the content should appear on the page.
         if (f.kind === 'signature') {
-          // Nudge left — the PlacedField tile has internal padding that
-          // shifts the visual signature area right of the stored x coord.
-          // ~100px on a 560px editor canvas ≈ 18% of field width.
-          const sigXOffset = w * 0.18;
-          if (sigImg) page.drawImage(sigImg, { x: x - sigXOffset, y: adjY, width: w, height: h });
+          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
         } else if (f.kind === 'initials') {
-          const iniXOffset = w * 0.18;
-          if (initialsImg)
-            page.drawImage(initialsImg, { x: x - iniXOffset, y: adjY, width: w, height: h });
+          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Nudge checkbox: 60pt up, 20pt right to align with editor position.
-          const cbX = x + 20;
-          const cbY = adjY + 60;
           page.drawRectangle({
-            x: cbX,
-            y: cbY,
+            x,
+            y,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -301,8 +287,8 @@ export class SealingService {
             const inset = Math.min(w, h) * 0.18;
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
-            const left = cbX + inset;
-            const bottom = cbY + inset;
+            const left = x + inset;
+            const bottom = y + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -318,12 +304,15 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email — nudge 60pt up, 20pt right.
+          // text / date / email — draw at the baseline (bottom edge of
+          // the field box in PDF coords). The user positions the field's
+          // line guide on the document line; the bottom of the field box
+          // IS that line. Font size capped at 12pt to match document text.
           const text = f.value_text ?? '';
           page.drawText(text, {
-            x: x + 20,
-            y: adjY + 60 + h * 0.25,
-            size: Math.min(h * 0.7, 14),
+            x: x + 4,
+            y,
+            size: Math.min(h * 0.4, 12),
             font: helvetica,
             color: rgb(0, 0, 0),
           });
