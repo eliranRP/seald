@@ -279,7 +279,11 @@ test.describe('guest mode — full sender flow', () => {
     const sigTile = page.getByRole('button', { name: /^signature$/i }).first();
     const canvas = page.locator('[data-page="1"]').first();
     await sigTile.dragTo(canvas, { targetPosition: { x: 200, y: 240 } });
-    await page.getByRole('button', { name: /^apply$/i }).click();
+    // With a single signer the popover is skipped — field auto-assigned.
+    const applyBtn = page.getByRole('button', { name: /^apply$/i });
+    if (await applyBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+      await applyBtn.click();
+    }
 
     // ---- Send. Guest mode now goes through the real `/envelopes/*` API
     // chain (mocked above). The GuestSenderEmailDialog opens first to

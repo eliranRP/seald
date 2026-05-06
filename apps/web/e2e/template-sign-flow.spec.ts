@@ -398,8 +398,10 @@ async function installMocks(page: Page): Promise<ApiCallLog> {
  * canvas. The editor wires up native HTML5 drag events
  * (`dragstart`/`dragover`/`drop`) on its `.palette` rows and the page
  * canvas; Playwright's `dragTo` drives the same primitives reliably
- * in chromium. After the drop the SelectSignersPopover opens; we
- * "Apply" it with the default (all signers selected) before continuing.
+ * in chromium. After the drop the SelectSignersPopover opens when
+ * there are 2+ signers; we "Apply" it with the default (all signers
+ * selected) before continuing. With a single signer the popover is
+ * skipped and the field is auto-assigned.
  */
 async function placeFieldKind(page: Page, label: string): Promise<void> {
   const tile = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') }).first();
@@ -412,9 +414,12 @@ async function placeFieldKind(page: Page, label: string): Promise<void> {
   await tile.dragTo(canvas, {
     targetPosition: { x: 200, y: 220 + Math.floor(Math.random() * 60) },
   });
-  // SelectSignersPopover opens on drop with all signers preselected.
-  // "Apply" closes it and commits the placement.
-  await page.getByRole('button', { name: /^apply$/i }).click();
+  // SelectSignersPopover opens on drop only when 2+ signers exist.
+  // With a single signer the field is auto-assigned — no popover.
+  const applyBtn = page.getByRole('button', { name: /^apply$/i });
+  if (await applyBtn.isVisible({ timeout: 1_000 }).catch(() => false)) {
+    await applyBtn.click();
+  }
 }
 
 test.describe('template + sign happy path', () => {
