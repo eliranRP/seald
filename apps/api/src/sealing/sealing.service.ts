@@ -276,9 +276,15 @@ export class SealingService {
         const adjY = y + yOffset;
 
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y: adjY, width: w, height: h });
+          // Nudge left — the PlacedField tile has internal padding that
+          // shifts the visual signature area right of the stored x coord.
+          // ~100px on a 560px editor canvas ≈ 18% of field width.
+          const sigXOffset = w * 0.18;
+          if (sigImg) page.drawImage(sigImg, { x: x - sigXOffset, y: adjY, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y: adjY, width: w, height: h });
+          const iniXOffset = w * 0.18;
+          if (initialsImg)
+            page.drawImage(initialsImg, { x: x - iniXOffset, y: adjY, width: w, height: h });
         } else if (f.kind === 'checkbox') {
           page.drawRectangle({
             x,
