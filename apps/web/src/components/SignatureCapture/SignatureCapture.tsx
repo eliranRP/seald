@@ -79,11 +79,13 @@ function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTML
     const fontSize = computeScaledFontSize(ctx, text, maxFontSize, 28, maxTextWidth, fontFamily);
     ctx.font = `500 ${fontSize}px ${fontFamily}`;
     ctx.textAlign = 'center';
-    // Place the text baseline at ~65% of the canvas height so the
-    // signature sits on an imaginary line (like writing on a signature
-    // line in a document) rather than floating in the vertical center.
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(text, canvas.width / 2, canvas.height * 0.65);
+    // Use 'middle' baseline and center vertically so the signature
+    // appears centered in the field box when the image is stretched
+    // to fit on the PDF. The image is drawn at { x, y, width, height }
+    // of the field — if the text isn't centered in the canvas, it
+    // shifts up or down after scaling.
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
   }
   return canvas;
 }
