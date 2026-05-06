@@ -120,7 +120,12 @@ export function useCanvasDnd({
       pushUndo(fields);
       onFieldsChange([...fields, dropped]);
       setSelectedIds([dropped.id]);
-      setSignerPopoverFor(dropped.id);
+      // Only open the signer popover when there are multiple signers.
+      // With a single signer, the field is already assigned — no need
+      // to make the user confirm the obvious.
+      if (signers.length > 1) {
+        setSignerPopoverFor(dropped.id);
+      }
       dragKindRef.current = null;
     },
     [

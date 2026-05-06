@@ -85,15 +85,14 @@ function renderDnd({ signers }: RenderArgs) {
 }
 
 describe('useCanvasDnd canvas drop', () => {
-  // Single-signer case — already correct pre-fix; lock it in so a
-  // future change can't quietly stop opening the popover here either.
-  it('drops one field pre-assigned to the only signer and opens the popover', () => {
+  // Single-signer case: auto-assign and skip the popover — there's
+  // only one signer so no selection is needed.
+  it('drops one field pre-assigned to the only signer WITHOUT opening the popover', () => {
     const { result, onFieldsChange, setSignerPopoverFor } = renderDnd({
       signers: [makeSigner('alice')],
     });
 
     act(() => {
-      // Prime the palette drag (sets the internal kind ref).
       result.current.handlePaletteDragStart('signature', {
         dataTransfer: { setData: vi.fn() },
       } as unknown as DragEvent<HTMLElement>);
@@ -104,7 +103,8 @@ describe('useCanvasDnd canvas drop', () => {
     const dropped = onFieldsChange.mock.calls[0]![0]!;
     expect(dropped).toHaveLength(1);
     expect(dropped[0]!.signerIds).toEqual(['alice']);
-    expect(setSignerPopoverFor).toHaveBeenCalledWith(dropped[0]!.id);
+    // Popover should NOT open for a single signer
+    expect(setSignerPopoverFor).not.toHaveBeenCalled();
   });
 
   // Regression for the user-reported bug: dropping a field on a

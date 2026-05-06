@@ -135,11 +135,9 @@ describe('DocumentPage', () => {
     expect(within(dialog).getByRole('checkbox', { name: /ada byron/i })).toBeChecked();
   });
 
-  it('drops a palette field with a single signer as one field, opening the popover for adjustment', () => {
-    // Single-signer drops still surface the Select-signers popover so
-    // the user can adjust the assignment before moving on. Only the
-    // multi-signer path skips the popover (the split already captures
-    // intent).
+  it('drops a palette field with a single signer WITHOUT opening the popover', () => {
+    // With only one signer there's no assignment choice to make — the
+    // field is auto-assigned and the popover is skipped.
     const SINGLE_SIGNER: ReadonlyArray<DocumentPageSigner> = [DEFAULT_SIGNERS[0]!];
     renderPage({ initialFields: [], signers: SINGLE_SIGNER });
 
@@ -161,11 +159,8 @@ describe('DocumentPage', () => {
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 200, clientY: 150 });
     });
-    // Single-signer drop → popover opens with the lone signer pre-checked.
-    const dialog = screen.getByRole('dialog', { name: /select signers/i });
-    expect(dialog).toBeInTheDocument();
-    const ada = within(dialog).getByRole('checkbox', { name: /ada byron/i });
-    expect(ada).toBeChecked();
+    // Single-signer drop → popover should NOT open.
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
   });
 
   it('each successive multi-signer palette drop opens the popover for that drop', () => {
@@ -449,11 +444,8 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('button', { name: /delete field/i })).toBeInTheDocument();
   });
 
-  it('each successive single-signer palette drop re-opens the Select signers popover for the new field', () => {
-    // Regression: with a single signer on the document, every drop still
-    // surfaces the popover so the user can adjust the assignment before
-    // continuing. Multi-signer drops take the split-into-N-fields path
-    // (covered by the dedicated test above) and skip the popover.
+  it('each successive single-signer palette drop auto-assigns without popover', () => {
+    // With a single signer, each drop auto-assigns and skips the popover.
     const SINGLE_SIGNER: ReadonlyArray<DocumentPageSigner> = [DEFAULT_SIGNERS[0]!];
     const onFieldsChangeSpy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
     renderPage({ onFieldsChangeSpy, initialFields: [], signers: SINGLE_SIGNER });
@@ -470,22 +462,21 @@ describe('DocumentPage', () => {
       types: ['text/plain'],
     };
 
-    // First drop with one signer → single field + popover opens.
+    // First drop with one signer → auto-assigned, no popover.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 150, clientY: 150 });
     });
-    const firstDialog = screen.getByRole('dialog', { name: /select signers/i });
-    fireEvent.click(within(firstDialog).getByRole('button', { name: /apply/i }));
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
 
-    // Second drop → second field + popover re-opens for it.
+    // Second drop → also auto-assigned, no popover.
     act(() => {
       fireEvent.dragStart(signatureRow, { dataTransfer });
       fireEvent.dragOver(canvas, { dataTransfer });
       fireEvent.drop(canvas, { dataTransfer, clientX: 300, clientY: 200 });
     });
-    expect(screen.getByRole('dialog', { name: /select signers/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: /select signers/i })).not.toBeInTheDocument();
 
     const { calls } = onFieldsChangeSpy.mock;
     const last = calls[calls.length - 1];
