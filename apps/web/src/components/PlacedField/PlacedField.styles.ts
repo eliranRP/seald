@@ -237,6 +237,16 @@ export const TileHeaderLabel = styled.span`
   white-space: nowrap;
 `;
 
+/** Horizontal signature line inside the tile — visual guide for field positioning. */
+export const TileSignatureLine = styled.div`
+  width: 70%;
+  height: 0;
+  border-bottom: 1.5px solid currentColor;
+  opacity: 0.3;
+  align-self: center;
+  margin: 2px 0;
+`;
+
 export const TileEyebrow = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
   font-size: 9px;
