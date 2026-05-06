@@ -266,18 +266,22 @@ export class SealingService {
         const x = f.x * pw;
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
+        // The positioning guide line in the PlacedField tile sits at
+        // ~60% from the top (= 40% from bottom in PDF coords). Content
+        // should align with this guide line so the burn-in matches
+        // where the user visually placed the field.
+        const guideY = y + h * 0.4;
 
-        // Render content directly at the stored field position — no
-        // external offsets. The field coordinates (x, y, w, h) already
-        // represent exactly where the content should appear on the page.
         if (f.kind === 'signature') {
           if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
         } else if (f.kind === 'initials') {
           if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
+          // Center checkbox on the guide line
+          const cbY = guideY - h / 2;
           page.drawRectangle({
             x,
-            y,
+            y: cbY,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -288,7 +292,7 @@ export class SealingService {
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
             const left = x + inset;
-            const bottom = y + inset;
+            const bottom = cbY + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -304,14 +308,11 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email — draw at the baseline (bottom edge of
-          // the field box in PDF coords). The user positions the field's
-          // line guide on the document line; the bottom of the field box
-          // IS that line. Font size capped at 12pt to match document text.
+          // text / date / email — baseline at the guide line position.
           const text = f.value_text ?? '';
           page.drawText(text, {
             x: x + 4,
-            y,
+            y: guideY,
             size: Math.min(h * 0.4, 12),
             font: helvetica,
             color: rgb(0, 0, 0),
