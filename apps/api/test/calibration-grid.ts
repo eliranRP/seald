@@ -27,11 +27,13 @@ const PAGE_H = 841.89;
 const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox', 'email'] as const;
 
 // 7 calibration points — absolute pt from top-left (web-style origin)
+// Corners at exactly (0,0), (W,0), (0,H), (W,H) — the cross center
+// sits on the page corner so half the cross is clipped.
 const POINTS = [
-  { label: 'TL', xPt: 60, yPt: 60 },
-  { label: 'TR', xPt: PAGE_W - 60, yPt: 60 },
-  { label: 'BL', xPt: 60, yPt: PAGE_H - 60 },
-  { label: 'BR', xPt: PAGE_W - 60, yPt: PAGE_H - 60 },
+  { label: 'TL', xPt: 0, yPt: 0 },
+  { label: 'TR', xPt: PAGE_W, yPt: 0 },
+  { label: 'BL', xPt: 0, yPt: PAGE_H },
+  { label: 'BR', xPt: PAGE_W, yPt: PAGE_H },
   { label: 'C', xPt: PAGE_W / 2, yPt: PAGE_H / 2 },
   { label: '1/3', xPt: PAGE_W / 2, yPt: PAGE_H / 3 },
   { label: '2/3', xPt: PAGE_W / 2, yPt: (PAGE_H * 2) / 3 },

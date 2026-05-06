@@ -51,14 +51,11 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
   const ph = page.getHeight();
   const w = (f.width ?? defaultWidth(f.kind)) * pw;
   const h = (f.height ?? defaultHeight(f.kind)) * ph;
-  // Stored (x, y) is the top-left of the field tile in web coords.
-  // In PDF coords (bottom-left origin) this point is:
-  const storedX = f.x * pw;
-  const storedY = ph - f.y * ph;
-  // Center content on the stored point so the burn-in lands where
-  // the user visually placed the field.
-  const cx = storedX;
-  const cy = storedY;
+  // Stored (x, y) is the top-left of the field box in web coords.
+  // The CENTER of the box is at (x + w/2, y + h/2) from top-left.
+  // Convert to PDF coords (bottom-left origin):
+  const cx = f.x * pw + w / 2;
+  const cy = ph - f.y * ph - h / 2;
 
   if (f.kind === 'signature') {
     if (assets.sigImg)
