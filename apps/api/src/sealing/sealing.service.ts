@@ -268,9 +268,17 @@ export class SealingService {
         const y = ph - f.y * ph - h;
 
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
+          // Nudge signature up by 15% of field height — the web editor's
+          // PlacedField tile includes a header row (icon + "Signature" label)
+          // and a SIGN ID eyebrow that aren't part of the actual signature
+          // area. Without this offset, the centered signature image renders
+          // lower than where the user visually positioned it.
+          const sigYOffset = h * 0.15;
+          if (sigImg) page.drawImage(sigImg, { x, y: y + sigYOffset, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
+          const iniYOffset = h * 0.15;
+          if (initialsImg)
+            page.drawImage(initialsImg, { x, y: y + iniYOffset, width: w, height: h });
         } else if (f.kind === 'checkbox') {
           // Outline first.
           page.drawRectangle({
