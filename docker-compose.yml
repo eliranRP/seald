@@ -115,15 +115,14 @@ services:
       - '--chromium-disable-routes=true'
       - '--webhook-disable=true'
       - '--pdfengines-disable-routes=true'
+    # No healthcheck — Gotenberg v8's minimal image has no wget, curl,
+    # or bash. The container is actually running fine (server on :3000,
+    # LibreOffice ready) but Docker marks it "unhealthy" because every
+    # check command fails to execute. The API handles Gotenberg-down
+    # gracefully (returns conversion-failed to the SPA). Docker's
+    # restart: unless-stopped handles crashes.
     healthcheck:
-      # Gotenberg v8's minimal image has neither wget nor curl.
-      # Use a raw TCP check via /dev/tcp which is a bash built-in —
-      # if the port is listening, the health check passes.
-      test: ['CMD-SHELL', 'echo > /dev/tcp/localhost/3000 || exit 1']
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      disable: true
     # Resource caps to prevent a malicious upload from OOMing the box.
     # The 25 MB inbound size cap (apps/api GDRIVE_CONVERSION_MAX_BYTES)
     # bounds the input; LibreOffice peak memory for a 25 MB .docx is
