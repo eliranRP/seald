@@ -169,10 +169,18 @@ export function useSigningFillController({
         return;
       }
       if (uiKind === 'signature' || uiKind === 'initials') {
-        // Reuse the signer's last choice on subsequent SAME-KIND fields so
-        // they don't have to re-type / re-draw / re-upload the same mark per
-        // field. First field of each kind always opens the drawer to capture
-        // intent. Signature and initials each keep their own memory.
+        // If the field is already filled, always re-open the drawer so
+        // the user can change their signature/initials. Previously,
+        // filled fields would silently re-apply the remembered value
+        // with no way to edit.
+        if (fieldIsFilled(field)) {
+          setSigDrawer({ field, kind: uiKind });
+          return;
+        }
+        // For unfilled fields: reuse the signer's last choice on
+        // subsequent SAME-KIND fields so they don't have to re-type /
+        // re-draw / re-upload the same mark per field. First field of
+        // each kind always opens the drawer to capture intent.
         const remembered = lastByKindRef.current[uiKind];
         if (remembered) {
           try {
@@ -204,6 +212,8 @@ export function useSigningFillController({
         return;
       }
       if (uiKind === 'email' || uiKind === 'date' || uiKind === 'name' || uiKind === 'text') {
+        // Same for text fields: always re-open the drawer so the user
+        // can edit their previous input.
         setTextDrawer({ field, kind: uiKind });
       }
     },

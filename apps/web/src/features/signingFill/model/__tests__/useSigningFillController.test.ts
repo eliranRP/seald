@@ -530,6 +530,37 @@ describe('useSigningFillController — 401/410 token failures', () => {
   });
 });
 
+describe('useSigningFillController — re-edit filled fields', () => {
+  it('clicking a filled signature field re-opens the drawer instead of auto-applying', async () => {
+    // Field is already filled (has a signature image)
+    session.fields = [makeField({ id: 's1', page: 1, kind: 'signature', value_text: 'signed' })];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+
+    // Should open the signature drawer, NOT auto-apply
+    expect(result.current.sigDrawer).not.toBeNull();
+    expect(result.current.sigDrawer?.field.id).toBe('s1');
+    expect(result.current.sigDrawer?.kind).toBe('signature');
+    // setSignature should NOT have been called (no auto-apply)
+    expect(session.setSignature).not.toHaveBeenCalled();
+  });
+
+  it('clicking a filled text field re-opens the text drawer', async () => {
+    session.fields = [makeField({ id: 't1', page: 1, kind: 'text', value_text: 'existing value' })];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
+
+    await act(async () => {
+      await result.current.handleFieldClick(session.fields[0]!);
+    });
+
+    expect(result.current.textDrawer).not.toBeNull();
+    expect(result.current.textDrawer?.field.id).toBe('t1');
+  });
+});
+
 describe('useSigningFillController — decline + withdraw consent', () => {
   it('decline: cancelled confirm is a no-op', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(false);
