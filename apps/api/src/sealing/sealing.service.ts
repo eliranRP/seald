@@ -279,9 +279,12 @@ export class SealingService {
         // define the box exactly as the user placed it. Content renders
         // inside the box — no external offsets.
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
+          // Nudge: 15% up, 30% left
+          if (sigImg)
+            page.drawImage(sigImg, { x: x - w * 0.3, y: y + h * 0.15, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
+          // Nudge: 15% up
+          if (initialsImg) page.drawImage(initialsImg, { x, y: y + h * 0.15, width: w, height: h });
         } else if (f.kind === 'checkbox') {
           page.drawRectangle({
             x,
