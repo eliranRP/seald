@@ -8,8 +8,8 @@ import { resolve } from 'node:path';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { burnInField } from '../src/sealing/burn-in-fields';
 
-const API = 'http://localhost:3000';
-const ENV_ID = '351bf593-94bc-4590-b575-07ef8cb42f15';
+const API = 'https://api.seald.nromomentum.com';
+const ENV_ID = '08734d14-6331-4920-b7f9-b9d07ae05a62';
 
 async function getJwt(): Promise<string> {
   // Generate a magic link via admin API and exchange it for a session
@@ -109,19 +109,8 @@ async function run() {
   iniCtx.fillText('EA', 30, 80);
   const initialsImg = await pdf.embedPng(iniCanvas.toBuffer('image/png'));
 
-  // Override with production field coordinates to match what the user sees
-  const prodFields = [
-    { kind: 'signature', page: 1, x: 0.15, y: 0.0689, width: 0.3571, height: 0.073 },
-    { kind: 'signature', page: 1, x: 0.15, y: 0.3878, width: 0.3571, height: 0.073 },
-    { kind: 'signature', page: 1, x: 0.1696, y: 0.7, width: 0.3571, height: 0.073 },
-  ];
-  // Use prod fields if available, otherwise DB fields
-  const fieldsToRender =
-    prodFields.length > 0
-      ? prodFields.map((f) => ({ ...f, value_text: null, value_boolean: null }))
-      : envelope.fields;
-
-  // Fill in text values that would come from the signer
+  // Fill in text values for fields that don't have them from DB
+  const fieldsToRender = envelope.fields;
   for (const f of fieldsToRender) {
     if (f.kind === 'date') f.value_text = '2026-05-06';
     if (f.kind === 'text') f.value_text = 'sample text';

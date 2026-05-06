@@ -95,13 +95,13 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
       });
     }
   } else {
-    // text / date / email
+    // text / date / email — left-align within the field box to match
+    // the signing screen's display (green box with left-aligned text).
     const text = f.value_text ?? '';
     const fontSize = 12;
-    const textWidth = assets.helvetica.widthOfTextAtSize(text, fontSize);
     const textHeight = assets.helvetica.heightAtSize(fontSize);
     page.drawText(text, {
-      x: cx - textWidth / 2,
+      x: cx - w / 2 + 4,
       y: cy - textHeight / 2,
       size: fontSize,
       font: assets.helvetica,
