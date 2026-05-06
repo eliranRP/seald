@@ -286,9 +286,12 @@ export class SealingService {
           if (initialsImg)
             page.drawImage(initialsImg, { x: x - iniXOffset, y: adjY, width: w, height: h });
         } else if (f.kind === 'checkbox') {
+          // Nudge checkbox: 60pt up, 20pt right to align with editor position.
+          const cbX = x + 20;
+          const cbY = adjY + 60;
           page.drawRectangle({
-            x,
-            y: adjY,
+            x: cbX,
+            y: cbY,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -298,8 +301,8 @@ export class SealingService {
             const inset = Math.min(w, h) * 0.18;
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
-            const left = x + inset;
-            const bottom = adjY + inset;
+            const left = cbX + inset;
+            const bottom = cbY + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -315,11 +318,11 @@ export class SealingService {
             });
           }
         } else {
-          // text / date / email
+          // text / date / email — nudge 60pt up, 20pt right.
           const text = f.value_text ?? '';
           page.drawText(text, {
-            x,
-            y: adjY + h * 0.25,
+            x: x + 20,
+            y: adjY + 60 + h * 0.25,
             size: Math.min(h * 0.7, 14),
             font: helvetica,
             color: rgb(0, 0, 0),
