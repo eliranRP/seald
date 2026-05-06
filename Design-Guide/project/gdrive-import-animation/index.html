@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Seald — GDrive Import Animation (Design Guide)</title>
+  <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+  <link rel="stylesheet" href="../colors_and_type.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { margin: 0; padding: 0; background: var(--ink-50); }
+    *, *::before, *::after { box-sizing: border-box; }
+    #root { font-family: var(--font-sans); color: var(--fg-2); min-height: 100vh; }
+
+    .stepper {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200;
+      display: flex; gap: 6px; background: #fff; border: 1px solid var(--border-1);
+      border-radius: 18px; padding: 6px; box-shadow: var(--shadow-md);
+    }
+    .stepper button {
+      border: none; background: transparent; padding: 7px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; color: var(--fg-3); cursor: pointer;
+    }
+    .stepper button:hover { background: var(--ink-50); color: var(--fg-1); }
+    .stepper button.on { background: var(--ink-900); color: #fff; }
+
+    /* ---- Animations matching SendingOverlay ---- */
+    @keyframes scanBeam {
+      0%   { top: 8px; opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { top: 130px; opacity: 0; }
+    }
+    @keyframes shimmer {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes pulseRing {
+      0%   { transform: scale(0.9); opacity: 0.5; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes checkPop {
+      0%   { transform: scale(0); }
+      60%  { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    @keyframes driveIconFloat {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-4px); }
+    }
+    @keyframes arrowFlow {
+      0%   { opacity: 0; transform: translateX(-8px); }
+      50%  { opacity: 1; }
+      100% { opacity: 0; transform: translateX(8px); }
+    }
+
+    /* ---- Overlay ---- */
+    .import-overlay {
+      position: fixed; inset: 0; z-index: 120;
+      background: radial-gradient(1200px 600px at 50% -10%, var(--indigo-50) 0%, var(--bg-app) 55%);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeUp 300ms ease;
+    }
+    .import-card {
+      text-align: center; max-width: 380px; padding: 40px 32px;
+    }
+
+    /* ---- Visual: Drive icon → PDF ---- */
+    .visual {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; margin-bottom: 32px; height: 120px;
+    }
+    .drive-icon {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: #fff; border: 1px solid var(--border-1);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow-sm);
+      animation: driveIconFloat 2s ease-in-out infinite;
+    }
+    .drive-icon img { width: 32px; height: 32px; }
+    .flow-arrows {
+      display: flex; gap: 2px;
+    }
+    .flow-arrow {
+      width: 6px; height: 6px; border-radius: 999px;
+      background: var(--indigo-400);
+      animation: arrowFlow 1.2s ease-in-out infinite;
+    }
+    .flow-arrow:nth-child(2) { animation-delay: 0.2s; }
+    .flow-arrow:nth-child(3) { animation-delay: 0.4s; }
+    .pdf-doc {
+      width: 64px; height: 84px; background: #fff;
+      border: 1px solid var(--border-1); border-radius: 6px;
+      box-shadow: var(--shadow-sm); position: relative; overflow: hidden;
+    }
+    .pdf-doc .scan-line {
+      position: absolute; left: 6px; right: 6px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--indigo-500), transparent);
+      border-radius: 1px;
+      box-shadow: 0 0 8px var(--indigo-400);
+      animation: scanBeam 1.1s ease-in-out infinite;
+    }
+    .pdf-doc .line {
+      height: 3px; background: var(--ink-100); border-radius: 1px;
+      margin: 10px 8px 0;
+    }
+    .pdf-doc .line.short { width: 60%; }
+    .pdf-doc .line:nth-child(3) { margin-top: 6px; }
+    .pdf-doc .line:nth-child(4) { margin-top: 6px; width: 75%; }
+    .pdf-doc .line:nth-child(5) { margin-top: 6px; width: 50%; }
+    .pdf-doc .line:nth-child(6) { margin-top: 6px; }
+
+    /* ---- Progress bar ---- */
+    .progress-track {
+      width: 100%; height: 6px; background: var(--ink-100);
+      border-radius: 999px; overflow: hidden; margin-bottom: 24px;
+    }
+    .progress-fill {
+      height: 100%; background: var(--indigo-600);
+      border-radius: 999px; position: relative; overflow: hidden;
+      transition: width 400ms ease;
+    }
+    .progress-fill::after {
+      content: ''; position: absolute; inset: 0;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+      animation: shimmer 1.6s linear infinite;
+    }
+
+    /* ---- Step list ---- */
+    .steps { display: flex; flex-direction: column; gap: 10px; text-align: left; }
+    .step {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; font-weight: 500; color: var(--fg-3);
+      animation: fadeUp 300ms ease both;
+    }
+    .step.active { color: var(--fg-1); font-weight: 600; }
+    .step.done { color: var(--success-700); }
+    .step-dot {
+      width: 22px; height: 22px; border-radius: 999px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--ink-100); position: relative;
+    }
+    .step.active .step-dot {
+      background: var(--indigo-600);
+    }
+    .step.active .step-dot::after {
+      content: ''; position: absolute; inset: -4px;
+      border: 2px solid var(--indigo-400); border-radius: 999px;
+      animation: pulseRing 1.4s ease-out infinite;
+    }
+    .step.done .step-dot {
+      background: var(--success-500);
+      animation: checkPop 300ms ease both;
+    }
+    .step.done .step-dot svg { stroke: #fff; }
+    .step.active .step-dot .inner-dot {
+      width: 6px; height: 6px; border-radius: 999px; background: #fff;
+    }
+
+    /* ---- Title & subtitle ---- */
+    .import-title {
+      font-size: 18px; font-weight: 600; color: var(--fg-1);
+      margin: 0 0 4px; font-family: var(--font-sans);
+    }
+    .import-sub {
+      font-size: 13px; color: var(--fg-3); margin: 0 0 24px;
+    }
+
+    /* ---- Done state ---- */
+    .done-check {
+      width: 56px; height: 56px; border-radius: 999px;
+      background: var(--success-500); margin: 0 auto 16px;
+      display: flex; align-items: center; justify-content: center;
+      animation: checkPop 400ms cubic-bezier(0.5, 1.8, 0.5, 1);
+    }
+
+    /* ---- Mobile frame ---- */
+    .mobile-frame {
+      width: 375px; height: 700px; background: #fff;
+      border-radius: 28px; border: 2px solid var(--border-1);
+      overflow: hidden; box-shadow: var(--shadow-xl);
+      position: relative;
+    }
+    .mobile-frame .import-overlay {
+      position: absolute; border-radius: 26px;
+    }
+    .mobile-header {
+      height: 52px; display: flex; align-items: center;
+      padding: 0 16px; gap: 10px; border-bottom: 1px solid var(--border-1);
+    }
+
+    /* ---- Layout ---- */
+    .demo-layout {
+      display: flex; gap: 48px; align-items: center;
+      justify-content: center; min-height: 100vh; padding: 60px 40px 100px;
+    }
+    .demo-label {
+      font-size: 12px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--fg-4);
+      margin-bottom: 12px; text-align: center;
+    }
+  </style>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="../ui_kits/_shared/components.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const SCREENS = [
+  { id: 'importing', label: 'Importing' },
+  { id: 'converting', label: 'Converting' },
+  { id: 'done', label: 'Done' },
+];
+
+const STEPS = [
+  { id: 'fetch', label: 'Fetching from Google Drive' },
+  { id: 'convert', label: 'Converting to PDF' },
+  { id: 'prepare', label: 'Preparing document' },
+];
+
+function CheckIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+}
+
+function DriveIconSvg() {
+  return (
+    <svg width="32" height="32" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+      <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+      <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-20.4 35.3c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+      <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.5l5.4 9.35z" fill="#ea4335"/>
+      <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+      <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+      <path d="m73.4 26.5-10.1-17.5c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 23.8h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+    </svg>
+  );
+}
+
+function ImportOverlay({ phase, fileName }) {
+  const stepState = (idx) => {
+    if (phase === 'done') return 'done';
+    if (phase === 'importing' && idx === 0) return 'active';
+    if (phase === 'importing' && idx > 0) return 'pending';
+    if (phase === 'converting' && idx < 1) return 'done';
+    if (phase === 'converting' && idx === 1) return 'active';
+    if (phase === 'converting' && idx > 1) return 'pending';
+    return 'pending';
+  };
+
+  const pct = phase === 'importing' ? 25 : phase === 'converting' ? 65 : 100;
+
+  return (
+    <div className="import-overlay">
+      <div className="import-card">
+        {phase === 'done' ? (
+          <>
+            <div className="done-check">
+              <CheckIcon size={28} />
+            </div>
+            <h2 className="import-title">Import complete</h2>
+            <p className="import-sub">Your document is ready to edit</p>
+          </>
+        ) : (
+          <>
+            {/* Visual: Drive icon → arrows → PDF with scan */}
+            <div className="visual">
+              <div className="drive-icon">
+                <DriveIconSvg />
+              </div>
+              <div className="flow-arrows">
+                <div className="flow-arrow" />
+                <div className="flow-arrow" />
+                <div className="flow-arrow" />
+              </div>
+              <div className="pdf-doc">
+                <div className="scan-line" />
+                <div className="line" />
+                <div className="line short" />
+                <div className="line" />
+                <div className="line" />
+                <div className="line short" />
+                <div className="line" />
+              </div>
+            </div>
+
+            <h2 className="import-title">Importing from Google Drive</h2>
+            <p className="import-sub">{fileName}</p>
+
+            {/* Progress bar with shimmer */}
+            <div className="progress-track">
+              <div className="progress-fill" style={{ width: pct + '%' }} />
+            </div>
+
+            {/* Step checklist */}
+            <div className="steps">
+              {STEPS.map((step, i) => {
+                const state = stepState(i);
+                return (
+                  <div key={step.id} className={`step ${state}`} style={{ animationDelay: `${i * 80}ms` }}>
+                    <div className="step-dot">
+                      {state === 'done' && <CheckIcon size={12} />}
+                      {state === 'active' && <div className="inner-dot" />}
+                    </div>
+                    <span>{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [screen, setScreen] = useState('importing');
+
+  return (
+    <div>
+      <div className="demo-layout">
+        {/* Desktop */}
+        <div>
+          <div className="demo-label">Desktop</div>
+          <div style={{ width: 700, height: 500, background: '#e8e8e8', borderRadius: 12, border: '1px solid var(--border-1)', position: 'relative', overflow: 'hidden' }}>
+            <ImportOverlay phase={screen} fileName="Lien Waiver - NRO Momentum.docx" />
+          </div>
+        </div>
+
+        {/* Mobile */}
+        <div>
+          <div className="demo-label">Mobile</div>
+          <div className="mobile-frame">
+            <div className="mobile-header">
+              <img src="../assets/logo.svg" height="20" alt="Seald" />
+              <span style={{ flex: 1 }} />
+              <Icon name="menu" size={20} />
+            </div>
+            <ImportOverlay phase={screen} fileName="Lien Waiver - NRO Momentum.docx" />
+          </div>
+        </div>
+      </div>
+
+      <div className="stepper">
+        {SCREENS.map(s => (
+          <button key={s.id} className={screen === s.id ? 'on' : ''} onClick={() => setScreen(s.id)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
