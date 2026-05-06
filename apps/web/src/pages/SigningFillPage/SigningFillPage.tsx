@@ -39,10 +39,8 @@ import {
   WithdrawBtn,
 } from './SigningFillPage.styles';
 
-// Default field box dimensions when the backend didn't send explicit width/
-// height (the UI contract uses absolute ratios; the canvas is 560 wide).
-const CANVAS_WIDTH = 560;
-const CANVAS_HEIGHT = 740;
+import { CANVAS_WIDTH, denormalizeCoord, useCanvasHeight } from '@/lib/canvas-coords';
+import { usePdfDocument } from '@/lib/pdf';
 
 const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   signature: 200,
@@ -73,6 +71,8 @@ function Content() {
 
   const totalPages = envelope?.original_pages ?? 1;
   const pdfSrc = useSigningPdfSource(envelope?.id);
+  const { doc: signingPdfDoc } = usePdfDocument(pdfSrc);
+  const canvasHeight = useCanvasHeight(signingPdfDoc);
   const { fieldsByPage, fieldCountByPage } = useFieldsByPage(fields);
 
   // All field interaction state + handlers (rule 1.5 — page stays thin).
@@ -208,13 +208,13 @@ function Content() {
                     const uiKind = toUiKind(f);
                     const label = fieldLabel(f, uiKind);
                     const width = f.width
-                      ? Math.round(f.width * CANVAS_WIDTH)
+                      ? denormalizeCoord(f.width, CANVAS_WIDTH)
                       : DEFAULT_FIELD_W[uiKind];
                     const height = f.height
-                      ? Math.round(f.height * CANVAS_HEIGHT)
+                      ? denormalizeCoord(f.height, canvasHeight)
                       : DEFAULT_FIELD_H[uiKind];
-                    const x = f.x > 1 ? f.x : Math.round(f.x * CANVAS_WIDTH);
-                    const y = f.y > 1 ? f.y : Math.round(f.y * CANVAS_HEIGHT);
+                    const x = denormalizeCoord(f.x, CANVAS_WIDTH);
+                    const y = denormalizeCoord(f.y, canvasHeight);
                     return (
                       <SignerField
                         key={f.id}

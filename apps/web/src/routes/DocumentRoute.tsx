@@ -25,12 +25,7 @@ import {
 } from '../features/templates';
 import { createTemplate, updateTemplate } from '../features/templates/templatesApi';
 
-// The editor canvas is fixed-width; field coords are stored in px during the
-// draft and normalized to 0–1 just before the send hits the backend.
-// The canvas height depends on the PDF aspect ratio (560 * pageH / pageW).
-// The fallback 740 is only used when no PDF is loaded (placeholder mode).
-const CANVAS_WIDTH = 560;
-const CANVAS_HEIGHT_FALLBACK = 740;
+import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
 const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
@@ -57,10 +52,10 @@ function toNormalized(
   const widthPx = field.width ?? DEFAULT_PX[field.type as FieldKind]?.w ?? DEFAULT_PX.text.w;
   const heightPx = field.height ?? DEFAULT_PX[field.type as FieldKind]?.h ?? DEFAULT_PX.text.h;
   return {
-    x: Math.max(0, Math.min(1, field.x / CANVAS_WIDTH)),
-    y: Math.max(0, Math.min(1, field.y / canvasHeight)),
-    width: Math.max(0, Math.min(1, widthPx / CANVAS_WIDTH)),
-    height: Math.max(0, Math.min(1, heightPx / canvasHeight)),
+    x: normalizeCoord(field.x, CANVAS_WIDTH),
+    y: normalizeCoord(field.y, canvasHeight),
+    width: normalizeCoord(widthPx, CANVAS_WIDTH),
+    height: normalizeCoord(heightPx, canvasHeight),
   };
 }
 
@@ -237,18 +232,7 @@ export function DocumentRoute() {
    * sender identity captured by `GuestSenderEmailDialog`; for authed
    * users both args are `undefined` and the server uses the JWT email.
    */
-  // Compute the actual canvas height from the PDF's aspect ratio.
-  // The canvas is fixed at CANVAS_WIDTH (560px); the PDF is rendered
-  // edge-to-edge, so the height is 560 * (pageH / pageW). This must
-  // match the DOM element height that field pixel coords are relative to.
-  const [canvasHeight, setCanvasHeight] = useState(CANVAS_HEIGHT_FALLBACK);
-  useEffect(() => {
-    if (!pdfDoc) return;
-    void pdfDoc.getPage(1).then((page) => {
-      const vp = page.getViewport({ scale: 1 });
-      setCanvasHeight(CANVAS_WIDTH * (vp.height / vp.width));
-    });
-  }, [pdfDoc]);
+  const canvasHeight = useCanvasHeight(pdfDoc);
 
   const runSend = useCallback(
     async (senderEmail?: string, senderName?: string) => {
