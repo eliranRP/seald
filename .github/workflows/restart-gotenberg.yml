@@ -26,11 +26,11 @@ jobs:
             echo "=== Current state ==="
             sudo docker compose ps gotenberg
 
-            echo "=== Restarting gotenberg ==="
-            sudo docker compose restart gotenberg
+            echo "=== Force-recreating gotenberg (picks up new healthcheck config) ==="
+            sudo docker compose up -d --force-recreate gotenberg
 
-            echo "=== Waiting for healthy (max 60s) ==="
-            for i in $(seq 1 20); do
+            echo "=== Waiting for healthy (max 120s, includes 60s start_period) ==="
+            for i in $(seq 1 40); do
               status=$(sudo docker inspect -f '{{.State.Health.Status}}' \
                 $(sudo docker compose ps -q gotenberg) 2>/dev/null || echo unknown)
               echo "  [$i/20] gotenberg health=$status"
@@ -41,5 +41,5 @@ jobs:
               sleep 3
             done
 
-            echo "WARNING: gotenberg still not healthy after 60s"
+            echo "WARNING: gotenberg still not healthy after 120s"
             sudo docker compose logs --tail=30 gotenberg
