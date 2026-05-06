@@ -4,7 +4,8 @@ import { ArrowRight, Send } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import { DrivePicker } from '@/components/drive-picker';
 import type { DriveFile } from '@/components/drive-picker';
-import { useDriveImport } from '@/features/gdriveImport';
+import { useDriveImport, ImportOverlay } from '@/features/gdriveImport';
+import type { ImportPhase } from '@/features/gdriveImport';
 import { useGDriveAccounts } from '@/routes/settings/integrations/useGDriveAccounts';
 import { apiClient } from '@/lib/api/apiClient';
 import {
@@ -160,8 +161,9 @@ export function MobileSendPage() {
   const driveAccounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = driveAccounts[0]?.id ?? null;
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
-  const [driveImporting, setDriveImporting] = useState(false);
+  const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
   const [driveImportError, setDriveImportError] = useState<string | null>(null);
+  const [driveImportFileName, setDriveImportFileName] = useState('');
 
   const beginDriveOAuth = useCallback(async (): Promise<void> => {
     try {
@@ -666,11 +668,7 @@ export function MobileSendPage() {
                 Converting photo to PDF…
               </ErrorBanner>
             )}
-            {driveImporting && (
-              <ErrorBanner role="status" aria-live="polite">
-                Importing file from Google Drive…
-              </ErrorBanner>
-            )}
+            {/* ImportOverlay renders as a fixed overlay (z-index 120) */}
             {driveImportError && (
               <ErrorBanner role="alert">Google Drive import failed. Please try again.</ErrorBanner>
             )}
@@ -799,6 +797,14 @@ export function MobileSendPage() {
         existingEmails={existingSignerEmails}
       />
 
+      {/* Google Drive import overlay — full-screen animated overlay shown
+          during Drive file import (fetch + Gotenberg conversion). */}
+      <ImportOverlay
+        open={driveImportPhase !== null}
+        phase={driveImportPhase ?? 'fetching'}
+        fileName={driveImportFileName}
+      />
+
       {/* Google Drive picker — uses the desktop DrivePicker component which
           renders responsively at mobile widths (375px+). The picker returns
           DriveFile metadata; DrivePickerBridge converts it via useDriveImport
@@ -811,13 +817,13 @@ export function MobileSendPage() {
           onReconnect={reauthorizeDrive}
           onFile={(file) => {
             setDrivePickerOpen(false);
-            setDriveImporting(false);
             setDriveImportError(null);
             handlePickFile(file);
           }}
-          onImportStateChange={(importing, error) => {
-            setDriveImporting(importing);
+          onImportPhaseChange={(phase, error, fileName) => {
+            setDriveImportPhase(phase);
             setDriveImportError(error ?? null);
+            if (fileName !== undefined) setDriveImportFileName(fileName);
           }}
         />
       )}
@@ -838,30 +844,49 @@ interface DrivePickerBridgeProps {
   readonly accountId: string;
   readonly onReconnect: () => void;
   readonly onFile: (file: File) => void;
-  readonly onImportStateChange?: (importing: boolean, error?: string) => void;
+  readonly onImportPhaseChange?: (
+    phase: ImportPhase | null,
+    error?: string,
+    fileName?: string,
+  ) => void;
 }
 
 function DrivePickerBridge(props: DrivePickerBridgeProps) {
-  const { open, onClose, accountId, onReconnect, onFile, onImportStateChange } = props;
+  const { open, onClose, accountId, onReconnect, onFile, onImportPhaseChange } = props;
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const importer = useDriveImport({
     accountId,
     onReady: (file) => {
-      onImportStateChange?.(false);
-      onFile(file);
+      // Show "done" phase for 800ms before closing and handing off.
+      onImportPhaseChange?.('done');
+      doneTimerRef.current = setTimeout(() => {
+        onImportPhaseChange?.(null);
+        onFile(file);
+      }, 800);
     },
   });
 
-  // Notify parent of import state changes so it can show a loading banner.
+  // Clean up done timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    };
+  }, []);
+
+  // Map importer.state.kind to ImportPhase for the overlay.
   useEffect(() => {
     const { kind } = importer.state;
-    if (kind === 'starting' || kind === 'running') {
-      onImportStateChange?.(true);
+    if (kind === 'starting') {
+      const fileName = importer.state.file.name;
+      onImportPhaseChange?.('fetching', undefined, fileName);
+    } else if (kind === 'running') {
+      onImportPhaseChange?.('converting');
     } else if (kind === 'failed') {
       const errorMsg =
         'error' in importer.state ? String(importer.state.error) : 'conversion-failed';
-      onImportStateChange?.(false, errorMsg);
+      onImportPhaseChange?.(null, errorMsg);
     }
-  }, [importer.state, onImportStateChange]);
+  }, [importer.state, onImportPhaseChange]);
 
   return (
     <DrivePicker

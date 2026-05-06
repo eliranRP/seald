@@ -11,11 +11,8 @@ import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
 import { usePdfDocument } from '../lib/pdf';
-import {
-  ConversionFailedDialog,
-  ConversionProgressDialog,
-  useDriveImport,
-} from '../features/gdriveImport';
+import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
+import type { ImportPhase } from '../features/gdriveImport';
 import { useConnectGDrive, useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
@@ -145,16 +142,42 @@ export function UploadRoute() {
     connectDrive.mutate();
   }, [connectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
+  const [driveImportFileName, setDriveImportFileName] = useState('');
+  const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const driveImport = useDriveImport({
     accountId: driveAccountId ?? '',
     onReady: (file) => {
-      // Drop the converted bytes through the same handler the dropzone
-      // uses — so downstream signer collection + draft creation paths
-      // stay identical.
-      setPdfFile(file);
-      setSelectedSigners([]);
+      // Show "done" phase for 800ms before closing and handing off.
+      setDriveImportPhase('done');
+      doneTimerRef.current = setTimeout(() => {
+        setDriveImportPhase(null);
+        setPdfFile(file);
+        setSelectedSigners([]);
+      }, 800);
     },
   });
+
+  // Clean up done timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+    };
+  }, []);
+
+  // Map driveImport.state to overlay phase.
+  useEffect(() => {
+    const { kind } = driveImport.state;
+    if (kind === 'starting') {
+      setDriveImportPhase('fetching');
+      setDriveImportFileName(driveImport.state.file.name);
+    } else if (kind === 'running') {
+      setDriveImportPhase('converting');
+    } else if (kind === 'failed') {
+      setDriveImportPhase(null);
+    }
+    // `idle` is handled by onReady above (with 800ms done animation).
+  }, [driveImport.state]);
 
   // The upload-page entry doesn't host its own "use this template"
   // experience — it only gates document creation on a PDF + signers.
@@ -444,16 +467,10 @@ export function UploadRoute() {
           }}
         />
       ) : null}
-      <ConversionProgressDialog
-        open={driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'}
-        fileName={
-          driveImport.state.kind === 'starting' || driveImport.state.kind === 'running'
-            ? driveImport.state.file.name
-            : ''
-        }
-        onCancel={() => {
-          void driveImport.cancelImport();
-        }}
+      <ImportOverlay
+        open={driveImportPhase !== null}
+        phase={driveImportPhase ?? 'fetching'}
+        fileName={driveImportFileName}
       />
       <ConversionFailedDialog
         open={driveImport.state.kind === 'failed'}
