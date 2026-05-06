@@ -500,7 +500,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
                 <FieldIcon size={12} strokeWidth={1.75} color={iconColor} aria-hidden />
                 <TileHeaderLabel>{meta.label}</TileHeaderLabel>
               </TileHeader>
-              {(field.type === 'signature' || field.type === 'initials') && <TileSignatureLine />}
+              <TileSignatureLine />
               <TileEyebrow>SIGN ID (UUID)</TileEyebrow>
               {s !== null ? (
                 <InitialsBadge $color={s.color} aria-hidden>

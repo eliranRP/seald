@@ -49,7 +49,7 @@ export const SignatureField = forwardRef<HTMLDivElement, SignatureFieldProps>((p
     onKeyDown?.(e);
   };
 
-  const showSignatureLine = (kind === 'signature' || kind === 'initials') && !filled;
+  const showSignatureLine = !filled;
 
   return (
     <FieldRoot
