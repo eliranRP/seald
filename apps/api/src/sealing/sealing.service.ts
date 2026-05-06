@@ -275,17 +275,17 @@ export class SealingService {
         // guide line position so the burn-in matches the visual placement.
         //
         // In PDF coords (bottom-origin): guideY = y + h * 0.4
-        const guideY = y + h * 0.4;
-
+        // Render content inside the field box. The stored (x, y, w, h)
+        // define the box exactly as the user placed it. Content renders
+        // inside the box — no external offsets.
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y: guideY, width: w, height: h * 0.6 });
+          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y: guideY, width: w, height: h * 0.6 });
+          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Center checkbox on the guide line
           page.drawRectangle({
             x,
-            y: guideY - h * 0.5,
+            y,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -296,7 +296,7 @@ export class SealingService {
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
             const left = x + inset;
-            const bottom = guideY - h * 0.5 + inset;
+            const bottom = y + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -314,10 +314,11 @@ export class SealingService {
         } else {
           // text / date / email
           const text = f.value_text ?? '';
-          // Text baseline at the guide line position
+          // Text baseline at 30% from box bottom — places visible
+          // text body in the lower-center of the field box.
           page.drawText(text, {
             x: x + 4,
-            y: guideY,
+            y: y + h * 0.3,
             size: 12,
             font: helvetica,
             color: rgb(0, 0, 0),
