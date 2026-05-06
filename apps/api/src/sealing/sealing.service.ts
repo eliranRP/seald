@@ -264,21 +264,25 @@ export class SealingService {
         const w = (f.width ?? defaultWidth(f.kind)) * pw;
         const h = (f.height ?? defaultHeight(f.kind)) * ph;
         const x = f.x * pw;
-        // Flip y: wire contract y is from top, pdf-lib y is from bottom.
-        const y = ph - f.y * ph - h;
-        // The positioning guide line in the PlacedField tile sits at
-        // ~60% from the top (= 40% from bottom in PDF coords). Content
-        // should align with this guide line so the burn-in matches
-        // where the user visually placed the field.
-        const guideY = y + h * 0.4;
+
+        // Y correction: the web editor's canvas is 560×740px, but the
+        // PDF at 560px wide is 560/pageWidth * pageHeight tall (~791px
+        // for A4). The editor normalizes y by dividing by 740 (canvas
+        // height) instead of 791 (rendered PDF height), creating a
+        // systematic ~6.5% vertical offset. Correct by scaling f.y.
+        const CANVAS_W = 560;
+        const CANVAS_H = 740;
+        const renderedPdfH = ph * (CANVAS_W / pw);
+        const correctedY = f.y * (CANVAS_H / renderedPdfH);
+        const y = ph - correctedY * ph - h;
 
         if (f.kind === 'signature') {
           if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
         } else if (f.kind === 'initials') {
           if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
         } else if (f.kind === 'checkbox') {
-          // Center checkbox on the guide line
-          const cbY = guideY - h / 2;
+          // Draw at the corrected y position
+          const cbY = y;
           page.drawRectangle({
             x,
             y: cbY,
@@ -312,7 +316,7 @@ export class SealingService {
           const text = f.value_text ?? '';
           page.drawText(text, {
             x: x + 4,
-            y: guideY,
+            y,
             size: Math.min(h * 0.4, 12),
             font: helvetica,
             color: rgb(0, 0, 0),
