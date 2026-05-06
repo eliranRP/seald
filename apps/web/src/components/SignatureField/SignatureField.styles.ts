@@ -68,3 +68,12 @@ export const SignatureLine = styled.div`
   border-bottom: 1.5px solid ${({ theme }) => theme.color.indigo[300]};
   align-self: center;
 `;
+
+/** Checkbox square preview — shows the field type visually. */
+export const CheckboxPreview = styled.div`
+  width: 18px;
+  height: 18px;
+  border: 2px solid ${({ theme }) => theme.color.indigo[400]};
+  border-radius: 3px;
+  align-self: center;
+`;

@@ -267,12 +267,12 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
-        // Nudge all field types up by 15% of field height — the web
-        // editor's PlacedField tile includes a header row (icon + label)
-        // and SIGN ID eyebrow that shift the visual content area lower
-        // than the stored y coordinate. Without this offset, burn-in
-        // content renders below where the user positioned the field.
-        const yOffset = h * 0.15;
+        // Nudge field content up — the web editor's PlacedField tile
+        // includes a header row (icon + label) and SIGN ID eyebrow that
+        // shift the visual content area lower than the stored y coord.
+        // Checkbox fields are small (24×24) and don't have the same
+        // proportional header offset, so they use a smaller nudge.
+        const yOffset = f.kind === 'checkbox' ? h * 0.05 : h * 0.15;
         const adjY = y + yOffset;
 
         if (f.kind === 'signature') {
