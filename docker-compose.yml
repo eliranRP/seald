@@ -116,10 +116,16 @@ services:
       - '--webhook-disable=true'
       - '--pdfengines-disable-routes=true'
     healthcheck:
-      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      # Gotenberg v8 ships with curl (re-added for health checks);
+      # wget may not be present in all v8 builds. Using curl -f fails
+      # on non-2xx responses so Docker correctly marks unhealthy.
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      # LibreOffice takes 30-60s to boot on small instances; without
+      # start_period the container is marked unhealthy before it's ready.
+      start_period: 60s
     # Resource caps to prevent a malicious upload from OOMing the box.
     # The 25 MB inbound size cap (apps/api GDRIVE_CONVERSION_MAX_BYTES)
     # bounds the input; LibreOffice peak memory for a 25 MB .docx is
