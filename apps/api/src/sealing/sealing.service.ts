@@ -268,17 +268,30 @@ export class SealingService {
         // Flip y: wire contract y is from top, pdf-lib y is from bottom.
         const y = ph - f.y * ph - h;
 
-        // Render at the stored field coordinates — no offsets.
-        // The web editor's normalized (x, y, w, h) already represent
-        // where the content should appear on the page.
+        // Per-field offsets calibrated at scale=1 with the 2-step
+        // interactive tool (burn-in-interactive.html). Values are in
+        // PDF points and account for the PlacedField tile's header,
+        // guide line position, and pdf-lib baseline rendering.
+        const BURN_OFFSETS: Record<string, { y: number; x: number }> = {
+          signature: { y: 37, x: 27 },
+          initials: { y: 46, x: 39 },
+          date: { y: 30, x: 32 },
+          text: { y: 40, x: 29 },
+          checkbox: { y: 24, x: 58 },
+          email: { y: 62, x: 20 },
+        };
+        const off = BURN_OFFSETS[f.kind] ?? { y: 35, x: 25 };
+        const bx = x + off.x;
+        const by = y + off.y;
+
         if (f.kind === 'signature') {
-          if (sigImg) page.drawImage(sigImg, { x, y, width: w, height: h });
+          if (sigImg) page.drawImage(sigImg, { x: bx, y: by, width: w, height: h });
         } else if (f.kind === 'initials') {
-          if (initialsImg) page.drawImage(initialsImg, { x, y, width: w, height: h });
+          if (initialsImg) page.drawImage(initialsImg, { x: bx, y: by, width: w, height: h });
         } else if (f.kind === 'checkbox') {
           page.drawRectangle({
-            x,
-            y,
+            x: bx,
+            y: by,
             width: w,
             height: h,
             borderColor: rgb(0, 0, 0),
@@ -288,8 +301,8 @@ export class SealingService {
             const inset = Math.min(w, h) * 0.18;
             const innerW = w - inset * 2;
             const innerH = h - inset * 2;
-            const left = x + inset;
-            const bottom = y + inset;
+            const left = bx + inset;
+            const bottom = by + inset;
             const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
             page.drawLine({
               start: { x: left, y: bottom + innerH * 0.6 },
@@ -308,8 +321,8 @@ export class SealingService {
           // text / date / email
           const text = f.value_text ?? '';
           page.drawText(text, {
-            x: x + 4,
-            y: y + h * 0.3,
+            x: bx,
+            y: by,
             size: 12,
             font: helvetica,
             color: rgb(0, 0, 0),
