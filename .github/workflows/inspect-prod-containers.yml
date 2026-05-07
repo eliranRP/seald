@@ -99,10 +99,19 @@ jobs:
                   console.log("APP_PUBLIC_URL pre-load:", process.env.APP_PUBLIC_URL);
                   try { process.loadEnvFile(r); } catch (e) { console.log("loadEnvFile threw:", e.message); }
                   console.log("APP_PUBLIC_URL post-load:", process.env.APP_PUBLIC_URL);
+                  const { parseEnv } = require("/app/apps/api/dist/src/config/env.schema.js");
+                  const parsed = parseEnv(process.env);
+                  console.log("parseEnv APP_PUBLIC_URL:", parsed.APP_PUBLIC_URL);
+                  console.log("parseEnv CORS_ORIGIN:", parsed.CORS_ORIGIN);
+                  console.log("parseEnv NODE_ENV:", parsed.NODE_ENV);
                 } catch (e) {
                   console.log("probe error:", e.message);
                 }
               ' 2>&1 || true
+              echo '--- audit-pdf.js verifyUrl construction ---'
+              sudo docker exec "$CID" grep -n "verify\|publicUrl" /app/apps/api/dist/src/sealing/audit-pdf.js 2>&1 | head -10 || true
+              echo '--- file mtime (image build timestamp signal) ---'
+              sudo docker exec "$CID" stat -c '%y %n' /app/apps/api/dist/src/config/env.schema.js /app/apps/api/dist/src/sealing/audit-pdf.js /app/apps/api/dist/src/sealing/sealing.service.js 2>&1 | head -5 || true
             else
               echo "(api container not running)"
             fi
