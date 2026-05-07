@@ -1,0 +1,78 @@
+name: Inspect prod containers (read-only diagnostic)
+
+# Read-only operator diagnostic: SSHes the EC2 host and dumps:
+#   - `docker ps -a` with image + command + ports
+#   - `sudo docker compose ps`
+#   - For every running container, the values of NODE_ENV /
+#     APP_PUBLIC_URL / CORS_ORIGIN / WORKER_ENABLED (no secrets).
+#   - The first 2 / last 2 lines of `/opt/seald/apps/api/.env` and a
+#     count of APP_PUBLIC_URL/CORS_ORIGIN lines (no values printed).
+#
+# Added 2026-05-07 to chase the recurring localhost-in-audit-PDF bug:
+# completed-email payloads keep flipping between the prod URL and
+# localhost across minutes, suggesting a rogue/duplicate worker
+# container with stale env. This workflow makes no changes — it just
+# tells us *what is actually running*.
+#
+# Manual trigger only.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  inspect:
+    name: SSH read-only inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: SSH inspect
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 4m
+          script: |
+            set -euo pipefail
+
+            echo '=== docker ps -a ==='
+            sudo docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Command}}'
+
+            echo
+            echo '=== docker compose ps (from /opt/seald) ==='
+            cd /opt/seald
+            sudo docker compose ps -a 2>&1 || true
+
+            echo
+            echo '=== Per-container env (NODE_ENV / APP_PUBLIC_URL / CORS_ORIGIN / WORKER_ENABLED) ==='
+            for cid in $(sudo docker ps -q); do
+              name=$(sudo docker inspect -f '{{.Name}}' "$cid" | sed 's|^/||')
+              echo "--- $name ($cid) ---"
+              sudo docker exec "$cid" sh -c \
+                'for k in NODE_ENV APP_PUBLIC_URL CORS_ORIGIN WORKER_ENABLED PDF_SIGNING_PROVIDER; do
+                   v=$(printenv "$k" || echo "<unset>")
+                   echo "$k=$v"
+                 done' 2>&1 || echo '(no shell or printenv in container)'
+            done
+
+            echo
+            echo '=== /opt/seald/apps/api/.env summary (no secrets) ==='
+            ENV_FILE=/opt/seald/apps/api/.env
+            if [ -f "$ENV_FILE" ]; then
+              echo "size: $(sudo wc -c < "$ENV_FILE") bytes"
+              echo "non-comment line count: $(sudo grep -cvE '^\s*(#|$)' "$ENV_FILE")"
+              echo "APP_PUBLIC_URL lines: $(sudo grep -cE '^APP_PUBLIC_URL=' "$ENV_FILE")"
+              echo "CORS_ORIGIN lines:    $(sudo grep -cE '^CORS_ORIGIN=' "$ENV_FILE")"
+              echo "NODE_ENV lines:       $(sudo grep -cE '^NODE_ENV=' "$ENV_FILE")"
+              echo "--- key list (no values) ---"
+              sudo grep -oE '^[A-Z_][A-Z0-9_]*=' "$ENV_FILE" | sort -u
+            else
+              echo "ENV_FILE missing"
+            fi
+
+            echo
+            echo '=== /opt/seald listing ==='
+            ls -la /opt/seald | head -20
