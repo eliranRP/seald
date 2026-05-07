@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { isFeatureEnabled } from 'shared';
 import styled from 'styled-components';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
@@ -210,7 +211,13 @@ export function AppShell() {
         isDeleting={account.isDeleting}
       />
       <Content>
-        <Outlet />
+        {/* Keyed by pathname so navigating to a different route remounts
+            the boundary and clears any prior caught error — otherwise a
+            crashed page would persist its fallback after the user navigates
+            away via the NavBar. */}
+        <ErrorBoundary key={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </Content>
       <ShellLegalFooter />
     </Shell>

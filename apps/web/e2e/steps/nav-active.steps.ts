@@ -18,18 +18,28 @@ Given('the user is signed in as {string}', async ({ seededUser, mockedApi }, ema
     fullName: 'Alice Example',
   });
   // Stub the dashboard + envelope APIs so each route renders without a
-  // live backend.
+  // live backend. Shape matches the `Envelope` contract from
+  // `envelopesApi.ts` — both EnvelopeDetailPage and SentConfirmationPage
+  // read `signers` + `short_code`, so a stale `recipients`-shaped payload
+  // tears the tree down on render (no top-level ErrorBoundary above NavBar).
   mockedApi.on('GET', /\/api\/envelopes(\?|$)/, { json: { items: [] } });
   mockedApi.on('GET', /\/api\/envelopes\/[^/]+$/, {
     json: {
       id: 'abc-123',
+      owner_id: '00000000-0000-4000-8000-000000000a11',
       title: 'Test envelope',
+      short_code: 'ABC-123',
       status: 'sent',
-      createdAt: '2026-04-25T10:00:00Z',
-      updatedAt: '2026-04-25T10:00:00Z',
-      recipients: [],
-      events: [],
-      documents: [],
+      original_pages: 1,
+      expires_at: '2026-05-25T10:00:00Z',
+      tc_version: '1.0',
+      privacy_version: '1.0',
+      sent_at: '2026-04-25T10:00:00Z',
+      completed_at: null,
+      signers: [],
+      fields: [],
+      created_at: '2026-04-25T10:00:00Z',
+      updated_at: '2026-04-25T10:00:00Z',
     },
   });
 });
