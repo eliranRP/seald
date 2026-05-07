@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { SignatureCapture, computeScaledFontSize, CAPTURE_WIDTH } from './SignatureCapture';
+import * as typedPreferences from './typedPreferences';
 
 beforeEach(() => {
   // jsdom does not implement HTMLCanvasElement.prototype.toBlob; stub it.
@@ -120,6 +121,125 @@ describe('SignatureCapture', () => {
       />,
     );
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  describe('typed preference persistence', () => {
+    beforeEach(() => {
+      window.localStorage.clear();
+    });
+
+    it('prefills the typed input with the saved signature for the email', () => {
+      window.localStorage.setItem(
+        'seald:signing:typed:v1',
+        JSON.stringify({ 'maya@example.com': { signature: 'Maya Custom Name' } }),
+      );
+      const { getByLabelText } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="signature"
+          defaultName="Maya Raskin"
+          email="maya@example.com"
+          onCancel={() => {}}
+          onApply={() => {}}
+        />,
+      );
+      const input = getByLabelText(/your full name/i) as HTMLInputElement;
+      expect(input.value).toBe('Maya Custom Name');
+    });
+
+    it('prefills the typed input with the saved initials for the email', () => {
+      window.localStorage.setItem(
+        'seald:signing:typed:v1',
+        JSON.stringify({ 'maya@example.com': { initials: 'mlr' } }),
+      );
+      const { getByRole } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="initials"
+          defaultName="Maya Raskin"
+          email="maya@example.com"
+          onCancel={() => {}}
+          onApply={() => {}}
+        />,
+      );
+      const input = getByRole('textbox', { name: 'Initials' }) as HTMLInputElement;
+      expect(input.value).toBe('mlr');
+    });
+
+    it('falls back to the default-derived value when nothing is saved', () => {
+      const { getByRole } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="initials"
+          defaultName="Maya Raskin"
+          email="maya@example.com"
+          onCancel={() => {}}
+          onApply={() => {}}
+        />,
+      );
+      const input = getByRole('textbox', { name: 'Initials' }) as HTMLInputElement;
+      expect(input.value).toBe('MR');
+    });
+
+    it('persists the typed value to localStorage on Apply (typed tab)', async () => {
+      const onApply = vi.fn();
+      const { getByLabelText, getByRole } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="signature"
+          defaultName="Maya Raskin"
+          email="maya@example.com"
+          onCancel={() => {}}
+          onApply={onApply}
+        />,
+      );
+      const input = getByLabelText(/your full name/i);
+      await userEvent.clear(input);
+      await userEvent.type(input, 'Maya Q. Raskin');
+      await userEvent.click(getByRole('button', { name: /apply/i }));
+      await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      const raw = window.localStorage.getItem('seald:signing:typed:v1');
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw ?? '{}') as Record<string, { signature?: string }>;
+      expect(parsed['maya@example.com']?.signature).toBe('Maya Q. Raskin');
+    });
+
+    it('does NOT call saveTypedPreference when the user switches to the draw tab', async () => {
+      const saveSpy = vi.spyOn(typedPreferences, 'saveTypedPreference');
+      const { getByRole } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="signature"
+          defaultName="Maya Raskin"
+          email="maya@example.com"
+          onCancel={() => {}}
+          onApply={() => {}}
+        />,
+      );
+      await userEvent.click(getByRole('tab', { name: /draw/i }));
+      // Apply is disabled until a stroke is drawn; jsdom can't render canvas
+      // strokes, so the user can't actually Apply via draw here. The contract
+      // we care about is: save is never called from the draw or upload paths.
+      expect(saveSpy).not.toHaveBeenCalled();
+      saveSpy.mockRestore();
+    });
+
+    it('skips persistence entirely when email is empty', async () => {
+      const onApply = vi.fn();
+      const { getByRole } = renderWithTheme(
+        <SignatureCapture
+          open
+          kind="signature"
+          defaultName="Maya Raskin"
+          email=""
+          onCancel={() => {}}
+          onApply={onApply}
+        />,
+      );
+      await userEvent.click(getByRole('button', { name: /apply/i }));
+      await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      expect(window.localStorage.getItem('seald:signing:typed:v1')).toBeNull();
+    });
   });
 });
 

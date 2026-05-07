@@ -272,6 +272,7 @@ function Content() {
         open={sigDrawer !== null}
         kind={sigDrawer?.kind ?? 'signature'}
         defaultName={session.signer?.name ?? ''}
+        email={session.signer?.email ?? ''}
         onCancel={closeSigDrawer}
         onApply={(r) => {
           handleSignatureApply(r).catch(() => {
