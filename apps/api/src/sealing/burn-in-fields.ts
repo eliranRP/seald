@@ -64,33 +64,34 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
     if (assets.initialsImg)
       page.drawImage(assets.initialsImg, { x: cx - w / 2, y: cy - h / 2, width: w, height: h });
   } else if (f.kind === 'checkbox') {
+    // Render a small fixed-size checkbox (14pt) left-aligned in the field box.
+    const cbSize = 10;
     const cbX = cx - w / 2 + 22;
+    const cbY = cy - cbSize / 2;
     page.drawRectangle({
       x: cbX,
-      y: cy - h / 2,
-      width: w,
-      height: h,
+      y: cbY,
+      width: cbSize,
+      height: cbSize,
       borderColor: rgb(0, 0, 0),
       borderWidth: 0.5,
     });
     if (f.value_boolean === true) {
-      const bx = cbX;
-      const by = cy - h / 2;
-      const inset = Math.min(w, h) * 0.18;
-      const innerW = w - inset * 2;
-      const innerH = h - inset * 2;
-      const left = bx + inset;
-      const bottom = by + inset;
-      const stroke = Math.max(0.8, Math.min(w, h) * 0.12);
+      const inset = cbSize * 0.15;
+      const iw = cbSize - inset * 2;
+      const ih = cbSize - inset * 2;
+      const left = cbX + inset;
+      const bottom = cbY + inset;
+      const stroke = 1.2;
       page.drawLine({
-        start: { x: left, y: bottom + innerH * 0.6 },
-        end: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
+        start: { x: left, y: bottom + ih * 0.6 },
+        end: { x: left + iw * 0.4, y: bottom + ih * 0.15 },
         thickness: stroke,
         color: rgb(0, 0, 0),
       });
       page.drawLine({
-        start: { x: left + innerW * 0.4, y: bottom + innerH * 0.15 },
-        end: { x: left + innerW, y: bottom + innerH * 0.95 },
+        start: { x: left + iw * 0.4, y: bottom + ih * 0.15 },
+        end: { x: left + iw, y: bottom + ih * 0.95 },
         thickness: stroke,
         color: rgb(0, 0, 0),
       });
