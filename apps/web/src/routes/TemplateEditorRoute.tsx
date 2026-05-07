@@ -226,7 +226,12 @@ export function TemplateEditorRoute() {
   }, [isNewTemplate]);
 
   const fileForParse = draft?.file ?? initialHandoff?.pendingFile ?? fetchedExampleFile ?? null;
-  const { doc: pdfDoc, numPages, loading: pdfLoading } = usePdfDocument(fileForParse);
+  const {
+    doc: pdfDoc,
+    numPages,
+    loading: pdfLoading,
+    error: pdfError,
+  } = usePdfDocument(fileForParse);
 
   /**
    * Saved-doc branch (no pendingFile, sourceTemplate exists, no example
@@ -324,7 +329,14 @@ export function TemplateEditorRoute() {
         // always has something to render even when the source was
         // saved with a missing/zero page count.
         resolvedPages = Math.max(1, sourceTemplate.pages || 1);
+      } else if (!pdfLoading && pdfError) {
+        // PDF parse failed (corrupted file, unsupported format, etc.).
+        // Fall back to the source template's page count so the editor
+        // still boots with mock-paper pages rather than freezing on the
+        // "Preparing your template…" placeholder forever.
+        resolvedPages = Math.max(1, sourceTemplate?.pages || 1);
       } else {
+        // PDF is still loading — wait for the next render cycle.
         return;
       }
     }
@@ -367,6 +379,8 @@ export function TemplateEditorRoute() {
     fileForParse,
     placeholderFile,
     numPages,
+    pdfLoading,
+    pdfError,
     createDocument,
     updateDocument,
     initialHandoff?.templateSigners,
