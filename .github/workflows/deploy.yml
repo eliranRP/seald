@@ -71,13 +71,19 @@ jobs:
             set -euo pipefail
             cd /opt/seald
 
-            # Self-heal: break-glass restores (`prod-restore.yml`) run
-            # `sudo git fetch` and leave some `.git/objects` owned by
-            # root, which makes the next `git fetch` here fail with
-            # "insufficient permission for adding an object". Reclaim
-            # ownership for the SSH user before any git op. Idempotent
-            # — no-op when ownership is already correct.
-            sudo chown -R "$(id -u):$(id -g)" .git
+            # Self-heal: prior break-glass workflows
+            # (`prod-restore.yml`, `set-app-public-url.yml`) write files
+            # under /opt/seald via `sudo` — leaving root-owned objects
+            # in `.git/objects/`, root-owned `.env.bak.<ts>` snapshots
+            # in `apps/api/`, and even root-owned tracked files when
+            # they did sudo edits. Any of those breaks the SSH user's
+            # subsequent `git fetch / stash / reset / clean`.
+            #
+            # Reclaim ownership for the SSH user across the WHOLE
+            # checkout (not just .git) before any git op. Idempotent.
+            # /opt/seald is small enough (~repo size) that the recursive
+            # chown is a no-op-fast path on warm runs.
+            sudo chown -R "$(id -u):$(id -g)" .
 
             # For workflow_run (push to main), inputs.ref is unset →
             # fall through to 'main'. For dispatch, honour the provided
