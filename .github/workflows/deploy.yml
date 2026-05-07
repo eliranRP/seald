@@ -86,10 +86,30 @@ jobs:
             echo "Deploying ref=$REF"
 
             git fetch --all --tags --prune
+
+            # Self-heal: any local edits or untracked files block
+            # `git pull --ff-only`. The previous version of this script
+            # used `git pull --ff-only || true`, which silently ignored
+            # the failure — leaving the host frozen ~70 commits behind
+            # main while every `docker compose up -d --build` rebuilt
+            # the same stale image. Discovered 2026-05-07 chasing a
+            # localhost-in-audit-PDF bug that turned out to be 65+
+            # un-deployed commits.
+            #
+            # Stash anything dirty (preserves it under refs/stash if
+            # an operator is mid-fixup), then hard-reset to origin/$REF
+            # and clean any untracked leftovers. After this, the
+            # working tree is exactly $REF.
+            echo "=== git status before reset ==="
+            git status --porcelain | head -20 || true
+            git stash push --include-untracked -m "auto-stash-pre-deploy-$(date +%Y%m%d-%H%M%S)" 2>&1 | head -3 || true
             git checkout "$REF"
-            git pull --ff-only || true
+            git reset --hard "origin/$REF"
+            git clean -fd
+            echo "deployed SHA: $(git rev-parse HEAD)"
+
             sudo docker compose pull || true
-            sudo docker compose up -d --build
+            sudo docker compose up -d --build --force-recreate api
 
             # Health probe: api:3000 is exposed only on the docker
             # network. Probe via the caddy container so we exercise
