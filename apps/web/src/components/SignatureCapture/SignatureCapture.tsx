@@ -4,6 +4,7 @@ import { Icon } from '../Icon';
 import { SignatureMark } from '../SignatureMark';
 import type {
   SignatureCaptureFormat,
+  SignatureCaptureKind,
   SignatureCaptureProps,
   SignatureCaptureResult,
 } from './SignatureCapture.types';
@@ -28,6 +29,26 @@ import {
   Title,
   UploadArea,
 } from './SignatureCapture.styles';
+import { getTypedPreference, saveTypedPreference } from './typedPreferences';
+
+function deriveInitialsFromName(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((p) => p[0] ?? '')
+    .join('')
+    .slice(0, 3)
+    .toUpperCase();
+}
+
+function computeInitialTyped(args: {
+  readonly kind: SignatureCaptureKind;
+  readonly defaultName: string;
+  readonly email: string;
+}): string {
+  const saved = getTypedPreference({ email: args.email, kind: args.kind });
+  if (saved !== null) return saved;
+  return args.kind === 'initials' ? deriveInitialsFromName(args.defaultName) : args.defaultName;
+}
 
 export const CAPTURE_WIDTH = 600;
 export const CAPTURE_HEIGHT = 200;
@@ -102,18 +123,11 @@ function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTML
  * tab order (Cancel / Apply are the last focusable elements).
  */
 export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps>((props, ref) => {
-  const { open, kind, defaultName, onCancel, onApply, ...rest } = props;
+  const { open, kind, defaultName, email = '', onCancel, onApply, ...rest } = props;
 
   const [tab, setTab] = useState<SignatureCaptureFormat>('typed');
   const [typed, setTyped] = useState<string>(() =>
-    kind === 'initials'
-      ? defaultName
-          .split(/\s+/)
-          .map((p) => p[0] ?? '')
-          .join('')
-          .slice(0, 3)
-          .toUpperCase()
-      : defaultName,
+    computeInitialTyped({ kind, defaultName, email }),
   );
   const [strokeCount, setStrokeCount] = useState(0);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -125,16 +139,7 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
 
   const reset = useCallback(() => {
     setTab('typed');
-    setTyped(
-      kind === 'initials'
-        ? defaultName
-            .split(/\s+/)
-            .map((p) => p[0] ?? '')
-            .join('')
-            .slice(0, 3)
-            .toUpperCase()
-        : defaultName,
-    );
+    setTyped(computeInitialTyped({ kind, defaultName, email }));
     setStrokeCount(0);
     setUploadFile(null);
     setUploadName('');
@@ -143,7 +148,7 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-  }, [defaultName, kind]);
+  }, [defaultName, email, kind]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -232,6 +237,7 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
     if (tab === 'typed') {
       const canvas = renderTypedToCanvas(typed, kind);
       const blob = await canvasToPngBlob(canvas);
+      saveTypedPreference({ email, kind, value: typed });
       const result: SignatureCaptureResult = {
         blob,
         format: 'typed',
