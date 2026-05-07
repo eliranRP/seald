@@ -7,6 +7,7 @@ describe('parseEnv', () => {
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_JWT_AUDIENCE: 'authenticated',
     CORS_ORIGIN: 'http://localhost:5173',
+    APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db',
   };
 
@@ -44,6 +45,7 @@ describe('env.schema — DATABASE_URL', () => {
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_JWT_AUDIENCE: 'authenticated',
     CORS_ORIGIN: 'http://localhost:5173',
+    APP_PUBLIC_URL: 'http://localhost:5173',
   };
 
   it('rejects missing DATABASE_URL', () => {
@@ -73,6 +75,7 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     SUPABASE_URL: 'https://example.supabase.co',
     SUPABASE_JWT_AUDIENCE: 'authenticated',
     CORS_ORIGIN: 'http://localhost:5173',
+    APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db?sslmode=disable',
   };
 
@@ -88,6 +91,21 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.PDF_SIGNING_TSA_URL).toBe('https://freetsa.org/tsr');
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
+  });
+
+  // Regression for the 2026-05-07 prod incident where stale containers
+  // started without APP_PUBLIC_URL/CORS_ORIGIN set, fell back to the
+  // localhost default, and baked `http://localhost:5173` into audit-PDF
+  // QR codes + completed-email verify links. The defaults are gone;
+  // every container now fails fast on missing config.
+  it('throws when APP_PUBLIC_URL is missing', () => {
+    const { APP_PUBLIC_URL: _omit, ...rest } = minimalTest;
+    expect(() => parseEnv(rest)).toThrow(/APP_PUBLIC_URL/);
+  });
+
+  it('throws when CORS_ORIGIN is missing', () => {
+    const { CORS_ORIGIN: _omit, ...rest } = minimalTest;
+    expect(() => parseEnv(rest)).toThrow(/CORS_ORIGIN/);
   });
 
   it('rejects APP_PUBLIC_URL containing localhost in production', () => {
