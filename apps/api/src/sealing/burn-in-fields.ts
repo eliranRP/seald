@@ -64,8 +64,9 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
     if (assets.initialsImg)
       page.drawImage(assets.initialsImg, { x: cx - w / 2, y: cy - h / 2, width: w, height: h });
   } else if (f.kind === 'checkbox') {
+    const cbX = cx - w / 2 + 22;
     page.drawRectangle({
-      x: cx - w / 2,
+      x: cbX,
       y: cy - h / 2,
       width: w,
       height: h,
@@ -73,7 +74,7 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
       borderWidth: 0.5,
     });
     if (f.value_boolean === true) {
-      const bx = cx - w / 2;
+      const bx = cbX;
       const by = cy - h / 2;
       const inset = Math.min(w, h) * 0.18;
       const innerW = w - inset * 2;
@@ -101,7 +102,7 @@ export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets)
     const fontSize = 12;
     const textHeight = assets.helvetica.heightAtSize(fontSize);
     page.drawText(text, {
-      x: cx - w / 2 + 4,
+      x: cx - w / 2 + 22,
       y: cy - textHeight / 2,
       size: fontSize,
       font: assets.helvetica,
