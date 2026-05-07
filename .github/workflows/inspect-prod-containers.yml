@@ -76,3 +76,33 @@ jobs:
             echo
             echo '=== /opt/seald listing ==='
             ls -la /opt/seald | head -20
+
+            echo
+            echo '=== INSIDE seald-api-1 container: filesystem & code probe ==='
+            CID=$(sudo docker compose ps -q api)
+            if [ -n "$CID" ]; then
+              echo '--- ls /app/apps/api/ (looking for stray .env) ---'
+              sudo docker exec "$CID" ls -la /app/apps/api/ 2>&1 | head -30 || true
+              echo '--- /app/apps/api/.env existence check ---'
+              sudo docker exec "$CID" sh -c 'if [ -f /app/apps/api/.env ]; then echo "PRESENT ($(wc -l < /app/apps/api/.env) lines)"; head -3 /app/apps/api/.env | sed "s/=.*/=<redacted>/"; else echo "ABSENT"; fi' 2>&1 || true
+              echo '--- env.schema.js: does it still have the localhost default? ---'
+              sudo docker exec "$CID" grep -n "localhost:5173\|APP_PUBLIC_URL" /app/apps/api/dist/src/config/env.schema.js 2>&1 | head -20 || true
+              echo '--- node process: actual APP_PUBLIC_URL after loadDotenv() ---'
+              sudo docker exec "$CID" node -e 'console.log("printenv-style:", process.env.APP_PUBLIC_URL)' 2>&1 || true
+              echo '--- node process: simulate boot to see what parseEnv resolves ---'
+              sudo docker exec "$CID" node -e '
+                try {
+                  const r = require("path").resolve(process.cwd(), ".env");
+                  console.log("cwd:", process.cwd());
+                  console.log("dotenv path:", r);
+                  console.log("dotenv exists:", require("fs").existsSync(r));
+                  console.log("APP_PUBLIC_URL pre-load:", process.env.APP_PUBLIC_URL);
+                  try { process.loadEnvFile(r); } catch (e) { console.log("loadEnvFile threw:", e.message); }
+                  console.log("APP_PUBLIC_URL post-load:", process.env.APP_PUBLIC_URL);
+                } catch (e) {
+                  console.log("probe error:", e.message);
+                }
+              ' 2>&1 || true
+            else
+              echo "(api container not running)"
+            fi
