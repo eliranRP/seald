@@ -6,6 +6,16 @@ import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.type
 // defaults from the design guide.
 export const FIELD_WIDTH = 132;
 export const FIELD_HEIGHT = 54;
+
+/** Per-kind default dimensions. Falls back to FIELD_WIDTH/FIELD_HEIGHT. */
+export const FIELD_SIZE: Record<string, { readonly w: number; readonly h: number }> = {
+  signature: { w: 200, h: 54 },
+  initials: { w: 80, h: 54 },
+  date: { w: 140, h: 36 },
+  text: { w: 240, h: 36 },
+  email: { w: 240, h: 36 },
+  checkbox: { w: 28, h: 28 },
+};
 // Pixels the pointer must travel before a mousedown on the canvas background
 // is treated as a marquee-select drag rather than a plain click.
 export const MARQUEE_THRESHOLD = 3;

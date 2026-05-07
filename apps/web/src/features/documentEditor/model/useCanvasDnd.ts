@@ -5,6 +5,7 @@ import type { FieldKind } from '@/types/sealdTypes';
 import type { DocumentPageSigner } from '@/pages/DocumentPage/DocumentPage.types';
 import {
   FIELD_HEIGHT,
+  FIELD_SIZE,
   FIELD_WIDTH,
   MARQUEE_THRESHOLD,
   expandSelectionToGroup,
@@ -95,8 +96,11 @@ export function useCanvasDnd({
       const rect = canvasRefsRef.current.get(dropPage)?.getBoundingClientRect();
       const localX = (e.clientX - (rect?.left ?? 0)) / zoom;
       const localY = (e.clientY - (rect?.top ?? 0)) / zoom;
-      const x = Math.max(0, Math.round(localX - FIELD_WIDTH / 2));
-      const y = Math.max(0, Math.round(localY - FIELD_HEIGHT / 2));
+      const kindSize = FIELD_SIZE[kind];
+      const fw = kindSize?.w ?? FIELD_WIDTH;
+      const fh = kindSize?.h ?? FIELD_HEIGHT;
+      const x = Math.max(0, Math.round(localX - fw / 2));
+      const y = Math.max(0, Math.round(localY - fh / 2));
 
       // Drop a single placeholder pre-populated with every signer, then
       // open the SelectSignersPopover so the user explicitly chooses
@@ -115,6 +119,8 @@ export function useCanvasDnd({
         type: kind,
         x,
         y,
+        width: fw,
+        height: fh,
         signerIds,
       };
       pushUndo(fields);

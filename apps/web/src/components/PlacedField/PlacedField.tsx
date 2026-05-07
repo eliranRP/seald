@@ -35,7 +35,8 @@ import {
   TileHeaderLabel,
   TileRow,
   TileSignatureLine,
-  TileCheckbox,
+  CheckboxTile,
+  CheckboxInner,
 } from './PlacedField.styles';
 
 const TILE_WIDTH = 132;
@@ -43,6 +44,7 @@ const TILE_HEIGHT = 54;
 const TILE_GAP = 8;
 const DEFAULT_MIN_WIDTH = 80;
 const DEFAULT_MIN_HEIGHT = 36;
+const CHECKBOX_MIN_SIZE = 20;
 /** Pointer movement (in pixels) required before a mousedown is treated as a drag. */
 const DRAG_THRESHOLD = 3;
 
@@ -93,13 +95,17 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
     onToggleRequired,
     onMove,
     onResize,
-    minWidth = DEFAULT_MIN_WIDTH,
-    minHeight = DEFAULT_MIN_HEIGHT,
+    minWidth: minWidthProp = DEFAULT_MIN_WIDTH,
+    minHeight: minHeightProp = DEFAULT_MIN_HEIGHT,
     onDragStart,
     onDragEnd,
     zoom = 1,
     ...rest
   } = props;
+
+  const isCheckbox = field.type === 'checkbox';
+  const minWidth = isCheckbox ? Math.min(minWidthProp, CHECKBOX_MIN_SIZE) : minWidthProp;
+  const minHeight = isCheckbox ? Math.min(minHeightProp, CHECKBOX_MIN_SIZE) : minHeightProp;
 
   // Guard against zero/negative zoom (undefined user input). Treating it as 1
   // lets the component be forgiving rather than producing NaN deltas mid-drag.
@@ -495,13 +501,27 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
           const border = s !== null ? s.color : seald.color.indigo[400];
           const iconColor = s !== null ? s.color : seald.color.indigo[600];
           const key = s !== null ? s.id : `empty-${String(index)}`;
+
+          if (field.type === 'checkbox') {
+            return (
+              <CheckboxTile key={key} $bg={bg} $border={border}>
+                <CheckboxInner $color={border} />
+                {s !== null ? (
+                  <InitialsBadge $color={s.color} aria-hidden>
+                    {getInitials(s.name)}
+                  </InitialsBadge>
+                ) : null}
+              </CheckboxTile>
+            );
+          }
+
           return (
             <Tile key={key} $bg={bg} $border={border}>
               <TileHeader>
                 <FieldIcon size={12} strokeWidth={1.75} color={iconColor} aria-hidden />
                 <TileHeaderLabel>{meta.label}</TileHeaderLabel>
               </TileHeader>
-              {field.type === 'checkbox' ? <TileCheckbox $color={border} /> : <TileSignatureLine />}
+              <TileSignatureLine />
               <TileEyebrow>SIGN ID (UUID)</TileEyebrow>
               {s !== null ? (
                 <InitialsBadge $color={s.color} aria-hidden>

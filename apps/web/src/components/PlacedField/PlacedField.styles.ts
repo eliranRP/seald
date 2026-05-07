@@ -258,6 +258,35 @@ export const TileCheckbox = styled.div<{ readonly $color: string }>`
   opacity: 0.5;
 `;
 
+/**
+ * Compact checkbox tile — replaces the full Tile for checkbox fields.
+ * Renders as a small square with just a checkbox icon, matching the
+ * signing screen's checkbox appearance.
+ */
+export const CheckboxTile = styled.div<{
+  readonly $bg: string;
+  readonly $border: string;
+}>`
+  width: 100%;
+  height: 100%;
+  background: ${({ $bg }) => $bg};
+  border: 1.5px dashed ${({ $border }) => $border};
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+`;
+
+export const CheckboxInner = styled.div<{ readonly $color: string }>`
+  width: 60%;
+  height: 60%;
+  border: 2px solid ${({ $color }) => $color};
+  border-radius: 3px;
+  opacity: 0.6;
+`;
+
 export const TileEyebrow = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
   font-size: 9px;

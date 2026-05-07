@@ -35,10 +35,15 @@ describe('PlacedField', () => {
       { kind: 'email', label: 'Email' },
     ];
     for (const { kind, label } of kinds) {
-      const { getAllByText, unmount } = renderWithTheme(
+      const { getAllByText, container, unmount } = renderWithTheme(
         <PlacedField field={makeField({ type: kind })} signers={SIGNERS} />,
       );
-      expect(getAllByText(label).length).toBeGreaterThan(0);
+      if (kind === 'checkbox') {
+        // Compact checkbox tile doesn't render text; check via aria-label
+        expect(container.querySelector('[aria-label*="Checkbox"]')).toBeTruthy();
+      } else {
+        expect(getAllByText(label).length).toBeGreaterThan(0);
+      }
       unmount();
     }
   });
