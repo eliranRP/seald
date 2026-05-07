@@ -9,8 +9,17 @@ export const envSchema = z
     SUPABASE_JWT_AUDIENCE: z.string().min(1).default('authenticated'),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
 
-    CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
-    APP_PUBLIC_URL: z.string().url().default('http://localhost:5173'),
+    // Required at boot. The localhost defaults that previously lived
+    // here silently masked a misconfigured prod container — when one
+    // started without these set (e.g. a stale image kept alive by
+    // `docker compose up -d --build`), it fell back to localhost and
+    // baked `http://localhost:5173` into audit-trail QR codes, verify
+    // links, and signing-invitation emails. Requiring them upfront
+    // makes every container fail-fast on missing config regardless of
+    // NODE_ENV. The production-only localhost guard below catches the
+    // remaining case where these vars are explicitly set to localhost.
+    CORS_ORIGIN: z.string().min(1),
+    APP_PUBLIC_URL: z.string().url(),
 
     DATABASE_URL: z
       .string()
