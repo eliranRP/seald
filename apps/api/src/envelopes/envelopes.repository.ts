@@ -27,7 +27,7 @@ export interface UpdateDraftMetadataPatch {
   /**
    * Whole-array replace (semantics match the dashboard tag editor:
    * the user always submits the full new tag set). The repository
-   * trusts the caller to have normalised the array.
+   * trusts the caller to have normalized the array.
    */
   readonly tags?: ReadonlyArray<string>;
 }

@@ -37,7 +37,7 @@ function toneBg(theme: DefaultTheme, tone: Tone): string {
       return theme.color.danger[50];
     case 'sky':
       // Sky / pink fallbacks aren't in the existing palette — pick close
-      // neighbours so the chip stays in-system without a token sprawl.
+      // neighbors so the chip stays in-system without a token sprawl.
       return theme.color.indigo[50];
     case 'pink':
       return theme.color.danger[50];

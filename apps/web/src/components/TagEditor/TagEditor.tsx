@@ -108,7 +108,7 @@ export interface TagEditorProps {
   readonly placeholder?: string;
 }
 
-function normalise(raw: string): string {
+function normalize(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
@@ -126,7 +126,7 @@ export const TagEditor = forwardRef<HTMLDivElement, TagEditorProps>((props, ref)
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const filtered = useMemo(() => {
-    const needle = normalise(draft);
+    const needle = normalize(draft);
     const taken = new Set(value);
     return suggestions
       .filter((s) => !taken.has(s.toLowerCase()))
@@ -135,7 +135,7 @@ export const TagEditor = forwardRef<HTMLDivElement, TagEditorProps>((props, ref)
   }, [draft, suggestions, value]);
 
   function commitTag(raw: string) {
-    const next = normalise(raw).slice(0, maxLength);
+    const next = normalize(raw).slice(0, maxLength);
     if (next === '') return;
     if (value.includes(next)) return;
     if (value.length >= max) return;
