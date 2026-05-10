@@ -1,17 +1,44 @@
-import { afterEach, beforeEach, describe, it, expect } from 'vitest';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+
+// Mock the templates API before the page imports it so the autosave
+// path's PATCH /templates/:id call is observable without hitting the
+// real backend. Other API helpers are passed through so the page's
+// hydration paths (listTemplates, etc.) keep working as before.
+vi.mock('../../features/templates/templatesApi', async (importOriginal) => {
+  const actual = await importOriginal<typeof TemplatesApiModule>();
+  return {
+    ...actual,
+    updateTemplate: vi.fn(async () => ({}) as unknown as ReturnType<typeof actual.updateTemplate>),
+  };
+});
+
+// Type-only import for the vi.mock factory above. Lives at module scope
+// so it's tree-shaken at runtime but still typechecks the mock surface.
+// eslint-disable-next-line import/first
+import type * as TemplatesApiModule from '../../features/templates/templatesApi';
+
+// eslint-disable-next-line import/first
 import { UseTemplatePage } from './UseTemplatePage';
+// eslint-disable-next-line import/first
 import { setTemplates } from '../../features/templates';
+// eslint-disable-next-line import/first
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
+// eslint-disable-next-line import/first
 import { renderWithProviders } from '../../test/renderWithProviders';
+// eslint-disable-next-line import/first
+import { updateTemplate as apiUpdateTemplate } from '../../features/templates/templatesApi';
+
+const updateTemplateMock = apiUpdateTemplate as unknown as ReturnType<typeof vi.fn>;
 
 // Production seed is empty; tests inject fixtures into the module store
 // so `findTemplateById` (called during page render) returns the right
 // record. Reset between tests so fixtures don't leak across the suite.
 beforeEach(() => {
   setTemplates(TEMPLATES);
+  updateTemplateMock.mockClear();
 });
 afterEach(() => {
   setTemplates([]);
@@ -235,5 +262,58 @@ describe('UseTemplatePage — pre-filled signers from lastSigners', () => {
     });
     expect(colors.every((c) => c.length > 0)).toBe(true);
     expect(new Set(colors).size).toBe(colors.length);
+  });
+});
+
+describe('UseTemplatePage — debounced title autosave', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('debounces title saves: a burst of keystrokes results in one PATCH with the final value', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+
+    // Open the rename input from the FlowHeader. The pencil-button is
+    // labeled `Rename template <name>`.
+    await user.click(screen.getByRole('button', { name: /rename template/i }));
+    const input = await screen.findByRole('textbox', { name: /template name/i });
+
+    await user.clear(input);
+    // Three keystrokes inside one debounce window — should coalesce.
+    await user.type(input, 'New');
+
+    // Within the debounce window, no PATCH yet.
+    expect(updateTemplateMock).not.toHaveBeenCalled();
+
+    // After 600ms of silence, exactly one PATCH with the final value.
+    vi.advanceTimersByTime(600);
+    expect(updateTemplateMock).toHaveBeenCalledTimes(1);
+    expect(updateTemplateMock).toHaveBeenCalledWith(SAMPLE.id, { title: 'New' });
+  });
+
+  it('does not autosave when the trimmed title is empty', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    await user.click(screen.getByRole('button', { name: /rename template/i }));
+    const input = await screen.findByRole('textbox', { name: /template name/i });
+    await user.clear(input);
+    await user.type(input, '   '); // whitespace only
+    vi.advanceTimersByTime(600);
+    expect(updateTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it('does not autosave on the new-template flow (no id to PATCH against)', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderAt('/templates/new/use');
+    await user.click(screen.getByRole('button', { name: /rename template/i }));
+    const input = await screen.findByRole('textbox', { name: /template name/i });
+    await user.clear(input);
+    await user.type(input, 'Whatever');
+    vi.advanceTimersByTime(600);
+    expect(updateTemplateMock).not.toHaveBeenCalled();
   });
 });

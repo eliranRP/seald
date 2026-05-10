@@ -438,6 +438,7 @@
     "ungrouping",
     "misbind",
     "rebinder",
+    "debouncer",
     "untick",
     "unzoomed",
     "rasterizing",

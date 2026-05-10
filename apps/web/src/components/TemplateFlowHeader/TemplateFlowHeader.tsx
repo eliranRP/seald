@@ -102,7 +102,18 @@ export const TemplateFlowHeader = forwardRef<HTMLElement, TemplateFlowHeaderProp
           <NameInput
             autoFocus
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const next = e.target.value;
+              setDraft(next);
+              // Forward every keystroke to the parent so it can run a
+              // debounced server save (UseTemplatePage / TemplateEditor
+              // own the actual update). The parent skips empty/whitespace
+              // titles and coalesces bursts. Blur/Enter still call
+              // `commit()` below as the explicit "I'm done editing" UI
+              // gesture; the debouncer makes the redundant save a
+              // no-op when the value didn't change.
+              if (onRenameTemplate) onRenameTemplate(next);
+            }}
             onBlur={commit}
             onKeyDown={(e) => {
               if (e.key === 'Enter') commit();
