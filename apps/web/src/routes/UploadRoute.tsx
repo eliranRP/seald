@@ -10,6 +10,7 @@ import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
+import { pickAvailableColor } from '../features/signers/pickAvailableColor';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
 import type { ImportPhase } from '../features/gdriveImport';
@@ -239,12 +240,16 @@ export function UploadRoute() {
       // pushed to the server later as part of the envelope POST when the
       // sender clicks "Send to sign".
       const synthLocalSigner = (): AddSignerContact => {
-        const colorIdx = (contacts.length + selectedSigners.length) % SIGNER_COLOR_PALETTE.length;
+        // Pick the lowest-index palette color not already in use by the
+        // current envelope roster. `prev.length % palette.length` reused
+        // colors after a mid-list signer was removed; this walks the
+        // palette and picks the first free entry instead.
+        const used = [...contacts.map((c) => c.color), ...selectedSigners.map((s) => s.color)];
         return {
           id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           name,
           email,
-          color: SIGNER_COLOR_PALETTE[colorIdx] ?? '#818CF8',
+          color: pickAvailableColor(SIGNER_COLOR_PALETTE, used),
         };
       };
 
@@ -271,7 +276,7 @@ export function UploadRoute() {
           });
         });
     },
-    [addContact, contacts.length, isGuest, selectedSigners.length],
+    [addContact, contacts, isGuest, selectedSigners],
   );
 
   const handleRemoveSelected = useCallback((id: string) => {
@@ -289,7 +294,10 @@ export function UploadRoute() {
     // we surface a console warning so the dropoff is observable.
     let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
     if (template) {
-      const resolved = resolveTemplateFields(template.fields, resolvedPages);
+      // Pass `lastSigners` so the resolver backfills `signerRoleId`
+      // for legacy templates — keeps the rebind stable when the user
+      // mid-list-removes a signer in the wizard.
+      const resolved = resolveTemplateFields(template.fields, resolvedPages, template.lastSigners);
       pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
       if (resolvedPages < template.pages) {
         // Use console.warn so the SPA's debug build flags the gap. The

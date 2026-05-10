@@ -163,12 +163,18 @@ export interface ResolvedField {
   readonly y: number;
   readonly label?: string;
   /**
-   * Mirrors `TemplateField.signerIndex`. Consumers map this back to the
-   * matching signer in the new envelope's roster (which is pre-filled
-   * from `template.lastSigners` in the same order). Undefined for older
-   * templates saved before signer-indexing was added.
+   * Mirrors `TemplateField.signerIndex`. Kept for legacy fallback;
+   * the rebinder prefers `signerRoleId` when present.
    */
   readonly signerIndex?: number;
+  /**
+   * Mirrors `TemplateField.signerRoleId` — the stable per-signer id
+   * that owned this field at template-save time. `resolveTemplateFields`
+   * also backfills it from `lastSigners[signerIndex].id` when the
+   * stored record only has `signerIndex`, so legacy templates pick up
+   * the stable-id binding without a save round-trip.
+   */
+  readonly signerRoleId?: string;
   /**
    * Stable identifier shared by every copy expanded from the same
    * multi-page source rule (e.g. `pageRule: 'all'` on a 3-page doc
@@ -195,6 +201,7 @@ export interface ResolvedField {
 export function resolveTemplateFields(
   fields: ReadonlyArray<TemplateFieldLayout>,
   totalPages: number,
+  lastSigners?: ReadonlyArray<{ readonly id: string }>,
 ): ReadonlyArray<ResolvedField> {
   const out: ResolvedField[] = [];
   let id = 1;
@@ -215,6 +222,14 @@ export function resolveTemplateFields(
     // Only mint a linkId when the source rule expanded into more than
     // one peer — single-page rules don't need linking.
     const linkId = pages.length > 1 ? `tpl-link-${linkSeq++}` : undefined;
+    // Backfill `signerRoleId` from the original `last_signers` roster
+    // when the stored field only has `signerIndex`. Legacy templates
+    // (saved before stable-id binding shipped) pick up the new
+    // mid-list-removal-safe behavior at first reuse without a save.
+    let signerRoleId: string | undefined = tf.signerRoleId;
+    if (signerRoleId === undefined && tf.signerIndex !== undefined && lastSigners) {
+      signerRoleId = lastSigners[tf.signerIndex]?.id;
+    }
     for (const p of pages) {
       const resolved: ResolvedField = {
         id: `tpl-f${id++}`,
@@ -224,6 +239,7 @@ export function resolveTemplateFields(
         y: tf.y,
         ...(tf.label !== undefined ? { label: tf.label } : {}),
         ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
+        ...(signerRoleId !== undefined ? { signerRoleId } : {}),
         ...(linkId !== undefined ? { linkId } : {}),
       };
       out.push(resolved);

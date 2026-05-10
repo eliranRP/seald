@@ -26,6 +26,7 @@ import {
   subscribeToTemplates,
   type TemplateSummary,
 } from '@/features/templates';
+import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 import { useAppState } from '@/providers/AppStateProvider';
 import {
   DocumentTitle,
@@ -285,6 +286,14 @@ export function UseTemplatePage() {
       if (exists) {
         return prev.filter((s) => s.email.toLowerCase() !== contact.email.toLowerCase());
       }
+      // Override the contact's stored color when it would collide with a
+      // signer already in the roster. Two contacts can carry the same
+      // palette entry in the contact-store; we still want each signer in
+      // a single envelope to render in a unique color.
+      const used = prev.map((s) => s.color);
+      const color = used.includes(contact.color)
+        ? pickAvailableColor(SIGNER_COLORS, used)
+        : contact.color;
       return [
         ...prev,
         {
@@ -292,7 +301,7 @@ export function UseTemplatePage() {
           contactId: contact.id,
           name: contact.name,
           email: contact.email,
-          color: contact.color,
+          color,
         },
       ];
     });
@@ -304,7 +313,10 @@ export function UseTemplatePage() {
       if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) {
         return prev;
       }
-      const colorIdx = prev.length % SIGNER_COLORS.length;
+      const color = pickAvailableColor(
+        SIGNER_COLORS,
+        prev.map((s) => s.color),
+      );
       return [
         ...prev,
         {
@@ -312,7 +324,7 @@ export function UseTemplatePage() {
           contactId: null,
           name: name || email.split('@')[0] || email,
           email,
-          color: SIGNER_COLORS[colorIdx]!,
+          color,
         },
       ];
     });

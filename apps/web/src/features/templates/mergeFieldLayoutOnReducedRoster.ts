@@ -42,9 +42,17 @@ export function mergeFieldLayoutOnReducedRoster(
   if (draftLastSigners.length >= sourceLastSigners.length) {
     return { fieldLayout: derivedLayout, lastSigners: draftLastSigners };
   }
-  const preservedFromSource = sourceFields.filter(
-    (f) => f.signerIndex !== undefined && f.signerIndex >= draftLastSigners.length,
-  );
+  // Preserve every source-template field whose owner isn't in the
+  // shrunken draft roster. Match by stable role id when present (so
+  // the user removing a mid-list signer in the editor doesn't drag
+  // the next signer's fields with it), falling back to
+  // `signerIndex >= draftLastSigners.length` for legacy templates
+  // that haven't been re-saved yet with `signerRoleId`.
+  const draftSignerIds = new Set(draftLastSigners.map((s) => s.id));
+  const preservedFromSource = sourceFields.filter((f) => {
+    if (f.signerRoleId !== undefined) return !draftSignerIds.has(f.signerRoleId);
+    return f.signerIndex !== undefined && f.signerIndex >= draftLastSigners.length;
+  });
   return {
     fieldLayout: [...derivedLayout, ...preservedFromSource],
     lastSigners: sourceLastSigners,

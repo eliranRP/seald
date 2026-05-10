@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { rebindFieldsToSigners } from '../rebindFieldsToSigners';
 import type { ResolvedField } from '../templates';
 
-// Minimal helper — keeps the assertions focused on the signer-count rules.
+// Minimal helper — keeps the assertions focused on the signer-rebind rules.
 function field(
   partial: Partial<ResolvedField> & Pick<ResolvedField, 'page' | 'type'>,
 ): ResolvedField {
@@ -11,6 +11,7 @@ function field(
     x: partial.x ?? 100,
     y: partial.y ?? 200,
     ...(partial.signerIndex !== undefined ? { signerIndex: partial.signerIndex } : {}),
+    ...(partial.signerRoleId !== undefined ? { signerRoleId: partial.signerRoleId } : {}),
     ...partial,
   };
 }
@@ -103,6 +104,70 @@ describe('rebindFieldsToSigners', () => {
     ];
     const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
     expect(out.map((f) => f.linkId)).toEqual(['L-1', 'L-1']);
+  });
+
+  // Bug 2 spec, the user-reported scenario (2026-05-10): user opens a
+  // template with prefilled signers [alice, bob], removes alice in the
+  // wizard, adds carol → roster becomes [bob, carol]. Bob's placement
+  // must stay pinned to bob; alice's placement is dropped; carol gets
+  // no preset fields. Pre-fix this re-bound by ordinal — bob shifted to
+  // index 0 and inherited alice's placement, the literal "placement
+  // moved" symptom.
+  it('binds by signerRoleId so removing a mid-list signer keeps remaining placements pinned', () => {
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({
+        id: 'alice-field',
+        page: 1,
+        type: 'signature',
+        signerIndex: 0,
+        signerRoleId: 'alice',
+      }),
+      field({
+        id: 'bob-field',
+        page: 2,
+        type: 'signature',
+        signerIndex: 1,
+        signerRoleId: 'bob',
+      }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 'bob' }, { id: 'carol' }]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ id: 'bob-field', signerIds: ['bob'] });
+  });
+
+  it('drops a field whose signerRoleId does not match any roster member, even when an ordinal would', () => {
+    // The legacy ordinal path would have bound this field to signers[0]
+    // (rachel) — we explicitly assert that the role-id check wins so
+    // the kept signer doesn't pick up an orphaned placement.
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({
+        id: 'a',
+        page: 1,
+        type: 'signature',
+        signerIndex: 0,
+        signerRoleId: 'alice',
+      }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 'rachel' }]);
+    expect(out).toEqual([]);
+  });
+
+  it('signerRoleId match wins over signerIndex when both are present', () => {
+    // Same id at a different ordinal → the field follows the id, not
+    // the position. Confirms the new rule ignores `signerIndex` once
+    // `signerRoleId` is supplied.
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({
+        id: 'a',
+        page: 1,
+        type: 'signature',
+        signerIndex: 0,
+        signerRoleId: 'bob',
+      }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 'alice' }, { id: 'bob' }]);
+    expect(out).toHaveLength(1);
+    expect(out[0]?.signerIds).toEqual(['bob']);
   });
 
   it('maps template field types to their editor counterparts', () => {

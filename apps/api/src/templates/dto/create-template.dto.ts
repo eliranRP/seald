@@ -86,6 +86,18 @@ export class TemplateFieldDto {
   @IsInt()
   @Min(0)
   readonly signerIndex?: number;
+
+  /**
+   * Stable per-signer id (matches `TemplateLastSignerDto.id`) of the
+   * signer this field was assigned to at template-save time. New SPA
+   * builds populate this alongside `signerIndex` so the use-template
+   * wizard can rebind by stable id and avoid the mid-list-removal
+   * shift bug. Capped to the same MaxLength as the signer id field.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  readonly signerRoleId?: string;
 }
 
 /**

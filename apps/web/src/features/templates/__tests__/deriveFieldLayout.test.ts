@@ -157,20 +157,39 @@ describe('deriveTemplateFieldLayout', () => {
     ];
     const out = deriveTemplateFieldLayout(fields, 4, [{ id: 's1' }, { id: 's2' }]);
     expect(out).toEqual([
-      { type: 'signature', pageRule: 2, x: 50, y: 100, signerIndex: 1 },
-      { type: 'signature', pageRule: 3, x: 60, y: 110, signerIndex: 0 },
+      // signerRoleId is the canonical binding (drives stable rebind
+      // when the wizard removes a mid-list signer); signerIndex is
+      // kept alongside for legacy rebinder back-compat.
+      { type: 'signature', pageRule: 2, x: 50, y: 100, signerIndex: 1, signerRoleId: 's2' },
+      { type: 'signature', pageRule: 3, x: 60, y: 110, signerIndex: 0, signerRoleId: 's1' },
     ]);
   });
 
-  it('propagates signerIndex onto every fan-out entry of a non-contiguous group', () => {
+  it('propagates signerIndex + signerRoleId onto every fan-out entry of a non-contiguous group', () => {
     const fields: ReadonlyArray<PlacedFieldValue> = [
       field({ id: 'f1', page: 1, type: 'date', x: 200, y: 50, linkId: 'L3', signerIds: ['s2'] }),
       field({ id: 'f3', page: 3, type: 'date', x: 200, y: 50, linkId: 'L3', signerIds: ['s2'] }),
     ];
     const out = deriveTemplateFieldLayout(fields, 5, [{ id: 's1' }, { id: 's2' }]);
     expect(out).toEqual([
-      { type: 'date', pageRule: 1, x: 200, y: 50, label: 'L3', signerIndex: 1 },
-      { type: 'date', pageRule: 3, x: 200, y: 50, label: 'L3', signerIndex: 1 },
+      {
+        type: 'date',
+        pageRule: 1,
+        x: 200,
+        y: 50,
+        label: 'L3',
+        signerIndex: 1,
+        signerRoleId: 's2',
+      },
+      {
+        type: 'date',
+        pageRule: 3,
+        x: 200,
+        y: 50,
+        label: 'L3',
+        signerIndex: 1,
+        signerRoleId: 's2',
+      },
     ]);
   });
 

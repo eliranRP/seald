@@ -354,7 +354,15 @@ export function TemplateEditorRoute() {
 
     let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
     if (sourceTemplate) {
-      const resolved = resolveTemplateFields(sourceTemplate.fields, resolvedPages);
+      // Pass `lastSigners` so the resolver backfills `signerRoleId`
+      // for legacy templates that only stored `signerIndex` — see the
+      // rebinder's stable-id rules. Without it, the wizard's
+      // remove-then-add path would still shift kept signers' fields.
+      const resolved = resolveTemplateFields(
+        sourceTemplate.fields,
+        resolvedPages,
+        sourceTemplate.lastSigners,
+      );
       // Apply the user-spec signer-count rules: bind by ordinal, drop
       // fields whose owning signer was removed, fall back to signers[0]
       // only for legacy (pre-signerIndex) templates. Centralized in
