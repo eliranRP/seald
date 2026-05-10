@@ -7,8 +7,10 @@ import type { BadgeTone } from '@/components/Badge/Badge.types';
 import { Button } from '@/components/Button';
 import { DocThumb } from '@/components/DocThumb';
 import { EmptyState } from '@/components/EmptyState';
+import { ColumnResizeHandle } from '@/components/ColumnResizeHandle';
 import { EnvelopeIllustration } from '@/components/EnvelopeIllustration';
 import { TagChip } from '@/components/TagChip';
+import { useColumnWidths } from '@/hooks/useColumnWidths';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { PageHeader } from '@/components/PageHeader';
 import { SignerProgressBar } from '@/components/SignerProgressBar';
@@ -23,11 +25,15 @@ import { filterEnvelopes, isAwaitingYou, parseFilters } from '@/features/dashboa
 import { formatShortDate } from '@/lib/dateFormat';
 import { useAuth } from '@/providers/AuthProvider';
 import {
+  CHEVRON_COL_PX,
+  COLUMN_MIN_WIDTHS,
   ChevronCell,
+  DEFAULT_COLUMN_WIDTHS,
   DateCell,
   DocCell,
   DocCode,
   DocTitle,
+  HeadCell,
   HeaderSlot,
   Inner,
   Main,
@@ -38,6 +44,22 @@ import {
   TableRow,
   TableShell,
 } from './DashboardPage.styles';
+
+type ColKey = keyof typeof DEFAULT_COLUMN_WIDTHS;
+const COLUMN_KEYS: ReadonlyArray<ColKey> = ['document', 'signers', 'progress', 'status', 'date'];
+const COLUMN_LABELS: Record<ColKey, string> = {
+  document: 'Document',
+  signers: 'Signers',
+  progress: 'Progress',
+  status: 'Status',
+  date: 'Date',
+};
+const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
+  key: k,
+  default: DEFAULT_COLUMN_WIDTHS[k],
+  min: COLUMN_MIN_WIDTHS[k],
+}));
+const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v1';
 
 const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
@@ -134,13 +156,15 @@ interface RenderDocumentsBodyArgs {
   readonly filtered: ReadonlyArray<EnvelopeListItem>;
   readonly navigate: (path: string) => void;
   readonly viewerEmail: string | null;
+  /** Live grid template — derived from useColumnWidths in the parent. */
+  readonly gridTemplate: string;
 }
 
 function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.Element[] {
-  const { loading, rowsForSkeleton, filtered, navigate, viewerEmail } = args;
+  const { loading, rowsForSkeleton, filtered, navigate, viewerEmail, gridTemplate } = args;
   if (loading && rowsForSkeleton) {
     return Array.from({ length: 6 }, (_, i) => (
-      <TableRow key={`sk-${i}`} as="div" aria-hidden>
+      <TableRow key={`sk-${i}`} as="div" aria-hidden $grid={gridTemplate}>
         <DocCell>
           <Skeleton variant="rect" width={40} height={40} />
           <div style={{ minWidth: 0, display: 'grid', gap: 6 }}>
@@ -188,6 +212,7 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
       type="button"
       onClick={() => navigate(`/document/${d.id}`)}
       aria-label={`Open ${d.title}`}
+      $grid={gridTemplate}
     >
       <DocCell>
         <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
@@ -259,6 +284,17 @@ export function DashboardPage() {
     [envelopes, parsedFilters, viewerEmail],
   );
 
+  // Per-user column widths persisted in localStorage (piece 3 of the
+  // single-screen-with-filters request). The hook gives us the live
+  // map + a setter the resize handles call on every pointer-move;
+  // the grid template is recomputed each render from those values.
+  const { widths, setWidth } = useColumnWidths(COLUMN_SPECS, COLUMN_WIDTHS_STORAGE_KEY);
+  const gridTemplate = useMemo(
+    () =>
+      `${COLUMN_KEYS.map((k) => `${widths[k] ?? DEFAULT_COLUMN_WIDTHS[k]}px`).join(' ')} ${CHEVRON_COL_PX}px`,
+    [widths],
+  );
+
   const stats = useMemo(() => {
     const awaitingYou = envelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
     // Mutually exclusive with awaitingYou so the totals don't double-count.
@@ -313,12 +349,17 @@ export function DashboardPage() {
         <FilterToolbar envelopes={envelopes} viewerEmail={viewerEmail} />
 
         <TableShell>
-          <TableHead role="row">
-            <div>Document</div>
-            <div>Signers</div>
-            <div>Progress</div>
-            <div>Status</div>
-            <div>Date</div>
+          <TableHead role="row" $grid={gridTemplate}>
+            {COLUMN_KEYS.map((key) => (
+              <HeadCell key={key}>
+                {COLUMN_LABELS[key]}
+                <ColumnResizeHandle
+                  width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
+                  onResize={(px) => setWidth(key, px)}
+                  ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
+                />
+              </HeadCell>
+            ))}
             <div aria-hidden />
           </TableHead>
           {renderDocumentsBody({
@@ -327,6 +368,7 @@ export function DashboardPage() {
             filtered,
             navigate,
             viewerEmail,
+            gridTemplate,
           })}
         </TableShell>
       </Inner>

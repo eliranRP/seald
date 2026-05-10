@@ -58,12 +58,36 @@ export const TableShell = styled.div`
   overflow: hidden;
 `;
 
-/** Kit spec: Document · Signers · Progress · Status · Date · chevronron */
-const GRID = '1.3fr 1.5fr 1fr 180px 100px 60px';
+/**
+ * Default kit-spec column widths in pixels: Document · Signers ·
+ * Progress · Status · Date · chevron. The chevron column stays
+ * fixed (it's just an icon) so we resize the five content columns.
+ *
+ * Per-user overrides ride in `localStorage` via `useColumnWidths`;
+ * the dashboard composes the active grid template from the live
+ * width map and passes it down via the `$grid` prop.
+ */
+export const DEFAULT_COLUMN_WIDTHS = {
+  document: 320,
+  signers: 220,
+  progress: 180,
+  status: 180,
+  date: 110,
+} as const;
 
-export const TableHead = styled.div`
+export const COLUMN_MIN_WIDTHS = {
+  document: 200,
+  signers: 140,
+  progress: 120,
+  status: 120,
+  date: 90,
+} as const;
+
+export const CHEVRON_COL_PX = 60;
+
+export const TableHead = styled.div<{ $grid: string }>`
   display: grid;
-  grid-template-columns: ${GRID};
+  grid-template-columns: ${({ $grid }) => $grid};
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[5]}`};
   background: ${({ theme }) => theme.color.ink[50]};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -82,12 +106,18 @@ export const TableHead = styled.div`
   }
 `;
 
-export const TableRow = styled.button`
+export const HeadCell = styled.div`
+  /* Each header cell hosts an absolutely-positioned ColumnResizeHandle
+     pinned to its right edge — needs a positioning context. */
+  position: relative;
+`;
+
+export const TableRow = styled.button<{ $grid: string }>`
   all: unset;
   box-sizing: border-box;
   display: grid;
   width: 100%;
-  grid-template-columns: ${GRID};
+  grid-template-columns: ${({ $grid }) => $grid};
   gap: ${({ theme }) => theme.space[4]};
   padding: ${({ theme }) => `${theme.space[4]} ${theme.space[5]}`};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
