@@ -45,14 +45,24 @@ export interface TemplateField {
   readonly label?: string;
   /**
    * Zero-based index into the signer roster active when the template was
-   * saved. When the template is reused (and `last_signers` re-pre-fills
-   * the new envelope's roster in the same order), each field is rebound
-   * to the signer at this index — so signer #1's signature stays signer
-   * #1's signature instead of every field collapsing onto signers[0].
-   * Optional for back-compat with older saved templates: missing values
-   * still fall back to signers[0] on the consumer side.
+   * saved. Kept for legacy templates predating `signerRoleId`; new saves
+   * populate both fields, and consumers prefer `signerRoleId` when
+   * present so that mid-list signer removals don't cause kept signers'
+   * placements to shift up.
    */
   readonly signerIndex?: number;
+  /**
+   * Stable per-signer id from the roster active when the template was
+   * saved — matches `TemplateLastSigner.id`. Resolves the wizard bug
+   * where removing a prefilled signer in the use-template flow caused
+   * remaining signers' placements to inherit the removed signer's
+   * position (an artifact of the old ordinal-only binding compressing
+   * indexes). Optional: legacy templates without this field fall back
+   * to `signerIndex`, and consumers backfill it at resolve time using
+   * `last_signers` so even unsaved legacy templates pick up the new
+   * behavior.
+   */
+  readonly signerRoleId?: string;
 }
 
 /**

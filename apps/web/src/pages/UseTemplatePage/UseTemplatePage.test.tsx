@@ -181,4 +181,59 @@ describe('UseTemplatePage — pre-filled signers from lastSigners', () => {
     expect(screen.queryByText('Jamie Okonkwo')).toBeNull();
     expect(screen.queryByText('Avery Lin')).toBeNull();
   });
+
+  // Bug 1 (2026-05-10 user report): a template's prefilled signer is
+  // removed, a fresh guest is added in their place — both remaining
+  // signers must keep distinct colors. Pre-fix the new guest got
+  // `prev.length % palette.length` which collided with the kept
+  // signer's slot whenever a mid-list removal had freed an earlier
+  // index.
+  it('keeps every signer row a unique color even after a mid-list remove + add cycle', async () => {
+    // Three prefills covering the first three palette slots so the
+    // collision is observable without exhausting the 6-color palette.
+    const SAVED_THREE = [
+      { id: 'c-jamie', name: 'Jamie', email: 'jamie@x.test', color: '#F472B6' },
+      { id: 'c-avery', name: 'Avery', email: 'avery@x.test', color: '#7DD3FC' },
+      { id: 'c-bo', name: 'Bo', email: 'bo@x.test', color: '#FBBF24' },
+    ];
+    setTemplates(
+      TEMPLATES.map((t) => (t.id === SAMPLE.id ? { ...t, lastSigners: SAVED_THREE } : t)),
+    );
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    await userEvent.click(screen.getByRole('button', { name: /^continue$/i }));
+    expect(
+      await screen.findByRole('heading', { name: /who's signing this time/i }),
+    ).toBeInTheDocument();
+
+    // Remove Avery (mid-list — frees palette slot #7DD3FC).
+    await userEvent.click(screen.getByRole('button', { name: /remove avery/i }));
+
+    // Add a new guest. Pre-fix this would have re-used Bo's #FBBF24
+    // because `prev.length = 2` after the removal. Post-fix the guest
+    // picks the lowest-index unused color (#7DD3FC, freed by Avery).
+    await userEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
+    await userEvent.type(screen.getByPlaceholderText(/search contacts/i), 'fresh@x.test');
+    await userEvent.click(await screen.findByRole('button', { name: /add .* as guest signer/i }));
+
+    // Collect the avatar background colors of every visible signer
+    // row. Each row's first child is the styled `<Avatar $color={...}>`
+    // so we read its computed background. The kept signer (Jamie),
+    // remaining prefilled (Bo), and the freshly-added guest must each
+    // resolve to a distinct color.
+    const expectedNames = ['Jamie', 'Bo', 'fresh@x.test'];
+    const colors = expectedNames.map((name) => {
+      const nameEl = screen.getByText(name);
+      // Walk up until we find the listitem ancestor (SignerRow).
+      let cursor: HTMLElement | null = nameEl;
+      while (cursor && cursor.getAttribute('role') !== 'listitem') {
+        cursor = cursor.parentElement;
+      }
+      if (!cursor) throw new Error(`could not find listitem ancestor for ${name}`);
+      const avatar = cursor.firstElementChild as HTMLElement | null;
+      if (!avatar) throw new Error(`row for ${name} has no avatar child`);
+      return window.getComputedStyle(avatar).backgroundColor.toLowerCase();
+    });
+    expect(colors.every((c) => c.length > 0)).toBe(true);
+    expect(new Set(colors).size).toBe(colors.length);
+  });
 });

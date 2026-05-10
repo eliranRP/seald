@@ -28,46 +28,59 @@ export interface RebindSigner {
 }
 
 /**
- * Apply the user-spec signer-count rules to a resolved-template field
+ * Apply the user-spec signer-rebind rules to a resolved-template field
  * set, projecting each field onto the active envelope roster.
  *
- * Three cases (driven by each field's saved `signerIndex` ordinal):
+ * Binding precedence (per field):
  *
- *   1. `signerIndex` defined AND `< signers.length` — bind to
- *      `signers[signerIndex]` so per-signer colors & assignments
- *      survive the round-trip even when the user replaced the signers.
- *      Identity doesn't matter; the ordinal does.
+ *   1. `signerRoleId` matches a signer's `id` in the roster — bind
+ *      there. This is the canonical path for new templates AND for
+ *      legacy templates after `resolveTemplateFields` backfills
+ *      `signerRoleId` from `last_signers[signerIndex]`. Surviving the
+ *      mid-list-removal shift bug (where removing signer A from
+ *      [A, B] used to re-assign A's placements to B) depends on this
+ *      step running before the ordinal fallback.
  *
- *   2. `signerIndex` defined AND `>= signers.length` — DROP the field.
- *      The user removed a signer, so their fields go with them. This
- *      replaces the previous fallback-to-signers[0], which collapsed
- *      every "extra" field onto signer #0 and looked like duplicate
- *      signatures (the original bug).
+ *   2. `signerRoleId` defined but no roster member matches — DROP.
+ *      The signer that owned this field was removed from the active
+ *      envelope; their placements go with them.
  *
- *   3. `signerIndex` undefined (legacy templates saved before signer
- *      indexing was added) — fall back to `signers[0]` for back-compat.
- *      If the roster is empty, drop. The user can still rebind in the
- *      editor.
+ *   3. `signerIndex` defined AND `< signers.length` (legacy ordinal
+ *      path, no `signerRoleId`) — bind by ordinal. Survives only on
+ *      pre-fix templates that haven't been re-resolved with
+ *      `lastSigners` yet.
  *
- * Extra signers (those at indexes the original template never used)
- * automatically get no preset fields — the per-field loop only emits
- * fields the template originally placed, so "more signers than the
- * template" naturally produces empty assignments for the new signers
- * (the user adds those fields manually in the editor).
+ *   4. `signerIndex` defined AND `>= signers.length` — DROP, same
+ *      reasoning as case 2.
+ *
+ *   5. Neither defined (truly ancient templates) — best-effort
+ *      fallback to `signers[0]`; if the roster is empty, drop.
+ *
+ * Extra signers (those past every saved binding) get no preset fields;
+ * the per-field loop only emits what the template originally placed.
  */
 export function rebindFieldsToSigners(
   resolved: ReadonlyArray<ResolvedField>,
   signers: ReadonlyArray<RebindSigner>,
 ): ReadonlyArray<PlacedFieldValue> {
+  const signerById = new Map(signers.map((s) => [s.id, s]));
   const out: PlacedFieldValue[] = [];
   for (const rf of resolved) {
     let targetSignerId: string | undefined;
-    if (rf.signerIndex !== undefined) {
-      // Saved-with-index path: bind by ordinal, drop on out-of-range.
+    if (rf.signerRoleId !== undefined) {
+      // Stable-id path: drop when the role's owner is no longer in
+      // the roster. Do NOT fall through to `signerIndex` — that
+      // re-introduces the shift bug for legacy templates the
+      // backfill already covered.
+      const target = signerById.get(rf.signerRoleId);
+      if (!target) continue;
+      targetSignerId = target.id;
+    } else if (rf.signerIndex !== undefined) {
+      // Legacy ordinal path: bind by ordinal, drop on out-of-range.
       if (rf.signerIndex >= signers.length) continue;
       targetSignerId = signers[rf.signerIndex]?.id;
     } else {
-      // Legacy path: best-effort fallback to signers[0].
+      // Pre-signerIndex legacy: best-effort fallback to signers[0].
       targetSignerId = signers[0]?.id;
     }
     out.push({

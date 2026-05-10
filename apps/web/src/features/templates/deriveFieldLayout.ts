@@ -127,19 +127,22 @@ export function deriveTemplateFieldLayout(
       // The user can re-place it on the resolved document.
       continue;
     }
-    // Derive signerIndex from the head field's first assigned signer.
-    // Linked copies share an assignment in the editor today (the group
-    // toolbar applies the picker to every member), so the head's
-    // signerIds[0] is representative of the bucket. Drop the field
-    // entirely from the layout if we can't resolve an index when one
-    // was requested via `signers` — better to lose the field than to
-    // misbind it to signers[0] silently.
+    // Derive signerIndex AND signerRoleId from the head field's first
+    // assigned signer. Linked copies share an assignment in the editor
+    // today (the group toolbar applies the picker to every member), so
+    // the head's signerIds[0] is representative of the bucket. Both
+    // fields are populated when `signers` is supplied — the ordinal
+    // for legacy back-compat, the role-id as the canonical binder.
     let signerIndex: number | undefined;
+    let signerRoleId: string | undefined;
     if (signers) {
       const headSignerId = head.signerIds[0];
       if (headSignerId !== undefined) {
         const idx = signerOrdinalById.get(headSignerId);
-        if (idx !== undefined) signerIndex = idx;
+        if (idx !== undefined) {
+          signerIndex = idx;
+          signerRoleId = headSignerId;
+        }
       }
     }
     const rule = inferPageRule(pages, totalPages);
@@ -151,6 +154,7 @@ export function deriveTemplateFieldLayout(
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
+        ...(signerRoleId !== undefined ? { signerRoleId } : {}),
       });
       continue;
     }
@@ -166,6 +170,7 @@ export function deriveTemplateFieldLayout(
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
+        ...(signerRoleId !== undefined ? { signerRoleId } : {}),
       });
     }
   }

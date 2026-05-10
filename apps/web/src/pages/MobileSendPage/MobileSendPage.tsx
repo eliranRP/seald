@@ -58,6 +58,7 @@ import { useSendEnvelope } from '@/features/envelopes/useSendEnvelope';
 import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelope';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
 import { SIGNER_COLOR_PALETTE } from '@/lib/mockApi';
+import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 
 const STEP_LABELS: Readonly<Record<MobileStep, string>> = {
   start: 'Pick your starting point',
@@ -266,13 +267,16 @@ export function MobileSendPage() {
       if (meIncluded && !has) {
         const fallbackName = user?.name || sessionUser.email || 'Me';
         const fallbackEmail = user?.email || sessionUser.email || '';
-        const colorIdx = prev.length % SIGNER_COLOR_PALETTE.length;
+        const color = pickAvailableColor(
+          SIGNER_COLOR_PALETTE,
+          prev.map((s) => s.color),
+        );
         return [
           {
             id: meId,
             name: fallbackName,
             email: fallbackEmail,
-            color: SIGNER_COLOR_PALETTE[colorIdx] ?? '#818CF8',
+            color,
             initials: initialsFromName(fallbackName),
           },
           ...prev,
@@ -375,14 +379,17 @@ export function MobileSendPage() {
   // for the signers list; the sheet only validates against it.
   const addSignerLocal = useCallback((input: SignerInput): void => {
     setSigners((prev) => {
-      const colorIdx = prev.length % SIGNER_COLOR_PALETTE.length;
+      const color = pickAvailableColor(
+        SIGNER_COLOR_PALETTE,
+        prev.map((s) => s.color),
+      );
       return [
         ...prev,
         {
           id: `s_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
           name: input.name,
           email: input.email,
-          color: SIGNER_COLOR_PALETTE[colorIdx] ?? '#818CF8',
+          color,
           initials: initialsFromName(input.name),
         },
       ];
