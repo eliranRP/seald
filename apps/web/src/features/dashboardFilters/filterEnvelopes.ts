@@ -112,6 +112,7 @@ export function filterEnvelopes(
   const q = filters.q;
   const signerSet = filters.signer.length > 0 ? new Set(filters.signer) : null;
   const statusSet = filters.status.length > 0 ? new Set(filters.status) : null;
+  const tagSet = filters.tags.length > 0 ? new Set(filters.tags) : null;
 
   return envelopes.filter((env) => {
     if (q !== '') {
@@ -129,6 +130,11 @@ export function filterEnvelopes(
     }
     if (signerSet !== null) {
       const matched = env.signers.some((s) => signerSet.has(s.email.toLowerCase()));
+      if (!matched) return false;
+    }
+    if (tagSet !== null) {
+      const tags = env.tags ?? [];
+      const matched = tags.some((t) => tagSet.has(t.toLowerCase()));
       if (!matched) return false;
     }
     return true;

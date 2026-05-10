@@ -24,6 +24,12 @@ export interface CreateDraftInput {
 export interface UpdateDraftMetadataPatch {
   readonly title?: string;
   readonly expires_at?: string;
+  /**
+   * Whole-array replace (semantics match the dashboard tag editor:
+   * the user always submits the full new tag set). The repository
+   * trusts the caller to have normalised the array.
+   */
+  readonly tags?: ReadonlyArray<string>;
 }
 
 export interface SetOriginalFileInput {
@@ -138,6 +144,7 @@ export interface EnvelopeListItem {
   readonly sent_at: string | null;
   readonly completed_at: string | null;
   readonly expires_at: string;
+  readonly tags: ReadonlyArray<string>;
   readonly created_at: string;
   readonly updated_at: string;
   readonly signers: ReadonlyArray<EnvelopeListSignerSnippet>;

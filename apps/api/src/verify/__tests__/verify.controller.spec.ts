@@ -37,6 +37,7 @@ const ENVELOPE: Envelope = {
   expires_at: '2026-05-25T21:20:50.000Z',
   tc_version: '1',
   privacy_version: '1',
+  tags: [],
   signers: [
     {
       id: '00000000-0000-0000-0000-0000000000s1',

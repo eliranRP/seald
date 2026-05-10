@@ -126,6 +126,12 @@ export const EnvelopeSchema = z.object({
   privacy_version: z.string().min(1),
   signers: z.array(SignerSchema),
   fields: z.array(FieldSchema),
+  // Per-envelope user-defined labels for dashboard filtering. Stored
+  // as a jsonb string array (column added in migration 0016). The
+  // API normalises and de-dupes on save (lower-case, trim, drop
+  // empties); read responses pass the value through verbatim. Cap
+  // of 10 tags / 32 chars each is enforced by the DTO.
+  tags: z.array(z.string().min(1).max(32)).max(10).default([]),
   created_at: iso,
   updated_at: iso,
 });
@@ -245,6 +251,7 @@ export const EnvelopeListItemSchema = EnvelopeSchema.pick({
   sent_at: true,
   completed_at: true,
   expires_at: true,
+  tags: true,
   created_at: true,
   updated_at: true,
 }).extend({

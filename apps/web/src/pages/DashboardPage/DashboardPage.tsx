@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { DocThumb } from '@/components/DocThumb';
 import { EmptyState } from '@/components/EmptyState';
 import { EnvelopeIllustration } from '@/components/EnvelopeIllustration';
+import { TagChip } from '@/components/TagChip';
 import { FilterToolbar } from '@/components/FilterToolbar';
 import { PageHeader } from '@/components/PageHeader';
 import { SignerProgressBar } from '@/components/SignerProgressBar';
@@ -193,6 +194,16 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
         <div style={{ minWidth: 0 }}>
           <DocTitle>{d.title}</DocTitle>
           <DocCode>{d.short_code}</DocCode>
+          {d.tags && d.tags.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {d.tags.slice(0, 3).map((t) => (
+                <TagChip key={t} label={t} />
+              ))}
+              {d.tags.length > 3 ? (
+                <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>+{d.tags.length - 3}</span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </DocCell>
       <SignersCell>

@@ -140,6 +140,7 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
           carrier.delete('status');
           carrier.delete('date');
           carrier.delete('signer');
+          carrier.delete('tags');
           const written = new URLSearchParams(
             serializeFilters({
               ...next.filters,
@@ -183,10 +184,18 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
     [applyFilters, filters],
   );
 
-  // Local-only buffer for the in-popover signer search box. The
-  // search just narrows the visible list of selectable signers; only
-  // the checkbox toggle actually changes the URL filter.
+  const setTagsFilter = useCallback(
+    (next: ReadonlyArray<string>) => {
+      applyFilters({ filters: { ...filters, tags: next } });
+    },
+    [applyFilters, filters],
+  );
+
+  // Local-only buffer for the in-popover signer + tag search boxes.
+  // The search just narrows the visible list; only the checkbox
+  // toggle actually changes the URL filter.
   const [signerSearch, setSignerSearch] = useState('');
+  const [tagSearch, setTagSearch] = useState('');
 
   const clearAll = useCallback(() => {
     setSearchParams(
@@ -196,6 +205,7 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
         next.delete('status');
         next.delete('date');
         next.delete('signer');
+        next.delete('tags');
         return next;
       },
       { replace: true },
@@ -217,6 +227,21 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
     return counts;
   }, [envelopes, viewerEmail]);
 
+  const uniqueTags = useMemo(() => {
+    const set = new Set<string>();
+    const tally = new Map<string, number>();
+    for (const env of envelopes) {
+      for (const t of env.tags ?? []) {
+        const key = t.toLowerCase();
+        set.add(key);
+        tally.set(key, (tally.get(key) ?? 0) + 1);
+      }
+    }
+    return Array.from(set)
+      .sort()
+      .map((tag) => ({ tag, count: tally.get(tag) ?? 0 }));
+  }, [envelopes]);
+
   const uniqueSigners = useMemo(() => {
     const map = new Map<string, { name: string; email: string }>();
     for (const env of envelopes) {
@@ -236,13 +261,16 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
   const isStatusActive = filters.status.length > 0;
   const isDateActive = filters.date.kind !== 'preset' || filters.date.preset !== 'all';
   const isSignerActive = filters.signer.length > 0;
+  const isTagsActive = filters.tags.length > 0;
   const isSearchActive = searchDraft !== '';
-  const anyActive = isStatusActive || isDateActive || isSignerActive || isSearchActive;
+  const anyActive =
+    isStatusActive || isDateActive || isSignerActive || isTagsActive || isSearchActive;
 
   // Compact value previews shown in the trigger when a chip is active.
   const statusPreview = formatStatusPreview(filters.status);
   const datePreview = formatDatePreview(filters.date);
   const signerPreview = formatSignerPreview(filters.signer, uniqueSigners);
+  const tagsPreview = formatListPreview(filters.tags);
 
   // Local draft for custom date range until the user blurs / picks an
   // explicit preset — saves a URL write per arrow-key on the date input.
@@ -475,6 +503,72 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
         </PopoverFooter>
       </FilterChipPopover>
 
+      <FilterChipPopover
+        label="Tags"
+        value={tagsPreview}
+        active={isTagsActive}
+        {...(isTagsActive ? { onClear: () => setTagsFilter([]) } : {})}
+      >
+        <PopoverHeader>
+          <span>Tags</span>
+          {filters.tags.length > 0 ? (
+            <PopoverHeaderAction type="button" onClick={() => setTagsFilter([])}>
+              Clear
+            </PopoverHeaderAction>
+          ) : null}
+        </PopoverHeader>
+        {uniqueTags.length === 0 ? (
+          <PopoverFooter>
+            <PopoverFooterIcon>
+              <Info size={12} aria-hidden />
+            </PopoverFooterIcon>
+            <span>
+              You haven&apos;t tagged any envelopes yet. Add tags from a row or the envelope page.
+            </span>
+          </PopoverFooter>
+        ) : (
+          <>
+            <SignerInput
+              type="search"
+              placeholder="Search tags…"
+              value={tagSearch}
+              onChange={(e) => setTagSearch(e.target.value)}
+              aria-label="Search tags"
+            />
+            <div role="list" style={{ maxHeight: 260, overflowY: 'auto' }}>
+              {uniqueTags
+                .filter(({ tag }) => {
+                  if (tagSearch === '') return true;
+                  return tag.includes(tagSearch.toLowerCase());
+                })
+                .slice(0, 50)
+                .map(({ tag, count }) => {
+                  const checked = filters.tags.includes(tag);
+                  return (
+                    <Option key={tag} role="listitem">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          const isOn = e.currentTarget.checked;
+                          setTagsFilter(
+                            isOn ? [...filters.tags, tag] : filters.tags.filter((x) => x !== tag),
+                          );
+                        }}
+                        aria-label={tag}
+                      />
+                      <OptionBody>
+                        <OptionLabel>{tag}</OptionLabel>
+                      </OptionBody>
+                      <OptionCount>{count}</OptionCount>
+                    </Option>
+                  );
+                })}
+            </div>
+          </>
+        )}
+      </FilterChipPopover>
+
       {anyActive ? (
         <ResetButton type="button" onClick={clearAll} aria-label="Clear all filters">
           ✕ Clear filters
@@ -482,6 +576,12 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
       ) : null}
     </ToolbarRoot>
   );
+}
+
+function formatListPreview(selected: ReadonlyArray<string>): string {
+  if (selected.length === 0) return '';
+  if (selected.length === 1) return selected[0]!;
+  return `${selected[0]!}, +${selected.length - 1}`;
 }
 
 function formatStatusPreview(selected: ReadonlyArray<StatusOption>): string {

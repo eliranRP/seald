@@ -46,6 +46,12 @@ export interface EnvelopeFilters {
    * pick from a known roster (no free-text fallback).
    */
   readonly signer: ReadonlyArray<string>;
+  /**
+   * Lower-cased tag names. Empty array = no tag filter. OR-matched
+   * within the chip (an envelope passes if it carries any selected
+   * tag); AND-combined with the other filters.
+   */
+  readonly tags: ReadonlyArray<string>;
 }
 
 /**

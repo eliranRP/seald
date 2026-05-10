@@ -170,6 +170,27 @@ export class EnvelopesService {
     if (Object.keys(sanitized).length === 0) {
       throw new BadRequestException('validation_error');
     }
+    // Tags are normalised here (the API trusts user input as raw
+    // strings — lower-case, trim, drop empties, dedupe) before
+    // persistence. The 10-tag / 32-char caps are enforced by the
+    // DTO. Tags are editable on any envelope status; title /
+    // expires_at remain draft-only (the repo enforces this split).
+    if (sanitized.tags !== undefined) {
+      const seen = new Set<string>();
+      const normalised: string[] = [];
+      for (const raw of sanitized.tags) {
+        const t = raw.trim().toLowerCase();
+        if (t.length === 0) continue;
+        if (seen.has(t)) continue;
+        seen.add(t);
+        normalised.push(t);
+      }
+      // The repo accepts ReadonlyArray<string> on the patch; we
+      // build the new array here so the assignment lands on a
+      // fresh object rather than mutating `sanitized` (which is
+      // typed as readonly).
+      (sanitized as { tags: ReadonlyArray<string> }).tags = normalised;
+    }
     const updated = await this.repo.updateDraftMetadata(owner_id, id, sanitized);
     if (updated) return updated;
     const existing = await this.repo.findByIdForOwner(owner_id, id);

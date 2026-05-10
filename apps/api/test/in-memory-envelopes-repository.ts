@@ -71,6 +71,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       privacy_version: input.privacy_version,
       signers: [],
       fields: [],
+      tags: [],
       created_at: now,
       updated_at: now,
     };
@@ -139,6 +140,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       sent_at: e.sent_at,
       completed_at: e.completed_at,
       expires_at: e.expires_at,
+      tags: [...(e.tags ?? [])],
       created_at: e.created_at,
       updated_at: e.updated_at,
       signers: e.signers.map((s) => ({
@@ -218,8 +220,17 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     patch: UpdateDraftMetadataPatch,
   ): Promise<Envelope | null> {
     const e = await this.findByIdForOwner(owner_id, envelope_id);
-    if (!e || e.status !== 'draft') return null;
-    const next: Envelope = { ...e, ...patch, updated_at: new Date().toISOString() };
+    if (!e) return null;
+    // Tags are editable on any status; title / expires_at are
+    // draft-only. Mirrors the Pg repo's `updateDraftMetadata` split.
+    const { tags, ...draftOnly } = patch;
+    if (Object.keys(draftOnly).length > 0 && e.status !== 'draft') return null;
+    const next: Envelope = {
+      ...e,
+      ...draftOnly,
+      ...(tags !== undefined ? { tags: [...tags] } : {}),
+      updated_at: new Date().toISOString(),
+    };
     this.envelopes.set(envelope_id, next);
     return next;
   }

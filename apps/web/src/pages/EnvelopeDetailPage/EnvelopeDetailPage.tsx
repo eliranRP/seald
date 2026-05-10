@@ -29,6 +29,8 @@ import { DownloadMenu } from '@/components/DownloadMenu';
 import type { DownloadMenuItem } from '@/components/DownloadMenu';
 import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import { Skeleton } from '@/components/Skeleton';
+import { TagEditor } from '@/components/TagEditor';
+import { patchEnvelope } from '@/features/envelopes/envelopesApi';
 import {
   envelopeKeys,
   getEnvelopeDownloadUrl,
@@ -333,6 +335,28 @@ export function EnvelopeDetailPage() {
   );
 
   const handleBack = useCallback(() => navigate('/documents'), [navigate]);
+
+  // Tag edits are best-effort — the editor optimistically reflects
+  // the new chip set; we PATCH in the background and invalidate the
+  // detail + list queries on success so other surfaces (dashboard
+  // chips, filter chip suggestions) refresh. Failures revert via the
+  // re-fetched server value.
+  const handleTagsChange = useCallback(
+    async (next: ReadonlyArray<string>) => {
+      if (!envelope) return;
+      try {
+        await patchEnvelope(envelope.id, { tags: next });
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) }),
+          qc.invalidateQueries({ queryKey: envelopeKeys.lists() }),
+        ]);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to update tags.';
+        setToast({ kind: 'danger', text: msg });
+      }
+    },
+    [envelope, qc],
+  );
 
   // Shared fetch + open-in-new-tab flow for every PDF artifact. Two
   // subtleties worth knowing:
@@ -658,6 +682,9 @@ export function EnvelopeDetailPage() {
               </span>
               <span>Sent {formatDateOnly(envelope.sent_at)}</span>
             </HeadMeta>
+            <div style={{ marginTop: 12, maxWidth: 480 }}>
+              <TagEditor value={envelope.tags ?? []} onChange={(next) => handleTagsChange(next)} />
+            </div>
           </HeadText>
           <HeadActions>
             <DownloadMenu

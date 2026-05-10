@@ -174,6 +174,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       sent_at: e.sent_at,
       completed_at: e.completed_at,
       expires_at: e.expires_at,
+      tags: [...(e.tags ?? [])],
       created_at: e.created_at,
       updated_at: e.updated_at,
       signers: e.signers.map((s) => ({
@@ -239,8 +240,15 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     patch: UpdateDraftMetadataPatch,
   ) {
     const e = await this.findByIdForOwner(owner_id, envelope_id);
-    if (!e || e.status !== 'draft') return null;
-    const next: Envelope = { ...e, ...patch, updated_at: new Date().toISOString() };
+    if (!e) return null;
+    const { tags, ...draftOnly } = patch;
+    if (Object.keys(draftOnly).length > 0 && e.status !== 'draft') return null;
+    const next: Envelope = {
+      ...e,
+      ...draftOnly,
+      ...(tags !== undefined ? { tags: [...tags] } : {}),
+      updated_at: new Date().toISOString(),
+    };
     this.envelopes.set(envelope_id, next);
     return next;
   }
@@ -970,6 +978,7 @@ describe('EnvelopesService', () => {
         expires_at: new Date(Date.now() + 30 * 86_400_000).toISOString(),
         tc_version: '2026-04-24',
         privacy_version: '2026-04-24',
+        tags: [],
         signers: args.signers.map((s) => ({
           id: s.id,
           email: s.email,

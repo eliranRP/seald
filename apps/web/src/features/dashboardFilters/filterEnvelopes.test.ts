@@ -13,6 +13,7 @@ function envelope(over: Partial<EnvelopeListItem> = {}): EnvelopeListItem {
     sent_at: over.sent_at ?? null,
     completed_at: over.completed_at ?? null,
     expires_at: over.expires_at ?? null,
+    tags: over.tags ?? [],
     created_at: over.created_at ?? '2026-05-01T00:00:00Z',
     updated_at: over.updated_at ?? '2026-05-01T00:00:00Z',
     signers: over.signers ?? [],
@@ -24,6 +25,7 @@ const NO_FILTER: EnvelopeFilters = {
   status: [],
   date: { kind: 'preset', preset: 'all' },
   signer: [],
+  tags: [],
 };
 
 describe('filterEnvelopes', () => {
@@ -218,6 +220,39 @@ describe('filterEnvelopes', () => {
     });
   });
 
+  describe('tag filter', () => {
+    it('keeps envelopes whose tags intersect the selected set', () => {
+      const list = [
+        envelope({ id: '1', tags: ['urgent', 'wickliff'] }),
+        envelope({ id: '2', tags: ['tax-2026'] }),
+        envelope({ id: '3', tags: [] }),
+      ];
+      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent'] }, null);
+      expect(out.map((e) => e.id)).toEqual(['1']);
+    });
+
+    it('OR-matches multiple selected tags (envelope passes if it carries ANY)', () => {
+      const list = [
+        envelope({ id: '1', tags: ['urgent'] }),
+        envelope({ id: '2', tags: ['tax-2026'] }),
+        envelope({ id: '3', tags: ['archived'] }),
+      ];
+      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent', 'tax-2026'] }, null);
+      expect(out.map((e) => e.id).sort()).toEqual(['1', '2']);
+    });
+
+    it('matches case-insensitively against the envelope tag list', () => {
+      const list = [envelope({ id: '1', tags: ['Urgent'] })];
+      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent'] }, null);
+      expect(out).toHaveLength(1);
+    });
+
+    it('does nothing when the tag selection is empty', () => {
+      const list = [envelope({ id: '1', tags: ['x'] }), envelope({ id: '2', tags: [] })];
+      expect(filterEnvelopes(list, { ...NO_FILTER, tags: [] }, null)).toEqual(list);
+    });
+  });
+
   it('AND-combines every active filter', () => {
     const list = [
       envelope({
@@ -247,6 +282,7 @@ describe('filterEnvelopes', () => {
         status: ['draft'],
         date: { kind: 'preset', preset: 'all' },
         signer: ['alice@example.com'],
+        tags: [],
       },
       null,
     );

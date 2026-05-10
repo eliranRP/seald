@@ -9,6 +9,7 @@ describe('parseFilters', () => {
       status: ACTIONABLE_INBOX,
       date: { kind: 'preset', preset: 'all' },
       signer: [],
+      tags: [],
     });
   });
 
@@ -67,6 +68,17 @@ describe('parseFilters', () => {
     expect(parseFilters(new URLSearchParams('signer=')).signer).toEqual([]);
   });
 
+  it('parses comma-separated tags and lower-cases them', () => {
+    expect(parseFilters(new URLSearchParams('tags=Urgent,Tax-2026')).tags).toEqual([
+      'urgent',
+      'tax-2026',
+    ]);
+  });
+
+  it('returns an empty tag list when the param is empty', () => {
+    expect(parseFilters(new URLSearchParams('tags=')).tags).toEqual([]);
+  });
+
   it('does NOT apply the actionable-inbox default once any other param is present', () => {
     // User searched but didn't touch status — they want to search across
     // every envelope, not just the actionable subset.
@@ -83,6 +95,7 @@ describe('serializeFilters', () => {
         status: [],
         date: { kind: 'preset', preset: 'all' },
         signer: [],
+        tags: [],
       }),
     ).toBe('');
   });
@@ -93,6 +106,7 @@ describe('serializeFilters', () => {
       status: ['draft', 'sealed'] as const,
       date: { kind: 'preset' as const, preset: '7d' as const },
       signer: ['alice@example.com'] as ReadonlyArray<string>,
+      tags: ['urgent', 'tax-2026'] as ReadonlyArray<string>,
     };
     const serialized = serializeFilters(original);
     const params = new URLSearchParams(serialized);
@@ -107,6 +121,7 @@ describe('serializeFilters', () => {
         status: [],
         date: { kind: 'custom', range: { from: '2026-04-01', to: '2026-05-10' } },
         signer: [],
+        tags: [],
       }),
     );
     expect(parseFilters(params).date).toEqual({
@@ -124,6 +139,7 @@ describe('serializeFilters', () => {
       status: [],
       date: { kind: 'preset', preset: 'all' },
       signer: [],
+      tags: [],
       // The sentinel is signaled by an opt-in flag at the call site —
       // see the toolbar test for the integration assertion.
       explicitAllStatus: true,

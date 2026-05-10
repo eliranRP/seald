@@ -233,6 +233,7 @@ class FakeRepo extends EnvelopesRepository {
       privacy_version: input.privacy_version,
       signers: [],
       fields: [],
+      tags: [],
       created_at: now,
       updated_at: now,
     } as unknown as Envelope;
@@ -265,6 +266,7 @@ class FakeRepo extends EnvelopesRepository {
         sent_at: e.sent_at,
         completed_at: e.completed_at,
         expires_at: e.expires_at,
+        tags: [...(e.tags ?? [])],
         created_at: e.created_at,
         updated_at: e.updated_at,
         signers: [],
