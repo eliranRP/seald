@@ -237,12 +237,15 @@ resource "aws_instance" "api" {
   user_data                   = local.user_data
   user_data_replace_on_change = false
 
-  instance_market_options {
-    market_type = "spot"
-    spot_options {
-      instance_interruption_behavior = "stop"
-      spot_instance_type             = "persistent"
-      max_price                      = var.spot_max_price == "" ? null : var.spot_max_price
+  dynamic "instance_market_options" {
+    for_each = var.use_spot ? [1] : []
+    content {
+      market_type = "spot"
+      spot_options {
+        instance_interruption_behavior = "stop"
+        spot_instance_type             = "persistent"
+        max_price                      = var.spot_max_price == "" ? null : var.spot_max_price
+      }
     }
   }
 

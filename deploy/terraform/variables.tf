@@ -22,6 +22,17 @@ variable "spot_max_price" {
   default     = ""
 }
 
+variable "use_spot" {
+  description = <<-EOT
+    Provision the API instance as a spot instance (cheaper, ~$5/mo) when
+    true; on-demand (~$15/mo) when false. Flip to false when the AWS
+    account hits MaxSpotInstanceCountExceeded — typically after a
+    spot-pool exhaustion event or an account-level quota change.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "ssh_pubkey" {
   description = "Your SSH public key, used to create the EC2 key pair. `cat ~/.ssh/id_ed25519.pub` or similar."
   type        = string
