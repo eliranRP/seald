@@ -62,4 +62,26 @@ describe('Avatar', () => {
     expect(el).toHaveAttribute('data-testid', 'avatar');
     expect(el).toHaveClass('custom');
   });
+
+  // Bug 2026-05-10 (user report on Contacts page): three contacts named
+  // "Top", "Eliran NRO", "Eliran Azulay" all rendered the same dark
+  // (slate) avatar because the previous pickTone hashed only the first
+  // character of the name (`name.charCodeAt(0) % 5`). Hashing the full
+  // string makes names that share a first letter fall onto distinct
+  // tones in almost every realistic case.
+  it('renders distinct background tones for names that share their first character', () => {
+    const names = ['Top', 'Eliran NRO', 'Eliran Azulay'];
+    const { getByRole } = renderWithTheme(
+      <>
+        {names.map((n) => (
+          <Avatar key={n} name={n} />
+        ))}
+      </>,
+    );
+    const colors = names.map(
+      (n) => window.getComputedStyle(getByRole('img', { name: n })).backgroundColor,
+    );
+    expect(colors.every((c) => c.length > 0)).toBe(true);
+    expect(new Set(colors).size).toBe(colors.length);
+  });
 });

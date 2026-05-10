@@ -19,8 +19,17 @@ function initials(name: string): string {
 }
 
 function pickTone(name: string): AvatarTone {
-  const code = name.charCodeAt(0) || 0;
-  const idx = code % TONES.length;
+  // Hash the full name so contacts that share a first character (e.g.
+  // "Eliran Azulay" and "Eliran NRO") still fall onto distinct tones.
+  // djb2 — small, deterministic, and avalanches better than the
+  // 31-multiplier sum for short related strings. `| 0` keeps the
+  // running value a 32-bit int so a long name can't blow the
+  // safe-integer range.
+  let h = 5381;
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) + h + name.charCodeAt(i)) | 0;
+  }
+  const idx = Math.abs(h) % TONES.length;
   return TONES[idx] ?? 'indigo';
 }
 
