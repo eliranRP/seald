@@ -123,16 +123,20 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       // Google requires the builder-level feature flag too.
       .enableFeature(picker.Feature.SUPPORT_DRIVES);
 
-    // Three DocsViews with explicit labels to avoid duplicate tab names.
+    // Four DocsViews with explicit labels to avoid duplicate tab names.
     // Using LIST mode since we only have the `drive.file` scope — thumbnails
     // require `drive.readonly` which is a RESTRICTED scope needing a paid CASA
     // audit. Tab order:
     //   1. My Drive       → setOwnedByMe(true)
-    //   2. Shared with me → setOwnedByMe(false)
-    //   3. Shared drives  → setEnableDrives(true)
-    // Starred view is removed: with drive.file scope the token can't query
-    // starred metadata so it would always show empty.
-    // All three apply the same MIME-type filter and keep
+    //   2. Starred        → setStarred(true)
+    //   3. Shared with me → setOwnedByMe(false)
+    //   4. Shared drives  → setEnableDrives(true)
+    // Caveat on Starred: under the `drive.file` scope, the picker only
+    // surfaces the intersection of (files Seald has previously touched
+    // via the picker) ∩ (user-starred). Empty for new users; useful for
+    // returning users who star their work documents. Includes starred
+    // folders (navigable, not selectable) just like the other tabs.
+    // All four apply the same MIME-type filter and keep
     // setIncludeFolders(true)/setSelectFolderEnabled(false).
     const mimes = MIMES_FOR_FILTER[mimeFilter].join(',');
     const listMode = picker.DocsViewMode.LIST;
@@ -145,6 +149,15 @@ export function DrivePicker(props: DrivePickerProps): JSX.Element | null {
       .setIncludeFolders(true)
       .setSelectFolderEnabled(false);
     builder.addView(myDriveView);
+
+    const starredView = new picker.DocsView(picker.ViewId.DOCS)
+      .setStarred(true)
+      .setLabel('Starred')
+      .setMode(listMode)
+      .setMimeTypes(mimes)
+      .setIncludeFolders(true)
+      .setSelectFolderEnabled(false);
+    builder.addView(starredView);
 
     const sharedWithMeView = new picker.DocsView(picker.ViewId.DOCS)
       .setOwnedByMe(false)
