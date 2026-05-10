@@ -3,7 +3,7 @@ import type { EnvelopeFilters, StatusOption } from './types';
 
 /**
  * Returns true when the viewer is a signer on the envelope and hasn't
- * yet completed/declined. Centralises the predicate so both the
+ * yet completed/declined. Centralizes the predicate so both the
  * status-bucketing logic and any UI badge that wants to surface
  * "your turn" agree on what that means.
  *

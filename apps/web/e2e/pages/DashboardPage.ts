@@ -4,6 +4,14 @@ export class DashboardPage {
   constructor(private readonly page: Page) {}
 
   async goto(): Promise<void> {
+    // Append the `status=all` sentinel so tests see every seeded envelope
+    // (the dashboard's first-visit default narrows to the actionable
+    // inbox: Awaiting you + Awaiting others). Tests that need to assert
+    // the actionable-inbox default should call `gotoDefault()` instead.
+    await this.page.goto('/documents?status=all');
+  }
+
+  async gotoDefault(): Promise<void> {
     await this.page.goto('/documents');
   }
 
@@ -14,19 +22,22 @@ export class DashboardPage {
   }
 
   async filterBy(status: string): Promise<void> {
-    // Dashboard tabs: All / Awaiting you / Awaiting others / Completed /
-    // Drafts. "awaiting" alone is ambiguous; map common shorthands to the
-    // right tab so scenarios stay declarative.
-    const map: Record<string, RegExp> = {
-      awaiting: /awaiting others/i,
-      'awaiting others': /awaiting others/i,
-      'awaiting you': /awaiting you/i,
-      completed: /^completed$/i,
-      drafts: /^drafts$/i,
-      all: /^all$/i,
+    // The dashboard now reads filter state from `?status=…` (replacing
+    // the old tab UI). Push the URL directly so tests stay independent
+    // of the chip popover's checkbox UX.
+    const map: Record<string, string> = {
+      awaiting: 'awaiting_others',
+      'awaiting others': 'awaiting_others',
+      'awaiting you': 'awaiting_you',
+      completed: 'sealed',
+      sealed: 'sealed',
+      drafts: 'draft',
+      draft: 'draft',
+      declined: 'declined',
+      all: 'all',
     };
-    const pattern = map[status.toLowerCase()] ?? new RegExp(status, 'i');
-    await this.page.getByRole('tab', { name: pattern }).click();
+    const slug = map[status.toLowerCase()] ?? status.toLowerCase();
+    await this.page.goto(`/documents?status=${slug}`);
   }
 
   async openEnvelope(title: string): Promise<void> {
