@@ -161,6 +161,11 @@ export interface EnvelopesTable {
   sent_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   completed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   expires_at: ColumnType<Date, string, string | undefined>;
+  // Migration 0016 — short user-defined labels for filtering on the
+  // dashboard. `jsonb` of a string array; API DTO enforces the
+  // shape (max 10 tags, 32 chars each, lower-cased + de-duped).
+  // Insert is optional because the column has a `default '[]'::jsonb`.
+  tags: ColumnType<ReadonlyArray<string>, string | undefined, string | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }

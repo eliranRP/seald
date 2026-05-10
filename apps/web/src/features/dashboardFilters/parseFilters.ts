@@ -27,17 +27,22 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export function parseFilters(params: URLSearchParams): EnvelopeFilters {
   const hasAnyParam =
-    params.has('q') || params.has('status') || params.has('date') || params.has('signer');
+    params.has('q') ||
+    params.has('status') ||
+    params.has('date') ||
+    params.has('signer') ||
+    params.has('tags');
 
   return {
     q: (params.get('q') ?? '').toLowerCase(),
     status: parseStatus(params.get('status'), hasAnyParam),
     date: parseDate(params.get('date')),
-    signer: parseSigners(params.get('signer')),
+    signer: parseList(params.get('signer')),
+    tags: parseList(params.get('tags')),
   };
 }
 
-function parseSigners(raw: string | null): ReadonlyArray<string> {
+function parseList(raw: string | null): ReadonlyArray<string> {
   if (raw === null || raw === '') return [];
   return raw
     .split(',')
@@ -100,5 +105,6 @@ export function serializeFilters(filters: SerializeInput): string {
     out.set('date', `custom:${filters.date.range.from}:${filters.date.range.to}`);
   }
   if (filters.signer.length > 0) out.set('signer', filters.signer.join(','));
+  if (filters.tags.length > 0) out.set('tags', filters.tags.join(','));
   return out.toString();
 }

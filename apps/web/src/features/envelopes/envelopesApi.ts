@@ -58,6 +58,7 @@ export interface Envelope {
   readonly completed_at: string | null;
   readonly signers: ReadonlyArray<EnvelopeSigner>;
   readonly fields: ReadonlyArray<EnvelopeField>;
+  readonly tags: ReadonlyArray<string>;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -108,6 +109,30 @@ export async function listEnvelopes(
 
 export async function getEnvelope(id: string, signal?: AbortSignal): Promise<Envelope> {
   const { data } = await apiClient.get<Envelope>(`/envelopes/${id}`, configWithSignal(signal));
+  return data;
+}
+
+export interface PatchEnvelopeInput {
+  readonly title?: string;
+  readonly expires_at?: string;
+  /**
+   * Whole-array replace. The server normalises (lowercase + trim
+   * + dedupe) and enforces the 10 × 32-char caps; clients can
+   * send the user-typed values verbatim.
+   */
+  readonly tags?: ReadonlyArray<string>;
+}
+
+export async function patchEnvelope(
+  id: string,
+  patch: PatchEnvelopeInput,
+  signal?: AbortSignal,
+): Promise<Envelope> {
+  const { data } = await apiClient.patch<Envelope>(
+    `/envelopes/${id}`,
+    patch,
+    configWithSignal(signal),
+  );
   return data;
 }
 

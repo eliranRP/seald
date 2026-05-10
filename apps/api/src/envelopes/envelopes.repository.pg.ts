@@ -166,6 +166,7 @@ function toEnvelopeDomain(
     sent_at: toIso(envelope.sent_at),
     completed_at: toIso(envelope.completed_at),
     expires_at: toIsoRequired(envelope.expires_at),
+    tags: [...(envelope.tags ?? [])],
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
     signers: signers.map(toSignerDomain),
@@ -207,6 +208,7 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
     sent_at: toIso(row.sent_at),
     completed_at: toIso(row.completed_at),
     expires_at: toIsoRequired(row.expires_at),
+    tags: (row.tags ?? []) as ReadonlyArray<string>,
     created_at: toIsoRequired(row.created_at),
     updated_at: toIsoRequired(row.updated_at),
     signers: signerRows.map((s) => ({
@@ -601,9 +603,28 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     if (Object.keys(patch).length === 0) {
       return this.findByIdForOwner(owner_id, envelope_id);
     }
+    // Tags are user-private metadata that doesn't affect the signed
+    // contents of the envelope, so they're editable at any status.
+    // Title / expires_at remain draft-only because they're part of
+    // the envelope's signed representation once it ships.
+    const { tags, ...draftOnly } = patch;
+    const tagsObj = tags !== undefined ? { tags: JSON.stringify(tags) } : {};
+    const draftOnlyKeys = Object.keys(draftOnly);
+    const updated_at = new Date().toISOString();
+    if (draftOnlyKeys.length === 0) {
+      // Tags-only update — skip the `status='draft'` guard.
+      const res = await this.db
+        .updateTable('envelopes')
+        .set({ ...tagsObj, updated_at })
+        .where('owner_id', '=', owner_id)
+        .where('id', '=', envelope_id)
+        .executeTakeFirst();
+      if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
+      return this.findByIdForOwner(owner_id, envelope_id);
+    }
     const res = await this.db
       .updateTable('envelopes')
-      .set({ ...patch, updated_at: new Date().toISOString() })
+      .set({ ...draftOnly, ...tagsObj, updated_at })
       .where('owner_id', '=', owner_id)
       .where('id', '=', envelope_id)
       .where('status', '=', 'draft')

@@ -55,6 +55,7 @@ export function makeEnvelope(
     privacy_version: 'pp-v1',
     signers: [],
     fields: [],
+    tags: [],
     created_at: now,
     updated_at: now,
   };
