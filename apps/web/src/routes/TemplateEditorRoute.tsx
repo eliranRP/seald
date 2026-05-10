@@ -36,6 +36,7 @@ import {
 import type { TemplateSummary } from '../features/templates';
 
 import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
+import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
@@ -480,7 +481,27 @@ export function TemplateEditorRoute() {
     [draft, updateDocument],
   );
 
-  const renameTemplate = useCallback((next: string) => setRenamedTitle(next), []);
+  // Debounced server-side title persistence. Mirrors UseTemplatePage:
+  // skip when there's no `sourceTemplate` (new-template flow has no
+  // id to PATCH yet — the explicit Save creates the row). Skip empty
+  // titles. Errors are swallowed; the explicit Save is the durable
+  // path and the next keystroke retries naturally.
+  const persistTitle = useCallback((id: string, next: string) => {
+    const trimmed = next.trim();
+    if (trimmed.length === 0) return;
+    void updateTemplate(id, { title: trimmed }).catch(() => {});
+  }, []);
+  const debouncedPersistTitle = useDebouncedCallback(persistTitle, 600);
+
+  const renameTemplate = useCallback(
+    (next: string) => {
+      setRenamedTitle(next);
+      if (sourceTemplate) {
+        debouncedPersistTitle(sourceTemplate.id, next);
+      }
+    },
+    [debouncedPersistTitle, sourceTemplate],
+  );
 
   // ---- Save-as-template (new mode primary) -----------------------------
 

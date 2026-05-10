@@ -27,6 +27,8 @@ import {
   type TemplateSummary,
 } from '@/features/templates';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
+import { updateTemplate as apiUpdateTemplate } from '@/features/templates/templatesApi';
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import { useAppState } from '@/providers/AppStateProvider';
 import {
   DocumentTitle,
@@ -335,9 +337,31 @@ export function UseTemplatePage() {
     setSigners((prev) => prev.filter((s) => s.id !== rowId));
   }, []);
 
-  const renameTemplate = useCallback((next: string) => {
-    setRenamedTitle(next);
+  // Auto-save the template title to the server after the user stops
+  // typing for ~600ms (debounce). Skipped for the new-template flow:
+  // there's no id to PATCH against until the user explicitly saves
+  // for the first time. Skipped for empty titles to avoid persisting
+  // an unnamed template. Errors are swallowed silently — auto-save is
+  // best-effort; the explicit Save flow is the durable path.
+  const persistTitle = useCallback((id: string, next: string) => {
+    const trimmed = next.trim();
+    if (trimmed.length === 0) return;
+    void apiUpdateTemplate(id, { title: trimmed }).catch(() => {
+      // Silent: matches the "no Saved chip" UX choice. The next
+      // keystroke (or explicit save) will retry.
+    });
   }, []);
+  const debouncedPersistTitle = useDebouncedCallback(persistTitle, 600);
+
+  const renameTemplate = useCallback(
+    (next: string) => {
+      setRenamedTitle(next);
+      if (!isNewTemplate && template) {
+        debouncedPersistTitle(template.id, next);
+      }
+    },
+    [debouncedPersistTitle, isNewTemplate, template],
+  );
 
   // Not-found surface ----------------------------------------------------
 
