@@ -124,14 +124,27 @@ describe('DashboardPage', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
     ).toBeInTheDocument();
+    // Default filter is the actionable inbox (Awaiting you + Awaiting
+    // others). MSA is awaiting_others, so it lands in the visible set.
     expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
   });
 
-  it('filters the table when a tab is selected', async () => {
+  it('narrows the table when the user picks a status from the toolbar', async () => {
+    // Default visible set is the actionable inbox (Awaiting you +
+    // Awaiting others). Sealed and Drafts are hidden by default. The
+    // toolbar's Draft checkbox flips Drafts into the visible set.
     renderDashboard();
     await screen.findByText(/master services agreement/i);
-    fireEvent.click(screen.getByRole('tab', { name: /drafts/i }));
+    expect(screen.queryByText(/vendor onboarding — argus/i)).toBeNull();
+    expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
+
+    // Open the Status chip and add "Draft" to the selection.
+    fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
+    fireEvent.click(await screen.findByLabelText('Draft'));
     expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
+    // Awaiting-others is still selected, so MSA stays visible.
+    expect(screen.getByText(/master services agreement/i)).toBeInTheDocument();
+    // Sealed remains unchecked, so the offer letter stays hidden.
     expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
   });
 
@@ -153,20 +166,22 @@ describe('DashboardPage', () => {
     expect(screen.getAllByText(/awaiting you/i).length).toBeGreaterThan(0);
   });
 
-  it('counts the viewer as Awaiting you in the stat tile + tab', async () => {
+  it('counts the viewer as Awaiting you in the stat tile and the toolbar Status chip', async () => {
     renderDashboard();
     await screen.findByText(/self-sign — jamie cv/i);
-    // The "Awaiting you" tab in the FilterTabs reflects the count.
-    const tab = screen.getByRole('tab', { name: /awaiting you/i });
-    // Tab name renders as `Label N` — assert we see at least one match.
-    expect(tab.textContent ?? '').toMatch(/1/);
+    // Open the Status chip; the "Awaiting you" option carries the count.
+    fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
+    const opt = await screen.findByLabelText('Awaiting you');
+    // Walk up to the row and look for the count rendered next to the
+    // option label. The styled OptionCount uses the mono font; we
+    // just assert "1" is present in the row.
+    const row = opt.closest('label');
+    expect(row?.textContent ?? '').toMatch(/1/);
   });
 
-  it('reads the initial filter from the ?filter= query param', async () => {
-    renderDashboard('/documents?filter=drafts');
+  it('reads the initial filter from the ?status= query param', async () => {
+    renderDashboard('/documents?status=draft');
     await screen.findByText(/vendor onboarding — argus/i);
-    const draftsTab = screen.getByRole('tab', { name: /drafts/i });
-    expect(draftsTab).toHaveAttribute('aria-selected', 'true');
     expect(screen.queryByText(/master services agreement/i)).toBeNull();
     expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
   });

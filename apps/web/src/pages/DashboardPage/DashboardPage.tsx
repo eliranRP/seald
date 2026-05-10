@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { JSX } from 'react';
 import { ChevronRight, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -7,7 +7,8 @@ import type { BadgeTone } from '@/components/Badge/Badge.types';
 import { Button } from '@/components/Button';
 import { DocThumb } from '@/components/DocThumb';
 import { EmptyState } from '@/components/EmptyState';
-import { FilterTabs } from '@/components/FilterTabs';
+import { EnvelopeIllustration } from '@/components/EnvelopeIllustration';
+import { FilterToolbar } from '@/components/FilterToolbar';
 import { PageHeader } from '@/components/PageHeader';
 import { SignerProgressBar } from '@/components/SignerProgressBar';
 import type { SignerProgressBarEntry } from '@/components/SignerProgressBar';
@@ -17,6 +18,7 @@ import { Skeleton } from '@/components/Skeleton';
 import { StatCard } from '@/components/StatCard';
 import { useEnvelopesQuery } from '@/features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
+import { filterEnvelopes, isAwaitingYou, parseFilters } from '@/features/dashboardFilters';
 import { formatShortDate } from '@/lib/dateFormat';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -35,53 +37,6 @@ import {
   TableRow,
   TableShell,
 } from './DashboardPage.styles';
-
-type FilterId = 'all' | 'you' | 'others' | 'completed' | 'drafts';
-
-const FILTER_IDS: ReadonlyArray<FilterId> = ['all', 'you', 'others', 'completed', 'drafts'];
-
-function isFilterId(value: string | null): value is FilterId {
-  return value !== null && (FILTER_IDS as ReadonlyArray<string>).includes(value);
-}
-
-interface FilterDef {
-  readonly id: FilterId;
-  readonly label: string;
-  readonly matches: (d: EnvelopeListItem) => boolean;
-}
-
-// Returns true when the dashboard viewer is one of the envelope's signers
-// AND that signer hasn't completed/declined yet AND the envelope is still
-// open. Lets the dashboard correctly bucket envelopes the viewer needs to
-// sign themselves (was previously stubbed `() => false` because the
-// dashboard pre-dated co-signing — when a sender adds themselves as a
-// signer, those envelopes were mis-bucketed under "Awaiting others").
-function isAwaitingYou(envelope: EnvelopeListItem, viewerEmail: string | null): boolean {
-  if (!viewerEmail) return false;
-  if (envelope.status !== 'awaiting_others' && envelope.status !== 'sealing') return false;
-  const v = viewerEmail.toLowerCase();
-  return envelope.signers.some(
-    (s) => s.email.toLowerCase() === v && s.status !== 'completed' && s.status !== 'declined',
-  );
-}
-
-function buildFilters(viewerEmail: string | null): ReadonlyArray<FilterDef> {
-  return [
-    { id: 'all', label: 'All', matches: () => true },
-    { id: 'you', label: 'Awaiting you', matches: (d) => isAwaitingYou(d, viewerEmail) },
-    {
-      id: 'others',
-      label: 'Awaiting others',
-      // Mutually exclusive with 'you' so a single envelope only lands in
-      // one bucket. Awaiting-you takes precedence (it's actionable).
-      matches: (d) =>
-        (d.status === 'awaiting_others' || d.status === 'sealing') &&
-        !isAwaitingYou(d, viewerEmail),
-    },
-    { id: 'completed', label: 'Sealed', matches: (d) => d.status === 'completed' },
-    { id: 'drafts', label: 'Drafts', matches: (d) => d.status === 'draft' },
-  ];
-}
 
 const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
@@ -209,7 +164,22 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
     ));
   }
   if (filtered.length === 0) {
-    return <EmptyState>No documents match this filter.</EmptyState>;
+    return (
+      <EmptyState>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+            paddingBlock: 24,
+          }}
+        >
+          <EnvelopeIllustration size={140} />
+          <span>No documents match these filters.</span>
+        </div>
+      </EmptyState>
+    );
   }
   return filtered.map((d) => (
     <TableRow
@@ -257,9 +227,7 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
  */
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const rawFilter = searchParams.get('filter');
-  const tab: FilterId = isFilterId(rawFilter) ? rawFilter : 'all';
+  const [searchParams] = useSearchParams();
 
   const q = useEnvelopesQuery(true, { limit: 100 });
   const envelopes: ReadonlyArray<EnvelopeListItem> = useMemo(() => q.data?.items ?? [], [q.data]);
@@ -269,28 +237,16 @@ export function DashboardPage() {
   // is themselves a signer on are bucketed correctly.
   const { user } = useAuth();
   const viewerEmail = user?.email ?? null;
-  const filters = useMemo(() => buildFilters(viewerEmail), [viewerEmail]);
 
-  const handleSelectTab = useCallback(
-    (id: FilterId): void => {
-      if (id === 'all') setSearchParams({});
-      else setSearchParams({ filter: id });
-    },
-    [setSearchParams],
+  // The new toolbar owns filter UI and writes to the URL; the page
+  // reads the URL and applies a single combined filter pass. Keeps
+  // the toolbar pluggable (piece #2 will add a tag chip) without
+  // pushing per-filter state into the page.
+  const parsedFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const filtered = useMemo(
+    () => filterEnvelopes(envelopes, parsedFilters, viewerEmail),
+    [envelopes, parsedFilters, viewerEmail],
   );
-
-  const counts = useMemo(() => {
-    const byFilter = new Map<FilterId, number>();
-    filters.forEach((f) => {
-      byFilter.set(f.id, envelopes.filter(f.matches).length);
-    });
-    return byFilter;
-  }, [envelopes, filters]);
-
-  const filtered = useMemo(() => {
-    const match = filters.find((f) => f.id === tab) ?? filters[0]!;
-    return envelopes.filter(match.matches);
-  }, [envelopes, filters, tab]);
 
   const stats = useMemo(() => {
     const awaitingYou = envelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
@@ -318,11 +274,6 @@ export function DashboardPage() {
     ];
   }, [envelopes, viewerEmail]);
 
-  const tabItems = useMemo(
-    () => filters.map((f) => ({ id: f.id, label: f.label, count: counts.get(f.id) ?? 0 })),
-    [counts, filters],
-  );
-
   return (
     <Main>
       <Inner>
@@ -348,12 +299,7 @@ export function DashboardPage() {
           ))}
         </StatGrid>
 
-        <FilterTabs
-          items={tabItems}
-          activeId={tab}
-          onSelect={(id) => handleSelectTab(id as FilterId)}
-          aria-label="Document filters"
-        />
+        <FilterToolbar envelopes={envelopes} viewerEmail={viewerEmail} />
 
         <TableShell>
           <TableHead role="row">
