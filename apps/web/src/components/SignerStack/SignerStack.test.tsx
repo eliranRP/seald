@@ -51,6 +51,38 @@ describe('SignerStack', () => {
     expect(screen.queryByText('bob@example.com')).not.toBeInTheDocument();
   });
 
+  // Bug 2026-05-10 (user report): on the dashboard, hovering the
+  // signer-stack pill rendered the popover inside the table row,
+  // and the surrounding `TableShell` (which has `overflow: hidden`
+  // to clip the bottom rounded corners) cut the popover off — only
+  // a thin sliver was visible. Asserts the popover renders OUTSIDE
+  // its containing overflow box (i.e. via a portal to document.body).
+  it('renders the popover outside an `overflow: hidden` ancestor (portaled)', async () => {
+    const user = userEvent.setup();
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('data-testid', 'overflow-clipper');
+    wrapper.style.overflow = 'hidden';
+    document.body.appendChild(wrapper);
+    const { container, unmount } = renderWithTheme(
+      <SignerStack
+        signers={[
+          mk({ id: '1', name: 'Ada Lovelace', email: 'ada@example.com', status: 'signed' }),
+        ]}
+      />,
+      { container: wrapper },
+    );
+    const root = container.firstElementChild as HTMLElement;
+    await user.hover(root);
+    const popoverContent = screen.getByText('ada@example.com');
+    // The popover row's text must be reachable, and its DOM ancestry
+    // must NOT pass through the overflow-hidden wrapper — otherwise
+    // it would still be clipped on screen.
+    expect(popoverContent).toBeInTheDocument();
+    expect(wrapper.contains(popoverContent)).toBe(false);
+    unmount();
+    document.body.removeChild(wrapper);
+  });
+
   it('counts only signed signers in the fraction', () => {
     renderWithTheme(
       <SignerStack

@@ -74,10 +74,11 @@ export const Fraction = styled.span`
   white-space: nowrap;
 `;
 
+// Top/left/position are supplied at the call site via an inline style
+// because the popover is portaled to document.body and pinned to the
+// trigger's measured viewport rect. Keeping the static styles here so
+// styled-components still owns the visual treatment.
 export const Popover = styled.div`
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
   z-index: 10;
   min-width: 240px;
   max-width: 320px;
