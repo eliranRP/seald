@@ -11,10 +11,15 @@ import type {
 import { DB_TOKEN } from '../db/db.provider';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
 import {
+  STATUS_SORT_ORDINAL,
+  decodeListCursor,
+  encodeListCursor,
+  isNumericSortKey,
+} from './list-cursor';
+import {
   EnvelopesRepository,
   EnvelopeSignerEmailTakenError,
   EnvelopeTerminalError,
-  InvalidCursorError,
   ShortCodeCollisionError,
   type AddSignerInput,
   type CreateDraftInput,
@@ -23,6 +28,7 @@ import {
   type ListOptions,
   type ListResult,
   type EnvelopeListItem,
+  type EnvelopeSortKey,
   type SendDraftInput,
   type SetOriginalFileInput,
   type ClaimedJob,
@@ -222,24 +228,9 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
   };
 }
 
-function encodeCursor(updated_at: string, id: string): string {
-  return Buffer.from(`${updated_at}|${id}`, 'utf8').toString('base64');
-}
-function decodeCursor(cursor: string): { updated_at: string; id: string } {
-  let decoded: string;
-  try {
-    decoded = Buffer.from(cursor, 'base64').toString('utf8');
-  } catch {
-    throw new InvalidCursorError();
-  }
-  const pipe = decoded.indexOf('|');
-  if (pipe <= 0 || pipe === decoded.length - 1) throw new InvalidCursorError();
-  const updated_at = decoded.slice(0, pipe);
-  const id = decoded.slice(pipe + 1);
-  if (!/^\d{4}-\d{2}-\d{2}T/.test(updated_at)) throw new InvalidCursorError();
-  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new InvalidCursorError();
-  return { updated_at, id };
-}
+// Keyset-cursor codec + sort-value helpers are shared with the
+// in-memory test double so the on-the-wire cursor format is
+// guaranteed identical. See ./list-cursor.ts.
 
 @Injectable()
 export class EnvelopesPgRepository extends EnvelopesRepository {
@@ -332,28 +323,102 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
   }
 
   async listByOwner(owner_id: string, opts: ListOptions): Promise<ListResult> {
-    let q = this.db
-      .selectFrom('envelopes')
-      .selectAll()
-      .where('owner_id', '=', owner_id)
-      .orderBy('updated_at', 'desc')
-      .orderBy('id', 'desc')
-      .limit(opts.limit + 1);
-    if (opts.statuses && opts.statuses.length > 0) {
-      q = q.where('status', 'in', [...opts.statuses]);
-    }
+    const sortKey: EnvelopeSortKey = opts.sort ?? 'date';
+    const asc = (opts.dir ?? 'desc') === 'asc';
+
+    // Per-envelope signer counts, materialized once via a grouped
+    // LEFT JOIN so the sort expression for `signers` / `progress`
+    // references plain columns (no correlated subquery in ORDER BY /
+    // WHERE — keeps pg-mem happy and the keyset clean).
+    //   signer_count — total envelope_signers rows
+    //   signed_count — rows with a non-null signed_at
+    //   progress_pm  — signed/total as a 0..1000 "permille" integer
+    //                  (denominator clamped to 1 so a zero-signer
+    //                   envelope is 0, never a divide-by-zero)
+    const base = this.db
+      .selectFrom('envelopes as e')
+      .leftJoin(
+        (eb) =>
+          eb
+            .selectFrom('envelope_signers as s')
+            .select((s) => [
+              's.envelope_id',
+              s.fn.countAll<number>().as('signer_count'),
+              sql<number>`sum(case when s.signed_at is not null then 1 else 0 end)`.as(
+                'signed_count',
+              ),
+            ])
+            .groupBy('s.envelope_id')
+            .as('sc'),
+        (join) => join.onRef('sc.envelope_id', '=', 'e.id'),
+      )
+      .selectAll('e')
+      .select((eb) => [
+        eb.fn.coalesce(sql<number>`sc.signer_count`, sql<number>`0`).as('signer_count'),
+        sql<number>`(coalesce(sc.signed_count, 0) * 1000 / greatest(coalesce(sc.signer_count, 0), 1))`.as(
+          'progress_pm',
+        ),
+      ])
+      .where('e.owner_id', '=', owner_id);
+
+    let q = (
+      opts.statuses && opts.statuses.length > 0
+        ? base.where('e.status', 'in', [...opts.statuses])
+        : base
+    ).limit(opts.limit + 1);
+
+    // Sort expression for the active key, expressed against the
+    // columns available after the JOIN. `title` is lower-cased so the
+    // alphabetical ordering is case-insensitive; `status` maps to a
+    // fixed presentation ordinal.
+    const sortExpr = (() => {
+      switch (sortKey) {
+        case 'date':
+          return sql<string>`e.updated_at`;
+        case 'created':
+          return sql<string>`e.created_at`;
+        case 'title':
+          return sql<string>`lower(e.title)`;
+        case 'status':
+          return sql<number>`(case e.status when 'draft' then 0 when 'awaiting_others' then 1 when 'sealing' then 2 when 'completed' then 3 when 'declined' then 4 when 'expired' then 5 when 'canceled' then 6 else 99 end)`;
+        case 'signers':
+          return sql<number>`coalesce(sc.signer_count, 0)`;
+        case 'progress':
+          return sql<number>`(coalesce(sc.signed_count, 0) * 1000 / greatest(coalesce(sc.signer_count, 0), 1))`;
+      }
+    })();
+
+    q = q
+      .orderBy(sortExpr, asc ? 'asc' : 'desc')
+      // Tie-break is ALWAYS newest-first then id ascending so a
+      // re-render never reshuffles rows the primary comparator
+      // can't distinguish, regardless of `dir`.
+      .orderBy('e.updated_at', 'desc')
+      .orderBy('e.id', 'asc');
+
     if (opts.cursor) {
-      const cursor = opts.cursor;
-      // Keyset: (updated_at, id) < (cursor.updated_at, cursor.id), desc order.
-      // `updated_at` is typed with `never` for the writes-side of Kysely's
-      // ColumnType, so we compare via sql. pg-mem does not implement the
-      // row-value comparison form `(a,b) < (c,d)`, so we spell it out as an
-      // explicit OR/AND — this also matches verbatim what real Postgres does
-      // under the hood for row comparisons.
+      const c = opts.cursor;
+      // 3-tuple keyset. The primary column follows `dir`; the
+      // `updated_at` tie-break is fixed-desc (`<`), the `id`
+      // tie-break fixed-asc (`>`). Spelled out as OR/AND rather
+      // than a row-value comparison so pg-mem can run it.
+      const primaryCmp = asc ? sql`>` : sql`<`;
+      // The cursor's sort value is re-cast to the column's type so
+      // the comparison is apples-to-apples. Numeric ordinals/counts/
+      // permille → numeric; title → text (already lower-cased when
+      // encoded); dates → timestamptz.
+      const cursorSortVal = isNumericSortKey(sortKey)
+        ? sql`${sql.lit(Number(c.sort_value))}::numeric`
+        : sortKey === 'title'
+          ? sql`${sql.lit(c.sort_value)}`
+          : sql`${sql.lit(c.sort_value)}::timestamptz`;
       q = q.where(
-        sql<boolean>`(updated_at < ${sql.lit(cursor.updated_at)}::timestamptz) or (updated_at = ${sql.lit(cursor.updated_at)}::timestamptz and id < ${sql.lit(cursor.id)}::uuid)`,
+        sql<boolean>`(${sortExpr} ${primaryCmp} ${cursorSortVal})
+          or (${sortExpr} = ${cursorSortVal} and e.updated_at < ${sql.lit(c.updated_at)}::timestamptz)
+          or (${sortExpr} = ${cursorSortVal} and e.updated_at = ${sql.lit(c.updated_at)}::timestamptz and e.id > ${sql.lit(c.id)}::uuid)`,
       );
     }
+
     const rows = await q.execute();
     const hasMore = rows.length > opts.limit;
     const page = hasMore ? rows.slice(0, opts.limit) : rows;
@@ -378,9 +443,30 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     }
 
     const items = page.map((row) => toListItem(row, signersByEnvelope.get(row.id) ?? []));
+
+    // The next cursor's `sort_value` is the stringified value of the
+    // active sort expression for the last row of this page.
+    const sortValueOf = (row: (typeof page)[number]): string => {
+      switch (sortKey) {
+        case 'date':
+          return toIsoRequired(row.updated_at);
+        case 'created':
+          return toIsoRequired(row.created_at);
+        case 'title':
+          return row.title.toLowerCase();
+        case 'status':
+          return String(STATUS_SORT_ORDINAL[row.status]);
+        case 'signers':
+          return String(Number(row.signer_count ?? 0));
+        case 'progress':
+          return String(Number(row.progress_pm ?? 0));
+      }
+    };
     const last = page[page.length - 1];
     const next_cursor =
-      hasMore && last ? encodeCursor(toIsoRequired(last.updated_at), last.id) : null;
+      hasMore && last
+        ? encodeListCursor(sortValueOf(last), toIsoRequired(last.updated_at), last.id)
+        : null;
     return { items, next_cursor };
   }
 
@@ -589,8 +675,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
 
   // Decode helper exposed for the service layer — keeps base64 format internal
   // to the adapter. Not part of the port because cursors are a repo concern.
-  decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
-    return decodeCursor(cursor);
+  decodeCursorOrThrow(cursor: string): { sort_value: string; updated_at: string; id: string } {
+    return decodeListCursor(cursor);
   }
 
   // ---------- Draft composition ----------

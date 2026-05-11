@@ -61,6 +61,8 @@ export class EnvelopesController {
     @Query('status') statusQuery?: string,
     @Query('limit') limitQuery?: string,
     @Query('cursor') cursor?: string,
+    @Query('sort') sort?: string,
+    @Query('dir') dir?: string,
   ): Promise<ListResult> {
     const statuses = parseStatuses(statusQuery);
     const limit = limitQuery ? Number.parseInt(limitQuery, 10) : undefined;
@@ -68,6 +70,8 @@ export class EnvelopesController {
       ...(statuses ? { statuses } : {}),
       ...(limit !== undefined && Number.isFinite(limit) ? { limit } : {}),
       ...(cursor ? { cursor } : {}),
+      ...(sort ? { sort } : {}),
+      ...(dir ? { dir } : {}),
     });
   }
 
