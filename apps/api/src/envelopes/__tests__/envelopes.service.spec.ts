@@ -11,7 +11,7 @@ import {
   OutboundEmailsRepository,
   type OutboundEmailRow,
 } from '../../email/outbound-emails.repository';
-import { makeEnvelope } from '../../../test/factories';
+import { makeEnvelope, makeSigner } from '../../../test/factories';
 import { SigningTokenService } from '../../signing/signing-token.service';
 import { StorageService } from '../../storage/storage.service';
 import type {
@@ -38,6 +38,7 @@ import {
   ShortCodeCollisionError,
 } from '../envelopes.repository';
 import { sortValueForKey } from '../list-cursor';
+import { applyListFilters } from '../list-filters';
 import { eventHash } from '../event-hash';
 import { EnvelopesService } from '../envelopes.service';
 
@@ -157,6 +158,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async listByOwner(owner_id: string, opts: ListOptions): Promise<ListResult> {
     let items = [...this.envelopes.values()].filter((e) => e.owner_id === owner_id);
     if (opts.statuses) items = items.filter((e) => opts.statuses!.includes(e.status));
+    items = applyListFilters(items, opts);
     const sortKey = opts.sort ?? 'date';
     const asc = (opts.dir ?? 'desc') === 'asc';
     const numericKey = sortKey === 'status' || sortKey === 'signers' || sortKey === 'progress';
@@ -680,6 +682,96 @@ describe('EnvelopesService', () => {
       await svc.createDraft(OWNER, { title: 'Apple' });
       const res = await svc.list(OWNER, { sort: 'title', dir: 'asc' });
       expect(res.items.map((e) => e.title)).toEqual(['Apple', 'Banana']);
+    });
+  });
+
+  describe('list — dashboard filters', () => {
+    const mutate = (id: string, patch: Partial<Envelope>): void => {
+      repo.envelopes.set(id, { ...repo.envelopes.get(id)!, ...patch });
+    };
+
+    it('filters by q (case-insensitive substring on title)', async () => {
+      await svc.createDraft(OWNER, { title: 'Acme Master Agreement' });
+      await svc.createDraft(OWNER, { title: 'Vendor onboarding' });
+      const res = await svc.list(OWNER, { q: 'acme' });
+      expect(res.items.map((e) => e.title)).toEqual(['Acme Master Agreement']);
+    });
+
+    it('filters by status bucket (draft vs sealed)', async () => {
+      const draft = await svc.createDraft(OWNER, { title: 'Still a draft' });
+      const sealed = await svc.createDraft(OWNER, { title: 'All done' });
+      mutate(sealed.id, { status: 'completed' });
+      expect((await svc.list(OWNER, { bucket: 'draft' })).items.map((e) => e.id)).toEqual([
+        draft.id,
+      ]);
+      expect((await svc.list(OWNER, { bucket: 'sealed' })).items.map((e) => e.id)).toEqual([
+        sealed.id,
+      ]);
+    });
+
+    it('splits awaiting_you / awaiting_others by viewerEmail', async () => {
+      const mine = await svc.createDraft(OWNER, { title: 'Waiting on me' });
+      const theirs = await svc.createDraft(OWNER, { title: 'Waiting on them' });
+      mutate(mine.id, {
+        status: 'awaiting_others',
+        signers: [makeSigner({ id: 's-me', email: 'me@example.com', status: 'awaiting' })],
+      });
+      mutate(theirs.id, {
+        status: 'awaiting_others',
+        signers: [makeSigner({ id: 's-them', email: 'them@example.com', status: 'awaiting' })],
+      });
+      expect(
+        (
+          await svc.list(OWNER, { bucket: 'awaiting_you', viewerEmail: 'me@example.com' })
+        ).items.map((e) => e.id),
+      ).toEqual([mine.id]);
+      expect(
+        (
+          await svc.list(OWNER, { bucket: 'awaiting_others', viewerEmail: 'me@example.com' })
+        ).items.map((e) => e.id),
+      ).toEqual([theirs.id]);
+    });
+
+    it('filters by signer email', async () => {
+      const a = await svc.createDraft(OWNER, { title: 'Has Alice' });
+      const b = await svc.createDraft(OWNER, { title: 'Has Bob' });
+      mutate(a.id, { signers: [makeSigner({ id: 's-a', email: 'alice@example.com' })] });
+      mutate(b.id, { signers: [makeSigner({ id: 's-b', email: 'bob@example.com' })] });
+      const res = await svc.list(OWNER, { signer: 'alice@example.com' });
+      expect(res.items.map((e) => e.id)).toEqual([a.id]);
+    });
+
+    it('filters by tag', async () => {
+      const tagged = await svc.createDraft(OWNER, { title: 'Tagged' });
+      await svc.createDraft(OWNER, { title: 'Untagged' });
+      await repo.updateDraftMetadata(OWNER, tagged.id, { tags: ['urgent'] });
+      const res = await svc.list(OWNER, { tags: 'urgent' });
+      expect(res.items.map((e) => e.id)).toEqual([tagged.id]);
+    });
+
+    it('filters by a custom date window (inclusive on both calendar ends)', async () => {
+      const inside = await svc.createDraft(OWNER, { title: 'Inside' });
+      const outside = await svc.createDraft(OWNER, { title: 'Outside' });
+      mutate(inside.id, { updated_at: '2026-05-05T12:00:00.000Z' });
+      mutate(outside.id, { updated_at: '2026-05-20T12:00:00.000Z' });
+      const res = await svc.list(OWNER, { date: 'custom:2026-05-01:2026-05-10' });
+      expect(res.items.map((e) => e.id)).toEqual([inside.id]);
+    });
+
+    it('rejects an unknown bucket token', async () => {
+      await expect(svc.list(OWNER, { bucket: 'draft,bogus' })).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: 'validation_error',
+      });
+    });
+
+    it('rejects a malformed date param', async () => {
+      await expect(svc.list(OWNER, { date: 'custom:not-a-date:2026-05-10' })).rejects.toMatchObject(
+        {
+          constructor: BadRequestException,
+          message: 'validation_error',
+        },
+      );
     });
   });
 

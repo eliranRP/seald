@@ -22,7 +22,7 @@ import { StatCard } from '@/components/StatCard';
 import { useEnvelopesQuery } from '@/features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
 import {
-  filterEnvelopes,
+  filtersToQueryParams,
   isAwaitingYou,
   parseFilters,
   parseSort,
@@ -282,30 +282,39 @@ export function DashboardPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Click-to-sort: the sort key + direction live in the URL
-  // (`?sort=date&dir=desc`) so the view is bookmarkable. The sort is
-  // performed server-side — the list endpoint orders + keysets by
-  // these params — so the page just reflects whatever order the API
-  // returned.
+  // Sort + filters both live in the URL and are applied server-side
+  // (`GET /envelopes?sort=&dir=&q=&bucket=&date=&signer=&tags=`).
   const sort = useMemo(() => parseSort(searchParams), [searchParams]);
+  const parsedFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const filterParams = useMemo(() => filtersToQueryParams(parsedFilters), [parsedFilters]);
 
-  const q = useEnvelopesQuery(true, { limit: 100, sort: sort.key, dir: sort.dir });
-  const envelopes: ReadonlyArray<EnvelopeListItem> = useMemo(() => q.data?.items ?? [], [q.data]);
-  const documentsLoading = q.isPending;
-
-  // Viewer email drives the "Awaiting you" predicate so envelopes the user
-  // is themselves a signer on are bucketed correctly.
+  // Viewer email drives the "Awaiting you" predicate (toolbar counts +
+  // the row badge).
   const { user } = useAuth();
   const viewerEmail = user?.email ?? null;
 
-  // The toolbar owns filter UI and writes to the URL; the page reads
-  // the URL and applies a single combined filter pass. `filterEnvelopes`
-  // is a stable client-side narrowing (preserves input order), so the
-  // server's sort order survives it.
-  const parsedFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const filtered = useMemo(
-    () => filterEnvelopes(envelopes, parsedFilters, viewerEmail),
-    [envelopes, parsedFilters, viewerEmail],
+  // Table query — filtered + sorted by the server. Its `items` render
+  // directly; no client-side filter/sort pass.
+  const tableQuery = useEnvelopesQuery(true, {
+    limit: 100,
+    sort: sort.key,
+    dir: sort.dir,
+    ...filterParams,
+  });
+  const filtered: ReadonlyArray<EnvelopeListItem> = useMemo(
+    () => tableQuery.data?.items ?? [],
+    [tableQuery.data],
+  );
+  const documentsLoading = tableQuery.isPending;
+
+  // Toolbar / stats query — the *unfiltered* list, so the chips' per-
+  // bucket counts + distinct signer/tag lists stay accurate regardless
+  // of the active filter. React Query de-duplicates this against the
+  // table query whenever no filter is active (identical params).
+  const facetsQuery = useEnvelopesQuery(true, { limit: 100, sort: 'date', dir: 'desc' });
+  const allEnvelopes: ReadonlyArray<EnvelopeListItem> = useMemo(
+    () => facetsQuery.data?.items ?? [],
+    [facetsQuery.data],
   );
 
   // Header click cycle: not-active → asc; active+asc → desc;
@@ -347,14 +356,14 @@ export function DashboardPage() {
   );
 
   const stats = useMemo(() => {
-    const awaitingYou = envelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
+    const awaitingYou = allEnvelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
     // Mutually exclusive with awaitingYou so the totals don't double-count.
-    const awaitingOthers = envelopes.filter(
+    const awaitingOthers = allEnvelopes.filter(
       (d) =>
         (d.status === 'awaiting_others' || d.status === 'sealing') &&
         !isAwaitingYou(d, viewerEmail),
     ).length;
-    const completedThisMonth = envelopes.filter((d) => {
+    const completedThisMonth = allEnvelopes.filter((d) => {
       if (d.status !== 'completed') return false;
       const when = new Date(d.completed_at ?? d.updated_at);
       const now = new Date();
@@ -368,9 +377,9 @@ export function DashboardPage() {
         value: completedThisMonth.toString(),
         tone: 'emerald' as const,
       },
-      { label: 'Avg. turnaround', value: formatTurnaround(envelopes), tone: 'neutral' as const },
+      { label: 'Avg. turnaround', value: formatTurnaround(allEnvelopes), tone: 'neutral' as const },
     ];
-  }, [envelopes, viewerEmail]);
+  }, [allEnvelopes, viewerEmail]);
 
   return (
     <Main>
@@ -397,7 +406,7 @@ export function DashboardPage() {
           ))}
         </StatGrid>
 
-        <FilterToolbar envelopes={envelopes} viewerEmail={viewerEmail} />
+        <FilterToolbar envelopes={allEnvelopes} viewerEmail={viewerEmail} />
 
         <TableShell>
           <TableHead role="row" $grid={gridTemplate}>
@@ -431,7 +440,7 @@ export function DashboardPage() {
           </TableHead>
           {renderDocumentsBody({
             loading: documentsLoading,
-            rowsForSkeleton: envelopes.length === 0,
+            rowsForSkeleton: filtered.length === 0,
             filtered,
             navigate,
             viewerEmail,

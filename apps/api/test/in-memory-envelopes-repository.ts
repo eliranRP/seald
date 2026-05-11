@@ -23,6 +23,7 @@ import {
   ShortCodeCollisionError,
 } from '../src/envelopes/envelopes.repository';
 import { decodeListCursor, encodeListCursor, sortValueForKey } from '../src/envelopes/list-cursor';
+import { applyListFilters } from '../src/envelopes/list-filters';
 
 /**
  * In-memory envelopes repository for e2e tests. Covers the subset of methods
@@ -122,6 +123,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       const set = new Set(opts.statuses);
       items = items.filter((e) => set.has(e.status));
     }
+    items = applyListFilters(items, opts);
 
     const sortKey = opts.sort ?? 'date';
     const asc = (opts.dir ?? 'desc') === 'asc';

@@ -1,7 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { EnvelopeListItem } from 'shared';
-import { filterEnvelopes, isAwaitingYou } from './filterEnvelopes';
-import { ACTIONABLE_INBOX, type EnvelopeFilters } from './types';
+import { bucketEnvelope, isAwaitingYou } from './filterEnvelopes';
 
 function envelope(over: Partial<EnvelopeListItem> = {}): EnvelopeListItem {
   return {
@@ -20,300 +19,42 @@ function envelope(over: Partial<EnvelopeListItem> = {}): EnvelopeListItem {
   } as EnvelopeListItem;
 }
 
-const NO_FILTER: EnvelopeFilters = {
-  q: '',
-  status: [],
-  date: { kind: 'preset', preset: 'all' },
-  signer: [],
-  tags: [],
-};
-
-describe('filterEnvelopes', () => {
-  it('returns the input unchanged when every filter is in the no-op state', () => {
-    const list = [envelope({ id: '1' }), envelope({ id: '2' })];
-    expect(filterEnvelopes(list, NO_FILTER, null)).toEqual(list);
-  });
-
-  describe('search (q)', () => {
-    it('matches a substring of the document title (case-insensitive)', () => {
-      const list = [
-        envelope({ id: '1', title: 'Acme Master Service Agreement' }),
-        envelope({ id: '2', title: 'Other doc' }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, q: 'acme' }, null);
-      expect(out.map((e) => e.id)).toEqual(['1']);
-    });
-
-    it('matches a substring of the envelope short code', () => {
-      const list = [
-        envelope({ id: '1', short_code: 'm6nHh9mL7jbvx' }),
-        envelope({ id: '2', short_code: 'zzzzzz' }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, q: '7jbvx' }, null);
-      expect(out.map((e) => e.id)).toEqual(['1']);
-    });
-  });
-
-  describe('status filter', () => {
-    it('does not filter when status is the empty array (caller "select all")', () => {
-      const list = [
-        envelope({ id: '1', status: 'draft' }),
-        envelope({ id: '2', status: 'completed' }),
-      ];
-      expect(filterEnvelopes(list, { ...NO_FILTER, status: [] }, null)).toEqual(list);
-    });
-
-    it('keeps only envelopes whose status matches one of the selected options', () => {
-      const list = [
-        envelope({ id: '1', status: 'draft' }),
-        envelope({ id: '2', status: 'completed' }),
-        envelope({ id: '3', status: 'awaiting_others' }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, status: ['draft', 'sealed'] }, null);
-      expect(out.map((e) => e.id)).toEqual(['1', '2']);
-    });
-
-    it('honors the actionable-inbox default (mutual-exclusion with awaiting-you)', () => {
-      // Envelope 1: awaiting_others, viewer is a signer who hasn't acted → awaiting_you
-      // Envelope 2: awaiting_others, viewer is NOT a signer → awaiting_others
-      // Envelope 3: completed → out
-      const list = [
-        envelope({
-          id: '1',
-          status: 'awaiting_others',
-          signers: [
-            {
-              id: 's1',
-              name: 'You',
-              email: 'you@example.com',
-              status: 'awaiting',
-            },
-          ] as EnvelopeListItem['signers'],
-        }),
-        envelope({
-          id: '2',
-          status: 'awaiting_others',
-          signers: [
-            {
-              id: 's2',
-              name: 'Other',
-              email: 'other@example.com',
-              status: 'awaiting',
-            },
-          ] as EnvelopeListItem['signers'],
-        }),
-        envelope({ id: '3', status: 'completed' }),
-      ];
-      const out = filterEnvelopes(
-        list,
-        { ...NO_FILTER, status: [...ACTIONABLE_INBOX] },
-        'you@example.com',
-      );
-      expect(out.map((e) => e.id)).toEqual(['1', '2']);
-    });
-  });
-
-  describe('date filter (binds to updated_at)', () => {
-    beforeEach(() => {
-      // Pin "now" to 2026-05-10T12:00:00Z for predictable preset windows.
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-05-10T12:00:00Z'));
-    });
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it('preset "today" includes today and excludes yesterday', () => {
-      const list = [
-        envelope({ id: 'today', updated_at: '2026-05-10T03:00:00Z' }),
-        envelope({ id: 'yesterday', updated_at: '2026-05-09T23:59:00Z' }),
-      ];
-      const out = filterEnvelopes(
-        list,
-        { ...NO_FILTER, date: { kind: 'preset', preset: 'today' } },
-        null,
-      );
-      expect(out.map((e) => e.id)).toEqual(['today']);
-    });
-
-    it('preset "7d" includes the last 7 calendar days', () => {
-      const list = [
-        envelope({ id: 'fresh', updated_at: '2026-05-10T00:00:00Z' }),
-        envelope({ id: 'edge', updated_at: '2026-05-04T00:00:00Z' }),
-        envelope({ id: 'stale', updated_at: '2026-04-30T00:00:00Z' }),
-      ];
-      const out = filterEnvelopes(
-        list,
-        { ...NO_FILTER, date: { kind: 'preset', preset: '7d' } },
-        null,
-      );
-      expect(out.map((e) => e.id).sort()).toEqual(['edge', 'fresh']);
-    });
-
-    it('custom range is inclusive on both ends', () => {
-      const list = [
-        envelope({ id: 'before', updated_at: '2026-04-30T23:59:00Z' }),
-        envelope({ id: 'lower', updated_at: '2026-05-01T00:00:00Z' }),
-        envelope({ id: 'inside', updated_at: '2026-05-05T12:00:00Z' }),
-        envelope({ id: 'upper', updated_at: '2026-05-10T23:59:00Z' }),
-        envelope({ id: 'after', updated_at: '2026-05-11T00:00:00Z' }),
-      ];
-      const out = filterEnvelopes(
-        list,
-        {
-          ...NO_FILTER,
-          date: { kind: 'custom', range: { from: '2026-05-01', to: '2026-05-10' } },
-        },
-        null,
-      );
-      expect(out.map((e) => e.id).sort()).toEqual(['inside', 'lower', 'upper']);
-    });
-  });
-
-  describe('signer filter', () => {
-    it('matches envelopes whose signer email is in the selected set', () => {
-      const list = [
-        envelope({
-          id: '1',
-          signers: [
-            { id: 's1', name: 'Alice', email: 'alice@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
-        envelope({
-          id: '2',
-          signers: [
-            { id: 's2', name: 'Bob', email: 'bob@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, signer: ['alice@example.com'] }, null);
-      expect(out.map((e) => e.id)).toEqual(['1']);
-    });
-
-    it('OR-matches multiple selected signers (returns envelopes containing ANY)', () => {
-      const list = [
-        envelope({
-          id: '1',
-          signers: [
-            { id: 's1', name: 'Alice', email: 'alice@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
-        envelope({
-          id: '2',
-          signers: [
-            { id: 's2', name: 'Bob', email: 'bob@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
-        envelope({
-          id: '3',
-          signers: [
-            { id: 's3', name: 'Carol', email: 'carol@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
-      ];
-      const out = filterEnvelopes(
-        list,
-        { ...NO_FILTER, signer: ['alice@example.com', 'bob@example.com'] },
-        null,
-      );
-      expect(out.map((e) => e.id).sort()).toEqual(['1', '2']);
-    });
-  });
-
-  describe('tag filter', () => {
-    it('keeps envelopes whose tags intersect the selected set', () => {
-      const list = [
-        envelope({ id: '1', tags: ['urgent', 'wickliff'] }),
-        envelope({ id: '2', tags: ['tax-2026'] }),
-        envelope({ id: '3', tags: [] }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent'] }, null);
-      expect(out.map((e) => e.id)).toEqual(['1']);
-    });
-
-    it('OR-matches multiple selected tags (envelope passes if it carries ANY)', () => {
-      const list = [
-        envelope({ id: '1', tags: ['urgent'] }),
-        envelope({ id: '2', tags: ['tax-2026'] }),
-        envelope({ id: '3', tags: ['archived'] }),
-      ];
-      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent', 'tax-2026'] }, null);
-      expect(out.map((e) => e.id).sort()).toEqual(['1', '2']);
-    });
-
-    it('matches case-insensitively against the envelope tag list', () => {
-      const list = [envelope({ id: '1', tags: ['Urgent'] })];
-      const out = filterEnvelopes(list, { ...NO_FILTER, tags: ['urgent'] }, null);
-      expect(out).toHaveLength(1);
-    });
-
-    it('does nothing when the tag selection is empty', () => {
-      const list = [envelope({ id: '1', tags: ['x'] }), envelope({ id: '2', tags: [] })];
-      expect(filterEnvelopes(list, { ...NO_FILTER, tags: [] }, null)).toEqual(list);
-    });
-  });
-
-  it('AND-combines every active filter', () => {
-    const list = [
-      envelope({
-        id: '1',
-        title: 'Acme Waiver',
-        status: 'draft',
-        updated_at: '2026-05-10T00:00:00Z',
-        signers: [
-          { id: 's1', name: 'Alice', email: 'alice@example.com', status: 'awaiting' },
-        ] as EnvelopeListItem['signers'],
-      }),
-      // Same status + signer + date — but title misses the search.
-      envelope({
-        id: '2',
-        title: 'Other',
-        status: 'draft',
-        updated_at: '2026-05-10T00:00:00Z',
-        signers: [
-          { id: 's2', name: 'Alice', email: 'alice@example.com', status: 'awaiting' },
-        ] as EnvelopeListItem['signers'],
-      }),
-    ];
-    const out = filterEnvelopes(
-      list,
-      {
-        q: 'acme',
-        status: ['draft'],
-        date: { kind: 'preset', preset: 'all' },
-        signer: ['alice@example.com'],
-        tags: [],
-      },
-      null,
-    );
-    expect(out.map((e) => e.id)).toEqual(['1']);
-  });
-});
+function signer(email: string, status: EnvelopeListItem['signers'][number]['status']) {
+  return { id: `s-${email}`, name: email, email, status } as EnvelopeListItem['signers'][number];
+}
 
 describe('isAwaitingYou', () => {
   it('returns false when no viewer email is supplied', () => {
     expect(
       isAwaitingYou(
-        envelope({
-          status: 'awaiting_others',
-          signers: [
-            { id: 's', name: '', email: 'you@x', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
+        envelope({ status: 'awaiting_others', signers: [signer('you@x', 'awaiting')] }),
         null,
       ),
     ).toBe(false);
   });
 
-  it('returns true when viewer is a signer that has not yet acted', () => {
+  it('returns true when the viewer is a signer that has not yet acted', () => {
     expect(
       isAwaitingYou(
-        envelope({
-          status: 'awaiting_others',
-          signers: [
-            { id: 's', name: 'You', email: 'you@example.com', status: 'awaiting' },
-          ] as EnvelopeListItem['signers'],
-        }),
+        envelope({ status: 'awaiting_others', signers: [signer('you@example.com', 'awaiting')] }),
+        'you@example.com',
+      ),
+    ).toBe(true);
+  });
+
+  it('matches the viewer email case-insensitively', () => {
+    expect(
+      isAwaitingYou(
+        envelope({ status: 'awaiting_others', signers: [signer('you@example.com', 'awaiting')] }),
+        'YOU@Example.com',
+      ),
+    ).toBe(true);
+  });
+
+  it('treats `sealing` envelopes as candidates too', () => {
+    expect(
+      isAwaitingYou(
+        envelope({ status: 'sealing', signers: [signer('you@example.com', 'awaiting')] }),
         'you@example.com',
       ),
     ).toBe(true);
@@ -322,14 +63,64 @@ describe('isAwaitingYou', () => {
   it('returns false once the viewer has signed', () => {
     expect(
       isAwaitingYou(
-        envelope({
-          status: 'awaiting_others',
-          signers: [
-            { id: 's', name: 'You', email: 'you@example.com', status: 'completed' },
-          ] as EnvelopeListItem['signers'],
-        }),
+        envelope({ status: 'awaiting_others', signers: [signer('you@example.com', 'completed')] }),
         'you@example.com',
       ),
     ).toBe(false);
+  });
+
+  it('returns false for statuses outside the awaiting window', () => {
+    expect(
+      isAwaitingYou(
+        envelope({ status: 'draft', signers: [signer('you@example.com', 'awaiting')] }),
+        'you@example.com',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('bucketEnvelope', () => {
+  it('buckets a draft envelope as `draft`', () => {
+    expect(bucketEnvelope(envelope({ status: 'draft' }), null)).toBe('draft');
+  });
+
+  it('buckets a completed envelope as `sealed`', () => {
+    expect(bucketEnvelope(envelope({ status: 'completed' }), null)).toBe('sealed');
+  });
+
+  it('buckets a declined envelope as `declined`', () => {
+    expect(bucketEnvelope(envelope({ status: 'declined' }), null)).toBe('declined');
+  });
+
+  it('buckets as `awaiting_you` when the viewer is still a pending signer', () => {
+    expect(
+      bucketEnvelope(
+        envelope({ status: 'awaiting_others', signers: [signer('you@example.com', 'awaiting')] }),
+        'you@example.com',
+      ),
+    ).toBe('awaiting_you');
+  });
+
+  it('buckets as `awaiting_others` when the viewer is not a pending signer', () => {
+    expect(
+      bucketEnvelope(
+        envelope({ status: 'awaiting_others', signers: [signer('other@example.com', 'awaiting')] }),
+        'you@example.com',
+      ),
+    ).toBe('awaiting_others');
+  });
+
+  it('buckets `sealing` as `awaiting_others` when the viewer has nothing pending', () => {
+    expect(
+      bucketEnvelope(
+        envelope({ status: 'sealing', signers: [signer('other@example.com', 'completed')] }),
+        'you@example.com',
+      ),
+    ).toBe('awaiting_others');
+  });
+
+  it('returns null for terminal-but-unsurfaced statuses (expired / canceled)', () => {
+    expect(bucketEnvelope(envelope({ status: 'expired' }), null)).toBeNull();
+    expect(bucketEnvelope(envelope({ status: 'canceled' }), null)).toBeNull();
   });
 });

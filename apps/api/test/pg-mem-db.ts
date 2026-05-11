@@ -212,6 +212,13 @@ export function createPgMemDb(): PgMemHandle {
     );
   `);
 
+  // 0016 — envelopes.tags jsonb column (dashboard tag filter). Plain
+  // additive alter; load it directly so pg-mem-backed repo specs that
+  // touch tags work the same as production.
+  mem.public.none(
+    `alter table public.envelopes add column if not exists tags jsonb not null default '[]'::jsonb;`,
+  );
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8

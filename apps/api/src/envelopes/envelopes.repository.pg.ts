@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { sql, type Kysely, type Selectable, type Transaction } from 'kysely';
+import { sql, type Kysely, type RawBuilder, type Selectable, type Transaction } from 'kysely';
 import { eventHash } from './event-hash';
 import type {
   Database,
@@ -361,11 +361,98 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       ])
       .where('e.owner_id', '=', owner_id);
 
-    let q = (
-      opts.statuses && opts.statuses.length > 0
-        ? base.where('e.status', 'in', [...opts.statuses])
-        : base
-    ).limit(opts.limit + 1);
+    // ---- Filters (all AND-combined) ----
+    //
+    // `signer` and the awaiting-you bucket can't be expressed as
+    // correlated `exists` subqueries here — pg-mem can't resolve the
+    // outer table alias inside a raw-SQL subquery — so we pre-resolve
+    // the matching envelope-id sets with a small standalone query
+    // each, then filter with `e.id in (...)`. Production Postgres
+    // would happily do the correlated form; the pre-resolved form is
+    // equivalent and adapter-portable.
+    let signerEnvelopeIds: ReadonlyArray<string> | null = null;
+    if (opts.signerEmails && opts.signerEmails.length > 0) {
+      const emails = opts.signerEmails.map((x) => x.toLowerCase());
+      const rows = await this.db
+        .selectFrom('envelope_signers')
+        .select('envelope_id')
+        .where(sql<boolean>`lower(email) in (${sql.join(emails.map((x) => sql.lit(x)))})`)
+        .execute();
+      signerEnvelopeIds = [...new Set(rows.map((r) => r.envelope_id))];
+    }
+    let viewerPendingEnvelopeIds: ReadonlyArray<string> | null = null;
+    const needsViewerSet =
+      opts.buckets?.some((b) => b === 'awaiting_you' || b === 'awaiting_others') ?? false;
+    if (needsViewerSet) {
+      const viewer = (opts.viewerEmail ?? '').toLowerCase();
+      const rows = viewer
+        ? await this.db
+            .selectFrom('envelope_signers')
+            .select('envelope_id')
+            .where(sql<boolean>`lower(email) = ${sql.lit(viewer)}`)
+            .where('signed_at', 'is', null)
+            .where('declined_at', 'is', null)
+            .execute()
+        : [];
+      viewerPendingEnvelopeIds = [...new Set(rows.map((r) => r.envelope_id))];
+    }
+
+    let filtered = base;
+    if (opts.statuses && opts.statuses.length > 0) {
+      filtered = filtered.where('e.status', 'in', [...opts.statuses]);
+    }
+    if (opts.q && opts.q.trim() !== '') {
+      const needle = `%${opts.q.trim().toLowerCase()}%`;
+      filtered = filtered.where(
+        sql<boolean>`(lower(e.title) like ${sql.lit(needle)} or lower(e.short_code) like ${sql.lit(needle)})`,
+      );
+    }
+    if (opts.date) {
+      filtered = filtered.where(
+        sql<boolean>`(e.updated_at >= ${sql.lit(opts.date.from)}::timestamptz and e.updated_at < ${sql.lit(opts.date.to)}::timestamptz)`,
+      );
+    }
+    if (signerEnvelopeIds !== null) {
+      if (signerEnvelopeIds.length === 0) return { items: [], next_cursor: null };
+      filtered = filtered.where('e.id', 'in', signerEnvelopeIds);
+    }
+    if (opts.tags && opts.tags.length > 0) {
+      // OR of one jsonb-containment check per selected tag. `e.tags`
+      // is a jsonb array of (lower-cased) strings; `@> '["x"]'`
+      // returns true iff "x" is an element.
+      const tagClauses = opts.tags.map(
+        (t) => sql<boolean>`e.tags @> ${sql.lit(JSON.stringify([t.toLowerCase()]))}::jsonb`,
+      );
+      filtered = filtered.where(sql<boolean>`(${sql.join(tagClauses, sql` or `)})`);
+    }
+    if (opts.buckets && opts.buckets.length > 0) {
+      const pendingIds = viewerPendingEnvelopeIds ?? [];
+      const bucketClause = (b: string): RawBuilder<boolean> => {
+        switch (b) {
+          case 'draft':
+            return sql<boolean>`e.status = 'draft'`;
+          case 'sealed':
+            return sql<boolean>`e.status = 'completed'`;
+          case 'declined':
+            return sql<boolean>`e.status = 'declined'`;
+          case 'awaiting_you':
+            return pendingIds.length === 0
+              ? sql<boolean>`false`
+              : sql<boolean>`(e.status in ('awaiting_others','sealing') and e.id in (${sql.join(pendingIds.map((x) => sql.lit(x)))}))`;
+          case 'awaiting_others':
+            return pendingIds.length === 0
+              ? sql<boolean>`e.status in ('awaiting_others','sealing')`
+              : sql<boolean>`(e.status in ('awaiting_others','sealing') and e.id not in (${sql.join(pendingIds.map((x) => sql.lit(x)))}))`;
+          default:
+            return sql<boolean>`false`;
+        }
+      };
+      filtered = filtered.where(
+        sql<boolean>`(${sql.join(opts.buckets.map(bucketClause), sql` or `)})`,
+      );
+    }
+
+    let q = filtered.limit(opts.limit + 1);
 
     // Sort expression for the active key, expressed against the
     // columns available after the JOIN. `title` is lower-cased so the

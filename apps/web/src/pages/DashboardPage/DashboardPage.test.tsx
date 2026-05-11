@@ -118,6 +118,18 @@ function renderDashboard(initialPath = '/documents') {
   );
 }
 
+/**
+ * The `/envelopes` URLs the mocked apiClient was called with, oldest →
+ * newest. With server-side filtering the mock can't actually narrow the
+ * list, so the contract we assert is "the request carried the right
+ * `?bucket=`/`?q=`/`?sort=` params".
+ */
+async function envelopeUrls(): Promise<readonly string[]> {
+  const { apiClient } = await import('../../lib/api/apiClient');
+  const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+  return getMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/envelopes'));
+}
+
 describe('DashboardPage', () => {
   it('renders the heading and every envelope by default (no status filter)', async () => {
     renderDashboard();
@@ -130,27 +142,36 @@ describe('DashboardPage', () => {
     expect(screen.getByText(/offer letter — m\. chen/i)).toBeInTheDocument();
   });
 
-  it('narrows the table when the user picks a status from the toolbar', async () => {
+  it('pushes the picked status bucket onto the /envelopes request (server-side filter)', async () => {
     renderDashboard();
     await screen.findByText(/master services agreement/i);
     // Open the Status chip and pick ONLY "Draft" (no defaults to fight).
     fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
     fireEvent.click(await screen.findByLabelText('Draft'));
-    expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
-    // MSA (awaiting_others) and the offer letter (sealed) are now hidden.
-    expect(screen.queryByText(/master services agreement/i)).toBeNull();
-    expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
+    await waitFor(async () => {
+      expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
+    });
+    // The toolbar's bucket counts come from a SECOND, unfiltered fetch —
+    // so a `bucket`-less request is still in flight alongside the filtered
+    // one. (When no filter is active React Query merges the two.)
+    expect((await envelopeUrls()).some((u) => !/bucket=/.test(u))).toBe(true);
+    // …and the toolbar still shows the full roster of buckets, including
+    // the "Sealed" one that the table filter excluded.
+    expect(await screen.findByLabelText('Sealed')).toBeInTheDocument();
   });
 
-  it('"Clear filters" wipes every active filter and shows the whole list again', async () => {
-    // Start narrowed via the URL, then clear.
+  it('"Clear filters" drops the bucket param from the /envelopes request', async () => {
     renderDashboard('/documents?status=draft');
     await screen.findByText(/vendor onboarding — argus/i);
-    expect(screen.queryByText(/master services agreement/i)).toBeNull();
+    // The initial fetch carried the URL's bucket.
+    expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: /clear all filters/i }));
+    await waitFor(async () => {
+      const urls = await envelopeUrls();
+      expect(urls[urls.length - 1]).not.toMatch(/bucket=/);
+    });
+    // Rows are still there (the mock returns the full seed regardless).
     expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
-    expect(screen.getByText(/offer letter — m\. chen/i)).toBeInTheDocument();
-    expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
   });
 
   it('exposes a link to start a new document', () => {
@@ -184,11 +205,16 @@ describe('DashboardPage', () => {
     expect(row?.textContent ?? '').toMatch(/1/);
   });
 
-  it('reads the initial filter from the ?status= query param', async () => {
+  it('reads the initial filter from the ?status= query param and forwards it as ?bucket=', async () => {
     renderDashboard('/documents?status=draft');
     await screen.findByText(/vendor onboarding — argus/i);
-    expect(screen.queryByText(/master services agreement/i)).toBeNull();
-    expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
+    expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
+  });
+
+  it('forwards the search box text as ?q= on the /envelopes request', async () => {
+    renderDashboard('/documents?q=argus');
+    await screen.findByText(/vendor onboarding — argus/i);
+    expect((await envelopeUrls()).some((u) => /[?&]q=argus/.test(u))).toBe(true);
   });
 
   it('clicking a column header cycles the server-side sort params and re-queries', async () => {

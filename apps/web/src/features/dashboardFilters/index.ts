@@ -1,5 +1,6 @@
 export { parseFilters, serializeFilters, type SerializeInput } from './parseFilters';
-export { filterEnvelopes, isAwaitingYou, bucketEnvelope } from './filterEnvelopes';
+export { isAwaitingYou, bucketEnvelope } from './filterEnvelopes';
+export { filtersToQueryParams, type FilterQueryParams } from './filtersToQueryParams';
 export {
   parseSort,
   DEFAULT_SORT,

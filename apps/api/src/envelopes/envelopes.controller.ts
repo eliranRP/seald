@@ -63,6 +63,11 @@ export class EnvelopesController {
     @Query('cursor') cursor?: string,
     @Query('sort') sort?: string,
     @Query('dir') dir?: string,
+    @Query('q') q?: string,
+    @Query('bucket') bucket?: string,
+    @Query('date') date?: string,
+    @Query('signer') signer?: string,
+    @Query('tags') tags?: string,
   ): Promise<ListResult> {
     const statuses = parseStatuses(statusQuery);
     const limit = limitQuery ? Number.parseInt(limitQuery, 10) : undefined;
@@ -72,6 +77,12 @@ export class EnvelopesController {
       ...(cursor ? { cursor } : {}),
       ...(sort ? { sort } : {}),
       ...(dir ? { dir } : {}),
+      ...(q ? { q } : {}),
+      ...(bucket ? { bucket } : {}),
+      ...(date ? { date } : {}),
+      ...(signer ? { signer } : {}),
+      ...(tags ? { tags } : {}),
+      viewerEmail: user.email,
     });
   }
 

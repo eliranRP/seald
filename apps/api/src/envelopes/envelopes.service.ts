@@ -29,6 +29,8 @@ import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
   CreateFieldInput,
+  DateWindow,
+  EnvelopeBucket,
   EnvelopeEvent,
   EnvelopeField,
   EnvelopeSigner,
@@ -40,6 +42,7 @@ import type {
   UpdateDraftMetadataPatch,
 } from './envelopes.repository';
 import {
+  ENVELOPE_BUCKETS,
   ENVELOPE_SORT_KEYS,
   EnvelopeSignerEmailTakenError,
   EnvelopesRepository,
@@ -136,6 +139,13 @@ export class EnvelopesService {
       cursor?: string;
       sort?: string;
       dir?: string;
+      // Dashboard filters (raw query-param strings; parsed here).
+      q?: string;
+      bucket?: string; // comma-separated EnvelopeBucket values
+      date?: string; // preset keyword or `custom:YYYY-MM-DD:YYYY-MM-DD`
+      signer?: string; // comma-separated emails
+      tags?: string; // comma-separated tag names
+      viewerEmail?: string | null;
     },
   ): Promise<ListResult> {
     const clampedLimit = Math.max(1, Math.min(100, opts.limit ?? 20));
@@ -163,6 +173,41 @@ export class EnvelopesService {
       dir = opts.dir;
     }
 
+    // ---- Dashboard filters ----
+    const q = opts.q && opts.q.trim() !== '' ? opts.q.trim() : undefined;
+
+    let buckets: ReadonlyArray<EnvelopeBucket> | undefined;
+    if (opts.bucket !== undefined && opts.bucket !== '') {
+      const parsed = opts.bucket.split(',').map((b) => b.trim());
+      for (const b of parsed) {
+        if (!(ENVELOPE_BUCKETS as readonly string[]).includes(b)) {
+          throw new BadRequestException('validation_error');
+        }
+      }
+      if (parsed.length > 0) buckets = parsed as EnvelopeBucket[];
+    }
+
+    let date: DateWindow | undefined;
+    if (opts.date !== undefined && opts.date !== '' && opts.date !== 'all') {
+      date = this.resolveDateWindow(opts.date);
+    }
+
+    const signerEmails =
+      opts.signer !== undefined && opts.signer !== ''
+        ? opts.signer
+            .split(',')
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0)
+        : undefined;
+
+    const tags =
+      opts.tags !== undefined && opts.tags !== ''
+        ? opts.tags
+            .split(',')
+            .map((t) => t.trim().toLowerCase())
+            .filter((t) => t.length > 0)
+        : undefined;
+
     let cursor: ListCursor | null = null;
     if (opts.cursor) {
       try {
@@ -178,8 +223,58 @@ export class EnvelopesService {
       limit: clampedLimit,
       ...(sort !== undefined ? { sort } : {}),
       ...(dir !== undefined ? { dir } : {}),
+      ...(q !== undefined ? { q } : {}),
+      ...(buckets !== undefined && buckets.length > 0 ? { buckets } : {}),
+      ...(date !== undefined ? { date } : {}),
+      ...(signerEmails !== undefined && signerEmails.length > 0 ? { signerEmails } : {}),
+      ...(tags !== undefined && tags.length > 0 ? { tags } : {}),
+      ...(opts.viewerEmail !== undefined ? { viewerEmail: opts.viewerEmail } : {}),
       cursor,
     });
+  }
+
+  /**
+   * Resolve a `date` query-param into a `[from, to)` instant window.
+   * Presets are anchored to UTC-midnight "now" (server clock is
+   * authoritative). `custom:YYYY-MM-DD:YYYY-MM-DD` is treated as a
+   * pair of UTC calendar days, inclusive on both ends. Bad input →
+   * 400 `validation_error`.
+   */
+  private resolveDateWindow(raw: string): DateWindow {
+    const utcStartOfDay = (d: Date): Date =>
+      new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    if (raw.startsWith('custom:')) {
+      const [, from, to] = raw.split(':');
+      const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+      if (!from || !to || !dateRe.test(from) || !dateRe.test(to) || from > to) {
+        throw new BadRequestException('validation_error');
+      }
+      const toExclusive = new Date(`${to}T00:00:00Z`);
+      toExclusive.setUTCDate(toExclusive.getUTCDate() + 1);
+      return { from: new Date(`${from}T00:00:00Z`).toISOString(), to: toExclusive.toISOString() };
+    }
+    const now = new Date();
+    const today = utcStartOfDay(now);
+    const plusDays = (d: Date, n: number): Date => {
+      const out = new Date(d);
+      out.setUTCDate(out.getUTCDate() + n);
+      return out;
+    };
+    if (raw === 'today') {
+      return { from: today.toISOString(), to: plusDays(today, 1).toISOString() };
+    }
+    if (raw === '7d') {
+      return { from: plusDays(today, -6).toISOString(), to: plusDays(today, 1).toISOString() };
+    }
+    if (raw === '30d') {
+      return { from: plusDays(today, -29).toISOString(), to: plusDays(today, 1).toISOString() };
+    }
+    if (raw === 'thisMonth') {
+      const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+      const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1));
+      return { from: from.toISOString(), to: to.toISOString() };
+    }
+    throw new BadRequestException('validation_error');
   }
 
   async patchDraft(
