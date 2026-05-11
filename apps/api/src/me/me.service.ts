@@ -499,7 +499,11 @@ export class MeService {
    */
   private async collectEnvelopeIds(ownerId: string): Promise<ReadonlyArray<string>> {
     const ids: string[] = [];
-    let cursor: { updated_at: string; id: string } | null = null;
+    // 3-tuple keyset cursor (sort_value, updated_at, id). The export
+    // pages with the default sort (date desc), so `sort_value` is
+    // just the row's `updated_at` — but we let the repo own the
+    // shape via `decodeCursorOrThrow`.
+    let cursor: { sort_value: string; updated_at: string; id: string } | null = null;
     // Hard upper bound to keep tests deterministic and detect misuse if
     // a future bug returns a non-advancing cursor.
     for (let i = 0; i < 1000; i++) {

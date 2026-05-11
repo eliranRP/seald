@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
 import { renderWithProviders } from '../../test/renderWithProviders';
@@ -189,5 +189,45 @@ describe('DashboardPage', () => {
     await screen.findByText(/vendor onboarding — argus/i);
     expect(screen.queryByText(/master services agreement/i)).toBeNull();
     expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
+  });
+
+  it('clicking a column header cycles the server-side sort params and re-queries', async () => {
+    // Resolve the mocked apiClient so we can inspect the URLs it was
+    // called with — the server does the sort, so the contract we test
+    // is "the request carried the right ?sort=&dir=".
+    const { apiClient } = await import('../../lib/api/apiClient');
+    const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+    const lastEnvelopeUrl = (): string =>
+      String(
+        [...getMock.mock.calls].reverse().find((c) => String(c[0]).startsWith('/envelopes'))![0],
+      );
+
+    renderDashboard();
+    await screen.findByText(/master services agreement/i);
+    // Initial fetch carries the default sort explicitly (server treats
+    // `date desc` the same as no params).
+    expect(lastEnvelopeUrl()).toMatch(/sort=date&dir=desc/);
+
+    // Click "Document" → ?sort=title&dir=asc, refetch.
+    fireEvent.click(screen.getByRole('button', { name: /^document$/i }));
+    await waitFor(() => {
+      expect(lastEnvelopeUrl()).toMatch(/sort=title&dir=asc/);
+    });
+    // The header now advertises its sort direction.
+    expect(
+      screen.getByRole('button', { name: /^document/i }).closest('[aria-sort]'),
+    ).toHaveAttribute('aria-sort', 'ascending');
+
+    // Click again → ?sort=title&dir=desc.
+    fireEvent.click(screen.getByRole('button', { name: /^document/i }));
+    await waitFor(() => {
+      expect(lastEnvelopeUrl()).toMatch(/sort=title&dir=desc/);
+    });
+
+    // Click a third time → back to the default order.
+    fireEvent.click(screen.getByRole('button', { name: /^document/i }));
+    await waitFor(() => {
+      expect(lastEnvelopeUrl()).toMatch(/sort=date&dir=desc/);
+    });
   });
 });

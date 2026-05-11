@@ -504,7 +504,7 @@ class FakeRepo extends EnvelopesRepository {
     return this.filePaths.get(envelope_id) ?? null;
   }
   decodeCursorOrThrow(cursor: string) {
-    return { updated_at: '', id: cursor };
+    return { sort_value: '', updated_at: '', id: cursor };
   }
 
   /** Test helper: hard-stamp file paths so getDownloadUrl resolves. */

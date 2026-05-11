@@ -37,6 +37,7 @@ import {
   InvalidCursorError,
   ShortCodeCollisionError,
 } from '../envelopes.repository';
+import { sortValueForKey } from '../list-cursor';
 import { eventHash } from '../event-hash';
 import { EnvelopesService } from '../envelopes.service';
 
@@ -156,7 +157,18 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async listByOwner(owner_id: string, opts: ListOptions): Promise<ListResult> {
     let items = [...this.envelopes.values()].filter((e) => e.owner_id === owner_id);
     if (opts.statuses) items = items.filter((e) => opts.statuses!.includes(e.status));
-    items.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id));
+    const sortKey = opts.sort ?? 'date';
+    const asc = (opts.dir ?? 'desc') === 'asc';
+    const numericKey = sortKey === 'status' || sortKey === 'signers' || sortKey === 'progress';
+    items.sort((a, b) => {
+      const va = sortValueForKey(a, sortKey);
+      const vb = sortValueForKey(b, sortKey);
+      const cmp = numericKey ? Number(va) - Number(vb) : va < vb ? -1 : va > vb ? 1 : 0;
+      const p = cmp * (asc ? 1 : -1);
+      if (p !== 0) return p;
+      if (a.updated_at !== b.updated_at) return b.updated_at.localeCompare(a.updated_at);
+      return a.id.localeCompare(b.id);
+    });
     if (opts.cursor) {
       items = items.filter(
         (e) =>
@@ -466,12 +478,12 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     throw new Error('not_implemented_in_fake');
   }
 
-  decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
+  decodeCursorOrThrow(cursor: string): { sort_value: string; updated_at: string; id: string } {
     try {
       const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
       const pipe = decoded.indexOf('|');
       if (pipe <= 0) throw new InvalidCursorError();
-      return { updated_at: decoded.slice(0, pipe), id: decoded.slice(pipe + 1) };
+      return { sort_value: '', updated_at: decoded.slice(0, pipe), id: decoded.slice(pipe + 1) };
     } catch (err) {
       if (err instanceof InvalidCursorError) throw err;
       throw new InvalidCursorError();
@@ -647,6 +659,27 @@ describe('EnvelopesService', () => {
         constructor: BadRequestException,
         message: 'invalid_cursor',
       });
+    });
+
+    it('rejects an unknown sort key', async () => {
+      await expect(svc.list(OWNER, { sort: 'bogus' })).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: 'validation_error',
+      });
+    });
+
+    it('rejects an unknown sort direction', async () => {
+      await expect(svc.list(OWNER, { sort: 'title', dir: 'sideways' })).rejects.toMatchObject({
+        constructor: BadRequestException,
+        message: 'validation_error',
+      });
+    });
+
+    it('accepts a valid sort key + direction and threads them to the repo', async () => {
+      await svc.createDraft(OWNER, { title: 'Banana' });
+      await svc.createDraft(OWNER, { title: 'Apple' });
+      const res = await svc.list(OWNER, { sort: 'title', dir: 'asc' });
+      expect(res.items.map((e) => e.title)).toEqual(['Apple', 'Banana']);
     });
   });
 

@@ -32,11 +32,15 @@ import type {
   EnvelopeEvent,
   EnvelopeField,
   EnvelopeSigner,
+  EnvelopeSortKey,
+  ListCursor,
   ListResult,
   SetOriginalFileInput,
+  SortDir,
   UpdateDraftMetadataPatch,
 } from './envelopes.repository';
 import {
+  ENVELOPE_SORT_KEYS,
   EnvelopeSignerEmailTakenError,
   EnvelopesRepository,
   InvalidCursorError,
@@ -126,7 +130,13 @@ export class EnvelopesService {
 
   async list(
     owner_id: string,
-    opts: { statuses?: readonly EnvelopeStatus[]; limit?: number; cursor?: string },
+    opts: {
+      statuses?: readonly EnvelopeStatus[];
+      limit?: number;
+      cursor?: string;
+      sort?: string;
+      dir?: string;
+    },
   ): Promise<ListResult> {
     const clampedLimit = Math.max(1, Math.min(100, opts.limit ?? 20));
 
@@ -138,7 +148,22 @@ export class EnvelopesService {
       }
     }
 
-    let cursor: { updated_at: string; id: string } | null = null;
+    let sort: EnvelopeSortKey | undefined;
+    if (opts.sort !== undefined) {
+      if (!(ENVELOPE_SORT_KEYS as readonly string[]).includes(opts.sort)) {
+        throw new BadRequestException('validation_error');
+      }
+      sort = opts.sort as EnvelopeSortKey;
+    }
+    let dir: SortDir | undefined;
+    if (opts.dir !== undefined) {
+      if (opts.dir !== 'asc' && opts.dir !== 'desc') {
+        throw new BadRequestException('validation_error');
+      }
+      dir = opts.dir;
+    }
+
+    let cursor: ListCursor | null = null;
     if (opts.cursor) {
       try {
         cursor = this.repo.decodeCursorOrThrow(opts.cursor);
@@ -151,6 +176,8 @@ export class EnvelopesService {
     return this.repo.listByOwner(owner_id, {
       ...(opts.statuses ? { statuses: opts.statuses } : {}),
       limit: clampedLimit,
+      ...(sort !== undefined ? { sort } : {}),
+      ...(dir !== undefined ? { dir } : {}),
       cursor,
     });
   }

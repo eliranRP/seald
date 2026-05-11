@@ -120,10 +120,41 @@ export interface SignerAuditDetail {
   readonly signing_ip: string | null;
 }
 
+/**
+ * Sortable columns for the envelope list. `signers` orders by the
+ * count of `envelope_signers` rows; `progress` by the completed /
+ * total ratio (0 when an envelope has no signers). The rest map to
+ * literal `envelopes` columns. Default is `date` (i.e. `updated_at`).
+ */
+export const ENVELOPE_SORT_KEYS = [
+  'date',
+  'created',
+  'title',
+  'status',
+  'signers',
+  'progress',
+] as const;
+export type EnvelopeSortKey = (typeof ENVELOPE_SORT_KEYS)[number];
+export type SortDir = 'asc' | 'desc';
+
+/**
+ * Keyset cursor. `sort_value` is the stringified value of the active
+ * sort expression for the last row of the previous page; `updated_at`
+ * + `id` are the always-unique tie-break so the 3-tuple is a total
+ * order even when many rows share the same `sort_value`.
+ */
+export interface ListCursor {
+  readonly sort_value: string;
+  readonly updated_at: string;
+  readonly id: string;
+}
+
 export interface ListOptions {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit: number; // 1..100
-  readonly cursor?: { readonly updated_at: string; readonly id: string } | null;
+  readonly sort?: EnvelopeSortKey; // default 'date'
+  readonly dir?: SortDir; // default 'desc'
+  readonly cursor?: ListCursor | null;
 }
 
 export interface EnvelopeListSignerSnippet {
@@ -378,10 +409,11 @@ export abstract class EnvelopesRepository {
     }>
   >;
 
-  // Cursor helper — decode the opaque cursor returned by listByOwner. Throws
-  // InvalidCursorError on malformed input. Lives on the port so the service
-  // layer doesn't need to know the cursor encoding format.
-  abstract decodeCursorOrThrow(cursor: string): { updated_at: string; id: string };
+  // Cursor helper — decode the opaque 3-tuple cursor returned by
+  // listByOwner. Throws InvalidCursorError on malformed input. Lives
+  // on the port so the service layer doesn't need to know the cursor
+  // encoding format.
+  abstract decodeCursorOrThrow(cursor: string): ListCursor;
 
   /**
    * Issues #38 / #43 — atomic account-deletion purge for the

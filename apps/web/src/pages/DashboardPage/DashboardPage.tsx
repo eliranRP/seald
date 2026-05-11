@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { JSX } from 'react';
 import { ChevronRight, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -21,7 +21,13 @@ import { Skeleton } from '@/components/Skeleton';
 import { StatCard } from '@/components/StatCard';
 import { useEnvelopesQuery } from '@/features/envelopes';
 import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
-import { filterEnvelopes, isAwaitingYou, parseFilters } from '@/features/dashboardFilters';
+import {
+  filterEnvelopes,
+  isAwaitingYou,
+  parseFilters,
+  parseSort,
+  type SortKey,
+} from '@/features/dashboardFilters';
 import { formatShortDate } from '@/lib/dateFormat';
 import { useAuth } from '@/providers/AuthProvider';
 import {
@@ -39,6 +45,8 @@ import {
   Main,
   ProgressCell,
   SignersCell,
+  SortCaret,
+  SortHeaderButton,
   StatGrid,
   TableHead,
   TableRow,
@@ -53,6 +61,15 @@ const COLUMN_LABELS: Record<ColKey, string> = {
   progress: 'Progress',
   status: 'Status',
   date: 'Date',
+};
+// The column id (the localStorage width key) maps to the sort key the
+// API understands — only `document` differs (sorts by `title`).
+const COLUMN_SORT_KEY: Record<ColKey, SortKey> = {
+  document: 'title',
+  signers: 'signers',
+  progress: 'progress',
+  status: 'status',
+  date: 'date',
 };
 const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
   key: k,
@@ -263,9 +280,16 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
  */
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const q = useEnvelopesQuery(true, { limit: 100 });
+  // Click-to-sort: the sort key + direction live in the URL
+  // (`?sort=date&dir=desc`) so the view is bookmarkable. The sort is
+  // performed server-side — the list endpoint orders + keysets by
+  // these params — so the page just reflects whatever order the API
+  // returned.
+  const sort = useMemo(() => parseSort(searchParams), [searchParams]);
+
+  const q = useEnvelopesQuery(true, { limit: 100, sort: sort.key, dir: sort.dir });
   const envelopes: ReadonlyArray<EnvelopeListItem> = useMemo(() => q.data?.items ?? [], [q.data]);
   const documentsLoading = q.isPending;
 
@@ -274,14 +298,41 @@ export function DashboardPage() {
   const { user } = useAuth();
   const viewerEmail = user?.email ?? null;
 
-  // The new toolbar owns filter UI and writes to the URL; the page
-  // reads the URL and applies a single combined filter pass. Keeps
-  // the toolbar pluggable (piece #2 will add a tag chip) without
-  // pushing per-filter state into the page.
+  // The toolbar owns filter UI and writes to the URL; the page reads
+  // the URL and applies a single combined filter pass. `filterEnvelopes`
+  // is a stable client-side narrowing (preserves input order), so the
+  // server's sort order survives it.
   const parsedFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
   const filtered = useMemo(
     () => filterEnvelopes(envelopes, parsedFilters, viewerEmail),
     [envelopes, parsedFilters, viewerEmail],
+  );
+
+  // Header click cycle: not-active → asc; active+asc → desc;
+  // active+desc → back to the default (strip both params).
+  const handleSortClick = useCallback(
+    (key: SortKey): void => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          const isActive = next.get('sort') === key;
+          const curDir = next.get('dir');
+          if (!isActive) {
+            next.set('sort', key);
+            next.set('dir', 'asc');
+          } else if (curDir === 'asc') {
+            next.set('sort', key);
+            next.set('dir', 'desc');
+          } else {
+            next.delete('sort');
+            next.delete('dir');
+          }
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
   );
 
   // Per-user column widths persisted in localStorage (piece 3 of the
@@ -350,16 +401,32 @@ export function DashboardPage() {
 
         <TableShell>
           <TableHead role="row" $grid={gridTemplate}>
-            {COLUMN_KEYS.map((key) => (
-              <HeadCell key={key}>
-                {COLUMN_LABELS[key]}
-                <ColumnResizeHandle
-                  width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
-                  onResize={(px) => setWidth(key, px)}
-                  ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
-                />
-              </HeadCell>
-            ))}
+            {COLUMN_KEYS.map((key) => {
+              const sortKey = COLUMN_SORT_KEY[key];
+              const active = sort.key === sortKey;
+              return (
+                <HeadCell
+                  key={key}
+                  aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+                >
+                  <SortHeaderButton
+                    type="button"
+                    $active={active}
+                    onClick={() => handleSortClick(sortKey)}
+                  >
+                    {COLUMN_LABELS[key]}
+                    {active ? (
+                      <SortCaret aria-hidden>{sort.dir === 'asc' ? '▲' : '▼'}</SortCaret>
+                    ) : null}
+                  </SortHeaderButton>
+                  <ColumnResizeHandle
+                    width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
+                    onResize={(px) => setWidth(key, px)}
+                    ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
+                  />
+                </HeadCell>
+              );
+            })}
             <div aria-hidden />
           </TableHead>
           {renderDocumentsBody({

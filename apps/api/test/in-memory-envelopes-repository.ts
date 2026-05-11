@@ -20,9 +20,9 @@ import type {
 import {
   EnvelopeSignerEmailTakenError,
   EnvelopesRepository,
-  InvalidCursorError,
   ShortCodeCollisionError,
 } from '../src/envelopes/envelopes.repository';
+import { decodeListCursor, encodeListCursor, sortValueForKey } from '../src/envelopes/list-cursor';
 
 /**
  * In-memory envelopes repository for e2e tests. Covers the subset of methods
@@ -122,14 +122,50 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       const set = new Set(opts.statuses);
       items = items.filter((e) => set.has(e.status));
     }
-    items.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id.localeCompare(a.id));
+
+    const sortKey = opts.sort ?? 'date';
+    const asc = (opts.dir ?? 'desc') === 'asc';
+    const sortValueOf = (e: Envelope): string => sortValueForKey(e, sortKey);
+    // Lexicographic comparison on the same column type the Pg repo
+    // uses: dates / titles compare as strings, the numeric keys as
+    // numbers.
+    const primaryCmp = (a: Envelope, b: Envelope): number => {
+      const va = sortValueOf(a);
+      const vb = sortValueOf(b);
+      if (sortKey === 'date' || sortKey === 'created' || sortKey === 'title') {
+        return va < vb ? -1 : va > vb ? 1 : 0;
+      }
+      return Number(va) - Number(vb);
+    };
+    items.sort((a, b) => {
+      const p = primaryCmp(a, b) * (asc ? 1 : -1);
+      if (p !== 0) return p;
+      // Fixed tie-break: newest first, then id ascending.
+      if (a.updated_at !== b.updated_at) return b.updated_at.localeCompare(a.updated_at);
+      return a.id.localeCompare(b.id);
+    });
+
     if (opts.cursor) {
-      items = items.filter(
-        (e) =>
-          e.updated_at < opts.cursor!.updated_at ||
-          (e.updated_at === opts.cursor!.updated_at && e.id < opts.cursor!.id),
-      );
+      const c = opts.cursor;
+      const after = (e: Envelope): boolean => {
+        const v = sortValueOf(e);
+        const numericKey = !(sortKey === 'date' || sortKey === 'created' || sortKey === 'title');
+        const primary = numericKey
+          ? asc
+            ? Number(v) > Number(c.sort_value)
+            : Number(v) < Number(c.sort_value)
+          : asc
+            ? v > c.sort_value
+            : v < c.sort_value;
+        if (primary) return true;
+        const eq = numericKey ? Number(v) === Number(c.sort_value) : v === c.sort_value;
+        if (!eq) return false;
+        if (e.updated_at < c.updated_at) return true;
+        return e.updated_at === c.updated_at && e.id > c.id;
+      };
+      items = items.filter(after);
     }
+
     const page = items.slice(0, opts.limit);
     const mapped = page.map((e) => ({
       id: e.id,
@@ -152,11 +188,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
         signed_at: s.signed_at,
       })),
     }));
+    const lastEnv = page[page.length - 1];
     const next =
-      page.length === opts.limit && items.length > opts.limit
-        ? Buffer.from(`${page[page.length - 1]!.updated_at}|${page[page.length - 1]!.id}`).toString(
-            'base64url',
-          )
+      page.length === opts.limit && items.length > opts.limit && lastEnv
+        ? encodeListCursor(sortValueOf(lastEnv), lastEnv.updated_at, lastEnv.id)
         : null;
     return { items: mapped, next_cursor: next };
   }
@@ -773,16 +808,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     };
   }
 
-  decodeCursorOrThrow(cursor: string): { updated_at: string; id: string } {
-    try {
-      const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-      const pipe = decoded.indexOf('|');
-      if (pipe <= 0) throw new InvalidCursorError();
-      return { updated_at: decoded.slice(0, pipe), id: decoded.slice(pipe + 1) };
-    } catch (err) {
-      if (err instanceof InvalidCursorError) throw err;
-      throw new InvalidCursorError();
-    }
+  decodeCursorOrThrow(cursor: string): { sort_value: string; updated_at: string; id: string } {
+    return decodeListCursor(cursor);
   }
 
   /**

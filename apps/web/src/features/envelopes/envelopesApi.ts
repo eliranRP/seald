@@ -68,10 +68,21 @@ export interface EnvelopeListResponse {
   readonly next_cursor: string | null;
 }
 
+/**
+ * Server-side sort keys accepted by `GET /envelopes`. `signers` orders
+ * by signer count, `progress` by the completed/total ratio; the rest
+ * map to `envelopes` columns. `title` is the dashboard's "Document"
+ * column.
+ */
+export type EnvelopeSortKey = 'date' | 'created' | 'title' | 'status' | 'signers' | 'progress';
+export type EnvelopeSortDir = 'asc' | 'desc';
+
 export interface ListEnvelopesParams {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit?: number;
   readonly cursor?: string;
+  readonly sort?: EnvelopeSortKey;
+  readonly dir?: EnvelopeSortDir;
 }
 
 export interface FieldPlacement {
@@ -101,6 +112,8 @@ export async function listEnvelopes(
   if (params.statuses?.length) query.set('status', params.statuses.join(','));
   if (params.limit) query.set('limit', String(params.limit));
   if (params.cursor) query.set('cursor', params.cursor);
+  if (params.sort) query.set('sort', params.sort);
+  if (params.dir) query.set('dir', params.dir);
   const q = query.toString();
   const url = q ? `/envelopes?${q}` : '/envelopes';
   const { data } = await apiClient.get<EnvelopeListResponse>(url, configWithSignal(signal));

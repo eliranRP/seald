@@ -110,6 +110,42 @@ export const HeadCell = styled.div`
   /* Each header cell hosts an absolutely-positioned ColumnResizeHandle
      pinned to its right edge — needs a positioning context. */
   position: relative;
+  display: flex;
+  align-items: center;
+`;
+
+/**
+ * Clickable column label that toggles the server-side sort. Fills the
+ * cell except for the 6px resize handle at the right edge, so a click
+ * anywhere on the label sorts and a grab right at the border resizes.
+ */
+export const SortHeaderButton = styled.button<{ $active: boolean }>`
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : 'inherit')};
+  padding: 2px 4px;
+  margin-left: -4px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  &:hover {
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const SortCaret = styled.span`
+  display: inline-flex;
+  font-size: 10px;
+  line-height: 1;
+  color: ${({ theme }) => theme.color.indigo[600]};
 `;
 
 export const TableRow = styled.button<{ $grid: string }>`
