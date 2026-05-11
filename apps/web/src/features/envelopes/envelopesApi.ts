@@ -77,12 +77,22 @@ export interface EnvelopeListResponse {
 export type EnvelopeSortKey = 'date' | 'created' | 'title' | 'status' | 'signers' | 'progress';
 export type EnvelopeSortDir = 'asc' | 'desc';
 
+/** Dashboard status buckets — the `?bucket=` query-param vocabulary. */
+export type EnvelopeBucket = 'draft' | 'awaiting_you' | 'awaiting_others' | 'sealed' | 'declined';
+
 export interface ListEnvelopesParams {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit?: number;
   readonly cursor?: string;
   readonly sort?: EnvelopeSortKey;
   readonly dir?: EnvelopeSortDir;
+  // Dashboard filters (server applies these in SQL).
+  readonly q?: string;
+  readonly bucket?: ReadonlyArray<EnvelopeBucket>;
+  /** Preset keyword or `custom:YYYY-MM-DD:YYYY-MM-DD`. */
+  readonly date?: string;
+  readonly signer?: ReadonlyArray<string>;
+  readonly tags?: ReadonlyArray<string>;
 }
 
 export interface FieldPlacement {
@@ -114,6 +124,11 @@ export async function listEnvelopes(
   if (params.cursor) query.set('cursor', params.cursor);
   if (params.sort) query.set('sort', params.sort);
   if (params.dir) query.set('dir', params.dir);
+  if (params.q) query.set('q', params.q);
+  if (params.bucket?.length) query.set('bucket', params.bucket.join(','));
+  if (params.date) query.set('date', params.date);
+  if (params.signer?.length) query.set('signer', params.signer.join(','));
+  if (params.tags?.length) query.set('tags', params.tags.join(','));
   const q = query.toString();
   const url = q ? `/envelopes?${q}` : '/envelopes';
   const { data } = await apiClient.get<EnvelopeListResponse>(url, configWithSignal(signal));

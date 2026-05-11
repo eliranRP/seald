@@ -143,6 +143,81 @@ describe('EnvelopesPgRepository — listByOwner', () => {
     const malformed = Buffer.from('nope', 'utf8').toString('base64');
     expect(() => repo.decodeCursorOrThrow(malformed)).toThrow(InvalidCursorError);
   });
+
+  it('filters by q (substring on title + short_code), tags, and signer email', async () => {
+    const acme = await repo.createDraft(draftInput(ownerId, { title: 'Acme NDA' }));
+    const other = await repo.createDraft(draftInput(ownerId, { title: 'Other doc' }));
+    // Tag + signer on the Acme one only.
+    await repo.updateDraftMetadata(ownerId, acme.id, { tags: ['urgent'] });
+    await repo.addSigner(acme.id, {
+      email: 'alice@example.com',
+      name: 'Alice',
+      color: '#112233',
+    });
+    await repo.addSigner(other.id, {
+      email: 'bob@example.com',
+      name: 'Bob',
+      color: '#445566',
+    });
+
+    // q matches the title…
+    expect(
+      (await repo.listByOwner(ownerId, { limit: 10, q: 'acme' })).items.map((i) => i.id),
+    ).toEqual([acme.id]);
+    // …and the short_code (use the full code — a random 13-char prefix
+    // could otherwise coincidentally substring-match the other one).
+    expect(
+      (await repo.listByOwner(ownerId, { limit: 10, q: acme.short_code })).items.map((i) => i.id),
+    ).toEqual([acme.id]);
+    // tags (jsonb containment).
+    expect(
+      (await repo.listByOwner(ownerId, { limit: 10, tags: ['urgent'] })).items.map((i) => i.id),
+    ).toEqual([acme.id]);
+    // signer email (EXISTS subquery).
+    expect(
+      (
+        await repo.listByOwner(ownerId, { limit: 10, signerEmails: ['alice@example.com'] })
+      ).items.map((i) => i.id),
+    ).toEqual([acme.id]);
+    // Multiple signers OR-matched.
+    expect(
+      (
+        await repo.listByOwner(ownerId, {
+          limit: 10,
+          signerEmails: ['alice@example.com', 'bob@example.com'],
+        })
+      ).items.length,
+    ).toBe(2);
+  });
+
+  it('filters by the awaiting_you / awaiting_others buckets using viewerEmail', async () => {
+    const mine = await repo.createDraft(draftInput(ownerId, { title: 'Awaiting me' }));
+    const theirs = await repo.createDraft(draftInput(ownerId, { title: 'Awaiting them' }));
+    for (const id of [mine.id, theirs.id]) {
+      await handle.db
+        .updateTable('envelopes')
+        .set({ status: 'awaiting_others' })
+        .where('id', '=', id)
+        .execute();
+    }
+    // Viewer is a pending signer on `mine`, not on `theirs`.
+    await repo.addSigner(mine.id, { email: 'viewer@x.test', name: 'Viewer', color: '#111111' });
+    await repo.addSigner(theirs.id, { email: 'someone@x.test', name: 'Someone', color: '#222222' });
+
+    const you = await repo.listByOwner(ownerId, {
+      limit: 10,
+      buckets: ['awaiting_you'],
+      viewerEmail: 'viewer@x.test',
+    });
+    expect(you.items.map((i) => i.id)).toEqual([mine.id]);
+
+    const others = await repo.listByOwner(ownerId, {
+      limit: 10,
+      buckets: ['awaiting_others'],
+      viewerEmail: 'viewer@x.test',
+    });
+    expect(others.items.map((i) => i.id)).toEqual([theirs.id]);
+  });
 });
 
 describe('EnvelopesPgRepository — updateDraftMetadata', () => {

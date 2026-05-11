@@ -149,12 +149,49 @@ export interface ListCursor {
   readonly id: string;
 }
 
-export interface ListOptions {
+/**
+ * Dashboard status "buckets" — distinct from the literal
+ * `envelopes.status` column. `awaiting_you` / `awaiting_others` split
+ * `awaiting_others`/`sealing` envelopes by whether the auth'd viewer
+ * is still a pending signer; the rest map 1:1 to a column value
+ * (`sealed` ↔ `completed`).
+ */
+export const ENVELOPE_BUCKETS = [
+  'draft',
+  'awaiting_you',
+  'awaiting_others',
+  'sealed',
+  'declined',
+] as const;
+export type EnvelopeBucket = (typeof ENVELOPE_BUCKETS)[number];
+
+/** A `[from, to)` instant window for the date filter. */
+export interface DateWindow {
+  readonly from: string; // ISO
+  readonly to: string; // ISO, exclusive
+}
+
+export interface ListFilters {
+  /** Case-insensitive substring on `title` + `short_code`. */
+  readonly q?: string;
+  /** Selected status buckets — OR-combined. Empty/absent = no bucket filter. */
+  readonly buckets?: ReadonlyArray<EnvelopeBucket>;
+  /** Half-open `[from, to)` window on `updated_at`. */
+  readonly date?: DateWindow;
+  /** Lower-cased signer emails — envelope matches if it has ANY of them. */
+  readonly signerEmails?: ReadonlyArray<string>;
+  /** Lower-cased tag names — envelope matches if it has ANY of them. */
+  readonly tags?: ReadonlyArray<string>;
+}
+
+export interface ListOptions extends ListFilters {
   readonly statuses?: ReadonlyArray<EnvelopeStatus>;
   readonly limit: number; // 1..100
   readonly sort?: EnvelopeSortKey; // default 'date'
   readonly dir?: SortDir; // default 'desc'
   readonly cursor?: ListCursor | null;
+  /** Auth'd viewer's email — needed to resolve the awaiting-you bucket. */
+  readonly viewerEmail?: string | null;
 }
 
 export interface EnvelopeListSignerSnippet {

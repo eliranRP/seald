@@ -125,6 +125,7 @@ describe('EnvelopesController', () => {
       await controller.list(USER, 'draft,awaiting_others');
       expect(svc.list).toHaveBeenCalledWith(USER.id, {
         statuses: ['draft', 'awaiting_others'],
+        viewerEmail: USER.email,
       });
     });
 
@@ -133,49 +134,56 @@ describe('EnvelopesController', () => {
       await controller.list(USER, ' draft , , awaiting_others ');
       expect(svc.list).toHaveBeenCalledWith(USER.id, {
         statuses: ['draft', 'awaiting_others'],
+        viewerEmail: USER.email,
       });
     });
 
     it('omits statuses when query is empty string', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, '');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, {});
+      expect(svc.list).toHaveBeenCalledWith(USER.id, { viewerEmail: USER.email });
     });
 
     it('omits statuses when query is undefined', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER);
-      expect(svc.list).toHaveBeenCalledWith(USER.id, {});
+      expect(svc.list).toHaveBeenCalledWith(USER.id, { viewerEmail: USER.email });
     });
 
     it('omits statuses when only commas/whitespace', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, ' , , ');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, {});
+      expect(svc.list).toHaveBeenCalledWith(USER.id, { viewerEmail: USER.email });
     });
 
     it('still forwards unknown status values verbatim (service re-validates)', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, 'bogus');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, { statuses: ['bogus'] });
+      expect(svc.list).toHaveBeenCalledWith(USER.id, {
+        statuses: ['bogus'],
+        viewerEmail: USER.email,
+      });
     });
 
     it('parses limit query as integer', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, undefined, '50');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, { limit: 50 });
+      expect(svc.list).toHaveBeenCalledWith(USER.id, { limit: 50, viewerEmail: USER.email });
     });
 
     it('drops non-numeric limit', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, undefined, 'abc');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, {});
+      expect(svc.list).toHaveBeenCalledWith(USER.id, { viewerEmail: USER.email });
     });
 
     it('forwards cursor when present', async () => {
       svc.list.mockResolvedValue({ items: [], next_cursor: null });
       await controller.list(USER, undefined, undefined, 'opaque-cursor');
-      expect(svc.list).toHaveBeenCalledWith(USER.id, { cursor: 'opaque-cursor' });
+      expect(svc.list).toHaveBeenCalledWith(USER.id, {
+        cursor: 'opaque-cursor',
+        viewerEmail: USER.email,
+      });
     });
   });
 
