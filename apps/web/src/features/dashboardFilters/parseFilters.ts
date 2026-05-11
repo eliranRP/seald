@@ -1,5 +1,4 @@
 import {
-  ACTIONABLE_INBOX,
   DATE_PRESETS,
   STATUS_OPTIONS,
   type DateFilter,
@@ -15,27 +14,18 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Decode the dashboard filter URL contract into a structured object.
  *
- * Default-on-first-visit (no params at all) returns the actionable
- * inbox: `Awaiting you + Awaiting others`. Once any other param is
- * present (search / date / signer), the default is suppressed —
- * the user has begun narrowing and the actionable filter would
- * otherwise hide envelopes they likely want to see.
+ * No filters are applied by default — a fresh visit (no params) shows
+ * every envelope, and `Clear filters` (which strips every param) does
+ * the same. An empty `status` list means "no status filter".
  *
  * Malformed values (unknown preset, broken custom range, unknown
  * status token) are silently ignored — the filter behaves as if
  * absent. Per spec: never error on an unparseable URL.
  */
 export function parseFilters(params: URLSearchParams): EnvelopeFilters {
-  const hasAnyParam =
-    params.has('q') ||
-    params.has('status') ||
-    params.has('date') ||
-    params.has('signer') ||
-    params.has('tags');
-
   return {
     q: (params.get('q') ?? '').toLowerCase(),
-    status: parseStatus(params.get('status'), hasAnyParam),
+    status: parseStatus(params.get('status')),
     date: parseDate(params.get('date')),
     signer: parseList(params.get('signer')),
     tags: parseList(params.get('tags')),
@@ -50,15 +40,9 @@ function parseList(raw: string | null): ReadonlyArray<string> {
     .filter((s) => s.length > 0);
 }
 
-function parseStatus(raw: string | null, hasAnyParam: boolean): ReadonlyArray<StatusOption> {
-  if (raw === null) {
-    // No `status` param at all: apply the actionable-inbox default
-    // ONLY if no other filter is active. Otherwise treat as "no
-    // status filter" so the user's search/date/signer scope spans
-    // every envelope.
-    return hasAnyParam ? [] : ACTIONABLE_INBOX;
-  }
-  if (raw === 'all') return [];
+function parseStatus(raw: string | null): ReadonlyArray<StatusOption> {
+  // No `status` param (or the legacy `?status=all` alias) → no filter.
+  if (raw === null || raw === 'all') return [];
   return raw
     .split(',')
     .map((s) => s.trim())
@@ -78,16 +62,9 @@ function parseDate(raw: string | null): DateFilter {
   return { kind: 'preset', preset: 'all' };
 }
 
-export interface SerializeInput extends Omit<EnvelopeFilters, 'status'> {
+export type SerializeInput = Omit<EnvelopeFilters, 'status'> & {
   readonly status: ReadonlyArray<StatusOption>;
-  /**
-   * When `true`, an empty `status` list serializes to `?status=all`.
-   * Distinguishes "user cleared the chip" (explicit) from "first
-   * visit" (defaults will re-apply on reload). Defaults to `false`,
-   * which omits the param entirely.
-   */
-  readonly explicitAllStatus?: boolean;
-}
+};
 
 /**
  * Inverse of `parseFilters` — emits a URL search-params string. Omits
@@ -98,7 +75,6 @@ export function serializeFilters(filters: SerializeInput): string {
   const out = new URLSearchParams();
   if (filters.q !== '') out.set('q', filters.q);
   if (filters.status.length > 0) out.set('status', filters.status.join(','));
-  else if (filters.explicitAllStatus === true) out.set('status', 'all');
   if (filters.date.kind === 'preset' && filters.date.preset !== 'all') {
     out.set('date', filters.date.preset);
   } else if (filters.date.kind === 'custom') {

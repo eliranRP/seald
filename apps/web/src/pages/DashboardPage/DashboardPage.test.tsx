@@ -119,33 +119,38 @@ function renderDashboard(initialPath = '/documents') {
 }
 
 describe('DashboardPage', () => {
-  it('renders the heading and rows from the /envelopes response', async () => {
+  it('renders the heading and every envelope by default (no status filter)', async () => {
     renderDashboard();
     expect(
       screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
     ).toBeInTheDocument();
-    // Default filter is the actionable inbox (Awaiting you + Awaiting
-    // others). MSA is awaiting_others, so it lands in the visible set.
+    // No default filter — a fresh visit shows the whole list.
     expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
+    expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
+    expect(screen.getByText(/offer letter — m\. chen/i)).toBeInTheDocument();
   });
 
   it('narrows the table when the user picks a status from the toolbar', async () => {
-    // Default visible set is the actionable inbox (Awaiting you +
-    // Awaiting others). Sealed and Drafts are hidden by default. The
-    // toolbar's Draft checkbox flips Drafts into the visible set.
     renderDashboard();
     await screen.findByText(/master services agreement/i);
-    expect(screen.queryByText(/vendor onboarding — argus/i)).toBeNull();
-    expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
-
-    // Open the Status chip and add "Draft" to the selection.
+    // Open the Status chip and pick ONLY "Draft" (no defaults to fight).
     fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
     fireEvent.click(await screen.findByLabelText('Draft'));
     expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
-    // Awaiting-others is still selected, so MSA stays visible.
-    expect(screen.getByText(/master services agreement/i)).toBeInTheDocument();
-    // Sealed remains unchecked, so the offer letter stays hidden.
+    // MSA (awaiting_others) and the offer letter (sealed) are now hidden.
+    expect(screen.queryByText(/master services agreement/i)).toBeNull();
     expect(screen.queryByText(/offer letter — m\. chen/i)).toBeNull();
+  });
+
+  it('"Clear filters" wipes every active filter and shows the whole list again', async () => {
+    // Start narrowed via the URL, then clear.
+    renderDashboard('/documents?status=draft');
+    await screen.findByText(/vendor onboarding — argus/i);
+    expect(screen.queryByText(/master services agreement/i)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /clear all filters/i }));
+    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
+    expect(screen.getByText(/offer letter — m\. chen/i)).toBeInTheDocument();
+    expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
   });
 
   it('exposes a link to start a new document', () => {

@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { parseFilters, serializeFilters } from './parseFilters';
-import { ACTIONABLE_INBOX } from './types';
 
 describe('parseFilters', () => {
-  it('returns the actionable-inbox default when there are no params', () => {
+  it('applies no filters when there are no params (fresh visit shows everything)', () => {
     expect(parseFilters(new URLSearchParams())).toMatchObject({
       q: '',
-      status: ACTIONABLE_INBOX,
+      status: [],
       date: { kind: 'preset', preset: 'all' },
       signer: [],
       tags: [],
@@ -23,7 +22,7 @@ describe('parseFilters', () => {
     expect(f.status).toEqual(['draft', 'sealed']);
   });
 
-  it('honors the `status=all` sentinel as "no status filter"', () => {
+  it('treats the legacy `?status=all` alias as "no status filter"', () => {
     const f = parseFilters(new URLSearchParams('status=all'));
     expect(f.status).toEqual([]);
   });
@@ -79,16 +78,14 @@ describe('parseFilters', () => {
     expect(parseFilters(new URLSearchParams('tags=')).tags).toEqual([]);
   });
 
-  it('does NOT apply the actionable-inbox default once any other param is present', () => {
-    // User searched but didn't touch status — they want to search across
-    // every envelope, not just the actionable subset.
+  it('leaves the status filter empty when only other params are present', () => {
     const f = parseFilters(new URLSearchParams('q=acme'));
     expect(f.status).toEqual([]);
   });
 });
 
 describe('serializeFilters', () => {
-  it('emits an empty string when filters match the no-op state (no q, status=all, date=all, no signer)', () => {
+  it('emits an empty string when nothing is filtered (empty status, all-time date, no signer/tags/search)', () => {
     expect(
       serializeFilters({
         q: '',
@@ -130,20 +127,14 @@ describe('serializeFilters', () => {
     });
   });
 
-  it('uses the all-status sentinel when the user has explicitly opted into "everything"', () => {
-    // Distinguishes "user cleared the chip" from "first visit". Without
-    // the sentinel, both would be empty status arrays — and the next
-    // page load would re-apply the actionable-inbox default.
+  it('omits the status param entirely when the status filter is empty', () => {
     const serialized = serializeFilters({
-      q: '',
+      q: 'x',
       status: [],
       date: { kind: 'preset', preset: 'all' },
       signer: [],
       tags: [],
-      // The sentinel is signaled by an opt-in flag at the call site —
-      // see the toolbar test for the integration assertion.
-      explicitAllStatus: true,
     });
-    expect(new URLSearchParams(serialized).get('status')).toBe('all');
+    expect(new URLSearchParams(serialized).has('status')).toBe(false);
   });
 });

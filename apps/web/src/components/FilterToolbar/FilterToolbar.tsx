@@ -132,7 +132,7 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
 
   /** Replace the entire filter set, leaving non-filter params alone. */
   const applyFilters = useCallback(
-    (next: { filters: EnvelopeFilters; explicitAllStatus?: boolean }) => {
+    (nextFilters: EnvelopeFilters) => {
       setSearchParams(
         (prev) => {
           const carrier = new URLSearchParams(prev);
@@ -141,14 +141,7 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
           carrier.delete('date');
           carrier.delete('signer');
           carrier.delete('tags');
-          const written = new URLSearchParams(
-            serializeFilters({
-              ...next.filters,
-              ...(next.explicitAllStatus !== undefined
-                ? { explicitAllStatus: next.explicitAllStatus }
-                : {}),
-            }),
-          );
+          const written = new URLSearchParams(serializeFilters(nextFilters));
           for (const [k, v] of written) carrier.set(k, v);
           return carrier;
         },
@@ -159,34 +152,29 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
   );
 
   const setStatus = useCallback(
-    (next: ReadonlyArray<StatusOption>, options?: { explicitAllStatus?: boolean }) => {
-      applyFilters({
-        filters: { ...filters, status: next },
-        ...(options?.explicitAllStatus !== undefined
-          ? { explicitAllStatus: options.explicitAllStatus }
-          : {}),
-      });
+    (next: ReadonlyArray<StatusOption>) => {
+      applyFilters({ ...filters, status: next });
     },
     [applyFilters, filters],
   );
 
   const setDate = useCallback(
     (next: DateFilter) => {
-      applyFilters({ filters: { ...filters, date: next } });
+      applyFilters({ ...filters, date: next });
     },
     [applyFilters, filters],
   );
 
   const setSigner = useCallback(
     (next: ReadonlyArray<string>) => {
-      applyFilters({ filters: { ...filters, signer: next } });
+      applyFilters({ ...filters, signer: next });
     },
     [applyFilters, filters],
   );
 
   const setTagsFilter = useCallback(
     (next: ReadonlyArray<string>) => {
-      applyFilters({ filters: { ...filters, tags: next } });
+      applyFilters({ ...filters, tags: next });
     },
     [applyFilters, filters],
   );
@@ -327,16 +315,12 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
         <PopoverHeader>
           <span>Status</span>
           {/* Smart toggle: when at least one option is checked the
-              header link becomes "Deselect all" (un-ticks every box
-              + writes the `?status=all` sentinel so the actionable
-              inbox default doesn't re-apply on reload). When nothing
-              is checked the link flips to "Select all" and ticks
-              every option in one click. */}
+              header link becomes "Deselect all" (un-ticks every box →
+              empty status filter → every envelope shows). When nothing
+              is checked it flips to "Select all" and ticks every
+              option in one click. */}
           {filters.status.length > 0 ? (
-            <PopoverHeaderAction
-              type="button"
-              onClick={() => setStatus([], { explicitAllStatus: true })}
-            >
+            <PopoverHeaderAction type="button" onClick={() => setStatus([])}>
               Deselect all
             </PopoverHeaderAction>
           ) : (
