@@ -44,6 +44,18 @@ export interface EnvelopeField {
   readonly link_id?: string | null;
 }
 
+/**
+ * "Save to Google Drive" state for an envelope (mirrors `GdriveExportState`
+ * in packages/shared). `null` when the `gdriveIntegration` flag is off.
+ * `connected` is whether the current user has any connected Drive account;
+ * `lastFolder` / `lastPushedAt` come from this envelope's last save, if any.
+ */
+export interface EnvelopeGdriveExportState {
+  readonly connected: boolean;
+  readonly lastFolder?: { readonly id: string; readonly name: string } | null;
+  readonly lastPushedAt?: string | null;
+}
+
 export interface Envelope {
   readonly id: string;
   readonly owner_id: string;
@@ -61,6 +73,20 @@ export interface Envelope {
   readonly tags: ReadonlyArray<string>;
   readonly created_at: string;
   readonly updated_at: string;
+  readonly gdriveExport?: EnvelopeGdriveExportState | null;
+}
+
+/** Result of `POST /envelopes/:id/gdrive/save` (mirrors `EnvelopeGdriveSaveResult`). */
+export interface EnvelopeGdriveSaveResult {
+  readonly folder: { readonly id: string; readonly name: string; readonly webViewLink: string };
+  readonly files: ReadonlyArray<{
+    readonly kind: 'sealed' | 'audit';
+    readonly fileId: string;
+    readonly name: string;
+    readonly webViewLink: string;
+  }>;
+  readonly error?: { readonly kind: 'sealed' | 'audit'; readonly code: string };
+  readonly pushedAt: string;
 }
 
 export interface EnvelopeListResponse {
@@ -236,6 +262,34 @@ export async function getEnvelopeDownloadUrl(
   const params = kind !== undefined ? { ...(base.params ?? {}), kind } : base.params;
   const config = params !== undefined ? { ...base, params } : base;
   const { data } = await apiClient.get<EnvelopeDownloadUrl>(`/envelopes/${id}/download`, config);
+  return data;
+}
+
+/**
+ * Pushes the envelope's sealed PDF + audit-trail PDF into a Google Drive
+ * folder the user picked via the Google Picker. The artifact bytes never
+ * touch the browser — the server reads them from Storage and uploads
+ * directly to Drive using the user's stored token.
+ *
+ * Returns the folder + the created/updated Drive files. On a partial
+ * success (one of the two uploads landed, the other didn't) `error` is
+ * present and `files` only contains the one that succeeded.
+ *
+ * Errors surface via the wrapped `ApiError` with `.code` set to one of:
+ * `envelope-not-sealed` (409), `gdrive-not-connected` (409),
+ * `token-expired` (409), `permission-denied` (403), `rate-limited` (429,
+ * `.retryAfter` in seconds), `drive-upstream-error` (502).
+ */
+export async function saveEnvelopeToGdrive(
+  id: string,
+  body: { readonly folderId: string; readonly folderName?: string },
+  signal?: AbortSignal,
+): Promise<EnvelopeGdriveSaveResult> {
+  const { data } = await apiClient.post<EnvelopeGdriveSaveResult>(
+    `/envelopes/${id}/gdrive/save`,
+    body,
+    configWithSignal(signal),
+  );
   return data;
 }
 

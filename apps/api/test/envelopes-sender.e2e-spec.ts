@@ -15,6 +15,7 @@ import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
+import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
 import { buildTestJwks } from './test-jwks';
 
 const TEST_ENV: AppEnv = {
@@ -81,20 +82,21 @@ describe('Envelopes — sender auth contract (e2e)', () => {
     storage = new InMemoryStorageService();
     outbound = new InMemoryOutboundEmailsRepository();
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(APP_ENV)
-      .useValue(TEST_ENV)
-      .overrideProvider(JWKS_RESOLVER)
-      .useValue(tk.resolver)
-      .overrideProvider(EnvelopesRepository)
-      .useValue(envelopesRepo)
-      .overrideProvider(ContactsRepository)
-      .useValue(contactsRepo)
-      .overrideProvider(StorageService)
-      .useValue(storage)
-      .overrideProvider(OutboundEmailsRepository)
-      .useValue(outbound)
-      .compile();
+    const moduleRef = await stubGdriveForEnvelopeDetail(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(APP_ENV)
+        .useValue(TEST_ENV)
+        .overrideProvider(JWKS_RESOLVER)
+        .useValue(tk.resolver)
+        .overrideProvider(EnvelopesRepository)
+        .useValue(envelopesRepo)
+        .overrideProvider(ContactsRepository)
+        .useValue(contactsRepo)
+        .overrideProvider(StorageService)
+        .useValue(storage)
+        .overrideProvider(OutboundEmailsRepository)
+        .useValue(outbound),
+    ).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
@@ -142,20 +144,21 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     storage = new InMemoryStorageService();
     outbound = new InMemoryOutboundEmailsRepository();
 
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(APP_ENV)
-      .useValue(TEST_ENV)
-      .overrideProvider(JWKS_RESOLVER)
-      .useValue(tk.resolver)
-      .overrideProvider(EnvelopesRepository)
-      .useValue(envelopesRepo)
-      .overrideProvider(ContactsRepository)
-      .useValue(contactsRepo)
-      .overrideProvider(StorageService)
-      .useValue(storage)
-      .overrideProvider(OutboundEmailsRepository)
-      .useValue(outbound)
-      .compile();
+    const moduleRef = await stubGdriveForEnvelopeDetail(
+      Test.createTestingModule({ imports: [AppModule] })
+        .overrideProvider(APP_ENV)
+        .useValue(TEST_ENV)
+        .overrideProvider(JWKS_RESOLVER)
+        .useValue(tk.resolver)
+        .overrideProvider(EnvelopesRepository)
+        .useValue(envelopesRepo)
+        .overrideProvider(ContactsRepository)
+        .useValue(contactsRepo)
+        .overrideProvider(StorageService)
+        .useValue(storage)
+        .overrideProvider(OutboundEmailsRepository)
+        .useValue(outbound),
+    ).compile();
 
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(

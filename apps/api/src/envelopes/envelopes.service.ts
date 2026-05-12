@@ -11,10 +11,16 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
-import { ENVELOPE_STATUSES } from 'shared';
-import type { Envelope as WireEnvelope } from 'shared';
+import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
+import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import {
+  GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
+  type GdriveEnvelopeExportsRepository,
+} from '../integrations/gdrive/gdrive-envelope-exports.repository';
+import { GdriveExportService } from '../integrations/gdrive/gdrive-export.service';
+import { GDriveService } from '../integrations/gdrive/gdrive.service';
 import { ContactsRepository } from '../contacts/contacts.repository';
 import {
   DuplicateOutboundEmailError,
@@ -79,6 +85,10 @@ export class EnvelopesService {
     private readonly outboundEmails: OutboundEmailsRepository,
     private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly gdriveAccounts: GDriveService,
+    private readonly gdriveExport: GdriveExportService,
+    @Inject(GDRIVE_ENVELOPE_EXPORTS_REPOSITORY)
+    private readonly gdriveExportsRepo: GdriveEnvelopeExportsRepository,
   ) {}
 
   async createDraft(
@@ -128,7 +138,35 @@ export class EnvelopesService {
   async getById(owner_id: string, id: string): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
-    return envelope;
+    const gdriveExport = await this.buildGdriveExportState(owner_id, id);
+    return { ...envelope, gdriveExport };
+  }
+
+  /**
+   * Assemble the `gdriveExport` block for the envelope-detail payload.
+   * `null` when the `gdriveIntegration` flag is off — the SPA renders
+   * nothing Drive-related in that case. Otherwise: `connected` is
+   * whether the user has any (non-soft-deleted) Drive account; the
+   * `lastFolder` / `lastPushedAt` fields come from this envelope's own
+   * `gdrive_envelope_exports` row, if any.
+   */
+  private async buildGdriveExportState(
+    owner_id: string,
+    envelope_id: string,
+  ): Promise<GdriveExportState | null> {
+    if (!isFeatureEnabled('gdriveIntegration')) return null;
+    const accounts = await this.gdriveAccounts.listAccounts(owner_id);
+    const connected = accounts.some((a) => !a.deletedAt);
+    const record = await this.gdriveExportsRepo.findLatestByEnvelope(envelope_id);
+    const lastFolder =
+      record && record.folderId
+        ? { id: record.folderId, name: record.folderName ?? record.folderId }
+        : null;
+    return {
+      connected,
+      lastFolder,
+      lastPushedAt: record ? record.lastPushedAt : null,
+    };
   }
 
   async list(
@@ -363,6 +401,53 @@ export class EnvelopesService {
     // a slow link, short enough that a copied URL won't linger.
     const url = await this.storage.createSignedUrl(path, 300);
     return { url, kind: resolvedKind };
+  }
+
+  /**
+   * Push the envelope's sealed PDF + audit-trail PDF into a Google Drive
+   * folder the user picked. Preconditions:
+   *   - envelope exists and is owned by the user (404 `envelope_not_found`)
+   *   - the sealed + audit artifacts both exist (409 `envelope_not_sealed`)
+   *
+   * The actual Drive work — picking the account, minting a token,
+   * uploading/updating each artifact, persisting the export record — is
+   * delegated to {@link GdriveExportService}. Drive-side / account-side
+   * errors (`GdriveNotConnectedError`, `TokenExpiredError`,
+   * `RateLimitedError`, `DrivePermissionDeniedError`, `DriveUpstreamError`)
+   * bubble up; the controller maps them to HTTP.
+   */
+  async saveToGoogleDrive(
+    owner_id: string,
+    id: string,
+    args: { readonly folderId: string; readonly folderName: string | null },
+  ): Promise<EnvelopeGdriveSaveResult> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const paths = await this.repo.getFilePaths(id);
+    if (!paths) throw new NotFoundException('envelope_not_found');
+    if (paths.sealed_file_path === null || paths.audit_file_path === null) {
+      throw new ConflictException('envelope_not_sealed');
+    }
+
+    const baseName = sanitizeFileBase(envelope.title);
+    const result = await this.gdriveExport.exportEnvelope({
+      userId: owner_id,
+      envelopeId: id,
+      folderId: args.folderId,
+      folderName: args.folderName,
+      artifacts: [
+        { kind: 'sealed', path: paths.sealed_file_path, name: `${baseName} (sealed).pdf` },
+        { kind: 'audit', path: paths.audit_file_path, name: `${baseName} (audit trail).pdf` },
+      ],
+    });
+    return {
+      folder: { ...result.folder },
+      files: result.files.map((f) => ({ ...f })),
+      ...(result.partialError !== undefined
+        ? { error: { kind: result.partialError.kind, code: result.partialError.code } }
+        : {}),
+      pushedAt: new Date().toISOString(),
+    };
   }
 
   async deleteDraft(owner_id: string, id: string): Promise<void> {
@@ -894,6 +979,22 @@ export class EnvelopesService {
       },
     });
   }
+}
+
+/**
+ * Make an envelope title safe to use as a file-name base: collapse
+ * whitespace, strip the characters Drive (and most OSes) reject in
+ * names, trim, and cap at 120 chars. Falls back to a generic label when
+ * the result is empty.
+ */
+function sanitizeFileBase(title: string): string {
+  const cleaned = title
+    .replace(/[\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
+    .trim();
+  return cleaned.length > 0 ? cleaned : 'Envelope';
 }
 
 /** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */

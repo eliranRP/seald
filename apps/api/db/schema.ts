@@ -16,6 +16,21 @@ export interface Database {
   deleted_user_tombstones: DeletedUserTombstonesTable;
   // Migration 0013 — Drive integration (Phase 5 WT-A).
   gdrive_accounts: GDriveAccountsTable;
+  // Migration 0017 — "Save envelope artifacts to Google Drive" bookkeeping.
+  gdrive_envelope_exports: GDriveEnvelopeExportsTable;
+}
+
+export interface GDriveEnvelopeExportsTable {
+  id: Generated<string>;
+  envelope_id: string;
+  account_id: string;
+  folder_id: string;
+  folder_name: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  sealed_file_id: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  audit_file_id: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  last_pushed_at: ColumnType<Date, string | undefined, string | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export interface GDriveAccountsTable {

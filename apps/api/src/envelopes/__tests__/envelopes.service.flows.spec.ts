@@ -43,6 +43,23 @@ import type {
 import { EnvelopesRepository } from '../envelopes.repository';
 import { eventHash } from '../event-hash';
 import { EnvelopesService } from '../envelopes.service';
+import type { GDriveService } from '../../integrations/gdrive/gdrive.service';
+import type { GdriveExportService } from '../../integrations/gdrive/gdrive-export.service';
+import type { GdriveEnvelopeExportsRepository } from '../../integrations/gdrive/gdrive-envelope-exports.repository';
+
+const fakeGdriveAccounts = { listAccounts: async () => [] } as unknown as GDriveService;
+const fakeGdriveExport = {
+  exportEnvelope: async () => {
+    throw new Error('not_wired_in_this_suite');
+  },
+} as unknown as GdriveExportService;
+const fakeGdriveExportsRepo = {
+  findByEnvelopeAndAccount: async () => null,
+  findLatestByEnvelope: async () => null,
+  upsert: async () => {
+    throw new Error('not_wired_in_this_suite');
+  },
+} as unknown as GdriveEnvelopeExportsRepository;
 
 /**
  * Coverage for the EnvelopesService methods that the existing
@@ -546,7 +563,17 @@ describe('EnvelopesService — flow coverage', () => {
     storage = new FakeStorage();
     outbound = new FakeOutbound();
     tokens = new SigningTokenService();
-    svc = new EnvelopesService(repo, contacts, storage, outbound, tokens, TEST_ENV);
+    svc = new EnvelopesService(
+      repo,
+      contacts,
+      storage,
+      outbound,
+      tokens,
+      TEST_ENV,
+      fakeGdriveAccounts,
+      fakeGdriveExport,
+      fakeGdriveExportsRepo,
+    );
   });
 
   /** Build a complete draft ready to send — upload + signer + sig field. */

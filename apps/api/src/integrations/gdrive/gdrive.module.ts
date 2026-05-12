@@ -13,6 +13,11 @@ import { GDriveService, GOOGLE_OAUTH_CLIENT } from './gdrive.service';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY } from './gdrive.repository';
 import { GDrivePgRepository } from './gdrive.repository.pg';
+import { GDRIVE_ENVELOPE_EXPORTS_REPOSITORY } from './gdrive-envelope-exports.repository';
+import { GdriveEnvelopeExportsPgRepository } from './gdrive-envelope-exports.repository.pg';
+import { GdriveExportService } from './gdrive-export.service';
+import { DRIVE_UPLOADER, type DriveUploader } from './drive-uploader';
+import { makeDriveUploader } from './drive-uploader.adapters';
 import { OAuthStateStore } from './oauth-pkce';
 import { FetchGoogleOAuthClient } from './google-oauth.client';
 import { GDriveRateLimiter } from './rate-limiter';
@@ -50,6 +55,11 @@ const GDriveFilesProxyProvider: Provider = {
   useFactory: (): FilesProxy => makeFilesProxy(),
 };
 
+const DriveUploaderProvider: Provider = {
+  provide: DRIVE_UPLOADER,
+  useFactory: (): DriveUploader => makeDriveUploader(),
+};
+
 /**
  * Drive integration module. All providers are factory-built from env so
  * the same image can run with the feature dark (no GDRIVE_* vars set —
@@ -65,6 +75,12 @@ const GDriveFilesProxyProvider: Provider = {
   providers: [
     GDriveService,
     { provide: GDRIVE_REPOSITORY, useClass: GDrivePgRepository },
+    {
+      provide: GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
+      useClass: GdriveEnvelopeExportsPgRepository,
+    },
+    DriveUploaderProvider,
+    GdriveExportService,
     {
       provide: GDriveKmsService,
       inject: [APP_ENV],
@@ -108,7 +124,12 @@ const GDriveFilesProxyProvider: Provider = {
     },
     GDriveFilesProxyProvider,
   ],
-  exports: [GDriveService, GDriveRateLimiter],
+  exports: [
+    GDriveService,
+    GDriveRateLimiter,
+    GdriveExportService,
+    GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
+  ],
 })
 export class GDriveModule {}
 

@@ -23,6 +23,15 @@ export interface DownloadMenuItem {
   /** Label the split-button should show when this row is primary.
    *  Falls back to `title` when omitted. */
   readonly primaryLabel?: string | undefined;
+  /**
+   * Row category. `'download'` (default) rows are plain artifact
+   * downloads; `'gdrive'` rows are external actions (push to Drive)
+   * rendered below a divider. `'gdrive'` rows are never picked as the
+   * split-button's primary action.
+   */
+  readonly action?: 'download' | 'gdrive' | undefined;
+  /** While the gdrive row's spinner shows, override the meta line. */
+  readonly busyMeta?: ReactNode | undefined;
 }
 
 export interface DownloadMenuProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> {

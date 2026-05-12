@@ -60,10 +60,15 @@ function messageFromAxiosError(err: AxiosError): string {
 /**
  * Error shape thrown by `apiClient` after the response interceptor wraps
  * an axios error into something with a helpful `message` and the original
- * HTTP status attached.
+ * HTTP status attached. `code` carries the API's machine-readable error
+ * code when the response body included one (`{ code, message }` shape used
+ * by the gdrive surfaces and others); `retryAfter` mirrors the seconds-
+ * to-wait hint a `429` body may carry.
  */
 export interface ApiError extends Error {
   status?: number;
+  code?: string;
+  retryAfter?: number;
 }
 
 apiClient.interceptors.response.use(
@@ -74,6 +79,15 @@ apiClient.interceptors.response.use(
       const wrapped: ApiError = new Error(message);
       if (error.response?.status !== undefined) {
         wrapped.status = error.response.status;
+      }
+      const body = error.response?.data as
+        | { readonly code?: unknown; readonly retryAfter?: unknown }
+        | undefined;
+      if (typeof body?.code === 'string') {
+        wrapped.code = body.code;
+      }
+      if (typeof body?.retryAfter === 'number') {
+        wrapped.retryAfter = body.retryAfter;
       }
       throw wrapped;
     }

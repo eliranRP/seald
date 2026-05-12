@@ -215,6 +215,12 @@ export const ItemMeta = styled.div`
   margin-top: 4px;
 `;
 
+export const Divider = styled.div`
+  height: 1px;
+  margin: 6px 8px;
+  background: ${({ theme }) => theme.color.border[1]};
+`;
+
 export const Footer = styled.div`
   padding: 10px 10px 4px;
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};

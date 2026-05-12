@@ -86,6 +86,54 @@ export const SignerSchema = z.object({
 });
 export type Signer = z.infer<typeof SignerSchema>;
 
+/**
+ * "Save to Google Drive" state embedded on the envelope-detail payload.
+ * See {@link EnvelopeSchema.shape.gdriveExport} for the field-level
+ * contract.
+ */
+export const GdriveExportStateSchema = z.object({
+  connected: z.boolean(),
+  lastFolder: z
+    .object({ id: z.string().min(1), name: z.string() })
+    .nullable()
+    .optional(),
+  lastPushedAt: iso.nullable().optional(),
+});
+export type GdriveExportState = z.infer<typeof GdriveExportStateSchema>;
+
+/**
+ * Result of `POST /envelopes/:id/gdrive/save`. `error` is present on a
+ * partial success (one of the two uploads landed, the other failed); the
+ * export record is still updated with whatever ids succeeded so a re-save
+ * retries only the failure.
+ */
+export const EnvelopeGdriveSaveResultSchema = z.object({
+  folder: z.object({
+    id: z.string().min(1),
+    name: z.string(),
+    webViewLink: z.string(),
+  }),
+  files: z.array(
+    z.object({
+      kind: z.enum(['sealed', 'audit']),
+      fileId: z.string().min(1),
+      name: z.string(),
+      webViewLink: z.string(),
+    }),
+  ),
+  error: z
+    .object({ kind: z.enum(['sealed', 'audit']), code: z.string() })
+    .optional(),
+  pushedAt: iso,
+});
+export type EnvelopeGdriveSaveResult = z.infer<typeof EnvelopeGdriveSaveResultSchema>;
+
+export const EnvelopeGdriveSaveRequestSchema = z.object({
+  folderId: z.string().min(1).max(256),
+  folderName: z.string().max(1024).optional(),
+});
+export type EnvelopeGdriveSaveRequest = z.infer<typeof EnvelopeGdriveSaveRequestSchema>;
+
 export const FieldSchema = z.object({
   id: uuid,
   signer_id: uuid,
@@ -134,6 +182,14 @@ export const EnvelopeSchema = z.object({
   tags: z.array(z.string().min(1).max(32)).max(10).default([]),
   created_at: iso,
   updated_at: iso,
+  // "Save to Google Drive" state for this envelope. `null` when the
+  // `gdriveIntegration` feature flag is off (so the SPA renders nothing
+  // Drive-related). `connected` is "does the current user have any
+  // connected Drive account"; `lastFolder` / `lastPushedAt` come from
+  // this envelope's own `gdrive_envelope_exports` row, if any — the SPA
+  // uses them to seed the Picker's parent folder and the "Last saved to
+  // Drive · …" meta line.
+  gdriveExport: GdriveExportStateSchema.nullable().optional(),
 });
 export type Envelope = z.infer<typeof EnvelopeSchema>;
 
