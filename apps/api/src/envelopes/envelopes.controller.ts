@@ -5,6 +5,9 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpException,
+  HttpStatus,
+  NotFoundException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -12,20 +15,30 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
-import { ENVELOPE_STATUSES } from 'shared';
-import type { Envelope } from 'shared';
+import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
+import type { Envelope, EnvelopeGdriveSaveResult } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
+import {
+  DrivePermissionDeniedError,
+  DriveUpstreamError,
+  GDriveError,
+  GdriveNotConnectedError,
+  TokenExpiredError,
+} from '../integrations/gdrive/dto/error-codes';
+import { RateLimitedError } from '../integrations/gdrive/rate-limiter';
 import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
 import { PlaceFieldsDto } from './dto/place-fields.dto';
+import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type {
   EnvelopeEvent,
@@ -270,6 +283,101 @@ export class EnvelopesController {
     }
     return this.svc.getDownloadUrl(user.id, id, resolved);
   }
+
+  /**
+   * Push the envelope's sealed PDF + audit-trail PDF into a Google Drive
+   * folder the user picked via the Google Picker. Gated on the
+   * `gdriveIntegration` feature flag (404 when off — no info leak, like
+   * the rest of `/integrations/gdrive/*`).
+   *
+   * On a partial success (one of the two uploads landed, the other
+   * failed) we return `207` with an `error` field in the body and the
+   * file ids that succeeded. The export record is still updated so a
+   * re-save retries only the failure.
+   *
+   * Error mapping (each surfaces a `{ code, message }` body the SPA
+   * switches on):
+   *   - `404 envelope_not_found` — not owned / missing
+   *   - `409 envelope_not_sealed` — sealed + audit artifacts not present
+   *   - `409 gdrive_not_connected` — no connected Drive account
+   *   - `409 token-expired` — refresh token revoked → reconnect
+   *   - `429 rate-limited` (+ `retryAfter`) — our bucket or Drive's 429
+   *   - `403 permission-denied` — Drive refused the folder
+   *   - `502 drive-upstream-error` — Drive 5xx / transport / unknown
+   */
+  @Post(':id/gdrive/save')
+  async saveToGdrive(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: SaveToGdriveDto,
+    @Res({ passthrough: true }) res: { status(code: number): void },
+  ): Promise<EnvelopeGdriveSaveResult> {
+    if (!isFeatureEnabled('gdriveIntegration')) {
+      throw new NotFoundException('not_found');
+    }
+    try {
+      const result = await this.svc.saveToGoogleDrive(user.id, id, {
+        folderId: dto.folderId,
+        folderName: dto.folderName ?? null,
+      });
+      if (result.error !== undefined) {
+        // Partial success: one upload landed, the other didn't — 207.
+        res.status(207);
+      }
+      return result;
+    } catch (err) {
+      throw mapGdriveSaveError(err);
+    }
+  }
+}
+
+/**
+ * Map the errors that flow out of `EnvelopesService.saveToGoogleDrive`
+ * onto HTTP exceptions. `NotFoundException` / `ConflictException` thrown
+ * by the service (envelope not found / not sealed) pass straight through;
+ * the gdrive-domain errors get the wireframe `{ code, message }` body.
+ */
+function mapGdriveSaveError(err: unknown): unknown {
+  if (err instanceof HttpException) return err;
+  if (err instanceof GdriveNotConnectedError) {
+    return new HttpException(
+      { code: 'gdrive-not-connected', message: 'gdrive_not_connected' },
+      HttpStatus.CONFLICT,
+    );
+  }
+  if (err instanceof TokenExpiredError) {
+    return new HttpException(
+      { code: 'token-expired', message: 'reconnect_required' },
+      HttpStatus.CONFLICT,
+    );
+  }
+  if (err instanceof RateLimitedError) {
+    return new HttpException(
+      {
+        code: 'rate-limited',
+        message: 'gdrive_rate_limited',
+        retryAfter: Math.ceil(err.retryAfterMs / 1000),
+      },
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
+  }
+  if (err instanceof DrivePermissionDeniedError) {
+    return new HttpException(
+      { code: 'permission-denied', message: 'folder_not_writable' },
+      HttpStatus.FORBIDDEN,
+    );
+  }
+  if (err instanceof DriveUpstreamError || err instanceof GDriveError) {
+    return new HttpException(
+      { code: 'drive-upstream-error', message: 'drive_request_failed' },
+      HttpStatus.BAD_GATEWAY,
+    );
+  }
+  // Unknown — opaque 502, body deliberately omits err.message.
+  return new HttpException(
+    { code: 'drive-upstream-error', message: 'drive_request_failed' },
+    HttpStatus.BAD_GATEWAY,
+  );
 }
 
 const STATUS_SET = new Set<string>(ENVELOPE_STATUSES);

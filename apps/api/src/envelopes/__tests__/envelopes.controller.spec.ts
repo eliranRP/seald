@@ -1,6 +1,18 @@
-import { BadRequestException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import type { AuthUser } from '../../auth/auth-user';
+import {
+  DrivePermissionDeniedError,
+  DriveUpstreamError,
+  GdriveNotConnectedError,
+  TokenExpiredError,
+} from '../../integrations/gdrive/dto/error-codes';
+import { RateLimitedError } from '../../integrations/gdrive/rate-limiter';
 import { EnvelopesController } from '../envelopes.controller';
 import type { EnvelopesService } from '../envelopes.service';
 import type { Envelope } from '../envelopes.repository';
@@ -45,6 +57,7 @@ describe('EnvelopesController', () => {
       replaceFields: jest.fn(),
       listEvents: jest.fn(),
       getDownloadUrl: jest.fn(),
+      saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
     controller = new EnvelopesController(svc);
   });
@@ -469,6 +482,79 @@ describe('EnvelopesController', () => {
     it('400 invalid_kind on unsupported kind', () => {
       expect(() => controller.download(USER, 'env-1', 'evil')).toThrow(BadRequestException);
       expect(svc.getDownloadUrl).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('POST /envelopes/:id/gdrive/save', () => {
+    function makeRes(): { status: jest.Mock } {
+      return { status: jest.fn() };
+    }
+
+    const okResult = {
+      folder: { id: 'f1', name: 'Acme', webViewLink: 'https://drive.google.com/drive/folders/f1' },
+      files: [
+        { kind: 'sealed' as const, fileId: 's1', name: 'X (sealed).pdf', webViewLink: 'l1' },
+        { kind: 'audit' as const, fileId: 'a1', name: 'X (audit trail).pdf', webViewLink: 'l2' },
+      ],
+      pushedAt: '2026-05-12T00:00:00.000Z',
+    };
+
+    it('happy path returns the result and does not set a 207 status', async () => {
+      svc.saveToGoogleDrive.mockResolvedValue(okResult);
+      const res = makeRes();
+      const out = await controller.saveToGdrive(
+        USER,
+        'env-1',
+        { folderId: 'f1', folderName: 'Acme' },
+        res,
+      );
+      expect(svc.saveToGoogleDrive).toHaveBeenCalledWith(USER.id, 'env-1', {
+        folderId: 'f1',
+        folderName: 'Acme',
+      });
+      expect(out).toBe(okResult);
+      expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('partial success sets status 207', async () => {
+      svc.saveToGoogleDrive.mockResolvedValue({
+        ...okResult,
+        files: [okResult.files[0]!],
+        error: { kind: 'audit', code: 'DriveUpstreamError' },
+      });
+      const res = makeRes();
+      await controller.saveToGdrive(USER, 'env-1', { folderId: 'f1' }, res);
+      expect(res.status).toHaveBeenCalledWith(207);
+    });
+
+    it.each<[Error, number, string]>([
+      [new NotFoundException('envelope_not_found'), 404, 'envelope_not_found'],
+      [new ConflictException('envelope_not_sealed'), 409, 'envelope_not_sealed'],
+      [new GdriveNotConnectedError(), 409, 'gdrive_not_connected'],
+      [new TokenExpiredError(), 409, 'reconnect_required'],
+      [new DrivePermissionDeniedError(), 403, 'folder_not_writable'],
+      [new DriveUpstreamError(), 502, 'drive_request_failed'],
+    ])('maps %s → HTTP %i', async (thrown, status) => {
+      svc.saveToGoogleDrive.mockRejectedValue(thrown);
+      const res = makeRes();
+      const caught = await controller
+        .saveToGdrive(USER, 'env-1', { folderId: 'f1' }, res)
+        .catch((e: unknown) => e);
+      expect(caught).toBeInstanceOf(HttpException);
+      expect((caught as HttpException).getStatus()).toBe(status);
+    });
+
+    it('maps RateLimitedError → 429 with retryAfter in seconds', async () => {
+      svc.saveToGoogleDrive.mockRejectedValue(new RateLimitedError(45_000));
+      const res = makeRes();
+      const caught = await controller
+        .saveToGdrive(USER, 'env-1', { folderId: 'f1' }, res)
+        .catch((e: unknown) => e);
+      expect(caught).toBeInstanceOf(HttpException);
+      expect((caught as HttpException).getStatus()).toBe(429);
+      const body = (caught as HttpException).getResponse() as { code: string; retryAfter: number };
+      expect(body.code).toBe('rate-limited');
+      expect(body.retryAfter).toBe(45);
     });
   });
 });
