@@ -217,6 +217,42 @@ describe('DashboardPage', () => {
     expect((await envelopeUrls()).some((u) => /[?&]q=argus/.test(u))).toBe(true);
   });
 
+  it('clicking the "Awaiting others" stat tile toggles its filter (pressed state + bucket query)', async () => {
+    renderDashboard();
+    await screen.findByText(/master services agreement/i);
+    const tile = () => screen.getByRole('button', { name: /awaiting others/i });
+    expect(tile()).toHaveAttribute('aria-pressed', 'false');
+
+    fireEvent.click(tile());
+    await waitFor(() => expect(tile()).toHaveAttribute('aria-pressed', 'true'));
+    expect((await envelopeUrls()).some((u) => /bucket=awaiting_others/.test(u))).toBe(true);
+
+    // Clicking the already-active tile clears every filter.
+    fireEvent.click(tile());
+    await waitFor(() => expect(tile()).toHaveAttribute('aria-pressed', 'false'));
+  });
+
+  it('the "Sealed this month" stat tile maps to bucket=sealed + date=thisMonth', async () => {
+    renderDashboard();
+    await screen.findByText(/master services agreement/i);
+    fireEvent.click(screen.getByRole('button', { name: /sealed this month/i }));
+    await waitFor(async () => {
+      const u = (await envelopeUrls()).at(-1) ?? '';
+      expect(u).toMatch(/bucket=sealed/);
+      expect(u).toMatch(/date=thisMonth/);
+    });
+    expect(screen.getByRole('button', { name: /sealed this month/i })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
+  it('the "Avg. turnaround" stat tile is not clickable', async () => {
+    renderDashboard();
+    await screen.findByText(/master services agreement/i);
+    expect(screen.queryByRole('button', { name: /avg\. turnaround/i })).toBeNull();
+  });
+
   it('clicking a column header cycles the server-side sort params and re-queries', async () => {
     // Resolve the mocked apiClient so we can inspect the URLs it was
     // called with — the server does the sort, so the contract we test

@@ -26,6 +26,8 @@ import {
   isAwaitingYou,
   parseFilters,
   parseSort,
+  serializeFilters,
+  type EnvelopeFilters,
   type SortKey,
 } from '@/features/dashboardFilters';
 import { formatShortDate } from '@/lib/dateFormat';
@@ -77,6 +79,30 @@ const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
   min: COLUMN_MIN_WIDTHS[k],
 }));
 const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v1';
+
+/** The "no filter at all" state — what `Clear filters` resets to. */
+const EMPTY_FILTERS: EnvelopeFilters = {
+  q: '',
+  status: [],
+  date: { kind: 'preset', preset: 'all' },
+  signer: [],
+  tags: [],
+};
+
+/**
+ * The filter each clickable stat tile maps to. Clicking applies it
+ * (replacing the current filter set); clicking the already-applied
+ * tile clears every filter.
+ */
+const STAT_FILTERS = {
+  awaitingYou: { ...EMPTY_FILTERS, status: ['awaiting_you'] },
+  awaitingOthers: { ...EMPTY_FILTERS, status: ['awaiting_others'] },
+  sealedThisMonth: {
+    ...EMPTY_FILTERS,
+    status: ['sealed'],
+    date: { kind: 'preset', preset: 'thisMonth' },
+  },
+} as const satisfies Record<string, EnvelopeFilters>;
 
 const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
@@ -344,6 +370,25 @@ export function DashboardPage() {
     [setSearchParams],
   );
 
+  // Stat-tile click → replace the filter facets with `next` (keeping
+  // whatever sort is active). Used by the clickable KPI tiles below.
+  const applyStatFilter = useCallback(
+    (next: EnvelopeFilters): void => {
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(serializeFilters(next));
+          const sortKey = prev.get('sort');
+          const sortDir = prev.get('dir');
+          if (sortKey) params.set('sort', sortKey);
+          if (sortDir) params.set('dir', sortDir);
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
   // Per-user column widths persisted in localStorage (piece 3 of the
   // single-screen-with-filters request). The hook gives us the live
   // map + a setter the resize handles call on every pointer-move;
@@ -355,7 +400,15 @@ export function DashboardPage() {
     [widths],
   );
 
-  const stats = useMemo(() => {
+  const stats = useMemo<
+    ReadonlyArray<{
+      readonly label: string;
+      readonly value: string;
+      readonly tone: BadgeTone;
+      /** Set on the tiles that act as filter shortcuts. */
+      readonly filter?: EnvelopeFilters;
+    }>
+  >(() => {
     const awaitingYou = allEnvelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
     // Mutually exclusive with awaitingYou so the totals don't double-count.
     const awaitingOthers = allEnvelopes.filter(
@@ -370,14 +423,25 @@ export function DashboardPage() {
       return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
     }).length;
     return [
-      { label: 'Awaiting you', value: awaitingYou.toString(), tone: 'indigo' as const },
-      { label: 'Awaiting others', value: awaitingOthers.toString(), tone: 'amber' as const },
+      {
+        label: 'Awaiting you',
+        value: awaitingYou.toString(),
+        tone: 'indigo',
+        filter: STAT_FILTERS.awaitingYou,
+      },
+      {
+        label: 'Awaiting others',
+        value: awaitingOthers.toString(),
+        tone: 'amber',
+        filter: STAT_FILTERS.awaitingOthers,
+      },
       {
         label: 'Sealed this month',
         value: completedThisMonth.toString(),
-        tone: 'emerald' as const,
+        tone: 'emerald',
+        filter: STAT_FILTERS.sealedThisMonth,
       },
-      { label: 'Avg. turnaround', value: formatTurnaround(allEnvelopes), tone: 'neutral' as const },
+      { label: 'Avg. turnaround', value: formatTurnaround(allEnvelopes), tone: 'neutral' },
     ];
   }, [allEnvelopes, viewerEmail]);
 
@@ -401,9 +465,23 @@ export function DashboardPage() {
         </HeaderSlot>
 
         <StatGrid>
-          {stats.map((s) => (
-            <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} />
-          ))}
+          {stats.map((s) => {
+            if (!s.filter) {
+              return <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} />;
+            }
+            const target = s.filter;
+            const active = serializeFilters(parsedFilters) === serializeFilters(target);
+            return (
+              <StatCard
+                key={s.label}
+                label={s.label}
+                value={s.value}
+                tone={s.tone}
+                active={active}
+                onActivate={() => applyStatFilter(active ? EMPTY_FILTERS : target)}
+              />
+            );
+          })}
         </StatGrid>
 
         <FilterToolbar envelopes={allEnvelopes} viewerEmail={viewerEmail} />
