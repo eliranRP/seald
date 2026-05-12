@@ -16,6 +16,15 @@ vi.mock('../../lib/api/apiClient', () => ({
   },
 }));
 
+// The "Save to Google Drive" orchestration (OAuth popup → folder picker
+// → server upload) lives in `useSaveEnvelopeToGdrive`; the page just maps
+// its outcome to a toast. Mock the hook so the page test controls the
+// outcome without standing up `google.picker` / `gapi` / `window.open`.
+const saveMock = vi.fn();
+vi.mock('@/features/gdriveExport', () => ({
+  useSaveEnvelopeToGdrive: () => ({ inFlight: false, save: saveMock }),
+}));
+
 // eslint-disable-next-line import/first
 import { apiClient } from '../../lib/api/apiClient';
 // eslint-disable-next-line import/first
@@ -48,6 +57,7 @@ function renderAt(id: string): RenderResult {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  saveMock.mockReset();
 });
 
 interface EnvelopeMockOverrides {
@@ -810,5 +820,86 @@ describe('EnvelopeDetailPage', () => {
     await user.click(back);
 
     expect(await screen.findByText('BACK')).toBeInTheDocument();
+  });
+
+  describe('Save to Google Drive', () => {
+    const completedSigner = {
+      id: 's1',
+      email: 'maya@example.com',
+      name: 'Maya Raskin',
+      color: '#10B981',
+      role: 'signatory',
+      signing_order: 1,
+      status: 'completed',
+      viewed_at: '2026-04-02T00:00:00Z',
+      tc_accepted_at: '2026-04-02T00:00:00Z',
+      signed_at: '2026-04-02T00:00:00Z',
+      declined_at: null,
+    };
+
+    async function openDownloadMenuOnCompleted(): Promise<ReturnType<typeof userEvent.setup>> {
+      mockEnvelope({ status: 'completed', signers: [completedSigner] });
+      renderAt('env-1');
+      await screen.findByRole('heading', { name: /master services agreement/i });
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: /show all download options/i }));
+      return user;
+    }
+
+    it('shows the gdrive row on a sealed envelope and calls save() with the envelope when clicked', async () => {
+      saveMock.mockResolvedValue({ kind: 'canceled' });
+      const user = await openDownloadMenuOnCompleted();
+      const row = await screen.findByRole('menuitem', { name: /save to google drive/i });
+      await user.click(row);
+      expect(saveMock).toHaveBeenCalledTimes(1);
+      expect((saveMock.mock.calls[0]![0] as { id: string }).id).toBe('env-1');
+    });
+
+    it('shows a success toast when save resolves "saved"', async () => {
+      saveMock.mockResolvedValue({
+        kind: 'saved',
+        result: {
+          folder: {
+            id: 'f1',
+            name: 'Acme',
+            webViewLink: 'https://drive.google.com/drive/folders/f1',
+          },
+          files: [],
+          pushedAt: '2026-05-12T00:00:00.000Z',
+        },
+      });
+      const user = await openDownloadMenuOnCompleted();
+      await user.click(await screen.findByRole('menuitem', { name: /save to google drive/i }));
+      expect(await screen.findByRole('status')).toHaveTextContent(/saved to google drive/i);
+    });
+
+    it('shows a "connect" toast when save resolves "connect-needed"', async () => {
+      saveMock.mockResolvedValue({ kind: 'connect-needed' });
+      const user = await openDownloadMenuOnCompleted();
+      await user.click(await screen.findByRole('menuitem', { name: /save to google drive/i }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/connect a google drive account/i);
+    });
+
+    it('shows a rate-limit toast with the retry seconds', async () => {
+      saveMock.mockResolvedValue({ kind: 'rate-limited', retryAfterSeconds: 17 });
+      const user = await openDownloadMenuOnCompleted();
+      await user.click(await screen.findByRole('menuitem', { name: /save to google drive/i }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/try again in 17s/i);
+    });
+
+    it('shows a partial-success toast when only the sealed PDF was saved', async () => {
+      saveMock.mockResolvedValue({
+        kind: 'partial',
+        result: {
+          folder: { id: 'f1', name: 'Acme', webViewLink: 'l' },
+          files: [{ kind: 'sealed', fileId: 's1', name: 'X (sealed).pdf', webViewLink: 'l1' }],
+          error: { kind: 'audit', code: 'drive-upstream-error' },
+          pushedAt: '2026-05-12T00:00:00.000Z',
+        },
+      });
+      const user = await openDownloadMenuOnCompleted();
+      await user.click(await screen.findByRole('menuitem', { name: /save to google drive/i }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/audit trail upload failed/i);
+    });
   });
 });

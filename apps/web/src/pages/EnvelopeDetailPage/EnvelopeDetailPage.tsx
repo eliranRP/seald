@@ -9,6 +9,7 @@ import {
   FileCheck2,
   FileText,
   FilePlus,
+  HardDriveUpload,
   Package,
   PencilRuler,
   PenTool,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { isFeatureEnabled } from 'shared';
 import { ActivityTimeline } from '@/components/ActivityTimeline';
 import type { ActivityTimelineEvent, ActivityTimelineTone } from '@/components/ActivityTimeline';
 import { Avatar } from '@/components/Avatar';
@@ -43,6 +45,7 @@ import {
   useCancelEnvelopeMutation,
   useDeleteEnvelopeMutation,
 } from '@/features/envelopes/useEnvelopes';
+import { useSaveEnvelopeToGdrive } from '@/features/gdriveExport';
 import type { Envelope, EnvelopeEvent, EnvelopeStatus, SignerUiStatus } from '@/features/envelopes';
 import {
   Actions,
@@ -319,6 +322,8 @@ export function EnvelopeDetailPage() {
   const ev = useEnvelopeEventsQuery(id ?? '', Boolean(id));
   const deleteEnvelope = useDeleteEnvelopeMutation();
   const cancelEnvelope = useCancelEnvelopeMutation();
+  const gdriveEnabled = isFeatureEnabled('gdriveIntegration');
+  const { save: saveToGdrive, inFlight: gdriveInFlight } = useSaveEnvelopeToGdrive();
 
   const [toast, setToast] = useState<ActionToast | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -414,9 +419,84 @@ export function EnvelopeDetailPage() {
     [envelope],
   );
 
+  // "Save to Google Drive" — the orchestration (OAuth-if-needed → folder
+  // picker → server-side upload → query invalidation) lives in
+  // `useSaveEnvelopeToGdrive`; here we just map its outcome onto the
+  // page's existing toast surface.
+  const handleSaveToGdrive = useCallback(async () => {
+    if (!envelope) return;
+    setToast(null);
+    const outcome = await saveToGdrive(envelope);
+    switch (outcome.kind) {
+      case 'saved':
+        setToast({
+          kind: 'success',
+          text: 'Saved to Google Drive. The sealed PDF + audit trail are in your folder.',
+        });
+        break;
+      case 'partial':
+        setToast({
+          kind: 'danger',
+          text: 'Sealed PDF saved to Drive; the audit trail upload failed — try again.',
+        });
+        break;
+      case 'canceled':
+        break;
+      case 'connect-needed':
+        setToast({
+          kind: 'danger',
+          text: 'Connect a Google Drive account to save here, then try again.',
+        });
+        break;
+      case 'reconnect-needed':
+        setToast({
+          kind: 'danger',
+          text: 'Your Google Drive connection expired — reconnect it, then try again.',
+        });
+        break;
+      case 'not-sealed':
+        setToast({
+          kind: 'danger',
+          text: "This envelope isn't sealed yet, so there's nothing to save.",
+        });
+        break;
+      case 'permission-denied':
+        setToast({
+          kind: 'danger',
+          text: "Couldn't write to that folder — pick another one and try again.",
+        });
+        break;
+      case 'rate-limited':
+        setToast({
+          kind: 'danger',
+          text: `Too many Drive requests — try again in ${outcome.retryAfterSeconds}s.`,
+        });
+        break;
+      case 'picker-not-configured':
+        setToast({
+          kind: 'danger',
+          text: 'The Google Drive picker is not configured on this server.',
+        });
+        break;
+      case 'error':
+        setToast({ kind: 'danger', text: outcome.message || 'Saving to Google Drive failed.' });
+        break;
+      default: {
+        // Exhaustiveness guard — TS errors here if a new outcome variant
+        // is added without a case.
+        const _exhaustive: never = outcome;
+        void _exhaustive;
+      }
+    }
+  }, [envelope, saveToGdrive]);
+
   const handleDownload = useCallback(
     async (kind: string) => {
       if (!envelope) return;
+      if (kind === 'gdrive') {
+        await handleSaveToGdrive();
+        return;
+      }
       if (kind !== 'sealed' && kind !== 'original' && kind !== 'audit' && kind !== 'bundle') {
         return;
       }
@@ -483,7 +563,7 @@ export function EnvelopeDetailPage() {
         setDownloadInFlight(null);
       }
     },
-    [envelope, openArtifact],
+    [envelope, openArtifact, handleSaveToGdrive],
   );
 
   const handleViewAudit = useCallback(async () => {
@@ -657,7 +737,24 @@ export function EnvelopeDetailPage() {
       meta: isComplete ? 'Sealed PDF in a tab + audit downloaded' : 'Available once sealed',
       available: isComplete,
     },
+    ...(gdriveEnabled
+      ? [
+          {
+            kind: 'gdrive',
+            icon: HardDriveUpload,
+            title: 'Save to Google Drive',
+            description: 'Push the sealed PDF + audit trail into a Drive folder you pick.',
+            meta: envelope.gdriveExport?.lastPushedAt
+              ? `Last saved to Drive · ${formatWhen(envelope.gdriveExport.lastPushedAt)}`
+              : 'Sends the sealed PDF + audit trail',
+            busyMeta: 'Choosing a folder…',
+            available: isComplete,
+            action: 'gdrive' as const,
+          } satisfies DownloadMenuItem,
+        ]
+      : []),
   ];
+  const downloadInFlightKind = gdriveInFlight ? 'gdrive' : downloadInFlight;
 
   return (
     <Wrap>
@@ -690,7 +787,7 @@ export function EnvelopeDetailPage() {
             <DownloadMenu
               items={downloadItems}
               onSelect={handleDownload}
-              inFlight={downloadInFlight}
+              inFlight={downloadInFlightKind}
             />
             <Button
               variant="secondary"
