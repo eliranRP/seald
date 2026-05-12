@@ -5,12 +5,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type JSX,
   type MutableRefObject,
   type Ref,
 } from 'react';
 import { ChevronDown, Download, Info, Loader2 } from 'lucide-react';
 import {
   ChevronButton,
+  Divider,
   Footer,
   FooterIcon,
   Item,
@@ -29,7 +31,7 @@ import {
   SplitButton,
   SplitIcon,
 } from './DownloadMenu.styles';
-import type { DownloadMenuProps } from './DownloadMenu.types';
+import type { DownloadMenuItem, DownloadMenuProps } from './DownloadMenu.types';
 
 /** Set a (possibly external) ref's current value without mutating the
  *  caller-owned ref object as a function parameter — keeps the
@@ -44,6 +46,56 @@ function setRefValue<T>(target: Ref<T> | null | undefined, value: T | null): voi
   // tracks the parameter identifier) does not flag the property write.
   const box = target as MutableRefObject<T | null>;
   box.current = value;
+}
+
+/** Render one dropdown row — shared by the download rows and the
+ *  external-action ("Save to Google Drive") rows below the divider. */
+function renderItem(
+  it: DownloadMenuItem,
+  inFlight: string | null | undefined,
+  pick: (kind: string) => void,
+): JSX.Element {
+  const Icon = it.icon;
+  const isDisabled = !it.available;
+  const isLoading = inFlight === it.kind;
+  const meta = isLoading
+    ? (it.busyMeta ?? (it.action === 'gdrive' ? 'Saving…' : 'Preparing…'))
+    : it.meta;
+  return (
+    <Item
+      key={it.kind}
+      type="button"
+      role="menuitem"
+      $active={isLoading}
+      data-active={isLoading ? 'true' : 'false'}
+      aria-disabled={isDisabled}
+      disabled={isDisabled}
+      onClick={() => {
+        if (!isDisabled) pick(it.kind);
+      }}
+    >
+      <ItemIcon $recommended={it.recommended === true}>
+        {isLoading ? (
+          <ItemIconSpinning>
+            <Loader2 size={16} aria-hidden />
+          </ItemIconSpinning>
+        ) : (
+          <Icon size={16} aria-hidden />
+        )}
+      </ItemIcon>
+      <ItemBody>
+        <ItemTitleRow>
+          <ItemTitle>{it.title}</ItemTitle>
+          {it.recommended === true && it.available ? (
+            <RecommendedPill>RECOMMENDED</RecommendedPill>
+          ) : null}
+          {isDisabled ? <LockedPill>LOCKED</LockedPill> : null}
+        </ItemTitleRow>
+        <ItemDesc>{it.description}</ItemDesc>
+        <ItemMeta>{meta}</ItemMeta>
+      </ItemBody>
+    </Item>
+  );
 }
 
 /**
@@ -93,14 +145,22 @@ export const DownloadMenu = forwardRef<HTMLDivElement, DownloadMenuProps>((props
     [ref],
   );
 
-  // The primary action is the first recommended row, falling back to
-  // the first available one, falling back to the first row.
+  // Plain-download rows are the candidates for the split-button's
+  // primary action; `'gdrive'` (external action) rows never are.
+  const downloadRows = useMemo(
+    () => items.filter((i) => (i.action ?? 'download') === 'download'),
+    [items],
+  );
+  const gdriveRows = useMemo(() => items.filter((i) => i.action === 'gdrive'), [items]);
+
+  // The primary action is the first recommended download row, falling
+  // back to the first available one, falling back to the first row.
   const primary = useMemo(() => {
-    const recommended = items.find((i) => i.recommended === true && i.available);
+    const recommended = downloadRows.find((i) => i.recommended === true && i.available);
     if (recommended) return recommended;
-    const firstAvailable = items.find((i) => i.available);
-    return firstAvailable ?? items[0];
-  }, [items]);
+    const firstAvailable = downloadRows.find((i) => i.available);
+    return firstAvailable ?? downloadRows[0];
+  }, [downloadRows]);
 
   const primaryLabel = primary
     ? `Download ${primary.primaryLabel ?? primary.title.toLowerCase()}`
@@ -148,46 +208,13 @@ export const DownloadMenu = forwardRef<HTMLDivElement, DownloadMenuProps>((props
       {open ? (
         <Menu role="menu" aria-label="Download options">
           <MenuHeading>Download</MenuHeading>
-          {items.map((it) => {
-            const Icon = it.icon;
-            const isDisabled = !it.available;
-            const isLoading = inFlight === it.kind;
-            return (
-              <Item
-                key={it.kind}
-                type="button"
-                role="menuitem"
-                $active={isLoading}
-                data-active={isLoading ? 'true' : 'false'}
-                aria-disabled={isDisabled}
-                disabled={isDisabled}
-                onClick={() => {
-                  if (!isDisabled) pick(it.kind);
-                }}
-              >
-                <ItemIcon $recommended={it.recommended === true}>
-                  {isLoading ? (
-                    <ItemIconSpinning>
-                      <Loader2 size={16} aria-hidden />
-                    </ItemIconSpinning>
-                  ) : (
-                    <Icon size={16} aria-hidden />
-                  )}
-                </ItemIcon>
-                <ItemBody>
-                  <ItemTitleRow>
-                    <ItemTitle>{it.title}</ItemTitle>
-                    {it.recommended === true && it.available ? (
-                      <RecommendedPill>RECOMMENDED</RecommendedPill>
-                    ) : null}
-                    {isDisabled ? <LockedPill>LOCKED</LockedPill> : null}
-                  </ItemTitleRow>
-                  <ItemDesc>{it.description}</ItemDesc>
-                  <ItemMeta>{isLoading ? 'Preparing…' : it.meta}</ItemMeta>
-                </ItemBody>
-              </Item>
-            );
-          })}
+          {downloadRows.map((it) => renderItem(it, inFlight, pick))}
+          {gdriveRows.length > 0 ? (
+            <>
+              <Divider role="separator" />
+              {gdriveRows.map((it) => renderItem(it, inFlight, pick))}
+            </>
+          ) : null}
           <Footer>
             <FooterIcon>
               <Info size={12} aria-hidden />

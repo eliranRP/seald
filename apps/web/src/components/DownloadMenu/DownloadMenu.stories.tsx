@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { FileCheck2, FileText, Package, ShieldCheck } from 'lucide-react';
+import { FileCheck2, FileText, HardDriveUpload, Package, ShieldCheck } from 'lucide-react';
 import { DownloadMenu } from './DownloadMenu';
 import type { DownloadMenuItem } from './DownloadMenu.types';
 
@@ -39,6 +39,19 @@ const bundle = (available: boolean): DownloadMenuItem => ({
   description: 'Sealed PDF + audit trail bundled together.',
   meta: available ? '.zip · 428 KB' : 'Available once sealed',
   available,
+});
+
+const gdrive = (available: boolean, lastPushedAt?: string): DownloadMenuItem => ({
+  kind: 'gdrive',
+  icon: HardDriveUpload,
+  title: 'Save to Google Drive',
+  description: 'Push the sealed PDF + audit trail into a Drive folder you pick.',
+  meta: lastPushedAt
+    ? `Last saved to Drive · ${lastPushedAt}`
+    : 'Sends the sealed PDF + audit trail',
+  busyMeta: 'Choosing a folder…',
+  available,
+  action: 'gdrive',
 });
 
 const meta: Meta<typeof DownloadMenu> = {
@@ -95,13 +108,27 @@ export const InFlight: Story = {
 
 export const Completed: Story = {
   args: {
-    items: [original, sealed(true), audit, bundle(true)],
+    items: [original, sealed(true), audit, bundle(true), gdrive(true)],
   },
   parameters: {
     docs: {
       description: {
         story:
-          'Fully sealed envelope — every artifact is downloadable. Sealed PDF is RECOMMENDED and drives the split-button primary action.',
+          'Fully sealed envelope — every artifact is downloadable. Sealed PDF is RECOMMENDED and drives the split-button primary action. "Save to Google Drive" sits below a divider as an external action (never the primary).',
+      },
+    },
+  },
+};
+
+export const CompletedWithPriorDriveSave: Story = {
+  args: {
+    items: [original, sealed(true), audit, bundle(true), gdrive(true, 'May 09, 14:32')],
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The envelope has been pushed to Drive before — the gdrive row shows a "Last saved to Drive · …" meta line and re-saving opens the picker inside that folder.',
       },
     },
   },
@@ -109,7 +136,7 @@ export const Completed: Story = {
 
 export const DownloadingSealed: Story = {
   args: {
-    items: [original, sealed(true), audit, bundle(true)],
+    items: [original, sealed(true), audit, bundle(true), gdrive(true)],
     inFlight: 'sealed',
   },
   parameters: {
@@ -117,6 +144,21 @@ export const DownloadingSealed: Story = {
       description: {
         story:
           'The sealed row is being prepared — the icon tile spins and the meta line reads "Preparing…".',
+      },
+    },
+  },
+};
+
+export const SavingToDrive: Story = {
+  args: {
+    items: [original, sealed(true), audit, bundle(true), gdrive(true)],
+    inFlight: 'gdrive',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'The "Save to Google Drive" row is mid-flight — its icon spins and the meta line reads "Choosing a folder…".',
       },
     },
   },
