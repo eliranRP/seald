@@ -43,6 +43,14 @@ export interface PickerBuilder {
    * content in addition to My Drive.
    */
   enableFeature(name: string): PickerBuilder;
+  /**
+   * Root the picker at a specific folder id. Used by the
+   * "Save to Google Drive" flow to re-open inside the last-used folder
+   * for this envelope so re-saving is one click.
+   */
+  setParent(folderId: string): PickerBuilder;
+  /** Custom dialog title. */
+  setTitle(title: string): PickerBuilder;
   addView(view: unknown): PickerBuilder;
   setCallback(cb: (data: PickerCallbackData) => void): PickerBuilder;
   build(): PickerInstance;
@@ -88,7 +96,7 @@ export interface DocsViewBuilder {
 export interface PickerNamespace {
   readonly PickerBuilder: new () => PickerBuilder;
   readonly DocsView: new (viewId?: unknown) => DocsViewBuilder;
-  readonly ViewId: { readonly DOCS: unknown };
+  readonly ViewId: { readonly DOCS: unknown; readonly FOLDERS: unknown };
   readonly DocsViewMode: {
     /** Grid layout with thumbnail previews (requires drive.readonly — RESTRICTED scope). */
     readonly GRID: unknown;
