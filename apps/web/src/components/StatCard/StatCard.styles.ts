@@ -1,11 +1,39 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 import type { BadgeTone } from '../Badge/Badge.types';
 
-export const Root = styled.div`
+const cardSurface = css`
+  display: block;
+  width: 100%;
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.lg};
   padding: ${({ theme }) => `${theme.space[5]} ${theme.space[5]}`};
+`;
+
+export const Root = styled.div`
+  ${cardSurface}
+`;
+
+/** Clickable variant — a real <button> that maps a stat tile to a filter. */
+export const InteractiveRoot = styled.button`
+  ${cardSurface}
+  appearance: none;
+  margin: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
+    box-shadow ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
+
+  &:hover {
+    border-color: ${({ theme }) => theme.color.indigo[300]};
+  }
+  &[aria-pressed='true'] {
+    border-color: ${({ theme }) => theme.color.indigo[600]};
+    box-shadow: inset 0 0 0 1px ${({ theme }) => theme.color.indigo[600]};
+  }
 `;
 
 export const Label = styled.div`
