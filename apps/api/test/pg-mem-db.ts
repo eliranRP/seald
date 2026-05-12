@@ -219,6 +219,46 @@ export function createPgMemDb(): PgMemHandle {
     `alter table public.envelopes add column if not exists tags jsonb not null default '[]'::jsonb;`,
   );
 
+  // 0013 — gdrive_accounts. The migrate.sh runner applies this in
+  // production; the loader above stops at 0012, so we add the table by
+  // hand here (RLS stripped, citext → text, gen_random_uuid shimmed
+  // above). Needed for the gdrive_envelope_exports FK below + the
+  // GdriveEnvelopeExportsPgRepository specs.
+  mem.public.none(`
+    create table if not exists public.gdrive_accounts (
+      id                          uuid        primary key default gen_random_uuid(),
+      user_id                     uuid        not null references auth.users(id) on delete set null,
+      google_user_id              text        not null,
+      google_email                text        not null,
+      refresh_token_ciphertext    bytea       not null,
+      refresh_token_kms_key_arn   text        not null,
+      scope                       text        not null,
+      connected_at                timestamptz not null default now(),
+      last_used_at                timestamptz,
+      deleted_at                  timestamptz
+    );
+  `);
+
+  // 0017 — gdrive_envelope_exports ("Save to Google Drive" bookkeeping).
+  // RLS stripped (pg-mem doesn't implement it; the backend bypasses it
+  // anyway). Indexes kept; the unique (envelope_id, account_id) is the
+  // upsert conflict target.
+  mem.public.none(`
+    create table if not exists public.gdrive_envelope_exports (
+      id              uuid        primary key default gen_random_uuid(),
+      envelope_id     uuid        not null references public.envelopes(id) on delete cascade,
+      account_id      uuid        not null references public.gdrive_accounts(id) on delete cascade,
+      folder_id       text        not null,
+      folder_name     text,
+      sealed_file_id  text,
+      audit_file_id   text,
+      last_pushed_at  timestamptz not null default now(),
+      created_at      timestamptz not null default now(),
+      updated_at      timestamptz not null default now(),
+      unique (envelope_id, account_id)
+    );
+  `);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8
