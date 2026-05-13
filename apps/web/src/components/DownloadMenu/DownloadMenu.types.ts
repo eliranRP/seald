@@ -1,5 +1,19 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { ComponentType, HTMLAttributes, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
+
+/**
+ * Minimum contract for an icon component the menu can render: it must
+ * accept a numeric `size` and an optional `aria-hidden` (the menu treats
+ * the icon as decorative — the row title carries the label). `LucideIcon`
+ * satisfies this, as does any small SVG component built for the seald
+ * design system (e.g. `GDriveLogo` for the "Save to Google Drive" row).
+ */
+export type DownloadMenuIcon =
+  | LucideIcon
+  | ComponentType<{
+      readonly size?: number;
+      readonly 'aria-hidden'?: boolean | 'true' | 'false';
+    }>;
 
 /**
  * One row in the dropdown. `kind` is the opaque tag handed back via
@@ -13,7 +27,7 @@ import type { LucideIcon } from 'lucide-react';
  */
 export interface DownloadMenuItem {
   readonly kind: string;
-  readonly icon: LucideIcon;
+  readonly icon: DownloadMenuIcon;
   readonly title: string;
   readonly description: ReactNode;
   /** Mono meta line ("4 pages · 214 KB" / "Available once sealed"). */
