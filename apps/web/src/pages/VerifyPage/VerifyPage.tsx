@@ -151,6 +151,7 @@ function formatTimelineTime(iso: string): { readonly date: string; readonly time
 // key is missing. Keep this map in lockstep with VerifyEventType.
 const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   created: 'Document created',
+  pdf_uploaded: 'PDF uploaded',
   sent: 'Envelope sent',
   viewed: 'Document viewed',
   tc_accepted: 'Terms accepted',

@@ -229,6 +229,7 @@ export interface EventInput {
   readonly actor_kind: 'sender' | 'signer' | 'system';
   readonly event_type:
     | 'created'
+    | 'pdf_uploaded'
     | 'sent'
     | 'viewed'
     | 'tc_accepted'

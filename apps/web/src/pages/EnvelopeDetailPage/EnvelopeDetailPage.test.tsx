@@ -618,6 +618,17 @@ describe('EnvelopeDetailPage', () => {
                 created_at: '2026-04-01T00:00:00Z',
               },
               {
+                id: 'e1b',
+                envelope_id: 'env-1',
+                signer_id: null,
+                actor_kind: 'sender',
+                event_type: 'pdf_uploaded',
+                ip: null,
+                user_agent: null,
+                metadata: { pages: 4, bytes_hash: 'a'.repeat(64) },
+                created_at: '2026-04-01T00:00:30Z',
+              },
+              {
                 id: 'e2',
                 envelope_id: 'env-1',
                 signer_id: null,
@@ -738,7 +749,14 @@ describe('EnvelopeDetailPage', () => {
 
     renderAt('env-1');
 
-    expect(await screen.findByText(/created from PDF upload/i)).toBeInTheDocument();
+    // Regression for the duplicate-`created` bug: the timeline must
+    // render the `'created'` row and the `'pdf_uploaded'` row as
+    // *distinct* entries with *distinct* titles — they share neither
+    // text nor kind. Before the fix both rows rendered as "Envelope
+    // created from PDF upload" with the same actor + minute.
+    expect(await screen.findByText(/^Envelope created$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^PDF uploaded — 4 pages$/i)).toBeInTheDocument();
+    expect(screen.queryAllByText(/created from PDF upload/i)).toHaveLength(0);
     expect(screen.getByText(/Sent to 1 signer$/i)).toBeInTheDocument();
     expect(screen.getByText(/Opened the envelope/i)).toBeInTheDocument();
     expect(screen.getByText(/Signed the document/i)).toBeInTheDocument();

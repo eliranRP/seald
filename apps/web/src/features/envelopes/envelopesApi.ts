@@ -192,6 +192,7 @@ export async function patchEnvelope(
 
 export type EnvelopeEventType =
   | 'created'
+  | 'pdf_uploaded'
   | 'sent'
   | 'viewed'
   | 'tc_accepted'

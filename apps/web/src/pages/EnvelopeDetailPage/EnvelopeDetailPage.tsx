@@ -162,10 +162,27 @@ function eventsToTimeline(
           ...base,
           icon: FilePlus,
           tone: 'indigo',
-          text: 'Envelope created from PDF upload',
+          text: 'Envelope created',
           kind: 'created',
         });
         break;
+      case 'pdf_uploaded': {
+        // `metadata.pages` is set by `setOriginalFile` — include it
+        // when present so the row reads "PDF uploaded — N pages" and
+        // is visibly different from the "Envelope created" row above.
+        const meta = (ev.metadata ?? {}) as { readonly pages?: unknown };
+        const pages = typeof meta.pages === 'number' ? meta.pages : null;
+        const text =
+          pages !== null ? `PDF uploaded — ${pages} page${pages === 1 ? '' : 's'}` : 'PDF uploaded';
+        rendered.push({
+          ...base,
+          icon: FilePlus,
+          tone: 'indigo',
+          text,
+          kind: 'pdf_uploaded',
+        });
+        break;
+      }
       case 'sent':
         rendered.push({
           ...base,

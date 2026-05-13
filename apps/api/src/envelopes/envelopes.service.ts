@@ -468,10 +468,18 @@ export class EnvelopesService {
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
     const updated = await this.repo.setOriginalFile(id, input);
     if (!updated) throw new ConflictException('envelope_not_draft');
+    // BUG-FIX: this event used to share the `'created'` kind with the
+    // genesis event appended by `createDraft`, so the activity timeline
+    // rendered "Envelope created from PDF upload" twice (same actor,
+    // same minute) for every upload-based draft. The semantically
+    // distinct moment "PDF lands on the envelope" now gets its own
+    // event_type (`pdf_uploaded`) — added to the shared EVENT_TYPES
+    // allow-list + the Postgres enum (migration 0018) — so the FE
+    // can render it as its own timeline row.
     await this.repo.appendEvent({
       envelope_id: id,
       actor_kind: 'sender',
-      event_type: 'created',
+      event_type: 'pdf_uploaded',
       metadata: { bytes_hash: input.sha256, pages: input.pages },
     });
     return updated;

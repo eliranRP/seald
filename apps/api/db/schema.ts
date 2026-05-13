@@ -128,6 +128,7 @@ export type SignatureFormatDb = 'drawn' | 'typed' | 'upload';
 export type ActorKindDb = 'sender' | 'signer' | 'system';
 export type EventTypeDb =
   | 'created'
+  | 'pdf_uploaded'
   | 'sent'
   | 'viewed'
   | 'tc_accepted'
