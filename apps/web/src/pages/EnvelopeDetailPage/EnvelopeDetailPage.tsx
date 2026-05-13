@@ -9,7 +9,6 @@ import {
   FileCheck2,
   FileText,
   FilePlus,
-  HardDriveUpload,
   Package,
   PencilRuler,
   PenTool,
@@ -46,6 +45,7 @@ import {
   useDeleteEnvelopeMutation,
 } from '@/features/envelopes/useEnvelopes';
 import { useSaveEnvelopeToGdrive } from '@/features/gdriveExport';
+import { GDriveLogo } from '@/features/gdriveImport/GDriveLogo';
 import type { Envelope, EnvelopeEvent, EnvelopeStatus, SignerUiStatus } from '@/features/envelopes';
 import {
   Actions,
@@ -741,7 +741,7 @@ export function EnvelopeDetailPage() {
       ? [
           {
             kind: 'gdrive',
-            icon: HardDriveUpload,
+            icon: GDriveLogo,
             title: 'Save to Google Drive',
             description: 'Push the sealed PDF + audit trail into a Drive folder you pick.',
             meta: envelope.gdriveExport?.lastPushedAt
