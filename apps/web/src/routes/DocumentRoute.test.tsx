@@ -158,11 +158,16 @@ describe('DocumentRoute', () => {
     const envelopeId = 'env-uuid-1';
     renderRouteAt(envelopeId);
 
-    // EnvelopeDetailPage shows the envelope title from the API mock once the
-    // query resolves. Editor would show 'Ready to send' (right-rail title in
+    // EnvelopeDetailPage shows the envelope title from the API mock once
+    // the query resolves. The title renders both in the breadcrumb's
+    // trailing slot AND in the h1 heading, so prefer the level-1
+    // heading role/name query to keep the assertion unambiguous (rule
+    // 4.6). Editor would show 'Ready to send' (right-rail title in
     // DocumentPage.tsx:559) instead.
     await waitFor(() => {
-      expect(screen.getByText(/Mellon St Pricing Sheet/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { level: 1, name: /Mellon St Pricing Sheet/i }),
+      ).toBeInTheDocument();
     });
     expect(screen.queryByText(/ready to send/i)).not.toBeInTheDocument();
   });

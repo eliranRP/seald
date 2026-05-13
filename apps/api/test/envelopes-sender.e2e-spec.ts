@@ -333,6 +333,20 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       .set(auth(tokenA));
     expect(detail.body.original_pages).toBe(2);
     expect(detail.body.original_sha256).toBe(res.body.sha256);
+
+    // Regression: the create + upload flow used to emit two events
+    // both typed `'created'`, producing the duplicate "Envelope
+    // created from PDF upload" row in the activity timeline. The fix
+    // gives the upload step its own event_type (`'pdf_uploaded'`),
+    // so the timeline now contains exactly ONE `'created'` row + ONE
+    // `'pdf_uploaded'` row.
+    const eventsRes = await request(app.getHttpServer())
+      .get(`/envelopes/${created.body.id}/events`)
+      .set(auth(tokenA));
+    expect(eventsRes.status).toBe(200);
+    const types = (eventsRes.body.events as Array<{ event_type: string }>).map((e) => e.event_type);
+    expect(types.filter((t) => t === 'created')).toHaveLength(1);
+    expect(types.filter((t) => t === 'pdf_uploaded')).toHaveLength(1);
   });
 
   it('POST /envelopes/:id/upload rejects non-PDF bytes with 415 file_not_pdf', async () => {

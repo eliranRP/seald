@@ -1,0 +1,14 @@
+-- 0018_event_type_pdf_uploaded.sql
+-- Add 'pdf_uploaded' to the envelope event_type enum.
+--
+-- Why: until now both `createDraft` and `setOriginalFile`
+-- (the POST /envelopes/:id/upload code path) appended an
+-- `envelope_events` row with `event_type = 'created'`. The activity
+-- timeline rendered both rows with the same "Envelope created from
+-- PDF upload" title, same actor, same minute — the bug the user
+-- reported. Splitting them gives the upload step its own kind so the
+-- FE can render it as its own row (and the audit chain stays
+-- semantically clean).
+--
+-- The enum extension is forward-only; existing rows are unaffected.
+alter type event_type add value if not exists 'pdf_uploaded';

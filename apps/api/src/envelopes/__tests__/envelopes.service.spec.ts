@@ -872,6 +872,45 @@ describe('EnvelopesService', () => {
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    // Regression: before the fix, `createDraft` and `setOriginalFile`
+    // both appended an envelope_events row with `event_type = 'created'`,
+    // so the activity timeline rendered "Envelope created from PDF
+    // upload" twice for every freshly-uploaded envelope. The fix is to
+    // give the upload event its own kind (`'pdf_uploaded'`).
+    it('createDraft + setOriginalFile produce exactly ONE `created` + ONE `pdf_uploaded` event', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await svc.setOriginalFile(OWNER, e.id, {
+        file_path: `envelopes/${e.id}/original.pdf`,
+        sha256: 'b'.repeat(64),
+        pages: 2,
+      });
+      const eventsForEnv = repo.events.filter((ev) => ev.envelope_id === e.id);
+      const createdRows = eventsForEnv.filter((ev) => ev.event_type === 'created');
+      const uploadedRows = eventsForEnv.filter((ev) => ev.event_type === 'pdf_uploaded');
+      expect(createdRows).toHaveLength(1);
+      expect(uploadedRows).toHaveLength(1);
+      // The upload row carries the file metadata so the FE can render
+      // a meaningful "PDF uploaded — N pages" title.
+      expect(uploadedRows[0]!.metadata).toMatchObject({
+        pages: 2,
+        bytes_hash: 'b'.repeat(64),
+      });
+      // The bug was that BOTH rows used `event_type = 'created'`;
+      // assert it stays fixed by counting from the full event log.
+      expect(eventsForEnv.filter((ev) => ev.event_type === 'created')).toHaveLength(1);
+    });
+
+    it('appendEvent for pdf_uploaded keeps the hash chain intact', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      await svc.setOriginalFile(OWNER, e.id, {
+        file_path: `envelopes/${e.id}/original.pdf`,
+        sha256: 'c'.repeat(64),
+        pages: 1,
+      });
+      const { chain_intact } = await repo.verifyEventChain(e.id);
+      expect(chain_intact).toBe(true);
+    });
   });
 
   describe('addSigner', () => {

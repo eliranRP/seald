@@ -153,10 +153,15 @@ describe('EnvelopeDetailPage', () => {
 
     renderAt('env-1');
 
-    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
-    // The short code appears in both the breadcrumb and the header meta,
-    // matching the kit layout — assert it shows at least once.
-    expect(screen.getAllByText('MSA-ABCD-1234').length).toBeGreaterThanOrEqual(1);
+    // The title now renders in both the breadcrumb (trailing slot) and
+    // the h1 heading, so prefer the role/name query (rule 4.6) to keep
+    // the assertion unambiguous.
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /master services agreement/i }),
+    ).toBeInTheDocument();
+    // The short code lives in the status meta row (HeadCode). The
+    // breadcrumb no longer repeats it.
+    expect(screen.getByText('MSA-ABCD-1234')).toBeInTheDocument();
     // Maya appears in both the signer sidebar and the pending entry on
     // the activity timeline.
     expect(screen.getAllByText(/maya raskin/i).length).toBeGreaterThanOrEqual(1);
@@ -230,7 +235,9 @@ describe('EnvelopeDetailPage', () => {
 
     renderAt('env-1');
 
-    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /master services agreement/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /withdraw/i })).toBeNull();
   });
 
@@ -279,7 +286,11 @@ describe('EnvelopeDetailPage', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
-  it('disables the Send reminder button (with a tooltip) when no signer is pending', async () => {
+  it('hides the Send reminder button entirely when the envelope is sealed (completed)', async () => {
+    // Sealed envelopes have nothing to remind anyone of — surfacing a
+    // disabled button bait-clicks the user, so we hide it instead. The
+    // disabled-with-tooltip path remains for non-terminal envelopes
+    // where every signer happens to have already responded.
     mockEnvelope({
       status: 'completed',
       signers: [
@@ -301,9 +312,10 @@ describe('EnvelopeDetailPage', () => {
 
     renderAt('env-1');
 
-    const remind = await screen.findByRole('button', { name: /send reminder/i });
-    expect(remind).toBeDisabled();
-    expect(remind).toHaveAttribute('title', expect.stringMatching(/closed/i));
+    expect(
+      await screen.findByRole('heading', { name: /master services agreement/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /send reminder/i })).toBeNull();
     expect(post).not.toHaveBeenCalled();
   });
 
@@ -373,7 +385,9 @@ describe('EnvelopeDetailPage', () => {
     mockEnvelope({ status: 'awaiting_others' });
     renderAt('env-1');
 
-    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /master services agreement/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /download audit trail/i })).toBeNull();
     // The disabled-state copy is shown instead.
     expect(
@@ -618,6 +632,17 @@ describe('EnvelopeDetailPage', () => {
                 created_at: '2026-04-01T00:00:00Z',
               },
               {
+                id: 'e1b',
+                envelope_id: 'env-1',
+                signer_id: null,
+                actor_kind: 'sender',
+                event_type: 'pdf_uploaded',
+                ip: null,
+                user_agent: null,
+                metadata: { pages: 4, bytes_hash: 'a'.repeat(64) },
+                created_at: '2026-04-01T00:00:30Z',
+              },
+              {
                 id: 'e2',
                 envelope_id: 'env-1',
                 signer_id: null,
@@ -738,7 +763,14 @@ describe('EnvelopeDetailPage', () => {
 
     renderAt('env-1');
 
-    expect(await screen.findByText(/created from PDF upload/i)).toBeInTheDocument();
+    // Regression for the duplicate-`created` bug: the timeline must
+    // render the `'created'` row and the `'pdf_uploaded'` row as
+    // *distinct* entries with *distinct* titles — they share neither
+    // text nor kind. Before the fix both rows rendered as "Envelope
+    // created from PDF upload" with the same actor + minute.
+    expect(await screen.findByText(/^Envelope created$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^PDF uploaded — 4 pages$/i)).toBeInTheDocument();
+    expect(screen.queryAllByText(/created from PDF upload/i)).toHaveLength(0);
     expect(screen.getByText(/Sent to 1 signer$/i)).toBeInTheDocument();
     expect(screen.getByText(/Opened the envelope/i)).toBeInTheDocument();
     expect(screen.getByText(/Signed the document/i)).toBeInTheDocument();
@@ -820,6 +852,103 @@ describe('EnvelopeDetailPage', () => {
     await user.click(back);
 
     expect(await screen.findByText('BACK')).toBeInTheDocument();
+  });
+
+  describe('header polish — regression guards', () => {
+    /**
+     * These guard against the May-2026 UI polish pass:
+     *   - h1 carries the envelope title (level-1 heading, role/name query)
+     *   - tri-pillar mini-stats (Signed/Waiting/Events labels) are gone
+     *   - breadcrumb shows the envelope title (not the short_code)
+     *   - tag chip + inline tag-input share the same row as the status pill
+     *   - sealed envelopes hide the Send reminder button instead of disabling it
+     */
+    it('renders the envelope title as a level-1 heading (no separate sized class to assert)', async () => {
+      mockEnvelope({ status: 'awaiting_others' });
+      renderAt('env-1');
+      // sizing is CSS — assert the semantic structure stays in place.
+      expect(
+        await screen.findByRole('heading', { level: 1, name: /master services agreement/i }),
+      ).toBeInTheDocument();
+    });
+
+    it('drops the tri-pillar mini-stats from the progress card (only the headline + bar remain)', async () => {
+      mockEnvelope({ status: 'awaiting_others' });
+      renderAt('env-1');
+      // The progress card now only carries the "X of Y signed — Z% complete"
+      // headline + the bar. The previous right-side tri-pillar with
+      // standalone "Signed", "Waiting", "Events" labels is gone — assert
+      // by walking the progress headline's container and checking it
+      // doesn't have a peer node carrying the "Events" label (which had
+      // no other place to render in the prior design — unlike "Waiting"
+      // / "Signed" which also live on signer badges).
+      const headline = await screen.findByText(/0 of 1 signed — 0% complete/i);
+      const card = headline.closest('div')?.parentElement; // ProgressLeft → ProgressCard
+      expect(card).not.toBeNull();
+      // "Events" only appeared in the dropped tri-pillar; if it still
+      // exists inside the progress card, the tri-pillar leaked back in.
+      expect(card?.textContent ?? '').not.toMatch(/Events/);
+    });
+
+    it('breadcrumb shows the envelope title (with a title-attribute for ellipsis tooltip)', async () => {
+      mockEnvelope({ status: 'awaiting_others' });
+      renderAt('env-1');
+      // The breadcrumb's trailing slot carries the title; surfaced via the
+      // `title` attribute so a hover reveals the full string when the
+      // ellipsis kicks in.
+      const back = await screen.findByRole('button', { name: /documents/i });
+      const breadcrumb = back.parentElement;
+      expect(breadcrumb).not.toBeNull();
+      const titled = breadcrumb?.querySelector('[title="Master Services Agreement"]');
+      expect(titled).not.toBeNull();
+      expect(titled).toHaveTextContent('Master Services Agreement');
+    });
+
+    it('tag editor renders inline in the status row (single accessible "Add tag" input, not a separate full-width block)', async () => {
+      mockEnvelope({ status: 'awaiting_others' });
+      renderAt('env-1');
+
+      // Wait for the page to populate before probing the meta row.
+      await screen.findByRole('heading', { level: 1, name: /master services agreement/i });
+
+      // The inline TagEditor mounts an "Add tag" button (the chip-style
+      // affordance); clicking expands it into the input. Both the button
+      // and the eventual input share the accessible name "Add tag".
+      const addTag = await screen.findByRole('button', { name: /add tag/i });
+      expect(addTag).toBeInTheDocument();
+
+      // Inline button + status pill live in the same flex row — assert
+      // they share an ancestor, and that the inline TagEditor's root is
+      // not wrapped in the previous "marginTop:12; maxWidth:480" block.
+      const sealedPill = screen.getByText(/awaiting others/i);
+      // Walk up from the pill — the TagEditor's button must be inside
+      // the same status meta container (within ~5 ancestors).
+      let shared = false;
+      let cursor: HTMLElement | null = sealedPill;
+      for (let i = 0; cursor && i < 6; i += 1) {
+        if (cursor.contains(addTag)) {
+          shared = true;
+          break;
+        }
+        cursor = cursor.parentElement;
+      }
+      expect(shared).toBe(true);
+    });
+
+    it('clicking "+ tag" expands the inline composer into an Add-tag input', async () => {
+      mockEnvelope({ status: 'awaiting_others' });
+      renderAt('env-1');
+      await screen.findByRole('heading', { level: 1, name: /master services agreement/i });
+
+      const user = userEvent.setup();
+      const trigger = await screen.findByRole('button', { name: /add tag/i });
+      await user.click(trigger);
+
+      // After expand, the accessible "Add tag" handle resolves to the
+      // input (queried by its aria-label so it stays role-agnostic).
+      const input = await screen.findByLabelText(/add tag/i);
+      expect(input.tagName.toLowerCase()).toBe('input');
+    });
   });
 
   describe('Save to Google Drive', () => {

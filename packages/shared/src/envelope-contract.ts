@@ -35,6 +35,7 @@ export type ActorKind = (typeof ACTOR_KINDS)[number];
 
 export const EVENT_TYPES = [
   'created',
+  'pdf_uploaded',
   'sent',
   'viewed',
   'tc_accepted',

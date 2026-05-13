@@ -6,15 +6,6 @@ function progressFillBg(theme: DefaultTheme, complete: boolean, declined: boolea
   return theme.color.indigo[600];
 }
 
-type StatTone = 'success' | 'warn' | 'danger' | undefined;
-
-function progressStatColor(theme: DefaultTheme, tone: StatTone): string {
-  if (tone === 'warn') return theme.color.warn[500];
-  if (tone === 'success') return theme.color.success[500];
-  if (tone === 'danger') return theme.color.danger[500];
-  return theme.color.fg[1];
-}
-
 export const Wrap = styled.div`
   min-height: 100vh;
   background: ${({ theme }) => theme.color.bg.app};
@@ -34,6 +25,7 @@ export const Breadcrumb = styled.div`
   font-size: 13px;
   color: ${({ theme }) => theme.color.fg[3]};
   margin-bottom: ${({ theme }) => theme.space[4]};
+  min-width: 0;
 `;
 
 export const BreadcrumbLink = styled.button`
@@ -43,6 +35,7 @@ export const BreadcrumbLink = styled.button`
   gap: ${({ theme }) => theme.space[2]};
   color: ${({ theme }) => theme.color.fg[2]};
   cursor: pointer;
+  flex-shrink: 0;
   &:hover {
     color: ${({ theme }) => theme.color.fg[1]};
   }
@@ -55,6 +48,20 @@ export const BreadcrumbLink = styled.button`
 export const BreadcrumbCode = styled.span`
   font-family: ${({ theme }) => theme.font.mono};
   color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+/**
+ * Trailing title in the breadcrumb. Truncates with an ellipsis on a
+ * single line so a long envelope title never pushes the breadcrumb past
+ * the action buttons — `max-width: 60ch` matches the brief.
+ */
+export const BreadcrumbTitle = styled.span`
+  color: ${({ theme }) => theme.color.fg[2]};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60ch;
+  min-width: 0;
 `;
 
 export const HeadRow = styled.header`
@@ -82,7 +89,7 @@ export const Eyebrow = styled.div`
 
 export const Title = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 42px;
+  font-size: 36px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
   letter-spacing: -0.02em;
   color: ${({ theme }) => theme.color.fg[1]};
@@ -91,6 +98,13 @@ export const Title = styled.h1`
   overflow-wrap: anywhere;
 `;
 
+/**
+ * Combined status + meta + tags row. All bits sit on a single line:
+ * Sealed pill · short_code · pages · Sent date · existing chips · inline
+ * "+ tag" affordance. `gap: 12px` (= space[3]) tightens the previous
+ * uneven spacing into one rhythm, and the row wraps gracefully when the
+ * viewport can't hold every chip on one line.
+ */
 export const HeadMeta = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.space[3]};
@@ -104,17 +118,45 @@ export const HeadCode = styled.span`
   font-family: ${({ theme }) => theme.font.mono};
 `;
 
+/**
+ * Single-character separator between the bits of the status meta row.
+ * Renders the `·` glyph with a slightly muted color so it visually
+ * delimits without competing with the values it separates.
+ */
+export const MetaSeparator = styled.span.attrs({ 'aria-hidden': true })`
+  color: ${({ theme }) => theme.color.fg[4]};
+  user-select: none;
+`;
+
+/**
+ * Inline slot for the TagEditor inside HeadMeta. Capping it tightly so
+ * the chips + "+ tag" affordance sit naturally at the end of the row
+ * rather than expanding into a full-width input bar.
+ */
+export const HeadMetaTagSlot = styled.div`
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+`;
+
 export const HeadActions = styled.div`
   display: flex;
   gap: ${({ theme }) => theme.space[2]};
   flex-shrink: 0;
 `;
 
+/**
+ * Slim progress card — bar + headline only. The previous tri-pillar
+ * mini-stats (Signed / Waiting / Events) was non-canonical: the canon
+ * design has just a bar + headline, and the headline already conveys
+ * the signers count. Padding tightened to `16px 20px` so the now-empty
+ * right side doesn't make the card feel airy.
+ */
 export const ProgressCard = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.xl};
-  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[6]}`};
+  padding: 16px 20px;
   margin-bottom: ${({ theme }) => theme.space[6]};
   display: flex;
   gap: ${({ theme }) => theme.space[8]};
@@ -151,25 +193,6 @@ export const ProgressFill = styled.div<FillProps>`
   background: ${({ theme, $complete, $declined }) => progressFillBg(theme, $complete, $declined)};
   border-radius: ${({ theme }) => theme.radius.pill};
   transition: width 900ms cubic-bezier(0.2, 0.8, 0.2, 1);
-`;
-
-export const ProgressStats = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[6]};
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const ProgressStat = styled.div`
-  text-align: left;
-`;
-
-export const ProgressStatValue = styled.div<{ $tone?: 'success' | 'warn' | 'danger' }>`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: 24px;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme, $tone }) => progressStatColor(theme, $tone)};
-  line-height: 1.1;
 `;
 
 export const Grid = styled.div`
@@ -224,11 +247,17 @@ export const SignersHeading = styled.div`
   margin-bottom: ${({ theme }) => theme.space[3]};
 `;
 
+/**
+ * Audit-trail callout — neutral border (border[1]) so the card itself
+ * never reads as "interactive"; only the "Download audit trail →" link
+ * keeps the indigo accent. Title rendered fg-1 + semibold so users
+ * don't mistake it for a link.
+ */
 export const AuditCallout = styled.div`
   background: ${({ theme }) => theme.color.ink[50]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.xl};
-  padding: ${({ theme }) => `${theme.space[4]} ${theme.space[5]}`};
+  padding: 16px;
   display: flex;
   gap: ${({ theme }) => theme.space[3]};
   align-items: flex-start;
@@ -237,6 +266,7 @@ export const AuditCallout = styled.div`
   line-height: 1.55;
   & strong {
     color: ${({ theme }) => theme.color.fg[1]};
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
   }
 `;
 
@@ -329,6 +359,7 @@ export const SignerEmail = styled.div`
   font-size: 11px;
   color: ${({ theme }) => theme.color.fg[3]};
   font-family: ${({ theme }) => theme.font.mono};
+  max-width: 200px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
