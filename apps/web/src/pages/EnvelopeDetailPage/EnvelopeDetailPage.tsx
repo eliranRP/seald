@@ -52,26 +52,25 @@ import {
   AuditAction,
   AuditCallout,
   Breadcrumb,
-  BreadcrumbCode,
   BreadcrumbLink,
+  BreadcrumbTitle,
   Card,
   Eyebrow,
   Grid,
   HeadActions,
   HeadCode,
   HeadMeta,
+  HeadMetaTagSlot,
   HeadRow,
   HeadText,
   Inner,
+  MetaSeparator,
   Muted,
   NotFoundHint,
   ProgressCard,
   ProgressFill,
   ProgressLabel,
   ProgressLeft,
-  ProgressStat,
-  ProgressStats,
-  ProgressStatValue,
   ProgressTrack,
   SignerEmail,
   SignerItem,
@@ -707,9 +706,6 @@ export function EnvelopeDetailPage() {
   const signed = envelope.signers.filter((s) => s.status === 'completed').length;
   const total = envelope.signers.length;
   const pct = total === 0 ? 0 : Math.round((signed / total) * 100);
-  const waiting = envelope.signers.filter(
-    (s) => s.status === 'awaiting' || s.status === 'viewing',
-  ).length;
   const isComplete = envelope.status === 'completed';
   const isDeclined = envelope.status === 'declined' || envelope.status === 'expired';
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
@@ -776,29 +772,54 @@ export function EnvelopeDetailPage() {
   return (
     <Wrap>
       <Inner>
+        {/*
+          Breadcrumb shows the envelope title at the end (truncated
+          with an ellipsis at 60ch) instead of the short_code — the
+          short_code already appears in the status meta row below,
+          so repeating it here forfeited navigation context. The title
+          is the orienting bit a user wants when they glance up.
+        */}
         <Breadcrumb>
           <BreadcrumbLink type="button" onClick={handleBack}>
             <ArrowLeft size={14} /> Documents
           </BreadcrumbLink>
-          <span>/</span>
-          <BreadcrumbCode>{envelope.short_code}</BreadcrumbCode>
+          <span aria-hidden>/</span>
+          <BreadcrumbTitle title={envelope.title}>{envelope.title}</BreadcrumbTitle>
         </Breadcrumb>
 
         <HeadRow>
           <HeadText>
             <Eyebrow>Envelope</Eyebrow>
             <Title>{envelope.title}</Title>
+            {/*
+              The header band is collapsed from 6 rows (breadcrumb,
+              eyebrow, title, status, tag chips, tag input) to 4 by
+              rolling the tag chips + inline "+ tag" affordance into
+              the same row as the status meta. `gap: 12px` keeps the
+              rhythm consistent; the row wraps naturally on narrow
+              viewports.
+            */}
             <HeadMeta>
               <Badge tone={STATUS_TONE[envelope.status]}>{STATUS_LABEL[envelope.status]}</Badge>
-              <span>
-                <HeadCode>{envelope.short_code}</HeadCode>
-                {envelope.original_pages !== null ? ` · ${envelope.original_pages} pages` : null}
-              </span>
+              <MetaSeparator>·</MetaSeparator>
+              <HeadCode>{envelope.short_code}</HeadCode>
+              {envelope.original_pages !== null ? (
+                <>
+                  <MetaSeparator>·</MetaSeparator>
+                  <span>{envelope.original_pages} pages</span>
+                </>
+              ) : null}
+              <MetaSeparator>·</MetaSeparator>
               <span>Sent {formatDateOnly(envelope.sent_at)}</span>
+              <MetaSeparator>·</MetaSeparator>
+              <HeadMetaTagSlot>
+                <TagEditor
+                  layout="inline"
+                  value={envelope.tags ?? []}
+                  onChange={(next) => handleTagsChange(next)}
+                />
+              </HeadMetaTagSlot>
             </HeadMeta>
-            <div style={{ marginTop: 12, maxWidth: 480 }}>
-              <TagEditor value={envelope.tags ?? []} onChange={(next) => handleTagsChange(next)} />
-            </div>
           </HeadText>
           <HeadActions>
             <DownloadMenu
@@ -806,20 +827,26 @@ export function EnvelopeDetailPage() {
               onSelect={handleDownload}
               inFlight={downloadInFlightKind}
             />
-            <Button
-              variant="secondary"
-              iconLeft={Bell}
-              onClick={handleSendReminder}
-              loading={remindInFlight}
-              disabled={!hasPending || isTerminal}
-              title={(() => {
-                if (isTerminal) return 'This envelope is closed — no reminders to send.';
-                if (!hasPending) return 'Every signer has already signed or declined.';
-                return undefined;
-              })()}
-            >
-              Send reminder
-            </Button>
+            {/*
+              Terminal envelopes (completed / declined / expired /
+              canceled) have nothing left to remind anyone of — hide
+              the button entirely rather than baiting a click on a
+              disabled control. The disabled-with-tooltip path is
+              still reachable when a non-terminal envelope happens
+              to have no pending signers (a rare middle state).
+            */}
+            {!isTerminal ? (
+              <Button
+                variant="secondary"
+                iconLeft={Bell}
+                onClick={handleSendReminder}
+                loading={remindInFlight}
+                disabled={!hasPending}
+                title={hasPending ? undefined : 'Every signer has already signed or declined.'}
+              >
+                Send reminder
+              </Button>
+            ) : null}
             {envelope.status === 'draft' ||
             envelope.status === 'awaiting_others' ||
             envelope.status === 'sealing' ? (
@@ -841,6 +868,14 @@ export function EnvelopeDetailPage() {
           </StatusToast>
         ) : null}
 
+        {/*
+          Slim progress card — headline + bar only. The previous right-
+          side tri-pillar of "Signed / Waiting / Events" with serif
+          numerals was non-canonical (the kit design doesn't have it)
+          and duplicated information already conveyed by the headline.
+          Dropping it lets the card tighten its padding without feeling
+          empty.
+        */}
         <ProgressCard>
           <ProgressLeft>
             <ProgressLabel>
@@ -850,20 +885,6 @@ export function EnvelopeDetailPage() {
               <ProgressFill $pct={pct} $complete={isComplete} $declined={isDeclined} />
             </ProgressTrack>
           </ProgressLeft>
-          <ProgressStats>
-            <ProgressStat>
-              <ProgressStatValue>{signed}</ProgressStatValue>
-              Signed
-            </ProgressStat>
-            <ProgressStat>
-              <ProgressStatValue $tone="warn">{waiting}</ProgressStatValue>
-              Waiting
-            </ProgressStat>
-            <ProgressStat>
-              <ProgressStatValue>{timelineEvents.length}</ProgressStatValue>
-              Events
-            </ProgressStat>
-          </ProgressStats>
         </ProgressCard>
 
         <Grid>
