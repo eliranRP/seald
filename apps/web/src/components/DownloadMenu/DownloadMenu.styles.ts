@@ -90,20 +90,20 @@ export const Menu = styled.div`
   top: calc(100% + 6px);
   right: 0;
   z-index: 50;
-  width: 360px;
+  width: 320px;
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: 14px;
+  border-radius: 12px;
   box-shadow: ${({ theme }) => theme.shadow.lg};
-  padding: ${({ theme }) => theme.space[2]};
+  padding: 6px;
   animation: ${menuIn} 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family: ${({ theme }) => theme.font.sans};
 `;
 
 export const MenuHeading = styled.div`
-  padding: 8px 10px 6px;
+  padding: 6px 8px 4px;
   font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
+  font-size: 10px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   letter-spacing: 0.08em;
   color: ${({ theme }) => theme.color.fg[3]};
@@ -114,11 +114,11 @@ export const Item = styled.button<{ $active: boolean }>`
   all: unset;
   box-sizing: border-box;
   display: flex;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
   align-items: flex-start;
   width: 100%;
-  padding: 10px;
-  border-radius: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
   text-align: left;
   cursor: pointer;
   font-family: ${({ theme }) => theme.font.sans};
@@ -137,9 +137,9 @@ export const Item = styled.button<{ $active: boolean }>`
 `;
 
 export const ItemIcon = styled.div<{ $recommended: boolean }>`
-  width: 36px;
-  height: 36px;
-  border-radius: 9px;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -202,30 +202,30 @@ export const LockedPill = styled.span`
 `;
 
 export const ItemDesc = styled.div`
-  font-size: 12px;
+  font-size: 11px;
   color: ${({ theme }) => theme.color.fg[3]};
-  margin-top: 2px;
-  line-height: 1.45;
+  margin-top: 1px;
+  line-height: 1.35;
 `;
 
 export const ItemMeta = styled.div`
   font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
+  font-size: 10px;
   color: ${({ theme }) => theme.color.fg[4]};
-  margin-top: 4px;
+  margin-top: 2px;
 `;
 
 export const Divider = styled.div`
   height: 1px;
-  margin: 6px 8px;
+  margin: 4px 8px;
   background: ${({ theme }) => theme.color.border[1]};
 `;
 
 export const Footer = styled.div`
-  padding: 10px 10px 4px;
+  padding: 8px 8px 2px;
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
-  margin-top: 6px;
-  font-size: 11px;
+  margin-top: 4px;
+  font-size: 10px;
   color: ${({ theme }) => theme.color.fg[4]};
   line-height: 1.5;
   display: flex;

@@ -77,10 +77,10 @@ function renderItem(
       <ItemIcon $recommended={it.recommended === true}>
         {isLoading ? (
           <ItemIconSpinning>
-            <Loader2 size={16} aria-hidden />
+            <Loader2 size={14} aria-hidden />
           </ItemIconSpinning>
         ) : (
-          <Icon size={16} aria-hidden />
+          <Icon size={14} aria-hidden />
         )}
       </ItemIcon>
       <ItemBody>
