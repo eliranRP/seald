@@ -38,17 +38,20 @@ const {
   title = 'Seald — Put your name to it.',
   description = 'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. EU-grade PAdES seals, RFC 3161 timestamps, audit trail on every page.',
   canonical,
-  // Default OG image is shipped as SVG to keep the build dependency-free.
-  // Twitter and most platforms accept SVG; if you want maximum reach,
-  // generate a 1200x630 PNG from /og-image.svg and drop it at /og-image.png
-  // — the link below will pick it up automatically.
-  ogImage = '/og-image.svg',
+  // Default OG image is a 1200×630 PNG. Facebook, LinkedIn, Slack,
+  // iMessage and most Twitter ingest pipelines reject SVG, so we ship
+  // a PNG generated from /og-image.svg at build time. Audit E ·
+  // BaseLayout H (OG image is SVG — rejected by most platforms).
+  ogImage = '/og-image.png',
   noindex = false,
   minimalFooter = true,
 } = Astro.props;
 
 // Resolve canonical against the configured site so relative paths work.
-const siteUrl = Astro.site ?? new URL('https://seald-landing.nromomentum.com');
+// Fallback explicitly to the production canonical hostname per CLAUDE.md
+// — every canonical URL, OG URL, and JSON-LD `url` must point at the
+// real public host. Audit E · BaseLayout M (Astro.site fallback wrong).
+const siteUrl = Astro.site ?? new URL('https://seald.nromomentum.com');
 const canonicalUrl = canonical
   ? new URL(canonical, siteUrl).toString()
   : new URL(Astro.url.pathname, siteUrl).toString();
@@ -73,6 +76,12 @@ const websiteLd = {
   inLanguage: 'en',
 };
 
+// Beta pricing is published on the marketing page itself; we do NOT
+// publish a permanent free offer in Rich Results until paid tiers are
+// finalised. The previous `offers: { price: '0' }` block contradicted
+// Terms §5 ("Pricing for any paid tier introduced after the beta…") and
+// risked FTC §5 deception exposure. Audit E · BaseLayout H/M
+// (softwareLd.offers contradicts Terms).
 const softwareLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
@@ -80,11 +89,6 @@ const softwareLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web, iOS, Android',
   description,
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'USD',
-  },
   url: siteUrl.toString(),
 };
 ---
@@ -162,6 +166,19 @@ const softwareLd = {
     -->
     <meta name="cf-beacon-token" content="" />
     <script defer src="/scripts/cookie-consent.js"></script>
+
+    <!--
+      .reveal elements start at opacity:0 and rely on IntersectionObserver
+      in /scripts/landing.js to add `.in` and fade them in. If JS is
+      disabled (CSP block, slow network, no-JS browsers), every section
+      of the homepage stays invisible. Force them visible when JS is off.
+      Audit E · index.astro H (.reveal{opacity:0} leaves page invisible).
+    -->
+    <noscript>
+      <style>
+        .reveal { opacity: 1 !important; transform: none !important; }
+      </style>
+    </noscript>
   </head>
 
   <body>
@@ -180,7 +197,7 @@ const softwareLd = {
               type="button"
               class="link-button"
               data-testid="footer-manage-cookies"
-              onclick="window.SealdConsent && window.SealdConsent.openBanner()"
+              data-action="open-cookie-banner"
             >
               Manage cookie preferences
             </button>

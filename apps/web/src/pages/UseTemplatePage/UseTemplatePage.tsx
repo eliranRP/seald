@@ -446,7 +446,32 @@ export function UseTemplatePage() {
             ) : null}
 
             {!isNewTemplate ? (
-              <Segmented role="radiogroup" aria-label="Document source">
+              /*
+               * ArrowLeft / ArrowRight switch segments per ARIA-1.2
+               * radio-group keyboard semantics. Tab still moves focus
+               * to whichever segment is currently selected (the only
+               * one with `tabIndex={0}`); ArrowLeft moves selection
+               * back, ArrowRight forward, with wrap-around.
+               * Audit A · UseTemplatePage L-19.
+               */
+              <Segmented
+                role="radiogroup"
+                aria-label="Document source"
+                onKeyDown={(e) => {
+                  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                  e.preventDefault();
+                  const next = docChoice === 'saved' ? 'upload' : 'saved';
+                  setDocChoice(next);
+                  // Move focus to the newly-selected segment so the
+                  // visible focus ring tracks the selection.
+                  const root = e.currentTarget;
+                  // Stable order: 'saved' is index 0, 'upload' index 1.
+                  const idx = next === 'saved' ? 0 : 1;
+                  const target =
+                    root.querySelectorAll<HTMLButtonElement>('button[role="radio"]')[idx];
+                  target?.focus();
+                }}
+              >
                 <SegmentedButton
                   type="button"
                   role="radio"

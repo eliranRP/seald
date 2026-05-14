@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
@@ -153,6 +153,25 @@ export function ContactsPage() {
   const closeDialog = (): void => {
     setDialog({ mode: 'closed' });
   };
+
+  /**
+   * Escape closes the add/edit dialog — WCAG 2.1.2 (No Keyboard Trap).
+   * Previously the dialog could only be dismissed via the backdrop or
+   * the Cancel button; keyboard-only users had no way out short of
+   * submitting. Bound at the document level so it fires regardless of
+   * focus inside the dialog; teardown is gated on `dialog.mode` so
+   * the listener exists only while the dialog is open. Mirrors the
+   * pattern at `TemplatesListPage.tsx:307-314`. Audit A · ContactsPage
+   * M-13.
+   */
+  useEffect(() => {
+    if (dialog.mode === 'closed') return undefined;
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setDialog({ mode: 'closed' });
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [dialog.mode]);
 
   const [submitting, setSubmitting] = useState(false);
 

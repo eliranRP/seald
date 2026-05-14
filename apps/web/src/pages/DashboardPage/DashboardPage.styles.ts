@@ -68,7 +68,9 @@ export const ToolbarRow = styled.div`
 /**
  * "Showing N documents" caption rendered on the right of the
  * FilterToolbar row. 13 px / `fg-3` to read as ambient metadata, not
- * a control.
+ * a control. The leading vertical rule + `space[3]` padding anchor it
+ * to the chip row so it no longer reads as an orphaned line of text
+ * floating beside the 32 px filter pills (audit A · DashboardPage M-1).
  */
 export const DocCount = styled.div`
   font-size: 13px;
@@ -76,6 +78,9 @@ export const DocCount = styled.div`
   white-space: nowrap;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
+  padding-left: ${({ theme }) => theme.space[3]};
+  border-left: 1px solid ${({ theme }) => theme.color.border[1]};
+  align-self: center;
 `;
 
 /**
@@ -114,7 +119,10 @@ export const StatGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: ${({ theme }) => theme.space[4]};
-  margin-bottom: ${({ theme }) => theme.space[6]};
+  /* Tightened from space[6] (24px) to space[5] (20px) so the
+     header → stats → toolbar rhythm has a slightly tighter step than
+     the masthead gap. Audit A · DashboardPage M-2. */
+  margin-bottom: ${({ theme }) => theme.space[5]};
 
   @media (max-width: ${MOBILE}) {
     grid-template-columns: repeat(2, 1fr);
@@ -216,15 +224,22 @@ export const SortHeaderButton = styled.button<{ $active: boolean }>`
 /**
  * Direction caret rendered next to every sortable column header.
  * `$active` paints the kit-standard indigo arrow; inactive sortable
- * columns render the caret at low opacity in `fg-3` so the header
- * still reads as sortable without shouting like the active column.
+ * columns render a faint Lucide ChevronDown so the header still reads
+ * as sortable without shouting like the active column. Audit A ·
+ * DashboardPage L-3 — previously used the U+25BE unicode caret which
+ * rendered ambiguously at small sizes / low opacity.
  */
 export const SortCaret = styled.span<{ readonly $active: boolean }>`
   display: inline-flex;
-  font-size: 10px;
+  align-items: center;
   line-height: 1;
   color: ${({ $active, theme }) => ($active ? theme.color.indigo[600] : theme.color.fg[3])};
-  opacity: ${({ $active }) => ($active ? 1 : 0.35)};
+  opacity: ${({ $active }) => ($active ? 1 : 0.5)};
+
+  & > svg {
+    width: 12px;
+    height: 12px;
+  }
 `;
 
 export const TableRow = styled.button<{ $grid: string }>`

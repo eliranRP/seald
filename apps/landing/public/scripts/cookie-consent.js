@@ -225,9 +225,32 @@
     _recordChoice: recordChoice,
   };
 
+  /*
+   * Click-delegate for the "Manage cookie preferences" buttons in the
+   * footers of every page. We can't use `onclick="..."` attributes
+   * because the production CSP at apps/landing/public/_headers ships
+   * `script-src 'self' …` — no `'unsafe-inline'` — so the browser
+   * silently drops inline handlers. This was the *only* consent-
+   * withdrawal entry point reachable from /contact, /dsar and every
+   * /legal/* page, so the inline handler being blocked was a direct
+   * EDPB 03/2022 / CPRA §7026(a)(4) same-ease-withdrawal violation.
+   * Audit E · BaseLayout + index.astro H (CSP breaks cookie buttons).
+   */
+  function attachBannerDelegate() {
+    document.addEventListener('click', function (e) {
+      var target = e.target;
+      if (!target || typeof target.closest !== 'function') return;
+      var trigger = target.closest('[data-action="open-cookie-banner"]');
+      if (!trigger) return;
+      e.preventDefault();
+      openBanner();
+    });
+  }
+
   /* ---------- Init ---------- */
 
   function init() {
+    attachBannerDelegate();
     var existing = getChoice();
     if (existing === 'accepted') {
       loadBeacon();

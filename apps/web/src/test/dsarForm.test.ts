@@ -79,7 +79,9 @@ beforeEach(() => {
   assignedHref = '';
   alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   // jsdom's window.location is locked down — replace it with a plain object
-  // for the duration of the test so we can capture the assignment.
+  // for the duration of the test so we can capture the assignment. The
+  // current dsar.js calls `window.location.assign(...)` rather than
+  // setting `.href = …` directly so we capture that too.
   Object.defineProperty(window, 'location', {
     configurable: true,
     value: {
@@ -87,6 +89,9 @@ beforeEach(() => {
         return assignedHref;
       },
       set href(v: string) {
+        assignedHref = v;
+      },
+      assign(v: string) {
         assignedHref = v;
       },
     },
@@ -107,47 +112,52 @@ function loadAndSubmit(): void {
   form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
 }
 
+/**
+ * The handler renders validation feedback inline via a `#dsar-status`
+ * panel (PR-7 / Audit E · dsar.astro H — mailto fallback + inline
+ * errors). The previous `alert()` path was replaced with this
+ * accessible status node so screen readers + clipboard-fallback paths
+ * work for users without a default mail client.
+ */
+function statusText(): string {
+  return document.getElementById('dsar-status')?.textContent ?? '';
+}
+
 describe('DSAR form submit handler — required-field validation', () => {
-  it('alerts and does not navigate when the name is missing', () => {
+  it('shows the inline error and does not navigate when the name is missing', () => {
     buildFormDom({
       email: 'a@b.com',
       jurisdiction: 'GDPR (European Union)',
       types: ['access'],
     });
     loadAndSubmit();
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/please fill in your name, email, and jurisdiction/i),
-    );
+    expect(statusText()).toMatch(/please fill in your name, email, and jurisdiction/i);
     expect(assignedHref).toBe('');
   });
 
-  it('alerts when the email is missing', () => {
+  it('shows the inline error when the email is missing', () => {
     buildFormDom({
       name: 'Jane',
       jurisdiction: 'GDPR (European Union)',
       types: ['access'],
     });
     loadAndSubmit();
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/please fill in your name, email, and jurisdiction/i),
-    );
+    expect(statusText()).toMatch(/please fill in your name, email, and jurisdiction/i);
     expect(assignedHref).toBe('');
   });
 
-  it('alerts when the jurisdiction is missing', () => {
+  it('shows the inline error when the jurisdiction is missing', () => {
     buildFormDom({
       name: 'Jane',
       email: 'a@b.com',
       types: ['access'],
     });
     loadAndSubmit();
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/please fill in your name, email, and jurisdiction/i),
-    );
+    expect(statusText()).toMatch(/please fill in your name, email, and jurisdiction/i);
     expect(assignedHref).toBe('');
   });
 
-  it('alerts when no request type is selected', () => {
+  it('shows the inline error when no request type is selected', () => {
     buildFormDom({
       name: 'Jane',
       email: 'a@b.com',
@@ -155,9 +165,7 @@ describe('DSAR form submit handler — required-field validation', () => {
       types: [],
     });
     loadAndSubmit();
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/please select at least one request type/i),
-    );
+    expect(statusText()).toMatch(/at least one .* must be checked/i);
     expect(assignedHref).toBe('');
   });
 
@@ -169,10 +177,23 @@ describe('DSAR form submit handler — required-field validation', () => {
       types: ['access'],
     });
     loadAndSubmit();
-    expect(alertSpy).toHaveBeenCalledWith(
-      expect.stringMatching(/please fill in your name, email, and jurisdiction/i),
-    );
+    expect(statusText()).toMatch(/please fill in your name, email, and jurisdiction/i);
     expect(assignedHref).toBe('');
+  });
+
+  it('renders a copy-to-clipboard fallback after a successful submission', () => {
+    buildFormDom({
+      name: 'Jane Doe',
+      email: 'jane@example.com',
+      jurisdiction: 'GDPR (European Union)',
+      types: ['access'],
+    });
+    loadAndSubmit();
+    // Inline success status surfaces with the email address + a copy button.
+    const status = document.getElementById('dsar-status');
+    expect(status).not.toBeNull();
+    expect(status?.textContent).toMatch(/privacy@seald\.nromomentum\.com/);
+    expect(document.querySelector('[data-dsar-copy]')).not.toBeNull();
   });
 });
 
