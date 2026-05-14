@@ -88,4 +88,28 @@ describe('SignerField', () => {
     renderWithTheme(<SignerField ref={ref} {...baseProps} kind="text" label="Text" />);
     expect(ref.current).toBeInstanceOf(HTMLButtonElement);
   });
+
+  // Audit report-B-signer.md, SigningFillPage [HIGH] a11y — field tones are
+  // color-only; deutan/protan users can't tell "active" from filled by tone
+  // alone. The active state must carry a non-color marker (a chevron icon
+  // anchored to the right edge of the field).
+  it('active field renders a non-color chevron indicator', () => {
+    const { getByRole } = renderWithTheme(
+      <SignerField {...baseProps} kind="text" label="Text" active />,
+    );
+    const btn = getByRole('button');
+    // The chevron is decorative ornament for sighted users; it lives inside
+    // the button as an aria-hidden svg so screen-reader output stays
+    // "Text (required)" without "image / chevron right" chatter.
+    const chevron = btn.querySelector('[data-active-indicator="true"]');
+    expect(chevron).not.toBeNull();
+  });
+
+  it('inactive field does NOT render the chevron indicator', () => {
+    const { getByRole } = renderWithTheme(
+      <SignerField {...baseProps} kind="text" label="Text" active={false} />,
+    );
+    const btn = getByRole('button');
+    expect(btn.querySelector('[data-active-indicator="true"]')).toBeNull();
+  });
 });

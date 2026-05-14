@@ -3,6 +3,7 @@ import {
   Calendar,
   Check,
   CheckSquare,
+  ChevronRight,
   Mail,
   PenTool,
   TextCursorInput,
@@ -15,6 +16,7 @@ import { SignatureMark } from '../SignatureMark';
 import type { SignerFieldKind, SignerFieldProps } from './SignerField.types';
 import type { Tone } from './SignerField.styles';
 import {
+  ActiveIndicator,
   CheckboxMark,
   EmptyLabel,
   FilledText,
@@ -155,6 +157,19 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
       {...rest}
     >
       {inner}
+      {/* Non-color "active" indicator (audit report-B-signer.md,
+          SigningFillPage [HIGH] a11y). Tone is the primary signal for
+          sighted users; the chevron is a redundant cue for deutan /
+          protan users who can't distinguish indigo↔grey. aria-hidden
+          so screen readers keep announcing "Text (required)" without
+          "image / chevron right" chatter. Skipped for filled fields
+          and checkboxes where the chevron would overlap the
+          filled-value glyph. */}
+      {active && !filled && kind !== 'checkbox' ? (
+        <ActiveIndicator data-active-indicator="true" aria-hidden="true">
+          <Icon icon={ChevronRight} size={14} />
+        </ActiveIndicator>
+      ) : null}
     </Root>
   );
 });
