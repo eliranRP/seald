@@ -207,8 +207,14 @@ export function useDeclineMutation(envelopeId: string, opts: TerminalMutationOpt
   const qc = useQueryClient();
   return useMutation<DeclineResponse, Error, string | undefined>({
     mutationFn: (reason) => api.decline(reason),
-    onSuccess: () => {
+    onSuccess: (_data, reason) => {
       const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
+      // Item 23 — surface the discriminator so the declined-page copy
+      // can branch between "you declined" and "wrong recipient". Any
+      // value the caller passes is normalized; null/undefined/unknown
+      // values collapse to 'declined' so we never lose the kind info.
+      const declineReason: 'declined' | 'consent-withdrawn' | 'not-the-recipient' =
+        reason === 'not-the-recipient' ? 'not-the-recipient' : 'declined';
       writeDoneSnapshot({
         kind: 'declined',
         envelope_id: envelopeId,
@@ -217,6 +223,7 @@ export function useDeclineMutation(envelopeId: string, opts: TerminalMutationOpt
         sender_name: opts.senderName,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
+        decline_reason: declineReason,
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.declined', envelope_id: envelopeId });
@@ -267,6 +274,10 @@ export function useWithdrawConsentMutation(envelopeId: string, opts: TerminalMut
         sender_name: opts.senderName,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
+        // Item 23 — discriminate ESIGN §7001(c)(1) consent withdrawal
+        // from a plain decline so the terminal page can show
+        // "You withdrew consent…" instead of "You declined…".
+        decline_reason: 'consent-withdrawn',
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.consent_withdrawn', envelope_id: envelopeId });

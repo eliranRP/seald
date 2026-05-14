@@ -148,6 +148,71 @@ describe('SigningEntryPage', () => {
     expect(await screen.findByRole('heading', { name: /too many attempts/i })).toBeInTheDocument();
   });
 
+  // Item 1 — retry affordance on rate-limit and generic errors. The original
+  // page only offered a mailto: support link, so a transient 429 silently
+  // dead-ended the signer. The new "Try again" button re-triggers the
+  // /sign/start POST without a manual page reload.
+  it('rate-limit state offers a "Try again" button that re-attempts /sign/start', async () => {
+    const err = Object.assign(new Error('rate_limited'), { status: 429 });
+    post.mockRejectedValueOnce(err).mockResolvedValueOnce({
+      data: {
+        envelope_id: MOCK_ENVELOPE_ID,
+        signer_id: 's1',
+        requires_tc_accept: true,
+      },
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    await screen.findByRole('heading', { name: /too many attempts/i });
+    const retry = await screen.findByRole('button', { name: /try again/i });
+    const userEvent = await import('@testing-library/user-event');
+    await userEvent.default.click(retry);
+    await waitFor(() => {
+      expect(post).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('generic error state offers a "Try again" button', async () => {
+    const err = Object.assign(new Error('boom'), { status: 500 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    await screen.findByRole('heading', { name: /something went wrong/i });
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
+  });
+
+  // Item 2 — loading state must be announced via aria-live and terminal
+  // errors via role="alert" so screen-readers register the state change.
+  it('loading state is wrapped in role="status" aria-live="polite"', async () => {
+    // Pending forever — we only need to assert the live region attributes.
+    post.mockReturnValueOnce(new Promise(() => {}));
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    const status = await screen.findByRole('status');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('terminal error card carries role="alert"', async () => {
+    const err = Object.assign(new Error('not_found'), { status: 404 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+  });
+
+  // Item 4 — the mailto: link must carry a subject prefilled with the
+  // envelope id so support gets context.
+  it('mailto: link encodes the envelope id in the subject', async () => {
+    const err = Object.assign(new Error('not_found'), { status: 404 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    const link = await screen.findByRole('link', { name: /contact support/i });
+    const href = link.getAttribute('href') ?? '';
+    expect(href).toMatch(/^mailto:/);
+    expect(href).toContain('subject=');
+    expect(href).toContain(encodeURIComponent(MOCK_ENVELOPE_ID));
+  });
+
   it('does not call /sign/start twice under StrictMode double-invoke', async () => {
     // The page's useRef guard is the subject under test. Simulate the
     // second render by re-mounting the component once while the first

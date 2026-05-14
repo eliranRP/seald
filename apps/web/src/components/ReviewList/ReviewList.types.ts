@@ -20,6 +20,13 @@ export interface ReviewItem {
    * for text/date/name/email the raw string.
    */
   readonly valuePreview: ReactNode;
+  /**
+   * Optional inline-edit callback. When supplied the row renders an
+   * accessible "Edit" button at the far right that invokes this callback.
+   * Used by the signer-flow review page (item 11) to pop FieldInputDrawer
+   * or SignatureCapture without leaving the page.
+   */
+  readonly onEdit?: () => void;
 }
 
 export interface ReviewListProps extends HTMLAttributes<HTMLDivElement> {

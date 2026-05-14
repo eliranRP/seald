@@ -59,3 +59,30 @@ export const ValueSlot = styled.div`
   text-align: right;
   margin-left: auto;
 `;
+
+/**
+ * Item 11 — accessible per-row "Edit" affordance. Rendered only when
+ * the caller supplies `onEdit` on the ReviewItem so consumer pages that
+ * use the list purely for read-only display (audit trail, summary
+ * tables) are unaffected.
+ */
+export const EditBtn = styled.button`
+  margin-left: ${({ theme }) => theme.space[3]};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  padding: 6px 12px;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+  cursor: pointer;
+  &:hover,
+  &:focus-visible {
+    border-color: ${({ theme }) => theme.color.indigo[500]};
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;

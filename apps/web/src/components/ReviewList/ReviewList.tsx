@@ -12,6 +12,7 @@ import {
 import { Icon } from '../Icon';
 import type { ReviewFieldKind, ReviewListProps } from './ReviewList.types';
 import {
+  EditBtn,
   IconBadge,
   LabelStack,
   LabelText,
@@ -51,6 +52,11 @@ export const ReviewList = forwardRef<HTMLDivElement, ReviewListProps>((props, re
             <PageText>Page {item.page}</PageText>
           </LabelStack>
           <ValueSlot>{item.valuePreview}</ValueSlot>
+          {item.onEdit ? (
+            <EditBtn type="button" onClick={item.onEdit} aria-label={`Edit ${item.label}`}>
+              Edit
+            </EditBtn>
+          ) : null}
         </Row>
       ))}
     </Root>
