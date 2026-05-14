@@ -23,8 +23,15 @@ const config: Config = {
   // of those crashes with `Cannot use import statement outside a
   // module`. List the ones the renderer actually touches; if a future
   // dep gets added, add it here too.
+  //
+  // `jose` (v6+), `@faker-js/faker` (v10+), and `kysely` (v0.29+) also
+  // ship pure-ESM bundles — Jest's CJS transformer can't load them
+  // otherwise, so they're whitelisted here too. Removing any entry
+  // will surface as `SyntaxError: Unexpected token 'export'` in every
+  // spec that imports it (jose: auth/JWT verification, faker: test
+  // factories, kysely: pg repositories).
   transformIgnorePatterns: [
-    'node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib))',
+    'node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js/faker|kysely))',
   ],
   collectCoverageFrom: ['src/**/*.(t|j)sx?'],
   coverageDirectory: 'coverage',
