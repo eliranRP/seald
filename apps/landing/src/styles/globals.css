@@ -267,9 +267,13 @@ body {
   transition: transform 160ms var(--ease-standard);
 }
 
-/* Mobile drawer — slides out below the nav. Hidden by default; the
-   JS removes the `hidden` attribute and adds `.open` to animate in. */
+/* Mobile drawer — slides out below the nav. Hidden by default at every
+   viewport; the JS removes the `hidden` attribute and adds `.open`
+   which flips display to `flex`. The HTML `hidden` attribute alone
+   isn't enough because the layout rules below would override it; the
+   explicit `display: none` is what actually hides it. */
 .nav-mobile-drawer {
+  display: none;
   position: absolute;
   top: 100%;
   left: 0;
@@ -277,11 +281,13 @@ body {
   background: var(--paper);
   border-bottom: 1px solid var(--border-1);
   box-shadow: var(--shadow-md);
-  display: flex;
   flex-direction: column;
   padding: 12px 20px 20px;
   gap: 4px;
   z-index: 49;
+}
+.nav-mobile-drawer.open {
+  display: flex;
 }
 .nav-mobile-drawer a {
   padding: 14px 8px;
