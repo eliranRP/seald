@@ -8,8 +8,14 @@ export const Main = styled.div`
     ${({ theme }) => theme.space[20]};
 `;
 
+/**
+ * Page-content container. Standardized on the same 1280 px max-width
+ * used by DashboardPage so the three L4 list pages (Dashboard /
+ * Contacts / Templates) share one width instead of the previous
+ * 1280 / 1024 / 1320 mix. Audit A · ContactsPage M-12.
+ */
 export const Inner = styled.div`
-  max-width: 1024px;
+  max-width: 1280px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -61,9 +67,15 @@ export const NameCell = styled.div`
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+/**
+ * Email column cell. Uses the mono font so tabular email columns
+ * align character-for-character — easier to scan for typos and
+ * matching domains. Audit A · ContactsPage L-14.
+ */
 export const EmailCell = styled.div`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
+  font-family: ${({ theme }) => theme.font.mono};
 `;
 
 export const DocsCell = styled.div`

@@ -66,6 +66,43 @@ interface ToastState {
 }
 
 /**
+ * Map a raw send-flow error to user-friendly copy. The previous
+ * implementation surfaced `err.message` directly, which exposed
+ * internals like "fetch failed" / "AbortError" / stack traces to the
+ * user. Map the common shapes we know about — network failures,
+ * timeouts, abort — to friendlier text and fall back to a generic
+ * "Something went wrong" line for everything else. Audit A ·
+ * DocumentRoute L-21.
+ */
+export function friendlySendError(err: unknown): string {
+  if (!(err instanceof Error)) return 'Unable to send the document. Please try again.';
+  const msg = err.message;
+  // Browser fetch / undici network failures.
+  if (
+    /failed to fetch|fetch failed|network ?error|NetworkError|ERR_NETWORK|ECONN|ENOTFOUND|getaddrinfo/i.test(
+      msg,
+    )
+  ) {
+    return "Couldn't reach the Seald servers. Check your connection and try again.";
+  }
+  // Axios / native timeout shapes.
+  if (/timeout|timed out|ETIMEDOUT/i.test(msg)) {
+    return 'The request timed out while sending. Try again in a moment.';
+  }
+  // Abort (user-cancelled or controller.abort()).
+  if (err.name === 'AbortError' || /abort(ed)?/i.test(msg)) {
+    return 'The send was cancelled before it finished. Try again.';
+  }
+  // Final fallback — never leak stack traces. If the message looks
+  // like internal noise (contains parentheses with line numbers, etc.),
+  // swap it for the generic copy.
+  if (/\bat\s+\w+\s+\(/.test(msg) || msg.length > 200) {
+    return 'Unable to send the document. Please try again.';
+  }
+  return msg;
+}
+
+/**
  * Route wrapper around `DocumentPage`. Manages the in-memory draft (File +
  * fields + signers) while the user composes, then publishes the draft to
  * the `/envelopes/*` API on send (create → upload → addSigner per contact
@@ -208,6 +245,11 @@ export function DocumentRoute() {
     setExitOpen(false);
     if (pendingNav === 'back') {
       setPendingNav(null);
+      // Consume the popstate-guard sentinel frame before navigating so
+      // the back-stack doesn't accumulate a hidden `{ docGuard: true }`
+      // entry every time the user exits via the browser back gesture.
+      // Audit A · DocumentRoute L-20.
+      window.history.back();
       navigate('/documents');
       return;
     }
@@ -296,7 +338,7 @@ export function DocumentRoute() {
         sendDocument(doc.id, result.envelope_id);
         navigate(`/document/${result.envelope_id}/sent`);
       } catch (err) {
-        setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
+        setSendError(friendlySendError(err));
       }
     },
     [doc, navigate, sendDocument, sendEnvelope, canvasHeight],

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { JSX } from 'react';
-import { ChevronRight, UploadCloud } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, UploadCloud } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Badge } from '@/components/Badge';
 import type { BadgeTone } from '@/components/Badge/Badge.types';
@@ -540,12 +540,13 @@ export function DashboardPage() {
             {COLUMN_KEYS.map((key) => {
               const sortKey = COLUMN_SORT_KEY[key];
               const active = sort.key === sortKey;
-              // Every sortable column carries a caret. The active
-              // column renders the up/down arrow at full indigo; the
-              // inactive ones render a default `▾` at low opacity so
-              // the header still reads as sortable without competing
-              // with the active sort.
-              const arrow = active ? (sort.dir === 'asc' ? '▲' : '▼') : '▾';
+              // Every sortable column carries a Lucide chevron icon.
+              // Active columns render Up/Down in indigo; inactive
+              // columns render a faint ChevronDown at fg-3 so the
+              // header still reads as sortable without competing with
+              // the active sort. (Audit A · L-3 — replaces the previous
+              // U+25BE unicode caret that rendered ambiguously.)
+              const ArrowIcon = active && sort.dir === 'asc' ? ChevronUp : ChevronDown;
               return (
                 <HeadCell
                   key={key}
@@ -558,7 +559,7 @@ export function DashboardPage() {
                   >
                     {COLUMN_LABELS[key]}
                     <SortCaret aria-hidden $active={active}>
-                      {arrow}
+                      <ArrowIcon size={12} strokeWidth={2} />
                     </SortCaret>
                   </SortHeaderButton>
                   <ColumnResizeHandle

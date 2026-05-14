@@ -11,10 +11,17 @@ const rippleOut = keyframes`
   100% { transform: scale(2.2); opacity: 0; }
 `;
 
+/**
+ * Page wrap. Vertically centered (`align-items: center`) so the success
+ * card sits in the visual middle of the radial-gradient composition
+ * regardless of viewport height. Previously `flex-start` left the card
+ * pinned to the top with a large empty band below, fighting the
+ * centered gradient. Audit A · SentConfirmationPage L-15.
+ */
 export const Wrap = styled.div`
   flex: 1 1 auto;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
   padding: ${({ theme }) => `${theme.space[12]} ${theme.space[6]}`};
   background: radial-gradient(

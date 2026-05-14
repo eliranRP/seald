@@ -19,9 +19,19 @@ export const StepBody = styled.main`
     ${({ theme }) => theme.space[20]};
 `;
 
+/**
+ * Step body's inner column. Standardized on 960 px (the same width as
+ * the embedded UploadPage's Inner) so content width doesn't jump when
+ * the user toggles between the "Use saved document" and "Upload a new
+ * one" segmented control. Audit A · UseTemplatePage L-18.
+ *
+ * The `$wide` prop is retained as a deprecated no-op so any legacy
+ * callers continue to compile; both branches now render the same 960 px
+ * column.
+ */
 export const StepInner = styled.div<{ $wide?: boolean }>`
   margin: 0 auto;
-  max-width: ${({ $wide }) => ($wide ? '880px' : '720px')};
+  max-width: 960px;
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[6]};
@@ -88,10 +98,14 @@ export const PickerTrigger = styled.button<{ $open: boolean }>`
     border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
     box-shadow ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
 
-  ${({ $open }) =>
+  ${({ $open, theme }) =>
     $open &&
     css`
-      box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+      /* Picker-open focus glow. Uses the canonical theme focus shadow
+         instead of the bespoke rgba literal so the indigo-tinted halo
+         stays in sync with every other focus state on the surface.
+         Audit A · UseTemplatePage M-17. */
+      box-shadow: ${theme.shadow.focus};
     `}
 `;
 
@@ -117,7 +131,9 @@ export const SignerChip = styled.span`
   background: ${({ theme }) => theme.color.ink[50]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 12.5px;
+  /* Rounded 12.5 → 13 (caption) so the type scale stays on the theme.
+     Audit A · UseTemplatePage M-16. */
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
@@ -202,7 +218,9 @@ export const SegmentedButton = styled.button<{ $active: boolean }>`
   border-radius: ${({ theme }) => theme.radius.md};
   cursor: pointer;
   font-family: inherit;
-  font-size: 13.5px;
+  /* Rounded 13.5 → 14 (bodySm) so the type scale stays on the theme.
+     Audit A · UseTemplatePage M-16. */
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -328,7 +346,9 @@ export const TooltipBubble = styled.span`
   transform: translateX(-50%);
   background: ${({ theme }) => theme.color.ink[900]};
   color: ${({ theme }) => theme.color.fg.inverse};
-  font-size: 11.5px;
+  /* Rounded 11.5 → 11 (micro) so the type scale stays on the theme.
+     Audit A · UseTemplatePage M-16. */
+  font-size: ${({ theme }) => theme.font.size.micro};
   padding: 7px 10px;
   border-radius: ${({ theme }) => theme.radius.sm};
   white-space: nowrap;

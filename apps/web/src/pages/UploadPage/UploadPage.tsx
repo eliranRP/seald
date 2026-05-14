@@ -13,6 +13,7 @@ import {
   Dropzone,
   ErrorText,
   Heading,
+  HeadingBlock,
   HiddenFileInput,
   IconCircle,
   Inner,
@@ -253,10 +254,10 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
       <Main>
         <Inner>
           {hideHeader ? null : (
-            <div>
+            <HeadingBlock>
               <Heading>{title}</Heading>
               <Subtitle>{subtitle}</Subtitle>
-            </div>
+            </HeadingBlock>
           )}
           {templateBannerTitle ? (
             <TemplateBanner
@@ -314,13 +315,10 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                     <TemplatePromptHint>Already have a layout saved?</TemplatePromptHint>
                   ) : null}
                   {onPickTemplate ? (
-                    <TemplatePromptLink
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPickTemplate();
-                      }}
-                    >
+                    // The parent Dropzone has no onClick handler so
+                    // calling `stopPropagation` here was a code-smell
+                    // no-op. Removed per Audit A · UploadPage L-7.
+                    <TemplatePromptLink type="button" onClick={onPickTemplate}>
                       <Icon icon={LayoutTemplate} size={14} />
                       Start from a template
                     </TemplatePromptLink>
@@ -329,24 +327,12 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                     <TemplatePromptDot aria-hidden>·</TemplatePromptDot>
                   ) : null}
                   {onPickDrive ? (
-                    <TemplatePromptLink
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPickDrive();
-                      }}
-                    >
+                    <TemplatePromptLink type="button" onClick={onPickDrive}>
                       <GDriveLogo size={14} />
                       Pick from Google Drive
                     </TemplatePromptLink>
                   ) : onConnectDrive ? (
-                    <TemplatePromptLink
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onConnectDrive();
-                      }}
-                    >
+                    <TemplatePromptLink type="button" onClick={onConnectDrive}>
                       <GDriveLogo size={14} />
                       Connect Google Drive
                     </TemplatePromptLink>
