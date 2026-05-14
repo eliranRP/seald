@@ -84,14 +84,20 @@ describe('DocumentPageCanvas', () => {
   // (capped at 2) so the bitmap is 1:1 with device pixels.
   describe('retina-sharp render', () => {
     const originalDpr = window.devicePixelRatio;
+    // jsdom returns null from canvas.getContext('2d') by default, which makes
+    // the component bail before calling page.render(). Stub it with a no-op
+    // 2D context so the render path actually runs.
+    const fakeCtx = {} as CanvasRenderingContext2D;
 
     beforeEach(() => {
       pdfMock.getPage.mockClear();
       pdfMock.getViewport.mockClear();
       pdfMock.render.mockClear();
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => fakeCtx);
     });
 
     afterEach(() => {
+      vi.restoreAllMocks();
       Object.defineProperty(window, 'devicePixelRatio', {
         value: originalDpr,
         configurable: true,
