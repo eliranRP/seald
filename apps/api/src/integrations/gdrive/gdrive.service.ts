@@ -3,6 +3,7 @@ import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY, type GDriveAccount, type GDriveRepository } from './gdrive.repository';
 import { TokenExpiredError } from './dto/error-codes';
+import type { GDriveTokenStatus } from './dto/account.dto';
 
 /**
  * Adapter over the Google OAuth + token-refresh endpoints. Kept behind a
@@ -46,6 +47,16 @@ interface CachedToken {
 export class GDriveService {
   private readonly cache = new Map<string, CachedToken>();
   private readonly inflight = new Map<string, Promise<CachedToken>>();
+  /**
+   * Tracks accounts whose most recent refresh attempt returned
+   * `invalid_grant` (revoked / expired refresh token). Populated by
+   * `refreshToken` (the only call site that contacts Google's `/token`
+   * endpoint) and consumed by `getTokenStatus`. Audit slice C #4 (HIGH):
+   * the listing endpoint reads this map so the SPA can surface a
+   * primary Reconnect button without us paying for an extra round-trip
+   * to Google on every page load.
+   */
+  private readonly revoked = new Set<string>();
 
   constructor(
     @Inject(GDRIVE_REPOSITORY) private readonly repo: GDriveRepository,
@@ -85,14 +96,51 @@ export class GDriveService {
     );
     try {
       const out = await this.google.refreshAccessToken(refreshToken, signal);
+      // Recovery: a successful refresh clears any prior revoked-state
+      // signal — e.g. the user just reconnected at Google and the new
+      // refresh token is live again. Without this, a one-time
+      // invalid_grant would stick the row in "reconnect_required" until
+      // the api restarted.
+      this.revoked.delete(account.id);
       await this.repo.touchLastUsed(account.id);
       return out;
     } catch (err) {
       if (isInvalidGrant(err)) {
+        this.revoked.add(account.id);
         throw new TokenExpiredError('refresh_token_invalid_or_revoked');
       }
       throw err;
     }
+  }
+
+  /**
+   * Synchronous read of an account's token health. Returns
+   * `'reconnect_required'` when the most recent refresh attempt (if any)
+   * rejected with `invalid_grant`; `'live'` otherwise. Cheap by design —
+   * the listing endpoint surfaces this without paying for an extra
+   * Google round-trip on every page load. Audit slice C #4 (HIGH).
+   */
+  getTokenStatus(accountId: string): GDriveTokenStatus {
+    return this.revoked.has(accountId) ? 'reconnect_required' : 'live';
+  }
+
+  /**
+   * Best-effort probe: triggers one refreshAccessToken() call for the
+   * given account so `getTokenStatus` can report a fresh signal. Swallows
+   * non-`invalid_grant` failures — the probe must never propagate a
+   * transient upstream blip up the listing call (audit slice C #4).
+   * Used only by callers that explicitly want an *up-to-date* status
+   * (e.g. integration tests). The listing endpoint relies on the cheap
+   * `getTokenStatus` read instead.
+   */
+  async probeRefresh(account: GDriveAccount): Promise<GDriveTokenStatus> {
+    try {
+      await this.refreshToken(account);
+    } catch {
+      // refreshToken already populated `revoked` on invalid_grant;
+      // non-invalid_grant errors leave the prior status unchanged.
+    }
+    return this.getTokenStatus(account.id);
   }
 
   async listAccounts(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
@@ -133,6 +181,10 @@ export class GDriveService {
       // Drop any cached access token tied to the old refresh token so the
       // next getAccessToken() pulls a fresh one.
       this.cache.delete(existing.id);
+      // A new refresh token was just minted — clear any prior
+      // reconnect-required marker so the SPA flips back to the green
+      // Connected state without waiting for an explicit refresh call.
+      this.revoked.delete(existing.id);
       return existing.id;
     }
     const id = newUuid();
@@ -163,6 +215,7 @@ export class GDriveService {
     await this.google.revokeToken(refreshToken).catch(() => undefined);
     await this.repo.softDelete(accountId, userId);
     this.cache.delete(accountId);
+    this.revoked.delete(accountId);
   }
 
   private async requireOwnedAccount(id: string, userId: string): Promise<GDriveAccount> {

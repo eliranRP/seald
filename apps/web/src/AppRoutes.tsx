@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
@@ -236,6 +236,13 @@ export function AppRoutes() {
               </Suspense>
             }
           />
+          {/* Stub Settings index — until a real Settings landing
+              page lands, `/settings` redirects to the only settings
+              surface that exists (Integrations). Audit slice C #4
+              (MEDIUM): the Integrations breadcrumb now points back to
+              `/settings`, so this route MUST exist for the link to
+              navigate anywhere useful. */}
+          <Route path="/settings" element={<Navigate to="/settings/integrations" replace />} />
           <Route
             path="/settings/integrations"
             element={

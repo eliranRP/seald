@@ -27,10 +27,22 @@ export function useVerifyEnvelope(shortCode: string): UseQueryResult<VerifyRespo
     },
     enabled: shortCode.length > 0,
     staleTime: 60_000,
-    // Don't retry — verify is a public read-only surface; 404 means the
-    // short_code is wrong (won't fix on retry) and 5xx is rare enough
-    // that a manual page refresh is fine. Skipping retries also keeps
-    // the loading UI snappy and predictable.
-    retry: false,
+    // Verify is a public read-only surface. Skip retries on terminal HTTP
+    // status (404 = wrong code, 4xx = bad request) — those won't fix on
+    // retry and just delay the error UI. Retry once on transient network
+    // errors (no `status` field on the thrown error) so brief connectivity
+    // blips don't dump the user into the error panel; manual <Retry/> in
+    // VerifyLoading handles the long-tail case after 15s.
+    retry: (failureCount, error) => {
+      if (failureCount >= 1) return false;
+      const status = (error as { status?: unknown }).status;
+      // Treat any non-numeric `status` (or its absence) as a network error
+      // worth one retry. HTTP responses always carry a numeric status.
+      return typeof status !== 'number';
+    },
+    // No exponential backoff — verify is a single read with one retry on
+    // network blips. The default 1s delay would otherwise stall the error
+    // UI for a full second when the API truly is unreachable.
+    retryDelay: 0,
   });
 }
