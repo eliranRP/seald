@@ -172,8 +172,8 @@ importers:
         specifier: ^8.6.0
         version: 8.7.1
       '@stryker-mutator/jest-runner':
-        specifier: ^8.6.0
-        version: 8.7.1(@stryker-mutator/core@8.7.1)
+        specifier: ^9.6.1
+        version: 9.6.1(@stryker-mutator/core@8.7.1)
       '@types/cookie':
         specifier: ^1.0.0
         version: 1.0.0
@@ -3244,6 +3244,10 @@ packages:
     resolution: {integrity: sha512-56vxcVxIfW0jxJhr7HB9Zx6Xr5/M95RG9MUK1DtbQhlmQesjpfBBsrPLOPzBJaITPH/vOYykuJ69vgSAMccQyw==}
     engines: {node: '>=18.0.0'}
 
+  '@stryker-mutator/api@9.6.1':
+    resolution: {integrity: sha512-g8VNoFWQWbx0pdal3Vt8jVCZW+v3sc3gi94iI0GVtVgUGTqphAjJF6EAruPTx0lqvtonsaAxn5TD36hcG1d6Wg==}
+    engines: {node: '>=20.0.0'}
+
   '@stryker-mutator/core@8.7.1':
     resolution: {integrity: sha512-r2AwhHWkHq6yEe5U8mAzPSWewULbv9YMabLHRzLjZnjj+Ipxtg+Zo22rrUc2Zl7mnYvb9w34bdlEzGz6MKgX2g==}
     engines: {node: '>=18.0.0'}
@@ -3253,14 +3257,17 @@ packages:
     resolution: {integrity: sha512-HSq4VHXesQCMR3hr6bn41DAeJ0yuP2vp9KSnls2TySNawFVWOCaKXpBX29Skj3zJQh7dnm7HuQg8HuXvJK15oA==}
     engines: {node: '>=18.0.0'}
 
-  '@stryker-mutator/jest-runner@8.7.1':
-    resolution: {integrity: sha512-507jgu9E0yNDwMN56p4J+iFI77+rPDLDV91qYGbBI6fvy5c7rBQ63l64FtAFMTG75f4gCZ6C/Pq3nXTQx6PMjA==}
-    engines: {node: '>=18.0.0'}
+  '@stryker-mutator/jest-runner@9.6.1':
+    resolution: {integrity: sha512-nIrIndfWwdweYkIcxJmyBTpl84nrXs9AE6A8vzEwwzUGvDb9kVvwBPfpEajtdAkjwPceH0pPuVrPkotvqcgYqQ==}
+    engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@stryker-mutator/core': ~8.7.0
+      '@stryker-mutator/core': 9.6.1
 
   '@stryker-mutator/util@8.7.1':
     resolution: {integrity: sha512-Oj/sIHZI1GLfGOHKnud4Gw0ZRufm7ONoQYNnhcaAYEXTWraYVcV7mue/th8fZComTHvDPA8Ge8U16FvWYEb8dg==}
+
+  '@stryker-mutator/util@9.6.1':
+    resolution: {integrity: sha512-Lk/ALVctJjFv1vvwR+CFoKzDCWvsBlq7flDUnmnpuwTrGbm156EdZD1Jjq4o8KdOap0ezUZqQNE9OAI1m2+pUQ==}
 
   '@supabase/auth-js@2.105.3':
     resolution: {integrity: sha512-hMFuzP++mjRfe0/BUq4/e82CXIDgyjUgg0khLN8waol/gzoM1t2iGmhfJSGvQHQ1dr3XqWpP6ThAw4bLHMot5Q==}
@@ -6935,8 +6942,14 @@ packages:
   mutation-testing-metrics@3.3.0:
     resolution: {integrity: sha512-vZEJ84SpK3Rwyk7k28SORS5o6ZDtehwifLPH6fQULrozJqlz2Nj8vi52+CjA+aMZCyyKB+9eYUh1HtiWVo4o/A==}
 
+  mutation-testing-metrics@3.7.3:
+    resolution: {integrity: sha512-B8QrP0ZomErzTPNlhrzKWPNBln+3afwBZPHv0Q7N8wZZTYxMptzb/Gdm3ExXVmioVYrtZAtsDs7W/T/b2AixOQ==}
+
   mutation-testing-report-schema@3.3.0:
     resolution: {integrity: sha512-DF56q0sb0GYzxYUYNdzlfQzyE5oJBEasz8zL76bt3OFJU8q4iHSdUDdihPWWJD+4JLxSs3neM/R968zYdy0SWQ==}
+
+  mutation-testing-report-schema@3.7.3:
+    resolution: {integrity: sha512-BHm3MYq+ckO+t5CtlG8zpqxc75rdJCkxVlE+fGuGJM3F7tNCQ/OW2N+TQVHN3BHsYa84+BFc6g3AwDYkUsw2MA==}
 
   mute-stream@1.0.0:
     resolution: {integrity: sha512-avsJQhyd+680gKXyG/sQc0nXaC6rBkPOfyHYcFb9+hdkqQkR9bdnkJ0AMZhke0oesPqIO+mFFJ+IdBc7mst4IA==}
@@ -8603,6 +8616,10 @@ packages:
   typed-inject@4.0.0:
     resolution: {integrity: sha512-OuBL3G8CJlS/kjbGV/cN8Ni32+ktyyi6ADDZpKvksbX0fYBV5WcukhRCYa7WqLce7dY/Br2dwtmJ9diiadLFpg==}
     engines: {node: '>=16'}
+
+  typed-inject@5.0.0:
+    resolution: {integrity: sha512-0Ql2ORqBORLMdAW89TQKZsb1PQkFGImFfVmncXWe7a+AA3+7dh7Se9exxZowH4kbnlvKEFkMxUYdHUpjYWFJaA==}
+    engines: {node: '>=18'}
 
   typed-rest-client@2.1.0:
     resolution: {integrity: sha512-Nel9aPbgSzRxfs1+4GoSB4wexCF+4Axlk7OSGVQCMa+4fWcyxIsN/YNmkp0xTT2iQzMD98h8yFLav/cNaULmRA==}
@@ -12587,6 +12604,13 @@ snapshots:
       tslib: 2.7.0
       typed-inject: 4.0.0
 
+  '@stryker-mutator/api@9.6.1':
+    dependencies:
+      mutation-testing-metrics: 3.7.3
+      mutation-testing-report-schema: 3.7.3
+      tslib: 2.8.1
+      typed-inject: 5.0.0
+
   '@stryker-mutator/core@8.7.1':
     dependencies:
       '@inquirer/prompts': 6.0.1
@@ -12633,15 +12657,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@stryker-mutator/jest-runner@8.7.1(@stryker-mutator/core@8.7.1)':
+  '@stryker-mutator/jest-runner@9.6.1(@stryker-mutator/core@8.7.1)':
     dependencies:
-      '@stryker-mutator/api': 8.7.1
+      '@stryker-mutator/api': 9.6.1
       '@stryker-mutator/core': 8.7.1
-      '@stryker-mutator/util': 8.7.1
-      semver: 7.6.3
-      tslib: 2.7.0
+      '@stryker-mutator/util': 9.6.1
+      semver: 7.7.4
+      tslib: 2.8.1
 
   '@stryker-mutator/util@8.7.1': {}
+
+  '@stryker-mutator/util@9.6.1': {}
 
   '@supabase/auth-js@2.105.3':
     dependencies:
@@ -17377,7 +17403,13 @@ snapshots:
     dependencies:
       mutation-testing-report-schema: 3.3.0
 
+  mutation-testing-metrics@3.7.3:
+    dependencies:
+      mutation-testing-report-schema: 3.7.3
+
   mutation-testing-report-schema@3.3.0: {}
+
+  mutation-testing-report-schema@3.7.3: {}
 
   mute-stream@1.0.0: {}
 
@@ -19317,6 +19349,8 @@ snapshots:
       reflect.getprototypeof: 1.0.10
 
   typed-inject@4.0.0: {}
+
+  typed-inject@5.0.0: {}
 
   typed-rest-client@2.1.0:
     dependencies:
