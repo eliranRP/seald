@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import type { PageHeaderSize } from './PageHeader.types';
 
 export const Root = styled.div`
   display: flex;
@@ -22,9 +23,15 @@ export const Eyebrow = styled.div`
   text-transform: uppercase;
 `;
 
-export const Title = styled.h1`
+/**
+ * `$size` picks between the kit-standard 48 px H1 (`lg`, default) and
+ * the 36 px H1 the Dashboard uses (`md`). Sizing is the only thing the
+ * variant changes; family / weight / tracking stay the same so the two
+ * sizes still feel like the same masthead.
+ */
+export const Title = styled.h1<{ readonly $size: PageHeaderSize }>`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h1};
+  font-size: ${({ theme, $size }) => ($size === 'md' ? theme.font.size.h2 : theme.font.size.h1)};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};

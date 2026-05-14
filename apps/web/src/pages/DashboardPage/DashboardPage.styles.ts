@@ -34,8 +34,80 @@ export const Inner = styled.div`
   flex-direction: column;
 `;
 
+/**
+ * Spacing between the dashboard masthead and the stat-tile row.
+ * Tightened from `space[8]` (32 px) to `space[6]` (24 px) now that
+ * `PageHeader` renders at its 36 px (`size='md'`) variant — the
+ * smaller H1 doesn't need as much breathing room above the stats.
+ */
 export const HeaderSlot = styled.div`
-  margin-bottom: ${({ theme }) => theme.space[8]};
+  margin-bottom: ${({ theme }) => theme.space[6]};
+`;
+
+/**
+ * Toolbar row that hosts the FilterToolbar on the left and the
+ * doc-count caption on the right. Keeps the count anchored to the
+ * trailing edge of the filter row without disturbing the toolbar's
+ * own flex layout.
+ */
+export const ToolbarRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.space[3]};
+  flex-wrap: wrap;
+
+  /* The toolbar already pads itself top/bottom; the count caption
+     should sit on the same baseline as the chips. */
+  & > :first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+`;
+
+/**
+ * "Showing N documents" caption rendered on the right of the
+ * FilterToolbar row. 13 px / `fg-3` to read as ambient metadata, not
+ * a control.
+ */
+export const DocCount = styled.div`
+  font-size: 13px;
+  color: ${({ theme }) => theme.color.fg[3]};
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+`;
+
+/**
+ * Per-row tag strip. Lives inside `DocCell` so it sits right under the
+ * doc title + short-code. Tightened chip rendering uses 2-visible +
+ * "+N" overflow chip; see `DashboardPage.tsx`.
+ */
+export const TagStrip = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[1]};
+  margin-top: ${({ theme }) => theme.space[1]};
+`;
+
+/**
+ * Compact neutral chip used for the "+N" tag overflow indicator.
+ * Matches the visual weight of TagChip (2 px / 6 px padding, pill,
+ * 11 px text) but stays in the neutral palette so it reads as
+ * "and N more" rather than another category.
+ */
+export const TagOverflow = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: 11px;
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: 1.4;
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[3]};
+  white-space: nowrap;
 `;
 
 export const StatGrid = styled.div`
@@ -141,11 +213,18 @@ export const SortHeaderButton = styled.button<{ $active: boolean }>`
   }
 `;
 
-export const SortCaret = styled.span`
+/**
+ * Direction caret rendered next to every sortable column header.
+ * `$active` paints the kit-standard indigo arrow; inactive sortable
+ * columns render the caret at low opacity in `fg-3` so the header
+ * still reads as sortable without shouting like the active column.
+ */
+export const SortCaret = styled.span<{ readonly $active: boolean }>`
   display: inline-flex;
   font-size: 10px;
   line-height: 1;
-  color: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ $active, theme }) => ($active ? theme.color.indigo[600] : theme.color.fg[3])};
+  opacity: ${({ $active }) => ($active ? 1 : 0.35)};
 `;
 
 export const TableRow = styled.button<{ $grid: string }>`

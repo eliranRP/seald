@@ -61,11 +61,16 @@ function toneFg(theme: DefaultTheme, tone: Tone): string {
   }
 }
 
+// Tightened from `2px 8px` to `2px 6px` so multiple chips on a row
+// (the dashboard's tag strip, the EnvelopeDetailPage tag editor)
+// don't crowd the row's other affordances. The shorter horizontal
+// padding keeps the chip readable at 11 px while shedding ~2 px per
+// chip horizontally.
 const Pill = styled.span<{ $tone: Tone }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: ${({ theme }) => theme.radius.pill};
   font-family: ${({ theme }) => theme.font.sans};
   font-size: 11px;

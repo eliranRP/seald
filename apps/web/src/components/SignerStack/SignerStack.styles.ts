@@ -1,22 +1,6 @@
-import styled, { type DefaultTheme } from 'styled-components';
+import styled from 'styled-components';
 import { truncateText } from '@/styles/mixins';
 import type { SignerStackStatus } from './SignerStack.types';
-
-export const ringColor = (t: DefaultTheme, status: SignerStackStatus): string => {
-  switch (status) {
-    case 'signed':
-      return t.color.success[500];
-    case 'pending':
-      return t.color.warn[500];
-    case 'awaiting-you':
-      return t.color.indigo[600];
-    case 'declined':
-      return t.color.danger[500];
-    case 'draft':
-    default:
-      return t.color.fg[4];
-  }
-};
 
 export const Root = styled.div`
   position: relative;
@@ -31,6 +15,23 @@ export const Stack = styled.div`
   align-items: center;
 `;
 
+/**
+ * Stacked signer avatar. The previous colored 2 px ring (per status)
+ * was visually noisy on the dashboard — five red / amber / indigo
+ * rings fighting for attention against the row's Status pill, which
+ * already carries the same signal. Dropped to a single neutral
+ * `border[1]` so the avatar reads as "person N" and the status lives
+ * on the pill.
+ *
+ * The surface-colored box-shadow stays — when avatars overlap (each
+ * `& + &` shifts -8 px), that ring punches a hole through the previous
+ * avatar so the silhouettes don't blur together.
+ *
+ * `$status` is kept on the prop signature even though we don't paint
+ * with it any more — callers still pass it (the popover row + tests
+ * read it) and styled-components is happy to drop the transient prop
+ * without emitting it to the DOM.
+ */
 export const Avatar = styled.span<{ $status: SignerStackStatus }>`
   width: 28px;
   height: 28px;
@@ -43,7 +44,7 @@ export const Avatar = styled.span<{ $status: SignerStackStatus }>`
   font-size: 11px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   letter-spacing: 0.02em;
-  border: 2px solid ${({ theme, $status }) => ringColor(theme, $status)};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
   box-shadow: 0 0 0 2px ${({ theme }) => theme.color.bg.surface};
   position: relative;
   & + & {

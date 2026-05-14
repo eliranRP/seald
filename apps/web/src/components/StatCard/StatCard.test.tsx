@@ -18,6 +18,25 @@ describe('StatCard', () => {
     expect(getByText('1')).toBeInTheDocument();
   });
 
+  // Zero-state regression: an empty bucket ("Awaiting you 0",
+  // "Awaiting others 0", "Sealed this month 0") shouldn't read in the
+  // requested tone — there's no signal to draw the eye to. The
+  // component overrides the value's tone to `neutral` whenever the
+  // displayed number is `'0'`.
+  it('overrides the value tone to neutral when value is "0"', () => {
+    const { getByText } = renderWithTheme(
+      <StatCard label="Awaiting you" value="0" tone="indigo" />,
+    );
+    expect(getByText('0')).toHaveAttribute('data-tone', 'neutral');
+  });
+
+  it('keeps the requested tone when value is non-zero', () => {
+    const { getByText } = renderWithTheme(
+      <StatCard label="Awaiting you" value="3" tone="indigo" />,
+    );
+    expect(getByText('3')).toHaveAttribute('data-tone', 'indigo');
+  });
+
   it('forwards ref to the root div', () => {
     const ref = { current: null as HTMLDivElement | null };
     renderWithTheme(<StatCard ref={ref} label="Stat" value="1" tone="neutral" />);
