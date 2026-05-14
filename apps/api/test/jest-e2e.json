@@ -9,6 +9,6 @@
     "^.+\\.(t|j)sx?$": "ts-jest"
   },
   "transformIgnorePatterns": [
-    "node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib))"
+    "node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js/faker))"
   ]
 }
