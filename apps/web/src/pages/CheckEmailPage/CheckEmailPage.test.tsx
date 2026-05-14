@@ -29,10 +29,24 @@ describe('CheckEmailPage', () => {
     expect(screen.getByRole('button', { name: /resend link/i })).toBeInTheDocument();
   });
 
-  it('hides the resend button in signup confirmation mode', () => {
+  // Audit C: CheckEmail #14 — signup mode also surfaces a resend button so
+  // users can self-recover from a lost / delayed confirmation email.
+  it('shows a "Resend confirmation email" CTA in signup mode alongside "Back to sign in"', () => {
     renderAt('/check-email?email=jamie%40seald.app&mode=signup');
-    expect(screen.queryByRole('button', { name: /resend link/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /resend confirmation email/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /back to sign in/i })).toBeInTheDocument();
+    // The reset-mode label is NOT used in signup mode.
+    expect(screen.queryByRole('button', { name: /^resend link$/i })).not.toBeInTheDocument();
+  });
+
+  it('Resend confirmation email calls resendSignUpConfirmation in signup mode', async () => {
+    const user = userEvent.setup();
+    const resendSignUpConfirmation = vi.fn(async () => undefined);
+    renderAt('/check-email?email=jamie%40seald.app&mode=signup', {
+      auth: { resendSignUpConfirmation },
+    });
+    await user.click(screen.getByRole('button', { name: /resend confirmation email/i }));
+    expect(resendSignUpConfirmation).toHaveBeenCalledWith('jamie@seald.app');
   });
 
   it('falls back to "your inbox" copy when no email query param is present', () => {

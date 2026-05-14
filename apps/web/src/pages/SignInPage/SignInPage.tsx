@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
-import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
+import { AlertTriangle } from 'lucide-react';
 import { AuthShell } from '@/components/AuthShell';
 import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
@@ -9,12 +9,29 @@ import { pathForAuthMode } from '@/layout/authPaths';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
-const ErrorBanner = styled(SharedErrorBanner)`
+/**
+ * Icon-led error banner mirroring `DisconnectModal.tsx` `ErrorRow`
+ * (`apps/web/src/routes/settings/integrations/DisconnectModal.tsx:106-117`).
+ * Adds an `<AlertTriangle>` glyph so the OAuth/guest error is visually
+ * distinct from the cookie banner overlay (audit C: SignIn #1).
+ */
+const ErrorBanner = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   margin: 0 0 ${({ theme }) => theme.space[4]};
+  padding: 12px 14px;
+  border: 1px solid ${({ theme }) => theme.color.danger[500]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.danger[50]};
+  color: ${({ theme }) => theme.color.danger[700]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
 
 const ERROR_COPY: Record<string, string> = {
   oauth: "We couldn't complete the Google sign-in. Please try again.",
+  oauth_timeout: 'The sign-in took too long. Please try again.',
   guest: "We couldn't start a guest session. Please sign up to continue.",
 };
 
@@ -72,7 +89,8 @@ export function SignInPage() {
     <AuthShell>
       {errorKey ? (
         <ErrorBanner role="alert">
-          {ERROR_COPY[errorKey] ?? 'Something went wrong. Please try again.'}
+          <AlertTriangle width={16} height={16} strokeWidth={1.75} aria-hidden />
+          <span>{ERROR_COPY[errorKey] ?? 'Something went wrong. Please try again.'}</span>
         </ErrorBanner>
       ) : null}
       <AuthForm

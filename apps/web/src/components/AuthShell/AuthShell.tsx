@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { AuthBrandPanel } from '../AuthBrandPanel';
+import { AuthMobileHeader } from './AuthMobileHeader';
 import type { AuthShellProps } from './AuthShell.types';
 import { FootLinkButton, FootRow, FormSide, FormWrap, Root } from './AuthShell.styles';
 
@@ -24,7 +25,10 @@ export const AuthShell = forwardRef<HTMLDivElement, AuthShellProps>((props, ref)
     <Root ref={ref} {...rest}>
       {compact ? null : <AuthBrandPanel />}
       <FormSide>
-        <FormWrap>{children}</FormWrap>
+        <FormWrap>
+          {compact ? null : <AuthMobileHeader />}
+          {children}
+        </FormWrap>
         <FootRow aria-label="Legal and accessibility">
           <a href="/legal/privacy">Privacy</a>
           <a href="/legal/terms">Terms</a>

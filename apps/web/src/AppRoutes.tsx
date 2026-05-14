@@ -129,7 +129,12 @@ export function AppRoutes() {
       </Route>
 
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
-      <Route path="/debug/auth" element={<DebugAuthPage />} />
+      {/* Audit C: DebugAuthPage #4 — the /debug/auth surface is gated to
+          DEV-only builds. In production builds the route is unmounted so
+          a direct URL navigation falls through to the catch-all landing.
+          /me is auth-guarded so this isn't a credential leak, but a
+          publicly mountable debug page is a SAST finding regardless. */}
+      {import.meta.env.DEV ? <Route path="/debug/auth" element={<DebugAuthPage />} /> : null}
 
       {/* Drive OAuth popup-bridge — MUST live OUTSIDE <AppShell /> so the
           mobile-redirect rule (≤ 640 px → /m/send) does NOT fire on the

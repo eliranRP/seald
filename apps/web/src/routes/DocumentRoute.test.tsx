@@ -43,6 +43,7 @@ function buildAuth(): AuthContextValue {
     signUpWithPassword: () => Promise.resolve({ needsEmailConfirmation: false }),
     signInWithGoogle: () => Promise.resolve(),
     resetPassword: () => Promise.resolve(),
+    resendSignUpConfirmation: () => Promise.resolve(),
     signOut: () => Promise.resolve(),
     enterGuestMode: () => Promise.resolve(),
     exitGuestMode: () => undefined,

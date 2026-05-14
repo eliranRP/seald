@@ -108,4 +108,37 @@ describe('AuthShell', () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  // Audit D §10 — mobile/tablet (≤ 960 px) collapses the brand panel,
+  // leaving the form column logo-less. The AuthMobileHeader injects a
+  // slim wordmark above the form so the page identifies as Seald on
+  // foldable / tablet viewports. The mobile header lives inside the
+  // FormSide (the form column) — the brand panel's wordmark sits inside
+  // the <aside> on the desktop side.
+  it('renders a wordmark inside the FormSide for tablet/phone viewports', () => {
+    const { container } = renderWithTheme(
+      <AuthShell>
+        <h1>Sign in</h1>
+      </AuthShell>,
+    );
+    // The mobile-only header sets role=img + aria-label="Seald" and lives
+    // outside the brand-panel <aside>. Counting both occurrences detects
+    // the regression where the FormSide-side wordmark is missing — the
+    // desktop AuthBrandPanel always contributes one "Seald" wordmark.
+    const wordmarks = container.querySelectorAll('[role="img"][aria-label="Seald"]');
+    expect(wordmarks.length).toBeGreaterThanOrEqual(1);
+    // And the mobile header lives OUTSIDE the brand <aside>.
+    const aside = container.querySelector('aside');
+    const outsideAside = Array.from(wordmarks).filter((el) => !aside?.contains(el));
+    expect(outsideAside.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('omits the slim mobile wordmark in compact mode', () => {
+    const { container } = renderWithTheme(
+      <AuthShell compact>
+        <h1>Sign in</h1>
+      </AuthShell>,
+    );
+    expect(container.querySelectorAll('[role="img"][aria-label="Seald"]').length).toBe(0);
+  });
 });

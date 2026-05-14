@@ -39,8 +39,8 @@ async function submitSignUp(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText(/full name/i), 'Ada Lovelace');
   await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
   await user.type(screen.getByLabelText(/^password$/i), 'hunter2hunter');
-  await user.click(screen.getByLabelText(/legal age/i));
-  await user.click(screen.getByLabelText(/terms of service and privacy policy/i));
+  // Combined ESIGN attestation (audit C: SignUp #10).
+  await user.click(screen.getByLabelText(/legal age and agree/i));
   await user.click(screen.getByRole('button', { name: /create account/i }));
 }
 

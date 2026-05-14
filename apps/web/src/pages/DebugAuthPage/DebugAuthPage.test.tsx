@@ -90,6 +90,13 @@ describe('DebugAuthPage', () => {
     expect(screen.getByText(/signed in as: \(none\)/i)).toBeInTheDocument();
   });
 
+  // Audit C: DebugAuthPage #15 — top banner that flags the page as a
+  // developer-only diagnostic surface.
+  it('renders the developer-only diagnostic banner', async () => {
+    renderPage();
+    expect(await screen.findByText(/developer-only diagnostic page/i)).toBeInTheDocument();
+  });
+
   it('renders the email + Sign-out CTA when getSession returns a session', async () => {
     supabaseAuth.getSession.mockResolvedValueOnce({
       data: { session: makeSession('jamie@seald.app') },

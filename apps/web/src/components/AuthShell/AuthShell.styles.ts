@@ -1,7 +1,10 @@
 import styled from 'styled-components';
 
 export const Root = styled.div`
-  min-height: 100vh;
+  /* 100dvh (dynamic viewport height) so iOS Safari doesn't trap the form
+     under the dynamic toolbar -- 100vh measures the largest viewport
+     and the soft keyboard would push the password input below the fold. */
+  min-height: 100dvh;
   background: ${({ theme }) => theme.color.ink[50]};
   display: flex;
   font-family: ${({ theme }) => theme.font.sans};
@@ -16,6 +19,14 @@ export const FormSide = styled.div`
   justify-content: center;
   padding: 40px 24px;
   min-width: 0;
+
+  /* On phones the soft keyboard re-covers a vertically-centered form;
+     anchor to the top so the focused input reveals above the keyboard
+     and leaves the form's helper text visible. */
+  @media (max-width: 640px) {
+    justify-content: flex-start;
+    padding-top: 64px;
+  }
 `;
 
 export const FormWrap = styled.div`
@@ -26,6 +37,9 @@ export const FormWrap = styled.div`
 export const FootRow = styled.footer`
   margin-top: 32px;
   width: 100%;
+  @media (max-width: 640px) {
+    margin-top: 24px;
+  }
   max-width: 420px;
   display: flex;
   flex-wrap: wrap;
