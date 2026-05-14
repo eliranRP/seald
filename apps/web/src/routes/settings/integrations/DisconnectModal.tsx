@@ -27,7 +27,11 @@ const FOCUSABLE_SELECTOR =
 const Backdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.45);
+  /* Audit slice C #6 (MEDIUM): pulled from inline rgba(15,23,42,0.45)
+     to the shared theme.color.overlay token (driven by --overlay in
+     globalStyles + tokens.css) so every future overlay shares the same
+     scrim treatment. */
+  background: ${({ theme }) => theme.color.overlay};
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
   align-items: center;

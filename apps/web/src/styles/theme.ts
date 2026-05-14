@@ -51,6 +51,14 @@ export const seald = {
       subtle: 'var(--accent-subtle)',
       ink: '#FFFFFF',
     },
+    /**
+     * Modal backdrop / scrim token. Audit slice C #6 (MEDIUM) — promotes
+     * the previously inline `rgba(15,23,42,0.45)` literal that lived in
+     * DisconnectModal to a single source of truth shared by every
+     * future overlay (drawer scrims, confirmation dialogs, image
+     * lightboxes).
+     */
+    overlay: 'var(--overlay)',
   },
   font: {
     sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",

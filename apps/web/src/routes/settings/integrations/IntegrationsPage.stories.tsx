@@ -85,6 +85,22 @@ export const ConnectedMultiAccount: Story = {
   ),
 };
 
+// Audit slice C #4 (HIGH): visual surface for the expired-token row —
+// primary Reconnect button + amber "Reconnect required" badge + card
+// header pill flips from emerald to amber.
+const SEED_RECONNECT: GDriveAccount = {
+  ...SEED_ONE,
+  tokenStatus: 'reconnect_required',
+};
+export const ConnectedReconnectRequired: Story = {
+  name: 'Connected — token expired (Reconnect required)',
+  render: () => (
+    <Wrap accounts={[SEED_RECONNECT]}>
+      <IntegrationsPage />
+    </Wrap>
+  ),
+};
+
 // Standalone story for the modal so the destructive state can be diffed
 // in Chromatic without driving the full page through a click.
 export const DisconnectModalOpen: StoryObj<typeof DisconnectModal> = {
