@@ -63,8 +63,17 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
         try {
           const page = await doc.getPage(pageNum);
           if (cancelled) return;
-          const scale = width / page.getViewport({ scale: 1 }).width;
-          const viewport = page.getViewport({ scale });
+          // Retina-sharp render: backing store at CSS px × devicePixelRatio
+          // so a 560 CSS-px canvas rasterizes at 1120 device px on a 2×
+          // display instead of being browser-upscaled (which produced the
+          // soft-text we shipped before this fix). Cap dpr at 2 — 3× phones
+          // pay 9× memory + render cost for ~no perceived quality gain.
+          // The `width: 100%; height: auto` rule on `PdfCanvas` (see
+          // .styles.ts) keeps the CSS box at `width` px wide and lets the
+          // browser downscale the larger backing store to fit.
+          const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
+          const baseScale = width / page.getViewport({ scale: 1 }).width;
+          const viewport = page.getViewport({ scale: baseScale * dpr });
           const canvas = canvasRef.current;
           if (!canvas) return;
           const ctx = canvas.getContext('2d');
