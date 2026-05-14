@@ -39,7 +39,7 @@
     "styled-components": "6.4.1"
   },
   "devDependencies": {
-    "@eslint/js": "^10",
+    "@eslint/js": "^9",
     "@playwright/test": "^1",
     "@storybook/addon-a11y": "10.4.0",
     "@storybook/addon-docs": "10.4.0",
@@ -54,7 +54,7 @@
     "@vitejs/plugin-react-swc": "4.3.0",
     "@vitest/coverage-v8": "4.1.6",
     "chromatic": "^16",
-    "eslint": "10.3.0",
+    "eslint": "9.39.4",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-jsx-a11y": "6.10.2",
@@ -62,7 +62,7 @@
     "eslint-plugin-react-hooks": "7.1.1",
     "eslint-plugin-storybook": "10.4.0",
     "globals": "^17",
-    "jsdom": "29.1.1",
+    "jsdom": "25.0.1",
     "playwright-bdd": "^8",
     "rollup-plugin-visualizer": "^7.0.1",
     "storybook": "10.4.0",
