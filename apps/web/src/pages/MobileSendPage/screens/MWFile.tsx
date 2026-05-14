@@ -178,7 +178,7 @@ export function MWFile(props: MWFileProps) {
         {/* Slice-D §3 MEDIUM: previous copy threatened data loss
             ("closing it will discard the draft"); softened while still
             honest about the lack of draft persistence. */}
-        <NoticeText>Keep this tab open while you finish — drafts aren&apos;t saved yet.</NoticeText>
+        <NoticeText>Keep this tab open while you finish — drafts are not saved yet.</NoticeText>
       </Notice>
     </Wrap>
   );
