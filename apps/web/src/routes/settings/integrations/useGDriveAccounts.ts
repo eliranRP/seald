@@ -32,16 +32,31 @@ function isOAuthCompleteMessage(data: unknown): data is GdriveOAuthCompleteMessa
 }
 
 /**
+ * Health of the stored refresh token. Mirrors the API
+ * `GDriveTokenStatus` type — `live` means the most recent refresh
+ * attempt succeeded (or no refresh has been attempted yet);
+ * `reconnect_required` means we observed an `invalid_grant` from
+ * Google and the SPA must surface a Reconnect button instead of the
+ * default Disconnect-only row. Audit slice C #4 (HIGH).
+ */
+export type GDriveTokenStatus = 'live' | 'reconnect_required';
+
+/**
  * View model for a connected Google Drive account, mirroring the API
  * `GDriveAccountView` shape from `apps/api/src/integrations/gdrive/dto/account.dto.ts`.
  * Refresh tokens / KMS metadata never cross the wire — the backend
  * scrubs them before serializing.
+ *
+ * `tokenStatus` is optional on the wire only for forward-compat with
+ * older API responses; consumers should default to `'live'` when the
+ * field is missing.
  */
 export interface GDriveAccount {
   readonly id: string;
   readonly email: string;
   readonly connectedAt: string;
   readonly lastUsedAt: string | null;
+  readonly tokenStatus?: GDriveTokenStatus | undefined;
 }
 
 export const GDRIVE_ACCOUNTS_KEY = ['integrations', 'gdrive', 'accounts'] as const;
