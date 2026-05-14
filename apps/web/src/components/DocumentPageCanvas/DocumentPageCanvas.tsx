@@ -64,7 +64,7 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
           const page = await doc.getPage(pageNum);
           if (cancelled) return;
           // Retina-sharp render: backing store at CSS px × devicePixelRatio
-          // so a 560 CSS-px canvas rasterizes at 1120 device px on a 2×
+          // so a 560 CSS-px canvas renders at 1120 device px on a 2×
           // display instead of being browser-upscaled (which produced the
           // soft-text we shipped before this fix). Cap dpr at 2 — 3× phones
           // pay 9× memory + render cost for ~no perceived quality gain.
