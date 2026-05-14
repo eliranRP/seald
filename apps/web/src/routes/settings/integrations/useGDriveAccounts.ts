@@ -95,6 +95,29 @@ export function useConnectGDrive() {
 }
 
 /**
+ * Re-runs the Google OAuth consent flow with `prompt=consent` forced.
+ *
+ * Used as the `<DrivePicker onReconnect={…}>` handler when the picker's
+ * credentials request comes back `401 token-expired` — i.e. the stored
+ * refresh token was revoked at Google (user disconnected at Google's
+ * account settings, scope change forced a re-grant, the token expired
+ * after long inactivity, etc.). Without `prompt=consent` Google often
+ * silently re-grants without minting a fresh refresh token, leaving us
+ * stuck in the same 401 loop. Mirrors the mobile route's
+ * `reauthorizeDrive` which forces the same prompt for the same reason.
+ */
+export function useReconnectGDrive() {
+  return useMutation<void, Error, void>({
+    mutationFn: async () => {
+      const res = await apiClient.get<{ url: string }>('/integrations/gdrive/oauth/url');
+      const url = new URL(res.data.url);
+      url.searchParams.set('prompt', 'consent');
+      window.open(url.toString(), 'gdrive-oauth', POPUP_FEATURES);
+    },
+  });
+}
+
+/**
  * Bridge effect for the OAuth-callback popup landing page. The API
  * redirects the popup to `/settings/integrations?connected=1` after a
  * successful token exchange. This hook detects that landing and either:

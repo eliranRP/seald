@@ -14,7 +14,11 @@ import { pickAvailableColor } from '../features/signers/pickAvailableColor';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
 import type { ImportPhase } from '../features/gdriveImport';
-import { useConnectGDrive, useGDriveAccounts } from './settings/integrations/useGDriveAccounts';
+import {
+  useConnectGDrive,
+  useGDriveAccounts,
+  useReconnectGDrive,
+} from './settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
   getTemplates,
@@ -139,9 +143,19 @@ export function UploadRoute() {
   const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = accounts[0]?.id ?? null;
   const connectDrive = useConnectGDrive();
+  const reconnectDrive = useReconnectGDrive();
   const handleConnectDrive = useCallback((): void => {
     connectDrive.mutate();
   }, [connectDrive]);
+  // Wired into <DrivePicker onReconnect>. Picker-credentials returns 401
+  // `token-expired` when the stored refresh token was revoked; without
+  // this handler the picker silently opens + closes (Bug — user sees
+  // the 401 in DevTools and nothing in the UI). With it, the OAuth
+  // popup opens with prompt=consent so Google mints a fresh refresh
+  // token; the user can retry the picker after authorizing.
+  const handleReconnectDrive = useCallback((): void => {
+    reconnectDrive.mutate();
+  }, [reconnectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
   const [driveImportFileName, setDriveImportFileName] = useState('');
@@ -469,6 +483,7 @@ export function UploadRoute() {
           open={drivePickerOpen}
           accountId={driveAccountId}
           onClose={() => setDrivePickerOpen(false)}
+          onReconnect={handleReconnectDrive}
           onPick={(file) => {
             setDrivePickerOpen(false);
             driveImport.beginImport(file);

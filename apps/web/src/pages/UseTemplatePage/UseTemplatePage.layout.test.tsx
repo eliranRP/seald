@@ -12,6 +12,7 @@ vi.mock('../../routes/settings/integrations/useGDriveAccounts', () => ({
   useGDriveAccounts: vi.fn(),
   GDRIVE_ACCOUNTS_KEY: ['integrations', 'gdrive', 'accounts'],
   useConnectGDrive: () => ({ mutate: connectMutateMock }),
+  useReconnectGDrive: () => ({ mutate: vi.fn() }),
   useDisconnectGDrive: vi.fn(),
   useGDriveOAuthMessageListener: vi.fn(),
 }));

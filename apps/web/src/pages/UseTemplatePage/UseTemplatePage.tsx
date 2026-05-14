@@ -19,6 +19,7 @@ import { UploadPage } from '@/pages/UploadPage';
 import {
   useConnectGDrive,
   useGDriveAccounts,
+  useReconnectGDrive,
 } from '@/routes/settings/integrations/useGDriveAccounts';
 import {
   findTemplateById,
@@ -193,9 +194,15 @@ export function UseTemplatePage() {
   const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
   const driveAccountId = accounts[0]?.id ?? null;
   const connectDrive = useConnectGDrive();
+  const reconnectDrive = useReconnectGDrive();
   const handleConnectDrive = useCallback((): void => {
     connectDrive.mutate();
   }, [connectDrive]);
+  // Wired into <DrivePicker onReconnect>; see UploadRoute for the
+  // rationale (401 token-expired → silently closed picker without this).
+  const handleReconnectDrive = useCallback((): void => {
+    reconnectDrive.mutate();
+  }, [reconnectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const driveImport = useDriveImport({
     accountId: driveAccountId ?? '',
@@ -596,6 +603,7 @@ export function UseTemplatePage() {
           open={drivePickerOpen}
           accountId={driveAccountId}
           onClose={() => setDrivePickerOpen(false)}
+          onReconnect={handleReconnectDrive}
           onPick={(file) => {
             setDrivePickerOpen(false);
             driveImport.beginImport(file);

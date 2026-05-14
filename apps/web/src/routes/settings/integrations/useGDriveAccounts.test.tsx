@@ -2,7 +2,12 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useGDriveAccounts, useConnectGDrive, useDisconnectGDrive } from './useGDriveAccounts';
+import {
+  useGDriveAccounts,
+  useConnectGDrive,
+  useDisconnectGDrive,
+  useReconnectGDrive,
+} from './useGDriveAccounts';
 
 // Mock the shared apiClient — every test owns its own response set.
 vi.mock('../../../lib/api/apiClient', () => ({
@@ -85,6 +90,44 @@ describe('useConnectGDrive', () => {
       'gdrive-oauth',
       expect.stringContaining('width='),
     );
+  });
+});
+
+describe('useReconnectGDrive', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    openSpy.mockReset();
+  });
+
+  it('opens the consent URL with prompt=consent forced', async () => {
+    mockedGet.mockResolvedValueOnce({
+      data: { url: 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x' },
+      status: 200,
+    });
+    const { result } = renderHook(() => useReconnectGDrive(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+    expect(mockedGet).toHaveBeenCalledWith('/integrations/gdrive/oauth/url');
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    const opened = String(openSpy.mock.calls[0]?.[0] ?? '');
+    expect(opened).toMatch(/[?&]prompt=consent\b/);
+    expect(opened).toMatch(/client_id=x/);
+    expect(openSpy.mock.calls[0]?.[1]).toBe('gdrive-oauth');
+  });
+
+  it('overrides any pre-existing prompt param on the URL', async () => {
+    mockedGet.mockResolvedValueOnce({
+      data: { url: 'https://accounts.google.com/o/oauth2/v2/auth?prompt=none&client_id=x' },
+      status: 200,
+    });
+    const { result } = renderHook(() => useReconnectGDrive(), { wrapper });
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+    const opened = String(openSpy.mock.calls[0]?.[0] ?? '');
+    expect(opened).toMatch(/[?&]prompt=consent\b/);
+    expect(opened).not.toMatch(/[?&]prompt=none\b/);
   });
 });
 
