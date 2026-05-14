@@ -107,7 +107,8 @@
   --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 12px 28px rgba(15, 23, 42, 0.08);
   --shadow-xl: 0 8px 16px rgba(15, 23, 42, 0.06), 0 24px 56px rgba(15, 23, 42, 0.12);
   --shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.18);
-  --shadow-paper: 0 1px 0 rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.08),
+  --shadow-paper:
+    0 1px 0 rgba(15, 23, 42, 0.04), 0 10px 30px rgba(15, 23, 42, 0.08),
     0 0 0 1px rgba(15, 23, 42, 0.04);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --ease-emphasized: cubic-bezier(0.2, 0, 0, 1.15);
@@ -224,6 +225,83 @@ body {
   gap: 10px;
 }
 
+/* Hamburger trigger — hidden at ≥980 px (the breakpoint where the
+   horizontal `.nav-links` is shown). Becomes visible below it.
+   Audit E · index.astro H. */
+.nav-toggle {
+  display: none;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 32px;
+  height: 28px;
+  padding: 6px 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  margin-left: 8px;
+}
+.nav-toggle:hover {
+  border-color: var(--border-1);
+}
+.nav-toggle:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
+}
+.nav-toggle-bar {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: var(--fg-1);
+  border-radius: 2px;
+}
+.nav-toggle[aria-expanded='true'] .nav-toggle-bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+  transition: transform 160ms var(--ease-standard);
+}
+.nav-toggle[aria-expanded='true'] .nav-toggle-bar:nth-child(2) {
+  opacity: 0;
+}
+.nav-toggle[aria-expanded='true'] .nav-toggle-bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+  transition: transform 160ms var(--ease-standard);
+}
+
+/* Mobile drawer — slides out below the nav. Hidden by default; the
+   JS removes the `hidden` attribute and adds `.open` to animate in. */
+.nav-mobile-drawer {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--paper);
+  border-bottom: 1px solid var(--border-1);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  padding: 12px 20px 20px;
+  gap: 4px;
+  z-index: 49;
+}
+.nav-mobile-drawer a {
+  padding: 14px 8px;
+  color: var(--fg-1);
+  text-decoration: none;
+  font-size: 16px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-1);
+}
+.nav-mobile-drawer a:last-of-type {
+  border-bottom: none;
+}
+.nav-mobile-drawer .btn {
+  margin-top: 6px;
+  justify-content: center;
+}
+.nav-mobile-drawer .btn-ghost {
+  border-color: var(--border-1);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -332,11 +410,8 @@ body {
   position: relative;
   padding: 80px 0 64px 0;
   overflow: hidden;
-  background: radial-gradient(
-      1100px 600px at 85% -10%,
-      var(--indigo-50) 0%,
-      rgba(238, 242, 255, 0) 65%
-    ),
+  background:
+    radial-gradient(1100px 600px at 85% -10%, var(--indigo-50) 0%, rgba(238, 242, 255, 0) 65%),
     linear-gradient(180deg, #ffffff 0%, var(--ink-50) 100%);
 }
 .hero::before {
@@ -2022,8 +2097,8 @@ body {
 
 /* ===== FINAL CTA ===== */
 .cta {
-  background: radial-gradient(800px 400px at 50% 0%, var(--indigo-50) 0%, transparent 70%),
-    var(--paper);
+  background:
+    radial-gradient(800px 400px at 50% 0%, var(--indigo-50) 0%, transparent 70%), var(--paper);
   text-align: center;
   padding: 120px 0;
   position: relative;
@@ -2296,6 +2371,12 @@ footer {
   .nav-links {
     display: none;
   }
+  .nav-cta {
+    display: none;
+  }
+  .nav-toggle {
+    display: inline-flex;
+  }
 }
 @media (max-width: 600px) {
   .feat-grid {
@@ -2323,4 +2404,244 @@ footer {
   .section {
     padding: 64px 0;
   }
+}
+
+/* ============================================================
+   Legal / contact / DSAR — shared article styling.
+   ------------------------------------------------------------
+   None of the 10 legal pages, the /contact page, or /dsar had any
+   CSS before this block — body text on a 1920 px display ran edge-
+   to-edge with no max-width, no rhythm, and tables overflowed on
+   mobile. Audit E · legal/* H + contact.astro H + dsar.astro H
+   (legal pages render unstyled).
+   ============================================================ */
+.legal {
+  max-width: 760px;
+  margin: 48px auto 96px;
+  padding: 0 24px;
+  font-family: var(--font-sans);
+  color: var(--fg-2);
+}
+.legal article > header h1,
+.legal article h1 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h1);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  letter-spacing: var(--tracking-tight);
+  margin: 24px 0 12px;
+  color: var(--fg-1);
+}
+.legal article h2 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h2);
+  font-weight: 500;
+  line-height: var(--lh-snug);
+  margin: 56px 0 12px;
+  color: var(--fg-1);
+}
+.legal article h3 {
+  font-family: var(--font-serif);
+  font-size: var(--fs-h3);
+  font-weight: 500;
+  margin: 40px 0 8px;
+  color: var(--fg-1);
+}
+.legal article h4 {
+  font-size: var(--fs-h4);
+  font-weight: 600;
+  margin: 32px 0 8px;
+  color: var(--fg-1);
+}
+.legal article p,
+.legal article li {
+  font-size: var(--fs-body);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-2);
+}
+.legal article p {
+  margin: 0 0 12px;
+}
+.legal article ul,
+.legal article ol {
+  padding-left: 24px;
+  margin: 8px 0 16px;
+}
+.legal article li + li {
+  margin-top: 4px;
+}
+.legal article a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.legal article a:hover {
+  color: var(--accent-hover);
+}
+.legal article code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-sunken);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.legal article strong {
+  color: var(--fg-1);
+  font-weight: 600;
+}
+.legal article blockquote {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--border-2);
+  color: var(--fg-3);
+}
+.legal article address {
+  font-style: normal;
+  line-height: var(--lh-relaxed);
+  margin: 8px 0 16px;
+}
+.legal article section {
+  margin-top: 16px;
+}
+
+/* Definition lists — used heavily by contact / sub-processors /
+   imprint. Two-column grid so the term + definition align without
+   relying on browser-default indenting. */
+.legal article dl {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 8px 16px;
+  margin: 8px 0 16px;
+  font-size: var(--fs-body);
+}
+.legal article dt {
+  font-weight: 600;
+  color: var(--fg-1);
+}
+.legal article dd {
+  margin: 0;
+  color: var(--fg-2);
+}
+@media (max-width: 600px) {
+  .legal article dl {
+    grid-template-columns: 1fr;
+    gap: 4px 0;
+  }
+  .legal article dl dd {
+    padding-left: 16px;
+    margin-bottom: 8px;
+  }
+}
+
+/* Tables — used by cookies, sub-processors, privacy, terms, DPA.
+   The wrapper handles mobile overflow without forcing the whole page
+   to horizontally scroll. */
+.legal article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: var(--fs-body-sm);
+}
+.legal article th,
+.legal article td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-1);
+  text-align: left;
+  vertical-align: top;
+}
+.legal article th {
+  font-weight: 600;
+  color: var(--fg-1);
+  background: var(--bg-sunken);
+}
+.legal article caption {
+  text-align: left;
+  font-size: var(--fs-caption);
+  color: var(--fg-3);
+  padding: 4px 0;
+}
+
+.legal-banner {
+  background: var(--warn-50);
+  border-left: 4px solid var(--warn-500);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin: 0 0 24px;
+}
+.legal-banner p {
+  margin: 0 0 4px;
+}
+.legal-banner p:last-child {
+  margin-bottom: 0;
+}
+.legal-banner strong {
+  color: var(--warn-700);
+}
+
+.legal .meta {
+  color: var(--fg-3);
+  font-size: var(--fs-caption);
+  margin-top: 4px;
+}
+
+/* Focus rings for form controls on /dsar and /contact pages —
+   WCAG 2.4.7. Previously the scoped <style> in dsar.astro never set
+   :focus / :focus-visible, so keyboard users had no idea where the
+   ring was. Audit E · dsar.astro H. */
+.legal input:focus-visible,
+.legal select:focus-visible,
+.legal textarea:focus-visible,
+.legal button:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
+  border-color: var(--indigo-500);
+}
+
+/* DSAR help-text bumped from 12.5 px slate-500 (4.45:1 — fails WCAG
+   1.4.3 AA) to 13 px slate-700 (>=5.4:1, passes). Audit E · dsar.astro
+   M. The selector wins over the in-page scoped <style> because
+   stylesheet order favours the later cascade. */
+.legal .dsar-help {
+  font-size: var(--fs-caption);
+  color: var(--ink-700);
+}
+
+/* Inline status panel under the DSAR form. Replaces the previous
+   silent-`alert()`-then-`window.location=mailto` path which left users
+   without a default mail client (Chromebook with web-only Gmail,
+   Windows without mailto association) staring at an unchanged form.
+   Audit E · dsar.astro H (mailto failures silent). */
+.dsar-status {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: var(--fs-body-sm);
+  line-height: var(--lh-normal);
+}
+.dsar-status-error {
+  background: var(--danger-50);
+  border: 1px solid var(--danger-500);
+  color: var(--ink-900);
+}
+.dsar-status-success {
+  background: var(--success-50);
+  border: 1px solid var(--success-500);
+  color: var(--ink-900);
+}
+.dsar-status-actions {
+  margin-top: 10px;
+}
+.dsar-status-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: var(--paper);
+  border: 1px solid var(--border-1);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--fg-2);
+  max-height: 240px;
+  overflow: auto;
 }

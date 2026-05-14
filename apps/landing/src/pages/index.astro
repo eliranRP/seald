@@ -13,7 +13,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
   <nav class="nav" id="nav">
     <div class="nav-inner">
       <a class="nav-brand" href="/" aria-label="Seald — home">
-        <img src="/assets/logo.svg" alt="Seald" />
+        <img src="/assets/logo.svg" alt="Seald" width="84" height="26" />
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
@@ -25,6 +25,39 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <a href="/signin" class="btn btn-ghost">Sign in</a>
         <a href="/signup" class="btn btn-primary">Start free</a>
       </div>
+      <!--
+        Mobile menu trigger. Hidden by default; shown below 980 px
+        where `.nav-links` is hidden. Wired by /scripts/landing.js
+        which toggles `aria-expanded`, focus management, and the
+        slide-out drawer. Audit E · index.astro H (mobile nav
+        disappears with no hamburger replacement).
+      -->
+      <button
+        class="nav-toggle"
+        type="button"
+        aria-expanded="false"
+        aria-controls="nav-mobile-drawer"
+        aria-label="Open menu"
+      >
+        <span class="nav-toggle-bar" aria-hidden="true"></span>
+        <span class="nav-toggle-bar" aria-hidden="true"></span>
+        <span class="nav-toggle-bar" aria-hidden="true"></span>
+      </button>
+    </div>
+    <!-- Slide-out mobile drawer. Hidden until the toggle is pressed. -->
+    <div
+      class="nav-mobile-drawer"
+      id="nav-mobile-drawer"
+      role="region"
+      aria-label="Mobile menu"
+      hidden
+    >
+      <a href="#features">Features</a>
+      <a href="#how">How it works</a>
+      <a href="#audit">Audit trail</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/signin" class="btn btn-ghost">Sign in</a>
+      <a href="/signup" class="btn btn-primary">Start free</a>
     </div>
   </nav>
 
@@ -57,7 +90,15 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             </div>
           </div>
 
-          <div class="stage">
+          <!--
+            The hero stage SVG art (sealed-document mock + side cards)
+            is decorative. Screen-readers were previously announcing
+            "Mutual NDA — 2026.pdf", "Maya signed in 12s", and "Sealed
+            VERIFIED" as if they were content. Hide the whole stage
+            from the accessibility tree. Audit E · index.astro M (decorative
+            hero SVG missing aria-hidden).
+          -->
+          <div class="stage" role="presentation" aria-hidden="true">
             <div class="stage-inner">
               <div class="doc">
                 <div class="doc-header">
@@ -367,7 +408,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           <div class="audit-paper reveal">
             <div class="audit-paper-head">
               <div class="audit-paper-brand">
-                <img src="/assets/logo-mark.svg" alt="" />
+                <img src="/assets/logo-mark.svg" alt="" width="20" height="20" />
                 Seald
               </div>
               <span class="audit-paper-eyebrow">Audit trail · 01 / 04</span>
@@ -414,7 +455,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
     <div class="container">
       <div class="foot-grid">
         <div class="foot-brand">
-          <img src="/assets/logo.svg" alt="Seald" />
+          <img src="/assets/logo.svg" alt="Seald" width="84" height="26" />
           <p>Seald is a quieter way to sign, send, and store documents. Built for the contracts you actually care about.</p>
         </div>
         <div class="foot-col">
@@ -457,7 +498,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
                 type="button"
                 class="link-button"
                 data-testid="footer-manage-cookies"
-                onclick="window.SealdConsent && window.SealdConsent.openBanner()"
+                data-action="open-cookie-banner"
               >
                 Manage cookie preferences
               </button>
