@@ -18,16 +18,58 @@
     });
   }
 
-  // ===== Reveal on scroll =====
-  var io = new IntersectionObserver(function (entries) {
-    entries.forEach(function (e) {
-      if (e.isIntersecting) {
-        e.target.classList.add('in');
-        io.unobserve(e.target);
+  // ===== Mobile nav (hamburger) =====
+  // Audit E · index.astro H — below 980 px `.nav-links` is hidden by
+  // CSS; this wiring shows the toggle and a slide-out drawer. Closes
+  // on Escape, on outside click, and when any drawer link is clicked.
+  (function () {
+    var toggle = document.querySelector('.nav-toggle');
+    var drawer = document.getElementById('nav-mobile-drawer');
+    if (!toggle || !drawer) return;
+    function setOpen(open) {
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      if (open) {
+        drawer.removeAttribute('hidden');
+        drawer.classList.add('open');
+      } else {
+        drawer.classList.remove('open');
+        drawer.setAttribute('hidden', '');
       }
+    }
+    toggle.addEventListener('click', function () {
+      var open = toggle.getAttribute('aria-expanded') === 'true';
+      setOpen(!open);
     });
-  }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
-  document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+    drawer.querySelectorAll('a').forEach(function (a) {
+      a.addEventListener('click', function () { setOpen(false); });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') setOpen(false);
+    });
+  })();
+
+  // ===== Reveal on scroll =====
+  // Failsafe: if IntersectionObserver isn't available (old UA, polyfill
+  // never loaded) OR the observer constructor throws for any reason,
+  // immediately mark every .reveal as `.in` so sections become visible.
+  // Without this fallback the homepage was invisible below the hero
+  // whenever JS execution was disturbed. Audit E · index.astro H
+  // (.reveal{opacity:0}).
+  try {
+    if (typeof IntersectionObserver !== 'function') throw new Error('no IO');
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) {
+          e.target.classList.add('in');
+          io.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -60px 0px' });
+    document.querySelectorAll('.reveal').forEach(function (el) { io.observe(el); });
+  } catch (_) {
+    document.querySelectorAll('.reveal').forEach(function (el) { el.classList.add('in'); });
+  }
 
   // ===== Trust counters =====
   var counters = document.querySelectorAll('[data-count]');

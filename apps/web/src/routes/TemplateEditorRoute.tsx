@@ -103,6 +103,19 @@ const PageBody = styled.div`
 `;
 
 /**
+ * Quiet placeholder while pdf.js parses + we bootstrap the draft.
+ * Replaces an inline-styled <div> that hard-coded the raw `#64748B`
+ * hex — the only raw-hex bypass in the sender flow. Uses theme spacing
+ * + fg-3 tokens so the placeholder stays in step with the rest of the
+ * surface. Audit A · TemplateEditorRoute M-22.
+ */
+const EditorBootstrapPlaceholder = styled.div`
+  padding: ${({ theme }) => theme.space[12]};
+  text-align: center;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/**
  * Step 3 of the templates wizard. Replaces the global app NavBar with
  * the TemplateFlowHeader (Back / mode pill / template name / step
  * pills / cancel) — the entire flow from Step 1 → Step 3 shares a
@@ -877,11 +890,13 @@ export function TemplateEditorRoute() {
         ) : null}
 
         {!ready ? (
-          <div role="status" style={{ padding: 48, textAlign: 'center', color: '#64748B' }}>
-            {/* Quiet placeholder while pdf.js parses + we bootstrap the
-              draft. The DocumentPage will replace this once `ready`. */}
-            {user ? 'Preparing your template…' : ''}
-          </div>
+          <EditorBootstrapPlaceholder role="status">
+            {/* Render the bootstrap copy for both authed users and
+              guests — guests arriving via a template share link were
+              previously shown nothing here (the editor looked frozen)
+              because the copy was gated on `user`. Audit A · L-23. */}
+            {user || guest ? 'Preparing your template…' : ''}
+          </EditorBootstrapPlaceholder>
         ) : null}
       </PageBody>
 

@@ -1,45 +1,50 @@
 import styled, { keyframes } from 'styled-components';
 
+/**
+ * Mobile breakpoint for the templates list. Below this width we tighten
+ * the page padding so cards don't get clipped on phones. Matches the
+ * DashboardPage breakpoint so both L4 sender pages share one rhythm.
+ */
+const MOBILE = '768px';
+
 export const Main = styled.div`
   flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
-  padding: 40px 48px 80px;
+  padding: ${({ theme }) => theme.space[10]} ${({ theme }) => theme.space[12]}
+    ${({ theme }) => theme.space[20]};
+
+  @media (max-width: ${MOBILE}) {
+    padding: ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[4]}
+      ${({ theme }) => theme.space[12]};
+  }
 `;
 
+/**
+ * Page-content container. Previously missing `margin: 0 auto`, which
+ * left content hugging the left page edge at viewports ≥1320 px and
+ * created the visible misalignment versus DashboardPage. Standardized
+ * on the same 1280 px max-width DashboardPage uses so the three L4
+ * list pages (Dashboard / Contacts / Templates) share one width.
+ * Audit A · TemplatesListPage H-8 / TOP-1.
+ */
 export const Inner = styled.div`
-  max-width: 1320px;
+  max-width: 1280px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
 `;
 
 /* ============================================================
- * Header (serif title + Lede + primary CTA)
+ * Header (eyebrow + serif title + lede + primary CTA)
+ *
+ * The bespoke HeaderTitle / Lede / HeaderRow combo was replaced with
+ * the shared `PageHeader` component in the .tsx so the page uses the
+ * canonical 36/48 px title scale instead of the off-scale 32 px.
+ * The exports below are retained as no-op aliases for any legacy
+ * imports (none in the live tree); the empty-state card now uses
+ * EmptyStateTitle / EmptyStateLede instead.
  * ============================================================ */
-
-export const HeaderRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-`;
-
-export const HeaderTitle = styled.h1`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: 32px;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.fg[1]};
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin: 0;
-`;
-
-export const Lede = styled.p`
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
 
 /* ============================================================
  * Toolbar — tag filter, active-tag chips, group toggle, search
@@ -48,8 +53,9 @@ export const Lede = styled.p`
 export const Toolbar = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: ${({ theme }) => theme.space[3]};
+  margin-bottom: ${({ theme }) => theme.space[5]};
+  margin-top: ${({ theme }) => theme.space[6]};
   flex-wrap: wrap;
 `;
 
@@ -60,8 +66,8 @@ export const ToolbarSpacer = styled.div`
 export const GroupToggleLabel = styled.label`
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12.5px;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
   cursor: pointer;
   user-select: none;
@@ -75,10 +81,10 @@ export const GroupToggleLabel = styled.label`
 export const SearchBox = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: ${({ theme }) => theme.space[2]};
+  padding: ${({ theme }) => `${theme.space[1]} ${theme.space[3]}`};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: 10px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.paper};
   width: 240px;
 
@@ -87,9 +93,10 @@ export const SearchBox = styled.div`
     border: none;
     outline: none;
     background: transparent;
-    font-size: 13px;
+    font-size: ${({ theme }) => theme.font.size.caption};
     font-family: inherit;
     color: ${({ theme }) => theme.color.fg[1]};
+    padding: ${({ theme }) => `${theme.space[1]} 0`};
   }
 
   & > input::placeholder {
@@ -104,10 +111,11 @@ export const SearchBox = styled.div`
 export const ActiveTagPill = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 4px 4px 10px;
+  gap: ${({ theme }) => theme.space[1]};
+  padding: ${({ theme }) =>
+    `${theme.space[1]} ${theme.space[1]} ${theme.space[1]} ${theme.space[3]}`};
   border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 11.5px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   font-weight: ${({ theme }) => theme.font.weight.bold};
   letter-spacing: 0.02em;
   background: ${({ $bg }) => $bg};
@@ -130,7 +138,7 @@ export const ActiveTagRemove = styled.button`
 `;
 
 export const ActiveTagOverflow = styled.span`
-  font-size: 11.5px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   color: ${({ theme }) => theme.color.fg[3]};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
 `;
@@ -142,30 +150,30 @@ export const ActiveTagOverflow = styled.span`
 export const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 18px;
+  gap: ${({ theme }) => theme.space[5]};
 `;
 
 export const GroupSection = styled.section`
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: ${({ theme }) => theme.space[4]};
 
   & + & {
-    margin-top: 32px;
+    margin-top: ${({ theme }) => theme.space[8]};
   }
 `;
 
 export const GroupHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: ${({ theme }) => theme.space[3]};
 `;
 
 export const GroupTagPill = styled.span<{ $bg: string; $fg: string }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: ${({ theme }) => theme.space[1]};
+  padding: ${({ theme }) => `${theme.space[1]} ${theme.space[3]}`};
   border-radius: ${({ theme }) => theme.radius.pill};
   font-size: 12px;
   font-weight: ${({ theme }) => theme.font.weight.bold};
@@ -194,18 +202,69 @@ export const GroupRule = styled.div`
 `;
 
 /* ============================================================
- * Empty state
+ * Empty state — used both for the "no matches" panel inside a
+ * filtered view AND for the centered first-run "Create your first
+ * template" card. Audit A · TemplatesListPage M-11.
  * ============================================================ */
 
 export const EmptyState = styled.div`
-  margin-top: 16px;
-  padding: 40px 16px;
+  margin-top: ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => `${theme.space[10]} ${theme.space[4]}`};
   border: 1px dashed ${({ theme }) => theme.color.border[2]};
-  border-radius: 14px;
+  border-radius: ${({ theme }) => theme.radius.lg};
   background: ${({ theme }) => theme.color.paper};
   text-align: center;
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/**
+ * First-run welcome card rendered when the user has no templates
+ * AND no active filter. Replaces the previous "single 'New template'
+ * tile in the grid + duplicate 'New template' button in the header"
+ * which read as a strange one-card grid. Audit A · TemplatesListPage
+ * M-11.
+ */
+export const FirstRunCard = styled.section`
+  margin: ${({ theme }) => `${theme.space[8]} auto 0`};
+  max-width: 560px;
+  padding: ${({ theme }) => `${theme.space[12]} ${theme.space[8]}`};
+  border: 1px dashed ${({ theme }) => theme.color.indigo[300]};
+  border-radius: ${({ theme }) => theme.radius.xl};
+  background: ${({ theme }) => theme.color.paper};
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
+export const FirstRunIcon = styled.span`
+  width: 64px;
+  height: 64px;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  color: ${({ theme }) => theme.color.indigo[700]};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+export const FirstRunTitle = styled.h2`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.h4};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[1]};
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
+`;
+
+export const FirstRunLede = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+  max-width: 40ch;
 `;
 
 /* ============================================================
@@ -217,15 +276,15 @@ export const CreateCard = styled.button`
   cursor: pointer;
   background: ${({ theme }) => theme.color.paper};
   border: 1.5px dashed ${({ theme }) => theme.color.indigo[300]};
-  border-radius: 16px;
-  padding: 14px;
+  border-radius: ${({ theme }) => theme.radius.lg};
+  padding: ${({ theme }) => theme.space[4]};
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: ${({ theme }) => theme.space[3]};
   transition:
-    border-color 140ms ease,
-    background 140ms ease,
-    transform 140ms ease;
+    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
+    background ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
+    transform ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
 
   &:hover,
   &:focus-visible {
@@ -240,7 +299,7 @@ export const CreateThumb = styled.div`
   width: 100%;
   aspect-ratio: 4 / 3;
   background: ${({ theme }) => theme.color.indigo[50]};
-  border-radius: 12px;
+  border-radius: ${({ theme }) => theme.radius.md};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -249,7 +308,7 @@ export const CreateThumb = styled.div`
 export const CreateBadge = styled.span`
   width: 54px;
   height: 54px;
-  border-radius: 14px;
+  border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.paper};
   color: ${({ theme }) => theme.color.indigo[700]};
   display: inline-flex;
@@ -259,13 +318,13 @@ export const CreateBadge = styled.span`
 `;
 
 export const CreateBody = styled.div`
-  padding: 2px 4px 4px;
+  padding: ${({ theme }) => `${theme.space[1]} ${theme.space[1]} ${theme.space[1]}`};
   text-align: left;
 `;
 
 export const CreateTitle = styled.div`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 18px;
+  font-size: ${({ theme }) => theme.font.size.h5};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.01em;
@@ -274,7 +333,7 @@ export const CreateTitle = styled.div`
 export const CreateSub = styled.div`
   font-size: 12px;
   color: ${({ theme }) => theme.color.fg[3]};
-  margin-top: 3px;
+  margin-top: ${({ theme }) => theme.space[1]};
 `;
 
 /* ============================================================
@@ -294,29 +353,29 @@ export const ModalBackdrop = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  animation: ${fadeIn} 160ms ease-out;
+  padding: ${({ theme }) => theme.space[6]};
+  animation: ${fadeIn} 160ms ${({ theme }) => theme.motion.easeDecelerate};
 `;
 
 export const ModalCard = styled.div`
   width: 460px;
   max-width: 100%;
   background: ${({ theme }) => theme.color.paper};
-  border-radius: 18px;
+  border-radius: ${({ theme }) => theme.radius.xl};
   box-shadow: ${({ theme }) => theme.shadow.lg};
-  padding: 28px 28px 22px;
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[8]} ${theme.space[6]}`};
 `;
 
 export const ModalHead = styled.div`
   display: flex;
   align-items: flex-start;
-  gap: 14px;
+  gap: ${({ theme }) => theme.space[4]};
 `;
 
 export const ModalIcon = styled.div`
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.danger[50]};
   color: ${({ theme }) => theme.color.danger[700]};
   display: inline-flex;
@@ -327,37 +386,37 @@ export const ModalIcon = styled.div`
 
 export const ModalTitle = styled.h2`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 22px;
+  font-size: ${({ theme }) => theme.font.size.h4};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: ${({ theme }) => theme.font.lineHeight.snug};
   margin: 0;
 `;
 
 export const ModalBody = styled.p`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  margin: 6px 0 0;
-  line-height: 1.5;
+  margin: ${({ theme }) => `${theme.space[1]} 0 0`};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
 
 export const ModalFooter = styled.div`
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  margin-top: 22px;
+  gap: ${({ theme }) => theme.space[2]};
+  margin-top: ${({ theme }) => theme.space[6]};
 `;
 
 export const ModalCancelButton = styled.button`
   background: transparent;
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   color: ${({ theme }) => theme.color.fg[1]};
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   cursor: pointer;
-  padding: 9px 16px;
-  border-radius: 10px;
+  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  border-radius: ${({ theme }) => theme.radius.sm};
   font-family: inherit;
 `;
 
@@ -365,14 +424,14 @@ export const ModalDeleteButton = styled.button`
   background: ${({ theme }) => theme.color.danger[700]};
   color: ${({ theme }) => theme.color.fg.inverse};
   border: none;
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   cursor: pointer;
-  padding: 9px 16px;
-  border-radius: 10px;
+  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  border-radius: ${({ theme }) => theme.radius.sm};
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[1]};
   font-family: inherit;
 
   &:hover,

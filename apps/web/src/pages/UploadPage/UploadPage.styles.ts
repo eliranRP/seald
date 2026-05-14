@@ -27,6 +27,15 @@ export const Main = styled.main`
   overflow: auto;
   padding: ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]}
     ${({ theme }) => theme.space[20]};
+
+  /* Responsive page padding. The desktop 48/48/80 padding crushes
+     content on small viewports. Mirrors DashboardPage's MOBILE breakpoint
+     so the two L4 sender surfaces share one rhythm. Audit A · UploadPage
+     M-5. */
+  @media (max-width: 768px) {
+    padding: ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[4]}
+      ${({ theme }) => theme.space[12]};
+  }
 `;
 
 export const Inner = styled.div`
@@ -35,6 +44,20 @@ export const Inner = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[8]};
+`;
+
+/**
+ * Heading block — the page's "Start a new document" title + subtitle.
+ * Centered so it visually balances over the 960 px dropzone instead of
+ * sitting in a misaligned two-column with empty whitespace to the right.
+ * Audit A · UploadPage H-1.
+ */
+export const HeadingBlock = styled.div`
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
 export const Heading = styled.h1`
@@ -47,12 +70,18 @@ export const Heading = styled.h1`
   margin: 0;
 `;
 
+/**
+ * Subtitle below the heading. Previously had `max-width: 58ch` which —
+ * combined with the heading sitting at the 960 px Inner's left edge —
+ * read as an unbalanced two-column. Now centered with no width cap so
+ * it flows naturally below the (centered) heading. Audit A · UploadPage
+ * H-1.
+ */
 export const Subtitle = styled.p`
   margin: 0;
   font-size: ${({ theme }) => theme.font.size.body};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[3]};
-  max-width: 58ch;
 `;
 
 export const Dropzone = styled.div<{ readonly $dragging: boolean }>`
@@ -317,15 +346,21 @@ export const TemplateBannerClear = styled.button`
   }
 `;
 
+/**
+ * Secondary-actions row below the primary "Choose file" button. Uses
+ * theme spacing tokens instead of the previous raw 22/22/10 px so the
+ * row obeys the rest of the page's 4 px-grid rhythm. Audit A · UploadPage
+ * L-6.
+ */
 export const TemplatePromptDivider = styled.div`
-  margin-top: 22px;
-  padding-top: 22px;
+  margin-top: ${({ theme }) => theme.space[5]};
+  padding-top: ${({ theme }) => theme.space[5]};
   border-top: 1px dashed ${({ theme }) => theme.color.border[2]};
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 

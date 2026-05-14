@@ -845,17 +845,19 @@ describe('VerifyPage', () => {
   // Two long-running keyframe animations: the verdict mark's pulsing ring
   // (`pulse`) and the loading skeleton (`skeleton-shimmer`). Both must be
   // disabled inside `@media (prefers-reduced-motion: reduce)`.
-  // styled-components only injects a styled component's rules once the
-  // component mounts. The loading branch mounts SkeletonBlock; the success
-  // branch mounts VerdictMark. Resolving the query exercises both code paths
-  // (the loading skeleton flashes in render #1 before the success view in
-  // render #2), so a single render after success has both rule blocks in the
-  // global stylesheet.
   it('disables the verdict pulse + skeleton shimmer animations under prefers-reduced-motion', async () => {
+    // Render the completed/sealed view first so VerdictMark (which owns the
+    // `pulse` animation + reduce guard) is registered with styled-components.
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
+    const SealedWrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: SealedWrapper });
     await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
+
+    // Then render the loading view so SkeletonBlock (which owns the
+    // `skeleton-shimmer` animation + reduce guard) is also registered.
+    get.mockReturnValueOnce(new Promise(() => {}));
+    const LoadingWrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: LoadingWrapper });
 
     // styled-components serialises every <style> block it has injected.
     const collected = Array.from(document.querySelectorAll('style'))

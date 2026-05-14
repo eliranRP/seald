@@ -26,10 +26,16 @@ function renderPage() {
 }
 
 describe('TemplatesListPage', () => {
-  it('renders the "Templates" heading + lede + one card per template', () => {
+  it('renders the "Templates" eyebrow + heading + one card per template', () => {
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: /^templates$/i })).toBeInTheDocument();
-    expect(screen.getByText(/place fields once\. reuse forever\./i)).toBeInTheDocument();
+    // The shared PageHeader puts "Templates" in the eyebrow slot and
+    // the "Place fields once…" lede as the H1, matching the standard
+    // PageHeader pattern across DashboardPage / ContactsPage.
+    // (Audit A · TemplatesListPage M-10).
+    expect(screen.getByText(/^templates$/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 1, name: /place fields once\. reuse forever\./i }),
+    ).toBeInTheDocument();
     for (const t of TEMPLATES) {
       expect(screen.getByRole('heading', { level: 3, name: t.name })).toBeInTheDocument();
     }

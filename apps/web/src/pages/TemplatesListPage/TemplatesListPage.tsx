@@ -3,6 +3,7 @@ import { Plus, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { PageHeader } from '@/components/PageHeader';
 import { TagEditorPopover } from '@/components/TagEditorPopover';
 import { TemplateCard } from '@/components/TemplateCard';
 import {
@@ -30,6 +31,10 @@ import {
   CreateThumb,
   CreateTitle,
   EmptyState,
+  FirstRunCard,
+  FirstRunIcon,
+  FirstRunLede,
+  FirstRunTitle,
   Grid,
   GroupCount,
   GroupHeader,
@@ -38,10 +43,7 @@ import {
   GroupTagDot,
   GroupTagPill,
   GroupToggleLabel,
-  HeaderRow,
-  HeaderTitle,
   Inner,
-  Lede,
   Main,
   ModalBackdrop,
   ModalBody,
@@ -329,138 +331,165 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     </CreateCard>
   );
 
+  // First-run: no templates AND no active filter. Show a single
+  // centered welcome card with one CTA. Previously the page rendered
+  // the "New template" tile inside an otherwise-empty grid AND the
+  // "New template" header button — two duplicate CTAs that read as a
+  // strange one-card grid. Audit A · TemplatesListPage M-11.
+  const isFirstRun = templates.length === 0 && !isFiltered;
+
   return (
     <Main>
       <Inner>
-        <HeaderRow>
-          <div>
-            <HeaderTitle>Templates</HeaderTitle>
-            <Lede>Place fields once. Reuse forever.</Lede>
-          </div>
-          <Button
-            variant="primary"
-            iconLeft={Plus}
-            onClick={handleCreate}
-            style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            New template
-          </Button>
-        </HeaderRow>
-
-        <Toolbar>
-          <TagFilterMenu
-            allTags={allTags}
-            counts={tagCounts}
-            selected={activeTags}
-            onToggle={toggleActiveTag}
-            onClear={clearActiveTags}
-          />
-
-          {activeTags.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {activeTags.slice(0, ACTIVE_TAG_VISIBLE).map((tag) => {
-                const tagColor = tagColorFor(tag);
-                return (
-                  <ActiveTagPill key={tag} $bg={tagColor.bg} $fg={tagColor.fg}>
-                    {tag}
-                    <ActiveTagRemove
-                      type="button"
-                      aria-label={`Remove ${tag} filter`}
-                      onClick={() => toggleActiveTag(tag)}
-                    >
-                      <Icon icon={X} size={10} />
-                    </ActiveTagRemove>
-                  </ActiveTagPill>
-                );
+        <PageHeader
+          eyebrow="Templates"
+          title="Place fields once. Reuse forever."
+          {...(isFirstRun
+            ? {}
+            : {
+                actions: (
+                  <Button variant="primary" iconLeft={Plus} onClick={handleCreate}>
+                    New template
+                  </Button>
+                ),
               })}
-              {activeTags.length > ACTIVE_TAG_VISIBLE ? (
-                <ActiveTagOverflow>
-                  +{activeTags.length - ACTIVE_TAG_VISIBLE} more
-                </ActiveTagOverflow>
+        />
+
+        {isFirstRun ? (
+          <FirstRunCard role="region" aria-label="Welcome to templates">
+            <FirstRunIcon aria-hidden>
+              <Icon icon={Plus} size={28} />
+            </FirstRunIcon>
+            <FirstRunTitle>No templates yet</FirstRunTitle>
+            <FirstRunLede>
+              Save a layout once and reuse it for every contract that follows the same shape.
+            </FirstRunLede>
+            <Button variant="primary" iconLeft={Plus} onClick={handleCreate}>
+              Create your first template
+            </Button>
+          </FirstRunCard>
+        ) : null}
+
+        {isFirstRun ? null : (
+          <>
+            <Toolbar>
+              <TagFilterMenu
+                allTags={allTags}
+                counts={tagCounts}
+                selected={activeTags}
+                onToggle={toggleActiveTag}
+                onClear={clearActiveTags}
+              />
+
+              {activeTags.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {activeTags.slice(0, ACTIVE_TAG_VISIBLE).map((tag) => {
+                    const tagColor = tagColorFor(tag);
+                    return (
+                      <ActiveTagPill key={tag} $bg={tagColor.bg} $fg={tagColor.fg}>
+                        {tag}
+                        <ActiveTagRemove
+                          type="button"
+                          aria-label={`Remove ${tag} filter`}
+                          onClick={() => toggleActiveTag(tag)}
+                        >
+                          <Icon icon={X} size={10} />
+                        </ActiveTagRemove>
+                      </ActiveTagPill>
+                    );
+                  })}
+                  {activeTags.length > ACTIVE_TAG_VISIBLE ? (
+                    <ActiveTagOverflow>
+                      +{activeTags.length - ACTIVE_TAG_VISIBLE} more
+                    </ActiveTagOverflow>
+                  ) : null}
+                </div>
               ) : null}
-            </div>
-          ) : null}
 
-          <ToolbarSpacer />
+              <ToolbarSpacer />
 
-          <GroupToggleLabel>
-            <input
-              type="checkbox"
-              checked={groupByTag}
-              onChange={(e) => setGroupByTag(e.target.checked)}
-            />
-            Group by tag
-          </GroupToggleLabel>
-
-          <SearchBox>
-            <Icon icon={Search} size={14} aria-hidden />
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name or tag"
-              aria-label="Search by name or tag"
-            />
-          </SearchBox>
-        </Toolbar>
-
-        {groupByTag && grouped ? (
-          <>
-            {grouped.length === 0 ? (
-              <EmptyState role="status">No templates match your filter.</EmptyState>
-            ) : null}
-            {grouped.map((g) => {
-              const groupColor = tagColorFor(g.tag);
-              return (
-                <GroupSection key={g.tag}>
-                  <GroupHeader>
-                    <GroupTagPill $bg={groupColor.bg} $fg={groupColor.fg}>
-                      <GroupTagDot $color={groupColor.fg} aria-hidden />
-                      {g.tag}
-                    </GroupTagPill>
-                    <GroupCount>{g.items.length}</GroupCount>
-                    <GroupRule aria-hidden />
-                  </GroupHeader>
-                  <Grid>
-                    {g.items.map((t) => (
-                      <TemplateCard
-                        key={`${g.tag}-${t.id}`}
-                        template={t}
-                        onUse={handleUse}
-                        onEdit={handleEdit}
-                        onDelete={handleConfirmDelete}
-                        onDuplicate={handleDuplicate}
-                        onTagClick={(tag) => toggleActiveTag(tag)}
-                        onEditTags={(tpl) => setEditTagsFor(tpl)}
-                      />
-                    ))}
-                  </Grid>
-                </GroupSection>
-              );
-            })}
-          </>
-        ) : (
-          <>
-            <Grid>
-              {newTemplateTile}
-              {filtered.map((t) => (
-                <TemplateCard
-                  key={t.id}
-                  template={t}
-                  onUse={handleUse}
-                  onEdit={handleEdit}
-                  onDelete={handleConfirmDelete}
-                  onDuplicate={handleDuplicate}
-                  onTagClick={(tag) => toggleActiveTag(tag)}
-                  onEditTags={(tpl) => setEditTagsFor(tpl)}
+              <GroupToggleLabel>
+                <input
+                  type="checkbox"
+                  checked={groupByTag}
+                  onChange={(e) => setGroupByTag(e.target.checked)}
                 />
-              ))}
-            </Grid>
-            {filtered.length === 0 && (query || isFiltered) ? (
-              <EmptyState role="status">
-                {query ? `No templates match "${query}".` : 'No templates match the selected tags.'}
-              </EmptyState>
-            ) : null}
+                Group by tag
+              </GroupToggleLabel>
+
+              <SearchBox>
+                <Icon icon={Search} size={14} aria-hidden />
+                <input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search by name or tag"
+                  aria-label="Search by name or tag"
+                />
+              </SearchBox>
+            </Toolbar>
+
+            {groupByTag && grouped ? (
+              <>
+                {grouped.length === 0 ? (
+                  <EmptyState role="status">No templates match your filter.</EmptyState>
+                ) : null}
+                {grouped.map((g) => {
+                  const groupColor = tagColorFor(g.tag);
+                  return (
+                    <GroupSection key={g.tag}>
+                      <GroupHeader>
+                        <GroupTagPill $bg={groupColor.bg} $fg={groupColor.fg}>
+                          <GroupTagDot $color={groupColor.fg} aria-hidden />
+                          {g.tag}
+                        </GroupTagPill>
+                        <GroupCount>{g.items.length}</GroupCount>
+                        <GroupRule aria-hidden />
+                      </GroupHeader>
+                      <Grid>
+                        {g.items.map((t) => (
+                          <TemplateCard
+                            key={`${g.tag}-${t.id}`}
+                            template={t}
+                            onUse={handleUse}
+                            onEdit={handleEdit}
+                            onDelete={handleConfirmDelete}
+                            onDuplicate={handleDuplicate}
+                            onTagClick={(tag) => toggleActiveTag(tag)}
+                            onEditTags={(tpl) => setEditTagsFor(tpl)}
+                          />
+                        ))}
+                      </Grid>
+                    </GroupSection>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                <Grid>
+                  {newTemplateTile}
+                  {filtered.map((t) => (
+                    <TemplateCard
+                      key={t.id}
+                      template={t}
+                      onUse={handleUse}
+                      onEdit={handleEdit}
+                      onDelete={handleConfirmDelete}
+                      onDuplicate={handleDuplicate}
+                      onTagClick={(tag) => toggleActiveTag(tag)}
+                      onEditTags={(tpl) => setEditTagsFor(tpl)}
+                    />
+                  ))}
+                </Grid>
+                {filtered.length === 0 && (query || isFiltered) ? (
+                  <EmptyState role="status">
+                    {query
+                      ? `No templates match "${query}".`
+                      : 'No templates match the selected tags.'}
+                  </EmptyState>
+                ) : null}
+              </>
+            )}
           </>
         )}
       </Inner>
