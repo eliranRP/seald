@@ -102,8 +102,8 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       jose:
-        specifier: ^5.9.0
-        version: 5.10.0
+        specifier: ^6.2.3
+        version: 6.2.3
       kysely:
         specifier: ^0.28.17
         version: 0.28.17
@@ -6048,8 +6048,8 @@ packages:
       node-notifier:
         optional: true
 
-  jose@5.10.0:
-    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
+  jose@6.2.3:
+    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   js-md4@0.3.2:
     resolution: {integrity: sha512-/GDnfQYsltsjRswQhN9fhv3EMw2sCpUdrdxyWDOUK7eyD++r3gRhzgiQgc/x4MAv2i1iuQ4lxO5mvqM3vj4bwA==}
@@ -16079,7 +16079,7 @@ snapshots:
       - supports-color
       - ts-node
 
-  jose@5.10.0: {}
+  jose@6.2.3: {}
 
   js-md4@0.3.2: {}
 
