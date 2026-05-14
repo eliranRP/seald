@@ -21,7 +21,7 @@ export const Card = styled.div`
 
 export const Title = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 28px;
+  font-size: ${({ theme }) => theme.font.size.h3};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   margin: 0;
@@ -39,9 +39,32 @@ export { Spinner } from '@/components/shared/Spinner';
 
 export const MailtoLink = styled.a`
   display: inline-block;
-  margin-top: ${({ theme }) => theme.space[5]};
+  margin-top: ${({ theme }) => theme.space[3]};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.indigo[600]};
   text-decoration: none;
+`;
+
+/**
+ * Item 1 — recoverable-error retry. Rendered for `rate-limit` + `generic`
+ * states where the signer can usefully reload the link without involving
+ * support. Mirrors the `Start signing` primary button pattern from
+ * `SigningPrepPage` (theme.color.ink[900] background, theme.radius.md).
+ */
+export const TryAgainBtn = styled.button`
+  margin-top: ${({ theme }) => theme.space[5]};
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
 `;

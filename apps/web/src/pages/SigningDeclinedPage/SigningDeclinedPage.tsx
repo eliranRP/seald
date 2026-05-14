@@ -22,8 +22,11 @@ const IconBadge = styled.div`
   width: 88px;
   height: 88px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.ink[150]};
-  color: ${({ theme }) => theme.color.fg[2]};
+  /* Item 26 — danger[50]/danger[700] pair so the badge reads as
+     "stopped state" at a glance instead of the previous grey-on-grey
+     that blended into the page chrome. */
+  background: ${({ theme }) => theme.color.danger[50]};
+  color: ${({ theme }) => theme.color.danger[700]};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -32,7 +35,8 @@ const IconBadge = styled.div`
 
 const Hero = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 36px;
+  /* Item 25 — 36px matches theme.font.size.h2 exactly. */
+  font-size: ${({ theme }) => theme.font.size.h2};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.02em;
@@ -45,6 +49,18 @@ const Body = styled.p`
   color: ${({ theme }) => theme.color.fg[3]};
   margin: ${({ theme }) => theme.space[4]} 0 0;
   line-height: 1.6;
+`;
+
+/**
+ * Item 24 — finality / sender-notified copy. A separate paragraph
+ * (instead of a sentence appended to Body) so screen-readers register
+ * it as its own discrete reading unit.
+ */
+const Finality = styled.p`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+  margin: ${({ theme }) => theme.space[4]} 0 0;
+  line-height: 1.5;
 `;
 
 const ExitBtn = styled.button`
@@ -60,6 +76,35 @@ const ExitBtn = styled.button`
 `;
 
 /**
+ * Item 23 — copy variants. `consent-withdrawn` is the ESIGN §7001(c)(1)
+ * path; `not-the-recipient` covers the "wrong recipient?" handoff; the
+ * default decline covers everything else (including older snapshots
+ * that don't carry `decline_reason`).
+ */
+function bodyCopyFor(
+  reason: string | undefined,
+  senderName: string | null,
+): { readonly heading: string; readonly body: string } {
+  const senderClause = senderName ? `We've let ${senderName} know.` : "We've let the sender know.";
+  if (reason === 'consent-withdrawn') {
+    return {
+      heading: 'You withdrew consent to sign electronically.',
+      body: `${senderClause} We've recorded the withdrawal in the audit trail.`,
+    };
+  }
+  if (reason === 'not-the-recipient') {
+    return {
+      heading: 'Thanks — we marked this link as the wrong recipient.',
+      body: `${senderClause} They can send a fresh link to the right person.`,
+    };
+  }
+  return {
+    heading: 'You declined this request.',
+    body: `${senderClause} No further action needed.`,
+  };
+}
+
+/**
  * `/sign/:envelopeId/declined` — terminal state after the recipient declines.
  * Reads the sessionStorage snapshot; missing → route to entry.
  */
@@ -73,18 +118,17 @@ export function SigningDeclinedPage() {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
 
+  const copy = bodyCopyFor(snap.decline_reason, snap.sender_name);
+
   return (
     <Page>
       <Inner>
         <IconBadge>
           <Icon icon={XCircle} size={42} />
         </IconBadge>
-        <Hero>You declined this request.</Hero>
-        <Body>
-          {snap.sender_name
-            ? `We've let ${snap.sender_name} know. No further action needed.`
-            : "We've let the sender know. No further action needed."}
-        </Body>
+        <Hero>{copy.heading}</Hero>
+        <Body>{copy.body}</Body>
+        <Finality>This decision is final. The sender has been notified.</Finality>
         <ExitBtn type="button" onClick={() => navigate('/')}>
           Take me out
         </ExitBtn>

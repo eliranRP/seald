@@ -29,6 +29,10 @@ export const Chip = styled.div`
 
 export const Hero = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
+  /* Item 8 — design-spec hero is 40px (between theme.font.size.h2 36px and
+     h1 48px); the signer-flow uses this size across prep / done. The theme
+     does not currently expose a hero token so we pin the literal here,
+     mirrored in SigningDonePage.tsx so the two heroes stay in lock-step. */
   font-size: 40px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
@@ -79,17 +83,6 @@ export const IdEmail = styled.div`
   margin-top: 2px;
 `;
 
-export const NotMe = styled.button`
-  background: transparent;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  padding: 6px 12px;
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[2]};
-  cursor: pointer;
-`;
-
 export const TosRow = styled.label`
   display: flex;
   align-items: flex-start;
@@ -109,6 +102,14 @@ export const Checkbox = styled.input`
   margin-top: 1px;
   accent-color: ${({ theme }) => theme.color.ink[900]};
   cursor: pointer;
+  /* Item 6 — keyboard users get a clear focus indicator instead of the
+     barely-visible global 2px outline at 18×18. Mirrors the SignatureCapture
+     close button so the disclosure / access checkboxes share the visual
+     vocabulary used everywhere else. */
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
 `;
 
 export const PrimaryBtn = styled.button`
@@ -133,17 +134,21 @@ export const PrimaryBtn = styled.button`
 `;
 
 export const DeclineLink = styled.button`
-  margin-top: ${({ theme }) => theme.space[4]};
   background: transparent;
   border: none;
   color: ${({ theme }) => theme.color.fg[3]};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  text-align: center;
+  text-align: left;
   display: block;
   width: 100%;
+  padding: 8px 0;
   cursor: pointer;
   text-decoration: underline;
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 `;
 
 /**
@@ -152,18 +157,129 @@ export const DeclineLink = styled.button`
  * the two terminal actions are visually paired.
  */
 export const WithdrawLink = styled.button`
-  margin-top: ${({ theme }) => theme.space[2]};
   background: transparent;
   border: none;
   color: ${({ theme }) => theme.color.fg[3]};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.regular};
-  text-align: center;
+  text-align: left;
   display: block;
   width: 100%;
+  padding: 8px 0;
   cursor: pointer;
   text-decoration: underline;
   opacity: 0.78;
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`;
+
+/**
+ * Item 5 — wraps the three destructive opt-out controls (Wrong recipient /
+ * Decline / Withdraw consent) into a single subdued `<details>` block
+ * below `AesDisclosure` so accidental clicks during signing require an
+ * explicit disclosure step.
+ */
+export const OptOutDetails = styled.details`
+  margin-top: ${({ theme }) => theme.space[5]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.ink[50]};
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const OptOutSummary = styled.summary`
+  cursor: pointer;
+  list-style: none;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[2]};
+  /* The native disclosure triangle is muted vs. the rest of the screen;
+     hide it and ship the text as the entire affordance. */
+  &::-webkit-details-marker {
+    display: none;
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+    border-radius: ${({ theme }) => theme.radius.xs};
+  }
+`;
+
+export const OptOutBody = styled.div`
+  margin-top: ${({ theme }) => theme.space[3]};
+  padding-top: ${({ theme }) => theme.space[3]};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+/**
+ * Item 10 — demoted marketing line. `<small>` semantics so screen-readers
+ * de-emphasize it and visual treatment matches `AesDisclosure`'s footer.
+ */
+export const AccountNote = styled.small`
+  display: block;
+  margin-top: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: 1.5;
+`;
+
+/**
+ * Item 7 — styled withdraw-consent dialog buttons. Mirror the destructive /
+ * neutral pair used by SendConfirmDialog so the visual vocabulary is
+ * consistent across confirm flows.
+ */
+export const WithdrawDialogConfirm = styled.button`
+  padding: 10px 18px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.danger[500]};
+  color: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:disabled {
+    background: ${({ theme }) => theme.color.ink[300]};
+    cursor: not-allowed;
+  }
+`;
+
+export const WithdrawDialogCancel = styled.button`
+  padding: 10px 18px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+/**
+ * Item 7 — surfaces the audit-event name the dialog is about to write
+ * so the user can see exactly what the audit trail will record.
+ */
+export const WithdrawDialogEventName = styled.code`
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: ${({ theme }) => theme.radius.xs};
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.micro};
 `;
 
 /**

@@ -180,22 +180,88 @@ describe('SigningReviewPage', () => {
     });
   });
 
-  it('Save as template button opens the dialog and submits the payload', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  // Item 11 — each row now exposes an "Edit" affordance that pops the
+  // FieldInputDrawer (text/email/date/name) or SignatureCapture
+  // (signature/initials) inline within the review page.
+  it('per-row Edit on a text field opens the FieldInputDrawer inline', async () => {
     renderReview();
-    await userEvent.click(await screen.findByRole('button', { name: /save as template/i }));
-    const dialog = await screen.findByRole('dialog', { name: /save as template/i });
+    await screen.findByText(/everything look right/i);
+    // Edit buttons carry aria-label="Edit <label>" — query by the leading
+    // word so we match every row independent of label.
+    const editButtons = await screen.findAllByRole('button', { name: /^edit\b/i });
+    expect(editButtons.length).toBeGreaterThanOrEqual(1);
+    await userEvent.click(editButtons[0]!);
+    const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    // Title is prefilled from the envelope title — replace it.
-    const nameInput = screen.getByLabelText(/template name/i);
-    await userEvent.clear(nameInput);
-    await userEvent.type(nameInput, 'Reusable NDA');
-    await userEvent.click(screen.getByRole('button', { name: /save template/i }));
-    expect(logSpy).toHaveBeenCalledWith(
-      '[save-as-template]',
-      expect.objectContaining({ title: 'Reusable NDA' }),
+  });
+
+  it('per-row Edit on a signature field opens the SignatureCapture sheet inline', async () => {
+    renderReview();
+    await screen.findByText(/everything look right/i);
+    const editButtons = await screen.findAllByRole('button', { name: /^edit\b/i });
+    // Second row is the signature field — opening it should mount the
+    // SignatureCapture sheet. The sheet renders a role="tablist" of
+    // drawn / typed / upload tabs so we assert on that.
+    await userEvent.click(editButtons[1]!);
+    expect(await screen.findByRole('tab', { name: /drawn|typed|upload/i })).toBeInTheDocument();
+  });
+
+  // Item 12 — Save as template leaked sender functionality into the signer
+  // flow. The button must NOT be rendered (the underlying TODO(api) stub
+  // is removed alongside it).
+  it('does not render a "Save as template" affordance', async () => {
+    renderReview();
+    await screen.findByText(/everything look right/i);
+    expect(screen.queryByRole('button', { name: /save as template/i })).toBeNull();
+  });
+
+  // Item 13 — IntentCheckbox now ships an explicit :focus-visible rule
+  // mirroring the prep-page Checkbox fix.
+  it('IntentCheckbox carries an explicit :focus-visible box-shadow rule', async () => {
+    renderReview();
+    const intent = await screen.findByRole('checkbox', {
+      name: /intend to sign this document/i,
+    });
+    expect(intent.className).toBeTruthy();
+    const sheets = Array.from(document.styleSheets) as CSSStyleSheet[];
+    const haveFocusRule = sheets.some((sheet) => {
+      let rules: CSSRuleList;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        return false;
+      }
+      return Array.from(rules).some((rule) => {
+        const text = rule.cssText ?? '';
+        return /focus-visible/.test(text) && /box-shadow/.test(text);
+      });
+    });
+    expect(haveFocusRule).toBe(true);
+  });
+
+  // Item 14 — Legal copy now acknowledges both controls (the checkbox AND
+  // the submit click) so the dual-affirmation narrative is reflected.
+  it('Legal copy acknowledges both the checkbox AND the submit click', async () => {
+    renderReview();
+    // The copy is split across <b> tags ("...below AND clicking Sign and
+    // submit..."), so use the document's flat textContent as the
+    // assertion surface. The <Legal> block lives inside <Inner>; we
+    // assert via `body.textContent` to keep the test resilient to
+    // intermediate wrapper changes.
+    await screen.findByText(/everything look right/i);
+    const flat = (document.body.textContent ?? '').replace(/\s+/g, ' ').toLowerCase();
+    expect(flat).toMatch(/checking the box below and clicking sign and submit/);
+    expect(flat).toMatch(/legal equivalent of your handwritten signature/);
+  });
+
+  // Item 16 — Helper copy was "lock the document and send a signed copy" —
+  // softened/clarified to "seal the document and email a signed copy to
+  // everyone."
+  it('uses the updated helper copy ("seal the document … email a signed copy")', async () => {
+    renderReview();
+    const helper = await screen.findByText(
+      /seal the document and email a signed copy to everyone/i,
     );
-    expect(await screen.findByRole('status')).toHaveTextContent(/saved "reusable nda"/i);
-    logSpy.mockRestore();
+    expect(helper).toBeInTheDocument();
   });
 });

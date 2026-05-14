@@ -72,9 +72,64 @@ describe('SigningDonePage', () => {
       timestamp: '2026-04-24T00:00:00Z',
     });
     renderDone();
-    expect(screen.getByRole('heading', { name: /seald\./i })).toBeInTheDocument();
+    // Item 17 — hero copy is now verb-led ("Signed and sealed.") instead
+    // of the unhelpful brand-name-only "Seald.".
+    expect(screen.getByRole('heading', { name: /signed and sealed/i })).toBeInTheDocument();
     expect(screen.getByText(/maya@example\.com/i)).toBeInTheDocument();
     expect(screen.getByText(/eliran azulay/i)).toBeInTheDocument();
+  });
+
+  // Item 18 — the upsell email input must visibly carry the snapshot's
+  // recipient_email so signers see whose account they're creating.
+  it('Upsell email input is prefilled from snap.recipient_email', () => {
+    writeDoneSnapshot({
+      kind: 'submitted',
+      envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDONE00100',
+      title: 'MSA',
+      sender_name: null,
+      recipient_email: 'prefill@example.com',
+      timestamp: '',
+    });
+    renderDone();
+    const input = screen.getByLabelText(/your email/i) as HTMLInputElement;
+    expect(input.value).toBe('prefill@example.com');
+  });
+
+  // Item 18 — CTA copy updated to make the upsell unambiguous: this is
+  // signup, not "send another copy to this address".
+  it('Upsell CTA copy is "Save to my Seald account" (not "Save my copy")', () => {
+    writeDoneSnapshot({
+      kind: 'submitted',
+      envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDONE00101',
+      title: 'MSA',
+      sender_name: null,
+      recipient_email: 'maya@example.com',
+      timestamp: '',
+    });
+    renderDone();
+    expect(screen.getByRole('button', { name: /save to my seald account/i })).toBeInTheDocument();
+  });
+
+  // Item 19 — disabled "Preparing signed PDF…" button shows a Spinner
+  // alongside the Download icon so the loading state is unambiguous.
+  it('Disabled "Preparing signed PDF…" button mounts a Spinner element', async () => {
+    writeDoneSnapshot({
+      kind: 'submitted',
+      envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDONE00102',
+      title: 'MSA',
+      sender_name: null,
+      recipient_email: 'maya@example.com',
+      timestamp: '',
+    });
+    verifyGet.mockResolvedValue({ data: SEALING_PAYLOAD });
+    renderDone();
+    const button = await screen.findByRole('button', { name: /preparing signed pdf/i });
+    // The Spinner styled-component sets `data-testid="signing-spinner"`
+    // so we have an unambiguous handle without depending on visual rules.
+    expect(button.querySelector('[data-testid="signing-spinner"]')).not.toBeNull();
   });
 
   it('redirects to /sign/:id when no snapshot exists', async () => {
@@ -112,7 +167,7 @@ describe('SigningDonePage', () => {
       timestamp: '',
     });
     renderDone();
-    await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+    await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
     await waitFor(() => {
       expect(screen.getByTestId('__pathname__').textContent).toBe('/signup');
     });
@@ -139,7 +194,7 @@ describe('SigningDonePage', () => {
       // Clear the prefilled email so submission is the empty-input repro.
       await userEvent.clear(input);
       expect((input as HTMLInputElement).value).toBe('');
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       // The page must stay on /done — no redirect to /signup. The probe
       // only mounts under the `*` fallback route, so its absence is the
       // signal that we're still on the real /done route.
@@ -162,7 +217,7 @@ describe('SigningDonePage', () => {
       const input = screen.getByLabelText(/your email/i);
       await userEvent.clear(input);
       await userEvent.type(input, '   ');
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       expect(screen.queryByTestId('__pathname__')).toBeNull();
       expect(await screen.findByRole('alert')).toHaveTextContent(/enter an email/i);
     });
@@ -187,7 +242,7 @@ describe('SigningDonePage', () => {
       const input = screen.getByLabelText(/your email/i);
       await userEvent.clear(input);
       await userEvent.type(input, 'not an email');
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       expect(screen.queryByTestId('__pathname__')).toBeNull();
       expect(await screen.findByRole('alert')).toHaveTextContent(/valid email/i);
     });
@@ -209,7 +264,7 @@ describe('SigningDonePage', () => {
       const input = screen.getByLabelText(/your email/i);
       await userEvent.clear(input);
       await userEvent.type(input, '  maya@example.com  ');
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       await waitFor(() => {
         expect(screen.getByTestId('__pathname__').textContent).toBe('/signup');
       });
@@ -229,12 +284,12 @@ describe('SigningDonePage', () => {
       const input = screen.getByLabelText(/your email/i);
       await userEvent.clear(input);
       // First submission is empty → alert shown.
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       expect(await screen.findByRole('alert')).toBeInTheDocument();
       // Now type a valid email and submit again — should navigate and
       // the alert must be gone.
       await userEvent.type(input, 'maya@example.com');
-      await userEvent.click(screen.getByRole('button', { name: /save my copy/i }));
+      await userEvent.click(screen.getByRole('button', { name: /save to my seald account/i }));
       await waitFor(() => {
         expect(screen.getByTestId('__pathname__').textContent).toBe('/signup');
       });

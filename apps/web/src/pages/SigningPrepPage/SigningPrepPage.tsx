@@ -2,11 +2,19 @@ import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowRight, Mail } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
+import {
+  DialogBackdrop,
+  DialogCard,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+} from '@/components/DialogPrimitives';
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import { ESIGN_DISCLOSURE_VERSION } from 'shared';
 import {
+  AccountNote,
   AesDisclosure,
   Checkbox,
   Chip,
@@ -18,12 +26,17 @@ import {
   IdName,
   IdRow,
   Inner,
-  NotMe,
+  OptOutBody,
+  OptOutDetails,
+  OptOutSummary,
   Page,
   PrimaryBtn,
   SigningAsLabel,
   Subhero,
   TosRow,
+  WithdrawDialogCancel,
+  WithdrawDialogConfirm,
+  WithdrawDialogEventName,
   WithdrawLink,
 } from './SigningPrepPage.styles';
 
@@ -45,6 +58,10 @@ function Content() {
   const ready = agreed && canAccess;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Item 7 — withdraw consent now opens a styled `<DialogCard>` instead of
+  // window.confirm. The dialog visibility is a discrete state so we can
+  // surface the audit-event name (`consent_withdrawn`) inside the body.
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   const handleStart = useCallback(async () => {
     if (!ready || !envelope || !signer) return;
@@ -89,18 +106,21 @@ function Content() {
     }
   }, [busy, decline, envelopeId, navigate]);
 
-  const handleWithdrawConsent = useCallback(async () => {
+  const openWithdrawDialog = useCallback(() => {
     if (busy) return;
-    // Distinct from "Decline" — withdrawal of consent under ESIGN
-    // §7001(c)(1). We make the consequence explicit in the confirm
-    // dialog so users don't conflate it with decline.
-    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
-    const confirmed = window.confirm(
-      'Withdraw consent to sign this document electronically?\n\n' +
-        'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +
-        'The sender will be notified. This is recorded in the audit trail as a withdrawal (distinct from a decline).',
-    );
-    if (!confirmed) return;
+    setWithdrawOpen(true);
+  }, [busy]);
+
+  const closeWithdrawDialog = useCallback(() => {
+    setWithdrawOpen(false);
+  }, []);
+
+  const handleWithdrawConfirmed = useCallback(async () => {
+    // Item 7 — invoked from the styled confirm button. Audit-event copy
+    // (`consent_withdrawn`) is surfaced in the dialog body so the user
+    // sees exactly what the audit trail will record.
+    setWithdrawOpen(false);
+    if (busy) return;
     setBusy(true);
     try {
       await withdrawConsent();
@@ -155,10 +175,7 @@ function Content() {
         <Hero>
           You&apos;ve been asked to sign <em>{envelope.title}</em>.
         </Hero>
-        <Subhero>
-          Confirm your details below and we&apos;ll walk you through each field. No Seald account
-          required.
-        </Subhero>
+        <Subhero>Confirm your details below and we&apos;ll walk you through each field.</Subhero>
 
         <IdCard>
           <SigningAsLabel>Signing as</SigningAsLabel>
@@ -168,9 +185,6 @@ function Content() {
               <IdName>{signer.name}</IdName>
               <IdEmail>{signer.email}</IdEmail>
             </div>
-            <NotMe type="button" onClick={handleNotMe} disabled={busy}>
-              Not me?
-            </NotMe>
           </IdRow>
 
           <TosRow>
@@ -209,6 +223,29 @@ function Content() {
           conveyances, certain DE/FR/IT/ES instruments) require a Qualified Electronic Signature or
           wet ink. Consult counsel if unsure.
         </AesDisclosure>
+        {/* Item 10 — demoted from <Subhero> so the legal screen above stays
+            the focal point. Visible but not promoted as marketing copy. */}
+        <AccountNote>No Seald account required.</AccountNote>
+
+        {/* Item 5 — single subdued opt-out group below AesDisclosure.
+            We tag the <summary> with role="button" explicitly because
+            JSDom's accessibility tree does not currently implement the
+            implicit summary→button mapping that browsers ship; the
+            attribute is a no-op in real browsers (native role wins). */}
+        <OptOutDetails>
+          <OptOutSummary role="button">Need to opt out?</OptOutSummary>
+          <OptOutBody>
+            <DeclineLink type="button" onClick={handleNotMe} disabled={busy}>
+              Wrong recipient?
+            </DeclineLink>
+            <DeclineLink type="button" onClick={handleDecline} disabled={busy}>
+              Decline this request
+            </DeclineLink>
+            <WithdrawLink type="button" onClick={openWithdrawDialog} disabled={busy}>
+              Withdraw consent to sign electronically
+            </WithdrawLink>
+          </OptOutBody>
+        </OptOutDetails>
 
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
@@ -217,12 +254,37 @@ function Content() {
           {!busy ? <Icon icon={ArrowRight} size={16} /> : null}
         </PrimaryBtn>
 
-        <DeclineLink type="button" onClick={handleDecline} disabled={busy}>
-          Decline this request
-        </DeclineLink>
-        <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>
-          Withdraw consent to sign electronically
-        </WithdrawLink>
+        {/* Item 7 — styled withdraw-consent dialog (replaces window.confirm). */}
+        {withdrawOpen ? (
+          <DialogBackdrop onClick={closeWithdrawDialog}>
+            <DialogCard
+              role="dialog"
+              aria-modal="true"
+              aria-label="Withdraw consent"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DialogTitle>Withdraw consent to sign electronically?</DialogTitle>
+              <DialogDescription>
+                Seald operates electronically only — withdrawing consent ends this signing request
+                without an alternative. The sender will be notified. This is recorded in the audit
+                trail as <WithdrawDialogEventName>consent_withdrawn</WithdrawDialogEventName>{' '}
+                (distinct from a decline).
+              </DialogDescription>
+              <DialogFooter>
+                <WithdrawDialogCancel type="button" onClick={closeWithdrawDialog}>
+                  Keep signing
+                </WithdrawDialogCancel>
+                <WithdrawDialogConfirm
+                  type="button"
+                  onClick={handleWithdrawConfirmed}
+                  disabled={busy}
+                >
+                  Withdraw consent
+                </WithdrawDialogConfirm>
+              </DialogFooter>
+            </DialogCard>
+          </DialogBackdrop>
+        ) : null}
       </Inner>
     </Page>
   );

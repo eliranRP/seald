@@ -8,6 +8,16 @@
  * not survive a browser restart. See spec §Out of scope + production
  * hardening note #8.
  */
+/**
+ * Item 23 — discriminates the two negative terminal paths so the
+ * `SigningDeclinedPage` can show distinct copy for an explicit decline
+ * vs. an ESIGN §7001(c)(1) consent withdrawal. Both routes navigate to
+ * `/sign/:id/declined`; without this discriminator the page conflates
+ * them under a single "You declined…" message which is wrong for a
+ * user who chose withdrawal.
+ */
+export type DeclineReason = 'declined' | 'consent-withdrawn' | 'not-the-recipient';
+
 export interface DoneSnapshot {
   readonly kind: 'submitted' | 'declined';
   readonly envelope_id: string;
@@ -22,6 +32,12 @@ export interface DoneSnapshot {
   readonly sender_name: string | null;
   readonly recipient_email: string;
   readonly timestamp: string;
+  /**
+   * Item 23 — optional discriminator for the declined-page copy. Only
+   * meaningful when `kind === 'declined'`. Older snapshots may not
+   * carry it (the reader treats missing as 'declined').
+   */
+  readonly decline_reason?: DeclineReason | undefined;
 }
 
 const KEY = 'sealed.sign.last';
@@ -57,6 +73,17 @@ function isValidSnapshot(value: unknown): value is DoneSnapshot {
   if (typeof v.timestamp !== 'string') return false;
   // `sender_name` is `string | null` on the wire.
   if (v.sender_name !== null && typeof v.sender_name !== 'string') return false;
+  // Item 23 — `decline_reason` is optional. Treat unknown values as
+  // missing so old snapshots from previous deploys don't fail the
+  // shape-guard once we ship a tighter union.
+  if (
+    v.decline_reason !== undefined &&
+    v.decline_reason !== 'declined' &&
+    v.decline_reason !== 'consent-withdrawn' &&
+    v.decline_reason !== 'not-the-recipient'
+  ) {
+    return false;
+  }
   return true;
 }
 
