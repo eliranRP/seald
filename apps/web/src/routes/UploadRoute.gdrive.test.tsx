@@ -6,6 +6,7 @@ import { renderWithProviders } from '../test/renderWithProviders';
 import * as flagsModule from 'shared';
 
 const connectMutateMock = vi.fn();
+const reconnectMutateMock = vi.fn();
 vi.mock('./settings/integrations/useGDriveAccounts', () => ({
   useGDriveAccounts: vi.fn(),
   GDRIVE_ACCOUNTS_KEY: ['integrations', 'gdrive', 'accounts'],
@@ -13,6 +14,9 @@ vi.mock('./settings/integrations/useGDriveAccounts', () => ({
   // — return a minimal mutation shape so the inline-popup connect path
   // doesn't blow up under test.
   useConnectGDrive: () => ({ mutate: connectMutateMock }),
+  // `<DrivePicker onReconnect>` wires to `useReconnectGDrive().mutate()`
+  // — fires when picker-credentials returns 401 token-expired.
+  useReconnectGDrive: () => ({ mutate: reconnectMutateMock }),
   useDisconnectGDrive: vi.fn(),
   useGDriveOAuthMessageListener: vi.fn(),
 }));
@@ -29,6 +33,7 @@ vi.mock('../components/drive-picker', () => ({
     open: boolean;
     onClose: () => void;
     onPick: (file: { id: string; name: string; mimeType: string }) => void;
+    onReconnect?: () => void;
   }): JSX.Element | null => {
     if (!props.open) return null;
     return (
@@ -48,6 +53,11 @@ vi.mock('../components/drive-picker', () => ({
         <button type="button" onClick={props.onClose}>
           Close picker
         </button>
+        {props.onReconnect ? (
+          <button type="button" onClick={props.onReconnect}>
+            Trigger reconnect
+          </button>
+        ) : null}
       </div>
     );
   },
@@ -74,6 +84,8 @@ describe('UploadRoute Drive integration (WT-E)', () => {
   beforeEach(() => {
     isFeatureEnabledSpy = vi.spyOn(flagsModule, 'isFeatureEnabled');
     useGDriveAccountsMock.mockReset();
+    connectMutateMock.mockClear();
+    reconnectMutateMock.mockClear();
   });
   afterEach(() => {
     isFeatureEnabledSpy.mockRestore();
@@ -140,5 +152,20 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     expect(screen.queryByTestId('drive-picker-stub')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /pick from google drive/i }));
     expect(screen.getByTestId('drive-picker-stub')).toBeInTheDocument();
+  });
+
+  // Regression: a revoked Drive refresh token causes
+  // `GET /integrations/gdrive/picker-credentials` to 401. The DrivePicker
+  // forwards that signal to `onReconnect`. UploadRoute previously did
+  // not wire the prop, so the picker silently closed and the user saw
+  // nothing in the UI — only the 401 in DevTools (Bug, 2026-05-14).
+  it('wires onReconnect to fire the reconnect-OAuth mutation', () => {
+    isFeatureEnabledSpy.mockReturnValue(true);
+    mockAccounts(true);
+    renderRoute();
+    fireEvent.click(screen.getByRole('button', { name: /pick from google drive/i }));
+    expect(reconnectMutateMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: /trigger reconnect/i }));
+    expect(reconnectMutateMock).toHaveBeenCalledTimes(1);
   });
 });

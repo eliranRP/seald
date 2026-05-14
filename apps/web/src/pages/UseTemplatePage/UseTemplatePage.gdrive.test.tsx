@@ -8,12 +8,16 @@ import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import * as flagsModule from 'shared';
 
 const connectMutateMock = vi.fn();
+const reconnectMutateMock = vi.fn();
 vi.mock('../../routes/settings/integrations/useGDriveAccounts', () => ({
   useGDriveAccounts: vi.fn(),
   GDRIVE_ACCOUNTS_KEY: ['integrations', 'gdrive', 'accounts'],
   // The disconnected-state CTA wires to `useConnectGDrive().mutate()`
   // so the OAuth popup opens within the user gesture.
   useConnectGDrive: () => ({ mutate: connectMutateMock }),
+  // `<DrivePicker onReconnect>` fires `useReconnectGDrive().mutate()`
+  // when picker-credentials returns 401 token-expired.
+  useReconnectGDrive: () => ({ mutate: reconnectMutateMock }),
   useDisconnectGDrive: vi.fn(),
   useGDriveOAuthMessageListener: vi.fn(),
 }));
