@@ -2,17 +2,18 @@ import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
+import { ENVELOPE_RETENTION_YEARS_DEFAULT } from 'shared';
 import { Icon } from '@/components/Icon';
+import { Spinner } from '@/components/shared/Spinner';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
 
 /**
- * T-18 — keep this in sync with `ENVELOPE_RETENTION_YEARS` (default `7`)
- * in `apps/api/src/config/env.schema.ts`. The signer-facing retention
- * disclosure is informational; the legal authoritative value is on the
- * Privacy Policy and audit PDF, both of which read the env var at
- * issuance time.
+ * Item 22 — source-of-truth retention period lives in `packages/shared`
+ * (`ENVELOPE_RETENTION_YEARS_DEFAULT`). Keep API + SPA + audit PDF + the
+ * Privacy Policy in lock-step from the shared constant instead of three
+ * hardcoded `7`s that silently drift when env-var defaults change.
  */
-const RETENTION_YEARS = 7;
+const RETENTION_YEARS = ENVELOPE_RETENTION_YEARS_DEFAULT;
 
 const Page = styled.div`
   min-height: 100vh;
@@ -41,7 +42,11 @@ const IconBadge = styled.div`
 
 const Hero = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 42px;
+  /* Item 21 — standardize the signer-flow hero to 40px (matches
+     SigningPrepPage.Hero) instead of the previous 42px so the visual
+     rhythm across prep / done holds. theme.font.size.h2 (36px) is one
+     step below; 40px is intentionally between h2 and h1. */
+  font-size: 40px;
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.02em;
@@ -194,10 +199,14 @@ const UpsellBtn = styled.button`
 const UpsellError = styled.div`
   margin-top: 10px;
   padding: 8px 12px;
+  /* Item 20 — replaced hardcoded rgba(239,68,68,0.12) bg and #fecaca text
+     with theme tokens. The Upsell sits on a dark ink[900] surface so we
+     use danger[500] (with 0.12 alpha) for the soft bg and danger[50]
+     (light) for the text — passes WCAG AA at micro size. */
   background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.4);
+  border: 1px solid ${({ theme }) => theme.color.danger[500]};
   border-radius: ${({ theme }) => theme.radius.sm};
-  color: #fecaca;
+  color: ${({ theme }) => theme.color.danger[50]};
   font-size: ${({ theme }) => theme.font.size.micro};
   line-height: 1.4;
   text-align: left;
@@ -291,7 +300,10 @@ export function SigningDonePage() {
         <IconBadge>
           <Icon icon={CheckCircle2} size={42} />
         </IconBadge>
-        <Hero>Seald.</Hero>
+        {/* Item 17 — verb-led affirmation. The IconBadge above already
+            carries the brand check mark; the previous "Seald." was
+            redundant chrome for a legal completion screen. */}
+        <Hero>Signed and sealed.</Hero>
         <Body>
           Your signature has been recorded. We&apos;ve sent a signed copy to{' '}
           <b style={{ color: 'inherit' }}>{snap.recipient_email}</b>
@@ -317,7 +329,16 @@ export function SigningDonePage() {
             </PrimaryDownloadLink>
           ) : (
             <PrimaryDownloadBtn type="button" disabled aria-busy={isSealing}>
-              <Icon icon={Download} size={16} />
+              {/* Item 19 — surface a Spinner inside the disabled button
+                  while the seal worker is still finalizing the PDF. The
+                  `data-testid` is the test-suite handle; everywhere else
+                  we prefer accessible queries (rule 4.6 escape hatch
+                  identical to the existing __pathname__ probe). */}
+              {isSealing ? (
+                <Spinner $size={16} data-testid="signing-spinner" aria-hidden="true" />
+              ) : (
+                <Icon icon={Download} size={16} />
+              )}
               {isSealing ? 'Preparing signed PDF…' : 'Download signed PDF (.pdf)'}
             </PrimaryDownloadBtn>
           )}
@@ -368,10 +389,12 @@ export function SigningDonePage() {
             <Icon icon={Sparkles} size={11} />
             Free forever
           </UpsellChip>
-          <UpsellTitle>Keep this signed copy in your Seald library.</UpsellTitle>
+          {/* Item 18 — CTA copy disambiguates from "send another copy"
+              and surfaces the signup intent up front. */}
+          <UpsellTitle>Create your free Seald account to save this.</UpsellTitle>
           <UpsellBody>
-            Create a free account to save this document, request signatures from others, and access
-            your full signing history.
+            Save this document, request signatures from others, and access your full signing
+            history.
           </UpsellBody>
           <UpsellForm onSubmit={handleSave} noValidate>
             <UpsellInput
@@ -381,7 +404,7 @@ export function SigningDonePage() {
               type="email"
               aria-label="Your email"
             />
-            <UpsellBtn type="submit">Save my copy</UpsellBtn>
+            <UpsellBtn type="submit">Save to my Seald account</UpsellBtn>
           </UpsellForm>
           {saveError ? <UpsellError role="alert">{saveError}</UpsellError> : null}
         </Upsell>

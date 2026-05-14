@@ -2,13 +2,15 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
-import { BookmarkPlus, Info, PenTool } from 'lucide-react';
+import { Info, PenTool } from 'lucide-react';
+import { FieldInputDrawer } from '@/components/FieldInputDrawer';
+import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { ReviewList } from '@/components/ReviewList';
 import type { ReviewItem, ReviewFieldKind } from '@/components/ReviewList';
-import { SaveAsTemplateDialog } from '@/components/SaveAsTemplateDialog';
-import type { SaveAsTemplatePayload } from '@/components/SaveAsTemplateDialog';
+import { SignatureCapture } from '@/components/SignatureCapture';
+import type { SignatureCaptureKind, SignatureCaptureResult } from '@/components/SignatureCapture';
 import { SignatureMark } from '@/components/SignatureMark';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import type { SignMeField } from '@/features/signing';
@@ -27,7 +29,8 @@ const Inner = styled.div`
 
 const Heading = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: 36px;
+  /* Item 15 — 36px matches theme.font.size.h2 exactly. */
+  font-size: ${({ theme }) => theme.font.size.h2};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.02em;
@@ -76,6 +79,12 @@ const IntentCheckbox = styled.input`
   margin-top: 2px;
   accent-color: ${({ theme }) => theme.color.ink[900]};
   cursor: pointer;
+  /* Item 13 — explicit focus ring; mirrors the prep-page Checkbox fix
+     (item 6) so keyboard focus is unambiguous on small targets. */
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
 `;
 
 const Actions = styled.div`
@@ -116,31 +125,6 @@ const SubmitBtn = styled.button`
   }
 `;
 
-const SaveTemplateRow = styled.div`
-  margin-top: ${({ theme }) => theme.space[5]};
-  display: flex;
-  justify-content: flex-end;
-`;
-
-const SaveTemplateBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  background: transparent;
-  border: 1px dashed ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  padding: 8px 14px;
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[2]};
-  cursor: pointer;
-  &:hover,
-  &:focus-visible {
-    border-color: ${({ theme }) => theme.color.indigo[500]};
-    color: ${({ theme }) => theme.color.indigo[700]};
-  }
-`;
-
 /**
  * Issue #41 — Withdraw-consent affordance promised by ESIGN Disclosure §3.
  * Visually quiet text link below the primary actions; mirrors the prep
@@ -163,16 +147,6 @@ const WithdrawLink = styled.button`
     cursor: not-allowed;
     opacity: 0.5;
   }
-`;
-
-const Toast = styled.div`
-  margin-top: ${({ theme }) => theme.space[4]};
-  background: ${({ theme }) => theme.color.success[50]};
-  border: 1px solid ${({ theme }) => theme.color.success[500]};
-  color: ${({ theme }) => theme.color.success[700]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  padding: 10px 12px;
-  border-radius: ${({ theme }) => theme.radius.sm};
 `;
 
 const ErrorBanner = styled(SharedErrorBanner)`
@@ -244,33 +218,68 @@ function fieldIsFilled(f: SignMeField): boolean {
   return Boolean(f.value_text);
 }
 
+/** Item 11 — bridge between SignMeField.kind and FieldInputDrawer.kind. */
+function inputKindFor(kind: ReviewFieldKind): FieldInputKind | null {
+  if (kind === 'text' || kind === 'email' || kind === 'date' || kind === 'name') return kind;
+  return null;
+}
+
 function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
-  const { envelope, fields, submit, confirmIntentToSign, withdrawConsent } = useSigningSession();
+  const {
+    envelope,
+    signer,
+    fields,
+    submit,
+    confirmIntentToSign,
+    withdrawConsent,
+    fillField,
+    setSignature,
+  } = useSigningSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveTplOpen, setSaveTplOpen] = useState(false);
-  const [savedTplToast, setSavedTplToast] = useState<string | null>(null);
   // T-15 — Submit is gated on an explicit intent-to-sign checkbox so
   // the user's affirmation is a discrete, dateable act distinct from
   // clicking the Submit button.
   const [intentChecked, setIntentChecked] = useState(false);
 
-  const items = useMemo(() => fields.filter(fieldIsFilled).map(toReviewItem), [fields]);
+  // Item 11 — inline-edit state. One slot for the FieldInputDrawer and one
+  // for SignatureCapture; both reuse the same components the fill page
+  // mounts so values land through the same mutations and audit events.
+  const [textEdit, setTextEdit] = useState<{
+    readonly field: SignMeField;
+    readonly kind: FieldInputKind;
+  } | null>(null);
+  const [sigEdit, setSigEdit] = useState<{
+    readonly field: SignMeField;
+    readonly kind: SignatureCaptureKind;
+  } | null>(null);
 
-  const handleSaveTemplate = useCallback(
-    (payload: SaveAsTemplatePayload): void => {
-      // TODO(api): replace this client-only stub with a POST to the
-      // templates service once it lands. The payload mirrors what the
-      // sender-side `/templates` flow expects so the call site won't move.
-      // eslint-disable-next-line no-console
-      console.log('[save-as-template]', { ...payload, envelopeId, fieldCount: items.length });
-      setSaveTplOpen(false);
-      setSavedTplToast(`Saved "${payload.title}" as a template.`);
-    },
-    [envelopeId, items.length],
+  const handleEdit = useCallback((field: SignMeField, uiKind: ReviewFieldKind) => {
+    const inputKind = inputKindFor(uiKind);
+    if (inputKind) {
+      setTextEdit({ field, kind: inputKind });
+      return;
+    }
+    if (uiKind === 'signature' || uiKind === 'initials') {
+      setSigEdit({ field, kind: uiKind });
+    }
+  }, []);
+
+  const items = useMemo<ReadonlyArray<ReviewItem>>(
+    () =>
+      fields.filter(fieldIsFilled).map((f) => {
+        const base = toReviewItem(f);
+        const uiKind = toUiKind(f);
+        // Checkboxes aren't editable on the review page — re-toggle is
+        // confusing once already affirmed; "Back to fields" remains the
+        // path for that edge case.
+        if (uiKind === 'checkbox') return base;
+        return { ...base, onEdit: () => handleEdit(f, uiKind) };
+      }),
+    [fields, handleEdit],
   );
 
   const handleBack = useCallback(
@@ -325,6 +334,53 @@ function Content() {
     }
   }, [confirmIntentToSign, envelopeId, intentChecked, navigate, submit]);
 
+  // Item 11 — inline editor handlers. Declared BEFORE the early-return so
+  // hook order stays stable across renders. We funnel both kinds of edit
+  // through the same mutations the fill page uses (fillField /
+  // setSignature) so the audit chain order is identical regardless of
+  // where the edit was initiated.
+  const closeTextEdit = useCallback(() => setTextEdit(null), []);
+  const closeSigEdit = useCallback(() => setSigEdit(null), []);
+
+  const applyTextEdit = useCallback(
+    async (value: string) => {
+      const fieldId = textEdit?.field.id;
+      setTextEdit(null);
+      if (!fieldId) return;
+      try {
+        await fillField(fieldId, { value_text: value });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setError(e.message ?? 'We could not update this field. Please try again.');
+      }
+    },
+    [fillField, textEdit?.field.id],
+  );
+
+  const applySigEdit = useCallback(
+    async (result: SignatureCaptureResult) => {
+      const editing = sigEdit;
+      setSigEdit(null);
+      if (!editing) return;
+      try {
+        await setSignature(editing.field.id, {
+          blob: result.blob,
+          format: result.format,
+          kind: editing.kind,
+          ...(result.font !== undefined ? { font: result.font } : {}),
+          ...(result.stroke_count !== undefined ? { stroke_count: result.stroke_count } : {}),
+          ...(result.source_filename !== undefined
+            ? { source_filename: result.source_filename }
+            : {}),
+        });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setError(e.message ?? 'We could not update this signature. Please try again.');
+      }
+    },
+    [setSignature, sigEdit],
+  );
+
   if (!envelope) return null;
 
   return (
@@ -333,31 +389,19 @@ function Content() {
       <Inner>
         <Heading>Everything look right?</Heading>
         <Helper>
-          Once you submit, we&apos;ll lock the document and send a signed copy to everyone.
+          {/* Item 16 — softer/clearer terminal-action copy. */}
+          Once you submit, we&apos;ll seal the document and email a signed copy to everyone.
         </Helper>
         <ReviewList items={items} />
-
-        <SaveTemplateRow>
-          <SaveTemplateBtn type="button" onClick={() => setSaveTplOpen(true)}>
-            <Icon icon={BookmarkPlus} size={14} />
-            Save as template
-          </SaveTemplateBtn>
-        </SaveTemplateRow>
-
-        {savedTplToast ? <Toast role="status">{savedTplToast}</Toast> : null}
-
-        <SaveAsTemplateDialog
-          open={saveTplOpen}
-          defaultTitle={envelope.title}
-          onCancel={() => setSaveTplOpen(false)}
-          onSave={handleSaveTemplate}
-        />
 
         <Legal>
           <Icon icon={Info} size={14} />
           <span>
-            By clicking <b>Sign and submit</b>, you agree your electronic signature is the legal
-            equivalent of your handwritten signature.
+            {/* Item 14 — copy acknowledges BOTH the intent-checkbox AND
+                the submit click so the dual-affirmation narrative lines
+                up with the actual gating UI. */}
+            By checking the box below <b>AND</b> clicking <b>Sign and submit</b>, you affirm your
+            electronic signature is the legal equivalent of your handwritten signature.
           </span>
         </Legal>
 
@@ -389,6 +433,38 @@ function Content() {
         <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>
           Withdraw consent to sign electronically
         </WithdrawLink>
+
+        {/* Item 11 — inline editors. Both stay mounted so React Query
+            invalidation / focus management is identical to the fill page. */}
+        <FieldInputDrawer
+          open={textEdit !== null}
+          label={textEdit ? (textEdit.field.link_id ?? textEdit.kind) : ''}
+          kind={textEdit?.kind ?? 'text'}
+          initialValue={
+            textEdit && typeof textEdit.field.value_text === 'string'
+              ? textEdit.field.value_text
+              : ''
+          }
+          onCancel={closeTextEdit}
+          onApply={(v) => {
+            applyTextEdit(v).catch(() => {
+              /* surfaced via error state */
+            });
+          }}
+        />
+
+        <SignatureCapture
+          open={sigEdit !== null}
+          kind={sigEdit?.kind ?? 'signature'}
+          defaultName={signer?.name ?? ''}
+          email={signer?.email ?? ''}
+          onCancel={closeSigEdit}
+          onApply={(r) => {
+            applySigEdit(r).catch(() => {
+              /* surfaced via error state */
+            });
+          }}
+        />
       </Inner>
     </Page>
   );

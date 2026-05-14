@@ -240,8 +240,12 @@ test.describe('signing flow', () => {
     await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
     await page.getByRole('button', { name: /sign and submit/i }).click();
 
-    // 8. Land on /done and assert the success heading.
+    // 8. Land on /done and assert the success heading. The Done page
+    //    H1 was changed from the brand wordmark ("Seald.") to a
+    //    verb-led affirmation ("Signed and sealed.") in PR-4 (item 17)
+    //    so the legal completion screen tells the signer what just
+    //    happened instead of restating the brand.
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: /^seald\.?$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /signed and sealed/i })).toBeVisible();
   });
 });

@@ -1,8 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reportSignerEvent } from '@/features/signing';
 import * as api from '@/features/signing/signingApi';
-import { Body, Card, MailtoLink, Page, Spinner, Title } from './SigningEntryPage.styles';
+import {
+  Body,
+  Card,
+  MailtoLink,
+  Page,
+  Spinner,
+  Title,
+  TryAgainBtn,
+} from './SigningEntryPage.styles';
 
 /**
  * Module-level map of (envelope_id, token) → in-flight Promise.
@@ -99,6 +107,11 @@ export function SigningEntryPage() {
   const token = search.get('t');
 
   const [state, setState] = useState<EntryState>('loading');
+  // Item 1 — `retryCounter` is appended to the effect dependency array so a
+  // user-initiated "Try again" click re-runs the startSession handshake
+  // without a full page reload (the module-level `inflight` cache for the
+  // failed key is cleared in the rejection branch already).
+  const [retryCounter, setRetryCounter] = useState(0);
 
   useEffect(() => {
     reportSignerEvent({
@@ -156,29 +169,53 @@ export function SigningEntryPage() {
     return () => {
       cancelled = true;
     };
-  }, [envelopeId, token, navigate]);
+  }, [envelopeId, token, navigate, retryCounter]);
+
+  const handleRetry = useCallback(() => {
+    setState('loading');
+    setRetryCounter((n) => n + 1);
+  }, []);
 
   const copy = COPY[state];
+  // Item 1 — only the two recoverable error states get a retry CTA. The
+  // burned/invalid/not-found terminals are intentionally one-shot and the
+  // retry would just immediately re-fail; mailto stays as the path forward.
+  const canRetry = state === 'rate-limit' || state === 'generic';
+  // Item 4 — give support context without exposing the internal hostname.
+  // `encodeURIComponent` keeps the subject opaque-but-readable in clients
+  // that decode it for display.
+  const mailtoHref =
+    `mailto:support@seald.nromomentum.com` +
+    `?subject=${encodeURIComponent(`Signing help for envelope ${envelopeId}`)}`;
 
+  // Item 2 — wrap loading + terminal-error branches in landmarks that the
+  // accessibility tree exposes. `role="status"` with `aria-live="polite"`
+  // announces the loading copy without interrupting; terminal errors get
+  // `role="alert"` (implicit `aria-live="assertive"`) on the Card.
   return (
     <Page>
-      <Card>
-        {state === 'loading' ? (
+      {state === 'loading' ? (
+        <Card role="status" aria-live="polite">
           <div style={{ display: 'grid', gap: 20, placeItems: 'center' }}>
             <Spinner $size={24} aria-hidden="true" />
             <Title>{copy.title}</Title>
             <Body>{copy.body}</Body>
           </div>
-        ) : (
-          <>
-            <Title>{copy.title}</Title>
-            <Body>{copy.body}</Body>
-            <MailtoLink href="mailto:support@seald.nromomentum.com" rel="noreferrer">
-              Contact support
-            </MailtoLink>
-          </>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        <Card role="alert">
+          <Title>{copy.title}</Title>
+          <Body>{copy.body}</Body>
+          {canRetry ? (
+            <TryAgainBtn type="button" onClick={handleRetry}>
+              Try again
+            </TryAgainBtn>
+          ) : null}
+          <MailtoLink href={mailtoHref} rel="noreferrer">
+            Contact support
+          </MailtoLink>
+        </Card>
+      )}
     </Page>
   );
 }
