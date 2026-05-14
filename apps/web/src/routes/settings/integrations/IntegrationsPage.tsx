@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import {
   Link as LinkIcon,
   ChevronRight,
@@ -18,10 +18,12 @@ import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
+import { readIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import {
   useGDriveAccounts,
   useConnectGDrive,
   useDisconnectGDrive,
+  useReconnectGDrive,
   useGDriveOAuthCallbackBridge,
   useGDriveOAuthMessageListener,
   type GDriveAccount,
@@ -36,15 +38,31 @@ const Page = styled.div`
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
-  padding: 24px 32px 80px;
+  padding: ${({ theme }) => `${theme.space[6]} ${theme.space[8]} ${theme.space[20]}`};
 `;
 
 const BreadcrumbNav = styled.nav`
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+const BreadcrumbLink = styled(Link)`
+  color: ${({ theme }) => theme.color.fg[3]};
+  text-decoration: none;
+  border-radius: ${({ theme }) => theme.radius.xs};
+
+  &:hover {
+    color: ${({ theme }) => theme.color.fg[1]};
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
 `;
 
 const BreadcrumbCurrent = styled.span`
@@ -53,7 +71,7 @@ const BreadcrumbCurrent = styled.span`
 `;
 
 const Hero = styled.header`
-  margin: 14px 0 28px;
+  margin: ${({ theme }) => `${theme.space[4]} 0 ${theme.space[8]}`};
 `;
 
 const Title = styled.h1`
@@ -67,7 +85,7 @@ const Title = styled.h1`
 `;
 
 const Subtitle = styled.p`
-  margin: 8px 0 0;
+  margin: ${({ theme }) => `${theme.space[2]} 0 0`};
   font-size: ${({ theme }) => theme.font.size.body};
   color: ${({ theme }) => theme.color.fg[3]};
   line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
@@ -81,7 +99,7 @@ const CardStack = styled.div`
 `;
 
 const CardHeader = styled.div`
-  padding: 20px 24px;
+  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[6]}`};
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
@@ -89,17 +107,23 @@ const CardHeader = styled.div`
 `;
 
 const CardBody = styled.div`
-  padding: 20px 24px;
+  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[6]}`};
 `;
 
-const CardTitle = styled.div`
-  font-size: 16px;
+/**
+ * Visual card title. Rendered as `<h2>` so screen readers pick it up as
+ * a landmark (audit slice C #7 — LOW). Styled identically to the prior
+ * `<div>` so the visual treatment is unchanged.
+ */
+const CardTitle = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.body};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
 const CardSubtitle = styled.div`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
   margin-top: 2px;
 `;
@@ -109,27 +133,50 @@ const CardHeaderText = styled.div`
   min-width: 0;
 `;
 
+/**
+ * Empty-state grid. Audit slice C #5 (MEDIUM):
+ *  - Breakpoint bumped 720 → 880 px so the "What we ask for" column
+ *    doesn't get cramped at 720–960 px.
+ *  - Gap → `theme.space[8]`.
+ *  - At narrow widths the permissions block is placed ABOVE the CTA
+ *    via grid-template-areas: the permissions column moves to row 1 and
+ *    the CTA stack drops to row 2. This is purely a DOM/order change
+ *    (no flex-direction: column-reverse hack) so a11y/reading order
+ *    stays consistent for screen readers at every width.
+ */
 const EmptyGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 280px;
-  gap: 32px;
+  grid-template-areas: 'cta perms';
+  gap: ${({ theme }) => theme.space[8]};
   align-items: flex-start;
 
-  @media (max-width: 720px) {
+  @media (max-width: 880px) {
     grid-template-columns: 1fr;
+    grid-template-areas:
+      'perms'
+      'cta';
   }
 `;
 
+const EmptyGridCta = styled.div`
+  grid-area: cta;
+`;
+
+const EmptyGridPerms = styled.div`
+  grid-area: perms;
+`;
+
 const EmptyCopy = styled.div`
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  margin-bottom: 14px;
+  margin-bottom: ${({ theme }) => theme.space[4]};
 `;
 
 const ConnectHint = styled.div`
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   color: ${({ theme }) => theme.color.fg[4]};
-  margin-top: 10px;
+  margin-top: ${({ theme }) => theme.space[2]};
 `;
 
 const Eyebrow = styled.div`
@@ -139,7 +186,7 @@ const Eyebrow = styled.div`
   letter-spacing: ${({ theme }) => theme.font.tracking.wider};
   text-transform: uppercase;
   color: ${({ theme }) => theme.color.fg[3]};
-  margin-bottom: 12px;
+  margin-bottom: ${({ theme }) => theme.space[3]};
 `;
 
 const PermissionUl = styled.ul`
@@ -148,14 +195,14 @@ const PermissionUl = styled.ul`
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
 const PermissionLi = styled.li`
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  font-size: 13px;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
@@ -163,7 +210,7 @@ const PermissionLi = styled.li`
 const PermissionIconWrap = styled.span`
   width: 24px;
   height: 24px;
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.ink[100]};
   color: ${({ theme }) => theme.color.fg[3]};
   display: inline-flex;
@@ -176,7 +223,7 @@ const AccountRow = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
-  padding: 14px 16px;
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.bg.sunken};
@@ -188,13 +235,22 @@ const AccountMeta = styled.div`
 `;
 
 const AccountEmail = styled.div`
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+const AccountActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
 const AccountSub = styled.div`
-  font-size: 12px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   color: ${({ theme }) => theme.color.fg[3]};
   margin-top: 2px;
 `;
@@ -203,25 +259,25 @@ const MultiAccountRow = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
-  margin-top: 14px;
-  font-size: 12px;
+  margin-top: ${({ theme }) => theme.space[4]};
+  font-size: ${({ theme }) => theme.font.size.micro};
   color: ${({ theme }) => theme.color.fg[4]};
 `;
 
 const ComingSoonChip = styled.span`
-  margin-left: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  margin-left: ${({ theme }) => theme.space[1]};
+  padding: ${({ theme }) => `2px ${theme.space[2]}`};
+  border-radius: ${({ theme }) => theme.radius.pill};
   background: ${({ theme }) => theme.color.ink[100]};
   color: ${({ theme }) => theme.color.fg[3]};
-  font-size: 10px;
+  font-size: ${({ theme }) => theme.font.size.micro};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   letter-spacing: ${({ theme }) => theme.font.tracking.wide};
   text-transform: uppercase;
 `;
 
 const ComingSoonHeader = styled.div`
-  padding: 20px 24px;
+  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[6]}`};
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
@@ -231,9 +287,9 @@ const ComingSoonHeader = styled.div`
 const ConfigAlert = styled.div`
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding: 14px 16px;
+  gap: ${({ theme }) => theme.space[3]};
+  margin-bottom: ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.bg.sunken};
@@ -242,7 +298,7 @@ const ConfigAlert = styled.div`
 const ConfigAlertIconWrap = styled.span`
   width: 28px;
   height: 28px;
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.ink[100]};
   color: ${({ theme }) => theme.color.fg[2]};
   display: inline-flex;
@@ -253,7 +309,7 @@ const ConfigAlertIconWrap = styled.span`
 
 const ConfigAlertCopy = styled.div`
   flex: 1;
-  font-size: 13px;
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
@@ -261,7 +317,7 @@ const ConfigAlertCopy = styled.div`
 const ConfigAlertDismiss = styled.button`
   border: 0;
   background: transparent;
-  padding: 4px;
+  padding: ${({ theme }) => theme.space[1]};
   border-radius: ${({ theme }) => theme.radius.sm};
   color: ${({ theme }) => theme.color.fg[3]};
   cursor: pointer;
@@ -290,7 +346,7 @@ const ConfigAlertTitle = styled.div`
 const ComingSoonIconWrap = styled.div`
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.ink[100]};
   display: inline-flex;
   align-items: center;
@@ -330,6 +386,10 @@ const PERMISSIONS = [
   { icon: XCircle, text: 'Revoke access any time — disconnecting deletes the tokens.' },
 ] as const;
 
+const PermissionText = styled.span`
+  padding-top: 3px;
+`;
+
 function PermissionList() {
   return (
     <PermissionUl>
@@ -338,7 +398,7 @@ function PermissionList() {
           <PermissionIconWrap>
             <Icon icon={p.icon} size={13} />
           </PermissionIconWrap>
-          <span style={{ paddingTop: 3 }}>{p.text}</span>
+          <PermissionText>{p.text}</PermissionText>
         </PermissionLi>
       ))}
     </PermissionUl>
@@ -381,13 +441,40 @@ function ComingSoonCard({ name, description }: ComingSoonCardProps) {
 interface GDriveCardProps {
   readonly accounts: ReadonlyArray<GDriveAccount>;
   readonly onConnect: () => void;
+  readonly onReconnect: () => void;
   readonly onDisconnect: (account: GDriveAccount) => void;
   readonly connecting: boolean;
+  readonly reconnecting: boolean;
 }
 
-function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCardProps) {
+/**
+ * Health summary shown next to the card title. If any connected
+ * account's token is in `reconnect_required`, the whole card surfaces a
+ * warning badge — at the row level we surface a per-email badge too so
+ * multi-account installs (`gdriveMultiAccount` feature flag) make it
+ * obvious which account needs attention. Audit slice C #4 (HIGH).
+ */
+function deriveCardBadge(accounts: ReadonlyArray<GDriveAccount>): {
+  readonly tone: 'emerald' | 'amber';
+  readonly label: string;
+} | null {
+  if (accounts.length === 0) return null;
+  const anyExpired = accounts.some((a) => a.tokenStatus === 'reconnect_required');
+  if (anyExpired) return { tone: 'amber', label: 'Reconnect required' };
+  return { tone: 'emerald', label: 'Connected' };
+}
+
+function GDriveCard({
+  accounts,
+  onConnect,
+  onReconnect,
+  onDisconnect,
+  connecting,
+  reconnecting,
+}: GDriveCardProps) {
   const isConnected = accounts.length > 0;
   const showMultiAccount = isFeatureEnabled('gdriveMultiAccount');
+  const cardBadge = deriveCardBadge(accounts);
   return (
     <Card padding={1} style={{ overflow: 'hidden', padding: 0 }}>
       <CardHeader>
@@ -399,31 +486,63 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
             template.
           </CardSubtitle>
         </CardHeaderText>
-        {isConnected ? <Badge tone="emerald">Connected</Badge> : null}
+        {cardBadge ? <Badge tone={cardBadge.tone}>{cardBadge.label}</Badge> : null}
       </CardHeader>
       <CardBody>
         {isConnected ? (
           <>
-            {accounts.map((account) => (
-              <AccountRow key={account.id}>
-                <Avatar name={account.email} size={40} />
-                <AccountMeta>
-                  <AccountEmail>{account.email}</AccountEmail>
-                  <AccountSub>
-                    Connected {formatDate(account.connectedAt)} · Last used{' '}
-                    {formatDate(account.lastUsedAt)}
-                  </AccountSub>
-                </AccountMeta>
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => onDisconnect(account)}
-                  aria-label={`Disconnect ${account.email}`}
-                >
-                  Disconnect
-                </Button>
-              </AccountRow>
-            ))}
+            {accounts.map((account) => {
+              const needsReconnect = account.tokenStatus === 'reconnect_required';
+              return (
+                <AccountRow key={account.id}>
+                  <Avatar name={account.email} size={40} />
+                  <AccountMeta>
+                    <AccountEmail>
+                      {account.email}
+                      {needsReconnect ? <Badge tone="amber">Reconnect required</Badge> : null}
+                    </AccountEmail>
+                    <AccountSub>
+                      Connected {formatDate(account.connectedAt)} · Last used{' '}
+                      {formatDate(account.lastUsedAt)}
+                    </AccountSub>
+                  </AccountMeta>
+                  <AccountActions>
+                    {needsReconnect ? (
+                      <>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          iconLeft={LinkIcon}
+                          onClick={onReconnect}
+                          loading={reconnecting}
+                          disabled={reconnecting}
+                          aria-label={`Reconnect ${account.email}`}
+                        >
+                          Reconnect
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onDisconnect(account)}
+                          aria-label={`Disconnect ${account.email}`}
+                        >
+                          Disconnect
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => onDisconnect(account)}
+                        aria-label={`Disconnect ${account.email}`}
+                      >
+                        Disconnect
+                      </Button>
+                    )}
+                  </AccountActions>
+                </AccountRow>
+              );
+            })}
             {showMultiAccount ? (
               <MultiAccountRow>
                 <Button variant="ghost" size="sm" iconLeft={LinkIcon} onClick={onConnect}>
@@ -439,7 +558,11 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
           </>
         ) : (
           <EmptyGrid>
-            <div>
+            <EmptyGridPerms>
+              <Eyebrow>What we ask for</Eyebrow>
+              <PermissionList />
+            </EmptyGridPerms>
+            <EmptyGridCta>
               <EmptyCopy>No accounts connected.</EmptyCopy>
               <Button
                 variant="primary"
@@ -453,11 +576,7 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
               <ConnectHint>
                 Opens Google&apos;s sign-in window. You&apos;ll choose what to share.
               </ConnectHint>
-            </div>
-            <div>
-              <Eyebrow>What we ask for</Eyebrow>
-              <PermissionList />
-            </div>
+            </EmptyGridCta>
           </EmptyGrid>
         )}
       </CardBody>
@@ -471,13 +590,18 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
 
 /**
  * L4 page — `/settings/integrations`. Standalone surface (no left rail
- * — Phase 3 watchpoint #5): a `<Breadcrumb>` carries the user back to a
- * future Settings index, and the Integrations index itself is just a
- * stack of provider cards (Drive, then two coming-soon stubs).
+ * — Phase 3 watchpoint #5): a `<Breadcrumb>` carries the user back to
+ * the Settings index, and the Integrations index itself is just a stack
+ * of provider cards (Drive, then two coming-soon stubs).
  *
  * The mobile-redirect rule lives in `AppShell` — every route mounted
- * under it bounces to `/m/send` on viewports ≤ 640 px. A regression
- * test in `mobile-redirect.test.tsx` pins that contract for this route.
+ * under it bounces to `/m/send` on viewports ≤ 640 px. As a defence-
+ * in-depth fix for audit slice C #1 (HIGH) — the deployed mobile build
+ * was observed surfacing the ErrorBoundary fallback BEFORE AppShell's
+ * guard fired — the wrapper component below also short-circuits the
+ * hook chain via `readIsMobileViewport()` so any future hook-chain
+ * regression in `IntegrationsPageInner` cannot crash on a 390 px
+ * viewport. Pinned by `mobile-render.test.tsx`.
  *
  * The page is rendered behind `feature.gdriveIntegration` at the
  * router level — when the flag is OFF, the API also 404s every
@@ -486,6 +610,13 @@ function GDriveCard({ accounts, onConnect, onDisconnect, connecting }: GDriveCar
  * page still renders cleanly in dev when the flag is off.
  */
 export function IntegrationsPage() {
+  if (readIsMobileViewport()) {
+    return <Navigate to="/m/send" replace />;
+  }
+  return <IntegrationsPageInner />;
+}
+
+function IntegrationsPageInner() {
   const [searchParams] = useSearchParams();
   const isCallbackReturn = searchParams.has('connected');
 
@@ -506,6 +637,7 @@ export function IntegrationsPage() {
 
   const accountsQuery = useGDriveAccounts();
   const connect = useConnectGDrive();
+  const reconnect = useReconnectGDrive();
   const disconnect = useDisconnectGDrive();
 
   const [pendingDisconnect, setPendingDisconnect] = useState<GDriveAccount | null>(null);
@@ -513,6 +645,10 @@ export function IntegrationsPage() {
   const handleConnect = useCallback((): void => {
     connect.mutate();
   }, [connect]);
+
+  const handleReconnect = useCallback((): void => {
+    reconnect.mutate();
+  }, [reconnect]);
 
   const dismissConfigAlert = useCallback((): void => {
     // Reset the connect mutation so its `error` clears + the alert
@@ -569,7 +705,7 @@ export function IntegrationsPage() {
   return (
     <Page>
       <BreadcrumbNav aria-label="Breadcrumb">
-        <span>Settings</span>
+        <BreadcrumbLink to="/settings">Settings</BreadcrumbLink>
         <Icon icon={ChevronRight} size={12} />
         <BreadcrumbCurrent aria-current="page">Integrations</BreadcrumbCurrent>
       </BreadcrumbNav>
@@ -609,8 +745,10 @@ export function IntegrationsPage() {
         <GDriveCard
           accounts={accounts}
           onConnect={handleConnect}
+          onReconnect={handleReconnect}
           onDisconnect={openDisconnect}
           connecting={connect.isPending}
+          reconnecting={reconnect.isPending}
         />
         <ComingSoonCard
           name="Dropbox"

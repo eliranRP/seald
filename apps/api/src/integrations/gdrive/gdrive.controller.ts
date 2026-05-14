@@ -246,15 +246,19 @@ export class GDriveController {
   @Get('accounts')
   async listAccounts(@CurrentUser() user: AuthUser): Promise<ReadonlyArray<GDriveAccountView>> {
     this.requireFlag();
-    const rows = await this.svc.listAccounts(user.id);
-    return rows
-      .filter((r) => !r.deletedAt)
-      .map((r) => ({
-        id: r.id,
-        email: r.googleEmail,
-        connectedAt: r.connectedAt,
-        lastUsedAt: r.lastUsedAt,
-      }));
+    const rows = (await this.svc.listAccounts(user.id)).filter((r) => !r.deletedAt);
+    // `tokenStatus` is a CHEAP in-memory read of the most recent refresh
+    // outcome (no extra Google round-trip per page load). The flag goes
+    // hot when `getAccessToken` (called by /files, /picker-credentials,
+    // the export service) trips `invalid_grant` and clears on the next
+    // successful refresh or `completeOAuth`. Audit slice C #4 (HIGH).
+    return rows.map((r) => ({
+      id: r.id,
+      email: r.googleEmail,
+      connectedAt: r.connectedAt,
+      lastUsedAt: r.lastUsedAt,
+      tokenStatus: this.svc.getTokenStatus(r.id),
+    }));
   }
 
   @Delete('accounts/:id')

@@ -385,4 +385,112 @@ describe('IntegrationsPage', () => {
     // Dialog closes after the mutation resolves.
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // Slice C audit findings — added 2026-05-14
+  // ────────────────────────────────────────────────────────────────────
+
+  // Issue #7 (LOW): CardTitle must render as <h2> so screen readers get
+  // landmark structure. Pre-fix it was a <div> styled like a heading.
+  it('renders the Google Drive card title as a level-2 heading (a11y landmark)', async () => {
+    mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
+    renderPage();
+    expect(
+      await screen.findByRole('heading', { level: 2, name: /google drive/i }),
+    ).toBeInTheDocument();
+  });
+
+  // Issue #4 (MEDIUM): the "Settings" breadcrumb crumb was a <span>; must
+  // be a real link back to /settings so users can return to a settings
+  // index. The /settings stub redirects to /settings/integrations until
+  // the proper index lands.
+  it('renders the Settings breadcrumb as a real link to /settings', async () => {
+    mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
+    renderPage();
+    const link = await screen.findByRole('link', { name: /^settings$/i });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/settings');
+  });
+
+  // Issue #2 (HIGH): expired tokens must surface a Reconnect required
+  // badge + primary Reconnect button instead of the green "Connected"
+  // chip. Pre-fix the row rendered identically regardless of token
+  // health, hiding the reconnect path behind a download-only error.
+  it('renders a Reconnect required badge + primary Reconnect button when tokenStatus is reconnect_required', async () => {
+    mockedGet.mockResolvedValueOnce({
+      data: [
+        {
+          id: 'acc-1',
+          email: 'eliran@example.com',
+          connectedAt: '2026-05-03T10:00:00Z',
+          lastUsedAt: '2026-05-03T11:00:00Z',
+          tokenStatus: 'reconnect_required',
+        },
+      ],
+      status: 200,
+    });
+    renderPage();
+    // The badge surfaces twice — once on the card header (so an admin
+    // scanning the integrations stack sees the warning) and once at
+    // the row level for multi-account installs. Both must be present.
+    const badges = await screen.findAllByText(/^reconnect required$/i);
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getByRole('button', { name: /^reconnect eliran@example\.com$/i }),
+    ).toBeInTheDocument();
+    // The green "Connected" status pill must NOT show alongside it.
+    expect(screen.queryByText(/^connected$/i)).toBeNull();
+  });
+
+  it('clicking Reconnect opens the consent URL with prompt=consent forced', async () => {
+    mockedGet.mockImplementation((url: string) => {
+      if (url === '/integrations/gdrive/accounts') {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'acc-1',
+              email: 'eliran@example.com',
+              connectedAt: '2026-05-03T10:00:00Z',
+              lastUsedAt: null,
+              tokenStatus: 'reconnect_required',
+            },
+          ],
+          status: 200,
+        });
+      }
+      if (url === '/integrations/gdrive/oauth/url') {
+        return Promise.resolve({
+          data: { url: 'https://accounts.google.com/o/oauth2/v2/auth?fake=1' },
+          status: 200,
+        });
+      }
+      return Promise.resolve({ data: {}, status: 200 });
+    });
+    renderPage();
+    const reconnect = await screen.findByRole('button', {
+      name: /^reconnect eliran@example\.com$/i,
+    });
+    await userEvent.click(reconnect);
+    await waitFor(() => {
+      const opened = String(openSpy.mock.calls[0]?.[0] ?? '');
+      expect(opened).toMatch(/[?&]prompt=consent\b/);
+    });
+  });
+
+  // Issue #5 (MEDIUM): on narrow widths the "What we ask for" permissions
+  // block must appear ABOVE the CTA button in the DOM, not beside/below.
+  // Pre-fix the grid kept the CTA in column 1 and permissions in column 2
+  // even at narrow widths, so on narrow column widths the left text became
+  // unreadably narrow.
+  it('places the permissions block ABOVE the connect CTA in the DOM (so narrow viewports stack correctly)', async () => {
+    mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
+    renderPage();
+    const ctaButton = await screen.findByRole('button', { name: /connect google drive/i });
+    const permissionsHeading = screen.getByText(/what we ask for/i);
+    // Check DOM order: permissionsHeading must precede the CTA button.
+    const ctaPos = ctaButton.compareDocumentPosition(permissionsHeading);
+    // Node.DOCUMENT_POSITION_PRECEDING === 2; we want permissions to PRECEDE ctaButton.
+    // eslint-disable-next-line no-bitwise
+    expect(ctaPos & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
 });

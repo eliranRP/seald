@@ -283,6 +283,62 @@ describe('GDriveController', () => {
     expect(out[0]).not.toHaveProperty('refreshTokenKmsKeyArn');
   });
 
+  // Slice C audit finding #4 (HIGH): the listing endpoint must surface
+  // a `tokenStatus` flag so the SPA can render a "Reconnect required"
+  // badge + primary Reconnect button when the stored refresh token has
+  // been revoked. The service exposes a cheap in-memory read populated
+  // by the existing `getAccessToken` refresh path — no extra Google
+  // round-trip per page load.
+  it('GET /accounts surfaces tokenStatus: live for an account whose refresh has not (yet) failed', async () => {
+    const { ctrl, state } = makeController();
+    const started = state.start('user-1');
+    await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
+    const out = await ctrl.listAccounts(USER_1);
+    expect(out[0]?.tokenStatus).toBe('live');
+  });
+
+  it('GET /accounts surfaces tokenStatus: reconnect_required after a refresh call returned invalid_grant', async () => {
+    const { ctrl, state, google } = makeController();
+    const started = state.start('user-1');
+    await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
+    const [acc] = await ctrl.listAccounts(USER_1);
+    if (!acc) throw new Error('no acc');
+    // Simulate Google revoking the refresh token at some later point.
+    google.refreshAccessToken = async (): Promise<never> => {
+      const err = new Error('invalid_grant: refresh token revoked') as Error & {
+        code?: string;
+      };
+      err.code = 'invalid_grant';
+      throw err;
+    };
+    // Trigger the refresh path so the service marks the account
+    // revoked (this is what /files or /picker-credentials would do in
+    // prod when Google declines a refresh).
+    await expect(ctrl.pickerCredentials(USER_1, acc.id)).rejects.toMatchObject({ status: 401 });
+    const after = await ctrl.listAccounts(USER_1);
+    expect(after[0]?.tokenStatus).toBe('reconnect_required');
+  });
+
+  it('GET /accounts flips tokenStatus back to live after the user reconnects', async () => {
+    const { ctrl, state, google } = makeController();
+    const started = state.start('user-1');
+    await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
+    const [acc] = await ctrl.listAccounts(USER_1);
+    if (!acc) throw new Error('no acc');
+    google.refreshAccessToken = async (): Promise<never> => {
+      const err = new Error('invalid_grant') as Error & { code?: string };
+      err.code = 'invalid_grant';
+      throw err;
+    };
+    await expect(ctrl.pickerCredentials(USER_1, acc.id)).rejects.toMatchObject({ status: 401 });
+    expect((await ctrl.listAccounts(USER_1))[0]?.tokenStatus).toBe('reconnect_required');
+
+    // User reconnects via the OAuth flow — this should clear the marker.
+    const started2 = state.start('user-1');
+    await ctrl.oauthCallback('new-code', started2.state, undefined, fakeRes());
+    expect((await ctrl.listAccounts(USER_1))[0]?.tokenStatus).toBe('live');
+  });
+
   it('DELETE /accounts/:id soft-deletes the row', async () => {
     const { ctrl, state, repo } = makeController();
     const started = state.start('user-1');
