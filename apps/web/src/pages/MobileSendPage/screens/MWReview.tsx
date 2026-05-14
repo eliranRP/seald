@@ -1,4 +1,4 @@
-import { FileText } from 'lucide-react';
+import { FileText, Pencil } from 'lucide-react';
 import styled from 'styled-components';
 import type { MobilePlacedField, MobileSigner } from '../types';
 
@@ -23,9 +23,23 @@ const Eyebrow = styled.div`
   margin-bottom: 6px;
 `;
 
+/**
+ * Slice-D §6 MEDIUM: the title was a borderless input with zero visual
+ * affordance that it was editable. We add a dashed underline that
+ * solidifies on focus AND surface a `<Pencil>` icon to the right (the
+ * audit suggested either; we ship both for unambiguous mobile UX).
+ */
+const TitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
 const TitleInput = styled.input`
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   border: none;
+  border-bottom: 1px dashed var(--border-1);
   outline: none;
   font-family: ${({ theme }) => theme.font.serif};
   font-size: 18px;
@@ -33,11 +47,22 @@ const TitleInput = styled.input`
   color: var(--fg-1);
   letter-spacing: -0.01em;
   background: transparent;
+  padding: 2px 0;
   font: inherit;
+  transition: border-color 0.15s;
 
   &:focus {
     outline: none;
+    border-bottom: 1px solid var(--indigo-600);
   }
+`;
+
+const TitleHint = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-3);
+  flex-shrink: 0;
 `;
 
 const DocRow = styled.div`
@@ -113,6 +138,10 @@ const Email = styled.div`
 `;
 
 const Pill = styled.span`
+  /* Slice-D §6 LOW: prevent the field-count pill from shrinking on
+     320 px phones where long emails would otherwise compress it into
+     unreadable territory. */
+  flex-shrink: 0;
   background: var(--indigo-50);
   color: var(--indigo-700);
   font-size: 11px;
@@ -144,11 +173,22 @@ export function MWReview(props: MWReviewProps) {
     <Wrap>
       <Card>
         <Eyebrow>Title</Eyebrow>
-        <TitleInput
-          value={title}
-          onChange={(e) => onTitle(e.target.value)}
-          aria-label="Document title"
-        />
+        <TitleRow>
+          <TitleInput
+            value={title}
+            onChange={(e) => onTitle(e.target.value)}
+            aria-label="Document title"
+          />
+          <TitleHint aria-hidden>
+            <Pencil size={14} />
+          </TitleHint>
+        </TitleRow>
+        {/*
+          Slice-D §6 MEDIUM (expiry display): the envelope-create DTO
+          currently does not accept an `expiresAt`. Until it does,
+          surfacing an "Expires: never" row would lie to the sender.
+          When the DTO grows the field, swap this comment for the row.
+        */}
       </Card>
       <Card>
         <DocRow>

@@ -189,7 +189,10 @@ Then('the {string} heading is visible', async ({ page }, name: string) => {
 });
 
 Then('the {string} tile is visible inside the viewport', async ({ page }, name: string) => {
-  const tile = page.getByLabel(new RegExp(`^${name}$`));
+  // Audit slice-D removed the redundant aria-label that was overriding the
+  // visible <TileTitle>+<TileSub> for SR users; the tile is a <button> whose
+  // accessible name is now its text content (rule 4.6).
+  const tile = page.getByRole('button', { name: new RegExp(`^${name}`) });
   await expect(tile).toBeVisible();
   await expect(tile).toBeInViewport();
 });

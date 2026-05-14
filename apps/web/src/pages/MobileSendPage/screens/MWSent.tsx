@@ -20,8 +20,16 @@ const SuccessHalo = styled.div`
   color: var(--success-700);
 `;
 
+/**
+ * Slice-D §7 MEDIUM: theme.font.script is `'Caveat', 'Segoe Script',
+ * cursive` (theme.ts:59) and `apps/web/index.html` already imports
+ * Caveat via the Google-fonts stylesheet — the previous hardcoded
+ * `'Caveat', serif` was redundant and brittle. Routing through the
+ * theme token means a future font swap (e.g. self-hosted) only needs to
+ * touch one place.
+ */
 const Sealed = styled.div`
-  font-family: 'Caveat', ${({ theme }) => theme.font.serif};
+  font-family: ${({ theme }) => theme.font.script};
   font-size: 64px;
   font-weight: 600;
   color: var(--indigo-700);
@@ -29,14 +37,18 @@ const Sealed = styled.div`
   margin-bottom: 6px;
 `;
 
-const Headline = styled.div`
+/**
+ * Slice-D §7 LOW: headline upgraded to `<h1>` for the screen-reader's
+ * heading-jumping shortcut and proper document outline.
+ */
+const Headline = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-size: 24px;
   font-weight: 500;
   color: var(--fg-1);
   letter-spacing: -0.02em;
   line-height: 1.2;
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 `;
 
 const Lead = styled.div`
