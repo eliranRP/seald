@@ -35,13 +35,23 @@ jobs:
         uses: appleboy/ssh-action@v1.2.5
         env:
           PROD_API_ENV: ${{ secrets.PROD_API_ENV }}
+          # Modern Supabase secret API key (`sb_secret_…`). Lives in a
+          # standalone secret (NOT inside PROD_API_ENV) so we can rotate
+          # the Supabase key without re-pasting the whole .env blob.
+          # The script strips any prior `SUPABASE_SERVICE_ROLE_KEY=` line
+          # from `.env` (whatever PROD_API_ENV happened to ship) and
+          # re-appends the canonical value from this secret. Same
+          # pattern as the APP_PUBLIC_URL / CORS_ORIGIN pin above.
+          # Added 2026-05-14 after the legacy service_role JWT leaked
+          # via apps/api/test/burn-in-from-db.ts (Secret Scanning #1).
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         with:
           host: ${{ secrets.DEPLOY_SSH_HOST }}
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
           command_timeout: 8m
-          envs: PROD_API_ENV
+          envs: PROD_API_ENV,SUPABASE_SERVICE_ROLE_KEY
           script: |
             set -euo pipefail
             cd /opt/seald
@@ -84,7 +94,7 @@ jobs:
             # Discovered 2026-05-14 chasing localhost links in
             # prod-sent emails — pre-state showed both keys were
             # present in `.env` but with wrong values from the secret.
-            sudo grep -vE '^(APP_PUBLIC_URL|CORS_ORIGIN)=' \
+            sudo grep -vE '^(APP_PUBLIC_URL|CORS_ORIGIN|SUPABASE_SERVICE_ROLE_KEY)=' \
               /opt/seald/apps/api/.env > /tmp/.env.new
             sudo install -m 0600 /tmp/.env.new /opt/seald/apps/api/.env
             rm -f /tmp/.env.new
@@ -92,6 +102,19 @@ jobs:
               printf 'APP_PUBLIC_URL=https://seald.nromomentum.com\n'
               printf 'CORS_ORIGIN=https://seald.nromomentum.com\n'
             } | sudo tee -a /opt/seald/apps/api/.env >/dev/null
+            # SUPABASE_SERVICE_ROLE_KEY pin: the value is injected via
+            # the standalone GH Actions secret of the same name; the
+            # strip above removed any pre-existing line. Refusing to
+            # append when the value is empty so a missing/cleared
+            # secret fails loudly rather than silently writing a blank
+            # key (which would 401 every server-side Supabase call).
+            if [ -z "${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+              echo "ERROR: SUPABASE_SERVICE_ROLE_KEY secret is empty" >&2
+              exit 1
+            fi
+            printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' \
+              "$SUPABASE_SERVICE_ROLE_KEY" \
+              | sudo tee -a /opt/seald/apps/api/.env >/dev/null
             sudo chmod 0600 /opt/seald/apps/api/.env
             sudo wc -c /opt/seald/apps/api/.env
             # Sanity-check critical keys are present (no values
