@@ -100,9 +100,12 @@ When('the user opens {string}', async ({ page }, path: string) => {
 });
 
 Then('the verify verdict heading announces the document is sealed', async ({ page }) => {
-  await expect(
-    page.getByRole('heading', { level: 1, name: /this document is sealed/i }),
-  ).toBeVisible();
+  // PR-5 added an `aria-label` per variant on the verdict <h1> so screen
+  // readers hear the full semantic verdict ("Sealed and intact") instead
+  // of relying on the visible italic emphasis ("This document is sealed.").
+  // `aria-label` overrides the accessible name, so the role+name query
+  // must match the label, not the visible text.
+  await expect(page.getByRole('heading', { level: 1, name: /sealed and intact/i })).toBeVisible();
 });
 
 Then(

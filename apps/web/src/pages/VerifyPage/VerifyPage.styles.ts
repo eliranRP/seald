@@ -90,8 +90,13 @@ export const Container = styled.div`
   padding: 56px ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]};
 
   @media (max-width: 640px) {
-    padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[5]}
-      ${({ theme }) => theme.space[10]};
+    /*
+     * Bottom padding includes an 80px safe-zone so the global cookie-consent
+     * banner (apps/landing/public/scripts/cookie-consent.js) cannot occlude
+     * the primary actions (Download / Audit PDF) on mobile. The banner is
+     * dismissed once and disappears via JS, but until then we keep clearance.
+     */
+    padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[5]} 80px;
   }
 `;
 
@@ -123,6 +128,17 @@ export const VerdictMark = styled.div<{ readonly $variant: 'success' | 'failed' 
     animation: ${pulse} 3s ${({ theme }) => theme.motion.easeStandard} infinite;
   }
 
+  /*
+   * Vestibular-disorder users see the 3s pulse loop indefinitely otherwise.
+   * Defer to the OS-level prefers-reduced-motion preference and turn the
+   * animation off entirely; the ring still renders, just static.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    &::before {
+      animation: none;
+    }
+  }
+
   svg {
     width: 44px;
     height: 44px;
@@ -152,6 +168,7 @@ export const VerdictEyebrow = styled.span<{ readonly $variant: 'success' | 'fail
 export const VerdictHeading = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  /* design spec calls for 44 px exactly; theme.font.size.h1 is 48 px */
   font-size: 44px;
   line-height: 1.05;
   letter-spacing: -0.02em;
@@ -295,6 +312,16 @@ export const Btn = styled.a<{ readonly $variant?: 'primary' | 'secondary' }>`
     stroke-linejoin: round;
     stroke: currentColor;
   }
+
+  /*
+   * iOS HIG / WCAG 2.5.5 require a 44×44 px minimum tap target. The desktop
+   * caption-sized button is below that floor on small viewports, so we bump
+   * padding + apply an explicit min-height inside the mobile breakpoint.
+   */
+  @media (max-width: 640px) {
+    padding: 12px 16px;
+    min-height: 44px;
+  }
 `;
 
 export const Facts = styled.dl`
@@ -305,7 +332,12 @@ export const Facts = styled.dl`
 
 export const Fact = styled.div`
   display: grid;
-  grid-template-columns: 200px 1fr auto;
+  /*
+   * Flexible key column: collapses from 200 px down to 140 px on the
+   * 1024–1100 px range where long hash values + tags previously collided
+   * with the fixed 200 px label.
+   */
+  grid-template-columns: minmax(140px, 200px) 1fr auto;
   gap: ${({ theme }) => theme.space[6]};
   padding: ${({ theme }) => theme.space[3]} 0;
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -313,6 +345,15 @@ export const Fact = styled.div`
 
   &:last-child {
     border-bottom: none;
+  }
+
+  /*
+   * When the value wraps (two-line SHA-256 hash), the tag should pin to
+   * the top of the row instead of vertically centering against a
+   * multi-line value.
+   */
+  & > :last-child {
+    align-self: start;
   }
 
   @media (max-width: 640px) {
@@ -550,7 +591,7 @@ export const TimelineHead = styled.h3`
   margin: 0;
 `;
 
-export const TimelineRow = styled.li`
+export const TimelineRow = styled.li<{ readonly $tone?: 'success' | 'indigo' | 'warn' }>`
   display: grid;
   grid-template-columns: 90px 24px 1fr auto;
   gap: ${({ theme }) => theme.space[3]};
@@ -563,8 +604,15 @@ export const TimelineRow = styled.li`
     border-bottom: none;
   }
 
+  /*
+   * On mobile the dot-and-line column is ornamental — hide it and move
+   * the tone color onto a 3px left border on the row itself, which keeps
+   * the visual hierarchy without burning a column.
+   */
   @media (max-width: 640px) {
     grid-template-columns: 1fr;
+    padding-left: ${({ theme }) => theme.space[3]};
+    border-left: 3px solid ${({ theme, $tone = 'indigo' }) => dotBorderFor(theme, $tone)};
   }
 `;
 
@@ -590,6 +638,14 @@ export const TimelineTime = styled.div`
 export const TimelineDotCol = styled.div`
   position: relative;
   align-self: stretch;
+
+  /*
+   * Single-column mobile timeline — the dot column drops to nothing and
+   * the row's left border carries the tone instead (TimelineRow above).
+   */
+  @media (max-width: 640px) {
+    display: none;
+  }
 `;
 
 export const TimelineDot = styled.span<{ readonly $tone?: 'success' | 'indigo' | 'warn' }>`
@@ -709,6 +765,104 @@ export const SkeletonBlock = styled.div`
       background-position: -200% 0;
     }
   }
+
+  /*
+   * Shimmer is decorative — vestibular-disorder users should not see the
+   * 1.4s background-position loop. Static gradient is fine as a skeleton
+   * surface; the surrounding aria-busy still announces loading state.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`;
+
+/*
+ * Hide content on ≤640 px viewports. Used to trim secondary integrity-copy
+ * sentences that are evocative on desktop but redundant on mobile (the
+ * `audit chain · intact` tag conveys the same idea).
+ */
+export const DesktopOnly = styled.span`
+  @media (max-width: 640px) {
+    display: none;
+  }
+`;
+
+/*
+ * Inline secondary action button. Renders next to the Verification URL fact
+ * value to copy the shareable URL to the clipboard.
+ */
+export const InlineActionBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[1]};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.indigo[700]};
+  background: transparent;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  padding: 4px 8px;
+  margin-left: ${({ theme }) => theme.space[2]};
+  cursor: pointer;
+  transition: background ${({ theme }) => theme.motion.durFast};
+
+  &:hover {
+    background: ${({ theme }) => theme.color.ink[50]};
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+
+  svg {
+    width: 12px;
+    height: 12px;
+  }
+`;
+
+/*
+ * Loading-state messaging — softens the subtitle copy after 5 s and renders
+ * a manual Retry affordance after 15 s if the verify query is still pending.
+ */
+export const LoadingSubtitle = styled.p`
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  margin: ${({ theme }) => theme.space[5]} auto 0;
+  text-align: center;
+`;
+
+export const LoadingRetryBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  margin: ${({ theme }) => theme.space[4]} auto 0;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.paper};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  border: 1px solid transparent;
+  border-radius: ${({ theme }) => theme.radius.md};
+  padding: 10px 16px;
+  min-height: 44px;
+  cursor: pointer;
+  transition: background ${({ theme }) => theme.motion.durFast};
+
+  &:hover {
+    background: ${({ theme }) => theme.color.indigo[700]};
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const LoadingActions = styled.div`
+  display: flex;
+  justify-content: center;
 `;
 
 export const ErrorPanel = styled.div`

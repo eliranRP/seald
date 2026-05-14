@@ -127,8 +127,38 @@ describe('useVerifyEnvelope', () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { status?: number } | null)?.status).toBe(404);
     expect(result.current.error?.message).toBe('envelope_not_found');
-    // retry: false — verify is read-only, retries can't fix a wrong code
-    // and would just slow down the error UI.
+    // HTTP-status errors don't retry — verify is read-only, retries can't
+    // fix a wrong code and would just slow down the error UI.
     expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  // Network errors (no `status` field on the thrown error) retry once.
+  // Brief connectivity blips shouldn't dump the user into the error panel
+  // when a transparent retry would have recovered them.
+  it('retries exactly once on a network-level failure with no HTTP status', async () => {
+    const networkErr = new Error('Network Error');
+    get.mockRejectedValueOnce(networkErr);
+    get.mockResolvedValueOnce({ data: PAYLOAD });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useVerifyEnvelope('AbCdEfGhIjKlM'), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(PAYLOAD);
+    expect(get).toHaveBeenCalledTimes(2);
+  });
+
+  // …but never more than once, even if the network error persists.
+  it('does not retry a network failure more than once', async () => {
+    const networkErr = new Error('Network Error');
+    get.mockRejectedValue(networkErr);
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useVerifyEnvelope('AbCdEfGhIjKlM'), {
+      wrapper: Wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(get).toHaveBeenCalledTimes(2);
   });
 });

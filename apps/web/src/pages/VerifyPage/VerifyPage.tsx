@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Check,
   Clock,
+  Copy,
   FileText,
   Globe,
+  RefreshCcw,
   ShieldCheck,
   ShieldAlert,
   Users,
@@ -12,7 +15,7 @@ import {
   Share2,
 } from 'lucide-react';
 import { Icon } from '@/components/Icon';
-import { useVerifyEnvelope } from '@/features/verify';
+import { useVerifyEnvelope, VERIFY_KEY } from '@/features/verify';
 import type { VerifyEnvelope, VerifyEvent, VerifyResponse, VerifySigner } from '@/features/verify';
 import {
   Avatar,
@@ -20,6 +23,7 @@ import {
   Card,
   CardHead,
   Container,
+  DesktopOnly,
   DocActions,
   DocMeta,
   DocSub,
@@ -32,11 +36,15 @@ import {
   Footer,
   FooterLeft,
   FooterRight,
+  InlineActionBtn,
   Integrity,
   IntegrityIco,
   IntegrityInner,
   IntegrityMeta,
   IntegrityText,
+  LoadingActions,
+  LoadingRetryBtn,
+  LoadingSubtitle,
   Page,
   SignerCheck,
   SignerEmail,
@@ -91,10 +99,13 @@ function initialsFor(name: string): string {
   return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
 }
 
+// Hashes wrap visually via `word-break: break-all` on FactVal — return the
+// raw string so the user can select/copy it as a single uninterrupted
+// SHA-256. The old implementation spliced a literal `\n` mid-string, which
+// silently corrupted "copy hash" workflows.
 function shortHash(hash: string | null): string {
   if (!hash) return '';
-  if (hash.length <= 32) return hash;
-  return `${hash.slice(0, 32)}\n${hash.slice(32)}`;
+  return hash;
 }
 
 // Card subtitle: "Sealed Apr 25, 2026" — date only, per design
@@ -175,6 +186,11 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
 interface DerivedView {
   readonly variant: 'success' | 'failed' | 'neutral';
   readonly heading: React.ReactNode;
+  // Screen-reader-only label for the H1. The visual heading uses italic
+  // emphasis + color to distinguish success/failure; AT users need an
+  // unambiguous semantic equivalent ("Sealed and intact" / "Signer
+  // declined; not sealed" / "Awaiting signatures").
+  readonly headingAriaLabel: string;
   readonly eyebrow: string;
   readonly body: string;
   readonly mark: React.ReactNode;
@@ -190,6 +206,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
           This document is <em>sealed</em>.
         </>
       ),
+      headingAriaLabel: 'Sealed and intact',
       body: 'We checked the fingerprint on file against our trust ledger. Everything matches — this PDF has not been altered since it was signed.',
       mark: (
         <svg
@@ -214,6 +231,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
           A signer <em className="danger">declined</em>.
         </>
       ),
+      headingAriaLabel: 'Signer declined; not sealed',
       body: 'This envelope was withdrawn before all signatures were captured. The audit trail below is preserved as evidence of the decline.',
       mark: (
         <svg
@@ -239,6 +257,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
           This envelope <em className="danger">expired</em>.
         </>
       ),
+      headingAriaLabel: 'Expired; not sealed',
       body: 'The signing window closed before all parties completed their signatures. The audit trail below is preserved.',
       mark: (
         <svg
@@ -264,6 +283,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
           This envelope was <em className="danger">canceled</em>.
         </>
       ),
+      headingAriaLabel: 'Canceled; not sealed',
       body: 'The sender withdrew this envelope before completion. The audit trail below records what happened.',
       mark: (
         <svg
@@ -288,6 +308,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
         Awaiting <em>signatures</em>.
       </>
     ),
+    headingAriaLabel: 'Awaiting signatures',
     body: 'Signers are still working through this envelope. Check back once everyone has signed.',
     mark: (
       <svg
@@ -411,8 +432,16 @@ function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCo
     return (
       <>
         <strong>The document, signers, and timestamp are unchanged since the seal.</strong>
-        <br />
-        If a single byte of the file had changed, this seal would be broken.
+        {/*
+         * The evocative second sentence is desktop-only — on mobile the
+         * `audit chain · intact` tag carries the same meaning without
+         * the jargon, and the line break collapses awkwardly under the
+         * card. Wrap in a DesktopOnly span (≤640 px = display: none).
+         */}
+        <DesktopOnly>
+          <br />
+          If a single byte of the file had changed, this seal would be broken.
+        </DesktopOnly>
       </>
     );
   }
@@ -462,6 +491,58 @@ function SignersFact({ signers }: SignersFactProps) {
   );
 }
 
+/*
+ * Inline "Copy share link" affordance for the Verification URL fact. Users
+ * who landed here via the audit-PDF QR code typically want to re-share the
+ * URL with a counterparty; one click is much better than highlight-and-copy
+ * on a long mono string.
+ *
+ * Falls back gracefully when navigator.clipboard is unavailable (older
+ * browsers / non-secure contexts) — the button still renders but the
+ * status copy stays at "Copy share link" without throwing.
+ */
+const SHARE_URL_PREFIX = 'seald.nromomentum.com/verify/';
+
+interface CopyShareLinkButtonProps {
+  readonly shortCode: string;
+}
+
+function CopyShareLinkButton({ shortCode }: CopyShareLinkButtonProps) {
+  const [copied, setCopied] = useState(false);
+  const url = `${SHARE_URL_PREFIX}${shortCode}`;
+  const onClick = useCallback(() => {
+    const cb = navigator.clipboard;
+    if (!cb || typeof cb.writeText !== 'function') {
+      return;
+    }
+    cb.writeText(url).then(
+      () => setCopied(true),
+      () => {
+        /* swallow — user can fall back to manual copy */
+      },
+    );
+  }, [url]);
+  // Auto-reset the "Copied" state after 2s so the affordance reverts to its
+  // primary label for the next interaction. Effect has one responsibility
+  // per react-best-practices rule 4.4.
+  useEffect(() => {
+    if (!copied) return undefined;
+    const id = window.setTimeout(() => setCopied(false), 2000);
+    return () => window.clearTimeout(id);
+  }, [copied]);
+  return (
+    <InlineActionBtn
+      type="button"
+      onClick={onClick}
+      aria-label="Copy share link"
+      aria-live="polite"
+    >
+      <Copy aria-hidden />
+      {copied ? 'Copied' : 'Copy share link'}
+    </InlineActionBtn>
+  );
+}
+
 interface VerifyContentProps {
   readonly data: VerifyResponse;
 }
@@ -485,7 +566,7 @@ function VerifyContent({ data }: VerifyContentProps) {
             {view.mark}
           </VerdictMark>
           <VerdictEyebrow $variant={view.variant}>{view.eyebrow}</VerdictEyebrow>
-          <VerdictHeading>{view.heading}</VerdictHeading>
+          <VerdictHeading aria-label={view.headingAriaLabel}>{view.heading}</VerdictHeading>
           <VerdictBody>{view.body}</VerdictBody>
         </Verdict>
 
@@ -597,7 +678,10 @@ function VerifyContent({ data }: VerifyContentProps) {
                 <Globe aria-hidden />
                 Verification URL
               </FactKey>
-              <FactVal $mono>seald.nromomentum.com/verify/{data.envelope.short_code}</FactVal>
+              <FactVal $mono>
+                seald.nromomentum.com/verify/{data.envelope.short_code}
+                <CopyShareLinkButton shortCode={data.envelope.short_code} />
+              </FactVal>
               <Tag $tone="neutral">Public</Tag>
             </Fact>
           </Facts>
@@ -645,7 +729,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 const t = formatTimelineTime(ev.created_at);
                 const tone = toneFor(ev.event_type);
                 return (
-                  <TimelineRow key={ev.id}>
+                  <TimelineRow key={ev.id} $tone={tone}>
                     <TimelineTime>
                       <span className="d">{t.date}</span>
                       {t.time}
@@ -689,7 +773,34 @@ function VerifyContent({ data }: VerifyContentProps) {
   );
 }
 
-function VerifyLoading() {
+interface VerifyLoadingProps {
+  // Manual retry handler — wired to React Query's `refetch` so the user
+  // can re-attempt a stuck verify fetch without a full page reload.
+  readonly onRetry: () => void;
+}
+
+// Two timers, each isolated in its own effect (rule 4.4):
+//  - 5s: soften the subtitle copy to "Still working…" so the page feels
+//    alive instead of stuck.
+//  - 15s: surface a manual Retry button so the user can recover from a
+//    request that the network silently lost.
+const STILL_WORKING_DELAY_MS = 5_000;
+const RETRY_OFFER_DELAY_MS = 15_000;
+
+function VerifyLoading({ onRetry }: VerifyLoadingProps) {
+  const [stillWorking, setStillWorking] = useState(false);
+  const [retryOffered, setRetryOffered] = useState(false);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setStillWorking(true), STILL_WORKING_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setRetryOffered(true), RETRY_OFFER_DELAY_MS);
+    return () => window.clearTimeout(id);
+  }, []);
+
   return (
     <Page $variant="neutral">
       <Container aria-busy aria-live="polite" aria-label="Loading verification">
@@ -699,6 +810,15 @@ function VerifyLoading() {
           />
           <SkeletonBlock style={{ width: 320, height: 36, margin: '0 auto 12px' }} />
           <SkeletonBlock style={{ width: 480, height: 18, margin: '0 auto' }} />
+          {stillWorking ? <LoadingSubtitle>Still working…</LoadingSubtitle> : null}
+          {retryOffered ? (
+            <LoadingActions>
+              <LoadingRetryBtn type="button" onClick={onRetry}>
+                <RefreshCcw aria-hidden width={14} height={14} />
+                Retry
+              </LoadingRetryBtn>
+            </LoadingActions>
+          ) : null}
         </Verdict>
         <Card>
           <CardHead>
@@ -750,8 +870,19 @@ export function VerifyPage() {
   const params = useParams<{ readonly shortCode: string }>();
   const shortCode = params.shortCode ?? '';
   const query = useVerifyEnvelope(shortCode);
+  const queryClient = useQueryClient();
+  // Manual retry: cancel any in-flight pending request, drop the cached
+  // result, then invalidate the key so React Query schedules a fresh
+  // fetch. `refetch()` alone won't re-issue if the prior promise is still
+  // pending (the request gets deduped).
+  const onRetry = useCallback(() => {
+    const key = VERIFY_KEY(shortCode);
+    queryClient.cancelQueries({ queryKey: key }).then(() => {
+      queryClient.resetQueries({ queryKey: key });
+    });
+  }, [queryClient, shortCode]);
 
-  if (query.isPending) return <VerifyLoading />;
+  if (query.isPending) return <VerifyLoading onRetry={onRetry} />;
   if (query.isError) {
     const status = (query.error as { status?: number } | null)?.status;
     const message = query.error?.message;

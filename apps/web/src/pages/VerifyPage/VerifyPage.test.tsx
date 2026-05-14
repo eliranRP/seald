@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -134,7 +134,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
     ).toBeInTheDocument();
     // doc title (h2) is also rendered
     expect(
@@ -224,7 +224,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
     ).toBeInTheDocument();
   });
 
@@ -255,7 +255,7 @@ describe('VerifyPage', () => {
       const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
       render(<VerifyPage />, { wrapper: Wrapper });
       expect(
-        await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+        await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
       ).toBeInTheDocument();
     },
   );
@@ -305,7 +305,9 @@ describe('VerifyPage', () => {
     get.mockResolvedValueOnce({ data: DECLINED_PAYLOAD });
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
-    expect(await screen.findByRole('heading', { level: 1, name: /declined/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /signer declined; not sealed/i }),
+    ).toBeInTheDocument();
     // The envelope status pill in the "Last activity" row uses the literal
     // status string.
     expect(screen.getAllByText(/declined/i).length).toBeGreaterThan(0);
@@ -347,7 +349,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this envelope.*expired/i }),
+      await screen.findByRole('heading', { level: 1, name: /expired; not sealed/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/expired · not sealed/i)).toBeInTheDocument();
   });
@@ -362,7 +364,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this envelope was.*canceled/i }),
+      await screen.findByRole('heading', { level: 1, name: /canceled; not sealed/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/canceled · not sealed/i)).toBeInTheDocument();
   });
@@ -393,7 +395,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /awaiting.*signatures/i }),
+      await screen.findByRole('heading', { level: 1, name: /awaiting signatures/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/in progress/i)).toBeInTheDocument();
     // "1 of 2 signatures recorded." — the IntegrityCopy in-progress branch
@@ -529,7 +531,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
     ).toBeInTheDocument();
     // Each event renders the label twice (timeline title + describe line),
     // so we assert at-least-one match rather than uniqueness.
@@ -554,9 +556,13 @@ describe('VerifyPage', () => {
   // `status` (e.g. a network failure surfaces "Network Error" with no
   // HTTP response). The page should fall back to the generic heading
   // and use the error message as the body copy.
+  //
+  // `useVerifyEnvelope` retries network-level failures once (no `status`
+  // means transient network blip), so we use `mockRejectedValue` to keep
+  // failing on both attempts before the error panel renders.
   it('renders the generic error heading with the error message when status is missing', async () => {
     const err = new Error('Network down — connection lost');
-    get.mockRejectedValueOnce(err);
+    get.mockRejectedValue(err);
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
@@ -568,9 +574,10 @@ describe('VerifyPage', () => {
   // Error path with neither a status nor a message — should still render
   // the generic error panel with default copy. Guards against a blank
   // page if the API ever throws a bare `Error()` without context.
+  // See the test above for why `mockRejectedValue` (not Once).
   it('renders the default error copy when the error has no status and no message', async () => {
     const err = new Error('');
-    get.mockRejectedValueOnce(err);
+    get.mockRejectedValue(err);
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
@@ -608,7 +615,7 @@ describe('VerifyPage', () => {
     render(<VerifyPage />, { wrapper: Wrapper });
     await waitFor(() => {
       expect(
-        screen.getByRole('heading', { level: 1, name: /this document is sealed/i }),
+        screen.getByRole('heading', { level: 1, name: /sealed and intact/i }),
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
@@ -642,7 +649,7 @@ describe('VerifyPage', () => {
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /this document is sealed/i }),
+      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
     ).toBeInTheDocument();
     // The Timeline header copy includes a singular/plural branch on the
     // event count; the zero case must use the plural "events" form per
@@ -781,5 +788,193 @@ describe('VerifyPage', () => {
       // since the element splits the value across spans.
       expect(screen.getByText(/—\s*pages/i)).toBeInTheDocument();
     });
+  });
+
+  // ---- Loading timeout / retry (PR-5 item #1, [HIGH] interaction) ---------
+  // Without progressive copy + a manual retry, a stuck verify request leaves
+  // users staring at shimmer forever. After 5s we soften the subtitle, after
+  // 15s we offer a retry button that re-attempts the fetch.
+  describe('Loading timeout + retry', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: false });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('switches the loading subtitle to "Still working…" after 5 seconds', async () => {
+      get.mockReturnValue(new Promise(() => {}));
+      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+      render(<VerifyPage />, { wrapper: Wrapper });
+      expect(screen.queryByText(/still working/i)).not.toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(screen.getByText(/still working/i)).toBeInTheDocument();
+    });
+
+    it('renders a manual Retry button after 15 seconds and re-attempts the fetch on click', async () => {
+      // Distinct never-resolving promise per call — if we reused a single
+      // pending promise, React Query would dedupe the second fetch.
+      get.mockImplementation(() => new Promise(() => {}));
+      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+      render(<VerifyPage />, { wrapper: Wrapper });
+      expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      const retry = screen.getByRole('button', { name: /retry/i });
+      expect(retry).toBeInTheDocument();
+      // First call is the original mount.
+      expect(get).toHaveBeenCalledTimes(1);
+      // Switch back to real timers so React Query's internal microtask
+      // scheduler (which sometimes uses setTimeout(0) for transitions)
+      // can flush naturally inside waitFor.
+      vi.useRealTimers();
+      fireEvent.click(retry);
+      // Click re-invokes the query's `refetch()`. waitFor polls until the
+      // second `get` call lands.
+      await waitFor(() => {
+        expect(get).toHaveBeenCalledTimes(2);
+      });
+    });
+  });
+
+  // ---- prefers-reduced-motion guard (PR-5 item #2, [HIGH] a11y) ----------
+  // Two long-running keyframe animations: the verdict mark's pulsing ring
+  // (`pulse`) and the loading skeleton (`skeleton-shimmer`). Both must be
+  // disabled inside `@media (prefers-reduced-motion: reduce)`.
+  it('disables the verdict pulse + skeleton shimmer animations under prefers-reduced-motion', async () => {
+    get.mockReturnValue(new Promise(() => {}));
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+
+    // styled-components serialises every <style> block it has injected.
+    const collected = Array.from(document.querySelectorAll('style'))
+      .map((s) => s.textContent ?? '')
+      .join('\n');
+    expect(collected).toMatch(/prefers-reduced-motion:\s*reduce/i);
+    // Each animated rule must be neutralised inside the reduce guard.
+    const reduceBlocks = collected.match(
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*{[^}]*animation:\s*none/gi,
+    );
+    expect(reduceBlocks).not.toBeNull();
+    // Two animated surfaces: VerdictMark::before + SkeletonBlock.
+    expect((reduceBlocks ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  // ---- Mobile cookie-banner safe-zone (PR-5 item #3, [HIGH] layout) ------
+  // The cookie banner is global (apps/landing/public/scripts/cookie-consent.js).
+  // Until dismissed it overlays the verify card's primary actions on mobile.
+  // The Container must reserve 80px of bottom padding on ≤640px viewports.
+  it("reserves 80px bottom padding on mobile so the cookie banner can't overlay primary actions", async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
+    const collected = Array.from(document.querySelectorAll('style'))
+      .map((s) => s.textContent ?? '')
+      .join('\n');
+    // Container @media (max-width: 640px) block must include 80px as the
+    // bottom value (cookie-banner safe-zone). styled-components serialises
+    // the rule as the `padding` shorthand `padding:32px 20px 80px;` so we
+    // assert the 640px-breakpoint rule contains `80px` at the end of a
+    // padding shorthand.
+    expect(collected).toMatch(/@media[^{]*max-width:\s*640px[^{]*{[^}]*padding:[^;]*80px/i);
+  });
+
+  // ---- Verdict aria-label per variant (PR-5 item #5, [MEDIUM] a11y) ------
+  // The verdict <h1> currently relies on color + italic emphasis. Screen
+  // readers must hear the full semantic verdict.
+  it('exposes an aria-label "Sealed and intact" on the verdict heading for completed envelopes', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const heading = await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
+    expect(heading).toHaveAttribute('aria-label', 'Sealed and intact');
+  });
+
+  it('exposes an aria-label "Signer declined; not sealed" on the verdict heading for declined envelopes', async () => {
+    get.mockResolvedValueOnce({ data: DECLINED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const heading = await screen.findByRole('heading', {
+      level: 1,
+      name: /signer declined; not sealed/i,
+    });
+    expect(heading).toHaveAttribute('aria-label', 'Signer declined; not sealed');
+  });
+
+  it('exposes an aria-label "Awaiting signatures" on the verdict heading while in progress', async () => {
+    const payload: VerifyResponse = {
+      ...SIGNED_PAYLOAD,
+      envelope: {
+        ...SIGNED_PAYLOAD.envelope,
+        status: 'awaiting_others',
+        completed_at: null,
+      },
+      sealed_url: null,
+    };
+    get.mockResolvedValueOnce({ data: payload });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const heading = await screen.findByRole('heading', {
+      level: 1,
+      name: /awaiting signatures/i,
+    });
+    expect(heading).toHaveAttribute('aria-label', 'Awaiting signatures');
+  });
+
+  // ---- Mobile tap-target (PR-5 item #6, [MEDIUM] a11y) -------------------
+  // `<Btn>` must hit the iOS 44×44 minimum on narrow viewports. Verified by
+  // inspecting the serialised styled-component CSS for a `min-height: 44px`
+  // rule inside a `(max-width: 640px)` media query.
+  it('bumps DocActions buttons to a 44px tap target on mobile', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    await screen.findByRole('link', { name: /download/i });
+    const collected = Array.from(document.querySelectorAll('style'))
+      .map((s) => s.textContent ?? '')
+      .join('\n');
+    // A `min-height: 44px` rule must live inside a `(max-width: 640px)`
+    // media query (Btn styled-component override).
+    expect(collected).toMatch(/@media[^{]*max-width:\s*640px[^{]*{[^}]*min-height:\s*44px/i);
+  });
+
+  // ---- Verification URL "Copy share link" affordance (PR-5 item #11) -----
+  // Users who arrived via the verify URL can re-share it; the affordance
+  // closes the loop. Implementation copies the full `seald.nromomentum.com/
+  // verify/{short_code}` URL via the Clipboard API.
+  it('renders a "Copy share link" button next to the Verification URL fact and copies the full URL on click', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    // jsdom doesn't ship navigator.clipboard; install a writable stub.
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const copyBtn = await screen.findByRole('button', { name: /copy share link/i });
+    expect(copyBtn).toBeInTheDocument();
+    fireEvent.click(copyBtn);
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith('seald.nromomentum.com/verify/u82ZmvdxwG3CU');
+    });
+  });
+
+  // ---- shortHash regression (PR-5 item #10, [LOW] interaction) -----------
+  // Dropping the manual `\n` lets the user copy the hash as a single string.
+  // Test pins the contract by asserting the rendered hash content has no
+  // literal newline character.
+  it('renders SHA-256 hashes as a single uninterrupted string (no manual line break)', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const node = await screen.findByLabelText(/original sha-256 hash/i);
+    expect(node.textContent ?? '').toBe(SIGNED_PAYLOAD.envelope.original_sha256);
+    expect(node.textContent ?? '').not.toMatch(/\n/);
   });
 });
