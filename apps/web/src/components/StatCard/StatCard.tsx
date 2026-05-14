@@ -8,13 +8,22 @@ import { InteractiveRoot, Label, Root, Value } from './StatCard.styles';
  *
  * Pass `onActivate` to make the tile a real `<button>` that toggles a
  * filter; `active` paints the pressed state.
+ *
+ * Zero-state: when `value === '0'` the requested tone is overridden to
+ * `'neutral'` so empty buckets read as `fg-2` gray instead of shouting in
+ * indigo / amber / emerald — a "0 awaiting you" tile shouldn't pull the
+ * eye like "12 awaiting you" does. The override is visual only; the prop
+ * remains the truth.
  */
 export const StatCard = forwardRef<HTMLDivElement, StatCardProps>((props, ref) => {
   const { label, value, tone, onActivate, active, ...rest } = props;
+  const effectiveTone = value === '0' ? 'neutral' : tone;
   const body = (
     <>
       <Label>{label}</Label>
-      <Value $tone={tone}>{value}</Value>
+      <Value $tone={effectiveTone} data-tone={effectiveTone}>
+        {value}
+      </Value>
     </>
   );
   if (onActivate) {

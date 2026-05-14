@@ -84,10 +84,16 @@ export const ChipClearButton = styled.button`
 /**
  * Search chip is a regular text input rather than a popover trigger
  * because the search-as-you-type interaction is fundamentally inline.
+ *
+ * Capped to 320 px so the search + four filter chips share visual
+ * weight along the toolbar row — at the previous 280 px ceiling the
+ * search still grew under flex pressure on wide screens and dwarfed
+ * the chips.
  */
 export const SearchInputWrap = styled.label`
   ${baseChip}
-  flex: 0 1 280px;
+  flex: 0 1 320px;
+  max-width: 320px;
   padding: ${({ theme }) => `${theme.space[1]} ${theme.space[3]}`};
   cursor: text;
   &:focus-within {

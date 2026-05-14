@@ -40,6 +40,7 @@ import {
   DateCell,
   DocCell,
   DocCode,
+  DocCount,
   DocTitle,
   HeadCell,
   HeaderSlot,
@@ -53,6 +54,9 @@ import {
   TableHead,
   TableRow,
   TableShell,
+  TagOverflow,
+  TagStrip,
+  ToolbarRow,
 } from './DashboardPage.styles';
 
 type ColKey = keyof typeof DEFAULT_COLUMN_WIDTHS;
@@ -170,6 +174,24 @@ function toBarEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerProgressB
 }
 
 /**
+ * "Showing N documents" caption rendered on the right of the filter
+ * toolbar. When the table query's `next_cursor` is non-null the server
+ * truncated the page — surface "(more available)" so the count doesn't
+ * read as the absolute total.
+ *
+ *   - 0 rows               → "No documents"
+ *   - 1 row                → "Showing 1 document"
+ *   - N rows               → "Showing N documents"
+ *   - N rows + more on srv → "Showing N documents (more available)"
+ */
+function formatDocCount(count: number, hasMore: boolean): string {
+  if (count === 0) return 'No documents';
+  const noun = count === 1 ? 'document' : 'documents';
+  const base = `Showing ${count} ${noun}`;
+  return hasMore ? `${base} (more available)` : base;
+}
+
+/**
  * Median turnaround (in hours) between sent_at and completed_at across
  * completed envelopes. Format as "1.8d" when ≥ 24h, "14h" otherwise,
  * "—" when no completed envelopes are in the list.
@@ -262,15 +284,22 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
         <div style={{ minWidth: 0 }}>
           <DocTitle>{d.title}</DocTitle>
           <DocCode>{d.short_code}</DocCode>
+          {/* Show at most 2 tag chips on a row + a neutral "+N" overflow
+              chip so a row with 5 tags reads as "first, second, +3"
+              instead of bleeding the whole strip into the table.
+              The overflow's accessible name carries the full count for
+              screen-reader users. */}
           {d.tags && d.tags.length > 0 ? (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-              {d.tags.slice(0, 3).map((t) => (
+            <TagStrip>
+              {d.tags.slice(0, 2).map((t) => (
                 <TagChip key={t} label={t} />
               ))}
-              {d.tags.length > 3 ? (
-                <span style={{ fontSize: 11, color: 'var(--ink-500)' }}>+{d.tags.length - 3}</span>
+              {d.tags.length > 2 ? (
+                <TagOverflow aria-label={`${d.tags.length - 2} more tags`}>
+                  +{d.tags.length - 2}
+                </TagOverflow>
               ) : null}
-            </div>
+            </TagStrip>
           ) : null}
         </div>
       </DocCell>
@@ -332,6 +361,11 @@ export function DashboardPage() {
     [tableQuery.data],
   );
   const documentsLoading = tableQuery.isPending;
+  // Drives the "(more available)" hint on the doc-count caption. The
+  // table query carries a `next_cursor` whenever the server truncated
+  // the page — surface it so "Showing 100 documents" doesn't read as
+  // "you only have 100".
+  const hasMore = (tableQuery.data?.next_cursor ?? null) !== null;
 
   // Toolbar / stats query — the *unfiltered* list, so the chips' per-
   // bucket counts + distinct signer/tag lists stay accurate regardless
@@ -449,7 +483,12 @@ export function DashboardPage() {
     <Main>
       <Inner>
         <HeaderSlot>
+          {/* `size="md"` renders the 36 px H1 variant — the dashboard's
+              KPI strip + filter bar do enough work; the previous 48 px
+              H1 dominated the page. Other PageHeader consumers
+              (EnvelopeDetailPage, etc.) keep the 48 px default. */}
           <PageHeader
+            size="md"
             eyebrow="Documents"
             title="Everything you've sent"
             actions={
@@ -484,13 +523,29 @@ export function DashboardPage() {
           })}
         </StatGrid>
 
-        <FilterToolbar envelopes={allEnvelopes} viewerEmail={viewerEmail} />
+        <ToolbarRow>
+          <FilterToolbar envelopes={allEnvelopes} viewerEmail={viewerEmail} />
+          {/* Right-aligned doc-count caption. While the list is still
+              loading we don't render it (the toolbar already conveys
+              "working" state via the skeleton rows below); once the
+              list lands we surface the visible count and a hint when
+              the page-cap kicked in (`next_cursor` is non-null). */}
+          {!documentsLoading ? (
+            <DocCount aria-live="polite">{formatDocCount(filtered.length, hasMore)}</DocCount>
+          ) : null}
+        </ToolbarRow>
 
         <TableShell>
           <TableHead role="row" $grid={gridTemplate}>
             {COLUMN_KEYS.map((key) => {
               const sortKey = COLUMN_SORT_KEY[key];
               const active = sort.key === sortKey;
+              // Every sortable column carries a caret. The active
+              // column renders the up/down arrow at full indigo; the
+              // inactive ones render a default `▾` at low opacity so
+              // the header still reads as sortable without competing
+              // with the active sort.
+              const arrow = active ? (sort.dir === 'asc' ? '▲' : '▼') : '▾';
               return (
                 <HeadCell
                   key={key}
@@ -502,9 +557,9 @@ export function DashboardPage() {
                     onClick={() => handleSortClick(sortKey)}
                   >
                     {COLUMN_LABELS[key]}
-                    {active ? (
-                      <SortCaret aria-hidden>{sort.dir === 'asc' ? '▲' : '▼'}</SortCaret>
-                    ) : null}
+                    <SortCaret aria-hidden $active={active}>
+                      {arrow}
+                    </SortCaret>
                   </SortHeaderButton>
                   <ColumnResizeHandle
                     width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}

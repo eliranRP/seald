@@ -8,12 +8,12 @@ import { Actions, Eyebrow, Root, Title, TitleBlock } from './PageHeader.styles';
  * the top of Dashboard / Contacts and other list-style pages.
  */
 export const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>((props, ref) => {
-  const { eyebrow, title, actions, ...rest } = props;
+  const { eyebrow, title, actions, size = 'lg', ...rest } = props;
   return (
     <Root ref={ref} {...rest}>
       <TitleBlock>
         {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-        <Title>{title}</Title>
+        <Title $size={size}>{title}</Title>
       </TitleBlock>
       {actions ? <Actions>{actions}</Actions> : null}
     </Root>

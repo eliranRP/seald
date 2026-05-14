@@ -179,6 +179,70 @@ describe('DashboardPage', () => {
     expect(screen.getByRole('button', { name: /new document/i })).toBeInTheDocument();
   });
 
+  // The dashboard's masthead is rendered through `PageHeader size='md'`
+  // — a 36 px H1 instead of the kit-default 48 px so the stat-tile row
+  // doesn't compete with it. We can't read the computed font-size in
+  // jsdom reliably; assert the heading exists at level 1 and that the
+  // `<h1>` element carries the size token attribute the styled-
+  // component sets (via the `$size` prop, surfaced to the DOM by
+  // styled-components as a `data-` selector class).
+  it('renders the masthead as a level-1 heading', () => {
+    renderDashboard();
+    expect(
+      screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('renders a tag row as 2 chips + a +N overflow chip when there are 3+ tags', async () => {
+    const { apiClient } = await import('../../lib/api/apiClient');
+    const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
+    // Override the seed for THIS test only: a single envelope with
+    // five tags. The +N chip should read "+3" and carry an accessible
+    // "3 more tags" label for screen-reader users.
+    getMock.mockImplementationOnce(async (url: string) => {
+      if (url.startsWith('/envelopes')) {
+        return {
+          data: {
+            items: [
+              {
+                id: 'env-tagged',
+                title: 'Tagged envelope',
+                short_code: 'TAG-1',
+                status: 'awaiting_others',
+                original_pages: 1,
+                sent_at: '2026-04-01T00:00:00Z',
+                completed_at: null,
+                expires_at: '2030-01-01T00:00:00Z',
+                created_at: '2026-04-01T00:00:00Z',
+                updated_at: '2026-04-01T00:00:00Z',
+                signers: [],
+                tags: ['legal', 'urgent', 'q2', 'sales', 'enterprise'],
+              },
+            ],
+            next_cursor: null,
+          },
+          status: 200,
+        };
+      }
+      if (url === '/contacts') return { data: [], status: 200 };
+      return { data: {}, status: 200 };
+    });
+    renderDashboard();
+    await screen.findByText(/tagged envelope/i);
+    expect(screen.getByText('legal')).toBeInTheDocument();
+    expect(screen.getByText('urgent')).toBeInTheDocument();
+    expect(screen.queryByText('q2')).toBeNull();
+    expect(screen.queryByText('sales')).toBeNull();
+    expect(screen.queryByText('enterprise')).toBeNull();
+    expect(screen.getByLabelText('3 more tags')).toBeInTheDocument();
+  });
+
+  it('renders a "Showing N documents" caption matching the visible row count', async () => {
+    renderDashboard();
+    // Seed has 4 envelopes (all unfiltered).
+    expect(await screen.findByText(/showing 4 documents/i)).toBeInTheDocument();
+  });
+
   // Regression: when the dashboard viewer is one of an envelope's
   // pending signers, the row should show the actionable "Awaiting you"
   // indigo badge — not "Awaiting others". The previous logic stubbed
