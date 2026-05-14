@@ -19,9 +19,12 @@ export class SigningPrepPage {
   }
 
   async decline(): Promise<void> {
-    // Decline link triggers a native window.confirm() — Playwright
-    // auto-accepts when we register a one-shot dialog handler before
-    // clicking.
+    // PR-4 audit (item 5) moved the destructive opt-out actions into a
+    // collapsed <details> "Need to opt out?" disclosure below the AES
+    // disclosure. Open the disclosure first, then click the actual
+    // decline link — which still triggers a native window.confirm()
+    // (PR-4 only promoted withdraw-consent to a styled dialog).
+    await this.page.getByRole('button', { name: /need to opt out/i }).click();
     this.page.once('dialog', (d) => {
       void d.accept();
     });
