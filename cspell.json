@@ -506,7 +506,9 @@
     "KARN",
     "KREG",
     "HSTS",
-    "hsts"
+    "hsts",
+    "deutan",
+    "protan"
   ],
   "ignoreRegExpList": [
     "Base64",

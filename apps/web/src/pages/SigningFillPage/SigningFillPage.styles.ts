@@ -46,11 +46,21 @@ export const ProgressWrap = styled.div`
   }
 `;
 
+/**
+ * Right-aligned numeric count next to the progress bar. Hidden on
+ * mobile (audit report-B-signer.md, SigningFillPage [MEDIUM] layout) —
+ * the count is folded into the progress label instead so the chrome
+ * row doesn't collide with the wrapped second row.
+ */
 export const ProgressCount = styled.div`
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
   font-family: ${({ theme }) => theme.font.mono};
   white-space: nowrap;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 
 export const Spacer = styled.div`
@@ -170,16 +180,28 @@ export const CenterScroll = styled.div`
   }
 `;
 
-export const PagesStack = styled.div`
+/**
+ * Pages-stack wrapper. The `$zoom` prop drives the `transform: scale()`
+ * directly on the styled-component (audit report-B-signer.md, SigningFillPage
+ * [MEDIUM] type — was previously an inline `style={{ transform }}` prop in
+ * the page body). Keeping the transform on the styled-component lets the
+ * origin live in one place and removes a stale-inline-style render path.
+ */
+export const PagesStack = styled.div<{ readonly $zoom: number }>`
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 20px;
-  /* Zoom is applied via an inline transform from SigningFillPage; this
-     sets the origin so pages grow downward from the top rather than
-     from the center (keeps the top-of-doc anchored while scrolling). */
+  /* Origin is top-left on mobile so the doc anchors at the left edge
+     (matches CenterScroll's flex-start on narrow viewports). Desktop
+     keeps top-center so the doc stays optically centered as it zooms. */
   transform-origin: top center;
+  transform: ${({ $zoom }) => `scale(${$zoom})`};
   will-change: transform;
+
+  @media (max-width: 768px) {
+    transform-origin: top left;
+  }
 `;
 
 export const RailSlot = styled.aside`
@@ -205,5 +227,253 @@ export const ErrorBanner = styled(SharedErrorBanner)`
 
   @media (max-width: 768px) {
     margin: 8px 12px 0;
+  }
+`;
+
+/**
+ * Mobile kebab — opens a sheet with Decline / Withdraw consent /
+ * Need help. The desktop WithdrawBtn stays hidden on mobile
+ * (audit report-B-signer.md, SigningFillPage [MEDIUM] interaction).
+ * The page renders this conditionally on a JS `isMobile` flag, so
+ * the component itself doesn't need a media-query display switch.
+ */
+export const OverflowKebab = styled.button`
+  height: 36px;
+  width: 36px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[2]};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const OverflowMenuBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 18, 32, 0.36);
+  z-index: ${({ theme }) => theme.z.overlay};
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+`;
+
+export const OverflowMenuSheet = styled.div`
+  background: ${({ theme }) => theme.color.paper};
+  width: 100%;
+  border-top-left-radius: ${({ theme }) => theme.radius.lg};
+  border-top-right-radius: ${({ theme }) => theme.radius.lg};
+  padding: ${({ theme }) => theme.space[4]};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+  box-shadow: ${({ theme }) => theme.shadow.lg};
+`;
+
+export const OverflowMenuItem = styled.button`
+  height: 48px;
+  border: none;
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[1]};
+  font-size: ${({ theme }) => theme.font.size.body};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  text-align: left;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+`;
+
+export const OverflowMenuDanger = styled(OverflowMenuItem)`
+  color: ${({ theme }) => theme.color.danger[700]};
+`;
+
+/**
+ * Mobile "Fields" toggle — opens a panel listing every field on the
+ * active page so the signer can jump to optional fields (the
+ * sticky page-toolbar's "next field" jumps to required-unfilled
+ * only). Audit item 5.
+ */
+export const FieldsToggle = styled.button`
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const FieldsPanelBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 18, 32, 0.36);
+  z-index: ${({ theme }) => theme.z.overlay};
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+`;
+
+export const FieldsPanelSheet = styled.div`
+  background: ${({ theme }) => theme.color.paper};
+  width: 100%;
+  max-height: 70vh;
+  border-top-left-radius: ${({ theme }) => theme.radius.lg};
+  border-top-right-radius: ${({ theme }) => theme.radius.lg};
+  padding: ${({ theme }) => theme.space[4]};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[3]};
+  box-shadow: ${({ theme }) => theme.shadow.lg};
+  overflow: auto;
+`;
+
+export const FieldsPanelTitle = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.h5};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const FieldsPanelItem = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[1]};
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const FieldsPanelStatus = styled.span<{
+  readonly $tone: 'filled' | 'required' | 'optional';
+}>`
+  font-size: ${({ theme }) => theme.font.size.micro};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: ${({ theme, $tone }) =>
+    $tone === 'filled'
+      ? theme.color.success[700]
+      : $tone === 'required'
+        ? theme.color.warn[700]
+        : theme.color.fg[3]};
+`;
+
+/* Audit item 9 — optional-fields review prompt. Styled-component card kept
+   minimal; reuses the design-system DialogPrimitives idiom but kept local
+   so the dialog can carry its own role + named title. */
+export const OptionalDialogBackdrop = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 18, 32, 0.48);
+  z-index: ${({ theme }) => theme.z.modal};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: ${({ theme }) => theme.space[5]};
+`;
+
+export const OptionalDialogCard = styled.div`
+  background: ${({ theme }) => theme.color.bg.surface};
+  border-radius: ${({ theme }) => theme.radius.xl};
+  box-shadow: ${({ theme }) => theme.shadow.xl};
+  padding: ${({ theme }) => theme.space[6]};
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[4]};
+`;
+
+export const OptionalDialogTitle = styled.h2`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.h4};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const OptionalDialogBody = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.body};
+  color: ${({ theme }) => theme.color.fg[3]};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+`;
+
+export const OptionalDialogFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const OptionalSecondaryBtn = styled.button`
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const OptionalPrimaryBtn = styled.button`
+  height: 36px;
+  padding: 0 16px;
+  border: none;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.paper};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;

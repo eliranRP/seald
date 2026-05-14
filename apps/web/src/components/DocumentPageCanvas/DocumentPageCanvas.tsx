@@ -98,6 +98,7 @@ export const DocumentPageCanvas = forwardRef<HTMLDivElement, DocumentPageCanvasP
         $width={width}
         $pdfMode={isPdfMode}
         data-r-page={pageNum}
+        data-canvas-width={width}
         data-pdf-mode={isPdfMode ? 'true' : 'false'}
         {...rest}
       >
