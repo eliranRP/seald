@@ -47,7 +47,7 @@
     "pino": "^9",
     "prom-client": "^15",
     "qrcode": "^1.5",
-    "rate-limiter-flexible": "^5",
+    "rate-limiter-flexible": "^11",
     "react": "19.2.5",
     "react-dom": "19.2.5",
     "reflect-metadata": "^0.2.2",
