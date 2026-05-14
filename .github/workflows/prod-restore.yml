@@ -73,9 +73,31 @@ jobs:
             # (one-time, see PR #feat/aws-secrets-manager runbook).
             printf 'SEALD_API_SECRET_ID=seald-api-prod\n' \
               | sudo tee -a /opt/seald/apps/api/.env >/dev/null
+            # Pin APP_PUBLIC_URL + CORS_ORIGIN to the canonical prod
+            # origin AFTER the secret-write. Mirrors the idempotent
+            # strip-and-re-append from set-app-public-url.yml so a
+            # stale value in the PROD_API_ENV secret (e.g. the
+            # localhost:5173 default from .env.example) can't quietly
+            # bake `http://localhost:5173` into every signing
+            # invitation email + verify QR + audit-trail PDF until an
+            # operator runs the one-shot fix workflow.
+            # Discovered 2026-05-14 chasing localhost links in
+            # prod-sent emails — pre-state showed both keys were
+            # present in `.env` but with wrong values from the secret.
+            sudo grep -vE '^(APP_PUBLIC_URL|CORS_ORIGIN)=' \
+              /opt/seald/apps/api/.env > /tmp/.env.new
+            sudo install -m 0600 /tmp/.env.new /opt/seald/apps/api/.env
+            rm -f /tmp/.env.new
+            {
+              printf 'APP_PUBLIC_URL=https://seald.nromomentum.com\n'
+              printf 'CORS_ORIGIN=https://seald.nromomentum.com\n'
+            } | sudo tee -a /opt/seald/apps/api/.env >/dev/null
             sudo chmod 0600 /opt/seald/apps/api/.env
             sudo wc -c /opt/seald/apps/api/.env
-            # Sanity-check critical keys are present (no values printed).
+            # Sanity-check critical keys are present (no values
+            # printed). APP_PUBLIC_URL + CORS_ORIGIN are pinned above
+            # so they're guaranteed present — listed here only to keep
+            # the contract explicit for future operators.
             for k in DATABASE_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY \
                      PDF_SIGNING_PROVIDER PDF_SIGNING_KMS_KEY_ID \
                      PDF_SIGNING_KMS_REGION PDF_SIGNING_KMS_CERT_PEM_PATH \
