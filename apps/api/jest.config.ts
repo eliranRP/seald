@@ -31,7 +31,13 @@ const config: Config = {
   // spec that imports it (jose: auth/JWT verification, faker: test
   // factories, kysely: pg repositories).
   transformIgnorePatterns: [
-    'node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js/faker|kysely))',
+    // NOTE: under pnpm, third-party packages live at
+    // `node_modules/.pnpm/<pkg>+<sub>@<ver>/node_modules/<pkg>/<sub>/…`
+    // — note the `+` separator instead of `/`. So an entry like
+    // `@faker-js/faker` MUST be split into a scope-only alternative
+    // (`@faker-js`) for the negative lookahead to match the .pnpm
+    // layout. Same goes for `@react-pdf` and `@pdf-lib` above.
+    'node_modules/(?!(?:\\.pnpm/)?(?:@react-pdf|yoga-layout|restructure|@babel/runtime|color-name|color-string|simple-swizzle|is-arrayish|hyphen|hyphenation|pdfkit|fontkit|emoji-regex|@pdf-lib|jose|@faker-js|kysely))',
   ],
   collectCoverageFrom: ['src/**/*.(t|j)sx?'],
   coverageDirectory: 'coverage',
