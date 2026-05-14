@@ -16,6 +16,11 @@ const Page = styled.div`
   background: var(--bg-0);
 `;
 
+/**
+ * Slice-D §12 LOW: same notch-safe `env(safe-area-inset-top)` treatment
+ * as MWMobileNav.Bar — landscape on a notched device used to bury the
+ * 52-px sticky header under the status bar.
+ */
 const Header = styled.header`
   position: sticky;
   top: 0;
@@ -24,16 +29,20 @@ const Header = styled.header`
   align-items: center;
   gap: 12px;
   height: 52px;
-  padding: 0 12px;
+  padding: env(safe-area-inset-top) 12px 0;
+  box-sizing: content-box;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 0.5px solid rgba(0, 0, 0, 0.08);
 `;
 
+/**
+ * Slice-D §12 MEDIUM: bumped from 36×36 to 44×44 to meet WCAG 2.5.5.
+ */
 const BackBtn = styled.button`
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   border: none;
   background: var(--ink-100);
@@ -266,12 +275,15 @@ export function MWIntegrations(): ReactNode {
                   })}
                 </ConnectedDate>
               </ConnectedInfo>
+              {/* Slice-D §12 LOW: "Disconnect" → "Disconnect Google
+                  Drive" — adding the integration name removes the
+                  ambiguity for users who manage multiple integrations. */}
               <ActionBtn
                 type="button"
                 $variant="danger"
                 onClick={() => handleDisconnectClick(connectedAccount.id, connectedAccount.email)}
               >
-                Disconnect
+                Disconnect Google Drive
               </ActionBtn>
             </>
           ) : (

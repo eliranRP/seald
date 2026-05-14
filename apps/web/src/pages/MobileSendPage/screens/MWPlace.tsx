@@ -86,7 +86,13 @@ const Canvas = styled.div<{ $armed: boolean; $hasDoc: boolean }>`
   ${({ $hasDoc }) => ($hasDoc ? '' : 'height: 340px;')}
   overflow: hidden;
   cursor: ${({ $armed }) => ($armed ? 'crosshair' : 'default')};
+  touch-action: pan-y;
 `;
+// Slice-D audit fix (section 5, MEDIUM): touch-action pan-y on the
+// Canvas keeps vertical scroll working but suppresses pinch-zoom on
+// the PDF backdrop. Pinch-zoom was scaling the canvas mid-drop and
+// breaking the percent-coords math. FieldShell stays touch-action
+// none so drags don't fight scroll.
 
 const PdfBackdrop = styled.div`
   position: relative;
@@ -155,9 +161,16 @@ const Chips = styled.div`
   padding-bottom: 6px;
 `;
 
+/**
+ * Slice-D §5 HIGH: chips were 38 px tall — below WCAG 2.5.5 (44×44).
+ * The chip row is `overflow-x: auto`, so horizontal room isn't a
+ * constraint; bumping padding gives the most-tapped element on this
+ * screen a real touch target.
+ */
 const Chip = styled.button<{ $armed: boolean }>`
   flex-shrink: 0;
-  padding: 10px 14px;
+  padding: 12px 16px;
+  min-height: 44px;
   border-radius: 12px;
   background: ${({ $armed }) => ($armed ? 'var(--indigo-600)' : 'var(--ink-100)')};
   color: ${({ $armed }) => ($armed ? '#fff' : 'var(--fg-1)')};
@@ -170,7 +183,6 @@ const Chip = styled.button<{ $armed: boolean }>`
   cursor: pointer;
   transition: background 0.12s;
   font: inherit;
-  min-height: 38px;
 
   &:focus-visible {
     outline: 2px solid var(--indigo-700);
@@ -274,6 +286,17 @@ const TbBtn = styled.button`
   }
 `;
 
+/**
+ * Slice-D §5 MEDIUM: dedicated delete variant of the toolbar button so
+ * the soft-red colour lives in a styled rule, not an inline `#FCA5A5`
+ * literal. Uses the danger token via `var(--danger-300, …)` with the
+ * tailwind-equivalent hex as a fallback for callers that haven't
+ * imported the SPA's `tokens.css` (Storybook stories etc.).
+ */
+const DeleteTbBtn = styled(TbBtn)`
+  color: var(--danger-300, #fca5a5);
+`;
+
 const Empty = styled.div`
   position: absolute;
   left: 0;
@@ -289,6 +312,12 @@ const Empty = styled.div`
 // toolbar pill (label + Pages + Signers + Delete). Used to clamp the
 // toolbar's `left` so it can't overflow past the canvas right edge.
 const TOOLBAR_WIDTH_ESTIMATE = 250;
+// Slice-D §5 HIGH: when a selected field's `y` is too close to the top,
+// the toolbar (~42 px tall) was clamping to `top: 8` and overlapping
+// the field. Below 50 px, we render the toolbar UNDER the field
+// instead. Cached as a constant so the regression test can pin it.
+const TOOLBAR_TOP_THRESHOLD_PX = 50;
+const TOOLBAR_GAP_PX = 8;
 
 function chipIcon(k: MobileFieldType, size = 14) {
   switch (k) {
@@ -374,8 +403,10 @@ export function MWPlace(props: MWPlaceProps) {
   // toolbar can be clamped to the right edge — without this, the dark
   // pill (label + Pages + Signers + Delete) overflows past the canvas
   // and gets sliced by `overflow: hidden` whenever the user picks a
-  // field near the right margin.
+  // field near the right margin. Slice-D §5 HIGH adds the height read
+  // for below-positioning clamping when the field sits near the top.
   const [canvasWidth, setCanvasWidth] = useState<number>(0);
+  const [canvasHeight, setCanvasHeight] = useState<number>(0);
 
   // Notify the parent of the rendered canvas size so it can clamp drags,
   // and capture the width locally for the in-canvas toolbar clamp.
@@ -386,6 +417,7 @@ export function MWPlace(props: MWPlaceProps) {
       const measuredWidth = el.clientWidth;
       const measuredHeight = el.clientHeight;
       setCanvasWidth(measuredWidth);
+      setCanvasHeight(measuredHeight);
       onCanvasMeasured?.({ width: measuredWidth, height: measuredHeight });
     };
     apply();
@@ -570,55 +602,73 @@ export function MWPlace(props: MWPlaceProps) {
               </FieldShell>
             );
           })}
-          {selectedSingle && !dragTargetId && (
-            <Toolbar
-              data-testid="field-action-toolbar"
-              style={{
-                // QA-2026-05-02 (Bug 8): clamp to the right edge using the
-                // measured canvas width so the toolbar can't overflow and
-                // get clipped by `overflow: hidden` on the canvas. We use
-                // a conservative 250px estimate of the toolbar's pill
-                // width (label + Pages + Signers + Delete) and only clamp
-                // when the canvas has actually been measured.
-                left:
-                  canvasWidth > 0
-                    ? Math.min(
-                        Math.max(8, canvasWidth - TOOLBAR_WIDTH_ESTIMATE - 8),
-                        Math.max(8, selectedSingle.x - 6),
-                      )
-                    : Math.max(8, selectedSingle.x - 6),
-                top: Math.max(8, selectedSingle.y - 50),
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span style={{ opacity: 0.7, fontFamily: 'var(--font-mono)' }} aria-hidden>
-                {getFieldDef(selectedSingle.type).label}
-              </span>
-              <TbBtn
-                type="button"
-                onClick={() => onOpenApply(selectedSingle.id)}
-                aria-label="Pages"
-              >
-                <Copy size={13} aria-hidden /> Pages
-              </TbBtn>
-              <TbBtn
-                type="button"
-                onClick={() => onOpenAssign(selectedSingle.id)}
-                aria-label="Signers"
-              >
-                <Users size={13} aria-hidden /> Signers
-              </TbBtn>
-              <TbBtn
-                type="button"
-                onClick={onDeleteSelected}
-                style={{ color: '#FCA5A5' }}
-                aria-label="Delete field"
-              >
-                <Trash2 size={13} aria-hidden />
-              </TbBtn>
-            </Toolbar>
-          )}
+          {selectedSingle &&
+            !dragTargetId &&
+            (() => {
+              const def = getFieldDef(selectedSingle.type);
+              // Slice-D §5 HIGH: when the selected field is near the top
+              // of the canvas (y < threshold), the toolbar can't fit
+              // ABOVE without colliding with the field itself. Render it
+              // below instead. When below, clamp top to keep the toolbar
+              // inside the canvas.
+              const aboveTop = selectedSingle.y - 50;
+              const placeBelow = selectedSingle.y < TOOLBAR_TOP_THRESHOLD_PX;
+              const belowTop = selectedSingle.y + def.h + TOOLBAR_GAP_PX;
+              const computedTop = placeBelow
+                ? canvasHeight > 0
+                  ? Math.min(belowTop, Math.max(8, canvasHeight - 48))
+                  : belowTop
+                : Math.max(8, aboveTop);
+              return (
+                <Toolbar
+                  data-testid="field-action-toolbar"
+                  style={{
+                    // QA-2026-05-02 (Bug 8): clamp to the right edge using
+                    // the measured canvas width so the toolbar can't
+                    // overflow and get clipped by `overflow: hidden` on
+                    // the canvas. We use a conservative 250px estimate of
+                    // the toolbar's pill width (label + Pages + Signers +
+                    // Delete) and only clamp when the canvas has actually
+                    // been measured.
+                    left:
+                      canvasWidth > 0
+                        ? Math.min(
+                            Math.max(8, canvasWidth - TOOLBAR_WIDTH_ESTIMATE - 8),
+                            Math.max(8, selectedSingle.x - 6),
+                          )
+                        : Math.max(8, selectedSingle.x - 6),
+                    top: computedTop,
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span style={{ opacity: 0.7, fontFamily: 'var(--font-mono)' }} aria-hidden>
+                    {def.label}
+                  </span>
+                  <TbBtn
+                    type="button"
+                    onClick={() => onOpenApply(selectedSingle.id)}
+                    aria-label="Pages"
+                  >
+                    <Copy size={13} aria-hidden /> Pages
+                  </TbBtn>
+                  <TbBtn
+                    type="button"
+                    onClick={() => onOpenAssign(selectedSingle.id)}
+                    aria-label="Signers"
+                  >
+                    <Users size={13} aria-hidden /> Signers
+                  </TbBtn>
+                  {/* Slice-D §5 MEDIUM: was `style={{ color: '#FCA5A5' }}` — a
+                       raw hex literal that violates the token-only rule.
+                       Replaced with a dedicated styled `DeleteTbBtn` that
+                       routes through `var(--danger-300, …)`. */}
+                  <DeleteTbBtn type="button" onClick={onDeleteSelected} aria-label="Delete field">
+                    <Trash2 size={13} aria-hidden />
+                  </DeleteTbBtn>
+                </Toolbar>
+              );
+            })()}
           {visible.length === 0 && !armedTool && (
             <Empty>Pick a field below, then tap on the page.</Empty>
           )}

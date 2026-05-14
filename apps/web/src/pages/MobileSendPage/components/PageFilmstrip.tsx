@@ -58,8 +58,11 @@ const PageNum = styled.span<{ $active: boolean }>`
   right: 0;
   text-align: center;
   font-family: ${({ theme }) => theme.font.mono};
-  font-size: 9px;
-  color: ${({ $active }) => ($active ? 'var(--indigo-700)' : 'var(--fg-3)')};
+  /* Slice-D §5 MEDIUM: 9 px on var(--fg-3) was borderline WCAG AA
+     contrast. Bumped to 11 px and the contrast-stronger var(--fg-2)
+     for the idle state — active stays at indigo-700. */
+  font-size: 11px;
+  color: ${({ $active }) => ($active ? 'var(--indigo-700)' : 'var(--fg-2)')};
   font-weight: ${({ $active }) => ($active ? 700 : 500)};
 `;
 

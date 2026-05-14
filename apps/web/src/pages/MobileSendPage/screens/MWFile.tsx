@@ -18,7 +18,10 @@ const Card = styled.div`
 `;
 
 const PdfThumb = styled.div`
-  width: 160px;
+  /* Slice-D §3 LOW: 160px fixed was small on 414-px phones. min/max
+     keeps it readable on small screens without overwhelming larger ones. */
+  width: min(50vw, 200px);
+  aspect-ratio: 5 / 6.5;
   min-height: 208px;
   border-radius: 8px;
   background: #fff;
@@ -163,13 +166,19 @@ export function MWFile(props: MWFileProps) {
             {fileSizeBytes !== undefined ? ` · ${formatBytes(fileSizeBytes)}` : ''}
           </Sub>
         </Meta>
-        <Replace type="button" onClick={onReplace} aria-label="Replace file">
+        {/* Slice-D §3 LOW: duplicate aria-label removed — the visible
+            text "Replace file" already names the button. Screen readers
+            now read it once, not twice. */}
+        <Replace type="button" onClick={onReplace}>
           <RotateCcw size={14} aria-hidden /> Replace file
         </Replace>
       </Card>
       <Notice role="note">
         <Info size={16} aria-hidden style={{ color: 'var(--indigo-600)', marginTop: 2 }} />
-        <NoticeText>Stay on this tab to finish — closing it will discard the draft.</NoticeText>
+        {/* Slice-D §3 MEDIUM: previous copy threatened data loss
+            ("closing it will discard the draft"); softened while still
+            honest about the lack of draft persistence. */}
+        <NoticeText>Keep this tab open while you finish — drafts aren&apos;t saved yet.</NoticeText>
       </Notice>
     </Wrap>
   );
