@@ -105,6 +105,25 @@ export const InitialScript = styled.span<{ readonly $size: number }>`
   line-height: 1;
 `;
 
+/**
+ * Non-color "active" indicator — a small chevron anchored to the
+ * right edge of the active field. Adds a redundant (non-color) cue
+ * so deutan / protan users can distinguish "active" from filled or
+ * required-empty without relying on indigo vs amber vs green
+ * (audit report-B-signer.md, SigningFillPage [HIGH] a11y).
+ */
+export const ActiveIndicator = styled.span`
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: ${({ theme }) => theme.color.indigo[700]};
+  pointer-events: none;
+`;
+
 export const CheckboxMark = styled.span<{ readonly $checked: boolean }>`
   width: 18px;
   height: 18px;
