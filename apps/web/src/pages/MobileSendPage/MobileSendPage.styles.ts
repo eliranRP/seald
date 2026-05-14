@@ -18,11 +18,31 @@ export const Shell = styled.div`
   isolation: isolate;
 `;
 
-export const Scroller = styled.div<{ $padBottom: number }>`
+/**
+ * Slice-D §1 audit fix: `$padBottom` widened from `number` to `string` so
+ * the parent can pass a `calc()` expression including
+ * `env(safe-area-inset-bottom)`. Without the inset, on iPhones with a
+ * 34-px home indicator the last content row sat 96 px above the bar's
+ * upper edge and the bar visually covered ~10-20 px of content above it.
+ *
+ * §0 stopgap also lives here: the cookie-consent banner from the
+ * landing site overlays the bottom ~250 px of every mobile public
+ * surface. PR-7 will replace this with a `--consent-offset` CSS var
+ * once the banner publishes its measured height; for now we make sure
+ * the Scroller's bottom pad is at least `max(96px,
+ * env(safe-area-inset-bottom))` when a sticky bar is mounted (and a
+ * safe 24px otherwise).
+ *
+ * `overscroll-behavior: contain` keeps an iOS keyboard from briefly
+ * scrolling the sticky CTA off-screen (§1 medium).
+ */
+export const Scroller = styled.div<{ $padBottom: number | string }>`
   flex: 1 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: ${({ $padBottom }) => $padBottom}px;
+  overscroll-behavior: contain;
+  padding-bottom: ${({ $padBottom }) =>
+    typeof $padBottom === 'number' ? `${$padBottom}px` : $padBottom};
 `;
 
 export const Stepper = styled.div`

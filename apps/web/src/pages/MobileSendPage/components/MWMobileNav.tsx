@@ -32,6 +32,14 @@ const MOBILE_NAV_IDS: ReadonlyArray<string> = [];
  * keep the desktop AppShell's identical behaviour easy to re-enable).
  */
 
+/**
+ * Slice-D §8 MEDIUM: in landscape with a notched device, the 52-px sticky
+ * bar was covered by the status bar / notch. `padding-top:
+ * env(safe-area-inset-top)` reserves the OS-reported inset; the bar
+ * grows by the same amount so the visible title row stays at its
+ * original height. The vertical inset is 0 on browsers without
+ * `env()`, so non-notched devices are unaffected.
+ */
 const Bar = styled.header`
   position: sticky;
   top: 0;
@@ -40,7 +48,8 @@ const Bar = styled.header`
   align-items: center;
   justify-content: space-between;
   height: 52px;
-  padding: 0 12px 0 16px;
+  padding: env(safe-area-inset-top) 12px 0 16px;
+  box-sizing: content-box;
   background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
@@ -112,9 +121,13 @@ function SealedMark(): ReactNode {
   );
 }
 
+/**
+ * Slice-D §8 LOW: bumped from 40×40 to 44×44 to meet WCAG 2.5.5.
+ * Visually identical at this size — the inner icon is still 20×20.
+ */
 const HamburgerBtn = styled.button`
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 10px;
   border: none;
   background: var(--ink-100);

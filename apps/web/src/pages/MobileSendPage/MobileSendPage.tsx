@@ -56,6 +56,8 @@ import { imageFileToPdf } from '@/utils/imageToPdf';
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 import { useSendEnvelope } from '@/features/envelopes/useSendEnvelope';
 import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelope';
+import { useEnvelopesQuery } from '@/features/envelopes/useEnvelopes';
+import type { MWRecentEnvelope } from './screens/MWStart';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
 import { SIGNER_COLOR_PALETTE } from '@/lib/mockApi';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
@@ -111,6 +113,27 @@ export function MobileSendPage() {
   const { user, session, signOut } = useAuth();
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
+
+  // Slice-D §2 MEDIUM (audit fix): pull the most recent envelopes from
+  // the API so MWStart can surface a "Recent" list. Gated on the user
+  // being signed in (anonymous + guest sessions don't have envelopes).
+  const recentEnabled = Boolean(user);
+  const recentEnvelopesQuery = useEnvelopesQuery(recentEnabled, { limit: 3 });
+  const recentEnvelopes: ReadonlyArray<MWRecentEnvelope> = useMemo(() => {
+    const items = recentEnvelopesQuery.data?.items ?? [];
+    return items.slice(0, 3).map((env) => ({
+      id: env.id,
+      title: env.title,
+      status: env.status,
+      updatedAt: env.updated_at,
+    }));
+  }, [recentEnvelopesQuery.data]);
+  const handlePickRecent = useCallback(
+    (id: string): void => {
+      navigate(`/document/${id}`);
+    },
+    [navigate],
+  );
 
   // Sign-out delegated from MWMobileNav. We always land on /signin
   // (replace history) so the back button doesn't return the user to a
@@ -663,7 +686,20 @@ export function MobileSendPage() {
         downloadOriginalPdfBusy={downloadPdfBusy}
         {...(pdfFile ? { onDownloadOriginalPdf: handleDownloadOriginalPdf } : {})}
       />
-      <Scroller $padBottom={sticky ? 96 : 24}>
+      <Scroller
+        $padBottom={
+          sticky
+            ? // Slice-D §0/§1: keep the StickyBar from covering the last
+              // content row on phones with a home indicator (34 px on
+              // iPhones with notches) AND give the landing cookie banner
+              // (~250 px) defensive room. The 96 px floor covers the
+              // sticky bar's own 48-px button + 20 px top pad + 28 px of
+              // breathing room; the env() add stacks the device's bottom
+              // safe-area inset on top so the indicator never crops it.
+              'calc(96px + env(safe-area-inset-bottom))'
+            : '24px'
+        }
+      >
         {showStepper && (
           <MWStep step={stepNum} total={6} label={STEP_LABELS[step]} onBack={goBack} />
         )}
@@ -682,6 +718,8 @@ export function MobileSendPage() {
             <MWStart
               onPickFile={handlePickFile}
               {...(gdriveOn ? { onPickFromDrive: handlePickFromDrive } : {})}
+              recent={recentEnvelopes}
+              onPickRecent={handlePickRecent}
             />
           </>
         )}

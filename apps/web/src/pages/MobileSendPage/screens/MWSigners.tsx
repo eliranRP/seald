@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import styled from 'styled-components';
 import type { MobileSigner } from '../types';
 
@@ -61,6 +61,11 @@ const Email = styled.div`
   font-size: 12px;
   color: var(--fg-3);
   margin-top: 2px;
+  /* Slice-D §4 LOW: long emails crowded Badge + Remove on 320 px
+     phones; ellipsis matches Name's truncation. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 `;
 
 const Badge = styled.span`
@@ -72,15 +77,24 @@ const Badge = styled.span`
   border-radius: 8px;
 `;
 
+/**
+ * Slice-D §4 HIGH: previously a text "Remove" button at ~24×22 px —
+ * below WCAG 2.5.5 (44×44). Switched to a 44×44 icon-only button using
+ * lucide's `Trash2`; the visible accessible name is supplied by
+ * `aria-label="Remove <name>"` so screen readers still announce target
+ * clearly.
+ */
 const RemoveBtn = styled.button`
   border: none;
   background: transparent;
   color: var(--fg-3);
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
   font: inherit;
 
   &:hover {
@@ -94,12 +108,21 @@ const RemoveBtn = styled.button`
   }
 `;
 
+/**
+ * Slice-D §4 MEDIUM: with 5+ signers, an Add row at the bottom of the
+ * card stack scrolled out of view — the sender had to scroll to add
+ * each new signer. Making the Add row `position: sticky` to the BOTTOM
+ * of the Stack keeps it reachable regardless of list length.
+ */
 const AddBtn = styled.button`
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   width: 100%;
   text-align: left;
   padding: 14px;
   border: none;
-  background: transparent;
+  background: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -116,15 +139,36 @@ const AddBtn = styled.button`
   }
 `;
 
+/**
+ * Slice-D §4 HIGH: the visual switch pill is 46×28 px (designed for an
+ * iOS-style toggle), but the touchable area was the same — below WCAG
+ * 2.5.5 (44×44). The outer button is now a 44×44 hit area with the
+ * visible pill centered inside via `::before` so the visual stays
+ * unchanged while the touch target meets the standard.
+ */
 const ToggleBtn = styled.button<{ $on: boolean }>`
-  width: 46px;
-  height: 28px;
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 14px;
   border: none;
   cursor: pointer;
-  background: ${({ $on }) => ($on ? 'var(--indigo-600)' : 'var(--ink-200)')};
-  position: relative;
-  transition: background 0.15s;
+  background: transparent;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  /* The visible iOS-style pill. */
+  &::before {
+    content: '';
+    width: 46px;
+    height: 28px;
+    border-radius: 14px;
+    background: ${({ $on }) => ($on ? 'var(--indigo-600)' : 'var(--ink-200)')};
+    transition: background 0.15s;
+    display: block;
+  }
 
   &:focus-visible {
     outline: 2px solid var(--indigo-600);
@@ -134,8 +178,11 @@ const ToggleBtn = styled.button<{ $on: boolean }>`
 
 const ToggleKnob = styled.span<{ $on: boolean }>`
   position: absolute;
-  top: 2px;
-  left: ${({ $on }) => ($on ? '20px' : '2px')};
+  /* Centered inside the 44px hit area; the pill is 28px tall, so the
+     knob's vertical center matches whether the parent is 28 or 44 px. */
+  top: 50%;
+  transform: translateY(-50%);
+  left: ${({ $on }) => ($on ? 'calc(50% - 1px)' : 'calc(50% - 21px)')};
   width: 24px;
   height: 24px;
   border-radius: 12px;
@@ -210,7 +257,7 @@ export function MWSigners(props: MWSignersProps) {
                 onClick={() => onRemove(s.id)}
                 aria-label={`Remove ${s.name}`}
               >
-                Remove
+                <Trash2 size={18} aria-hidden />
               </RemoveBtn>
             </Row>
           ))
