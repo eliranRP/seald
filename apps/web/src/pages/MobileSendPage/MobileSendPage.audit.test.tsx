@@ -186,7 +186,7 @@ describe('MWFile — copy + a11y polish (§3)', () => {
     expect(screen.queryByText(/closing it will discard the draft/i)).not.toBeInTheDocument();
     // New copy: friendlier, still honest about draft state.
     expect(
-      screen.getByText(/keep this tab open while you finish.*drafts aren't saved yet/i),
+      screen.getByText(/keep this tab open while you finish.*drafts are not saved yet/i),
     ).toBeInTheDocument();
   });
 
