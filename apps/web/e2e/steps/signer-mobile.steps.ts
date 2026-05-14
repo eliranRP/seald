@@ -29,8 +29,12 @@ When('the recipient agrees and continues to fill', async ({ signingPrepPage, pag
 });
 
 When('the recipient opens the signature sheet', async ({ page }) => {
+  // Anchor on the leading "Sign here (" so we don't also match the
+  // NextBtn aria-label which carries the phrase as a substring
+  // ("Next field: Sign here on page 1"), introduced by the
+  // SigningFillPage audit (PR #257).
   await page
-    .getByRole('button', { name: /sign here/i })
+    .getByRole('button', { name: /^sign here \(/i })
     .first()
     .click();
 });

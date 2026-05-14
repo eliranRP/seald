@@ -10,10 +10,15 @@ export class SigningFillPage {
   }
 
   async drawSignature(): Promise<void> {
-    // Click the first SignerField button (its accessible label is
-    // "Sign here (required)"). Opens the SignatureCapture bottom sheet.
+    // Click the SignerField button. Its accessible label is
+    // "Sign here (required)" or "Sign here (optional)" (see
+    // apps/web/src/components/SignerField/SignerField.tsx). We anchor
+    // on the leading "Sign here (" so we don't also match the
+    // NextBtn aria-label which carries the same phrase as a substring
+    // ("Next field: Sign here on page 1"). Opens the SignatureCapture
+    // bottom sheet.
     await this.page
-      .getByRole('button', { name: /sign here/i })
+      .getByRole('button', { name: /^sign here \(/i })
       .first()
       .click();
     // The sheet defaults to the "type" tab; just hit Apply.
