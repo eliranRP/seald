@@ -30,4 +30,16 @@ describe('SignInPage', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent(/google sign-in/i);
   });
+
+  // Audit C: SignIn #1 — the OAuth/guest banner is icon-led so it doesn't
+  // look like a plain text strip behind the cookie banner.
+  it('renders an AlertTriangle icon inside the OAuth error banner', () => {
+    renderAt('/signin?error=oauth');
+    const alert = screen.getByRole('alert');
+    // lucide-react renders an inline <svg>. We assert by tagName instead
+    // of testid so the rule "test by accessible role/name" still applies
+    // (the icon itself is decorative — aria-hidden — so role is correct).
+    const svg = alert.querySelector('svg');
+    expect(svg).not.toBeNull();
+  });
 });

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/Button';
 import { apiClient } from '@/lib/api/apiClient';
 import { supabase } from '@/lib/supabase/supabaseClient';
-import { Actions, Card, Result, Status, Title, Wrap } from './DebugAuthPage.styles';
+import { Actions, Card, DevBanner, Result, Status, Title, Wrap } from './DebugAuthPage.styles';
 
 /**
  * L4 page — developer-only surface for exercising the Supabase → `/me` path
@@ -65,6 +65,9 @@ export function DebugAuthPage() {
   return (
     <Wrap>
       <Card>
+        <DevBanner role="note">
+          Developer-only diagnostic page. Not intended for end users.
+        </DevBanner>
         <Title>Auth debug</Title>
         <Status>Signed in as: {email ?? '(none)'}</Status>
         <Actions>

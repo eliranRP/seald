@@ -35,11 +35,10 @@ function renderAt() {
 }
 
 // Signup gates Skip behind ESIGN affirmative consent (T-24/T-25): the user
-// must tick "agree to terms" + "legal age" before the Skip button enables.
+// must tick the combined attestation before the Skip button enables.
 // Encapsulated here so the assertion is self-contained.
 async function tickSignupConsents(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByLabelText(/agree to terms/i));
-  await user.click(screen.getByLabelText(/legal age/i));
+  await user.click(screen.getByLabelText(/legal age and agree/i));
 }
 
 describe('SignUpPage — mobile-aware Skip routing', () => {

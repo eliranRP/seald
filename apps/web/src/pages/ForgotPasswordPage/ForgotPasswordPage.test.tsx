@@ -57,7 +57,7 @@ describe('ForgotPasswordPage', () => {
       { auth: { resetPassword } },
     );
 
-    await user.type(screen.getByLabelText(/work email/i), 'jamie@seald.app');
+    await user.type(screen.getByLabelText(/email address/i), 'jamie@seald.app');
     await user.click(screen.getByRole('button', { name: /send reset link/i }));
 
     expect(resetPassword).toHaveBeenCalledWith('jamie@seald.app');

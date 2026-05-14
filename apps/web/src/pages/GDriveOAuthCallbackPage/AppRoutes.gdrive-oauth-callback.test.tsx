@@ -34,6 +34,7 @@ vi.mock('../../providers/AuthProvider', async () => {
       signUpWithPassword: vi.fn(),
       signInWithGoogle: vi.fn(),
       resetPassword: vi.fn(),
+      resendSignUpConfirmation: vi.fn(),
       signOut: vi.fn(),
       enterGuestMode: vi.fn(),
       exitGuestMode: vi.fn(),

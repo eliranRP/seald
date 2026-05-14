@@ -15,7 +15,7 @@ import { Actions, Body, IconBadge, Primary, Secondary, Title, Wrap } from './Che
 export function CheckEmailPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { resetPassword } = useAuth();
+  const { resetPassword, resendSignUpConfirmation } = useAuth();
   const email = params.get('email') ?? '';
   const mode = params.get('mode') === 'signup' ? 'signup' : 'reset';
   const [resendBusy, setResendBusy] = useState(false);
@@ -24,15 +24,22 @@ export function CheckEmailPage() {
     navigate('/signin');
   }, [navigate]);
 
+  // Reset mode resends the password-reset link; signup mode resends the
+  // confirmation email (audit C: CheckEmail #14). Both share the busy /
+  // disabled affordance so a click while pending is a no-op.
   const handleResend = useCallback(async (): Promise<void> => {
     if (!email || resendBusy) return;
     setResendBusy(true);
     try {
-      await resetPassword(email);
+      if (mode === 'signup') {
+        await resendSignUpConfirmation(email);
+      } else {
+        await resetPassword(email);
+      }
     } finally {
       setResendBusy(false);
     }
-  }, [email, resendBusy, resetPassword]);
+  }, [email, mode, resendBusy, resetPassword, resendSignUpConfirmation]);
 
   const body =
     mode === 'signup' ? (
@@ -72,11 +79,13 @@ export function CheckEmailPage() {
           <Secondary type="button" onClick={handleBack}>
             Back to sign in
           </Secondary>
-          {mode === 'reset' ? (
-            <Primary type="button" onClick={handleResend} disabled={resendBusy || !email}>
-              {resendBusy ? 'Sending…' : 'Resend link'}
-            </Primary>
-          ) : null}
+          <Primary type="button" onClick={handleResend} disabled={resendBusy || !email}>
+            {resendBusy
+              ? 'Sending…'
+              : mode === 'signup'
+                ? 'Resend confirmation email'
+                : 'Resend link'}
+          </Primary>
         </Actions>
       </Wrap>
     </AuthShell>

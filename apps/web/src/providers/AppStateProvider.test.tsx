@@ -25,6 +25,7 @@ const guestAuth: AuthContextValue = {
   signUpWithPassword: async () => ({ needsEmailConfirmation: false }),
   signInWithGoogle: async () => {},
   resetPassword: async () => {},
+  resendSignUpConfirmation: async () => {},
   signOut: async () => {},
   enterGuestMode: async () => {},
   exitGuestMode: () => {},

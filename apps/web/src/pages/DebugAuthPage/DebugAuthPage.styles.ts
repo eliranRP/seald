@@ -42,6 +42,21 @@ export const Actions = styled.div`
   flex-wrap: wrap;
 `;
 
+/**
+ * Audit C: DebugAuthPage #15 — banner that flags this page as a
+ * developer-only diagnostic surface. Uses `warn[50] / warn[700]` tones
+ * so it's distinguishable from the regular product chrome.
+ */
+export const DevBanner = styled.div`
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+  background: ${({ theme }) => theme.color.warn[50]};
+  border: 1px solid ${({ theme }) => theme.color.warn[500]};
+  color: ${({ theme }) => theme.color.warn[700]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+`;
+
 export const Result = styled.pre`
   margin: 0;
   padding: ${({ theme }) => theme.space[4]};

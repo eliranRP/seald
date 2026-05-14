@@ -155,4 +155,40 @@ describe('GDriveOAuthCallbackPage (Bug G + Bug I)', () => {
     expect(await screen.findByText(/drive connected|connecting drive/i)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /SHOULD NOT REACH/i })).not.toBeInTheDocument();
   });
+
+  // Audit C: GDriveOAuthCallback #7 — replace raw inline hex / font with
+  // theme-driven styled-components inside a local ThemeProvider.
+  it('does not bake raw hex colors into inline style attributes', () => {
+    Object.defineProperty(window, 'opener', { value: null, writable: true, configurable: true });
+    const { container } = render(
+      <MemoryRouter initialEntries={['/oauth/gdrive/callback?connected=1']}>
+        <Routes>
+          <Route path="/oauth/gdrive/callback" element={<GDriveOAuthCallbackPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const styled = container.querySelectorAll('[style]');
+    for (const el of Array.from(styled)) {
+      const style = el.getAttribute('style') ?? '';
+      // No literal hex color hard-coded in `style` (styled-components
+      // emit classes, not inline color attributes).
+      expect(/#[0-9a-fA-F]{3,8}/.test(style)).toBe(false);
+    }
+  });
+
+  // Audit C: GDriveOAuthCallback #16 — popup-blocker recovery Close button.
+  it('renders a Close button that invokes window.close() on click', async () => {
+    Object.defineProperty(window, 'opener', { value: null, writable: true, configurable: true });
+    render(
+      <MemoryRouter initialEntries={['/oauth/gdrive/callback?connected=1']}>
+        <Routes>
+          <Route path="/oauth/gdrive/callback" element={<GDriveOAuthCallbackPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    closeSpy.mockClear();
+    const close = await screen.findByRole('button', { name: /^close$/i });
+    close.click();
+    expect(closeSpy).toHaveBeenCalled();
+  });
 });

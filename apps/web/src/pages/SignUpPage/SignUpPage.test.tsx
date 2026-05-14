@@ -54,8 +54,8 @@ describe('SignUpPage', () => {
 
     // Consent gates Skip in signup mode (commit 5a3f252) — tick both first so
     // the skip handler actually runs through the page-level navigation.
-    await user.click(screen.getByLabelText(/legal age/i));
-    await user.click(screen.getByLabelText(/terms of service and privacy policy/i));
+    // Combined ESIGN attestation (audit C: SignUp #10).
+    await user.click(screen.getByLabelText(/legal age and agree/i));
 
     await user.click(screen.getByRole('button', { name: /skip/i }));
 
@@ -81,8 +81,8 @@ describe('SignUpPage', () => {
     await user.type(screen.getByLabelText(/full name/i), 'Ada Lovelace');
     await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'hunter2hunter');
-    await user.click(screen.getByLabelText(/legal age/i));
-    await user.click(screen.getByLabelText(/terms of service and privacy policy/i));
+    // Combined ESIGN attestation (audit C: SignUp #10).
+    await user.click(screen.getByLabelText(/legal age and agree/i));
 
     await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -95,6 +95,22 @@ describe('SignUpPage', () => {
     expect(await screen.findByRole('heading', { name: /check your email/i })).toBeInTheDocument();
   });
 
+  // Audit C: SignUp #2 — clicking the inner /legal/terms or /legal/privacy
+  // anchor inside the <label> consent row previously toggled the checkbox
+  // (a WCAG antipattern that on mobile silently un-toggled affirmative
+  // consent on the tap target). The anchors stopPropagation so the
+  // checkbox state is preserved.
+  it('clicking the inner Terms/Privacy anchors does NOT toggle the consent checkbox', async () => {
+    const user = userEvent.setup();
+    renderSignUp({});
+    const checkbox = screen.getByLabelText(/legal age and agree/i) as HTMLInputElement;
+    expect(checkbox.checked).toBe(false);
+    await user.click(screen.getByRole('link', { name: /terms of service/i }));
+    expect(checkbox.checked).toBe(false);
+    await user.click(screen.getByRole('link', { name: /privacy policy/i }));
+    expect(checkbox.checked).toBe(false);
+  });
+
   it('navigates to /documents when signup yields an immediate session', async () => {
     const user = userEvent.setup();
     const signUpWithPassword = vi.fn(async () => ({ needsEmailConfirmation: false }));
@@ -103,8 +119,8 @@ describe('SignUpPage', () => {
     await user.type(screen.getByLabelText(/full name/i), 'Ada Lovelace');
     await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'hunter2hunter');
-    await user.click(screen.getByLabelText(/legal age/i));
-    await user.click(screen.getByLabelText(/terms of service and privacy policy/i));
+    // Combined ESIGN attestation (audit C: SignUp #10).
+    await user.click(screen.getByLabelText(/legal age and agree/i));
 
     await user.click(screen.getByRole('button', { name: /create account/i }));
 

@@ -14,6 +14,7 @@ const baseAuth: AuthContextValue = {
   signUpWithPassword: vi.fn(async () => ({ needsEmailConfirmation: false })),
   signInWithGoogle: vi.fn(async () => undefined),
   resetPassword: vi.fn(async () => undefined),
+  resendSignUpConfirmation: vi.fn(async () => undefined),
   signOut: vi.fn(async () => undefined),
   enterGuestMode: vi.fn(async () => undefined),
   exitGuestMode: vi.fn(),

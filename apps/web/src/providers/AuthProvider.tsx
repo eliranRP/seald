@@ -28,6 +28,12 @@ export interface AuthContextValue {
   ) => Promise<SignUpOutcome>;
   readonly signInWithGoogle: () => Promise<void>;
   readonly resetPassword: (email: string) => Promise<void>;
+  /**
+   * Resends the signup-confirmation email for an existing pending-confirm
+   * account (audit C: CheckEmail #14). Surfaced by `CheckEmailPage` in
+   * `mode=signup` so users can self-recover from a lost / delayed email.
+   */
+  readonly resendSignUpConfirmation: (email: string) => Promise<void>;
   readonly signOut: () => Promise<void>;
   readonly enterGuestMode: () => Promise<void>;
   readonly exitGuestMode: () => void;
@@ -216,6 +222,15 @@ export function AuthProvider(props: AuthProviderProps) {
     if (error) throw error;
   }, []);
 
+  const resendSignUpConfirmation = useCallback(async (email: string): Promise<void> => {
+    const redirectTo =
+      typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
+    const options: { emailRedirectTo?: string } = {};
+    if (redirectTo) options.emailRedirectTo = redirectTo;
+    const { error } = await supabase.auth.resend({ type: 'signup', email, options });
+    if (error) throw error;
+  }, []);
+
   const signOut = useCallback(async (): Promise<void> => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -291,6 +306,7 @@ export function AuthProvider(props: AuthProviderProps) {
       signUpWithPassword,
       signInWithGoogle,
       resetPassword,
+      resendSignUpConfirmation,
       signOut,
       enterGuestMode,
       exitGuestMode,
@@ -304,6 +320,7 @@ export function AuthProvider(props: AuthProviderProps) {
       signUpWithPassword,
       signInWithGoogle,
       resetPassword,
+      resendSignUpConfirmation,
       signOut,
       enterGuestMode,
       exitGuestMode,

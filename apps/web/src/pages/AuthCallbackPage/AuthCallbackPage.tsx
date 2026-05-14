@@ -4,6 +4,14 @@ import { AuthLoadingScreen } from '@/layout/AuthLoadingScreen';
 import { useAuth } from '@/providers/AuthProvider';
 
 /**
+ * 10-second watchdog before bouncing to `/signin?error=oauth_timeout`
+ * (audit C: AuthCallback #20). Without this, a Supabase failure mode
+ * where `detectSessionInUrl` never settles would leave the user staring
+ * at the loading screen forever.
+ */
+const OAUTH_WATCHDOG_MS = 10_000;
+
+/**
  * L4 page — `/auth/callback`. Supabase redirects back here after an OAuth
  * flow with session tokens in the URL. The Supabase client picks them up
  * automatically (`detectSessionInUrl: true`); we just have to wait for the
@@ -31,6 +39,21 @@ export function AuthCallbackPage() {
       navigate('/documents', { replace: true });
     }
   }, [params, loading, user, navigate]);
+
+  // Watchdog — bound to `loading` only so the timer is set once per
+  // loading window and torn down once the provider has settled, whether
+  // or not a user materialized. If 10 seconds elapse with `loading`
+  // still true we bounce to /signin so the user gets an actionable
+  // error instead of an indefinite spinner.
+  useEffect(() => {
+    if (!loading) return undefined;
+    const timer = setTimeout(() => {
+      navigate('/signin?error=oauth_timeout', { replace: true });
+    }, OAUTH_WATCHDOG_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [loading, navigate]);
 
   return <AuthLoadingScreen />;
 }

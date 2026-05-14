@@ -41,6 +41,7 @@ const STORY_AUTH: AuthContextValue = {
   signUpWithPassword: asyncSignUp,
   signInWithGoogle: asyncNoop,
   resetPassword: asyncNoop,
+  resendSignUpConfirmation: asyncNoop,
   signOut: asyncNoop,
   enterGuestMode: asyncNoop,
   exitGuestMode: noop,
