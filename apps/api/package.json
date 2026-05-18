@@ -21,7 +21,7 @@
     "kms:gen-cert": "ts-node --transpile-only scripts/generate-kms-binding-cert.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-kms": "^3.1046.0",
+    "@aws-sdk/client-kms": "^3.1049.0",
     "@nestjs/common": "^11.1.21",
     "@nestjs/core": "^11.1.21",
     "@nestjs/platform-express": "^11.1.21",
@@ -38,12 +38,12 @@
     "express": "^4.21.0",
     "helmet": "^8.1.0",
     "jose": "^6.2.3",
-    "kysely": "^0.29.0",
+    "kysely": "^0.29.2",
     "multer": "^2.1.1",
     "nanoid": "^5.1.11",
     "node-forge": "1.4.0",
     "pdf-lib": "^1.17",
-    "pg": "^8.20.0",
+    "pg": "^8.21.0",
     "pino": "^9",
     "prom-client": "^15",
     "qrcode": "^1.5",
