@@ -8,13 +8,14 @@
  * the column headers — so this module is just the parser + the
  * shared key/dir vocabulary.
  *
- * Sort-key vocabulary matches the API's `EnvelopeSortKey` (minus the
- * `created` key, which the dashboard doesn't surface a column for).
- * The dashboard column id `document` maps to the `title` sort key —
- * see the `COLUMN_SORT_KEY` map in `DashboardPage`.
+ * Sort-key vocabulary matches the API's `EnvelopeSortKey`. The
+ * dashboard column id `document` maps to the `title` sort key, and the
+ * two date columns map to `date` (Last updated, sorts by updated_at)
+ * and `created` (Created, sorts by created_at) — see the
+ * `COLUMN_SORT_KEY` map in `DashboardPage`.
  */
 
-export const SORT_KEYS = ['title', 'signers', 'progress', 'status', 'date'] as const;
+export const SORT_KEYS = ['title', 'signers', 'progress', 'status', 'date', 'created'] as const;
 export type SortKey = (typeof SORT_KEYS)[number];
 export type SortDir = 'asc' | 'desc';
 

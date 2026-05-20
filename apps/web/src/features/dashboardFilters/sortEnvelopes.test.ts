@@ -15,7 +15,7 @@ describe('parseSort', () => {
   });
 
   it('accepts every supported sort key', () => {
-    for (const key of ['title', 'signers', 'progress', 'status', 'date'] as const) {
+    for (const key of ['title', 'signers', 'progress', 'status', 'date', 'created'] as const) {
       expect(parseSort(new URLSearchParams(`sort=${key}&dir=desc`)).key).toBe(key);
     }
   });

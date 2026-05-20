@@ -140,8 +140,9 @@ export const TableShell = styled.div`
 
 /**
  * Default kit-spec column widths in pixels: Document · Signers ·
- * Progress · Status · Date · chevron. The chevron column stays
- * fixed (it's just an icon) so we resize the five content columns.
+ * Progress · Status · Last updated · Created · chevron. The chevron
+ * column stays fixed (it's just an icon) so we resize the six content
+ * columns.
  *
  * Per-user overrides ride in `localStorage` via `useColumnWidths`;
  * the dashboard composes the active grid template from the live
@@ -152,7 +153,8 @@ export const DEFAULT_COLUMN_WIDTHS = {
   signers: 220,
   progress: 180,
   status: 180,
-  date: 110,
+  updated: 110,
+  created: 110,
 } as const;
 
 export const COLUMN_MIN_WIDTHS = {
@@ -160,7 +162,8 @@ export const COLUMN_MIN_WIDTHS = {
   signers: 140,
   progress: 120,
   status: 120,
-  date: 90,
+  updated: 90,
+  created: 90,
 } as const;
 
 export const CHEVRON_COL_PX = 60;
@@ -268,14 +271,16 @@ export const TableRow = styled.button<{ $grid: string }>`
   @media (max-width: ${MOBILE}) {
     /* Stack each row into a single column. The doc cell stays at the top
        (primary identity), the signer/progress/status badges flow below as
-       inline-wrapping content, and the chevronron tucks into the top-right
-       so the whole row still reads as a tap target. */
+       inline-wrapping content, the two date cells share the bottom row
+       (last-updated trailing, created leading), and the chevron tucks
+       into the top-right so the whole row still reads as a tap target. */
     grid-template-columns: 1fr auto;
     grid-template-areas:
       'doc chevron'
       'signers signers'
       'progress progress'
-      'status date';
+      'status status'
+      'created updated';
     gap: ${({ theme }) => theme.space[2]};
     padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]}`};
     align-items: start;
@@ -293,10 +298,13 @@ export const TableRow = styled.button<{ $grid: string }>`
       grid-area: status;
     }
     & > :nth-child(5) {
-      grid-area: date;
+      grid-area: updated;
       justify-self: end;
     }
     & > :nth-child(6) {
+      grid-area: created;
+    }
+    & > :nth-child(7) {
       grid-area: chevron;
       align-self: center;
     }

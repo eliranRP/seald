@@ -60,29 +60,44 @@ import {
 } from './DashboardPage.styles';
 
 type ColKey = keyof typeof DEFAULT_COLUMN_WIDTHS;
-const COLUMN_KEYS: ReadonlyArray<ColKey> = ['document', 'signers', 'progress', 'status', 'date'];
+const COLUMN_KEYS: ReadonlyArray<ColKey> = [
+  'document',
+  'signers',
+  'progress',
+  'status',
+  'updated',
+  'created',
+];
 const COLUMN_LABELS: Record<ColKey, string> = {
   document: 'Document',
   signers: 'Signers',
   progress: 'Progress',
   status: 'Status',
-  date: 'Date',
+  updated: 'Last updated',
+  created: 'Created',
 };
 // The column id (the localStorage width key) maps to the sort key the
-// API understands — only `document` differs (sorts by `title`).
+// API understands — `document` differs (sorts by `title`) and the two
+// date columns split the old single `date` key: `updated` keeps the
+// `date` sort (server orders by `updated_at`) while `created` uses the
+// API's `created` key (orders by `created_at`).
 const COLUMN_SORT_KEY: Record<ColKey, SortKey> = {
   document: 'title',
   signers: 'signers',
   progress: 'progress',
   status: 'status',
-  date: 'date',
+  updated: 'date',
+  created: 'created',
 };
 const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
   key: k,
   default: DEFAULT_COLUMN_WIDTHS[k],
   min: COLUMN_MIN_WIDTHS[k],
 }));
-const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v1';
+// v2: split the single `date` column into `updated` + `created`. Bump
+// the storage key so any v1 width override (with the now-removed `date`
+// key) is discarded and each user gets the new defaults on first load.
+const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v2';
 
 /** The "no filter at all" state — what `Clear filters` resets to. */
 const EMPTY_FILTERS: EnvelopeFilters = {
@@ -247,6 +262,9 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
         <DateCell>
           <Skeleton width={90} />
         </DateCell>
+        <DateCell>
+          <Skeleton width={90} />
+        </DateCell>
         <ChevronCell>
           <Skeleton variant="rect" width={16} height={16} />
         </ChevronCell>
@@ -320,6 +338,7 @@ function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.E
         )}
       </div>
       <DateCell>{formatDate(d.updated_at)}</DateCell>
+      <DateCell>{formatDate(d.created_at)}</DateCell>
       <ChevronCell aria-hidden>
         <ChevronRight size={16} />
       </ChevronCell>
