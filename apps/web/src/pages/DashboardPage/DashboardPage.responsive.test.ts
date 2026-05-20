@@ -51,9 +51,11 @@ describe('DashboardPage responsive styles (BUG-1 regression)', () => {
     const css = getStyles(TableRow as unknown as { componentStyle: { rules: unknown[] } });
     expect(css).toMatch(/@media \(max-width:\s*768px\s*\)/);
     expect(css).toMatch(/grid-template-areas/);
-    // Each of the 6 children must be mapped into an area so nothing
+    // Each of the 7 children must be mapped into an area so nothing
     // falls into the wrong cell once the desktop GRID stops applying.
-    for (const area of ['doc', 'signers', 'progress', 'status', 'date', 'chevron']) {
+    // The single `date` area was split into `updated` + `created` when
+    // the dashboard added a second date column (see DashboardPage.tsx).
+    for (const area of ['doc', 'signers', 'progress', 'status', 'updated', 'created', 'chevron']) {
       expect(css).toMatch(new RegExp(`grid-area: ${area}`));
     }
   });
