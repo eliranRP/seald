@@ -26,17 +26,17 @@
   },
   "dependencies": {
     "@sentry/react": "^10.53.1",
-    "@supabase/supabase-js": "^2.105.4",
-    "@tanstack/react-query": "^5.100.10",
+    "@supabase/supabase-js": "^2.106.2",
+    "@tanstack/react-query": "^5.100.14",
     "axios": "^1.16.1",
     "jspdf": "^4.2.1",
-    "lucide-react": "1.14.0",
+    "lucide-react": "1.16.0",
     "pdfjs-dist": "^5.7.284",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "react-router-dom": "^7.15.0",
+    "react-router-dom": "^7.15.1",
     "shared": "workspace:*",
-    "styled-components": "6.4.1"
+    "styled-components": "6.4.2"
   },
   "devDependencies": {
     "@eslint/js": "^9",
