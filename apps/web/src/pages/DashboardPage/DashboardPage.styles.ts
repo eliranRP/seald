@@ -135,7 +135,37 @@ export const TableShell = styled.div`
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-top: none;
   border-radius: ${({ theme }) => `0 0 ${theme.radius.xl} ${theme.radius.xl}`};
+  /* Border-radius clip stays on the shell so the rounded corners aren't
+     escaped by the inner scrollable strip. Horizontal scroll lives in
+     TableScroll below. */
   overflow: hidden;
+`;
+
+/**
+ * Horizontal scroll viewport for the table grid. The 7 fixed-px columns
+ * (Document · Signers · Progress · Status · Last updated · Created ·
+ * chevron) can exceed the 1280 px Inner container at narrower viewports
+ * or after a user widens columns via the resize handles. Without this
+ * wrapper the last column gets silently clipped (see the May-30 prod
+ * report — CREATED was half-visible at 1440 px because the default
+ * widths summed to ~1316 px). Each row plus the header sits inside this
+ * scroll viewport; the rows already enforce their own `min-width` via
+ * `grid-template-columns`, so they refuse to shrink and the scrollbar
+ * appears automatically.
+ *
+ * Disabled below the mobile breakpoint because the rows collapse into a
+ * stacked-card layout there and never need to scroll horizontally.
+ */
+export const TableScroll = styled.div`
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Thin scrollbar so the rounded shell still reads as a card on macOS
+     where overlay scrollbars are the default. */
+  scrollbar-width: thin;
+
+  @media (max-width: ${MOBILE}) {
+    overflow-x: visible;
+  }
 `;
 
 /**
@@ -149,12 +179,12 @@ export const TableShell = styled.div`
  * width map and passes it down via the `$grid` prop.
  */
 export const DEFAULT_COLUMN_WIDTHS = {
-  document: 320,
-  signers: 220,
-  progress: 180,
-  status: 180,
-  updated: 110,
-  created: 110,
+  document: 280,
+  signers: 180,
+  progress: 140,
+  status: 140,
+  updated: 100,
+  created: 100,
 } as const;
 
 export const COLUMN_MIN_WIDTHS = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Main, StatGrid, TableHead, TableRow } from './DashboardPage.styles';
+import { Main, StatGrid, TableHead, TableRow, TableScroll } from './DashboardPage.styles';
 
 /**
  * BUG-1 regression — the dashboard chrome had no media queries at all.
@@ -45,6 +45,20 @@ describe('DashboardPage responsive styles (BUG-1 regression)', () => {
     const css = getStyles(TableHead as unknown as { componentStyle: { rules: unknown[] } });
     expect(css).toMatch(/@media \(max-width:\s*768px\s*\)/);
     expect(css).toMatch(/display: none/);
+  });
+
+  it('TableScroll scrolls horizontally on desktop and unwinds on mobile', () => {
+    // The prod report from 2026-05-30 was the trigger: 7 fixed-px columns
+    // (320+220+180+180+110+110+60 ≈ 1180 px before gaps/padding) overflowed
+    // the 1280 px Inner container and silently clipped the Created date.
+    // The fix wraps the table in a horizontally-scrollable strip so a row
+    // that doesn't fit becomes scrollable instead of clipped — and the
+    // mobile layout (stacked cards) explicitly unwinds back to `visible`
+    // so the document/signer/progress cards never gain a scrollbar.
+    const css = getStyles(TableScroll as unknown as { componentStyle: { rules: unknown[] } });
+    expect(css).toMatch(/overflow-x: auto/);
+    expect(css).toMatch(/@media \(max-width:\s*768px\s*\)/);
+    expect(css).toMatch(/overflow-x: visible/);
   });
 
   it('TableRow stacks into named grid areas below the mobile breakpoint', () => {

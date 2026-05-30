@@ -53,6 +53,7 @@ import {
   StatGrid,
   TableHead,
   TableRow,
+  TableScroll,
   TableShell,
   TagOverflow,
   TagStrip,
@@ -94,10 +95,13 @@ const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
   default: DEFAULT_COLUMN_WIDTHS[k],
   min: COLUMN_MIN_WIDTHS[k],
 }));
-// v2: split the single `date` column into `updated` + `created`. Bump
-// the storage key so any v1 width override (with the now-removed `date`
-// key) is discarded and each user gets the new defaults on first load.
-const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v2';
+// v3: tightened the default widths (document/signers/progress/status
+// all shrunk by 40 px each) so the 7-column grid no longer overflows a
+// 1280 px viewport and clips the Created column. Bumped from v2 so any
+// stored width overrides from the brief v2 window are dropped and each
+// user lands on the new defaults; horizontal scroll is also now wired
+// (TableScroll wrapper) so they can opt back into wider columns.
+const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v3';
 
 /** The "no filter at all" state — what `Clear filters` resets to. */
 const EMPTY_FILTERS: EnvelopeFilters = {
@@ -555,50 +559,52 @@ export function DashboardPage() {
         </ToolbarRow>
 
         <TableShell>
-          <TableHead role="row" $grid={gridTemplate}>
-            {COLUMN_KEYS.map((key) => {
-              const sortKey = COLUMN_SORT_KEY[key];
-              const active = sort.key === sortKey;
-              // Every sortable column carries a Lucide chevron icon.
-              // Active columns render Up/Down in indigo; inactive
-              // columns render a faint ChevronDown at fg-3 so the
-              // header still reads as sortable without competing with
-              // the active sort. (Audit A · L-3 — replaces the previous
-              // U+25BE unicode caret that rendered ambiguously.)
-              const ArrowIcon = active && sort.dir === 'asc' ? ChevronUp : ChevronDown;
-              return (
-                <HeadCell
-                  key={key}
-                  aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                >
-                  <SortHeaderButton
-                    type="button"
-                    $active={active}
-                    onClick={() => handleSortClick(sortKey)}
+          <TableScroll>
+            <TableHead role="row" $grid={gridTemplate}>
+              {COLUMN_KEYS.map((key) => {
+                const sortKey = COLUMN_SORT_KEY[key];
+                const active = sort.key === sortKey;
+                // Every sortable column carries a Lucide chevron icon.
+                // Active columns render Up/Down in indigo; inactive
+                // columns render a faint ChevronDown at fg-3 so the
+                // header still reads as sortable without competing with
+                // the active sort. (Audit A · L-3 — replaces the previous
+                // U+25BE unicode caret that rendered ambiguously.)
+                const ArrowIcon = active && sort.dir === 'asc' ? ChevronUp : ChevronDown;
+                return (
+                  <HeadCell
+                    key={key}
+                    aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
                   >
-                    {COLUMN_LABELS[key]}
-                    <SortCaret aria-hidden $active={active}>
-                      <ArrowIcon size={12} strokeWidth={2} />
-                    </SortCaret>
-                  </SortHeaderButton>
-                  <ColumnResizeHandle
-                    width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
-                    onResize={(px) => setWidth(key, px)}
-                    ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
-                  />
-                </HeadCell>
-              );
+                    <SortHeaderButton
+                      type="button"
+                      $active={active}
+                      onClick={() => handleSortClick(sortKey)}
+                    >
+                      {COLUMN_LABELS[key]}
+                      <SortCaret aria-hidden $active={active}>
+                        <ArrowIcon size={12} strokeWidth={2} />
+                      </SortCaret>
+                    </SortHeaderButton>
+                    <ColumnResizeHandle
+                      width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
+                      onResize={(px) => setWidth(key, px)}
+                      ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
+                    />
+                  </HeadCell>
+                );
+              })}
+              <div aria-hidden />
+            </TableHead>
+            {renderDocumentsBody({
+              loading: documentsLoading,
+              rowsForSkeleton: filtered.length === 0,
+              filtered,
+              navigate,
+              viewerEmail,
+              gridTemplate,
             })}
-            <div aria-hidden />
-          </TableHead>
-          {renderDocumentsBody({
-            loading: documentsLoading,
-            rowsForSkeleton: filtered.length === 0,
-            filtered,
-            navigate,
-            viewerEmail,
-            gridTemplate,
-          })}
+          </TableScroll>
         </TableShell>
       </Inner>
     </Main>
