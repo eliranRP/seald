@@ -44,7 +44,7 @@
     "node-forge": "1.4.0",
     "pdf-lib": "^1.17",
     "pg": "^8.20.0",
-    "pino": "^9",
+    "pino": "^10",
     "prom-client": "^15",
     "qrcode": "^1.5",
     "rate-limiter-flexible": "^11",
