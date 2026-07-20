@@ -67,7 +67,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       storybook: ${{ steps.filter.outputs.storybook }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: filter
         uses: dorny/paths-filter@v4
         with:
@@ -121,12 +121,12 @@ jobs:
       || needs.changes.outputs.storybook == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -144,9 +144,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.lint == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -179,9 +179,9 @@ jobs:
       || needs.changes.outputs.lint == 'true'
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -202,9 +202,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.api == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -232,9 +232,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -259,7 +259,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: success()
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           files: apps/web/coverage/lcov.info
           flags: web
@@ -282,9 +282,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.storybook == 'true'
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -322,9 +322,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -383,9 +383,9 @@ jobs:
       AWS_REGION: us-east-1
       AWS_ENDPOINT_URL: http://localhost:4566
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -426,9 +426,9 @@ jobs:
     if: github.event_name == 'push' || needs.changes.outputs.api == 'true'
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
