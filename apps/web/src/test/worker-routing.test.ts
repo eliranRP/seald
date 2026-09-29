@@ -91,6 +91,16 @@ function site() {
       contentType: 'text/plain; charset=utf-8',
       etag: '"robots"',
     },
+    '/sitemap.xml': {
+      body: '<?xml version="1.0" encoding="UTF-8"?><urlset></urlset>',
+      contentType: 'application/xml; charset=utf-8',
+      etag: '"sitemap"',
+    },
+    '/llms.txt': {
+      body: '# Seald\n',
+      contentType: 'text/plain; charset=utf-8',
+      etag: '"llms"',
+    },
   });
 }
 
@@ -115,7 +125,19 @@ describe('apps/landing/_worker.js routing', () => {
   });
 
   it('rewrites SPA routes to /app and sets X-Robots-Tag', async () => {
-    for (const path of ['/signin', '/sent/abc', '/sent', '/app', '/templates', '/m/send']) {
+    for (const path of [
+      '/signin',
+      '/sent/abc',
+      '/sent',
+      '/app',
+      '/templates',
+      '/m/send',
+      '/sign/abc',
+      '/verify/abc',
+      '/document/abc/sent',
+      '/oauth/gdrive/callback',
+      '/settings/integrations',
+    ]) {
       const { env, fetched } = site();
       const response = await worker.fetch(new Request(`https://seald.nromomentum.com${path}`), env);
       expect(response.status, path).toBe(200);
@@ -238,6 +260,7 @@ describe('apps/landing/_worker.js routing', () => {
       env,
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(response.headers.get('x-robots-tag')).toBeNull();
     expect(await response.text()).toBe(token);
     expect(fetched).not.toContain('/app');
@@ -285,7 +308,25 @@ describe('apps/landing/_worker.js routing', () => {
       env,
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
     expect(response.headers.get('location')).toBeNull();
     expect(await response.text()).toBe(token);
+  });
+
+  it('passes robots, sitemap, and llms.txt through with their content types', async () => {
+    const cases: Array<[string, string, string]> = [
+      ['/robots.txt', 'text/plain; charset=utf-8', 'User-agent:'],
+      ['/sitemap.xml', 'application/xml; charset=utf-8', '<urlset>'],
+      ['/llms.txt', 'text/plain; charset=utf-8', '# Seald'],
+    ];
+    for (const [path, contentType, snippet] of cases) {
+      const { env, fetched } = site();
+      const response = await worker.fetch(new Request(`https://seald.nromomentum.com${path}`), env);
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get('content-type'), path).toBe(contentType);
+      expect(response.headers.get('x-robots-tag'), path).toBeNull();
+      expect(await response.text(), path).toContain(snippet);
+      expect(fetched, path).toEqual([path]);
+    }
   });
 });

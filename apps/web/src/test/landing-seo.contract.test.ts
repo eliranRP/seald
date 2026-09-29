@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKETING_PATHS } from '../../../landing/_worker.js';
+import { toPublicPath } from '../../../landing/src/public-path.js';
 import { renderSitemap } from '../../../landing/sitemap.js';
 
 /**
@@ -11,6 +12,17 @@ import { renderSitemap } from '../../../landing/sitemap.js';
  */
 
 const LANDING = resolve(__dirname, '../../../landing');
+
+const OVERCLAIMS = [
+  'court-ready',
+  'PAdES-LT',
+  'long-term validation',
+  'signing order',
+  'in parallel or in order',
+  'TLS 1.3',
+  'AES-256',
+  'Free e-signature',
+];
 
 function read(relativePath: string): string {
   return readFileSync(resolve(LANDING, relativePath), 'utf8');
@@ -44,12 +56,31 @@ describe('landing SEO contract (S1a)', () => {
 
   it('matches the homepage offer to the page and drops the dead pricing anchor', () => {
     const home = read('src/pages/index.astro');
-    expect(home).toContain('Free during beta');
-    expect(home).toContain('free during beta');
-    expect(home).not.toContain('Free e-signature');
-    expect(home).not.toContain('free e-signature');
+    const title = /title="([^"]+)"/.exec(home)?.[1] ?? '';
+    const description = /description="([^"]+)"/.exec(home)?.[1] ?? '';
+    expect(title).toBe('Seald — Free during beta');
+    expect(description).toContain('Free during beta');
+    expect(description).toContain('PAdES seal when a seal is applied');
+    expect(description).toContain('RFC 3161 timestamp when available');
+    expect(description).toContain('SHA-256 audit chain');
+    for (const claim of OVERCLAIMS) {
+      expect(title, claim).not.toContain(claim);
+      expect(description, claim).not.toContain(claim);
+    }
     expect(home).not.toContain('#pricing');
     expect(home).not.toContain('>Pricing<');
+  });
+
+  it('builds extensionless canonical paths', () => {
+    expect(toPublicPath('/index.html')).toBe('/');
+    expect(toPublicPath('/contact.html')).toBe('/contact');
+    expect(toPublicPath('/contact/')).toBe('/contact');
+    expect(toPublicPath('/legal/privacy.html')).toBe('/legal/privacy');
+    expect(toPublicPath('/legal/privacy/')).toBe('/legal/privacy');
+    expect(toPublicPath('/')).toBe('/');
+    const layout = read('src/layouts/BaseLayout.astro');
+    expect(layout).toContain('toPublicPath');
+    expect(layout).toContain('https://seald.nromomentum.com');
   });
 
   it('keeps one Organization graph named Seald, with a web-only app', () => {
@@ -67,6 +98,12 @@ describe('landing SEO contract (S1a)', () => {
     expect(frontmatter).not.toContain('Android');
     expect(frontmatter).not.toMatch(/sameAs\s*:/);
     expect(frontmatter).not.toMatch(/offers\s*:/);
+    expect(frontmatter).toContain('PAdES seal (when a seal is applied)');
+    expect(frontmatter).toContain('RFC 3161 timestamp (when available)');
+    expect(frontmatter).toContain('SHA-256 audit chain');
+    for (const claim of OVERCLAIMS) {
+      expect(frontmatter, claim).not.toContain(claim);
+    }
     expect(layout).not.toContain('sitemap-index.xml');
     expect(layout).not.toContain('rel="preload"');
     expect(layout).toContain('href="/sitemap.xml"');
@@ -90,7 +127,8 @@ describe('landing SEO contract (S1a)', () => {
     }
     expect(robots).toContain('Allow: /');
     for (const path of [
-      '/app',
+      '/app$',
+      '/app/',
       '/templates',
       '/settings/',
       '/m/',
@@ -107,6 +145,7 @@ describe('landing SEO contract (S1a)', () => {
       expect(robots).toContain(`Disallow: ${path}`);
     }
     expect(robots).toContain('Sitemap: https://seald.nromomentum.com/sitemap.xml');
+    expect(robots).not.toMatch(/^Disallow: \/app$/m);
   });
 
   it('lists every public page in the sitemap with a build-time lastmod', () => {
@@ -151,6 +190,13 @@ describe('landing SEO contract (S1a)', () => {
     expect(llms).not.toMatch(/Hartzdale|Camp Hill/i);
     expect(llms).not.toMatch(/iOS|Android|App Store|Google Play/i);
     expect(llms).toContain('https://seald.nromomentum.com/legal/privacy');
+    expect(llms).toContain('PAdES seal (when a seal is applied)');
+    expect(llms).toContain('RFC 3161 timestamp (when available)');
+    expect(llms).toContain('SHA-256 audit chain');
+    expect(llms).toContain('Free during beta');
+    for (const claim of OVERCLAIMS) {
+      expect(llms, claim).not.toContain(claim);
+    }
   });
 });
 

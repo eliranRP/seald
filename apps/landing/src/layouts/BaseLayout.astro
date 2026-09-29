@@ -13,6 +13,7 @@
 // via props, then drop their content in the <slot/>.
 
 import '@/styles/globals.css';
+import { toPublicPath } from '@/public-path.js';
 
 export interface Props {
   title?: string;
@@ -35,8 +36,8 @@ export interface Props {
 }
 
 const {
-  title = 'Seald — Free e-signature with a court-ready audit trail',
-  description = 'Sign and send PDFs with Seald, a free e-signature web app. Every sealed file gets a PAdES seal, an RFC 3161 timestamp, and a tamper-evident audit trail.',
+  title = 'Seald — Free during beta',
+  description = 'Free during beta. Sign and send PDFs with Seald: a PAdES seal when a seal is applied, an RFC 3161 timestamp when available, and a SHA-256 audit chain.',
   canonical,
   // Default OG image is a 1200×630 PNG. Facebook, LinkedIn, Slack,
   // iMessage and most Twitter ingest pipelines reject SVG, so we ship
@@ -52,21 +53,6 @@ const {
 // — every canonical URL, OG URL, and JSON-LD `url` must point at the
 // real public host. Audit E · BaseLayout M (Astro.site fallback wrong).
 const siteUrl = Astro.site ?? new URL('https://seald.nromomentum.com');
-
-// `build.format: 'file'` makes Astro.url.pathname `/contact.html` at
-// build time. Cloudflare serves that file at `/contact` (200). Canonical
-// and og:url must be the extensionless URL, or they point at a 308.
-function toPublicPath(pathname: string): string {
-  let path = pathname;
-  if (path.endsWith('/index.html')) {
-    path = path.slice(0, -'/index.html'.length);
-  } else if (path.endsWith('.html')) {
-    path = path.slice(0, -'.html'.length);
-  }
-  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-  if (path === '') path = '/';
-  return path;
-}
 
 const publicPath = toPublicPath(
   canonical ? new URL(canonical, siteUrl).pathname : Astro.url.pathname,
@@ -85,7 +71,7 @@ const softwareId = `${origin}/#software`;
 const organizationDescription =
   'Seald is a web application for preparing, signing, and sealing PDF documents.';
 const softwareDescription =
-  'Seald is a browser-based e-signature application. Upload a PDF, collect signatures, and download a PAdES-sealed file with an RFC 3161 timestamp and a tamper-evident audit trail.';
+  'Seald is a browser-based e-signature application. Upload a PDF, collect signatures, and download a file with a PAdES seal when a seal is applied, an RFC 3161 timestamp when available, and a SHA-256 audit chain.';
 
 const organizationLd = {
   '@type': 'Organization',
@@ -121,14 +107,13 @@ const softwareLd = {
   description: softwareDescription,
   featureList: [
     'Sign a PDF yourself in the browser',
-    'Request signatures from multiple people, in parallel or in order',
-    'Reusable templates that keep fields, signers, and signing order',
+    'Request signatures from other people, all invited at the same time',
+    'Reusable templates that keep fields and signers',
     'Type, draw, or upload a signature',
-    'PAdES long-term validation seals (ETSI EN 319 142)',
-    'RFC 3161 trusted timestamps from an external authority',
-    'Tamper-evident SHA-256 audit trail on the sealed PDF',
+    'PAdES seal (when a seal is applied)',
+    'RFC 3161 timestamp (when available)',
+    'SHA-256 audit chain',
     'Public verification of a sealed document',
-    'TLS 1.3 in transit and AES-256 at rest',
   ],
   url: homeUrl,
   publisher: { '@id': organizationId },

@@ -29,7 +29,8 @@ User-agent: DuckAssistBot
 Allow: /
 
 # App shell and authenticated / transactional surfaces.
-Disallow: /app
+Disallow: /app$
+Disallow: /app/
 Disallow: /signin
 Disallow: /signup
 Disallow: /forgot-password
