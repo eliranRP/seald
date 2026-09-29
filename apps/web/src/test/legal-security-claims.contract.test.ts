@@ -27,6 +27,18 @@ const RETIRED_CLAIMS = [
   'long-term validation',
   'ETSI EN 319 142',
   'Advanced Electronic Signature',
+  '30-day grace',
+  'can be restored',
+  'Three (3) years',
+  'longer of the period above',
+  'record-retention under ESIGN',
+  'U.S. surveillance-law assessment',
+  'government-request transparency',
+  'vetted',
+  'security training',
+  'deletes or returns all Personal Data',
+  'family-law instruments (ESIGN § 7003(a)(1))',
+  'utility services (ESIGN § 7003(b)(2)(B)(i))',
 ] as const;
 
 describe('legal page security claims', () => {
@@ -57,6 +69,13 @@ describe('legal page security claims', () => {
     expect(source).toContain(
       'Data is encrypted with TLS in transit between your device and our services, and between our servers and our database, file-storage and email providers. Documents, signatures and audit records are stored with our database and file-storage provider, which encrypts them at rest.',
     );
+    expect(source).toContain(
+      "Until you delete your account. Deletion takes effect immediately and can't be undone. Your login, contacts, templates and drafts are deleted. Envelopes you've sent, and their audit records, are kept without a link to your account, and your email address is removed from the signer records where it appears.",
+    );
+    expect(source).toContain(
+      "We don't currently delete support correspondence on a schedule, and we don't promise to keep it for any particular period.",
+    );
+    expect(source).toContain('(e.g. responding to lawful requests from authorities)');
   });
 
   it('terms describe only verifiable controls', () => {
@@ -75,7 +94,10 @@ describe('legal page security claims', () => {
       "TLS in transit between users and the Service, and between Seald's servers and its database, file-storage and email Sub-processors. Traffic between software components on the same server (the reverse proxy, the API and the document-conversion service) isn't separately encrypted. Data stored by Seald's database and file-storage Sub-processor is encrypted at rest by that Sub-processor.",
     );
     expect(source).toContain(
-      "Supplementary technical and organizational measures for these transfers: TLS encryption in transit between users and the Service and between Seald's servers and its Sub-processors, encryption at rest by Seald's database and file-storage Sub-processor, U.S. surveillance-law assessment, government-request transparency.",
+      "Supplementary technical and organizational measures for these transfers: TLS encryption in transit between users and the Service and between Seald's servers and its Sub-processors, and encryption at rest by Seald's database and file-storage Sub-processor.",
+    );
+    expect(source).toContain(
+      "Before termination, the Customer can export its data from the Service. When the Customer deletes its account, Seald deletes the Customer's contacts, templates and drafts, and keeps sent and completed envelopes and their audit records without a link to the Customer's account. Seald doesn't currently delete those records on a schedule.",
     );
     expect(source).toContain(
       'Where Seald uses AWS Key Management Service (KMS) for document-sealing or Google Drive token-wrapping keys, the key material is non-exportable from KMS.',
@@ -90,6 +112,8 @@ describe('legal page security claims', () => {
     expect(source).toContain(
       'Seald records a simple electronic signature. It is not an advanced or qualified electronic signature.',
     );
+    expect(source).toContain('family-law instruments (ESIGN § 7003(a)(2))');
+    expect(source).toContain('utility services (ESIGN § 7003(b)(2)(A))');
   });
 
   it('responsible disclosure scopes seal review to seals that were applied', () => {
