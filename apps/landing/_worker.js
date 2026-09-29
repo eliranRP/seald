@@ -59,8 +59,7 @@ const SPA_PREFIXES = [
 
 /**
  * Public marketing URLs. Canonical form has no trailing slash and no
- * `.html`. Kept in sync with `public/sitemap.xml` by
- * `apps/web/src/test/landing-seo.contract.test.ts`.
+ * `.html`. The build writes `dist/sitemap.xml` from this list.
  */
 export const MARKETING_PATHS = [
   '/',
@@ -95,10 +94,26 @@ export function isSpaRoute(pathname) {
   return false;
 }
 
+// Cloudflare applies public/_headers to asset responses. Worker-built
+// redirects never pass through that file, so the same `/*` directives
+// are set here. Keep the two lists identical.
+const SECURITY_HEADERS = {
+  'X-Frame-Options': 'SAMEORIGIN',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy':
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+  'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
+  'Content-Security-Policy':
+    "default-src 'self'; base-uri 'self'; form-action 'self' mailto:; frame-ancestors 'self'; img-src 'self' data: blob: https://static.cloudflareinsights.com https://*.googleusercontent.com https://*.gstatic.com https://*.supabase.co; script-src 'self' https://static.cloudflareinsights.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://cloudflareinsights.com https://*.supabase.co https://api.seald.nromomentum.com https://www.googleapis.com https://content.googleapis.com; frame-src 'self' https://docs.google.com https://accounts.google.com; object-src 'none'; upgrade-insecure-requests",
+};
+
 function redirect(request, pathname) {
   const dest = new URL(request.url);
   dest.pathname = pathname;
-  return Response.redirect(dest.toString(), 308);
+  const headers = new Headers(SECURITY_HEADERS);
+  headers.set('Location', dest.toString());
+  return new Response(null, { status: 308, headers });
 }
 
 function isHtmlResponse(response) {

@@ -1,7 +1,8 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKETING_PATHS } from '../../../landing/_worker.js';
+import { renderSitemap } from '../../../landing/sitemap.js';
 
 /**
  * Pins the S1a technical-SEO contract: public meta length, robots
@@ -41,9 +42,12 @@ describe('landing SEO contract (S1a)', () => {
     expect(source).toContain('noindex={true}');
   });
 
-  it('puts e-signature in the homepage title and drops the dead pricing anchor', () => {
+  it('matches the homepage offer to the page and drops the dead pricing anchor', () => {
     const home = read('src/pages/index.astro');
-    expect(home).toContain('e-signature');
+    expect(home).toContain('Free during beta');
+    expect(home).toContain('free during beta');
+    expect(home).not.toContain('Free e-signature');
+    expect(home).not.toContain('free e-signature');
     expect(home).not.toContain('#pricing');
     expect(home).not.toContain('>Pricing<');
   });
@@ -105,8 +109,9 @@ describe('landing SEO contract (S1a)', () => {
     expect(robots).toContain('Sitemap: https://seald.nromomentum.com/sitemap.xml');
   });
 
-  it('lists every public page in the sitemap with a lastmod', () => {
-    const sitemap = read('public/sitemap.xml');
+  it('lists every public page in the sitemap with a build-time lastmod', () => {
+    expect(existsSync(resolve(LANDING, 'public/sitemap.xml'))).toBe(false);
+    const sitemap = renderSitemap(MARKETING_PATHS, '2026-01-02');
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1] ?? '');
     const lastmods = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map(
       (match) => match[1] ?? '',
@@ -120,12 +125,11 @@ describe('landing SEO contract (S1a)', () => {
           : `https://seald.nromomentum.com${pathname}`;
       expect(locs).toContain(loc);
     }
-    for (const lastmod of lastmods) {
-      expect(lastmod).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-    }
+    expect(new Set(lastmods)).toEqual(new Set(['2026-01-02']));
     expect(sitemap).not.toContain('/signin');
     expect(sitemap).not.toContain('/404');
     expect(sitemap).not.toContain('google9a27f9c75cdae2dc');
+    expect(read('astro.config.mjs')).toContain('buildLastmod()');
   });
 
   it('adds the Search Console meta tag and the exact verification file', () => {
@@ -136,6 +140,7 @@ describe('landing SEO contract (S1a)', () => {
     const file = readFileSync(resolve(LANDING, 'public/google9a27f9c75cdae2dc.html'));
     expect(file.length).toBe(53);
     expect(file.toString('utf8')).toBe('google-site-verification: google9a27f9c75cdae2dc.html');
+    expect(existsSync(resolve(LANDING, 'public/google-site-verification.html'))).toBe(false);
   });
 
   it('describes Seald as a web app in llms.txt', () => {

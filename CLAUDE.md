@@ -354,9 +354,10 @@ First-deploy workflow:
    subsequent runs are no-ops.
 
 4. **Optional polish** — paste the real Cloudflare Web Analytics token
-   into `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`,
-   replace `apps/landing/public/google-site-verification.html` with the
-   real GSC token file. Both ship with placeholders.
+   into `apps/landing/src/layouts/BaseLayout.astro` `data-cf-beacon`.
+   Search Console is already verified by the meta tag in that layout
+   and `apps/landing/public/google9a27f9c75cdae2dc.html`. Do not add
+   `google-site-verification.html`; that placeholder served a fake token.
 
 When extending: any new SPA route must be added to the `_redirects`
 block in `.github/workflows/deploy-cloudflare.yml`, otherwise CF Pages

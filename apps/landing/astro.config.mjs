@@ -6,20 +6,41 @@
 // here, builds the SPA, then merges them under apps/landing/dist/
 // before pushing to CF Pages.
 
-import { defineConfig } from 'astro/config';
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'astro/config';
+import { MARKETING_PATHS } from './_worker.js';
+import { buildLastmod, renderSitemap } from './sitemap.js';
 
-// Sitemap is hand-authored at apps/landing/public/sitemap.xml so every
-// public page (home, contact, DSAR, legal) is listed with a lastmod.
 // `build.format: 'file'` emits `contact.html` rather than
 // `contact/index.html`. Cloudflare Pages serves the `.html` file at
 // `/contact` with HTTP 200. The directory format 308s `/contact` to
 // `/contact/`, which disagreed with our no-slash canonicals.
 // Pair `format: 'file'` with `trailingSlash: 'never'` — Astro's
 // documented combination for extensionless URLs.
+//
+// sitemap.xml is written in astro:build:done so lastmod is the build
+// date, not a date checked into the repo.
+
+function sitemapLastmod() {
+  return {
+    name: 'sitemap-lastmod',
+    hooks: {
+      'astro:build:done': ({ dir }) => {
+        const dist = fileURLToPath(dir);
+        writeFileSync(
+          path.join(dist, 'sitemap.xml'),
+          renderSitemap(MARKETING_PATHS, buildLastmod()),
+        );
+      },
+    },
+  };
+}
 
 export default defineConfig({
   site: 'https://seald.nromomentum.com',
+  integrations: [sitemapLastmod()],
   output: 'static',
   trailingSlash: 'never',
   build: {

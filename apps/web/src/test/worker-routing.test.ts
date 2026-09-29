@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import worker, { isSpaRoute, MARKETING_PATHS } from '../../../landing/_worker.js';
 
@@ -12,6 +14,20 @@ interface AssetFile {
   readonly contentType: string;
   readonly etag: string;
   readonly status?: number;
+}
+
+function securityHeaders(): Record<string, string> {
+  const raw = readFileSync(resolve(__dirname, '../../../landing/public/_headers'), 'utf8');
+  const block = raw.split('# Long-cache')[0] ?? '';
+  const headers: Record<string, string> = {};
+  for (const line of block.split('\n')) {
+    const match = /^  ([^:\s][^:]*):\s*(.+)$/.exec(line);
+    if (!match) continue;
+    const name = match[1];
+    const value = match[2];
+    if (name && value) headers[name.toLowerCase()] = value.trim();
+  }
+  return headers;
 }
 
 const HOME = '<!doctype html><title>Seald — home</title>';
@@ -130,6 +146,9 @@ describe('apps/landing/_worker.js routing', () => {
       const response = await worker.fetch(new Request(`https://seald.nromomentum.com${from}`), env);
       expect(response.status, from).toBe(308);
       expect(response.headers.get('location'), from).toBe(`https://seald.nromomentum.com${to}`);
+      for (const [name, value] of Object.entries(securityHeaders())) {
+        expect(response.headers.get(name), `${from} ${name}`).toBe(value);
+      }
     }
   });
 
