@@ -7,11 +7,12 @@ name: Playwright
 # regressions (CSS-in-JS hydration, react-router lazy boundaries, etc.).
 
 on:
-  # Always trigger on PRs + pushes to main (no workflow-level paths
-  # filter). Each individual job is guarded by a job-level `if` based
-  # on the `changes` filter below — this lets backend-only PRs report
-  # SKIPPED checks (which the `Playwright Success` aggregator passes
-  # as success-or-skip) instead of producing no checks at all.
+  # PRs and pushes to main use paths-ignore so docs-only diffs do not
+  # start this workflow. Each browser job is also guarded by the
+  # `changes` filter below, so backend-only PRs report SKIPPED checks
+  # (which `Playwright Success` passes as success-or-skip) instead of
+  # producing no checks at all. The nightly schedule and
+  # workflow_dispatch bypass that filter and run the suite on main.
   pull_request:
     branches: [main]
     paths-ignore:
@@ -30,6 +31,11 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - '.editorconfig'
+  # Nightly on main, including when recent commits are docs-only
+  # (those pushes are paths-ignored). The minute is offset from :00
+  # so this does not land on the same instant as every other 03:00 cron.
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -45,9 +51,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
 jobs:
-  # Path filter — both browser-e2e jobs only need to run when the SPA
-  # or shared package changes. Pushes to main bypass the filter so
-  # every merged HEAD is exercised in a real browser.
+  # Path filter — browser jobs run when the SPA (including e2e), the
+  # shared package, or the lockfile changes. Pushes to main, the nightly
+  # schedule, and workflow_dispatch bypass the filter.
   changes:
     name: Detect changed paths
     runs-on: ubuntu-latest
@@ -71,7 +77,7 @@ jobs:
     name: Web e2e (Playwright + Chromium)
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.web == 'true'
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -115,7 +121,7 @@ jobs:
     name: BDD e2e (web)
     runs-on: ubuntu-latest
     needs: changes
-    if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.web == 'true'
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
@@ -148,7 +154,7 @@ jobs:
         if: github.event_name == 'pull_request'
         run: pnpm --filter web bdd:smoke
 
-      - name: Run BDD full suite (push to main)
+      - name: Run BDD full suite (push, schedule, or dispatch)
         if: github.event_name != 'pull_request'
         run: pnpm --filter web bdd:full
 
