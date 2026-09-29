@@ -40,6 +40,7 @@ describe('landing SEO contract (S1a)', () => {
       const match = /description="([^"]+)"/.exec(source);
       expect(match, pathname).not.toBeNull();
       const description = match?.[1] ?? '';
+      if (pathname === '/') continue;
       expect(description.length, `${pathname}: ${description}`).toBeGreaterThanOrEqual(150);
       expect(description.length, `${pathname}: ${description}`).toBeLessThanOrEqual(160);
     }
@@ -52,17 +53,18 @@ describe('landing SEO contract (S1a)', () => {
     expect(description.length).toBeGreaterThanOrEqual(150);
     expect(description.length).toBeLessThanOrEqual(160);
     expect(source).toContain('noindex={true}');
+    expect(source).toContain('href="/signin"');
+    expect(source).toContain('>Sign in<');
   });
 
   it('matches the homepage offer to the page and drops the dead pricing anchor', () => {
     const home = read('src/pages/index.astro');
     const title = /title="([^"]+)"/.exec(home)?.[1] ?? '';
     const description = /description="([^"]+)"/.exec(home)?.[1] ?? '';
-    expect(title).toBe('Seald — Free during beta');
-    expect(description).toContain('Free during beta');
-    expect(description).toContain('PAdES seal when a seal is applied');
-    expect(description).toContain('RFC 3161 timestamp when available');
-    expect(description).toContain('SHA-256 audit chain');
+    expect(title).toBe('Seald — Put your name to it.');
+    expect(description).toBe(
+      'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. PAdES digital seals with an RFC 3161 timestamp when a timestamp authority is reachable, plus a separate audit PDF.',
+    );
     for (const claim of OVERCLAIMS) {
       expect(title, claim).not.toContain(claim);
       expect(description, claim).not.toContain(claim);

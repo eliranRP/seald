@@ -5,18 +5,20 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 <BaseLayout
   title="Page not found — Seald"
-  description="That address is not a page on the Seald marketing site. Go back to the homepage, or use the contact page if you were looking for the e-signature web app."
+  description="That address is not a page on the Seald marketing site. Go back to the homepage, or sign in if you were looking for the e-signature web application now."
   noindex={true}
 >
   <nav class="nav" id="nav">
-    <div class="nav-inner">
+      <div class="nav-inner">
       <a class="nav-brand" href="/" aria-label="Seald — home">
         <img src="/assets/logo.svg" alt="Seald" width="84" height="26" />
       </a>
+      <a href="/signin" class="btn btn-ghost">Sign in</a>
     </div>
   </nav>
   <main id="main" class="not-found">
-    <div class="container not-found-inner">
+    <div class="container">
+      <div class="not-found-inner">
       <p class="eyebrow"><span class="dot"></span>404</p>
       <h1>Page not found</h1>
       <p class="not-found-lead">
@@ -25,7 +27,9 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       </p>
       <div class="not-found-actions">
         <a href="/" class="btn btn-primary btn-lg">Back to Seald <span class="btn-arrow">→</span></a>
+        <a href="/signin" class="btn btn-ghost btn-lg">Sign in</a>
         <a href="/contact" class="btn btn-secondary btn-lg">Contact</a>
+      </div>
       </div>
     </div>
   </main>
