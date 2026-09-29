@@ -11,15 +11,50 @@ Docs-only changes (`**/*.md`, `docs/**`, `Design-Guide/**`) do not run
 `.github/workflows/ci.yml`. If the PR also touches code, review it as a
 code PR.
 
+## Standing team rules
+
+These apply to every UI change. They are review rules. ESLint does not
+enforce all of them yet.
+
+- [ ] **Mobile-first.** Base styles are the phone layout. Desktop
+      enhancements use `min-width`. Existing `@media (max-width: …)`
+      queries are legacy desktop-first; do not add another one. Verify
+      the change at a phone width and a desktop width.
+- [ ] **Screenshots.** A UI pull request includes a mobile screenshot and
+      a desktop screenshot of the changed screen.
+- [ ] **Stories at both viewports.** A component change has Storybook
+      stories that render at a phone width and a desktop width, and the
+      Storybook build is green. `.storybook/preview.tsx` has no viewport
+      presets today; set the viewport on the story until it does.
+- [ ] **Designer sign-off** before merge.
+- [ ] **Shared UI only.** New visuals go through a component in
+      `apps/web/src/components`. No per-screen one-off button, field, or
+      badge.
+- [ ] **No unused code.** No unused exports, no unused dependencies, no
+      dead files. TypeScript already fails on unused locals and parameters
+      (`noUnusedLocals`, `noUnusedParameters`). Unused exports and unused
+      package dependencies still need a reviewer.
+
 ## 0. Scope
 
 - [ ] The PR does one thing. Drive-by refactors are called out or split.
 - [ ] Commit subjects are `type(scope): subject`.
 - [ ] No secrets, `.env` files, service-role keys, or `VITE_*` values that
       are actually private.
-- [ ] No new `eslint-disable`, `@ts-ignore`, non-null `!`, or `as unknown as`.
+- [ ] No new `eslint-disable`, `@ts-ignore`, non-null `!`, or
+      `as unknown as`. ESLint does not fail the build on these yet
+      (`CODEBASE_GUIDE.md`, "Documented, and not yet enforced"). Reviewers
+      still reject them. A separate PR is adding the lint rules.
 - [ ] `apps/web/**` changes follow the rules in this file even if CI is still
-      running. Do not merge on a red `ci-success` or `playwright-success` job.
+      running. Do not merge on a red `ci-success` or `playwright-success`
+      job. Docs-only PRs skip `ci.yml`, `playwright.yml`, `security.yml`,
+      and `lint-meta.yml` (`paths-ignore`), and Chromatic's path filter
+      does not match them, so those checks are absent rather than green.
+      If branch protection requires `ci-success`, a docs-only PR cannot
+      satisfy it, because the job never starts. On PR #352 only the CodeQL
+      checks ran (green) and `mergeStateStatus` was `BLOCKED` while
+      `mergeable` was `MERGEABLE`. Do not treat missing checks as a
+      failure of the docs, and do not treat them as a passed gate.
 
 ## 1. Correctness
 
@@ -71,10 +106,19 @@ code PR.
       is a brand mark (Google, Drive).
 - [ ] A new component folder has `tsx`, `types.ts` (`readonly` props),
       `styles.ts`, `test.tsx`, `stories.tsx`, and `index.ts`.
-- [ ] Story title is `L1/`, `L2/`, `L3/`, or `L4/`, with tags `autodocs` and
-      `layer-N`.
-- [ ] Styled props that are not DOM attributes start with `$`.
+- [ ] New stories use a title of `L1/`, `L2/`, `L3/`, or `L4/`, with tags
+      `autodocs` and `layer-N`. That is the target for new stories. On
+      `main` `4a8c663` these stories have no `layer-N` tag: `VerifyPage`,
+      `DownloadMenu`, `ActivityTimeline`, `SignerStack`,
+      `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader`,
+      `PdfPageView` (see `CODEBASE_GUIDE.md`). Do not treat a missing tag
+      on an untouched story as a regression to fix in the same PR.
+- [ ] The change includes a story at a phone width and a desktop width.
+      The Storybook build in CI must be green when CI runs.
+- [ ] Styled props that are not DOM attributes start with `$`. Review-only
+      until the follow-up lint PR. ESLint does not enforce this today.
 - [ ] `{...rest}` is spread before the component's own `aria-*` / `data-*`.
+      Review-only, same as the `$` rule.
 - [ ] The component is added to the matching ESLint layer zone in
       `apps/web/eslint.config.js` if it belongs to L1–L3. The current zones
       do not list every folder. A new primitive that is left off the list
@@ -94,6 +138,12 @@ re-count lines; that file's numbers are stale.
 
 ## 4. Design-system adherence
 
+- [ ] New CSS is mobile-first. Base styles are the small viewport.
+      Desktop changes use `@media (min-width: …)`. Do not add another
+      `max-width` query; the ones in the tree are legacy. Check the
+      screen at both viewports. Which existing queries a phone actually
+      hits is in `DESIGN_SYSTEM.md` (Layout): `AppShell` routes redirect
+      at 640px, and signing, verify, and auth do not.
 - [ ] Colors, space, radius, shadow, type, and motion come from `theme`
       (`apps/web/src/styles/theme.ts`). No new hex in component styles.
 - [ ] Page and feature files follow the same rule even though ESLint only
@@ -131,8 +181,12 @@ re-count lines; that file's numbers are stale.
       unless there is no accessible handle.
 - [ ] New interactive UI has a `vitest-axe` assertion, as `Button.test.tsx`
       does.
-- [ ] Web coverage does not drop under 69% lines or 58% branches
-      (`apps/web/vite.config.ts`). Do not lower the floors to go green.
+- [ ] Web coverage does not drop under the floors in
+      `apps/web/vite.config.ts` (69% lines, 58% branches on `main`
+      `4a8c663`; re-read the file before quoting them). Only
+      `pnpm --filter web test:coverage` applies the floors.
+      `pnpm --filter web test` is `vitest run` and does not. CI's web job
+      runs `test:coverage`. Do not lower the floors to go green.
 - [ ] API changes have a Jest spec next to the service or controller.
       e2e belongs in `apps/api/test` when the change crosses HTTP, the
       database, or PAdES.
@@ -215,15 +269,17 @@ Install once: `pnpm install` from the repo root (Node 20+, pnpm 9.12).
 
 ### The gate
 
+`packages/shared` publishes types from `dist/`. CI builds it before
+typecheck. Build it first or `tsc` cannot resolve `shared`.
+
 ```sh
-pnpm -r typecheck
-pnpm -r lint
-pnpm --filter api test
-pnpm --filter web test
+pnpm --filter shared build && pnpm -r typecheck && pnpm -r lint && pnpm --filter api test && pnpm --filter web test:coverage
 ```
 
-Web lint is `--max-warnings=0`. API unit tests do not need Postgres; they
-use in-memory fakes and a local JWKS. API e2e (`pnpm --filter api test:e2e`)
+`pnpm --filter web test` does not apply the coverage floors. Use
+`test:coverage` when you want the same check CI runs. Web lint is
+`--max-warnings=0`. API unit tests do not need Postgres; they use
+in-memory fakes and a local JWKS. API e2e (`pnpm --filter api test:e2e`)
 is what CI runs for PAdES. Run it when the diff touches `apps/api/src/sealing`,
 migrations, or HTTP controllers.
 
@@ -273,7 +329,7 @@ Click the path you changed and the one next to it:
 | Verify | A real short code, plus a bad one |
 | Auth | `/signin`, `/signup`, forgot password, a viewport ≤640px |
 | Drive | Settings → Integrations with the flag on and with OAuth env missing (expect a 503 message, not a crash) |
-| Mobile | Width 390 and width 700. At ≤640px `AppShell` must leave for `/m/send`. |
+| Mobile | Width 390 and a desktop width (1280 or wider). At ≤640px, `AppShell` routes must leave for `/m/send`. Auth, `/sign/*`, and `/verify/*` stay on the page; check those at both widths. |
 
 Storybook, when the diff is a component:
 
@@ -289,7 +345,10 @@ primitive (`Button`, `TextField`, `Badge`, `NavBar`) without saying why.
 Apply only through `apps/api/scripts/migrate.sh` or the project's normal
 migration path. Confirm:
 
-- the new file sorts after `0018_…`
+- the new file's id sorts after the highest file already in
+  `apps/api/db/migrations/`. On `main` `4a8c663` that file is
+  `0018_event_type_pdf_uploaded.sql`. Re-list the directory before
+  citing the id.
 - a paired file exists in `db/migrations/down/`
 - the SQL is idempotent if it repairs old state (`IF NOT EXISTS`)
 

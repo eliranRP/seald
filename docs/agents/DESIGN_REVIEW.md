@@ -95,21 +95,33 @@ kits to Seald + top nav, or write down that the kits are historical.
 Right now neither is true, and `Design-Guide/project/README.md` already
 says the system was generated without the production codebase.
 
-**3. Mobile is a second UI, and the desktop "responsive" CSS does not run on phones.**
+**3. Mobile sender chrome is a second UI. AppShell routes never show their desktop responsive CSS on a phone. Signing, verify, and auth do.**
 
 `useIsMobileViewport` is `(max-width: 640px)`. At that width `AppShell`
-redirects to `/m/send` (`layout/AppShell.tsx`). The dashboard's own
-breakpoint is `768px` (`DashboardPage.styles.ts`), where it stacks stats
-and turns the table into cards. A phone never hits that CSS. A window
-between 641px and 768px gets the desktop nav plus the stacked dashboard.
-A phone gets `pages/MobileSendPage/`, which is full of raw `#fff` and
-other hex and does not go through `Button` / `PageHeader`.
+redirects to `/m/send` (`layout/AppShell.tsx`). Dashboard, contacts,
+templates, settings, and the document editor live in that shell, so a
+phone never sees `DashboardPage`'s 768px card layout, the 768px rules in
+`TemplatesListPage` and `UploadPage`, or the 880px rule in
+`IntegrationsPage`. A window between 641px and 768px still gets the
+desktop nav plus the stacked dashboard.
 
-That split is documented in code comments as a choice. It is still a
-design problem: two visual languages, and no layout for "tablet width,
-I am trying to read a document I already sent." Contacts, templates,
-settings, and envelope detail are unreachable on a phone except by
-widening the window. The mobile kit README
+Signing, verify, and auth are outside `AppShell`. A phone does hit their
+CSS: `SigningFillPage.styles.ts` (nine `max-width: 768px` rules) and
+`RecipientHeader.styles.ts` (768px), `VerifyPage.styles.ts` (eight
+`max-width: 640px` rules), `SigningDonePage.tsx` (640px), the auth shell,
+form, and forgot-password page (640px), `CheckEmailPage` (400px), and the
+auth brand panel (960px). `lib/canvas-coords.ts`
+(`MOBILE_CANVAS_BREAKPOINT = 768`) also shrinks the PDF canvas, so
+signing fill hits both the CSS and that JS check. The full inventory is
+in `DESIGN_SYSTEM.md` (Layout).
+
+`/m/send` (`pages/MobileSendPage/`) is a separate UI with raw `#fff` and
+other hex, and it does not go through `Button` / `PageHeader`. That split
+is documented in code comments as a choice. It is still a design problem:
+two visual languages, and no layout for "tablet width, I am trying to
+read a document I already sent." Contacts, templates, settings, and
+envelope detail are unreachable on a phone except by widening the window.
+The mobile kit README
 (`Design-Guide/project/ui_kits/mobile_web_send/README.md`) still lists
 real PDF performance, field resize, and multi-document flows as deferred.
 
@@ -161,10 +173,14 @@ check it against `DESIGN_SYSTEM.md`.
 
 **7. Breakpoints are not one system, and the product is English-only.**
 
-Auth hides the brand panel at 960px (`AuthBrandPanel.styles.ts`). The
-shell redirects at 640px. The dashboard restyles at 768px. Landing uses
-980px and 600px. There is no shared scale, so "tablet" means a different
-layout on every surface.
+Every SPA `@media` query is `max-width` (legacy desktop-first). Auth hides
+the brand panel at 960px (`AuthBrandPanel.styles.ts`). The shell redirects
+at 640px. The dashboard restyles at 768px, and so do signing fill and the
+recipient header, which phones do see because they sit outside `AppShell`.
+Landing uses 980px and 600px. There is no shared scale, so "tablet" means
+a different layout on every surface. New CSS should be mobile-first
+(base styles for the small viewport, desktop via `min-width`). The
+inventory is in `DESIGN_SYSTEM.md`.
 
 There is no message catalog. `index.html` is `lang="en"`. RTL shows up
 only as test strings (Hebrew in an `Icon` story, bidi in a DSAR mailto
@@ -237,11 +253,16 @@ plus color.
 6. **Move tag and signer colors into the theme** as a named palette with
    contrast notes, and delete the copies in `tagColors.ts`, `VerifyPage`,
    `UseTemplatePage`, and `mockApi`.
-7. **Write the responsive rule in one place.** Today it is a comment in
-   `SignInPage` plus two breakpoints. State it as: ≤640px is the mobile
-   sender only; 641–768 is an unsupported blend; ≥769 is the desktop shell.
-   Then either implement a readable envelope-detail for ≤640px, or say
-   that reading sent documents on a phone is out of scope.
+7. **Write the responsive rule in one place, and make new CSS mobile-first.**
+   The inventory is in `DESIGN_SYSTEM.md` (Layout). `AppShell` still
+   redirects sender chrome to `/m/send` at ≤640px. That is a product
+   choice for the sender shell. Signing, verify, and auth are outside
+   the shell and already restyle on a phone, so "641–768 is unsupported"
+   does not describe those pages. New rules should set base styles for
+   the small viewport and add desktop changes with `min-width`. The
+   existing `max-width` queries are legacy. Then either implement a
+   readable envelope-detail for ≤640px, or say that reading sent
+   documents on a phone is out of scope.
 8. **i18n later, but stop painting into a corner.** New layout CSS should
    prefer logical properties (`margin-inline`, `inset-inline-start`) so an
    RTL pass is possible. Do not start a string-extraction project in the

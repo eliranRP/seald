@@ -10,6 +10,10 @@ fields, and sends it. Each recipient signs in a public flow. When everyone
 has signed, the API seals a PAdES PDF and an audit certificate. Anyone with
 the short code can verify the result.
 
+Line counts, flag values, and pixel sizes in this file were checked against
+`main` at `4a8c663`. Re-read the cited source if that commit is no longer
+HEAD.
+
 Production hosts:
 
 | Surface | URL |
@@ -92,9 +96,11 @@ Browser
 ```
 
 Signer requests do not send the Supabase JWT. They send the `seald_sign`
-cookie. The ESLint zone in `apps/web/eslint.config.js` forbids signer pages
-and `features/signing` from importing `apiClient`, `AuthProvider`, or
-`lib/supabase`.
+cookie. The ESLint zone in `apps/web/eslint.config.js` forbids the signer
+pages and `features/signing` from importing `apiClient`, `AuthProvider`,
+`AppStateProvider`, `features/contacts`, or `lib/supabase`. The zone only
+covers the folders named in that config. A new signer file is unchecked
+until it is added to the list.
 
 ## Web routing
 
@@ -122,7 +128,12 @@ Defined in `apps/web/src/AppRoutes.tsx`. Lazy routes use `React.lazy` and
 | `/signers` | Contacts (nav label is Contacts) | Signed-in user |
 | `/templates`, `/templates/:id/use`, `/templates/:id/edit` | Template library and wizard | Signed-in user |
 | `/settings` | Redirects to `/settings/integrations` | Signed-in user |
+| `/settings/integrations` | Google Drive settings (`IntegrationsPage`) | Signed-in user. `RequireAuth`, `AppShell`, lazy. |
 | `/` and `*` | `RootLanding` redirect | See below |
+
+`apps/landing/_worker.js` `SPA_EXACT` also lists `/contacts`. The SPA has
+no `/contacts` route (contacts live at `/signers`), so that path falls
+through to `RootLanding`.
 
 Guards live in `apps/web/src/layout/`:
 
@@ -323,7 +334,10 @@ All of this is `apps/api/src/sealing/`.
 | `sealing.service.ts` | Burn-in, sign, audit PDF, enqueue email |
 | `worker.service.ts` | Job poller |
 | `pades-signer.ts` | `KmsPadesSigner`, `P12PadesSigner`, `NoopPadesSigner` |
+| `p12-tsa-signer.ts` | Local P12 signer with an optional timestamp |
 | `kms-cms-signer.ts` | CMS built by hand so the private key stays in KMS |
+| `burn-in-fields.ts` | Draws completed field values onto the PDF pages |
+| `audit-pdf.tsx` | React-PDF certificate of completion |
 | `tsa-client.ts` | RFC 3161 client. Rotates `PDF_SIGNING_TSA_URLS`. |
 | `dss-injector.ts`, `dss-incremental-update.ts` | B-T → B-LT |
 | `revocation-fetcher.ts`, `cert-chain-extractor.ts` | OCSP/CRL and cert metadata |
@@ -392,15 +406,23 @@ is a leftover Gotenberg-only file.
 
 ## How to test and build
 
-Local gate that matches CI's main checks:
+Local gate that matches CI's main checks. `packages/shared` publishes
+types from `dist/`, and CI builds it before typecheck (`ci.yml`). Build
+it first or `tsc` cannot resolve `shared`.
 
 ```sh
-pnpm -r typecheck && pnpm -r lint && pnpm --filter api test && pnpm --filter web test
+pnpm --filter shared build && pnpm -r typecheck && pnpm -r lint && pnpm --filter api test && pnpm --filter web test:coverage
 ```
+
+`pnpm --filter web test` is `vitest run`. It does not collect coverage, so
+the floors in `apps/web/vite.config.ts` (69% lines, 58% branches on
+`main` `4a8c663`) are not applied. CI runs `test:coverage` (`ci.yml`).
+A green `web test` can still fail CI on coverage.
 
 | Command | What it runs |
 | --- | --- |
-| `pnpm --filter web test` | Vitest, jsdom, coverage floors 69% lines / 58% branches |
+| `pnpm --filter web test` | Vitest once, jsdom. No coverage floors. |
+| `pnpm --filter web test:coverage` | Vitest with the floors in `vite.config.ts` |
 | `pnpm --filter web test -- src/components/Button/Button.test.tsx` | One file |
 | `pnpm --filter web e2e` | Playwright |
 | `pnpm --filter web bdd:smoke` | BDD scenarios tagged `@smoke` |
@@ -432,12 +454,28 @@ API unit, web Vitest with coverage, Storybook build, one Playwright spec
 (`e2e/template-sign-flow.spec.ts`), API e2e (LocalStack KMS), `pades-verify`,
 then an aggregate `ci-success` job.
 
-Other workflows: `playwright.yml` (full e2e + BDD), `chromatic.yml` (visual
-baselines; auto-accept on `main`), `security.yml` (Trivy, gitleaks, pnpm
-audit), `deploy.yml` (SSH + Docker Compose for the API on push to `main`,
-ignores `apps/web/**`), `deploy-cloudflare.yml` (landing + SPA merge),
-`docker.yml` (GHCR image), `terraform.yml` (plan on PR, apply only by
-manual dispatch).
+Other workflows that run on pull requests (same docs `paths-ignore` as
+CI, except Chromatic which uses a `paths:` allow-list): `playwright.yml`
+(full e2e + BDD), `chromatic.yml` (visual baselines; auto-accept on
+`main`; `--exit-zero-on-changes` so a diff does not fail the job),
+`security.yml` (Trivy, gitleaks, pnpm audit), `lint-meta.yml` (actionlint,
+gherkin-lint, cspell).
+
+Deploy and infra: `deploy.yml` (SSH + Docker Compose for the API on push
+to `main`, ignores `apps/web/**`), `deploy-cloudflare.yml` (landing + SPA
+merge), `docker.yml` (GHCR image on every push to `main` and on `v*` tags;
+no path filter), `terraform.yml`. A pull request that touches
+`deploy/terraform/**` only plans. A **push to `main`** that touches
+`deploy/terraform/**` or `terraform.yml` runs `terraform apply -auto-approve`
+(`terraform.yml` apply step: push to `main`, or a manual dispatch whose
+`action` input is `apply`). The comment at the top of that workflow says
+pushes only plan. The step `if:` is what runs. Manual dispatch can also
+`plan` or `destroy`.
+
+Dispatch-only ops workflows (they do not run on push): `prod-diagnose.yml`,
+`prod-restore.yml`, `inspect-prod-containers.yml`, `restart-gotenberg.yml`,
+`seed-secrets-manager.yml`, `set-app-public-url.yml`,
+`set-gdrive-oauth-env.yml`, `set-gdrive-picker-env.yml`.
 
 ### Deploy shape
 
@@ -455,19 +493,34 @@ TypeScript (`tsconfig.base.json`): `strict`, `noUncheckedIndexedAccess`,
 `noUnusedParameters`. Optional props that may be explicitly `undefined`
 are written `prop?: T | undefined`.
 
-Web ESLint (`apps/web/eslint.config.js`), all errors, `--max-warnings=0`:
+Web ESLint (`apps/web/eslint.config.js`) runs at `--max-warnings=0`.
+Only the rules below fail that command. `docs/CONTRIBUTING.md` describes
+a longer list; several of those items are review-only until a follow-up
+PR turns them into lint rules.
+
+Enforced today:
 
 - Named exports only (`import/no-default-export`). Stories, tests, and Vite/Storybook config are exempt.
-- `import type` for types.
-- No `React.FC` / `FunctionComponent`.
-- Named components are function declarations. Inline components are arrow functions.
+- `import type` for types (`consistent-type-imports`).
+- No `React.FC` / `FunctionComponent` (`no-restricted-syntax`).
+- Named components are function declarations. Inline components are arrow functions (`react/function-component-definition`).
+- Deep relative imports (`../../…`) are banned outside tests and stories (`no-restricted-imports`).
+- Hex literals are banned in `src/components/**/*.styles.ts` only. Page styles and TSX are not covered.
+- Layer zones and the signer-import ban, for the folders named in the config.
+
+Documented, and not yet enforced by ESLint (a separate PR is adding the
+rules). Reviewers still apply them. The tree already breaks several:
+`as unknown as` in `lib/pdf.ts`, `lib/pdfjsWorker.ts`,
+`hooks/useColumnWidths.ts`, `features/templates/templatesApi.ts`, and
+`features/documentEditor/model/lib.ts`; a nested ternary in
+`components/Toast/Toast.tsx`; a non-null assertion in
+`pages/VerifyPage/VerifyPage.tsx`.
+
 - Styled-only props start with `$` so they are not forwarded to the DOM.
-- `{...rest}` is spread **before** the component's own `aria-*` and `data-*` attributes.
-- No `eslint-disable` is the written rule. The flat config currently sets `reportUnusedDisableDirectives` off, and a few files still have disable comments. Do not add new ones.
+- `{...rest}` is spread before the component's own `aria-*` and `data-*` attributes.
+- No `eslint-disable`. `reportUnusedDisableDirectives` is off, so a stale disable does not fail lint either.
 - No non-null `!`. No `as unknown as`. No nested ternaries.
-- Hex literals are banned in `src/components/**/*.styles.ts` only. They are still legal in page styles and in TSX. Prefer `theme.*` anyway.
-- Deep relative imports (`../../…`) are banned outside tests and stories.
-- `forwardRef` components set `displayName`.
+- `forwardRef` components set `displayName`. The React preset's `react/display-name` only partly covers this.
 
 Component folder, when the component is a real design-system citizen:
 
@@ -476,9 +529,16 @@ ComponentName.tsx
 ComponentName.types.ts    readonly props
 ComponentName.styles.ts   theme tokens, $transient props
 ComponentName.test.tsx
-ComponentName.stories.tsx title L1/ L2/ L3/ or L4/, tags autodocs + layer-N
+ComponentName.stories.tsx
 index.ts
 ```
+
+New stories should use a title of `L1/`, `L2/`, `L3/`, or `L4/` and tags
+`autodocs` plus `layer-N`. That is the target, not the current tree.
+On `4a8c663`, these stories have no `layer-N` tag: `VerifyPage` (title
+`Pages/VerifyPage`), `DownloadMenu`, `ActivityTimeline`, `SignerStack`,
+`SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader` (title
+`L2 / TemplateFlowHeader`), `PdfPageView` (title `L3 Widgets/PdfPageView`).
 
 Commit messages: `type(scope): subject`. Husky runs lint-staged and
 `tsc --noEmit`. Do not use `--no-verify`. Do not amend or force-push to
@@ -493,14 +553,14 @@ rewrite a hook failure; add a new commit.
 | --- | --- | --- |
 | `docs/CONTRIBUTING.md`, `docs/layers.md` | Phase-1 library, `.eslintrc.cjs`, `pnpm dev` at the root, a dozen components, L4 empty | Full product. ESLint flat config. Root scripts are `dev:web` / `dev:api` / `dev:landing`. L4 is the shell, providers, and pages. |
 | `apps/web/src/index.ts` | Public component surface | Partial. Many components are imported by path. |
-| `apps/web/PAGES_AUDIT.md` | `DocumentPage` 1463 lines, `DashboardPage` 332, `EnvelopeDetailPage` 765 | At the commit this guide was written: DocumentPage 710, DashboardPage 606, EnvelopeDetailPage 971, SigningFillPage 580. The extraction advice is still directionally right; the counts are not. |
+| `apps/web/PAGES_AUDIT.md` | `DocumentPage` 1463 lines, `DashboardPage` 332, `EnvelopeDetailPage` 765 | On `main` `4a8c663`, `wc -l` was DocumentPage 710, DashboardPage 606, EnvelopeDetailPage 971, SigningFillPage 580. Re-count before citing them. The extraction advice is still directionally right. |
 | `apps/api/README.md` | Two HTTP routes | Full surface in the table above. |
 | `URL_AUDIT.md` | `/verify/:shortCode` might be unwired | It is wired in `AppRoutes.tsx`. |
 | Design-Guide HTML | Product name "Sealed", left rail + top nav | Product name "Seald", top nav only. See `DESIGN_SYSTEM.md`. |
 
 ## Invariants that are easy to break
 
-- Signer UI must not import sender auth or `apiClient`.
+- Signer UI must not import `apiClient`, `AuthProvider`, `AppStateProvider`, `features/contacts`, or `lib/supabase`.
 - Drive scope stays `drive.file`.
 - Down migrations stay in `migrations/down/`.
 - PAdES verification uses `pades-verify-helpers.ts`.

@@ -212,14 +212,40 @@ Space is a 4px grid. There is no step 7, 9, 11, or 14.
 
 ## Layout
 
-There is no shared breakpoint module. These widths are inlined:
+There is no shared breakpoint mixin. `styles/mixins.ts` exports `truncateText`
+only. Every SPA `@media` query is `max-width` (legacy desktop-first). New
+CSS is mobile-first: base styles are the small viewport, and desktop
+enhancements use `min-width`. Leave the existing `max-width` queries in
+place until that screen is rewritten.
 
-| Width | Where | What happens |
+`AppShell` redirects to `/m/send` at `max-width: 640px`
+(`hooks/useIsMobileViewport.ts`). That redirect covers sender chrome only
+(dashboard, documents, templates, settings, the editor). Phones still
+render auth, signing, verify, and `/m/send`, and those pages' media
+queries do run. "Phones never see the 768px dashboard CSS" is true inside
+`AppShell` and false on signing, verify, and auth.
+
+Counts below are on `main` `4a8c663`. Re-grep `@media (max-width` under
+`apps/web/src` before citing them. Content `max-width` values (420, 440,
+560, 640, 680, 920, 960, 1240, 1280) are column caps, not viewport
+breakpoints, and are not listed here.
+
+| Query | Files | Who hits it |
 | --- | --- | --- |
-| `max-width: 640px` | `hooks/useIsMobileViewport.ts` | `AppShell` redirects to `/m/send`. Auth redirects do the same. This is the product's mobile cutoff. |
-| `max-width: 768px` | `DashboardPage.styles.ts` | Stacks stats, shrinks padding, turns the table into cards. Phones never see this, because 640px already left the dashboard. |
-| `max-width: 960px` | `AuthBrandPanel.styles.ts` | The editorial auth panel is `display: none`. Auth becomes a single column. |
-| `980px`, `600px` | `apps/landing/src/styles/globals.css` | Landing nav and grids. Not used by the SPA. |
+| `max-width: 400px` | `pages/CheckEmailPage/CheckEmailPage.styles.ts` | Auth, outside `AppShell`. Phones hit it. |
+| `max-width: 640px` | `useIsMobileViewport` (`AppShell` redirect); `AuthShell.styles.ts`; `AuthForm.styles.ts`; `ForgotPasswordPage.tsx`; `VerifyPage.styles.ts` (8); `SigningDonePage.tsx` (2) | The redirect sends phones away from dashboard CSS. Auth, verify, and signing-done are outside the shell, so phones hit those 640px rules. |
+| `max-width: 760px` | `components/SendingOverlay/SendingOverlay.styles.ts` | Desktop send overlay. A phone already redirected by `AppShell` does not see it. |
+| `max-width: 768px` | `DashboardPage.styles.ts` (4); `UploadPage.styles.ts`; `TemplatesListPage.styles.ts` (`MOBILE = '768px'`) | Inside `AppShell`. Phones are on `/m/send` and do not see these. A window from 641px to 768px still does. |
+| `max-width: 768px` | `SigningFillPage.styles.ts` (9); `RecipientHeader.styles.ts` | Signing is outside `AppShell`. Phones hit these. |
+| `max-width: 880px` | `routes/settings/integrations/IntegrationsPage.tsx` | Inside `AppShell`. Phones are redirected. Visible from about 641px to 880px. |
+| `max-width: 960px` | `AuthBrandPanel.styles.ts` (`display: none`); `AuthMobileHeader.tsx` (shown) | Auth is outside `AppShell`. Phones hit both. |
+
+`lib/canvas-coords.ts` exports `MOBILE_CANVAS_BREAKPOINT = 768`. That is a
+JS width check, not a CSS query. The editor and the signing canvas use
+it, so a phone on `/sign/.../fill` hits both the 768px CSS and this shrink.
+
+Landing only: `980px` and `600px` in `apps/landing/src/styles/globals.css`.
+The SPA does not use them.
 
 Desktop chrome (`AppShell`):
 
@@ -295,7 +321,7 @@ because `exactOptionalPropertyTypes` is on.
 | `Button` | `variant`: `primary` \| `secondary` \| `ghost` \| `danger` \| `dark`. `size`: `sm` \| `md` \| `lg`. `iconLeft`, `iconRight`, `loading`, `fullWidth`. | Every button. Primary is indigo 600. `dark` is ink 900 (the email CTA color). Do not invent a sixth variant in a page stylesheet. |
 | `TextField` | `type` text/email/password/url/tel/search. `label`, `helpText`, `error`, `iconLeft`. | Single-line inputs. Padding 11px 14px, radius 12px, 14px type. Help and error text are a raw **12px**, not `caption` (13px). Label is optional, so callers must pass one (or an `aria-label`). |
 | `PasswordField` | Wraps `TextField` with visibility toggle. | Passwords. Pair with `PasswordStrengthMeter`. |
-| `PasswordStrengthMeter` | `strength` 0–4. | Signup only. |
+| `PasswordStrengthMeter` | Prop `level: PasswordStrength` (`0 \| 1 \| 2 \| 3 \| 4`). | Signup only. |
 | `Badge` | `tone`: `indigo` \| `amber` \| `emerald` \| `red` \| `neutral`. Optional dot 6px. Pill, padding 4px 10px 4px 8px, 12px semibold. | Generic status chips. For signer status use `StatusBadge`. |
 | `Avatar` | `size` 24 \| 32 \| 40 \| 56. `tone`: `indigo` \| `emerald` \| `amber` \| `danger` \| `slate`. Initials, white text. | People. Do not use a raw colored circle. |
 | `Icon` | Lucide icon, `size` default 20, `label?`. | Icon-only controls and consistent stroke. |
@@ -474,8 +500,15 @@ includes pink, violet, and cyan. Those hues are outside `tokens.css`.
 5. **Focus and hit area.** Global 2px outline plus per-component 4px halo.
    `NavBar` auth buttons are 34px tall. `Button` sm/md are shorter than
    44px. `TextField` help text is 12px while the caption token is 13px.
-6. **Two mobile breakpoints.** 640px redirects away from `AppShell`. 768px
-   is a dashboard layout tweak that phones do not reach.
+6. **Breakpoints are per screen, and they are desktop-first.** Every SPA
+   query is `max-width`. The 640px `AppShell` redirect does not suppress
+   CSS outside the shell. Phones hit 768px rules on `SigningFillPage` and
+   `RecipientHeader`, 640px rules on `VerifyPage`, `SigningDonePage`,
+   `AuthShell`, `AuthForm`, and `ForgotPasswordPage`, the 400px rule on
+   `CheckEmailPage`, and the 960px auth brand panel. Dashboard, templates,
+   and upload 768px rules, and the integrations 880px rule, sit inside
+   `AppShell`, so a phone never reaches them. New CSS should be
+   mobile-first (`min-width`). See the layout table above.
 7. **NavBar scrim vs landing.** App bar uses white at 0.82 opacity. Landing
    nav uses 0.78.
 8. **Document title.** `apps/web/index.html` sets `<title>Seald — Dev Harness</title>`.

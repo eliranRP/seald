@@ -24,6 +24,17 @@ CI (`.github/workflows/ci.yml`) runs on pull requests and on pushes to
 docs-only PR does not run lint, unit tests, web tests, Storybook,
 Playwright, API e2e, or the PAdES verifier.
 
+The same ignore list skips `playwright.yml`, `security.yml`, and
+`lint-meta.yml`. Chromatic uses a `paths:` allow-list, so a docs-only
+PR does not start that job either. On PR #352 the only checks that ran
+were CodeQL (Analyze actions, Analyze javascript-typescript, CodeQL),
+and they were green. GitHub reported `mergeable: MERGEABLE` and
+`mergeStateStatus: BLOCKED`. This doc does not assert that `ci-success`
+is a required check (the rulesets API returned no rules). If branch
+protection requires `ci-success`, a docs-only PR cannot satisfy it,
+because the job never starts. Treat those checks as absent, not failed
+and not passed.
+
 When CI does run, `ci-success` is the aggregate. `playwright.yml` runs
 the rest of the browser suite. Chromatic uploads visual diffs and exits
 0 even when snapshots change (`--exit-zero-on-changes`).
@@ -236,7 +247,15 @@ Site:
 
 ## 6. Gotchas
 
-- Docs-only and Design-Guide-only pushes skip CI and both deploys.
+- Docs-only and Design-Guide-only pushes skip CI (`ci.yml`) and both
+  deploys. They do not skip `docker.yml`. That workflow has no path
+  filter, so a docs-only push to `main` still builds and pushes the
+  GHCR image.
+- A push to `main` that touches `deploy/terraform/**` or
+  `.github/workflows/terraform.yml` runs `terraform apply -auto-approve`.
+  Pull requests that touch those paths only plan. The comment at the
+  top of `terraform.yml` says pushes only plan. The apply step's `if:`
+  is what runs. See `CODEBASE_GUIDE.md`.
 - Web-only pushes skip the API deploy. API-only pushes skip Cloudflare.
 - `packages/shared` pushes deploy both.
 - Feature flags and `VITE_*` values change only on a new build, not when
