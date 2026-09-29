@@ -29,7 +29,6 @@ vi.mock('react', async (importOriginal) => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { usePdfDocument } from './pdf';
 
 const URL_A = 'https://example.test/a.pdf';
