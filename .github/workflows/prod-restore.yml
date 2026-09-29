@@ -8,7 +8,7 @@ name: Prod restore (.env + KMS binding cert + redeploy)
 #      onto the host (mode 0600).
 #   2. Generates a fresh KMS binding cert (Self-signed by the
 #      `alias/seald-pades-sealing-prod` key via kms:Sign through the
-#      EC2 instance IAM role) by running a one-shot `node:20` container
+#      EC2 instance IAM role) by running a one-shot `node:22` container
 #      that installs ts-node + @aws-sdk/client-kms + node-forge inline
 #      and invokes `apps/api/scripts/generate-kms-binding-cert.ts`.
 #      Output: `/opt/seald/secrets/seald-pades-prod.crt.pem`.
@@ -198,7 +198,7 @@ jobs:
               -w /work/apps/api \
               -e AWS_REGION=us-east-2 \
               -e AWS_DEFAULT_REGION=us-east-2 \
-              node:20-bookworm-slim \
+              node:22-bookworm-slim \
               /work/_restore/gen-cert.sh 2>&1
             sudo chmod 0644 /opt/seald/secrets/seald-pades-prod.crt.pem
             sudo head -1 /opt/seald/secrets/seald-pades-prod.crt.pem

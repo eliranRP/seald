@@ -18,7 +18,7 @@ move expensive.
 |---|---|
 | AWS creds with `kms:CreateKey`, `kms:CreateAlias`, `iam:CreatePolicy` | Apply runs once; afterwards the API role only needs `kms:Sign` + `kms:GetPublicKey`. |
 | Terraform ≥ 1.6.0 | Match the CI pin (1.8.5) when possible. |
-| `pnpm` + Node 20 + `ts-node` | Required to run the cert generator script. |
+| `pnpm` + Node 22 + `ts-node` | Required to run the cert generator script. |
 | Repo checkout at the branch that has `modules/sealing-kms` merged | The root `main.tf` only reads it through `module "sealing_kms"`. |
 | Sealing env decided | The module names everything `seald-pades-sealing-<env>`. Stick to `prod`. |
 

@@ -134,7 +134,8 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
       - name: Setup Node
-        # cspell@10 requires Node >=22.18.0 — Node 20 is rejected with
+        # cspell@10 requires Node >=22.18.0. The repo pin is Node 22
+        # (see .nvmrc); an older 22.x is rejected with
         # "Unsupported NodeJS version".
         uses: actions/setup-node@v6
         with:

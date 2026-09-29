@@ -25,7 +25,7 @@ Production hosts:
 
 | Piece | Choice |
 | --- | --- |
-| Monorepo | pnpm 9.12 workspaces (`apps/*`, `packages/*`). Node `>=20`. |
+| Monorepo | pnpm 9.12 workspaces (`apps/*`, `packages/*`). Node `>=22.12` (`.nvmrc` is `22`). |
 | Web SPA | React 19, Vite 8, TypeScript 5.6, React Router 7, styled-components 6, TanStack Query 5, Axios, Supabase JS |
 | Landing | Astro, merged with the SPA at deploy time |
 | API | NestJS 11, Express, Zod env parsing, class-validator on DTOs, Kysely + `pg` |

@@ -6,7 +6,7 @@ configured in this repo today.
 
 ## Prerequisites
 
-- Node **>=20** (see `engines.node` in `package.json`)
+- Node **>=22.12** (see `engines.node` in `package.json` and `.nvmrc`)
 - pnpm **>=9** — the repo pins `pnpm@9.12.0` via the `packageManager` field in
   `package.json`; Corepack will pick it up automatically.
 - Git (hooks are managed by Husky).
