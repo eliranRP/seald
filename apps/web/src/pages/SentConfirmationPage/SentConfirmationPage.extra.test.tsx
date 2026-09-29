@@ -128,7 +128,7 @@ describe('SentConfirmationPage — pending state', () => {
     expect(card).not.toBeNull();
     // No headline yet.
     expect(
-      screen.queryByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
+      screen.queryByRole('heading', { level: 1, name: /your envelope is on its way/i }),
     ).not.toBeInTheDocument();
   });
 });
@@ -158,7 +158,7 @@ describe('SentConfirmationPage — unicode + RTL', () => {
   it('renders RTL + emoji + accented latin characters verbatim in title and signer rows', async () => {
     renderAt('env-unicode');
     expect(
-      await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
+      await screen.findByRole('heading', { level: 1, name: /your envelope is on its way/i }),
     ).toBeInTheDocument();
     expect(screen.getByText(/הסכם 🚀 Café/)).toBeInTheDocument();
     expect(screen.getByText(/אריאל 🦊/)).toBeInTheDocument();

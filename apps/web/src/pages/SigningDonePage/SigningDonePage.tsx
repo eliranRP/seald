@@ -289,17 +289,10 @@ export function SigningDonePage() {
         {/* Item 17 — verb-led affirmation. The IconBadge above already
             carries the brand check mark; the previous "Seald." was
             redundant chrome for a legal completion screen. */}
-        <Hero>Signed and sealed.</Hero>
+        <Hero>Signed.</Hero>
         <Body>
-          Your signature has been recorded. We&apos;ve sent a signed copy to{' '}
-          <b style={{ color: 'inherit' }}>{snap.recipient_email}</b>
-          {snap.sender_name ? (
-            <>
-              {' '}
-              and notified <b style={{ color: 'inherit' }}>{snap.sender_name}</b>
-            </>
-          ) : null}
-          .
+          Your signature has been recorded. When everyone has signed, we&apos;ll email you a link to
+          the sealed PDF.
         </Body>
 
         <Actions>
@@ -340,7 +333,7 @@ export function SigningDonePage() {
                 href={`/verify/${snap.short_code}`}
                 style={{ color: 'inherit', textDecoration: 'underline' }}
               >
-                /verify/{snap.short_code}
+                Open the verify page
               </a>
               .
             </DownloadError>

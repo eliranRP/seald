@@ -777,17 +777,6 @@ export const SkeletonBlock = styled.div`
 `;
 
 /*
- * Hide content on ≤640 px viewports. Used to trim secondary integrity-copy
- * sentences that are evocative on desktop but redundant on mobile (the
- * `audit chain · intact` tag conveys the same idea).
- */
-export const DesktopOnly = styled.span`
-  @media (max-width: 640px) {
-    display: none;
-  }
-`;
-
-/*
  * Inline secondary action button. Renders next to the Verification URL fact
  * value to copy the shareable URL to the clipboard.
  */

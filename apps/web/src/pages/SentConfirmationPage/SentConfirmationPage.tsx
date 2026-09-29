@@ -48,7 +48,7 @@ interface SentSummary {
  * completes the Send step (or as a deep-link from the dashboard).
  *
  * Layout follows the kit's sealed page: centered card with an animated
- * wax-seal success badge, serif headline "Sent. Your envelope is on
+ * wax-seal success badge, serif headline "Your envelope is on
  * its way.", envelope preview card, delivered-signer chips, an audit-
  * trail trust badge, and a pair of follow-up actions.
  */
@@ -143,7 +143,7 @@ export function SentConfirmationPage() {
           </svg>
         </SealBadge>
         <Kicker>Sent</Kicker>
-        <Title>Sent. Your envelope is on its way.</Title>
+        <Title>Your envelope is on its way.</Title>
         <Body>
           <SenderProgressNote />
         </Body>

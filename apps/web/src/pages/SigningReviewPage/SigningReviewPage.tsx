@@ -391,7 +391,7 @@ function Content() {
         <Heading>Everything look right?</Heading>
         <Helper>
           {/* Item 16 — softer/clearer terminal-action copy. */}
-          Once you submit, we&apos;ll seal the document and email a signed copy to everyone.
+          Once everyone has signed, we seal the document and email each signer a link to it.
         </Helper>
         <ReviewList items={items} />
 

@@ -511,7 +511,7 @@ test.describe('template + sign happy path', () => {
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
     // PR-4 audit (item 17) replaced the brand-wordmark <h1> with a
     // verb-led affirmation. Match the new copy.
-    await expect(page.getByRole('heading', { name: /signed and sealed/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
 
     // ---------------------- 5. Assert mock-side contracts
 

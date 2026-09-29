@@ -23,7 +23,6 @@ import {
   Card,
   CardHead,
   Container,
-  DesktopOnly,
   DocActions,
   DocMeta,
   DocSub,
@@ -434,21 +433,7 @@ function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCo
     );
   }
   if (sealed) {
-    return (
-      <>
-        <strong>The document, signers, and timestamp are unchanged since the seal.</strong>
-        {/*
-         * The evocative second sentence is desktop-only — on mobile the
-         * `audit chain · intact` tag carries the same meaning without
-         * the jargon, and the line break collapses awkwardly under the
-         * card. Wrap in a DesktopOnly span (≤640 px = display: none).
-         */}
-        <DesktopOnly>
-          <br />
-          If a single byte of the file had changed, this seal would be broken.
-        </DesktopOnly>
-      </>
-    );
+    return <strong>The document, signers, and timestamp are unchanged since the seal.</strong>;
   }
   return (
     <>
@@ -546,6 +531,18 @@ function CopyShareLinkButton({ shortCode }: CopyShareLinkButtonProps) {
       {copied ? 'Copied' : 'Copy share link'}
     </InlineActionBtn>
   );
+}
+
+/**
+ * Footer checks follow the verify payload. The SHA-256 audit chain is
+ * always walked. A PAdES seal and an RFC 3161 timestamp render only when
+ * the payload says they are present. `sealed_sha256` is not that signal.
+ */
+function trustFooterItems(data: VerifyResponse): readonly string[] {
+  const items = ['SHA-256 audit chain'];
+  if (data.has_pades_seal === true) items.push('PAdES seal');
+  if (data.has_rfc3161_timestamp === true) items.push('RFC 3161 timestamp');
+  return items;
 }
 
 interface VerifyContentProps {
@@ -648,7 +645,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 {formatDateTime(data.envelope.completed_at ?? data.envelope.sent_at)}
               </FactVal>
               <Tag $tone={sealed ? 'success' : 'neutral'}>
-                {sealed ? 'PAdES-LT' : data.envelope.status}
+                {sealed ? 'Sealed' : data.envelope.status}
               </Tag>
             </Fact>
 
@@ -721,7 +718,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               >
                 {data.chain_intact ? 'Audit chain · intact' : 'Audit chain · broken'}
               </Tag>
-              <span>Seald, Inc. · trust cert RSA-4096</span>
+              <span>Seald</span>
             </IntegrityMeta>
           </Integrity>
 
@@ -759,18 +756,14 @@ function VerifyContent({ data }: VerifyContentProps) {
 
         <Footer>
           <FooterLeft>
-            <span>Verification by Seald, Inc.</span>
+            <span>Verification by Seald</span>
           </FooterLeft>
           <FooterRight>
-            <span>
-              <Check aria-hidden /> AES-256 at rest
-            </span>
-            <span>
-              <Check aria-hidden /> RFC 3161 timestamps
-            </span>
-            <span>
-              <Check aria-hidden /> PAdES-LT seal
-            </span>
+            {trustFooterItems(data).map((label) => (
+              <span key={label}>
+                <Check aria-hidden /> {label}
+              </span>
+            ))}
           </FooterRight>
         </Footer>
       </Container>

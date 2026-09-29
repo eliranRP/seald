@@ -15,7 +15,7 @@
 // flow; until then the SLA holds because all intake routes through the
 // same address.
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'dsar_v0.2';
+const VERSION = 'dsar_v0.1';
 ---
 <BaseLayout
   title="Your privacy choices — Seald"
@@ -25,8 +25,8 @@ const VERSION = 'dsar_v0.2';
     <article>
       <header>
         <section class="legal-banner">
-          <p><strong>Draft.</strong> All submissions reach our privacy team. Acknowledgement within 10 business days. CCPA / CPRA requests are resolved within 45 calendar days, with one extension of 45 calendar days when reasonably necessary (Cal. Civ. Code §1798.130(a)(2)). GDPR / UK GDPR requests are resolved within one month, extensible by up to two months for genuinely complex requests. We notify you of any extension. We may need to verify your identity before acting on a request.</p>
-          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-29</code></p>
+          <p><strong>Draft.</strong> All submissions reach our privacy team. Acknowledgement within 10 business days; resolution within 30 days (CCPA / CPRA) or one month (GDPR / UK GDPR), extensible by up to two months for genuinely complex requests with notice to you. We may need to verify your identity before acting on a request.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
         </section>
         <h1>Your privacy choices</h1>
         <p>Use this form to exercise rights under the GDPR, UK GDPR, CCPA / CPRA, and the U.S. state-omnibus regimes (Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Tennessee, Indiana, Delaware, New Jersey, New Hampshire, Minnesota, Maryland, Rhode Island, Kentucky, plus any others where similar laws apply). It is also the link behind the "Your Privacy Choices" / "Do Not Sell or Share My Personal Information" footer. We do not currently sell or share personal information for cross-context behavioral advertising; submitting an opt-out is still honored on a forward-looking basis.</p>
@@ -116,7 +116,7 @@ const VERSION = 'dsar_v0.2';
         <ol>
           <li><strong>Acknowledgement.</strong> Within 10 business days of receipt we send a written acknowledgement and, if needed, a verification request.</li>
           <li><strong>Verification.</strong> We confirm we are talking to you (or your authorized agent). For account-tied requests we typically rely on a code sent to the email on file; for non-account requests we may need additional information.</li>
-          <li><strong>Resolution.</strong> Within 45 calendar days (CCPA / CPRA) or one calendar month (GDPR / UK GDPR) we either fulfill the request or deny it with a reason. If we need more time, we notify you and extend once: another 45 calendar days under Cal. Civ. Code §1798.130(a)(2), or up to two further months under the GDPR / UK GDPR.</li>
+          <li><strong>Resolution.</strong> Within 30 calendar days (CCPA / CPRA) or one calendar month (GDPR / UK GDPR) we either fulfill the request, deny it with a reason, or extend the deadline by up to 60 / 60 days for genuinely complex matters and notify you of the extension.</li>
           <li><strong>Appeal.</strong> If you disagree with our decision you can reply to the same thread to request internal review (state-omnibus regimes). EU/UK residents may also lodge a complaint with their supervisory authority — see your local data-protection authority.</li>
         </ol>
       </section>

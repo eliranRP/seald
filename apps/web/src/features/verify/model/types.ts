@@ -88,6 +88,17 @@ export interface VerifyResponse {
    * responses always populate it.
    */
   readonly chain_intact: boolean;
+  /**
+   * True only when the payload says a CMS/PAdES seal is in the sealed PDF.
+   * `sealed_sha256` is a hash of the output file and is not this flag.
+   * Absent on the current API response.
+   */
+  readonly has_pades_seal?: boolean;
+  /**
+   * True only when the payload says an RFC 3161 timestamp is in the seal.
+   * Absent on the current API response.
+   */
+  readonly has_rfc3161_timestamp?: boolean;
   /** 5-minute pre-signed URL. Null until the envelope is sealed. */
   readonly sealed_url: string | null;
   /** 5-minute pre-signed URL. Null when no audit.pdf has been generated. */

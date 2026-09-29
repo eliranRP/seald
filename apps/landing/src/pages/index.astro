@@ -67,7 +67,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       <div class="container">
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="dot"></span>RFC 3161 timestamps when the timestamp service responds</span>
+            <span class="eyebrow"><span class="dot"></span>Independent RFC 3161 timestamps, when available</span>
             <h1>
               <span class="word-stack">Put your</span>
               <span class="word-stack"><span class="name">name<svg class="underline" viewBox="0 0 220 28" preserveAspectRatio="none"><path d="M4 18 C 40 6, 90 22, 140 14 C 180 7, 200 18, 216 12" /></svg></span></span>
@@ -188,7 +188,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           </div>
           <div class="trust-cell">
             <div class="trust-num">PAdES</div>
-            <div class="trust-label">Seal when configured</div>
+            <div class="trust-label">Digital seal on completed PDFs, when applied</div>
           </div>
         </div>
       </div>
@@ -206,7 +206,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           <div class="step reveal">
             <span class="step-num">01 — Upload</span>
             <h3 class="step-title">Drop in a PDF</h3>
-            <p class="step-copy">Drop in a PDF up to 25 MB. On a phone you can also start from a photo. We keep the original PDF in our cloud storage, separate from the sealed copy. You can also save the sealed PDF to a Google Drive folder you choose.</p>
+            <p class="step-copy">Up to 25 MB. On a phone, start from a photo. We keep the original PDF in our cloud storage, separate from the sealed copy. You can also save the sealed PDF to a Google Drive folder you choose.</p>
             <div class="step-art upload-art">
               <div class="upload-page"></div>
               <div class="upload-zone">Drop a PDF, or browse</div>
@@ -315,7 +315,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
             <h3>A hash you can check</h3>
-            <p>The sealed PDF is hashed with SHA-256. When a digital seal is applied, changing the file breaks that seal — anyone can check it, including without an account.</p>
+            <p>The sealed PDF is hashed with SHA-256. When a seal is applied, changing the file breaks that seal — anyone can check it, including without an account.</p>
             <div class="feat-art">
               <div class="lock">
                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>
@@ -375,7 +375,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           <div class="audit-copy reveal">
             <span class="eyebrow"><span class="dot"></span>Receipts, not promises</span>
             <h2>Every completed envelope includes a <em>separate audit PDF</em>.</h2>
-            <p>Every completed envelope comes with a separate audit PDF: who did what, when, and from where, with a link to verify the file.</p>
+            <p>Who did what, when, and from where, with a link anyone can use to verify the file.</p>
             <ul class="audit-bullets">
               <li>
                 <span class="num">01</span>
@@ -388,7 +388,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
                 <span class="num">02</span>
                 <span class="text">
                   <strong>Cryptographic fingerprint</strong>
-                  <span>We hash the file before and after sealing. If a digital seal was applied, editing the sealed PDF breaks that seal.</span>
+                  <span>We hash the file before and after sealing. When a seal is applied, editing the sealed PDF breaks that seal.</span>
                 </span>
               </li>
               <li>

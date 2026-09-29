@@ -2,8 +2,8 @@
  * User-facing product claims that must stay aligned with what the code
  * actually does. Marketing, the SPA, and transactional email body
  * text should import these strings (or, for HTML templates, copy them
- * verbatim — `template.service.spec.ts` checks that). Audit PDF strings,
- * email entity defaults, and the verify page are owned by a later cycle.
+ * verbatim — `template.service.spec.ts` checks that). Audit PDF strings
+ * and email entity defaults stay with a later cycle.
  *
  * Do not describe the product as an advanced or qualified electronic
  * signature, or as legally equivalent to a handwritten signature.
@@ -16,13 +16,13 @@
  * What a completed signature is. Shown on the signer prep and done screens.
  */
 export const SIGNATURE_LEVEL_NOTE =
-  'This is a simple electronic signature with ESIGN and UETA consent, a tamper-evident audit trail with a SHA-256 hash chain, and a PAdES-sealed PDF when sealing is configured. It is not an advanced or qualified electronic signature. Some documents still need wet ink or a qualified signature.';
+  'This is a simple electronic signature with ESIGN and UETA consent, a tamper-evident audit trail with a SHA-256 hash chain, and a PAdES-sealed PDF when a seal is applied. It is not an advanced or qualified electronic signature. Some documents still need wet ink or a qualified signature.';
 
 /**
  * Intent affirmation on the review screen, recorded before the signed event.
  */
 export const INTENT_TO_SIGN_NOTE =
-  'By checking this box and clicking Sign and submit, you intend to sign this document electronically. We record that intent in the audit trail. Legal effect depends on the document and the law that applies to it.';
+  'By checking the box below and clicking Sign and submit, you intend to sign this document electronically. We record that intent in the audit trail. Legal effect depends on the document and the law that applies to it.';
 
 /**
  * Hardware/software attestation on the prep screen. The signer has not
@@ -62,26 +62,25 @@ export const SENDER_PROGRESS_NOTE =
 
 /** Auth-panel trust line. No AES-256-at-rest or guaranteed PAdES-LT claim. */
 export const PRODUCT_TRUST_LINE =
-  'PAdES seal when configured · external timestamp when available · access-controlled storage';
+  'PAdES seal when a seal is applied · external timestamp when available · access-controlled storage';
 
 /** Neutral value statement. Not a customer testimonial. */
 export const PRODUCT_VALUE_STATEMENT =
-  'A simple electronic signature, a hash-chained audit trail, and a PAdES-sealed PDF when sealing is configured.';
+  'A simple electronic signature, a hash-chained audit trail, and a PAdES-sealed PDF when a seal is applied.';
 
 export const AUTH_PANEL_HEADING = 'Upload a PDF, place fields, and send a signing link.';
 
 /** Password-reset screen. Supabase owns the link TTL; this repo does not. */
-export const PASSWORD_RESET_NOTE =
-  'Use it soon; if it expires, request another.';
+export const PASSWORD_RESET_NOTE = 'Use it soon; if it expires, request another.';
 
 export const DOWNLOAD_MENU_NOTE =
   'Look up the envelope reference code on the verify page to see the SHA-256 and the audit trail.';
 
 export const DRIVE_DISCONNECT_NOTE =
-  'Disconnect any time. We revoke the token at Google when we can, and we stop using it. The encrypted token stays in our database until we add a hard-delete job.';
+  'Disconnect any time. We revoke access at Google where we can and stop using the token. An encrypted copy stays in our database for now.';
 
 export const SEAL_DOWNLOAD_ERROR =
-  "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also try the verify page again.";
+  "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page:";
 
 export const EMAIL_TRANSIT_NOTE =
   'Sent over HTTPS. Documents are stored in access-controlled cloud storage.';
@@ -89,10 +88,10 @@ export const EMAIL_TRANSIT_NOTE =
 export const EMAIL_QUESTIONS_LABEL = 'Questions about these emails';
 
 export const EMAIL_SIGNATURE_NOTE =
-  'Seald records a simple electronic signature with ESIGN and UETA consent, keeps a tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF when sealing is configured. It is not an advanced or qualified electronic signature. Whether that is enough depends on the document and where it will be enforced.';
+  'Seald records a simple electronic signature with ESIGN and UETA consent, keeps a tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF when a seal is applied. It is not an advanced or qualified electronic signature. Whether that is enough depends on the document and where it will be enforced.';
 
 export const EMAIL_COMPLETED_NOTE =
-  'Everyone has signed. Download the sealed PDF and the separate audit PDF from the links below. If a digital seal was applied, changing the PDF breaks that seal.';
+  'Everyone has signed. Download the sealed PDF and the separate audit PDF from the links below. When a seal is applied, changing the PDF breaks that seal.';
 
 export const EMAIL_RETRY_NOTE =
   'To try again, start a new envelope from the dashboard and upload the PDF.';
