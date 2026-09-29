@@ -698,6 +698,18 @@ describe('VerifyPage', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/and timestamp are unchanged/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/rfc 3161 timestamp/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('data-variant', 'success');
+    expect(
+      screen.getByTestId('integrity-icon').querySelector('.lucide-shield-check'),
+    ).not.toBeNull();
+    expect(screen.getByRole('contentinfo').querySelector('.lucide-check')).not.toBeNull();
+    expect(document.querySelector('.lucide-shield-alert')).toBeNull();
+    const intactHeading = screen.getByRole('heading', { name: 'Sealed and intact' });
+    expect(intactHeading.querySelector('em')).not.toHaveClass('danger');
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
+      'title',
+      SIGNED_PAYLOAD.envelope.title,
+    );
   });
 
   // Verification URL is rendered in the facts panel using the literal
@@ -765,6 +777,27 @@ describe('VerifyPage', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/seal intact/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/unchanged since the seal/i)).not.toBeInTheDocument();
+    const page = screen.getByRole('main');
+    expect(page).toHaveAttribute('data-variant', 'failed');
+    const brokenHeading = screen.getByRole('heading', { name: 'Sealed; audit chain broken' });
+    const emphasis = brokenHeading.querySelector('em');
+    expect(emphasis).toHaveClass('danger');
+    expect(emphasis).toHaveStyle({ color: seald.color.danger[700] });
+    const verdictMark = page.querySelector('.lucide-shield-alert')?.parentElement;
+    expect(verdictMark).toHaveStyle({
+      backgroundColor: seald.color.danger[50],
+      color: seald.color.danger[700],
+    });
+    const integrityIcon = screen.getByTestId('integrity-icon');
+    expect(integrityIcon.querySelector('.lucide-shield-alert')).not.toBeNull();
+    expect(integrityIcon.querySelector('.lucide-shield-check')).toBeNull();
+    const footer = screen.getByRole('contentinfo');
+    expect(footer.querySelector('.lucide-shield-alert')).not.toBeNull();
+    expect(footer.querySelector('.lucide-check')).toBeNull();
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
+      'title',
+      SIGNED_PAYLOAD.envelope.title,
+    );
   });
 
   // ---- Download attribute (regression: prompt's bug-floor list says

@@ -202,19 +202,31 @@ interface DerivedView {
 }
 
 function deriveView(envelope: VerifyEnvelope, chainIntact: boolean): DerivedView {
+  if (envelope.status === 'completed' && !chainIntact) {
+    return {
+      variant: 'failed',
+      eyebrow: 'Sealed · audit chain broken',
+      heading: (
+        <>
+          This document is <em className="danger">sealed</em>.
+        </>
+      ),
+      headingAriaLabel: 'Sealed; audit chain broken',
+      body: 'The SHA-256 stored for the sealed PDF is on this page. The audit chain is not intact.',
+      mark: <ShieldAlert aria-hidden />,
+    };
+  }
   if (envelope.status === 'completed') {
     return {
       variant: 'success',
-      eyebrow: chainIntact ? 'Verified · seal intact' : 'Sealed · audit chain broken',
+      eyebrow: 'Verified · seal intact',
       heading: (
         <>
           This document is <em>sealed</em>.
         </>
       ),
-      headingAriaLabel: chainIntact ? 'Sealed and intact' : 'Sealed; audit chain broken',
-      body: chainIntact
-        ? 'The SHA-256 stored for the sealed PDF is on this page, and the audit chain is intact.'
-        : 'The SHA-256 stored for the sealed PDF is on this page. The audit chain is not intact.',
+      headingAriaLabel: 'Sealed and intact',
+      body: 'The SHA-256 stored for the sealed PDF is on this page, and the audit chain is intact.',
       mark: (
         <svg
           viewBox="0 0 24 24"
@@ -436,18 +448,18 @@ function IntegrityCopy({
   signersAll,
   chainIntact,
 }: IntegrityCopyProps) {
-  if (variant === 'failed') {
-    return (
-      <>
-        <strong>This envelope was not sealed.</strong> The audit trail records why.
-      </>
-    );
-  }
   if (sealed && !chainIntact) {
     return (
       <strong>
         The audit chain for this document is broken. Contact the sender before relying on it.
       </strong>
+    );
+  }
+  if (variant === 'failed') {
+    return (
+      <>
+        <strong>This envelope was not sealed.</strong> The audit trail records why.
+      </>
     );
   }
   if (sealed) {
@@ -578,8 +590,10 @@ function VerifyContent({ data }: VerifyContentProps) {
   // a second line on narrow viewports.
   const reqId = `REQ ${data.envelope.id.split('-').slice(0, 2).join('-').toUpperCase()}`;
 
+  const chainBroken = !data.chain_intact;
+  const integrityAlert = view.variant === 'failed' || chainBroken;
   return (
-    <Page $variant={view.variant}>
+    <Page $variant={view.variant} data-variant={view.variant}>
       <Container>
         <Verdict>
           <VerdictMark $variant={view.variant} aria-hidden>
@@ -596,8 +610,8 @@ function VerifyContent({ data }: VerifyContentProps) {
               <div aria-hidden style={{ width: 36, height: 46, flexShrink: 0 }}>
                 <Icon icon={FileText} size={28} />
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <DocTitle>{data.envelope.title}</DocTitle>
+              <div style={{ minWidth: 0, flex: 1, maxWidth: '100%' }}>
+                <DocTitle title={data.envelope.title}>{data.envelope.title}</DocTitle>
                 <DocSub>
                   <span className="id">{reqId}</span>
                   <span className="sep" aria-hidden />
@@ -706,14 +720,10 @@ function VerifyContent({ data }: VerifyContentProps) {
             </Fact>
           </Facts>
 
-          <Integrity $failed={view.variant === 'failed'}>
+          <Integrity $failed={integrityAlert}>
             <IntegrityInner>
-              <IntegrityIco $failed={view.variant === 'failed'}>
-                {view.variant === 'failed' ? (
-                  <ShieldAlert aria-hidden />
-                ) : (
-                  <ShieldCheck aria-hidden />
-                )}
+              <IntegrityIco $failed={integrityAlert} data-testid="integrity-icon">
+                {integrityAlert ? <ShieldAlert aria-hidden /> : <ShieldCheck aria-hidden />}
               </IntegrityIco>
               <IntegrityText>
                 <IntegrityCopy
@@ -777,10 +787,10 @@ function VerifyContent({ data }: VerifyContentProps) {
           <FooterLeft>
             <span>Verification by Seald</span>
           </FooterLeft>
-          <FooterRight>
+          <FooterRight $alert={chainBroken}>
             {trustFooterItems().map((label) => (
               <span key={label}>
-                <Check aria-hidden /> {label}
+                {chainBroken ? <ShieldAlert aria-hidden /> : <Check aria-hidden />} {label}
               </span>
             ))}
           </FooterRight>

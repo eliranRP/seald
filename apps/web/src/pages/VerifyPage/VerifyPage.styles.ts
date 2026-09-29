@@ -58,6 +58,10 @@ const pulse = keyframes`
 `;
 
 export const Page = styled.main<{ readonly $variant: 'success' | 'failed' | 'neutral' }>`
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 100vh;
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
@@ -85,7 +89,10 @@ export const Page = styled.main<{ readonly $variant: 'success' | 'failed' | 'neu
 `;
 
 export const Container = styled.div`
+  box-sizing: border-box;
+  width: 100%;
   max-width: 920px;
+  min-width: 0;
   margin: 0 auto;
   padding: 56px ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]};
 
@@ -200,6 +207,10 @@ export const VerdictBody = styled.p`
 `;
 
 export const Card = styled.section`
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   background: ${({ theme }) => theme.color.paper};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.lg};
@@ -208,6 +219,9 @@ export const Card = styled.section`
 `;
 
 export const CardHead = styled.header`
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   padding: ${({ theme }) => theme.space[5]} ${({ theme }) => theme.space[6]};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
   display: flex;
@@ -218,7 +232,7 @@ export const CardHead = styled.header`
 
   @media (max-width: 640px) {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
   }
 `;
 
@@ -228,6 +242,7 @@ export const DocMeta = styled.div`
   gap: ${({ theme }) => theme.space[3]};
   flex: 1;
   min-width: 0;
+  max-width: 100%;
 `;
 
 export const DocTitle = styled.h2`
@@ -238,9 +253,9 @@ export const DocTitle = styled.h2`
   letter-spacing: -0.005em;
   line-height: 1.2;
   margin: 0 0 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
 `;
 
 export const DocSub = styled.div`
@@ -729,7 +744,7 @@ export const FooterLeft = styled.div`
   gap: ${({ theme }) => theme.space[2]};
 `;
 
-export const FooterRight = styled.div`
+export const FooterRight = styled.div<{ readonly $alert?: boolean }>`
   display: flex;
   gap: ${({ theme }) => theme.space[4]};
 
@@ -742,7 +757,7 @@ export const FooterRight = styled.div`
   svg {
     width: 12px;
     height: 12px;
-    color: ${({ theme }) => theme.color.success[500]};
+    color: ${({ theme, $alert }) => ($alert ? theme.color.danger[700] : theme.color.success[500])};
   }
 `;
 

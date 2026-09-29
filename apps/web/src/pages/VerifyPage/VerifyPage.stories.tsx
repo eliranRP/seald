@@ -272,7 +272,9 @@ export const NotFound: Story = {
 /**
  * Tamper-evident audit chain failure. `verifyEventChain` detected a
  * row whose `prev_event_hash` doesn't match the canonical-JSON hash of
- * its predecessor. The eyebrow reads "Sealed · audit chain broken",
+ * its predecessor. The page uses the danger ramp (danger-50 wash,
+ * danger-700 eyebrow, ShieldAlert mark and integrity icon) instead of
+ * the success check. The eyebrow reads "Sealed · audit chain broken",
  * the heading's accessible name is "Sealed; audit chain broken", and
  * the integrity line tells the reader to contact the sender. It does
  * not say the seal is intact or that the document is unchanged.
