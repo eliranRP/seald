@@ -51,7 +51,7 @@ function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
 
 function pickAccent(seed: string): TemplateCardAccent {
   const idx = Math.abs(hashStr(seed)) % ACCENTS.length;
-  return ACCENTS[idx]!;
+  return ACCENTS[idx] ?? 'indigo';
 }
 
 /**
@@ -97,7 +97,6 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
               // Index keys are fine — the line set is generated
               // deterministically from `template.id` + count, so the
               // identity is positional.
-              // eslint-disable-next-line react/no-array-index-key
               key={`l${String(i)}`}
               $width={w}
             />

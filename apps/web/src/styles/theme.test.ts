@@ -22,7 +22,11 @@ describe('theme.ts ↔ tokens.css parity', () => {
     ['success-500', seald.color.success[500]],
     ['warn-500', seald.color.warn[500]],
     ['danger-500', seald.color.danger[500]],
+    ['danger-200', seald.color.danger[200]],
     ['info-500', seald.color.info[500]],
+    ['pink-700', seald.color.pink[700]],
+    ['google-blue', seald.color.brand.google.blue],
+    ['drive-green', seald.color.brand.drive.green],
   ])('palette %s matches', (name, expected) => {
     expect(extract(name).toUpperCase()).toBe(expected.toUpperCase());
   });

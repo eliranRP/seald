@@ -273,6 +273,6 @@ function embedDssDictionary(
 export function computeVriKey(signatureContents: Buffer): string {
   // SHA-1 is required by PAdES/DSS spec (ETSI EN 319 142-1 §6.3) for VRI key
   // computation. This is NOT a security use — it's a lookup identifier only.
-  // eslint-disable-next-line no-restricted-syntax -- SHA-1 mandated by spec for VRI keys
+  // SHA-1 mandated by spec for VRI keys
   return createHash('sha1').update(signatureContents).digest('hex').toUpperCase();
 }

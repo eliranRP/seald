@@ -206,7 +206,7 @@ export const MOBILE_STEP_ORDER: ReadonlyArray<MobileStep> = [
 
 export function previousStep(step: MobileStep): MobileStep {
   const currentIndex = MOBILE_STEP_ORDER.indexOf(step);
-  if (currentIndex <= 0) return MOBILE_STEP_ORDER[0]!;
+  if (currentIndex <= 0) return 'start';
   return MOBILE_STEP_ORDER[currentIndex - 1] ?? step;
 }
 

@@ -68,7 +68,8 @@ function deriveName(user: User): string {
     | undefined;
   if (metaName && metaName.trim().length > 0) return metaName;
   const email = user.email ?? '';
-  return email.length > 0 ? email.split('@')[0]! : 'Signed-in user';
+  const local = email.split('@')[0];
+  return email.length > 0 && local !== undefined ? local : 'Signed-in user';
 }
 
 function toAuthUser(user: User | null | undefined): AuthUser | null {

@@ -490,7 +490,6 @@ describe('IntegrationsPage', () => {
     // Check DOM order: permissionsHeading must precede the CTA button.
     const ctaPos = ctaButton.compareDocumentPosition(permissionsHeading);
     // Node.DOCUMENT_POSITION_PRECEDING === 2; we want permissions to PRECEDE ctaButton.
-    // eslint-disable-next-line no-bitwise
     expect(ctaPos & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 });

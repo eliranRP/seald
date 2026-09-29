@@ -40,11 +40,12 @@ async function listAccounts(): Promise<ReadonlyArray<GDriveAccount>> {
 
 function pickActiveAccount(accounts: ReadonlyArray<GDriveAccount>): GDriveAccount | null {
   if (accounts.length === 0) return null;
-  return [...accounts].sort((a, b) => {
+  const sorted = [...accounts].sort((a, b) => {
     const at = a.lastUsedAt ?? a.connectedAt;
     const bt = b.lastUsedAt ?? b.connectedAt;
     return bt.localeCompare(at);
-  })[0]!;
+  });
+  return sorted[0] ?? null;
 }
 
 function mapSaveError(err: ApiError): SaveEnvelopeToGdriveOutcome {

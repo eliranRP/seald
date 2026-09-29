@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings=0",
+    "lint": "eslint \"{src,test}/**/*.ts\" --max-warnings=0 --report-unused-disable-directives",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -57,6 +57,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@faker-js/faker": "^10.4.0",
     "@nestjs/cli": "^11.0.21",
     "@nestjs/schematics": "^11.0.0",

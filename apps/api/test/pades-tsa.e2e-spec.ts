@@ -376,7 +376,6 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     execFileSync('mkdir', ['-p', outDir]);
     const out = join(outDir, 'pades-b-t.signed.pdf');
     writeFileSync(out, signed);
-    // eslint-disable-next-line no-console
     console.log(`[pades-tsa test] PAdES-B-T artifact written to ${out}`);
   });
 

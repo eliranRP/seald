@@ -108,7 +108,6 @@ vi.mock('../../lib/api/apiClient', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import { SentConfirmationPage } from './SentConfirmationPage';
 
 function renderAt(envId: string) {

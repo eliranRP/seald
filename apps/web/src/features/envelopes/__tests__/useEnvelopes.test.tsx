@@ -12,9 +12,7 @@ vi.mock('../../../lib/api/apiClient', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import { apiClient } from '../../../lib/api/apiClient';
-// eslint-disable-next-line import/first
 import { ENVELOPES_KEY, useEnvelopesQuery, useCreateEnvelopeMutation } from '../useEnvelopes';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;

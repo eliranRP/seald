@@ -14,7 +14,7 @@ function toDomain(r: Row): GDriveAccount {
     googleEmail: r.google_email,
     refreshTokenCiphertext: Buffer.isBuffer(r.refresh_token_ciphertext)
       ? r.refresh_token_ciphertext
-      : Buffer.from(r.refresh_token_ciphertext as unknown as ArrayBuffer),
+      : Buffer.from(r.refresh_token_ciphertext),
     refreshTokenKmsKeyArn: r.refresh_token_kms_key_arn,
     scope: r.scope,
     connectedAt: new Date(r.connected_at).toISOString(),

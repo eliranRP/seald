@@ -494,9 +494,9 @@ TypeScript (`tsconfig.base.json`): `strict`, `noUncheckedIndexedAccess`,
 are written `prop?: T | undefined`.
 
 Web ESLint (`apps/web/eslint.config.js`) runs at `--max-warnings=0`.
-Only the rules below fail that command. `docs/CONTRIBUTING.md` describes
-a longer list; several of those items are review-only until a follow-up
-PR turns them into lint rules.
+API ESLint (`apps/api/.eslintrc.cjs`) runs the same syntax bans on
+`src` and `test`. `docs/CONTRIBUTING.md` still describes a longer list;
+the items below that ESLint does not fail are review-only.
 
 Enforced today:
 
@@ -505,22 +505,21 @@ Enforced today:
 - No `React.FC` / `FunctionComponent` (`no-restricted-syntax`).
 - Named components are function declarations. Inline components are arrow functions (`react/function-component-definition`).
 - Deep relative imports (`../../…`) are banned outside tests and stories (`no-restricted-imports`).
-- Hex literals are banned in `src/components/**/*.styles.ts` only. Page styles and TSX are not covered.
-- Layer zones and the signer-import ban, for the folders named in the config.
+- Hex literals are banned in `src/**/*.styles.ts`, `src/**/*.tsx`, and `src/features/templates/tagColors.ts` (Literal and template strings). Tests, stories, and `eslint/hex-allowlist.txt` are excluded. Do not add allowlist names; the remainder is a design-cycle list, review by 2026-12-31.
+- No `eslint-disable` / `eslint-disable-next-line` (`@eslint-community/eslint-comments/no-use`) and `reportUnusedDisableDirectives` is `error`, on web and API. Justified exceptions are file overrides in the ESLint config (test `import/first` and `no-eval`, Vite `?worker` imports, a short list of `exhaustive-deps` files, one API spec that throws a string, and the sealing override below).
+- No non-null `!` (`@typescript-eslint/no-non-null-assertion`), no `as unknown as` (`no-restricted-syntax`), and no nested ternaries (`no-nested-ternary`) in production web source and in API source outside `src/sealing/**`. Tests, stories, and `src/test` turn the three off (testing cycle). `apps/api/src/sealing/**` turns off `!` and `as unknown as` until 2026-12-31 so CMS bytes stay untouched; nested ternaries stay on there.
+- Layer zones come from component folders, not a hand-written name list. `eslint/component-layers.mjs` reads story titles (`L1/`–`L4/`). A folder with no story is L1. The L1 target is a negation glob, so a new component is checked immediately. L2 and L3 targets are the folders whose stories declare that layer.
+- Signer-surface isolation stays in `eslint.config.js`. New `pages/Signing*` folders match `./src/pages/Signing*/**`. The named signer components on that target list are still explicit.
+- `@signpdf/utils` `extractSignature` is rejected by `no-restricted-imports` on web and API. Use `extractContents()` in `pades-verify-helpers.ts`.
+- `pnpm --filter web lint` also runs `scripts/check-component-coverage.mjs`. A top-level `src/components` folder without a test or a story fails CI. Current gaps are named in `scripts/component-coverage.allowlist` (testing cycle, review by 2026-12-31). A stale name fails the check.
+- Commit subjects are `type(scope): subject` via commitlint (`commitlint.config.js`, Husky `commit-msg`).
 
-Documented, and not yet enforced by ESLint (a separate PR is adding the
-rules). Reviewers still apply them. The tree already breaks several:
-`as unknown as` in `lib/pdf.ts`, `lib/pdfjsWorker.ts`,
-`hooks/useColumnWidths.ts`, `features/templates/templatesApi.ts`, and
-`features/documentEditor/model/lib.ts`; a nested ternary in
-`components/Toast/Toast.tsx`; a non-null assertion in
-`pages/VerifyPage/VerifyPage.tsx`.
+Still review-only (ESLint does not fail the build):
 
 - Styled-only props start with `$` so they are not forwarded to the DOM.
 - `{...rest}` is spread before the component's own `aria-*` and `data-*` attributes.
-- No `eslint-disable`. `reportUnusedDisableDirectives` is off, so a stale disable does not fail lint either.
-- No non-null `!`. No `as unknown as`. No nested ternaries.
 - `forwardRef` components set `displayName`. The React preset's `react/display-name` only partly covers this.
+- `react-hooks/set-state-in-effect`, `preserve-manual-memoization`, and `purity` stay off. A later cycle turns them back on.
 
 Component folder, when the component is a real design-system citizen:
 
@@ -540,9 +539,10 @@ On `4a8c663`, these stories have no `layer-N` tag: `VerifyPage` (title
 `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader` (title
 `L2 / TemplateFlowHeader`), `PdfPageView` (title `L3 Widgets/PdfPageView`).
 
-Commit messages: `type(scope): subject`. Husky runs lint-staged and
-`tsc --noEmit`. Do not use `--no-verify`. Do not amend or force-push to
-rewrite a hook failure; add a new commit.
+Commit messages: `type(scope): subject` (commitlint on `commit-msg`).
+Husky also runs lint-staged and `tsc --noEmit` on `pre-commit`. Do not
+use `--no-verify`. Do not amend or force-push to rewrite a hook
+failure; add a new commit.
 
 `apps/api/README.md` is not the endpoint catalog. It still documents only
 `GET /health` and `GET /me`. Use the controllers.

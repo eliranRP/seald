@@ -90,7 +90,7 @@ function Content() {
 
   const handleDecline = useCallback(async () => {
     if (busy) return;
-    // eslint-disable-next-line no-alert -- native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
+    // native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
     const confirmed = window.confirm(
       'Decline this signing request? The sender will be notified and the document will remain unsigned.',
     );
@@ -144,7 +144,7 @@ function Content() {
     // event is irreversible (and emails the sender), so the one-tap UX
     // failure mode was real.
     if (busy) return;
-    // eslint-disable-next-line no-alert -- native confirm is appropriate; mirrors handleDecline above.
+    // native confirm is appropriate; mirrors handleDecline above.
     const confirmed = window.confirm(
       'Are you not the intended recipient?\n\n' +
         "We'll let the sender know to send a fresh link to the right person. " +

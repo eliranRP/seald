@@ -91,7 +91,6 @@ export function UploadRoute() {
     }
     // run once on mount; the clear-state effect must not chase
     // `location` updates or it would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const [pdfFile, setPdfFile] = useState<File | null>(initialHandoff?.pendingFile ?? null);
@@ -126,7 +125,6 @@ export function UploadRoute() {
         setTemplates(rows);
       })
       .catch((err) => {
-        // eslint-disable-next-line no-console
         console.warn('[templates] list fetch failed:', err);
       });
     return () => ac.abort();
@@ -316,7 +314,6 @@ export function UploadRoute() {
       if (resolvedPages < template.pages) {
         // Use console.warn so the SPA's debug build flags the gap. The
         // banner already informs the user; this is for engineering.
-        // eslint-disable-next-line no-console
         console.warn(
           `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
         );
@@ -324,7 +321,6 @@ export function UploadRoute() {
       // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
       // once the templates service lands. Today we just log; the local
       // `TEMPLATES` array is read-only seed data.
-      // eslint-disable-next-line no-console
       console.info(`[templates] uses_count++ for ${template.id}`);
     }
 
@@ -403,11 +399,9 @@ export function UploadRoute() {
     setSelectedSigners([]);
   }, [searchParams, setSearchParams]);
 
-  const bannerTitle = template
-    ? template.name
-    : templateMissing
-      ? 'Template not found — starting empty'
-      : undefined;
+  let bannerTitle: string | undefined;
+  if (template) bannerTitle = template.name;
+  else if (templateMissing) bannerTitle = 'Template not found — starting empty';
   const bannerTone: 'info' | 'warning' = templateMissing ? 'warning' : 'info';
 
   return (

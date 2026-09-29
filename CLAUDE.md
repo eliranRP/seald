@@ -319,8 +319,10 @@ Architecture:
 - Cloudflare Pages project: `seald-landing`
 - Build: `.github/workflows/deploy-cloudflare.yml` runs on push to main
   with paths under `apps/web/**` or `apps/landing/**`. It builds both,
-  merges them (rename SPA `index.html` → `app.html`), writes a
-  `_redirects` manifest covering every SPA route, and deploys.
+  merges them (rename SPA `index.html` → `app.html`), copies
+  `apps/landing/_worker.js` into the deploy, and deploys. Cloudflare
+  Pages coerces `_redirects` 200 rewrites into 308 redirects, so SPA
+  routes stay in the worker (`SPA_EXACT` / `SPA_PREFIXES`) instead.
 - API stays on the EC2 Caddy at `api.seald.nromomentum.com`. The web
   block was removed from `deploy/Caddyfile` on 2026-04-25.
 
@@ -359,6 +361,7 @@ First-deploy workflow:
    and `apps/landing/public/google9a27f9c75cdae2dc.html`. Do not add
    `google-site-verification.html`; that placeholder served a fake token.
 
-When extending: any new SPA route must be added to the `_redirects`
-block in `.github/workflows/deploy-cloudflare.yml`, otherwise CF Pages
-will 404 it.
+When extending: any new SPA route must be added to `AppRoutes.tsx` and
+to `apps/landing/_worker.js` (`SPA_EXACT` for an exact path,
+`SPA_PREFIXES` for a prefix). The deploy workflow copies that worker.
+Do not add a `_redirects` 200 rewrite; Cloudflare turns those into 308s.

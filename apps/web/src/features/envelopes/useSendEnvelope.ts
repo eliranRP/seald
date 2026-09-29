@@ -125,7 +125,6 @@ export function useSendEnvelope(): UseSendEnvelope {
                 name: s.name,
                 ...(s.color !== undefined ? { color: s.color } : {}),
               };
-        // eslint-disable-next-line no-await-in-loop
         const signer = await addEnvelopeSigner(envelope.id, payload);
         localSignerIdToServerSignerId.set(s.localId, signer.id);
       }

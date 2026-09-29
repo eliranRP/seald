@@ -26,9 +26,7 @@ vi.mock('../lib/api/apiClient', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import { apiClient } from '../lib/api/apiClient';
-// eslint-disable-next-line import/first
 import { DocumentRoute } from './DocumentRoute';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;

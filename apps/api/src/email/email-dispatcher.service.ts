@@ -71,7 +71,6 @@ export class EmailDispatcherService {
   async flushOnce(maxBatch = 50): Promise<FlushResult> {
     const outcomes: DispatchOutcome[] = [];
     for (let i = 0; i < maxBatch; i += 1) {
-      // eslint-disable-next-line no-await-in-loop
       const outcome = await this.dispatchOne();
       if (!outcome) break;
       outcomes.push(outcome);

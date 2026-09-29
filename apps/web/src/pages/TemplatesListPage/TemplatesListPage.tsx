@@ -121,7 +121,6 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
       })
       .catch((err) => {
         // Soft fail — guests + offline see the empty list.
-        // eslint-disable-next-line no-console
         console.warn('[templates] list fetch failed:', err);
       });
     return () => ac.abort();
@@ -225,7 +224,6 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
     });
     setConfirmDelete(null);
     void apiDeleteTemplate(template.id).catch((err) => {
-      // eslint-disable-next-line no-console
       console.warn('[templates] delete failed; refetching:', err);
       void listTemplates()
         .then(publishTemplates)
@@ -259,7 +257,6 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
       // local state is the source of truth in that mode.
       if (initialTemplates) return;
       void apiUpdateTemplate(templateId, { tags: nextTags }).catch((err) => {
-        // eslint-disable-next-line no-console
         console.warn('[templates] tag update failed; refetching:', err);
         void listTemplates()
           .then(publishTemplates)

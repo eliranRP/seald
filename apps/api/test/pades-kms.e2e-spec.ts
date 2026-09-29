@@ -84,7 +84,6 @@ interface KmsHarness {
 async function tryStartLocalStackKms(): Promise<KmsHarness | null> {
   // Mode 1: is something already at :4566 health-checking out?
   if (await pingLocalStack()) {
-    // eslint-disable-next-line no-console
     console.log('[pades-kms test] Using existing LocalStack at', LOCALSTACK_URL);
     const harness = await provisionKmsKey(
       /* dispose */ () => {
@@ -96,12 +95,10 @@ async function tryStartLocalStackKms(): Promise<KmsHarness | null> {
 
   // Mode 2: try to spawn a container.
   if (!hasDocker()) {
-    // eslint-disable-next-line no-console
     console.warn('[pades-kms test] Docker not available — skipping KMS e2e suite');
     return null;
   }
 
-  // eslint-disable-next-line no-console
   console.log('[pades-kms test] Starting LocalStack container...');
   // -d = detached; --rm = auto-remove on stop; -p = forward port; SERVICES=kms = only KMS.
   let containerId: string;
@@ -113,7 +110,6 @@ async function tryStartLocalStackKms(): Promise<KmsHarness | null> {
       .toString('utf8')
       .trim();
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn(
       `[pades-kms test] Failed to start LocalStack: ${(err as Error).message} — skipping`,
     );
@@ -137,7 +133,6 @@ async function tryStartLocalStackKms(): Promise<KmsHarness | null> {
     await delay(POLL_INTERVAL_MS);
   }
   dispose();
-  // eslint-disable-next-line no-console
   console.warn('[pades-kms test] LocalStack failed to become ready in 60s — skipping');
   return null;
 }
@@ -359,7 +354,6 @@ describeOrSkip('PAdES signing — KmsPadesSigner against LocalStack KMS (e2e)', 
     // Optional: dump for visual inspection.
     const outDir = mkdtempSync(join(tmpdir(), 'seald-kms-e2e-'));
     writeFileSync(join(outDir, 'kms-signed.pdf'), signed);
-    // eslint-disable-next-line no-console
     console.log('[pades-kms test] artifact written to', outDir);
     void TINY_PNG;
     void request;

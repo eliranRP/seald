@@ -64,6 +64,9 @@ export function CheckEmailPage() {
     mode === 'signup'
       ? 'Confirmation link sent — check your email'
       : 'Password reset link sent — check your email';
+  let resendLabel = 'Resend link';
+  if (resendBusy) resendLabel = 'Sending…';
+  else if (mode === 'signup') resendLabel = 'Resend confirmation email';
 
   return (
     <AuthShell>
@@ -80,11 +83,7 @@ export function CheckEmailPage() {
             Back to sign in
           </Secondary>
           <Primary type="button" onClick={handleResend} disabled={resendBusy || !email}>
-            {resendBusy
-              ? 'Sending…'
-              : mode === 'signup'
-                ? 'Resend confirmation email'
-                : 'Resend link'}
+            {resendLabel}
           </Primary>
         </Actions>
       </Wrap>

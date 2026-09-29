@@ -217,7 +217,7 @@ export function useSigningFillController({
         setTextDrawer({ field, kind: uiKind });
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the inline `findNextAfter`/`advanceTo` close over `fields`; listed here so the callback re-binds when fields change instead of running against a stale snapshot.
+    // the inline `findNextAfter`/`advanceTo` close over `fields`; listed here so the callback re-binds when fields change instead of running against a stale snapshot.
     [envelopeId, fillField, navigate, setSignature, fields],
   );
 
@@ -250,7 +250,7 @@ export function useSigningFillController({
       // Auto-advance after a successful text fill.
       advanceTo(findNextAfter(id));
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
+    // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
     [envelopeId, fillField, navigate, textDrawer, fields],
   );
 
@@ -295,7 +295,7 @@ export function useSigningFillController({
       // Auto-advance after a successful signature/initials apply.
       advanceTo(findNextAfter(id));
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
+    // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
     [envelopeId, navigate, setSignature, sigDrawer, fields],
   );
 
@@ -305,7 +305,7 @@ export function useSigningFillController({
 
   const handleDecline = useCallback(async (): Promise<void> => {
     if (busy) return;
-    // eslint-disable-next-line no-alert -- native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
+    // native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
     const confirmed = window.confirm(
       'Decline this signing request? The sender will be notified and the document will remain unsigned.',
     );
@@ -325,7 +325,7 @@ export function useSigningFillController({
     // §7001(c)(1). Mirrored from SigningPrepPage so users get the same
     // explicit warning regardless of which signing-screen step they
     // trigger withdrawal from (issue #41).
-    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
+    // native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
     const confirmed = window.confirm(
       'Withdraw consent to sign this document electronically?\n\n' +
         'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +

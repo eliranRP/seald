@@ -43,7 +43,6 @@ export const Editable: Story = {
     mode: 'using',
     step: 1,
     onRenameTemplate: (next: string) => {
-      /* eslint-disable-next-line no-console */
       console.log('rename to', next);
     },
   },

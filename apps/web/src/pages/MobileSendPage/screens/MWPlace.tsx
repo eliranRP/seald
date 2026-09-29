@@ -192,8 +192,11 @@ const Chip = styled.button<{ $armed: boolean }>`
 
 const FieldShell = styled.div<{ $selected: boolean; $dragging: boolean }>`
   position: absolute;
-  cursor: ${({ $dragging, $selected }) =>
-    $dragging ? 'grabbing' : $selected ? 'grab' : 'pointer'};
+  cursor: ${({ $dragging, $selected }) => {
+    if ($dragging) return 'grabbing';
+    if ($selected) return 'grab';
+    return 'pointer';
+  }};
   z-index: ${({ $selected }) => ($selected ? 10 : 1)};
   touch-action: none;
   user-select: none;
@@ -614,11 +617,12 @@ export function MWPlace(props: MWPlaceProps) {
               const aboveTop = selectedSingle.y - 50;
               const placeBelow = selectedSingle.y < TOOLBAR_TOP_THRESHOLD_PX;
               const belowTop = selectedSingle.y + def.h + TOOLBAR_GAP_PX;
-              const computedTop = placeBelow
-                ? canvasHeight > 0
-                  ? Math.min(belowTop, Math.max(8, canvasHeight - 48))
-                  : belowTop
-                : Math.max(8, aboveTop);
+              let computedTop = Math.max(8, aboveTop);
+              if (placeBelow && canvasHeight > 0) {
+                computedTop = Math.min(belowTop, Math.max(8, canvasHeight - 48));
+              } else if (placeBelow) {
+                computedTop = belowTop;
+              }
               return (
                 <Toolbar
                   data-testid="field-action-toolbar"

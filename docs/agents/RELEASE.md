@@ -26,14 +26,11 @@ Playwright, API e2e, or the PAdES verifier.
 
 The same ignore list skips `playwright.yml`, `security.yml`, and
 `lint-meta.yml`. Chromatic uses a `paths:` allow-list, so a docs-only
-PR does not start that job either. On PR #352 the only checks that ran
-were CodeQL (Analyze actions, Analyze javascript-typescript, CodeQL),
-and they were green. GitHub reported `mergeable: MERGEABLE` and
-`mergeStateStatus: BLOCKED`. This doc does not assert that `ci-success`
-is a required check (the rulesets API returned no rules). If branch
-protection requires `ci-success`, a docs-only PR cannot satisfy it,
-because the job never starts. Treat those checks as absent, not failed
-and not passed.
+PR does not start that job either. CodeQL can still run. This doc does
+not assert that `ci-success` is a required check. If branch protection
+requires `ci-success`, a docs-only PR cannot satisfy it, because the
+job never starts. Treat those checks as absent, not failed and not
+passed.
 
 When CI does run, `ci-success` is the aggregate. `playwright.yml` runs
 the rest of the browser suite. Chromatic uploads visual diffs and exits

@@ -20,8 +20,12 @@ interface GapiGlobal {
 
 let inFlight: Promise<void> | null = null;
 
+interface GapiHost extends Window {
+  gapi?: GapiGlobal;
+}
+
 function readGapi(): GapiGlobal | undefined {
-  return (window as unknown as { gapi?: GapiGlobal }).gapi;
+  return (window as GapiHost).gapi;
 }
 
 export function loadGooglePicker(): Promise<void> {

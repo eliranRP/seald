@@ -43,7 +43,7 @@ export function useMinDuration(flag: boolean, minMs = 2000): boolean {
       startedAt.current = null;
       timerRef.current = null;
     }, remaining);
-    // eslint-disable-next-line consistent-return -- the timer clearout is a cleanup for the branch below
+    // the timer clearout is a cleanup for the branch below
   }, [flag, minMs]);
 
   useEffect(

@@ -10,9 +10,7 @@ import {
 
 vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 
-// eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';
-// eslint-disable-next-line import/first
 import { SigningPrepPage } from './SigningPrepPage';
 
 const get = signApiClient.get as unknown as ReturnType<typeof vi.fn>;

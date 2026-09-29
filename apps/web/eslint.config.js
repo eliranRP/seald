@@ -32,13 +32,59 @@ import storybook from "eslint-plugin-storybook";
 //   15. import-resolver-typescript settings preserved (project: tsconfig.json,
 //       tsconfig.node.json) so the `@/*` alias resolves.
 
+import fs from 'node:fs';
+import path from 'node:path';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y';
 import importPlugin from 'eslint-plugin-import';
+import eslintComments from '@eslint-community/eslint-plugin-eslint-comments';
 import globals from 'globals';
+import { buildComponentLayerZones } from './eslint/component-layers.mjs';
+
+function readList(relativePath) {
+  const file = path.join(import.meta.dirname, relativePath);
+  return fs
+    .readFileSync(file, 'utf8')
+    .split('\n')
+    .map((line) => line.replace(/#.*/, '').trim())
+    .filter((line) => line.length > 0);
+}
+
+const hexAllowlist = readList('eslint/hex-allowlist.txt');
+
+const typeSyntaxBans = [
+  {
+    selector:
+      "TSTypeReference[typeName.type='Identifier'][typeName.name=/^(FC|VFC|FunctionComponent)$/]",
+    message: 'Do not use FC/VFC/FunctionComponent type — declare props explicitly.',
+  },
+  {
+    selector:
+      "TSTypeReference[typeName.type='TSQualifiedName'][typeName.left.name='React'][typeName.right.name=/^(FC|VFC|FunctionComponent)$/]",
+    message:
+      'Do not use React.FC/React.VFC/React.FunctionComponent — declare props explicitly.',
+  },
+  {
+    selector:
+      "TSAsExpression[expression.type='TSAsExpression'][expression.typeAnnotation.type='TSUnknownKeyword']",
+    message:
+      'Do not use `as unknown as`. Narrow the value, or use a single assertion when the types already overlap.',
+  },
+];
+
+const hexSyntaxBans = [
+  {
+    selector: 'Literal[value=/^#[0-9A-Fa-f]{3,8}$/]',
+    message: 'Hex literals are banned — read the color from theme.* (tokens.css).',
+  },
+  {
+    selector: 'TemplateElement[value.raw=/#[0-9A-Fa-f]{3,8}/]',
+    message: 'Hex literals are banned — read the color from theme.* (tokens.css).',
+  },
+];
 
 export default tseslint.config(// Ignores (was apps/web/.eslintignore). The flat config file itself is
 // ignored from the type-aware parser path because it is intentionally not
@@ -54,6 +100,8 @@ export default tseslint.config(// Ignores (was apps/web/.eslintignore). The flat
     'coverage/**',
     '.vite/**',
     'eslint.config.js',
+    'eslint/**',
+    'scripts/**',
     // Playwright e2e + config — not part of any tsconfig project, so the
     // typescript-eslint parser would fail with "file was not found in any
     // of the provided project(s)". Linting these files isn't critical;
@@ -63,17 +111,9 @@ export default tseslint.config(// Ignores (was apps/web/.eslintignore). The flat
     'playwright-report/**',
     'test-results/**',
   ],
-}, // Project-wide linterOptions. Many `// eslint-disable-next-line ...`
-// directives in the source target rules that came from the legacy `airbnb`
-// preset (e.g. `react/no-array-index-key`, `no-param-reassign`,
-// `import/first`, `no-alert`, `consistent-return`, `max-classes-per-file`,
-// `class-methods-use-this`, `no-await-in-loop`). Airbnb is now removed
-// (it was already dormant) so those rules are off and the directives are
-// flagged as "unused". Turning the report off keeps this migration
-// zero-source-churn; a future cleanup pass can sweep the directives out.
-{
+}, {
   linterOptions: {
-    reportUnusedDisableDirectives: 'off',
+    reportUnusedDisableDirectives: 'error',
   },
 }, // Base JS recommended rules.
 js.configs.recommended, // typescript-eslint recommended (non type-checked baseline; type-checked
@@ -98,6 +138,7 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
   },
   plugins: {
     'react-hooks': reactHooksPlugin,
+    '@eslint-community/eslint-comments': eslintComments,
   },
   settings: {
     react: { version: 'detect' },
@@ -122,6 +163,13 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
     'react-hooks/set-state-in-effect': 'off',
     'react-hooks/preserve-manual-memoization': 'off',
     'react-hooks/purity': 'off',
+
+    // Directive comments are forbidden. Justified exceptions live in the
+    // overrides below (test mocks, Vite worker query imports, a few hooks
+    // whose dependency lists are intentionally stable).
+    '@eslint-community/eslint-comments/no-use': 'error',
+    '@typescript-eslint/no-non-null-assertion': 'error',
+    'no-nested-ternary': 'error',
 
     'import/prefer-default-export': 'off',
     'import/no-default-export': 'error',
@@ -156,77 +204,10 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
             from: './src/components',
             message: 'Layer boundary: L0 (styles) must not import from components.',
           },
-          // L1 (primitives) must not import from L2/L3.
-          {
-            target: [
-              './src/components/Badge',
-              './src/components/Button',
-              './src/components/Avatar',
-              './src/components/Icon',
-              './src/components/TextField',
-              './src/components/DocThumb',
-              './src/components/EmptyState',
-              './src/components/SignatureMark',
-              './src/components/StatCard',
-            ],
-            from: [
-              './src/components/AddSignerDropdown',
-              './src/components/EmailMasthead',
-              './src/components/FieldsPlacedList',
-              './src/components/FilterTabs',
-              './src/components/PageHeader',
-              './src/components/PageThumbStrip',
-              './src/components/PageToolbar',
-              './src/components/PlacedField',
-              './src/components/SendPanelFooter',
-              './src/components/StatusBadge',
-              './src/components/SignatureField',
-              './src/components/SignerRow',
-              './src/components/CollapsibleRail',
-              './src/components/DocumentCanvas',
-              './src/components/EmailCard',
-              './src/components/FieldPalette',
-              './src/components/FieldsBar',
-              './src/components/NavBar',
-              './src/components/PlaceOnPagesPopover',
-              './src/components/SelectSignersPopover',
-              './src/components/SideBar',
-              './src/components/SignaturePad',
-              './src/components/SignersPanel',
-            ],
-            message: 'Layer boundary: L1 primitives must not import from L2/L3 components.',
-          },
-          // L2 (domain) must not import from L3.
-          {
-            target: [
-              './src/components/AddSignerDropdown',
-              './src/components/EmailMasthead',
-              './src/components/FieldsPlacedList',
-              './src/components/FilterTabs',
-              './src/components/PageHeader',
-              './src/components/PageThumbStrip',
-              './src/components/PageToolbar',
-              './src/components/PlacedField',
-              './src/components/SendPanelFooter',
-              './src/components/StatusBadge',
-              './src/components/SignatureField',
-              './src/components/SignerRow',
-            ],
-            from: [
-              './src/components/CollapsibleRail',
-              './src/components/DocumentCanvas',
-              './src/components/EmailCard',
-              './src/components/FieldPalette',
-              './src/components/FieldsBar',
-              './src/components/NavBar',
-              './src/components/PlaceOnPagesPopover',
-              './src/components/SelectSignersPopover',
-              './src/components/SideBar',
-              './src/components/SignaturePad',
-              './src/components/SignersPanel',
-            ],
-            message: 'Layer boundary: L2 domain components must not import from L3 widgets.',
-          },
+          // L1–L3 zones are folder globs. L1 is every component directory
+          // that is not a higher layer (new folders are L1 until a story
+          // title says otherwise). See eslint/component-layers.mjs.
+          ...buildComponentLayerZones(),
           // Signer surface isolation — the public /sign/* flow must not
           // import any Supabase-aware code or the authenticated apiClient.
           // This makes a future split into a dedicated `apps/sign` package
@@ -235,12 +216,8 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
           {
             target: [
               './src/features/signing',
-              './src/pages/SigningEntryPage',
-              './src/pages/SigningPrepPage',
-              './src/pages/SigningFillPage',
-              './src/pages/SigningReviewPage',
-              './src/pages/SigningDonePage',
-              './src/pages/SigningDeclinedPage',
+              // New Signing* page folders are included without editing this list.
+              './src/pages/Signing*/**',
               './src/components/RecipientHeader',
               './src/components/DocumentPageCanvas',
               './src/components/SignerField',
@@ -268,26 +245,21 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
         ],
       },
     ],
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector:
-          "TSTypeReference[typeName.type='Identifier'][typeName.name=/^(FC|VFC|FunctionComponent)$/]",
-        message: 'Do not use FC/VFC/FunctionComponent type — declare props explicitly.',
-      },
-      {
-        selector:
-          "TSTypeReference[typeName.type='TSQualifiedName'][typeName.left.name='React'][typeName.right.name=/^(FC|VFC|FunctionComponent)$/]",
-        message:
-          'Do not use React.FC/React.VFC/React.FunctionComponent — declare props explicitly.',
-      },
-    ],
+    'no-restricted-syntax': ['error', ...typeSyntaxBans],
     // Lock in rule 1.6 — once an import has to climb two or more levels
     // it should use the `@/*` alias instead. Same-dir (`./Foo`) and
     // parent-dir (`../sibling`) imports remain idiomatic and are allowed.
     'no-restricted-imports': [
       'error',
       {
+        paths: [
+          {
+            name: '@signpdf/utils',
+            importNames: ['extractSignature'],
+            message:
+              'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() from pades-verify-helpers.ts.',
+          },
+        ],
         patterns: [
           {
             group: ['../../*', '../../../*', '../../../../*'],
@@ -297,21 +269,21 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
       },
     ],
   },
-}, // Override: hex literals banned in component styles.
+}, // Hex literals banned in product styles and TSX. Token definitions
+// live in src/styles/theme.ts and tokens.css, which are outside this
+// glob. Stories, tests, and eslint/hex-allowlist.txt are the design-cycle
+// remainder.
 {
-  files: ['src/components/**/*.styles.ts'],
+  files: ['src/**/*.styles.ts', 'src/**/*.tsx', 'src/features/templates/tagColors.ts'],
+  ignores: [
+    '**/*.test.tsx',
+    '**/*.spec.tsx',
+    '**/*.stories.tsx',
+    'src/test/**',
+    ...hexAllowlist,
+  ],
   rules: {
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector: 'Literal[value=/^#[0-9A-Fa-f]{3,8}$/]',
-        message: 'Hex literals are banned in component styles — read from theme.*',
-      },
-      {
-        selector: 'TemplateElement[value.raw=/#[0-9A-Fa-f]{3,8}/]',
-        message: 'Hex literals are banned in component styles — read from theme.*',
-      },
-    ],
+    'no-restricted-syntax': ['error', ...typeSyntaxBans, ...hexSyntaxBans],
   },
 }, // Override: tests, stories, .storybook, src/test.
 {
@@ -323,6 +295,36 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
     // Tests + stories migrate to `@/*` in a separate worktree — disable
     // the deep-relative guard here so this commit doesn't churn them.
     'no-restricted-imports': 'off',
+    // vi.mock() is registered before the import that consumes it.
+    'import/first': 'off',
+    // cookieConsent / dsar tests execute a copied IIFE source.
+    'no-eval': 'off',
+    // Fixture casts (`as unknown as`) and non-null checks on test data
+    // stay until the testing cycle. Production source is enforced above.
+    '@typescript-eslint/no-non-null-assertion': 'off',
+    'no-nested-ternary': 'off',
+    'no-restricted-syntax': ['error', ...typeSyntaxBans.slice(0, 2)],
+  },
+}, // Hooks that intentionally keep a stable dependency list. Inline
+// disable comments are forbidden; the reason lives next to the effect.
+{
+  files: [
+    'src/hooks/useColumnWidths.ts',
+    'src/features/signingFill/model/useSigningFillController.ts',
+    'src/components/UserMenu/UserMenu.tsx',
+    'src/routes/TemplateEditorRoute.tsx',
+    'src/routes/UploadRoute.tsx',
+    'src/lib/pdf.ts',
+  ],
+  rules: {
+    'react-hooks/exhaustive-deps': 'off',
+  },
+}, // Vite `?worker&url` imports are not resolvable by the TS import resolver.
+{
+  files: ['src/lib/pdf.ts', 'src/lib/pdfjsWorker.ts'],
+  rules: {
+    'import/no-unresolved': 'off',
+    'import/extensions': 'off',
   },
 }, // Override: build/dev configs that legitimately default-export.
 {

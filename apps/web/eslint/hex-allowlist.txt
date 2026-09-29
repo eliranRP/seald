@@ -1,0 +1,18 @@
+# Product styles and TSX that still contain hex color literals.
+# Design cycles replace these with theme tokens. Do not add files.
+# Review by 2026-12-31.
+src/pages/MobileGdriveReturnPage.tsx
+src/pages/MobileSendPage/components/MWAddSignerSheet.tsx
+src/pages/MobileSendPage/components/MWApplyPagesSheet.tsx
+src/pages/MobileSendPage/components/MWAssignSignersSheet.tsx
+src/pages/MobileSendPage/components/MWMobileNav.tsx
+src/pages/MobileSendPage/components/PageFilmstrip.tsx
+src/pages/MobileSendPage/screens/MWFile.tsx
+src/pages/MobileSendPage/screens/MWIntegrations.tsx
+src/pages/MobileSendPage/screens/MWPlace.tsx
+src/pages/MobileSendPage/screens/MWReview.tsx
+src/pages/MobileSendPage/screens/MWSent.tsx
+src/pages/MobileSendPage/screens/MWSigners.tsx
+src/pages/MobileSendPage/screens/MWStart.tsx
+src/pages/UseTemplatePage/UseTemplatePage.tsx
+src/pages/VerifyPage/VerifyPage.tsx

@@ -199,8 +199,8 @@ const UpsellBtn = styled.button`
 const UpsellError = styled.div`
   margin-top: 10px;
   padding: 8px 12px;
-  /* Item 20 — replaced hardcoded rgba(239,68,68,0.12) bg and #fecaca text
-     with theme tokens. The Upsell sits on a dark ink[900] surface so we
+  /* Item 20 — replaced a hardcoded translucent red background and
+     danger-200 text with theme tokens. The Upsell sits on a dark ink[900] surface so we
      use danger[500] (with 0.12 alpha) for the soft bg and danger[50]
      (light) for the text — passes WCAG AA at micro size. */
   background: rgba(239, 68, 68, 0.12);

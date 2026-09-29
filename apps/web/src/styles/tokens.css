@@ -30,9 +30,25 @@
   --warn-500: #f59e0b;
   --warn-700: #b45309;
   --danger-50: #fef2f2;
+  --danger-200: #fecaca;
   --danger-500: #ef4444;
   --danger-700: #b91c1c;
   --info-50: #eff6ff;
+  --pink-50: #fdf2f8;
+  --pink-700: #be185d;
+  --violet-50: #f5f3ff;
+  --violet-700: #6d28d9;
+  --cyan-50: #ecfeff;
+  --cyan-700: #0e7490;
+  --green-50: #f0fdf4;
+  --green-700: #166534;
+  --google-blue: #4285f4;
+  --google-green: #34a853;
+  --google-yellow: #fbbc05;
+  --google-red: #ea4335;
+  --drive-blue: #4285f4;
+  --drive-green: #1fa463;
+  --drive-yellow: #fbbc04;
   --info-500: #3b82f6;
   --info-700: #1d4ed8;
 

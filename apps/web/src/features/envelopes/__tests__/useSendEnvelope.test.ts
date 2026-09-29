@@ -9,11 +9,8 @@ vi.mock('../envelopesApi', () => ({
   sendEnvelope: vi.fn(),
 }));
 
-// eslint-disable-next-line import/first
 import * as api from '../envelopesApi';
-// eslint-disable-next-line import/first
 import { useSendEnvelope } from '../useSendEnvelope';
-// eslint-disable-next-line import/first
 import type { FieldPlacement } from '../envelopesApi';
 
 const createEnvelope = api.createEnvelope as unknown as ReturnType<typeof vi.fn>;

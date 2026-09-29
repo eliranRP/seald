@@ -25,9 +25,7 @@ vi.mock('@/features/gdriveExport', () => ({
   useSaveEnvelopeToGdrive: () => ({ inFlight: false, save: saveMock }),
 }));
 
-// eslint-disable-next-line import/first
 import { apiClient } from '../../lib/api/apiClient';
-// eslint-disable-next-line import/first
 import { EnvelopeDetailPage } from './EnvelopeDetailPage';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;
@@ -405,8 +403,7 @@ describe('EnvelopeDetailPage', () => {
       opener: { x: 1 } as unknown,
       location: { href: 'about:blank' },
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(window, 'open').mockReturnValue(w as any);
+    vi.spyOn(window, 'open').mockReturnValue(w as unknown as Window);
     // The primary download path also calls GET /envelopes/:id/download.
     get.mockImplementation((url: string) => {
       if (url.endsWith('/events')) {
@@ -480,8 +477,7 @@ describe('EnvelopeDetailPage', () => {
       opener: null as unknown,
       location: { href: 'about:blank' },
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    vi.spyOn(window, 'open').mockReturnValue(w as any);
+    vi.spyOn(window, 'open').mockReturnValue(w as unknown as Window);
 
     get.mockImplementation((url: string) => {
       if (url.endsWith('/events')) {

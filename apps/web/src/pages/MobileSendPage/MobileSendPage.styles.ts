@@ -10,7 +10,7 @@ import styled, { css } from 'styled-components';
 export const Shell = styled.div`
   position: relative;
   min-height: 100dvh;
-  background: #fff;
+  background: ${({ theme }) => theme.color.paper};
   font-family: ${({ theme }) => theme.font.sans};
   display: flex;
   flex-direction: column;
@@ -133,7 +133,7 @@ export const PrimaryBtn = styled.button`
   padding: 14px;
   border-radius: 14px;
   background: var(--indigo-600);
-  color: #fff;
+  color: ${({ theme }) => theme.color.paper};
   font-size: 15px;
   font-weight: 600;
   display: inline-flex;
@@ -154,7 +154,7 @@ export const PrimaryBtn = styled.button`
 `;
 
 export const SecondaryBtn = styled(PrimaryBtn)`
-  background: #fff;
+  background: ${({ theme }) => theme.color.paper};
   color: var(--fg-1);
   border: 1px solid var(--border-1);
 
@@ -173,7 +173,7 @@ export const SheetBackdrop = styled.div`
 `;
 
 export const SheetSurface = styled.div`
-  background: #fff;
+  background: ${({ theme }) => theme.color.paper};
   width: 100%;
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
@@ -209,10 +209,10 @@ export const SheetTitle = styled.div`
 export const ErrorBanner = styled.div`
   margin: 0 16px 12px;
   padding: 12px 14px;
-  background: var(--danger-subtle, #fef2f2);
-  border: 1px solid var(--danger-200, #fecaca);
+  background: ${({ theme }) => theme.color.danger[50]};
+  border: 1px solid ${({ theme }) => theme.color.danger[200]};
   border-radius: 12px;
-  color: var(--danger-700, #b91c1c);
+  color: ${({ theme }) => theme.color.danger[700]};
   font-size: 13px;
   line-height: 1.4;
 `;

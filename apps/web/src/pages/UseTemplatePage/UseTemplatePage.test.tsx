@@ -17,18 +17,12 @@ vi.mock('../../features/templates/templatesApi', async (importOriginal) => {
 
 // Type-only import for the vi.mock factory above. Lives at module scope
 // so it's tree-shaken at runtime but still typechecks the mock surface.
-// eslint-disable-next-line import/first
 import type * as TemplatesApiModule from '../../features/templates/templatesApi';
 
-// eslint-disable-next-line import/first
 import { UseTemplatePage } from './UseTemplatePage';
-// eslint-disable-next-line import/first
 import { setTemplates } from '../../features/templates';
-// eslint-disable-next-line import/first
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
-// eslint-disable-next-line import/first
 import { renderWithProviders } from '../../test/renderWithProviders';
-// eslint-disable-next-line import/first
 import { updateTemplate as apiUpdateTemplate } from '../../features/templates/templatesApi';
 
 const updateTemplateMock = apiUpdateTemplate as unknown as ReturnType<typeof vi.fn>;

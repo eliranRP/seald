@@ -282,7 +282,7 @@ export const InnerDot = styled.div`
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #fff;
+  background: ${({ theme }) => theme.color.paper};
 `;
 
 /* ---- Done state ---- */
@@ -296,7 +296,7 @@ export const DoneCheck = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: ${({ theme }) => theme.color.paper};
   animation: ${checkPop} 400ms cubic-bezier(0.5, 1.8, 0.5, 1);
   ${reducedMotion}
 `;

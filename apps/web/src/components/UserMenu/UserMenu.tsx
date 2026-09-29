@@ -65,20 +65,16 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
 
   // Forward the external ref to the wrapper, but keep the internal ref for
   // outside-click detection.
-  // eslint-disable-next-line no-param-reassign -- ref forwarding idiom.
-  const setRoot = useCallback(
-    (node: HTMLDivElement | null): void => {
-      (rootRef as { current: HTMLDivElement | null }).current = node;
-      if (typeof ref === 'function') {
-        ref(node);
-      } else if (ref) {
-        // eslint-disable-next-line no-param-reassign -- ref forwarding idiom.
-        (ref as { current: HTMLDivElement | null }).current = node;
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  // ref forwarding idiom.
+  const setRoot = useCallback((node: HTMLDivElement | null): void => {
+    (rootRef as { current: HTMLDivElement | null }).current = node;
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      // ref forwarding idiom.
+      (ref as { current: HTMLDivElement | null }).current = node;
+    }
+  }, []);
 
   return (
     <Root ref={setRoot} {...rest}>

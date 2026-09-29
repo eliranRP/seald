@@ -67,24 +67,22 @@ export const SignatureField = forwardRef<HTMLDivElement, SignatureFieldProps>((p
       $hasSignatureLine={showGuide && !isCheckbox}
       onKeyDown={handleKeyDown}
     >
-      {showGuide ? (
-        isCheckbox ? (
-          <CheckboxPreview />
-        ) : (
-          <>
-            <span>
-              <Icon icon={KindIcon} size={16} />
-              {kindLabel}
-            </span>
-            <SignatureLine />
-          </>
-        )
-      ) : (
+      {showGuide && isCheckbox ? <CheckboxPreview /> : null}
+      {showGuide && !isCheckbox ? (
+        <>
+          <span>
+            <Icon icon={KindIcon} size={16} />
+            {kindLabel}
+          </span>
+          <SignatureLine />
+        </>
+      ) : null}
+      {!showGuide ? (
         <>
           <Icon icon={KindIcon} size={16} />
           <span>{kindLabel}</span>
         </>
-      )}
+      ) : null}
     </FieldRoot>
   );
 });

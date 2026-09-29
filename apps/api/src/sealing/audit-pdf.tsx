@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unknown-property */
 import { join } from 'node:path';
 import {
   Document,
@@ -1315,6 +1314,18 @@ function ParticipantCard({ data }: { data: ParticipantData }): React.ReactElemen
   const isSigner = data.role === 'signatory';
   const roleColor = isSigner ? C.success700 : C.indigo700;
   const dotColor = isSigner ? C.success500 : C.indigo600;
+  let signatureNode: React.ReactElement | null = null;
+  if (data.signatureText) {
+    signatureNode = (
+      <>
+        <Text style={styles.pSigMark}>{data.signatureText}</Text>
+        <View style={styles.pSigUnderline} />
+        {data.signatureMeta ? <Text style={styles.pSigMeta}>{data.signatureMeta}</Text> : null}
+      </>
+    );
+  } else if (data.signatureMeta) {
+    signatureNode = <Text style={styles.pSigMetaInline}>{data.signatureMeta}</Text>;
+  }
   return (
     <View style={styles.participant} wrap={false}>
       <View style={styles.pHead}>
@@ -1332,17 +1343,7 @@ function ParticipantCard({ data }: { data: ParticipantData }): React.ReactElemen
           <Text style={styles.pSigEyebrow}>
             {data.isProposer ? 'INITIATED THE REQUEST' : 'SIGNATURE'}
           </Text>
-          {data.signatureText ? (
-            <>
-              <Text style={styles.pSigMark}>{data.signatureText}</Text>
-              <View style={styles.pSigUnderline} />
-              {data.signatureMeta ? (
-                <Text style={styles.pSigMeta}>{data.signatureMeta}</Text>
-              ) : null}
-            </>
-          ) : data.signatureMeta ? (
-            <Text style={styles.pSigMetaInline}>{data.signatureMeta}</Text>
-          ) : null}
+          {signatureNode}
         </View>
       </View>
       <View style={styles.pMeta}>
@@ -1649,18 +1650,22 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
   const validators = env.signers.filter((s) => s.role === 'validator').length;
   const witnesses = env.signers.filter((s) => s.role === 'witness').length;
   const originIp = firstEventIp(ctx.events, ['created', 'sent']) ?? '—';
+  let terminalLabel = 'Status';
+  if (env.completed_at) terminalLabel = 'Completed';
+  else if (env.status === 'declined') terminalLabel = 'Declined';
+  let terminalValue = humanEnvelopeStatus(env.status);
+  if (env.completed_at) terminalValue = formatDateTimeFull(env.completed_at);
+  else if (env.status === 'declined') {
+    terminalValue = deriveDeclinedAt(ctx) ?? formatDateTimeFull(env.updated_at);
+  }
 
   return [
     { label: 'Proposer', value: proposer.name },
     { label: 'Proposer email', value: proposer.email, mono: true },
     { label: 'Created', value: formatDateTimeFull(env.created_at) },
     {
-      label: env.completed_at ? 'Completed' : env.status === 'declined' ? 'Declined' : 'Status',
-      value: env.completed_at
-        ? formatDateTimeFull(env.completed_at)
-        : env.status === 'declined'
-          ? (deriveDeclinedAt(ctx) ?? formatDateTimeFull(env.updated_at))
-          : humanEnvelopeStatus(env.status),
+      label: terminalLabel,
+      value: terminalValue,
     },
     { label: 'Origin IP address', value: originIp, mono: true },
     { label: 'Request identifier', value: env.id.toUpperCase(), mono: true },
@@ -1795,14 +1800,9 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   let signatureMeta: string | null = null;
   if (signer.signed_at !== null) {
     signatureText = humanSignatureMark(signer);
-    const formatName =
-      sigFormat === 'typed'
-        ? 'Text'
-        : sigFormat === 'drawn'
-          ? 'Drawn'
-          : sigFormat === 'upload'
-            ? 'Uploaded'
-            : 'Text';
+    let formatName = 'Text';
+    if (sigFormat === 'drawn') formatName = 'Drawn';
+    else if (sigFormat === 'upload') formatName = 'Uploaded';
     signatureMeta = `${formatName} format · Captured at ${formatTimeShort(signer.signed_at)} UTC`;
   } else if (signer.declined_at !== null) {
     signatureText = '—';

@@ -20,7 +20,7 @@ export class FieldPlacementDto {
   @IsUUID()
   readonly signer_id!: string;
 
-  @IsIn(FIELD_KINDS as unknown as string[])
+  @IsIn([...FIELD_KINDS])
   readonly kind!: FieldKind;
 
   @IsInt()

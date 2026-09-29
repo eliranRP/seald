@@ -492,11 +492,11 @@ includes pink, violet, and cyan. Those hues are outside `tokens.css`.
 3. **`tokens.css` is a subset.** Type, space, radius, motion, and z-index
    are JS-only in the SPA. The Design-Guide CSS file has them as variables.
    Do not expect `var(--sp-4)` to exist in the app.
-4. **Hex outside the theme.** `tagColors.ts`, signer palettes in
-   `lib/mockApi/data/palette.ts`, `pages/VerifyPage/VerifyPage.tsx`,
-   `pages/UseTemplatePage`, cover color `#EEF2FF` in the document and
-   template routes, and many literals under `pages/MobileSendPage/`.
-   ESLint only blocks hex in `components/**/*.styles.ts`.
+4. **Hex outside the theme.** ESLint bans hex in `src/**/*.styles.ts`,
+   `src/**/*.tsx`, and `features/templates/tagColors.ts`. The design-cycle
+   remainder is `apps/web/eslint/hex-allowlist.txt` (review by 2026-12-31):
+   `VerifyPage`, `UseTemplatePage`, and the `MobileSendPage` screens.
+   `lib/mockApi` fixtures are `.ts` and outside that ban.
 5. **Focus and hit area.** Global 2px outline plus per-component 4px halo.
    `NavBar` auth buttons are 34px tall. `Button` sm/md are shorter than
    44px. `TextField` help text is 12px while the caption token is 13px.

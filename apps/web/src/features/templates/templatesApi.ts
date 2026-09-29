@@ -144,6 +144,12 @@ export async function bumpUseCount(id: string, signal?: AbortSignal): Promise<Te
   return toSummary(data);
 }
 
+function browserMultipartHeaders(): Exclude<AxiosRequestConfig['headers'], undefined> {
+  const headers: { 'Content-Type'?: string } = {};
+  Reflect.set(headers, 'Content-Type', undefined);
+  return headers;
+}
+
 /**
  * Upload (or replace) the template's example PDF. Returns the updated
  * template summary so the caller can flip `hasExamplePdf` in the
@@ -164,8 +170,10 @@ export async function uploadTemplateExamplePdf(
       ...configWithSignal(signal),
       // Let the browser set the multipart boundary — overriding it
       // strips the boundary parameter and breaks the parser.
-      headers: { 'Content-Type': undefined as unknown as string },
-    } as AxiosRequestConfig,
+      // Reflect keeps the runtime value `undefined` (axios omits the
+      // header) without a cast that pretends the value is a string.
+      headers: browserMultipartHeaders(),
+    },
   );
   return toSummary(data);
 }

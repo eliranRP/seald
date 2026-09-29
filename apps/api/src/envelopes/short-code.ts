@@ -31,7 +31,8 @@ export function isValidShortCode(s: unknown): s is string {
   if (typeof s !== 'string') return false;
   if (s.length !== SHORT_CODE_LENGTH) return false;
   for (let i = 0; i < s.length; i++) {
-    if (!SHORT_CODE_ALPHABET.includes(s[i]!)) return false;
+    const ch = s[i];
+    if (ch === undefined || !SHORT_CODE_ALPHABET.includes(ch)) return false;
   }
   return true;
 }

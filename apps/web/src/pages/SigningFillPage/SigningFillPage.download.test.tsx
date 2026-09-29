@@ -18,9 +18,7 @@ vi.mock('pdfjs-dist', () => ({
   GlobalWorkerOptions: { workerSrc: '' },
 }));
 
-// eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';
-// eslint-disable-next-line import/first
 import { SigningFillPage } from './SigningFillPage';
 
 const get = signApiClient.get as unknown as ReturnType<typeof vi.fn>;
