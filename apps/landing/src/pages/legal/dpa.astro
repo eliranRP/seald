@@ -67,7 +67,7 @@ const VERSION = 'dpa_v0.1';
           <li><strong>EU SCCs Module 2</strong> (controller-to-processor) or <strong>Module 3</strong> (processor-to-processor), which the parties hereby execute and incorporate by reference. Specific Module 2 selections: Clause 7 (docking) is included; Clause 9(a) Option 2 (general written authorization) governs Sub-processors with the thirty-day notice in Section 4 above; Clause 11(a) optional language on independent dispute resolution is omitted; Clause 17 governing law is the law of Ireland; Clause 18 forum and jurisdiction is the courts of Ireland; Annexes I.A, I.B, I.C, and II are completed by reference to Annex I and Annex II of this DPA.</li>
           <li>For UK-origin transfers, the <strong>UK Addendum</strong> to the EU SCCs (or, where the parties prefer, the <strong>UK IDTA</strong>) is incorporated and completed using the same Annex information.</li>
         </ol>
-        <p>Seald has performed a Transfer Impact Assessment ("TIA"), available on request, that documents the supplementary technical and organizational measures (encryption at rest with AES-256 in customer-controllable key contexts, TLS 1.3 in transit, U.S. surveillance-law assessment, government-request transparency).</p>
+        <p>Seald has performed a Transfer Impact Assessment ("TIA"), available on request, that documents the supplementary technical and organizational measures (encryption in transit using TLS and encryption at rest by our infrastructure providers, U.S. surveillance-law assessment, government-request transparency).</p>
       </section>
 
       <section id="liability">
@@ -90,7 +90,7 @@ const VERSION = 'dpa_v0.1';
           <li><strong>Categories of Personal Data:</strong> name, email, optional phone, IP address, user agent, drawn or typed signature image, document content provided by the Customer, audit-event metadata.</li>
           <li><strong>Sensitive data:</strong> none collected by Seald; any Sensitive Personal Information present in Customer-uploaded documents is incidental and processed only as part of the document content.</li>
           <li><strong>Frequency:</strong> continuous for the duration of the Agreement.</li>
-          <li><strong>Nature of processing:</strong> hosting, transmission, signing, sealing (PAdES-LT), audit-trail capture, retention, deletion.</li>
+          <li><strong>Nature of processing:</strong> hosting, transmission, signing, sealing (PAdES seal when applied), audit-trail capture, retention, deletion.</li>
           <li><strong>Purpose:</strong> providing the Service.</li>
           <li><strong>Retention:</strong> as set out in our <a href="/legal/privacy">Privacy Policy</a>; default seven (7) years for completed envelopes.</li>
         </ul>
@@ -101,9 +101,9 @@ const VERSION = 'dpa_v0.1';
       <section id="annex-ii">
         <h2>Annex II — Technical and organizational measures</h2>
         <ul>
-          <li><strong>Encryption.</strong> AES-256 at rest for object storage and database backups; TLS 1.3 for all client and inter-service traffic.</li>
+          <li><strong>Encryption.</strong> Data is encrypted in transit using TLS and at rest by our infrastructure providers.</li>
           <li><strong>Cryptographic key management.</strong> Document-sealing keys are held in AWS Key Management Service (KMS) in us-east-2; private key material is non-exportable from KMS.</li>
-          <li><strong>Document integrity.</strong> Sealed PDFs use the PAdES long-term-validation profile (ETSI EN 319 142) with timestamps from RFC 3161 Time-Stamp Authorities.</li>
+          <li><strong>Document integrity.</strong> Completed files include a PAdES seal when applied and an RFC 3161 timestamp when available.</li>
           <li><strong>Audit chain.</strong> Each audit event includes a SHA-256 hash of the prior event, surfacing tampering.</li>
           <li><strong>Access control.</strong> Role-based access; multi-factor authentication for personnel access to production; least-privilege defaults.</li>
           <li><strong>Logging and monitoring.</strong> Authentication and access logs retained for eighteen (18) months.</li>

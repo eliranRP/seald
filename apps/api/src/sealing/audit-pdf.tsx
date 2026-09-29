@@ -41,6 +41,21 @@ import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Cover line on the certificate of completion.
+ *
+ * A PAdES CMS seal is applied only when `SealingModule` selects
+ * `KmsPadesSigner` or `P12PadesSigner`. `NoopPadesSigner` uploads the
+ * burned-in PDF with a SHA-256 and no CMS signature. An RFC 3161
+ * timestamp is requested only when a TSA URL is configured, and a
+ * failed round-trip degrades to a seal with no timestamp
+ * (`kms-cms-signer.ts`, `tsa-client.ts`). `ENVELOPE_RETENTION_YEARS`
+ * does not purge anything, so this line does not promise a retention
+ * period.
+ */
+export const AUDIT_TRAIL_OPERATOR_LINE =
+  'Seald · PAdES seal when applied · RFC 3161 timestamp when available';
+
 export interface AuditPdfInput {
   readonly envelope: Envelope;
   /** All envelope_events ordered ascending by created_at. The repo already
@@ -59,11 +74,6 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
-  /** T-22 — retention window (years). Mirrors `ENVELOPE_RETENTION_YEARS`
-   *  from `apps/api/src/config/env.schema.ts`. Surfaced on the
-   *  Certificate of Completion cover so the printed PDF is the legal
-   *  authoritative record of what we committed to retain. */
-  readonly retentionYears: number;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -86,7 +96,6 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
-      retentionYears={input.retentionYears}
     />,
   );
   // renderToBuffer returns Buffer in Node; widen the type for the call
@@ -369,9 +378,8 @@ const styles = StyleSheet.create({
     maxWidth: '72%',
     marginTop: 8,
   },
-  // T-22 — operator + retention banner just below the hero subtitle.
-  // Tight 7.5pt caption so it doesn't compete with the hero text but
-  // the legal authoritative retention commitment is on the printed PDF.
+  // Operator line under the hero subtitle. Tight 7.5pt caption so it
+  // doesn't compete with the hero text. Wording is AUDIT_TRAIL_OPERATOR_LINE.
   heroOperator: {
     fontFamily: 'Inter',
     fontSize: 7.5,
@@ -956,7 +964,6 @@ interface DocumentRenderProps {
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
-  retentionYears: number;
 }
 
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
@@ -971,7 +978,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
     >
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
-        <Hero envelope={props.envelope} retentionYears={props.retentionYears} />
+        <Hero envelope={props.envelope} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -1018,7 +1025,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>
-          This audit trail was issued by Seald, Inc. For questions, contact
+          This audit trail was issued by Seald. For questions, contact
           support@seald.nromomentum.com. The document on file is authoritative — this attestation
           describes what we observed during signing and the cryptographic evidence we retained.
         </Text>
@@ -1099,7 +1106,7 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
             <SealdMark size={10} />
           </View>
           <Text style={styles.footerBrandWord}>Seald</Text>
-          <Text style={styles.footerCaption}>· Audit trail issued by Seald, Inc.</Text>
+          <Text style={styles.footerCaption}>· Audit trail issued by Seald</Text>
         </View>
         {/* react-pdf 4.5 has a known issue where a Text with a `render`
             callback collapses its parent row when paired with `fixed`.
@@ -1113,13 +1120,7 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({
-  envelope,
-  retentionYears,
-}: {
-  envelope: Envelope;
-  retentionYears: number;
-}): React.ReactElement {
+function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
   const completed = envelope.completed_at
     ? formatDateShort(envelope.completed_at)
     : formatDateShort(envelope.created_at);
@@ -1139,14 +1140,13 @@ function Hero({
         fingerprint of the file before and after signing. Definitions for every field are on the
         last page.
       </Text>
-      {/* T-22 — operator attribution + retention commitment. Printed
-          alongside the audit trail so the certificate is self-describing
-          if it surfaces later as legal evidence detached from the live
-          service. */}
-      <Text style={styles.heroOperator}>
-        Issued by Seald, Inc. · Retained for {retentionYears} years from sealing · PAdES-LT Advanced
-        Electronic Signature
-      </Text>
+      {/* A CMS seal exists only for KmsPadesSigner / P12PadesSigner
+          (NoopPadesSigner returns the PDF unchanged). An RFC 3161
+          timestamp is best-effort and is omitted when the TSA is unset
+          or the round-trip fails. Nothing deletes sealed files when
+          ENVELOPE_RETENTION_YEARS elapses, so this line states neither
+          a retention period nor a long-term validation profile. */}
+      <Text style={styles.heroOperator}>{AUDIT_TRAIL_OPERATOR_LINE}</Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
         <Text style={styles.sealScript}>Sealed</Text>

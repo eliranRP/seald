@@ -2,8 +2,8 @@
  * User-facing product claims that must stay aligned with what the code
  * actually does. Marketing and the SPA should import these strings.
  * HTML email templates copy the sentences they need; they cannot import
- * TypeScript. Audit PDF strings
- * and email entity defaults stay with a later cycle.
+ * TypeScript. The audit-trail cover line lives next to the renderer
+ * (`AUDIT_TRAIL_OPERATOR_LINE`).
  *
  * Do not describe the product as an advanced or qualified electronic
  * signature, or as legally equivalent to a handwritten signature.

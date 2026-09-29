@@ -91,6 +91,7 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.PDF_SIGNING_TSA_URL).toBe('https://freetsa.org/tsr');
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
+    expect(env.EMAIL_LEGAL_ENTITY).toBe('Seald');
   });
 
   // Regression for the 2026-05-07 prod incident where stale containers
