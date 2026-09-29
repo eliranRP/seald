@@ -36,8 +36,8 @@ export interface Props {
 }
 
 const {
-  title = 'Seald — Put your name to it.',
-  description = 'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. PAdES digital seals with an RFC 3161 timestamp when a timestamp authority is reachable, plus a separate audit PDF.',
+  title = 'Seald — E-signature web app. Put your name to it.',
+  description = 'Seald is an e-signature web app: sign PDFs or request signatures in your browser. Free during beta, with an audit trail and RFC 3161 timestamps when available.',
   canonical,
   // Default OG image is a 1200×630 PNG. Facebook, LinkedIn, Slack,
   // iMessage and most Twitter ingest pipelines reject SVG, so we ship
@@ -154,7 +154,7 @@ const jsonLd = JSON.stringify({
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    <link rel="canonical" href={canonicalUrl} />
+    {!noindex && <link rel="canonical" href={canonicalUrl} />}
     {noindex
       ? <meta name="robots" content="noindex, nofollow" />
       : <meta name="robots" content="index, follow, max-image-preview:large" />}

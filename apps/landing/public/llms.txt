@@ -2,7 +2,7 @@
 
 > Seald is a web application for electronic signatures. It runs in the browser. There is no native app.
 
-Seald lets a person upload a PDF, place signature and form fields, sign it themselves or request signatures from other people, and download the PDF. A PAdES seal is added when a seal is applied. An RFC 3161 timestamp is added when available. The audit trail is a SHA-256 audit chain. Documents can be checked on the public verification page. Templates remember fields and signers. It is free during beta.
+Seald lets a person upload a PDF, place signature and form fields, sign it themselves or request signatures from other people, and download the PDF. Sealed PDFs carry a PAdES signature. An RFC 3161 timestamp is added when available. The audit trail is a SHA-256 audit chain. Documents can be checked on the public verification page. Templates remember fields and signers. It is free during beta.
 
 Support: support@seald.nromomentum.com.
 

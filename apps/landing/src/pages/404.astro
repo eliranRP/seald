@@ -1,15 +1,16 @@
 ---
 // Unknown paths. The Pages worker returns this document with HTTP 404
 // (see apps/landing/_worker.js). noindex so a soft-404 cannot be indexed.
+// BaseLayout omits the canonical link when noindex is set.
 import BaseLayout from '@/layouts/BaseLayout.astro';
 ---
 <BaseLayout
   title="Page not found — Seald"
-  description="That address is not a page on the Seald marketing site. Go back to the homepage, or sign in if you were looking for the e-signature web application now."
+  description="That address is not a page on the Seald marketing site. The link may be out of date. Go back home, or sign in to the Seald web app to open your documents."
   noindex={true}
 >
   <nav class="nav" id="nav">
-      <div class="nav-inner">
+    <div class="nav-inner">
       <a class="nav-brand" href="/" aria-label="Seald — home">
         <img src="/assets/logo.svg" alt="Seald" width="84" height="26" />
       </a>
@@ -19,17 +20,16 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
   <main id="main" class="not-found">
     <div class="container">
       <div class="not-found-inner">
-      <p class="eyebrow"><span class="dot"></span>404</p>
-      <h1>Page not found</h1>
-      <p class="not-found-lead">
-        That address is not on this site. The link may be out of date, or the
-        page may have moved.
-      </p>
-      <div class="not-found-actions">
-        <a href="/" class="btn btn-primary btn-lg">Back to Seald <span class="btn-arrow">→</span></a>
-        <a href="/signin" class="btn btn-ghost btn-lg">Sign in</a>
-        <a href="/contact" class="btn btn-secondary btn-lg">Contact</a>
-      </div>
+        <p class="eyebrow"><span class="dot"></span>404</p>
+        <h1>Page not found</h1>
+        <p class="not-found-lead">
+          That address is not on this site. The link may be out of date, or the
+          page may have moved.
+        </p>
+        <div class="not-found-actions">
+          <a href="/" class="btn btn-primary btn-lg">Back to Seald <span class="btn-arrow">→</span></a>
+          <a href="/contact" class="btn btn-secondary btn-lg">Contact</a>
+        </div>
       </div>
     </div>
   </main>

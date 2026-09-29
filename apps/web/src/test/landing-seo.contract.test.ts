@@ -40,7 +40,6 @@ describe('landing SEO contract (S1a)', () => {
       const match = /description="([^"]+)"/.exec(source);
       expect(match, pathname).not.toBeNull();
       const description = match?.[1] ?? '';
-      if (pathname === '/') continue;
       expect(description.length, `${pathname}: ${description}`).toBeGreaterThanOrEqual(150);
       expect(description.length, `${pathname}: ${description}`).toBeLessThanOrEqual(160);
     }
@@ -54,17 +53,22 @@ describe('landing SEO contract (S1a)', () => {
     expect(description.length).toBeLessThanOrEqual(160);
     expect(source).toContain('noindex={true}');
     expect(source).toContain('href="/signin"');
-    expect(source).toContain('>Sign in<');
+    expect(source.match(/>Sign in</g)?.length).toBe(1);
+    expect(source).toContain('sign in to the Seald web app to open your documents');
+    expect(source).not.toContain('web application now');
+    const layout = read('src/layouts/BaseLayout.astro');
+    expect(layout).toContain('{!noindex && <link rel="canonical" href={canonicalUrl} />}');
   });
 
   it('matches the homepage offer to the page and drops the dead pricing anchor', () => {
     const home = read('src/pages/index.astro');
     const title = /title="([^"]+)"/.exec(home)?.[1] ?? '';
     const description = /description="([^"]+)"/.exec(home)?.[1] ?? '';
-    expect(title).toBe('Seald — Put your name to it.');
+    expect(title).toBe('Seald — E-signature web app. Put your name to it.');
     expect(description).toBe(
-      'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. PAdES digital seals with an RFC 3161 timestamp when a timestamp authority is reachable, plus a separate audit PDF.',
+      'Seald is an e-signature web app: sign PDFs or request signatures in your browser. Free during beta, with an audit trail and RFC 3161 timestamps when available.',
     );
+    expect(description.length).toBeLessThanOrEqual(160);
     for (const claim of OVERCLAIMS) {
       expect(title, claim).not.toContain(claim);
       expect(description, claim).not.toContain(claim);
@@ -192,6 +196,8 @@ describe('landing SEO contract (S1a)', () => {
     expect(llms).not.toMatch(/Hartzdale|Camp Hill/i);
     expect(llms).not.toMatch(/iOS|Android|App Store|Google Play/i);
     expect(llms).toContain('https://seald.nromomentum.com/legal/privacy');
+    expect(llms).toContain('Sealed PDFs carry a PAdES signature');
+    expect(llms).not.toContain('PAdES seal is added when a seal is applied');
     expect(llms).toContain('PAdES seal (when a seal is applied)');
     expect(llms).toContain('RFC 3161 timestamp (when available)');
     expect(llms).toContain('SHA-256 audit chain');

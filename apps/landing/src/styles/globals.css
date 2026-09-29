@@ -2387,6 +2387,9 @@ footer {
   .nav-toggle {
     display: inline-flex;
   }
+  .nav .btn {
+    min-height: 44px;
+  }
 }
 @media (max-width: 600px) {
   .feat-grid {
@@ -2590,7 +2593,7 @@ footer {
 .not-found h1 {
   font-family: var(--font-serif);
   font-weight: 500;
-  font-size: clamp(2.25rem, 8vw, 3rem);
+  font-size: 2.25rem;
   line-height: var(--lh-tight);
   letter-spacing: var(--tracking-tight);
   margin: 12px 0 16px;
@@ -2613,6 +2616,9 @@ footer {
   justify-content: center;
 }
 @media (min-width: 600px) {
+  .not-found h1 {
+    font-size: 3rem;
+  }
   .not-found-actions {
     flex-direction: row;
     align-items: center;
