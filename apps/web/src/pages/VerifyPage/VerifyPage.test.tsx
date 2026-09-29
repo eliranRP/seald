@@ -668,9 +668,9 @@ describe('VerifyPage', () => {
     });
   });
 
-  // The footer may only claim what the verify payload reports. A sealed
-  // file hash is not a CMS seal or an RFC 3161 timestamp.
-  it('shows the SHA-256 audit chain and Seald, and hides seal claims the payload does not make', async () => {
+  // The public verify payload has no seal or timestamp flag. The page
+  // names the SHA-256 audit chain and does not claim a timestamp.
+  it('shows the SHA-256 audit chain for the real verify payload and does not claim a timestamp', async () => {
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
@@ -697,22 +697,7 @@ describe('VerifyPage', () => {
       screen.getByText(/the document and signers are unchanged since the seal/i),
     ).toBeInTheDocument();
     expect(screen.queryByText(/and timestamp are unchanged/i)).not.toBeInTheDocument();
-  });
-
-  it('shows a PAdES seal and an RFC 3161 timestamp only when the payload says they are present', async () => {
-    get.mockResolvedValueOnce({
-      data: { ...SIGNED_PAYLOAD, has_pades_seal: true, has_rfc3161_timestamp: true },
-    });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText(/^pades seal$/i)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/^rfc 3161 timestamp$/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/the document, signers, and timestamp are unchanged since the seal/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/pades-lt/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rfc 3161 timestamp/i)).not.toBeInTheDocument();
   });
 
   // Verification URL is rendered in the facts panel using the literal
@@ -771,6 +756,15 @@ describe('VerifyPage', () => {
         /the sha-256 stored for the sealed pdf is on this page\. the audit chain is not intact/i,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText('Sealed · audit chain broken')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sealed; audit chain broken' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The audit chain for this document is broken. Contact the sender before relying on it.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/seal intact/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unchanged since the seal/i)).not.toBeInTheDocument();
   });
 
   // ---- Download attribute (regression: prompt's bug-floor list says

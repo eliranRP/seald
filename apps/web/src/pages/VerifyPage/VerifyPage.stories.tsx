@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { chromaticViewportModes } from '@/stories/chromaticViewports';
+import { useState } from 'react';
+import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { verifyApiClient } from '@/lib/api/verifyApiClient';
 import { VerifyPage } from './VerifyPage';
 import type { VerifyResponse } from '../../features/verify';
 import { VERIFY_KEY } from '../../features/verify';
@@ -166,20 +169,53 @@ interface WithDataProps {
   readonly forcedState?: 'loading' | 'error';
 }
 
+function verifyPayloadResponse(
+  payload: VerifyResponse,
+  config: InternalAxiosRequestConfig,
+): AxiosResponse<VerifyResponse> {
+  return {
+    data: payload,
+    status: 200,
+    statusText: 'OK',
+    headers: config.headers,
+    config,
+  };
+}
+
+/**
+ * The page fetches `GET /verify/:shortCode` on mount. A seeded cache with
+ * `gcTime: 0` was collected before the query subscribed, so Storybook
+ * showed Axios's "Network Error". The adapter answers that fetch with
+ * the story payload, and the cache is kept on a stable client.
+ */
+function installVerifyMock(payload: VerifyResponse): void {
+  verifyApiClient.defaults.adapter = (config) =>
+    Promise.resolve(verifyPayloadResponse(payload, config));
+}
+
 /**
  * Mounts VerifyPage with a primed React-Query cache so the page renders
  * the chosen state synchronously. For the "loading" story we leave the
- * cache empty AND mock no network — React-Query falls into pending. For
- * the "error" story we seed an error into the cache via setQueryData with
- * a queryClient hack.
+ * cache empty. For the "error" story we seed an error into the cache.
  */
 function StoryHarness({ data, forcedState }: WithDataProps) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: Infinity } },
+  if (data) installVerifyMock(data);
+  const [qc] = useState(() => {
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: {
+          retry: false,
+          staleTime: Infinity,
+          refetchOnMount: false,
+          refetchOnWindowFocus: false,
+        },
+      },
+    });
+    if (data) {
+      client.setQueryData(VERIFY_KEY(SHORT), data);
+    }
+    return client;
   });
-  if (data) {
-    qc.setQueryData(VERIFY_KEY(SHORT), data);
-  }
   if (forcedState === 'error') {
     qc.setQueryData(VERIFY_KEY('missing'), undefined);
     qc.getQueryCache()
@@ -234,13 +270,12 @@ export const NotFound: Story = {
 };
 
 /**
- * Tamper-evident audit chain failure. The seal itself is still valid
- * (the PDF bytes haven't changed), but `verifyEventChain` detected a
+ * Tamper-evident audit chain failure. `verifyEventChain` detected a
  * row whose `prev_event_hash` doesn't match the canonical-JSON hash of
- * its predecessor — i.e. someone mutated/inserted/deleted an audit
- * event out-of-band. The Integrity panel surfaces this as a red badge
- * so a third-party verifier can see the partial trust failure even
- * when the verdict hero remains "sealed".
+ * its predecessor. The eyebrow reads "Sealed · audit chain broken",
+ * the heading's accessible name is "Sealed; audit chain broken", and
+ * the integrity line tells the reader to contact the sender. It does
+ * not say the seal is intact or that the document is unchanged.
  *
  * Pinned as its own Chromatic baseline so a regression that drops the
  * badge or swaps the danger color is caught visually on every PR.

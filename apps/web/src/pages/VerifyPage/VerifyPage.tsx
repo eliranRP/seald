@@ -192,8 +192,9 @@ interface DerivedView {
   readonly heading: React.ReactNode;
   // Screen-reader-only label for the H1. The visual heading uses italic
   // emphasis + color to distinguish success/failure; AT users need an
-  // unambiguous semantic equivalent ("Sealed and intact" / "Signer
-  // declined; not sealed" / "Awaiting signatures").
+  // unambiguous semantic equivalent ("Sealed and intact" / "Sealed;
+  // audit chain broken" / "Signer declined; not sealed" /
+  // "Awaiting signatures").
   readonly headingAriaLabel: string;
   readonly eyebrow: string;
   readonly body: string;
@@ -204,13 +205,13 @@ function deriveView(envelope: VerifyEnvelope, chainIntact: boolean): DerivedView
   if (envelope.status === 'completed') {
     return {
       variant: 'success',
-      eyebrow: 'Verified · seal intact',
+      eyebrow: chainIntact ? 'Verified · seal intact' : 'Sealed · audit chain broken',
       heading: (
         <>
           This document is <em>sealed</em>.
         </>
       ),
-      headingAriaLabel: 'Sealed and intact',
+      headingAriaLabel: chainIntact ? 'Sealed and intact' : 'Sealed; audit chain broken',
       body: chainIntact
         ? 'The SHA-256 stored for the sealed PDF is on this page, and the audit chain is intact.'
         : 'The SHA-256 stored for the sealed PDF is on this page. The audit chain is not intact.',
@@ -424,8 +425,8 @@ interface IntegrityCopyProps {
   readonly sealed: boolean;
   readonly signersDone: number;
   readonly signersAll: number;
-  /** True only when the verify payload says an RFC 3161 timestamp is present. */
-  readonly hasTimestamp: boolean;
+  /** False when the stored audit chain fails its predecessor-hash check. */
+  readonly chainIntact: boolean;
 }
 
 function IntegrityCopy({
@@ -433,7 +434,7 @@ function IntegrityCopy({
   sealed,
   signersDone,
   signersAll,
-  hasTimestamp,
+  chainIntact,
 }: IntegrityCopyProps) {
   if (variant === 'failed') {
     return (
@@ -442,14 +443,15 @@ function IntegrityCopy({
       </>
     );
   }
-  if (sealed) {
+  if (sealed && !chainIntact) {
     return (
       <strong>
-        {hasTimestamp
-          ? 'The document, signers, and timestamp are unchanged since the seal.'
-          : 'The document and signers are unchanged since the seal.'}
+        The audit chain for this document is broken. Contact the sender before relying on it.
       </strong>
     );
+  }
+  if (sealed) {
+    return <strong>The document and signers are unchanged since the seal.</strong>;
   }
   return (
     <>
@@ -550,15 +552,12 @@ function CopyShareLinkButton({ shortCode }: CopyShareLinkButtonProps) {
 }
 
 /**
- * Footer checks follow the verify payload. The SHA-256 audit chain is
- * always walked. A PAdES seal and an RFC 3161 timestamp render only when
- * the payload says they are present. `sealed_sha256` is not that signal.
+ * Footer checks follow the verify payload. The API walks the SHA-256
+ * audit chain and does not report a PAdES seal or an RFC 3161 timestamp,
+ * so this list does not name either.
  */
-function trustFooterItems(data: VerifyResponse): readonly string[] {
-  const items = ['SHA-256 audit chain'];
-  if (data.has_pades_seal === true) items.push('PAdES seal');
-  if (data.has_rfc3161_timestamp === true) items.push('RFC 3161 timestamp');
-  return items;
+function trustFooterItems(): readonly string[] {
+  return ['SHA-256 audit chain'];
 }
 
 interface VerifyContentProps {
@@ -722,7 +721,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   sealed={sealed}
                   signersDone={signersDone}
                   signersAll={signersAll}
-                  hasTimestamp={data.has_rfc3161_timestamp === true}
+                  chainIntact={data.chain_intact}
                 />
               </IntegrityText>
             </IntegrityInner>
@@ -779,7 +778,7 @@ function VerifyContent({ data }: VerifyContentProps) {
             <span>Verification by Seald</span>
           </FooterLeft>
           <FooterRight>
-            {trustFooterItems(data).map((label) => (
+            {trustFooterItems().map((label) => (
               <span key={label}>
                 <Check aria-hidden /> {label}
               </span>
