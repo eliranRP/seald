@@ -25,8 +25,8 @@ export const Standalone: Story = {};
 
 export const Mobile: Story = {
   render: () => (
-    // The viewport addon may not be configured in this Storybook; the wrapping
-    // 390px div is a safety net so the mobile framing is visible regardless.
+    // preview.tsx defines no viewports, so the 390px wrapper is the local frame.
+    // Chromatic still uses the modes on the meta.
     <div style={{ width: 390, maxWidth: '100%' }}>
       <p style={{ margin: 0, lineHeight: 1.5 }}>
         <SenderProgressNote />
@@ -37,6 +37,7 @@ export const Mobile: Story = {
 
 export const Desktop: Story = {
   render: () => (
+    // Same reason as Mobile: a width wrapper, not a viewport addon.
     <div style={{ width: 1440, maxWidth: '100%' }}>
       <p style={{ margin: 0, lineHeight: 1.5 }}>
         <SenderProgressNote />
