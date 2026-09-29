@@ -227,6 +227,7 @@ async function main(): Promise<void> {
     sealedSha256: completed.sealedSha256,
     sealedPages: 9,
     publicUrl,
+    retentionYears: 7,
   });
   writeFileSync(`${OUT_DIR}/completed.pdf`, completedPdf);
 
@@ -237,6 +238,7 @@ async function main(): Promise<void> {
     sealedSha256: declined.sealedSha256,
     sealedPages: null,
     publicUrl,
+    retentionYears: 7,
   });
   writeFileSync(`${OUT_DIR}/declined.pdf`, declinedPdf);
 

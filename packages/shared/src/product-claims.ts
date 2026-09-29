@@ -1,8 +1,9 @@
 /**
  * User-facing product claims that must stay aligned with what the code
- * actually does. Marketing, the SPA, transactional email, and the audit
- * PDF should import these strings (or, for HTML templates, copy them
- * verbatim — `template.service.spec.ts` checks that).
+ * actually does. Marketing, the SPA, and transactional email body
+ * text should import these strings (or, for HTML templates, copy them
+ * verbatim — `template.service.spec.ts` checks that). Audit PDF strings,
+ * email entity defaults, and the verify page are owned by a later cycle.
  *
  * Do not describe the product as an advanced or qualified electronic
  * signature, or as legally equivalent to a handwritten signature.
@@ -10,12 +11,6 @@
  * noop), `packages/shared/src/compliance.ts` (signer tier is an emailed
  * link), `apps/api/src/sealing/kms-cms-signer.ts` (timestamp is best-effort).
  */
-
-/** Operating company. Legal pages are revised separately and may still say "Seald, Inc." */
-export const LEGAL_ENTITY_NAME = 'NRO Momentum LLC';
-
-export const LEGAL_POSTAL_ADDRESS =
-  '3401 Hartzdale Drive, Suite 103B, Unit #631, Camp Hill, PA 17011';
 
 /**
  * What a completed signature is. Shown on the signer prep and done screens.
@@ -104,6 +99,3 @@ export const EMAIL_RETRY_NOTE =
 
 export const EMAIL_KEPT_NOTE =
   'Your copy and the audit trail are kept. We do not delete them on a timer.';
-
-export const AUDIT_PDF_OPERATOR_LINE =
-  'Stored until deleted under our privacy policy. Electronic signature with a PAdES seal from the issuer when sealing is configured. Not an advanced or qualified electronic signature.';

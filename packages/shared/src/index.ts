@@ -10,8 +10,6 @@ export {
   CURRENT_SIGNER_AUTH_TIER,
 } from './compliance';
 export {
-  LEGAL_ENTITY_NAME,
-  LEGAL_POSTAL_ADDRESS,
   SIGNATURE_LEVEL_NOTE,
   INTENT_TO_SIGN_NOTE,
   RECORD_ACCESS_ATTESTATION,
@@ -32,7 +30,6 @@ export {
   EMAIL_COMPLETED_NOTE,
   EMAIL_RETRY_NOTE,
   EMAIL_KEPT_NOTE,
-  AUDIT_PDF_OPERATOR_LINE,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
 export { TEMPLATE_FIELD_TYPES } from './templates';

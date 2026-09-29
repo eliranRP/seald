@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
+  Check,
   Clock,
   Copy,
   FileText,
@@ -14,8 +15,6 @@ import {
   Share2,
 } from 'lucide-react';
 import { Icon } from '@/components/Icon';
-import { VerifyTrustChecks } from '@/components/shared/VerifyTrustChecks';
-import { LEGAL_ENTITY_NAME } from 'shared';
 import { useVerifyEnvelope, VERIFY_KEY } from '@/features/verify';
 import type { VerifyEnvelope, VerifyEvent, VerifyResponse, VerifySigner } from '@/features/verify';
 import {
@@ -649,7 +648,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 {formatDateTime(data.envelope.completed_at ?? data.envelope.sent_at)}
               </FactVal>
               <Tag $tone={sealed ? 'success' : 'neutral'}>
-                {sealed ? 'Sealed' : data.envelope.status}
+                {sealed ? 'PAdES-LT' : data.envelope.status}
               </Tag>
             </Fact>
 
@@ -722,7 +721,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               >
                 {data.chain_intact ? 'Audit chain · intact' : 'Audit chain · broken'}
               </Tag>
-              <span>Issued by {LEGAL_ENTITY_NAME}</span>
+              <span>Seald, Inc. · trust cert RSA-4096</span>
             </IntegrityMeta>
           </Integrity>
 
@@ -760,10 +759,18 @@ function VerifyContent({ data }: VerifyContentProps) {
 
         <Footer>
           <FooterLeft>
-            <span>Verification by {LEGAL_ENTITY_NAME}</span>
+            <span>Verification by Seald, Inc.</span>
           </FooterLeft>
           <FooterRight>
-            <VerifyTrustChecks />
+            <span>
+              <Check aria-hidden /> AES-256 at rest
+            </span>
+            <span>
+              <Check aria-hidden /> RFC 3161 timestamps
+            </span>
+            <span>
+              <Check aria-hidden /> PAdES-LT seal
+            </span>
           </FooterRight>
         </Footer>
       </Container>

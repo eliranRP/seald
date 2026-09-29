@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { RetentionNotice } from './RetentionNotice';
 import { SenderProgressNote } from './SenderProgressNote';
 import { SignatureLevelNote } from './SignatureLevelNote';
-import { VerifyTrustChecks } from './VerifyTrustChecks';
 
 const meta: Meta = {
   title: 'Shared/Product claims',
@@ -33,23 +32,5 @@ export const SenderProgress: Story = {
     <p style={{ maxWidth: 560 }}>
       <SenderProgressNote />
     </p>
-  ),
-};
-
-/** Payload does not report a CMS seal or a timestamp, so only the chain is shown. */
-export const VerifyChecksWithoutSeal: Story = {
-  render: () => (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      <VerifyTrustChecks />
-    </div>
-  ),
-};
-
-/** Shown only when a future verify payload says the seal and timestamp are present. */
-export const VerifyChecksWithSeal: Story = {
-  render: () => (
-    <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-      <VerifyTrustChecks hasPadesSeal hasRfc3161Timestamp />
-    </div>
   ),
 };

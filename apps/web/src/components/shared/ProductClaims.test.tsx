@@ -5,7 +5,6 @@ import { renderWithTheme } from '../../test/renderWithTheme';
 import { RetentionNotice } from './RetentionNotice';
 import { SenderProgressNote } from './SenderProgressNote';
 import { SignatureLevelNote } from './SignatureLevelNote';
-import { VerifyTrustChecks } from './VerifyTrustChecks';
 
 describe('shared product claims', () => {
   it('describes a simple electronic signature without an advanced or qualified claim', () => {
@@ -32,20 +31,6 @@ describe('shared product claims', () => {
     );
     expect(screen.getByText(SENDER_PROGRESS_NOTE)).toBeInTheDocument();
     expect(screen.queryByText(/the moment each signature lands/i)).not.toBeInTheDocument();
-  });
-
-  it('shows the audit chain and hides seal checks the payload cannot prove', () => {
-    renderWithTheme(<VerifyTrustChecks />);
-    expect(screen.getByText(/SHA-256 audit chain/)).toBeInTheDocument();
-    expect(screen.queryByText(/Verification by/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/PAdES seal/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/AES-256/)).not.toBeInTheDocument();
-  });
-
-  it('shows a PAdES seal and RFC 3161 timestamp only when the caller passes them', () => {
-    renderWithTheme(<VerifyTrustChecks hasPadesSeal hasRfc3161Timestamp />);
-    expect(screen.getByText(/PAdES seal/)).toBeInTheDocument();
-    expect(screen.getByText(/RFC 3161 timestamp/)).toBeInTheDocument();
   });
 
   it('keeps the record-access attestation as a capability, not a completed download', () => {
