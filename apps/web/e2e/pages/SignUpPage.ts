@@ -14,7 +14,7 @@ export class SignUpPage {
     await this.page.getByRole('textbox', { name: /email/i }).fill(email);
     await this.page.getByRole('textbox', { name: /password/i }).fill(password);
     // One checkbox covers age and Terms/Privacy consent.
-    await this.page.getByRole('checkbox', { name: /at least 18/i }).check();
+    await this.page.getByRole('checkbox', { name: /18 or older/i }).check();
     await this.page.getByRole('button', { name: /^create account$/i }).click();
   }
 

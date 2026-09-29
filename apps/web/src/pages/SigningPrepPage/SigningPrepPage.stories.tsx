@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -62,7 +63,7 @@ const meta: Meta<typeof SigningPrepPage> = {
   title: 'L4/SigningPrepPage',
   component: SigningPrepPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story, ctx) => {
       const session = ctx.parameters.signSession as SignMeResponse | undefined;

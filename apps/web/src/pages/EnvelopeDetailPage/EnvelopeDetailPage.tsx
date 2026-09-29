@@ -730,7 +730,7 @@ export function EnvelopeDetailPage() {
       title: 'Sealed PDF',
       description:
         'Final signed document with fields filled in. The audit trail is a separate PDF.',
-      meta: isComplete ? 'Signed PDF' : 'Available once all signers complete',
+      meta: isComplete ? 'Ready to download' : 'Available once all signers complete',
       available: isComplete,
       recommended: isComplete,
       primaryLabel: 'sealed PDF',

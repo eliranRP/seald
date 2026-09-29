@@ -108,24 +108,14 @@ export const Heading = styled.h1`
   }
 `;
 
-export const Testimonial = styled.figure`
-  margin: 44px 0 0 0;
-  padding: 22px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`;
-
-export const Quote = styled.blockquote`
-  margin: 0;
-  font-family: ${({ theme }) => theme.font.serif};
-  font-style: italic;
-  font-size: 16px;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.92);
+export const Statement = styled.p`
+  margin: ${({ theme }) => theme.space[8]} 0 0;
+  max-width: 440px;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-style: normal;
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
+  color: ${({ theme }) => theme.color.paper};
 `;
 
 /** Spacer absorbs any remaining vertical space before the trust footer. */

@@ -1798,6 +1798,15 @@ body {
   display: flex;
   gap: 6px;
 }
+.demo-mode {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink-900);
+  border: 1px solid var(--border-1);
+}
 .demo-tab {
   padding: 6px 12px;
   font-size: 13px;

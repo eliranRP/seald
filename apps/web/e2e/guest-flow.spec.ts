@@ -303,7 +303,7 @@ test.describe('guest mode — full sender flow', () => {
     // persists `envelope_id` on the local draft so post-send lookup
     // resolves.
     await expect(
-      page.getByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
+      page.getByRole('heading', { level: 1, name: /your envelope is on its way/i }),
     ).toBeVisible();
     await expect(page.getByText(/guest-signer@example\.com/i)).toBeVisible();
 

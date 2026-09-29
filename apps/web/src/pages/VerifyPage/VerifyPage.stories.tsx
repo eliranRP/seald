@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { VerifyPage } from './VerifyPage';
@@ -15,7 +16,7 @@ const meta: Meta<typeof VerifyPage> = {
   title: 'Pages/VerifyPage',
   component: VerifyPage,
   tags: ['autodocs', 'page'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
 };
 export default meta;
 type Story = StoryObj<typeof VerifyPage>;

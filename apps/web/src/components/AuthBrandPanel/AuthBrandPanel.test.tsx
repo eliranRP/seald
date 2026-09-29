@@ -14,14 +14,14 @@ describe('AuthBrandPanel', () => {
 
   it('renders a product value statement instead of a named testimonial', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(screen.getByText(/hash-chained audit trail/i)).toBeInTheDocument();
+    expect(screen.getByText(/hash-chained audit trail/i).tagName).toBe('P');
     expect(screen.queryByText('Maya Raskin')).not.toBeInTheDocument();
     expect(screen.queryByText(/Northwind/)).not.toBeInTheDocument();
   });
 
   it('renders the trust footer without AES-256 or PAdES-LT guarantees', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(screen.getByText(/PAdES seal when a seal is applied/)).toBeInTheDocument();
+    expect(screen.getByText(/PAdES digital seal/)).toBeInTheDocument();
     expect(screen.getByText(/access-controlled storage/)).toBeInTheDocument();
     expect(screen.queryByText(/AES-256/)).not.toBeInTheDocument();
     expect(screen.queryByText(/PAdES-LT/)).not.toBeInTheDocument();

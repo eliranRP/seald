@@ -67,7 +67,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       <div class="container">
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="dot"></span>Independent RFC 3161 timestamps, when available</span>
+            <span class="eyebrow"><span class="dot"></span>External RFC 3161 timestamps</span>
             <h1>
               <span class="word-stack">Put your</span>
               <span class="word-stack"><span class="name">name<svg class="underline" viewBox="0 0 220 28" preserveAspectRatio="none"><path d="M4 18 C 40 6, 90 22, 140 14 C 180 7, 200 18, 216 12" /></svg></span></span>
@@ -93,7 +93,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           <!--
             The hero stage SVG art (sealed-document mock + side cards)
             is decorative. Screen-readers were previously announcing
-            "Mutual NDA — 2026.pdf", "Maya signed in 12s", and "Sealed
+            "Mutual NDA — 2026.pdf", "Maya signed", and "Sealed
             VERIFIED" as if they were content. Hide the whole stage
             from the accessibility tree. Audit E · index.astro M (decorative
             hero SVG missing aria-hidden).
@@ -147,7 +147,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
                   </svg>
                 </div>
                 <div>
-                  <div class="l-strong">Maya signed in 12s</div>
+                  <div class="l-strong">Maya signed</div>
                   <div class="l-meta">Awaiting 1 of 3 signers</div>
                 </div>
               </div>
@@ -184,7 +184,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           </div>
           <div class="trust-cell">
             <div class="trust-num">RFC 3161</div>
-            <div class="trust-label">Timestamp when the service responds</div>
+            <div class="trust-label">External RFC 3161 timestamp</div>
           </div>
           <div class="trust-cell">
             <div class="trust-num">PAdES</div>
@@ -271,7 +271,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M19 8v6"/></svg>
             </div>
             <h3>Request signatures</h3>
-            <p>Add the signers you need. Everyone is invited at the same time. Send a reminder yourself, whenever you want. We won't spam signers on a schedule.</p>
+            <p>Add the signers you need. Everyone is invited at the same time. Send a reminder yourself, whenever you want. No automatic reminders.</p>
             <div class="feat-art">
               <div class="track"><div class="track-fill"></div></div>
               <div class="signers">
@@ -337,31 +337,20 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <ul>
               <li>
                 <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-                This page is a drawing preview only
-              </li>
-              <li>
-                <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
                 Inside Seald: type, draw, or upload
-              </li>
-              <li>
-                <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-                Nothing from this pad is stored
               </li>
             </ul>
           </div>
           <div class="demo-pad reveal">
             <div class="demo-pad-head">
               <div class="demo-tabs">
-                <button class="demo-tab active" type="button" data-mode="draw">Draw</button>
+                <span class="demo-mode">Draw</span>
               </div>
               <button class="demo-clear" id="demoClear">Clear</button>
             </div>
             <div class="demo-canvas-wrap">
               <canvas id="signCanvas"></canvas>
               <div class="demo-hint" id="demoHint">Sign here</div>
-            </div>
-            <div class="demo-pad-foot">
-              <span class="demo-foot-meta">Nothing you draw here is saved or signed.</span>
             </div>
           </div>
         </div>

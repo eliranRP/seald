@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
 import { AuthForm } from './AuthForm';
 import { AuthShell } from '../AuthShell';
@@ -38,7 +39,7 @@ const meta: Meta<typeof AuthForm> = {
   title: 'L3/AuthForm',
   component: AuthForm,
   tags: ['autodocs', 'layer-3'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
 };
 export default meta;
 type Story = StoryObj<typeof AuthForm>;

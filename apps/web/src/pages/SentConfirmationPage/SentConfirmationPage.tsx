@@ -1,4 +1,4 @@
-import { Check, LayoutList, ShieldCheck } from 'lucide-react';
+import { Clock, LayoutList, ShieldCheck } from 'lucide-react';
 import { RetentionNotice } from '@/components/shared/RetentionNotice';
 import { SenderProgressNote } from '@/components/shared/SenderProgressNote';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -142,7 +142,7 @@ export function SentConfirmationPage() {
             <polyline points="5 13 10 18 19 8" />
           </svg>
         </SealBadge>
-        <Kicker>Sent</Kicker>
+        <Kicker>Invitations queued</Kicker>
         <Title>Your envelope is on its way.</Title>
         <Body>
           <SenderProgressNote />
@@ -170,7 +170,7 @@ export function SentConfirmationPage() {
                 <SignerEmail>{s.email}</SignerEmail>
               </SignerMeta>
               <DeliveredChip>
-                <Check size={11} strokeWidth={3} /> Queued
+                <Clock size={11} strokeWidth={2.5} /> Queued
               </DeliveredChip>
             </SignerItem>
           ))}
@@ -178,11 +178,11 @@ export function SentConfirmationPage() {
 
         <AuditBadge>
           <ShieldCheck size={14} />
-          Events are hash-chained as they happen. The audit PDF is created when everyone has signed.
+          Hash-chained events. The audit PDF comes after everyone signs.
         </AuditBadge>
 
         <RetentionNote>
-          <RetentionNotice verifyPath={`/verify/${summary.code}`} />
+          <RetentionNotice verifyPath={`/verify/${summary.code}`} mono />
         </RetentionNote>
 
         <Actions>

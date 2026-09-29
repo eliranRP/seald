@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -81,7 +82,7 @@ const meta: Meta<typeof EnvelopeDetailPage> = {
   title: 'L4/EnvelopeDetailPage',
   component: EnvelopeDetailPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story, ctx) => (
       <Wrap seeded={ctx.parameters.seeded === true}>

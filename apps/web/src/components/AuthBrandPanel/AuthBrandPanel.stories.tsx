@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { AuthBrandPanel } from './AuthBrandPanel';
 
 const meta: Meta<typeof AuthBrandPanel> = {
@@ -7,6 +8,7 @@ const meta: Meta<typeof AuthBrandPanel> = {
   tags: ['autodocs', 'layer-2'],
   parameters: {
     layout: 'centered',
+    chromatic: { modes: chromaticViewportModes },
   },
 };
 export default meta;

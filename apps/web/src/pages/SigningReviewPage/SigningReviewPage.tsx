@@ -225,6 +225,20 @@ function inputKindFor(kind: ReviewFieldKind): FieldInputKind | null {
   return null;
 }
 
+const INTENT_ACTION = 'Sign and submit';
+
+function IntentCopy() {
+  const at = INTENT_TO_SIGN_NOTE.indexOf(INTENT_ACTION);
+  if (at < 0) return <>{INTENT_TO_SIGN_NOTE}</>;
+  return (
+    <>
+      {INTENT_TO_SIGN_NOTE.slice(0, at)}
+      <b>{INTENT_ACTION}</b>
+      {INTENT_TO_SIGN_NOTE.slice(at + INTENT_ACTION.length)}
+    </>
+  );
+}
+
 function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
@@ -401,7 +415,7 @@ function Content() {
             {/* Item 14 — copy acknowledges BOTH the intent-checkbox AND
                 the submit click so the dual-affirmation narrative lines
                 up with the actual gating UI. */}
-            {INTENT_TO_SIGN_NOTE}
+            <IntentCopy />
           </span>
         </Legal>
 

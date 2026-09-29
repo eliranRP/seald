@@ -7,10 +7,9 @@ import {
   GlowBottomLeft,
   GlowTopRight,
   Heading,
-  Quote,
   Root,
   Spacer,
-  Testimonial,
+  Statement,
   TrustFooter,
   Wordmark,
   WordmarkMark,
@@ -18,8 +17,8 @@ import {
 
 /**
  * L2 domain component — editorial left-side panel rendered alongside the
- * auth forms (sign-in / sign-up / reset). Hardcoded brand copy, a testimonial
- * card, and a trust footer. Hides itself on narrow viewports so pages can
+ * auth forms (sign-in / sign-up / reset). Hardcoded brand copy, a product
+ * statement, and a trust footer. Hides itself on narrow viewports so pages can
  * collapse to a single centered form without any consumer coordination.
  */
 export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((props, ref) => (
@@ -49,9 +48,7 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
 
       <Heading>{AUTH_PANEL_HEADING}</Heading>
 
-      <Testimonial>
-        <Quote>{PRODUCT_VALUE_STATEMENT}</Quote>
-      </Testimonial>
+      <Statement>{PRODUCT_VALUE_STATEMENT}</Statement>
 
       <Spacer />
 

@@ -193,7 +193,7 @@ describe('SentConfirmationPage — primary action', () => {
 describe('SentConfirmationPage — retention + audit trust signals', () => {
   it('surfaces the hash-chained audit badge and a retention notice that does not promise a purge timer', async () => {
     renderAt('env-single');
-    expect(await screen.findByText(/events are hash-chained as they happen/i)).toBeInTheDocument();
+    expect(await screen.findByText(/hash-chained events/i)).toBeInTheDocument();
     expect(screen.getByText(/we do not delete sealed files on a timer/i)).toBeInTheDocument();
     expect(screen.queryByText(/7 years/i)).not.toBeInTheDocument();
     expect(screen.getByText(/\/verify\/NDA-0001/)).toBeInTheDocument();

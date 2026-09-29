@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { FileCheck2, FileText, HardDriveUpload, Package, ShieldCheck } from 'lucide-react';
 import { DownloadMenu } from './DownloadMenu';
 import type { DownloadMenuItem } from './DownloadMenu.types';
@@ -58,7 +59,7 @@ const meta: Meta<typeof DownloadMenu> = {
   title: 'L3/DownloadMenu',
   component: DownloadMenu,
   tags: ['autodocs'],
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'padded', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story) => (
       <div style={{ padding: 140, display: 'flex', justifyContent: 'flex-end' }}>

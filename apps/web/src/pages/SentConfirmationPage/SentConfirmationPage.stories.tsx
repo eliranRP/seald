@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -117,7 +118,7 @@ const meta: Meta<typeof SentConfirmationPage> = {
   title: 'L4/SentConfirmationPage',
   component: SentConfirmationPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story, ctx) => {
       const envelope = ctx.parameters.envelope as Envelope | undefined;

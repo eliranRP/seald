@@ -22,7 +22,7 @@ export const SIGNATURE_LEVEL_NOTE =
  * Intent affirmation on the review screen, recorded before the signed event.
  */
 export const INTENT_TO_SIGN_NOTE =
-  'By checking the box below and clicking Sign and submit, you intend to sign this document electronically. We record that intent in the audit trail. Legal effect depends on the document and the law that applies to it.';
+  'By checking the box below and clicking Sign and submit, you intend to sign this document electronically. Legal effect depends on the document and the law that applies to it.';
 
 /**
  * Hardware/software attestation on the prep screen. The signer has not
@@ -35,11 +35,11 @@ export const RECORD_ACCESS_ATTESTATION = 'I can open and download a PDF on this 
  * Signup age gate. Terms require 18, or 16 where that age can contract.
  * The product does not store a date of birth.
  */
-export const AGE_CONSENT_PREFIX =
-  "I am at least 18 (or 16 where the law lets me sign contracts at 16), and I agree to Seald's ";
+export const AGE_CONSENT_PREFIX = "I'm 18 or older (16 where allowed), and I agree to Seald's ";
 
+/** Matches the visible label, including "Seald's" and the two policy names. */
 export const AGE_CONSENT_ARIA_LABEL =
-  'I am at least 18 (or 16 where the law lets me sign contracts at 16), and I agree to the Terms of Service and Privacy Policy';
+  "I'm 18 or older (16 where allowed), and I agree to Seald's Terms of Service and Privacy Policy";
 
 /**
  * Sealed files are kept until a deletion job exists. `ENVELOPE_RETENTION_YEARS`
@@ -60,9 +60,12 @@ export const RETENTION_NOTE =
 export const SENDER_PROGRESS_NOTE =
   "Each signer gets their own link. You can watch progress on the envelope. We'll email you if someone declines or if the request expires. Signers receive the sealed-file email when everyone has signed.";
 
-/** Auth-panel trust line. No AES-256-at-rest or guaranteed PAdES-LT claim. */
+/**
+ * Short auth-panel trust line. The seal and timestamp caveats live in
+ * the ESIGN disclosure and in `SIGNATURE_LEVEL_NOTE`, not in this chip.
+ */
 export const PRODUCT_TRUST_LINE =
-  'PAdES seal when a seal is applied · external timestamp when available · access-controlled storage';
+  'PAdES digital seal · external RFC 3161 timestamp · access-controlled storage';
 
 /** Neutral value statement. Not a customer testimonial. */
 export const PRODUCT_VALUE_STATEMENT =
@@ -80,7 +83,7 @@ export const DRIVE_DISCONNECT_NOTE =
   'Disconnect any time. We revoke access at Google where we can and stop using the token. An encrypted copy stays in our database for now.';
 
 export const SEAL_DOWNLOAD_ERROR =
-  "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page:";
+  "We couldn't load the download yet. When sealing finishes, we'll email signers a link, or check the verify page:";
 
 export const EMAIL_TRANSIT_NOTE =
   'Sent over HTTPS. Documents are stored in access-controlled cloud storage.';
