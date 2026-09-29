@@ -24,9 +24,11 @@ code PR.
 ## 1. Correctness
 
 - [ ] The change matches the user-visible behavior, not only the types.
-- [ ] Route changes are reflected in **all** of: `AppRoutes.tsx`,
-      `apps/landing/_worker.js` (`SPA_EXACT` / `SPA_PREFIXES`), and the
-      `_redirects` block in `.github/workflows/deploy-cloudflare.yml`.
+- [ ] Route changes are reflected in `AppRoutes.tsx` and
+      `apps/landing/_worker.js` (`SPA_EXACT` / `SPA_PREFIXES`). Do not add
+      a `_redirects` 200 rewrite; Cloudflare turns those into 308s. The
+      deploy workflow copies the worker, it does not generate a redirect
+      list. See `docs/agents/RELEASE.md`.
 - [ ] Nav highlighting still matches `layout/navItems.ts`. `/document/new`
       is Sign. `/document/:id` and `/document/:id/sent` stay on Documents.
 - [ ] Auth boundaries still hold:
@@ -301,7 +303,7 @@ migration path. Confirm:
 - A Drive scope wider than `drive.file`.
 - A top-level `*_down.sql`.
 - `extractSignature` from `@signpdf/utils`.
-- A SPA route with no Cloudflare redirect entry.
+- A SPA route missing from `apps/landing/_worker.js`.
 - Tests that assert class names or styled-component hashes.
 - Coverage thresholds edited down.
 - A docs update that claims a layer or endpoint list the code does not have.

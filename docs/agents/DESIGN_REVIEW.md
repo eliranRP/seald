@@ -16,8 +16,12 @@ a logged-in session. Screenshot files from that run are not in git.
 **The palette is calm and consistent where the theme is actually used.**
 Ink, indigo, and four short semantic ramps are enough for a signing
 product. Semantic aliases (`fg`, `bg`, `border`, `accent`, `overlay`) give
-a designer one vocabulary. Shadows are cool-tinted and light. Focus halo
-`0 0 0 4px rgba(79, 70, 229, 0.18)` is specified once.
+a designer one vocabulary. Shadows are cool-tinted and light. The indigo
+focus halo `0 0 0 4px rgba(79, 70, 229, 0.18)` is defined once, as
+`--shadow-focus` and `theme.shadow.focus`. That token is not the only
+focus treatment on screen: `globalStyles.ts` also draws a 2px
+`:focus-visible` outline, and several controls turn the outline off and
+use the halo instead. Finding 5 covers that split.
 
 **Type has a job for each family.** Inter for UI, Source Serif 4 for titles
 and the wordmark, JetBrains Mono for ids, Caveat only for a typed

@@ -148,10 +148,11 @@ Nav items (`layout/navItems.ts`): Documents `/documents`, Sign `/document/new`,
 Contacts `/signers`, Templates `/templates`. `/document/:id` keeps Documents
 highlighted. Only the exact path `/document/new` highlights Sign.
 
-New SPA routes must also be listed in the Cloudflare `_redirects` block in
-`.github/workflows/deploy-cloudflare.yml` and in `apps/landing/_worker.js`
-(`SPA_EXACT` / `SPA_PREFIXES`). A route that exists only in `AppRoutes.tsx`
-404s in production.
+New SPA routes must be listed in `apps/landing/_worker.js` (`SPA_EXACT`
+or `SPA_PREFIXES`). Cloudflare Pages does not honor a 200 rewrite in
+`_redirects` (it becomes a 308), so the deploy workflow does not write
+one. A path missing from the worker is served as the marketing page.
+See `docs/agents/RELEASE.md`.
 
 ## State and data
 
@@ -441,8 +442,9 @@ manual dispatch).
 ### Deploy shape
 
 - SPA and landing: Cloudflare Pages project `seald-landing`. The workflow
-  builds both, renames the SPA `index.html` to `app.html`, and writes
-  `_redirects`.
+  builds both, renames the SPA `index.html` to `app.html`, and copies
+  `apps/landing/_worker.js` into the deploy. Step-by-step is in
+  `docs/agents/RELEASE.md`.
 - API: EC2, Caddy, the root compose file. `deploy/Caddyfile` no longer
   serves the web bundle.
 
@@ -503,5 +505,5 @@ rewrite a hook failure; add a new commit.
 - Down migrations stay in `migrations/down/`.
 - PAdES verification uses `pades-verify-helpers.ts`.
 - Feature-off Drive returns 404, not an empty 200.
-- New SPA paths are added to the Cloudflare redirect list.
+- New SPA paths are added to `apps/landing/_worker.js`.
 - Secrets (`GDRIVE_OAUTH_CLIENT_SECRET`, service-role keys, KMS material) never land in git or in `VITE_*` variables.
