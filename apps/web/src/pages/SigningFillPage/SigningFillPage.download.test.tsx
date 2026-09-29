@@ -17,7 +17,6 @@ vi.mock('pdfjs-dist', () => ({
   }),
   GlobalWorkerOptions: { workerSrc: '' },
 }));
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
 
 // eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';

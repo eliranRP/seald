@@ -96,14 +96,21 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
 
     const run = async (): Promise<void> => {
       try {
-        const task =
-          typeof source === 'string'
-            ? // No credentials: the signing flow's PDF URL is a Supabase
-              // signed URL with auth baked in; sending credentials here
-              // would trip the origin's CORS (Supabase storage doesn't
-              // emit Access-Control-Allow-Credentials).
-              getDocument({ url: source })
-            : getDocument({ data: new Uint8Array(await source.arrayBuffer()) });
+        let task: PDFDocumentLoadingTask;
+        if (typeof source === 'string') {
+          // No credentials: the signing flow's PDF URL is a Supabase
+          // signed URL with auth baked in; sending credentials here
+          // would trip the origin's CORS (Supabase storage doesn't
+          // emit Access-Control-Allow-Credentials).
+          task = getDocument({ url: source });
+        } else {
+          const bytes = await source.arrayBuffer();
+          // Unmount or a source swap can land while the file bytes are
+          // still being read. `loadingTask` is still null then, so the
+          // effect cleanup cannot abort a worker we have not started.
+          if (cancelled) return;
+          task = getDocument({ data: new Uint8Array(bytes) });
+        }
         loadingTask = task;
         loaded = await task.promise;
         if (cancelled) {
@@ -135,15 +142,6 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
       loadingTask?.destroy().catch(() => {});
     };
   }, [source]);
-
-  // Release the resident doc when the hook unmounts entirely.
-  useEffect(
-    () => () => {
-      if (doc) doc.loadingTask.destroy().catch(() => {});
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
 
   return { doc, numPages: doc?.numPages ?? 0, loading, error };
 }

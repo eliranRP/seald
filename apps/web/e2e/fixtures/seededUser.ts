@@ -30,12 +30,24 @@ export const DEFAULT_SEEDED_USER: SeededUser = {
   fullName: 'Alice Example',
 };
 
-// Default frozen issue / expiry timestamps. We push expiry far past
-// `fixedNow` so Supabase's auto-refresh never fires during a test run
-// (the auth-js client schedules a refresh 60s before expiry; we want
-// every scenario to finish well before that).
+// Issue time stays pinned to the BDD clock (`fixedNow` defaults to
+// 2026-04-25) so user timestamps in the seeded session stay stable.
+//
+// Expiry must NOT be `issued + 30 days`. auth-js compares `expires_at`
+// to `Date.now()` unless a scenario installs `fixedNow`. That 30-day
+// window elapsed on 2026-05-25. After that, `getSession()` tried to
+// refresh `test-refresh-token`, the API mock answered 404 (no GoTrue
+// handler), and `RequireAuth` sent the sender to `/signin`. Scenarios
+// then timed out looking for authed controls ("Add signer", "New
+// document", the primary nav). The last green Playwright run on main
+// was 2026-05-20, five days before the window closed; docs-only commits
+// never re-ran the suite.
+//
+// 2099-12-31 stays valid against both the wall clock and the frozen
+// 2026-04-25 clock, matches the hand-written Playwright specs, and is
+// far enough past `fixedNow` that auto-refresh does not fire mid-scenario.
 const ISSUED_AT = Math.floor(new Date('2026-04-25T10:00:00Z').getTime() / 1000);
-const EXPIRES_AT = ISSUED_AT + 60 * 60 * 24 * 30; // 30 days
+const EXPIRES_AT = Math.floor(new Date('2099-12-31T00:00:00.000Z').getTime() / 1000);
 
 export class SeededUserFixture {
   constructor(private readonly page: Page) {}
