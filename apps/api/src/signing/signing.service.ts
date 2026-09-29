@@ -557,7 +557,7 @@ export class SigningService {
         payload: {
           sender_name: envelope.sender_name ?? envelope.sender_email ?? 'The document sender',
           envelope_title: envelope.title,
-          signed_at_readable: wasSigned ? formatUtc(other.signed_at!) : '',
+          signed_at_readable: other.signed_at !== null ? formatUtc(other.signed_at) : '',
           public_url: publicUrl,
           ...(wasSigned ? { timeline_html: withdrawnTimelineHtml } : {}),
         },

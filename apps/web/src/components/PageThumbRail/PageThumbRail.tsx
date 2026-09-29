@@ -126,7 +126,6 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
               {Array.from({ length: lineCount }, (_v, i) => (
                 // Decorative skeleton — index-based key is fine since nothing
                 // about these lines has stable identity beyond position.
-                // eslint-disable-next-line react/no-array-index-key
                 <SkeletonLine key={i} $width={skeletonWidthPct(page, i)} />
               ))}
             </SkeletonLines>

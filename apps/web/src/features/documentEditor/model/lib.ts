@@ -103,10 +103,13 @@ export function isFullyGrouped(
   if (selectedIds.length < 2) return false;
   const fieldById = new Map<string, PlacedFieldValue>();
   for (const f of fields) fieldById.set(f.id, f);
-  const first = fieldById.get(selectedIds[0]!)?.groupId;
+  const firstId = selectedIds[0];
+  if (firstId === undefined) return false;
+  const first = fieldById.get(firstId)?.groupId;
   if (!first) return false;
   for (let i = 1; i < selectedIds.length; i += 1) {
-    if (fieldById.get(selectedIds[i]!)?.groupId !== first) return false;
+    const id = selectedIds[i];
+    if (id === undefined || fieldById.get(id)?.groupId !== first) return false;
   }
   return true;
 }
@@ -128,9 +131,9 @@ export const SPLIT_TILE_GAP = 8;
  */
 export function withoutGroupId(field: PlacedFieldValue): PlacedFieldValue {
   if (field.groupId === undefined) return field;
-  const next: Record<string, unknown> = { ...field };
-  delete next['groupId'];
-  return next as unknown as PlacedFieldValue;
+  const { groupId: omittedGroupId, ...rest } = field;
+  void omittedGroupId;
+  return rest;
 }
 
 /**

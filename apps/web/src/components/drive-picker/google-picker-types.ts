@@ -122,8 +122,12 @@ export interface GoogleGlobal {
  * Callers should only invoke this after `useGoogleApi` reports
  * `ready: true`. Keeps the `unknown`-cast on `window` localised.
  */
+interface GoogleHost extends Window {
+  google?: GoogleGlobal;
+}
+
 export function getGooglePicker(): PickerNamespace {
-  const w = window as unknown as { google?: GoogleGlobal };
+  const w = window as GoogleHost;
   const picker = w.google?.picker;
   if (!picker) {
     throw new Error('google.picker is not loaded');

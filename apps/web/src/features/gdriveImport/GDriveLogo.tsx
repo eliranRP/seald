@@ -15,6 +15,8 @@ export interface GDriveLogoProps {
   readonly 'aria-hidden'?: boolean | 'true' | 'false';
 }
 
+import { seald } from '@/styles/theme';
+
 export function GDriveLogo({ size = 32, 'aria-hidden': ariaHidden }: GDriveLogoProps) {
   const decorative = ariaHidden === true || ariaHidden === 'true';
   return (
@@ -26,9 +28,9 @@ export function GDriveLogo({ size = 32, 'aria-hidden': ariaHidden }: GDriveLogoP
       style={{ flexShrink: 0 }}
     >
       {decorative ? null : <title>Google Drive</title>}
-      <path d="M11 4 L21 4 L31 21 L26 30 L16 13 Z" fill="#FBBC04" />
-      <path d="M11 4 L1 21 L6 30 L16 13 Z" fill="#1FA463" />
-      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill="#4285F4" />
+      <path d="M11 4 L21 4 L31 21 L26 30 L16 13 Z" fill={seald.color.brand.drive.yellow} />
+      <path d="M11 4 L1 21 L6 30 L16 13 Z" fill={seald.color.brand.drive.green} />
+      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill={seald.color.brand.google.blue} />
     </svg>
   );
 }

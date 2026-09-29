@@ -494,11 +494,14 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       // the comparison is apples-to-apples. Numeric ordinals/counts/
       // permille → numeric; title → text (already lower-cased when
       // encoded); dates → timestamptz.
-      const cursorSortVal = isNumericSortKey(sortKey)
-        ? sql`${sql.lit(Number(c.sort_value))}::numeric`
-        : sortKey === 'title'
-          ? sql`${sql.lit(c.sort_value)}`
-          : sql`${sql.lit(c.sort_value)}::timestamptz`;
+      let cursorSortVal;
+      if (isNumericSortKey(sortKey)) {
+        cursorSortVal = sql`${sql.lit(Number(c.sort_value))}::numeric`;
+      } else if (sortKey === 'title') {
+        cursorSortVal = sql`${sql.lit(c.sort_value)}`;
+      } else {
+        cursorSortVal = sql`${sql.lit(c.sort_value)}::timestamptz`;
+      }
       q = q.where(
         sql<boolean>`(${sortExpr} ${primaryCmp} ${cursorSortVal})
           or (${sortExpr} = ${cursorSortVal} and e.updated_at < ${sql.lit(c.updated_at)}::timestamptz)
@@ -580,14 +583,20 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
 
     // Genesis event must have NULL prev_event_hash. Anything else means a
     // row was deleted upstream (the genesis we have was actually a child).
-    const genesis = rows[0]!;
+    const genesis = rows[0];
+    if (genesis === undefined) {
+      throw new TypeError('verifyEventChain: missing genesis row');
+    }
     if (genesis.prev_event_hash !== null && genesis.prev_event_hash !== undefined) {
       return { chain_intact: false };
     }
 
     for (let i = 1; i < rows.length; i++) {
-      const prev = rows[i - 1]!;
-      const curr = rows[i]!;
+      const prev = rows[i - 1];
+      const curr = rows[i];
+      if (prev === undefined || curr === undefined) {
+        throw new TypeError('verifyEventChain: missing event row');
+      }
       const expected = eventHash(toEventDomain(prev));
       const stored = curr.prev_event_hash;
       if (!stored) return { chain_intact: false };

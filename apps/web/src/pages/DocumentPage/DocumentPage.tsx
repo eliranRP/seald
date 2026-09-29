@@ -420,11 +420,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                         // any tile selects the whole group — same gesture for
                                         // single-click and shift/meta-click.
                                         setSelectedIds((prev) => {
-                                          const base = additive
-                                            ? prev.includes(field.id)
-                                              ? prev.filter((id) => id !== field.id)
-                                              : [...prev, field.id]
-                                            : [field.id];
+                                          let base: ReadonlyArray<string>;
+                                          if (!additive) base = [field.id];
+                                          else if (prev.includes(field.id)) {
+                                            base = prev.filter((id) => id !== field.id);
+                                          } else base = [...prev, field.id];
                                           return expandSelectionToGroup(base, fields);
                                         });
                                         setSignerPopoverFor(null);
@@ -464,7 +464,6 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                     <SnapGuide
                                       // Positional keys are fine here — guides are short-lived
                                       // drag-time state with no stable identity of their own.
-                                      // eslint-disable-next-line react/no-array-index-key
                                       key={`${g.orientation}-${String(g.pos)}-${String(i)}`}
                                       data-testid="snap-guide"
                                       $orientation={g.orientation}

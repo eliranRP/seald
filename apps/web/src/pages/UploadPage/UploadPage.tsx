@@ -331,7 +331,8 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                       <GDriveLogo size={14} />
                       Pick from Google Drive
                     </TemplatePromptLink>
-                  ) : onConnectDrive ? (
+                  ) : null}
+                  {!onPickDrive && onConnectDrive ? (
                     <TemplatePromptLink type="button" onClick={onConnectDrive}>
                       <GDriveLogo size={14} />
                       Connect Google Drive

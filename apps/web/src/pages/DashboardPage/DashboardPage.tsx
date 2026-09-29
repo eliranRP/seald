@@ -225,7 +225,16 @@ function formatTurnaround(list: ReadonlyArray<EnvelopeListItem>): string {
   if (hours.length === 0) return '—';
   hours.sort((a, b) => a - b);
   const mid = Math.floor(hours.length / 2);
-  const median = hours.length % 2 === 0 ? (hours[mid - 1]! + hours[mid]!) / 2 : hours[mid]!;
+  const lower = hours[mid - 1];
+  const upper = hours[mid];
+  let median: number;
+  if (hours.length % 2 === 0) {
+    if (lower === undefined || upper === undefined) return '—';
+    median = (lower + upper) / 2;
+  } else {
+    if (upper === undefined) return '—';
+    median = upper;
+  }
   if (median >= 24) return `${(median / 24).toFixed(1)}d`;
   return `${Math.round(median)}h`;
 }
@@ -566,11 +575,11 @@ export function DashboardPage() {
               // the active sort. (Audit A · L-3 — replaces the previous
               // U+25BE unicode caret that rendered ambiguously.)
               const ArrowIcon = active && sort.dir === 'asc' ? ChevronUp : ChevronDown;
+              let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
+              if (active && sort.dir === 'asc') ariaSort = 'ascending';
+              else if (active) ariaSort = 'descending';
               return (
-                <HeadCell
-                  key={key}
-                  aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-                >
+                <HeadCell key={key} aria-sort={ariaSort}>
                   <SortHeaderButton
                     type="button"
                     $active={active}

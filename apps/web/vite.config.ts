@@ -28,8 +28,9 @@ function landingScriptsBridge(): Plugin {
       server.middlewares.use((req, res, next) => {
         if (!req.url) return next();
         const match = /^\/scripts\/([\w.-]+)(?:\?.*)?$/.exec(req.url);
-        if (!match) return next();
-        const file = resolvePath(root, match[1]!);
+        const fileName = match?.[1];
+        if (!match || fileName === undefined) return next();
+        const file = resolvePath(root, fileName);
         if (!file.startsWith(root) || !existsSync(file)) return next();
         res.setHeader('content-type', 'application/javascript; charset=utf-8');
         res.end(readFileSync(file));

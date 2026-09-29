@@ -15,7 +15,7 @@ const SIGNATURE_KINDS = ['signature', 'initials'] as const;
 type SignatureKind = (typeof SIGNATURE_KINDS)[number];
 
 export class SignatureMetaDto {
-  @IsIn(SIGNATURE_FORMATS as unknown as string[])
+  @IsIn([...SIGNATURE_FORMATS])
   readonly format!: SignatureFormat;
 
   /**
@@ -25,7 +25,7 @@ export class SignatureMetaDto {
    * absent field as 'signature' to preserve prior behaviour.
    */
   @IsOptional()
-  @IsIn(SIGNATURE_KINDS as unknown as string[])
+  @IsIn([...SIGNATURE_KINDS])
   readonly kind?: SignatureKind;
 
   @IsOptional()

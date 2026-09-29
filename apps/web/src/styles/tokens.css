@@ -36,6 +36,24 @@
   --info-500: #3b82f6;
   --info-700: #1d4ed8;
 
+  /* Categorical tag / template-accent palette. See DESIGN_SYSTEM.md. */
+  --tag-pink-50: #fdf2f8;
+  --tag-pink-500: #ec4899;
+  --tag-pink-700: #be185d;
+  --tag-violet-50: #f5f3ff;
+  --tag-violet-500: #8b5cf6;
+  --tag-violet-700: #6d28d9;
+  --tag-cyan-50: #ecfeff;
+  --tag-cyan-500: #06b6d4;
+  --tag-cyan-700: #0e7490;
+
+  --google-blue: #4285f4;
+  --google-green: #34a853;
+  --google-yellow: #fbbc05;
+  --google-red: #ea4335;
+  --drive-green: #1fa463;
+  --drive-yellow: #fbbc04;
+
   --fg-1: var(--ink-900);
   --fg-2: var(--ink-700);
   --fg-3: var(--ink-500);

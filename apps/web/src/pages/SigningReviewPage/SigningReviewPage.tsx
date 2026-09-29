@@ -292,7 +292,7 @@ function Content() {
     // Same warning copy as SigningPrepPage / SigningFillPage so the
     // consequence is identical regardless of which signing-screen step
     // the signer triggers withdrawal from (issue #41).
-    // eslint-disable-next-line no-alert -- native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
+    // native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
     const confirmed = window.confirm(
       'Withdraw consent to sign this document electronically?\n\n' +
         'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +

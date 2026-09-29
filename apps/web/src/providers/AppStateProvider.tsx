@@ -10,6 +10,7 @@ import {
   useUpdateContactMutation,
 } from '../features/contacts';
 import { useMinDuration } from '../lib/useMinDuration';
+import { seald } from '@/styles/theme';
 import { useAuth } from './AuthProvider';
 
 export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from '../lib/mockApi';
@@ -67,7 +68,9 @@ function shortCode(): string {
 }
 
 function nextColor(currentCount: number): string {
-  return SIGNER_COLOR_PALETTE[currentCount % SIGNER_COLOR_PALETTE.length] ?? '#818CF8';
+  return (
+    SIGNER_COLOR_PALETTE[currentCount % SIGNER_COLOR_PALETTE.length] ?? seald.color.indigo[400]
+  );
 }
 
 export interface AppStateProviderProps {

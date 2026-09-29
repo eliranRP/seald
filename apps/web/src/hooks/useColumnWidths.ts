@@ -79,7 +79,6 @@ export function useColumnWidths(
     // We deliberately ignore subsequent spec changes — the hook
     // assumes the spec list is stable across renders. Reading on
     // mount only is the canonical persisted-preferences pattern.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
   const [widths, setWidths] = useState<Record<string, number>>(initial);
@@ -87,7 +86,7 @@ export function useColumnWidths(
   // Coalesce burst pointer-move updates into one rAF tick so a 60 fps
   // drag writes once per frame, not per pixel.
   const pendingRef = useRef<Record<string, number> | null>(null);
-  const rafRef = useRef<number | null>(null);
+  const rafRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
 
   const flush = useCallback(() => {
     if (pendingRef.current === null) return;
@@ -107,7 +106,7 @@ export function useColumnWidths(
         rafRef.current =
           typeof requestAnimationFrame === 'function'
             ? requestAnimationFrame(flush)
-            : (setTimeout(flush, 0) as unknown as number);
+            : setTimeout(flush, 0);
       }
     },
     [flush, minByKey, widths],
@@ -116,8 +115,11 @@ export function useColumnWidths(
   const resetAll = useCallback(() => {
     pendingRef.current = null;
     if (rafRef.current !== null) {
-      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafRef.current);
-      else clearTimeout(rafRef.current);
+      if (typeof requestAnimationFrame === 'function' && typeof rafRef.current === 'number') {
+        cancelAnimationFrame(rafRef.current);
+      } else {
+        clearTimeout(rafRef.current);
+      }
       rafRef.current = null;
     }
     const reset: Record<string, number> = {};
@@ -137,8 +139,11 @@ export function useColumnWidths(
   useEffect(() => {
     return () => {
       if (rafRef.current !== null) {
-        if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafRef.current);
-        else clearTimeout(rafRef.current);
+        if (typeof requestAnimationFrame === 'function' && typeof rafRef.current === 'number') {
+          cancelAnimationFrame(rafRef.current);
+        } else {
+          clearTimeout(rafRef.current);
+        }
       }
     };
   }, []);

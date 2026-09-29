@@ -84,19 +84,24 @@ const AVATAR_PALETTE = [
 function colorFor(id: string): string {
   let hash = 0;
   for (let i = 0; i < id.length; i += 1) {
-    // eslint-disable-next-line no-bitwise -- 32-bit string hash; Math operations would lose the int wrap
+    // 32-bit string hash; Math operations would lose the int wrap
     hash = (Math.imul(hash, 31) + id.charCodeAt(i)) | 0;
   }
   // Safety: AVATAR_PALETTE has length > 0; the modulo always lands inside.
   const idx = Math.abs(hash) % AVATAR_PALETTE.length;
-  return AVATAR_PALETTE[idx] ?? AVATAR_PALETTE[0]!;
+  return AVATAR_PALETTE[idx] ?? AVATAR_PALETTE[0];
 }
 
 function initialsFor(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
-  return `${parts[0]![0]}${parts[parts.length - 1]![0]}`.toUpperCase();
+  const first = parts[0];
+  if (first === undefined) return '?';
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase();
+  const last = parts[parts.length - 1];
+  const a = first[0];
+  const b = last?.[0];
+  if (a === undefined || b === undefined) return '?';
+  return `${a}${b}`.toUpperCase();
 }
 
 // Hashes wrap visually via `word-break: break-all` on FactVal — return the

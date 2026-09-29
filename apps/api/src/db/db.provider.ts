@@ -19,7 +19,7 @@ export const DB_TOKEN = Symbol('DB');
  */
 function stripSslMode(url: string): string {
   return url.replace(/([?&])sslmode=[^&]*(&|$)/, (_m, lead: string, trail: string) =>
-    trail === '&' ? lead : lead === '?' ? '' : '',
+    trail === '&' ? lead : '',
   );
 }
 

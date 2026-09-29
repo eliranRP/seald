@@ -7,9 +7,7 @@ vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 
 // Import AFTER the mock so the module binds the stubbed client.
 // Importing `signApiClient` directly lets us drive per-test responses.
-// eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';
-// eslint-disable-next-line import/first
 import { SigningEntryPage, resetInflightForTests } from './SigningEntryPage';
 
 const post = signApiClient.post as unknown as ReturnType<typeof vi.fn>;

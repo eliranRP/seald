@@ -8,7 +8,4 @@ import type { HTMLAttributes } from 'react';
  * design). Consumers can still forward standard HTML attributes (e.g.
  * `className`, `aria-label`) via spread.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export interface AuthBrandPanelProps extends HTMLAttributes<HTMLElement> {
-  // Intentionally empty — fully self-contained for now.
-}
+export type AuthBrandPanelProps = HTMLAttributes<HTMLElement>;

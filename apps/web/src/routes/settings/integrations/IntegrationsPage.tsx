@@ -13,6 +13,7 @@ import {
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
 import type { ApiError } from '@/lib/api/apiClient';
+import { seald } from '@/styles/theme';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
 import { Button } from '@/components/Button';
@@ -373,9 +374,9 @@ function GDriveLogo({ size = 32 }: { readonly size?: number }) {
       style={{ flexShrink: 0 }}
     >
       <title>Google Drive</title>
-      <path d="M11 4 L21 4 L31 21 L26 30 L16 13 Z" fill="#FBBC04" />
-      <path d="M11 4 L1 21 L6 30 L16 13 Z" fill="#1FA463" />
-      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill="#4285F4" />
+      <path d="M11 4 L21 4 L31 21 L26 30 L16 13 Z" fill={seald.color.brand.drive.yellow} />
+      <path d="M11 4 L1 21 L6 30 L16 13 Z" fill={seald.color.brand.drive.green} />
+      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill={seald.color.brand.google.blue} />
     </svg>
   );
 }

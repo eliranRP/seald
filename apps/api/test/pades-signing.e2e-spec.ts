@@ -356,7 +356,6 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
     // Sanity: can re-read them from disk.
     expect(readFileSync(sealedOut).length).toBe(sealedBytes.length);
     expect(readFileSync(auditOut).length).toBe(auditBytes.length);
-    // eslint-disable-next-line no-console
     console.log(`[pades-signing test] artifacts written to ${outDir}`);
   });
 });

@@ -389,12 +389,11 @@ export const FieldsPanelStatus = styled.span<{
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: ${({ theme, $tone }) =>
-    $tone === 'filled'
-      ? theme.color.success[700]
-      : $tone === 'required'
-        ? theme.color.warn[700]
-        : theme.color.fg[3]};
+  color: ${({ theme, $tone }) => {
+    if ($tone === 'filled') return theme.color.success[700];
+    if ($tone === 'required') return theme.color.warn[700];
+    return theme.color.fg[3];
+  }};
 `;
 
 /* Audit item 9 — optional-fields review prompt. Styled-component card kept

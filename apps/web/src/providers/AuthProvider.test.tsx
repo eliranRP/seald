@@ -37,7 +37,6 @@ vi.mock('../lib/supabase/supabaseClient', () => ({
   setKeepSignedIn: vi.fn(),
 }));
 
-// eslint-disable-next-line import/first
 import { AuthProvider, useAuth } from './AuthProvider';
 
 function makeAnonSession(): Session {

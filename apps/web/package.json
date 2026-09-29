@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.node.json",
-    "lint": "eslint . --max-warnings=0",
+    "lint": "eslint . --max-warnings=0 && node scripts/check-component-coverage.mjs",
     "lint:fix": "eslint . --fix",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -39,6 +39,7 @@
     "styled-components": "6.4.1"
   },
   "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
     "@eslint/js": "^9",
     "@playwright/test": "^1",
     "@storybook/addon-a11y": "10.4.0",

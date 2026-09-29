@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { type Kysely, sql } from 'kysely';
-import type { Database, OutboundEmailsTable } from '../../db/schema';
+import type { Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
   DuplicateOutboundEmailError,
@@ -9,11 +9,9 @@ import {
   type OutboundEmailRow,
 } from './outbound-emails.repository';
 
-type Row = {
-  [K in keyof OutboundEmailsTable]: OutboundEmailsTable[K] extends { __select: infer T }
-    ? T
-    : OutboundEmailsTable[K];
-};
+function rowRecord(row: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(row));
+}
 
 function toDomain(row: Record<string, unknown>): OutboundEmailRow {
   return {
@@ -74,7 +72,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         })
         .returningAll()
         .executeTakeFirstOrThrow();
-      return toDomain(row as unknown as Record<string, unknown>);
+      return toDomain(rowRecord(row));
     } catch (err) {
       if (isOutboundUniqueViolation(err)) throw new DuplicateOutboundEmailError();
       throw err;
@@ -103,7 +101,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         )
         .returningAll()
         .execute();
-      return rows.map((r) => toDomain(r as unknown as Record<string, unknown>));
+      return rows.map((r) => toDomain(rowRecord(r)));
     } catch (err) {
       if (isOutboundUniqueViolation(err)) throw new DuplicateOutboundEmailError();
       throw err;
@@ -117,7 +115,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .where('envelope_id', '=', envelope_id)
       .orderBy('created_at', 'asc')
       .execute();
-    return rows.map((r) => toDomain(r as unknown as Record<string, unknown>));
+    return rows.map((r) => toDomain(rowRecord(r)));
   }
 
   async findLastInviteOrReminder(
@@ -133,7 +131,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .orderBy('created_at', 'desc')
       .limit(1)
       .executeTakeFirst();
-    return row ? toDomain(row as unknown as Record<string, unknown>) : null;
+    return row ? toDomain(rowRecord(row)) : null;
   }
 
   async claimNext(now: Date): Promise<OutboundEmailRow | null> {
@@ -156,7 +154,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       returning *
     `.execute(this.db);
     const row = result.rows[0];
-    return row ? toDomain(row) : null;
+    return row ? toDomain(rowRecord(row)) : null;
   }
 
   async markSent(id: string, provider_id: string, sent_at: Date): Promise<void> {
@@ -202,6 +200,3 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .execute();
   }
 }
-
-// Reference so ts doesn't complain about unused Row import in future additions
-void (null as unknown as Row);

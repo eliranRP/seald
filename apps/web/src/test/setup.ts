@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import '@testing-library/jest-dom/vitest';
 import { expect } from 'vitest';
 import * as axeMatchers from 'vitest-axe/matchers';
@@ -47,7 +46,7 @@ if (!window.matchMedia) {
 // — tests that need to assert intersection behaviour should override per-test.
 // `class-methods-use-this` is disabled inside the stubs because the no-op
 // observer methods deliberately don't reference instance state.
-/* eslint-disable class-methods-use-this */
+
 if (
   typeof (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver === 'undefined'
 ) {
@@ -83,7 +82,6 @@ if (typeof (globalThis as { ResizeObserver?: unknown }).ResizeObserver === 'unde
   }
   (globalThis as { ResizeObserver: unknown }).ResizeObserver = StubResizeObserver;
 }
-/* eslint-enable class-methods-use-this */
 
 // jsdom doesn't implement Element.scrollTo / window.scrollTo. PageThumbRail's
 // debounced auto-scroll fires on a 120ms timeout that runs *after* the test

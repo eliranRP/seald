@@ -92,11 +92,15 @@ export class GdriveExportService {
     if (accounts.length === 0) {
       throw new GdriveNotConnectedError();
     }
-    const account = [...accounts].sort((a, b) => {
+    const sortedAccounts = [...accounts].sort((a, b) => {
       const at = a.lastUsedAt ?? a.connectedAt;
       const bt = b.lastUsedAt ?? b.connectedAt;
       return bt.localeCompare(at);
-    })[0]!;
+    });
+    const account = sortedAccounts[0];
+    if (account === undefined) {
+      throw new GdriveNotConnectedError();
+    }
 
     // getAccessToken collapses concurrent callers onto one Google refresh
     // and touches last_used_at on success. TokenExpiredError (revoked
@@ -113,7 +117,10 @@ export class GdriveExportService {
     const fileIds: Partial<Record<GdriveExportArtifactKind, string>> = {};
 
     for (let i = 0; i < args.artifacts.length; i++) {
-      const artifact = args.artifacts[i]!;
+      const artifact = args.artifacts[i];
+      if (artifact === undefined) {
+        throw new TypeError('gdrive export: missing artifact');
+      }
       try {
         const bytes = await this.storage.download(artifact.path);
         const recordedId = sameFolder ? recordedFileId(existing, artifact.kind) : null;
@@ -139,12 +146,9 @@ export class GdriveExportService {
         }
         // A later artifact failed: keep the partial result, still
         // persist what landed so a retry only re-pushes the failure.
-        const code =
-          err instanceof GDriveError
-            ? err.code
-            : err instanceof Error
-              ? (err.name ?? 'unknown_error')
-              : 'unknown_error';
+        let code = 'unknown_error';
+        if (err instanceof GDriveError) code = err.code;
+        else if (err instanceof Error) code = err.name ?? 'unknown_error';
         this.logger.warn(
           `gdrive_export_partial envelope=${args.envelopeId} kind=${artifact.kind} err=${code}`,
         );

@@ -59,7 +59,7 @@ export function useEditorKeyboard({
     if (selectedIds.length === 0) return;
     const picked = fields.filter((f) => selectedIds.includes(f.id));
     if (picked.length === 0) return;
-    // eslint-disable-next-line no-param-reassign -- writing to a passed-in ref's `.current` is the standard React idiom for ref-shared state.
+    // writing to a passed-in ref's `.current` is the standard React idiom for ref-shared state.
     clipboardRef.current = picked;
   }, [clipboardRef, fields, selectedIds]);
 

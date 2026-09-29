@@ -159,7 +159,7 @@ export function MWApplyPagesSheet(props: MWApplyPagesSheetProps) {
         })}
         {mode === 'custom' && (
           <Input
-            // eslint-disable-next-line jsx-a11y/no-autofocus -- per design,
+            // per design,
             // custom mode opens an inline text input that must be ready for
             // typing immediately when the user picks "Custom pages".
             autoFocus

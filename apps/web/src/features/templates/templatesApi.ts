@@ -1,5 +1,6 @@
 import type { AxiosRequestConfig } from 'axios';
 import { apiClient } from '@/lib/api/apiClient';
+import { seald } from '@/styles/theme';
 import type { TemplateFieldLayout as TemplateField, TemplateSummary } from './templates';
 
 /**
@@ -63,7 +64,7 @@ function toSummary(t: ApiTemplate): TemplateSummary {
     fieldCount: t.field_layout.length,
     lastUsed: t.last_used_at ? new Date(t.last_used_at).toLocaleDateString() : '—',
     uses: t.uses_count,
-    cover: t.cover_color ?? '#EEF2FF',
+    cover: t.cover_color ?? seald.color.indigo[50],
     exampleFile: '',
     fields: t.field_layout,
     tags: t.tags ?? [],
@@ -144,6 +145,12 @@ export async function bumpUseCount(id: string, signal?: AbortSignal): Promise<Te
   return toSummary(data);
 }
 
+function browserMultipartHeaders(): Exclude<AxiosRequestConfig['headers'], undefined> {
+  const headers: { 'Content-Type'?: string } = {};
+  Reflect.set(headers, 'Content-Type', undefined);
+  return headers;
+}
+
 /**
  * Upload (or replace) the template's example PDF. Returns the updated
  * template summary so the caller can flip `hasExamplePdf` in the
@@ -164,8 +171,10 @@ export async function uploadTemplateExamplePdf(
       ...configWithSignal(signal),
       // Let the browser set the multipart boundary — overriding it
       // strips the boundary parameter and breaks the parser.
-      headers: { 'Content-Type': undefined as unknown as string },
-    } as AxiosRequestConfig,
+      // Reflect keeps the runtime value `undefined` (axios omits the
+      // header) without a cast that pretends the value is a string.
+      headers: browserMultipartHeaders(),
+    },
   );
   return toSummary(data);
 }

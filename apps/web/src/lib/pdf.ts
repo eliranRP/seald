@@ -5,7 +5,6 @@ import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 // Map.upsert polyfill before delegating to pdfjs's real worker). Loading
 // the worker this way avoids CORS issues and keeps pdfjs happy without a
 // copy-to-public hack.
-// eslint-disable-next-line import/no-unresolved
 import pdfjsWorkerUrl from './pdfjsWorker?worker&url';
 
 // pdfjs-dist v6 calls `getOrInsertComputed` (and the sibling `getOrInsert`)
@@ -19,13 +18,14 @@ type UpsertCommon<K, V> = {
   get(key: K): V | undefined;
   set(key: K, value: V): unknown;
 };
-function installUpsert<K, V>(proto: UpsertCommon<K, V>): void {
-  const p = proto as UpsertCommon<K, V> & {
+function installUpsert<K, V>(proto: object): void {
+  const target = proto as UpsertCommon<K, V>;
+  const p = target as UpsertCommon<K, V> & {
     getOrInsertComputed?: (key: K, callbackfn: (key: K) => V) => V;
     getOrInsert?: (key: K, value: V) => V;
   };
   if (typeof p.getOrInsertComputed !== 'function') {
-    Object.defineProperty(proto, 'getOrInsertComputed', {
+    Object.defineProperty(target, 'getOrInsertComputed', {
       configurable: true,
       writable: true,
       value: function (this: UpsertCommon<K, V>, key: K, callbackfn: (k: K) => V): V {
@@ -37,7 +37,7 @@ function installUpsert<K, V>(proto: UpsertCommon<K, V>): void {
     });
   }
   if (typeof p.getOrInsert !== 'function') {
-    Object.defineProperty(proto, 'getOrInsert', {
+    Object.defineProperty(target, 'getOrInsert', {
       configurable: true,
       writable: true,
       value: function (this: UpsertCommon<K, V>, key: K, value: V): V {
@@ -48,8 +48,8 @@ function installUpsert<K, V>(proto: UpsertCommon<K, V>): void {
     });
   }
 }
-installUpsert(Map.prototype as unknown as UpsertCommon<unknown, unknown>);
-installUpsert(WeakMap.prototype as unknown as UpsertCommon<object, unknown>);
+installUpsert(Map.prototype);
+installUpsert(WeakMap.prototype);
 
 // Setting the worker once at module load is the pattern pdfjs-dist
 // documents. Guard against HMR double-assignment in dev.

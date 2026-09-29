@@ -1,5 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { seald } from '@/styles/theme';
 import { reportSignerEvent } from './telemetry';
 
 interface Props {
@@ -51,22 +52,24 @@ export class SigningErrorBoundary extends Component<Props, State> {
           minHeight: '100vh',
           display: 'grid',
           placeItems: 'center',
-          background: '#F8FAFC',
+          background: seald.color.ink[50],
           fontFamily: 'Inter, system-ui, sans-serif',
         }}
       >
         <div
           style={{
             maxWidth: 420,
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
+            background: seald.color.paper,
+            border: `1px solid ${seald.color.ink[200]}`,
             borderRadius: 16,
             padding: 24,
             textAlign: 'center',
           }}
         >
-          <h1 style={{ fontSize: 22, margin: 0, color: '#0B1220' }}>Something went wrong</h1>
-          <p style={{ fontSize: 13, color: '#64748B', marginTop: 12, lineHeight: 1.6 }}>
+          <h1 style={{ fontSize: 22, margin: 0, color: seald.color.ink[900] }}>
+            Something went wrong
+          </h1>
+          <p style={{ fontSize: 13, color: seald.color.ink[500], marginTop: 12, lineHeight: 1.6 }}>
             We couldn&apos;t complete that action. Reloading the page usually resolves it.
           </p>
           <button
@@ -78,8 +81,8 @@ export class SigningErrorBoundary extends Component<Props, State> {
               padding: '0 20px',
               border: 'none',
               borderRadius: 10,
-              background: '#0B1220',
-              color: '#FFFFFF',
+              background: seald.color.ink[900],
+              color: seald.color.paper,
               fontSize: 13,
               fontWeight: 600,
               cursor: 'pointer',

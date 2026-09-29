@@ -10,7 +10,6 @@ vi.mock('@/features/signing', async () => {
   };
 });
 
-// eslint-disable-next-line import/first
 import { useSigningPdfSource } from '../useSigningPdfSource';
 
 beforeEach(() => {

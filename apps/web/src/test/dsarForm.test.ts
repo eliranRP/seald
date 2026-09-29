@@ -105,7 +105,6 @@ afterEach(() => {
 
 function loadAndSubmit(): void {
   // The IIFE binds a submit handler when it runs; eval here, then dispatch.
-  // eslint-disable-next-line no-eval
   (0, eval)(SCRIPT);
   const form = document.getElementById('dsar-form') as HTMLFormElement | null;
   if (!form) throw new Error('Form was not staged before loading the script');

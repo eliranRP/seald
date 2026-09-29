@@ -1,0 +1,19 @@
+# Component folders under apps/web/src/components that are missing a
+# *.test.ts(x) or *.stories.ts(x). Clear these in the testing cycle.
+# Do not add names. Review by 2026-12-31.
+ColumnResizeHandle
+DialogPrimitives
+EnvelopeIllustration
+ErrorBoundary
+FilterToolbar
+GuestSenderEmailDialog
+SendConfirmDialog
+SignersStepCard
+TagChip
+TagEditor
+TagEditorPopover
+TagFilterMenu
+TemplateFlowHeader
+TemplateModeBanner
+Toast
+shared

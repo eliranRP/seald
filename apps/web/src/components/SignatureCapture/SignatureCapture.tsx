@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ShieldCheck, Upload, X as XIcon } from 'lucide-react';
+import { seald } from '@/styles/theme';
 import { Icon } from '../Icon';
 import { SignatureMark } from '../SignatureMark';
 import type {
@@ -52,7 +53,7 @@ function computeInitialTyped(args: {
 
 export const CAPTURE_WIDTH = 600;
 export const CAPTURE_HEIGHT = 200;
-const DRAW_COLOR = '#0B1220';
+const DRAW_COLOR = seald.color.ink[900];
 
 /**
  * Compute the font size that makes `text` fit within `maxWidth` pixels.

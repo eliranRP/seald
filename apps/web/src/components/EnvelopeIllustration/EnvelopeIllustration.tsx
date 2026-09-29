@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import type { SVGProps } from 'react';
+import { seald } from '@/styles/theme';
 
 export interface EnvelopeIllustrationProps extends SVGProps<SVGSVGElement> {
   /** Outer width in px. Height scales to preserve the 160:110 ratio. */
@@ -13,9 +14,9 @@ export interface EnvelopeIllustrationProps extends SVGProps<SVGSVGElement> {
  * placeholder graphic for empty list states (dashboard "no
  * envelopes match", future templates / contacts blank states).
  *
- * The SVG is fully self-contained — no theme-tokens — so it renders
- * identically in light + dark and inside surfaces with arbitrary
- * background colors.
+ * Fills use theme color constants (the same hex values as before), so
+ * the illustration stays stable in light and dark and on arbitrary
+ * backgrounds.
  */
 export const EnvelopeIllustration = forwardRef<SVGSVGElement, EnvelopeIllustrationProps>(
   (props, ref) => {
@@ -33,20 +34,33 @@ export const EnvelopeIllustration = forwardRef<SVGSVGElement, EnvelopeIllustrati
       >
         <defs>
           <linearGradient id="ei-body" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#F8FAFC" />
-            <stop offset="1" stopColor="#EEF2FF" />
+            <stop offset="0" stopColor={seald.color.ink[50]} />
+            <stop offset="1" stopColor={seald.color.indigo[50]} />
           </linearGradient>
           <linearGradient id="ei-flap" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stopColor="#FFFFFF" />
-            <stop offset="1" stopColor="#E0E7FF" />
+            <stop offset="0" stopColor={seald.color.paper} />
+            <stop offset="1" stopColor={seald.color.indigo[100]} />
           </linearGradient>
         </defs>
-        <rect x="8" y="18" width="144" height="84" rx="8" fill="url(#ei-body)" stroke="#C7D2FE" />
-        <path d="M8 26 L80 70 L152 26" fill="none" stroke="#A5B4FC" strokeWidth="1.2" />
+        <rect
+          x="8"
+          y="18"
+          width="144"
+          height="84"
+          rx="8"
+          fill="url(#ei-body)"
+          stroke={seald.color.indigo[200]}
+        />
+        <path
+          d="M8 26 L80 70 L152 26"
+          fill="none"
+          stroke={seald.color.indigo[300]}
+          strokeWidth="1.2"
+        />
         <path
           d="M8 26 L80 2 L152 26 L152 34 L80 12 L8 34 Z"
           fill="url(#ei-flap)"
-          stroke="#C7D2FE"
+          stroke={seald.color.indigo[200]}
         />
       </svg>
     );

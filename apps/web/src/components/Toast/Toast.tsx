@@ -20,7 +20,9 @@ import { Body, IconBadge, Subtitle, Title, Wrap } from './Toast.styles';
 export const Toast = forwardRef<HTMLDivElement, ToastProps>((props, ref) => {
   const { title, subtitle, tone = 'success', ...rest } = props;
   const role = tone === 'error' ? 'alert' : 'status';
-  const glyph = tone === 'error' ? AlertCircle : tone === 'info' ? Info : Check;
+  let glyph = Check;
+  if (tone === 'error') glyph = AlertCircle;
+  else if (tone === 'info') glyph = Info;
   return (
     <Wrap ref={ref} role={role} aria-live={tone === 'error' ? 'assertive' : 'polite'} {...rest}>
       <IconBadge $tone={tone} aria-hidden>

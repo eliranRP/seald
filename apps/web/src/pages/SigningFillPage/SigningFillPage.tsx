@@ -510,11 +510,12 @@ function Content() {
               .map((f) => {
                 const uiKind = toUiKind(f);
                 const filled = fieldIsFilled(f);
-                const tone: 'filled' | 'required' | 'optional' = filled
-                  ? 'filled'
-                  : f.required
-                    ? 'required'
-                    : 'optional';
+                let tone: 'filled' | 'required' | 'optional' = 'optional';
+                if (filled) tone = 'filled';
+                else if (f.required) tone = 'required';
+                let toneLabel = 'Optional';
+                if (tone === 'filled') toneLabel = 'Filled';
+                else if (tone === 'required') toneLabel = 'Required';
                 const label = fieldLabel(f, uiKind);
                 return (
                   <FieldsPanelItem
@@ -523,9 +524,7 @@ function Content() {
                     onClick={() => handleFieldsPanelSelect(f)}
                   >
                     <span>{label}</span>
-                    <FieldsPanelStatus $tone={tone}>
-                      {filled ? 'Filled' : f.required ? 'Required' : 'Optional'}
-                    </FieldsPanelStatus>
+                    <FieldsPanelStatus $tone={tone}>{toneLabel}</FieldsPanelStatus>
                   </FieldsPanelItem>
                 );
               })}

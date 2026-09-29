@@ -91,8 +91,8 @@ beforeEach(() => {
   });
 });
 
-/* eslint-disable import/first -- we mock react-router-dom + @/features/signing
-   above and only then import the SUT, mirroring the existing pattern. */
+// we mock react-router-dom + @/features/signing
+// above and only then import the SUT, mirroring the existing pattern.
 import {
   useSigningFillController,
   toUiKind,

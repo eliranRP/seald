@@ -25,5 +25,11 @@ export function pickAvailableColor(
   const usedSet = new Set(used.map((c) => c.toLowerCase()));
   const free = palette.find((c) => !usedSet.has(c.toLowerCase()));
   if (free !== undefined) return free;
-  return palette[used.length % palette.length] ?? palette[0]!;
+  const wrapped = palette[used.length % palette.length];
+  if (wrapped !== undefined) return wrapped;
+  const first = palette[0];
+  if (first === undefined) {
+    throw new Error('pickAvailableColor requires a non-empty palette');
+  }
+  return first;
 }

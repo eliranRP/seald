@@ -30,6 +30,29 @@ export const seald = {
     warn: { 50: '#FFFBEB', 500: '#F59E0B', 700: '#B45309' },
     danger: { 50: '#FEF2F2', 500: '#EF4444', 700: '#B91C1C' },
     info: { 50: '#EFF6FF', 500: '#3B82F6', 700: '#1D4ED8' },
+    /**
+     * Categorical palette for tags and template accents only.
+     * Never a status or UI-state color. Steps 50/500/700.
+     * Documented in docs/agents/DESIGN_SYSTEM.md.
+     */
+    tag: {
+      pink: { 50: '#FDF2F8', 500: '#EC4899', 700: '#BE185D' },
+      violet: { 50: '#F5F3FF', 500: '#8B5CF6', 700: '#6D28D9' },
+      cyan: { 50: '#ECFEFF', 500: '#06B6D4', 700: '#0E7490' },
+    },
+    /** Brand marks. These are not theme accents — they stay the vendor colors. */
+    brand: {
+      google: {
+        blue: '#4285F4',
+        green: '#34A853',
+        yellow: '#FBBC05',
+        red: '#EA4335',
+      },
+      drive: {
+        green: '#1FA463',
+        yellow: '#FBBC04',
+      },
+    },
     fg: {
       1: 'var(--fg-1)',
       2: 'var(--fg-2)',

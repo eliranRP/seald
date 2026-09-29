@@ -13,13 +13,9 @@ vi.mock('./useGoogleApi', () => ({
   useGoogleApi: vi.fn(),
 }));
 
-// eslint-disable-next-line import/first
 import { fetchPickerCredentials } from './pickerCredentialsApi';
-// eslint-disable-next-line import/first
 import { useGoogleApi } from './useGoogleApi';
-// eslint-disable-next-line import/first
 import { DrivePicker } from './DrivePicker';
-// eslint-disable-next-line import/first
 import type { PickerCallbackData } from './google-picker-types';
 
 const ACCOUNT_ID = '11111111-1111-4111-8111-111111111111';

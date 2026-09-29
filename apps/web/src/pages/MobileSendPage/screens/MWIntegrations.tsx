@@ -260,9 +260,8 @@ export function MWIntegrations(): ReactNode {
             </CardIcon>
             <CardTitle>Google Drive</CardTitle>
           </CardHeader>
-          {isLoading ? (
-            <EmptyNote>Loading...</EmptyNote>
-          ) : connectedAccount ? (
+          {isLoading ? <EmptyNote>Loading...</EmptyNote> : null}
+          {!isLoading && connectedAccount ? (
             <>
               <ConnectedInfo>
                 <ConnectedEmail>{connectedAccount.email}</ConnectedEmail>
@@ -286,7 +285,8 @@ export function MWIntegrations(): ReactNode {
                 Disconnect Google Drive
               </ActionBtn>
             </>
-          ) : (
+          ) : null}
+          {!isLoading && !connectedAccount ? (
             <>
               <EmptyNote>
                 Connect your Google Drive to import documents directly from your cloud storage.
@@ -295,7 +295,7 @@ export function MWIntegrations(): ReactNode {
                 Connect Google Drive
               </ActionBtn>
             </>
-          )}
+          ) : null}
         </Card>
       </Content>
       <DisconnectModal

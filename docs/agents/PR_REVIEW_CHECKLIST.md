@@ -20,8 +20,9 @@ enforce all of them yet.
       enhancements use `min-width`. Existing `@media (max-width: …)`
       queries are legacy desktop-first; do not add another one. Verify
       the change at a phone width and a desktop width.
-- [ ] **Screenshots.** A UI pull request includes a mobile screenshot and
-      a desktop screenshot of the changed screen.
+- [ ] **Screenshots.** A UI pull request includes mobile and desktop
+      screenshots of the changed screen, or e2e coverage at both
+      viewports.
 - [ ] **Stories at both viewports.** A component change has Storybook
       stories that render at a phone width and a desktop width, and the
       Storybook build is green. `.storybook/preview.tsx` has no viewport
@@ -38,23 +39,29 @@ enforce all of them yet.
 ## 0. Scope
 
 - [ ] The PR does one thing. Drive-by refactors are called out or split.
-- [ ] Commit subjects are `type(scope): subject`.
+- [ ] Commit subjects are `type(scope): subject`. CI runs commitlint on
+      the pull request's commits and on the pull request title (a squash
+      merge uses the title). The Husky `commit-msg` hook is the local check.
 - [ ] No secrets, `.env` files, service-role keys, or `VITE_*` values that
       are actually private.
-- [ ] No new `eslint-disable`, `@ts-ignore`, non-null `!`, or
-      `as unknown as`. ESLint does not fail the build on these yet
-      (`CODEBASE_GUIDE.md`, "Documented, and not yet enforced"). Reviewers
-      still reject them. A separate PR is adding the lint rules.
+- [ ] No new `eslint-disable`, `@ts-ignore`, non-null `!`, `as unknown as`,
+      or nested ternary. Web and API lint fail the build on these in
+      production source (`CODEBASE_GUIDE.md`, "Enforced today"). Tests,
+      stories, and `src/test` turn the three syntax rules off. Sealing
+      (`apps/api/src/sealing/**`) turns off `!` and only the
+      `as unknown as` selector until 2026-12-31 (46 non-null assertions
+      and 13 casts). Other `no-restricted-syntax` selectors stay on
+      there. Nested ternaries stay on there.
 - [ ] `apps/web/**` changes follow the rules in this file even if CI is still
       running. Do not merge on a red `ci-success` or `playwright-success`
-      job. Docs-only PRs skip `ci.yml`, `playwright.yml`, `security.yml`,
-      and `lint-meta.yml` (`paths-ignore`), and Chromatic's path filter
-      does not match them, so those checks are absent rather than green.
-      If branch protection requires `ci-success`, a docs-only PR cannot
-      satisfy it, because the job never starts. On PR #352 only the CodeQL
-      checks ran (green) and `mergeStateStatus` was `BLOCKED` while
-      `mergeable` was `MERGEABLE`. Do not treat missing checks as a
-      failure of the docs, and do not treat them as a passed gate.
+      job. A docs-only PR still runs `ci.yml` so commitlint and
+      `ci-success` can finish. Lint, unit tests, web tests, Storybook,
+      Playwright, API e2e, and the PAdES verifier skip that diff. The
+      same ignore list skips `playwright.yml`, `security.yml`, and
+      `lint-meta.yml`, and Chromatic's path filter does not match, so
+      those checks are absent rather than green. Those three workflows
+      still use the docs `paths-ignore`. A docs-only push to `main`
+      still skips `ci.yml`.
 
 ## 1. Correctness
 
@@ -113,20 +120,21 @@ enforce all of them yet.
       `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader`,
       `PdfPageView` (see `CODEBASE_GUIDE.md`). Do not treat a missing tag
       on an untouched story as a regression to fix in the same PR.
-- [ ] The change includes a story at a phone width and a desktop width.
-      The Storybook build in CI must be green when CI runs.
-- [ ] Styled props that are not DOM attributes start with `$`. Review-only
-      until the follow-up lint PR. ESLint does not enforce this today.
+- [ ] Story viewport coverage follows the standing rule above.
+- [ ] Styled props that are not DOM attributes start with `$`. Review-only.
+      ESLint does not enforce this.
 - [ ] `{...rest}` is spread before the component's own `aria-*` / `data-*`.
       Review-only, same as the `$` rule.
-- [ ] The component is added to the matching ESLint layer zone in
-      `apps/web/eslint.config.js` if it belongs to L1–L3. The current zones
-      do not list every folder. A new primitive that is left off the list
-      can import a widget without a lint error.
+- [ ] A new component folder is covered by the layer zones without editing
+      a name list. `eslint/component-layers.mjs` treats every
+      `src/components` folder as L1 until a story title says `L2/`–`L4/`.
+      L1 is a negation glob, so a new primitive cannot import a higher
+      layer.
 - [ ] Signer-surface files are not given a new import of `lib/supabase`,
       `AuthProvider`, `AppStateProvider`, `features/contacts`, or
-      `lib/api/apiClient`. The zone that enforces this is in the same
-      ESLint file. If you add a signer file, add it to that target list.
+      `lib/api/apiClient`. The zone is in `apps/web/eslint.config.js`.
+      New `Signing*` page folders match `./src/pages/Signing*/**`. Named
+      signer components on that list still have to be added by hand.
 - [ ] Deep imports use `@/…` once they climb two or more directories.
 - [ ] `apps/web/src/index.ts` is not treated as the catalog. Update it only
       when something must be part of that barrel.
@@ -138,16 +146,16 @@ re-count lines; that file's numbers are stale.
 
 ## 4. Design-system adherence
 
-- [ ] New CSS is mobile-first. Base styles are the small viewport.
-      Desktop changes use `@media (min-width: …)`. Do not add another
-      `max-width` query; the ones in the tree are legacy. Check the
-      screen at both viewports. Which existing queries a phone actually
-      hits is in `DESIGN_SYSTEM.md` (Layout): `AppShell` routes redirect
-      at 640px, and signing, verify, and auth do not.
+- [ ] New CSS follows the standing mobile-first rule. Which existing
+      `max-width` queries a phone actually hits is in `DESIGN_SYSTEM.md`
+      (Layout): `AppShell` routes redirect at 640px, and signing, verify,
+      and auth do not.
 - [ ] Colors, space, radius, shadow, type, and motion come from `theme`
-      (`apps/web/src/styles/theme.ts`). No new hex in component styles.
-- [ ] Page and feature files follow the same rule even though ESLint only
-      bans hex in `src/components/**/*.styles.ts`.
+      (`apps/web/src/styles/theme.ts`). No new hex in styles or TSX.
+      ESLint bans hex literals in `src/**/*.styles.ts`, `src/**/*.tsx`,
+      and `src/features/templates/tagColors.ts`. The files still listed
+      in `apps/web/eslint/hex-allowlist.txt` are the design-cycle
+      remainder (review by 2026-12-31). Do not add names to it.
 - [ ] Spacing uses the 4px scale (`space.1` … `space.24`). No step 7, 9, 11.
 - [ ] Primary actions use `Button` `variant="primary"` (indigo 600), not a
       one-off ink-900 button, unless the design is explicitly the `dark`
@@ -214,6 +222,7 @@ re-count lines; that file's numbers are stale.
       export/delete. Do not disable the global `ThrottlerGuard` outside
       tests.
 - [ ] PAdES code does not call `@signpdf/utils` `extractSignature`.
+      Web and API ESLint reject that import (`no-restricted-imports`).
       Verification goes through `pades-verify-helpers.ts`.
 - [ ] Audit events keep `prev_event_hash` via the existing canonical-JSON
       helper. Do not reimplement the hash.

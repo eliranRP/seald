@@ -77,7 +77,6 @@ function setGpc(value: boolean): void {
 
 function loadScript(): void {
   // The script is an IIFE — eval'ing the source executes it once.
-  // eslint-disable-next-line no-eval
   (0, eval)(SOURCE);
 }
 

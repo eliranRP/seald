@@ -13,11 +13,8 @@ vi.mock('../../lib/api/verifyApiClient', () => ({
   },
 }));
 
-// eslint-disable-next-line import/first
 import { verifyApiClient } from '../../lib/api/verifyApiClient';
-// eslint-disable-next-line import/first
 import { VerifyPage } from './VerifyPage';
-// eslint-disable-next-line import/first
 import type { VerifyResponse } from '../../features/verify';
 
 const get = verifyApiClient.get as unknown as ReturnType<typeof vi.fn>;

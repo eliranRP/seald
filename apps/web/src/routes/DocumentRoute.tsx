@@ -12,6 +12,7 @@ import { TemplateModeBanner } from '../components/TemplateModeBanner';
 import { Toast } from '../components/Toast';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
@@ -444,7 +445,7 @@ export function DocumentRoute() {
           title: payload.title,
           field_layout: fieldLayout,
           ...(payload.description ? { description: payload.description } : {}),
-          cover_color: '#EEF2FF',
+          cover_color: seald.color.indigo[50],
         });
         setTemplates([created, ...getTemplates()]);
         setSaveTplOpen(false);

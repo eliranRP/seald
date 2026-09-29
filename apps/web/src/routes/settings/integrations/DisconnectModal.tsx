@@ -153,8 +153,9 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
     if (!card) return;
     const focusables = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
     if (focusables.length === 0) return;
-    const first = focusables[0]!;
-    const last = focusables[focusables.length - 1]!;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    if (first === undefined || last === undefined) return;
     const active = document.activeElement as HTMLElement | null;
     if (e.shiftKey && active === first) {
       e.preventDefault();

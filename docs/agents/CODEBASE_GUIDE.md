@@ -163,7 +163,15 @@ New SPA routes must be listed in `apps/landing/_worker.js` (`SPA_EXACT`
 or `SPA_PREFIXES`). Cloudflare Pages does not honor a 200 rewrite in
 `_redirects` (it becomes a 308), so the deploy workflow does not write
 one. A path missing from the worker is served as the marketing page.
-See `docs/agents/RELEASE.md`.
+`apps/web/src/test/spa-worker-routes.contract.test.ts` reads the React
+routes from `AppRoutes.tsx`. A worker path that is not one of those
+routes is still valid when it is the shell rewrite
+(`rewritten.pathname`, `/app`) or a prefix that covers a whole
+AppRoutes pattern (`/document/` covers `/document/:id/sent`). A later
+segment is not enough. `/sent/` is listed in that test's
+`SHELL_PREFIXES` because the screen is `/document/:id/sent`. Any other
+worker-only exact path is added to `LEGACY_EXACT` in that test, with a
+comment. See `docs/agents/RELEASE.md`.
 
 ## State and data
 
@@ -445,14 +453,18 @@ Component tests should query by role and name. `vitest-axe` is set up in
 
 ### CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`.
-Markdown, `docs/**`, and `Design-Guide/**` are ignored, so a docs-only PR
-does not run this workflow.
+`.github/workflows/ci.yml` runs on pull requests (`opened`,
+`synchronize`, `reopened`, and `edited`) and on pushes to `main`.
+`edited` re-runs the workflow when the pull request title changes, so
+commitlint sees the subject a squash merge would use. A docs-only pull
+request still runs this workflow: commitlint is not behind the path
+filter. Lint, tests, Storybook, and the PAdES verifier skip docs-only
+diffs. A docs-only push to `main` still skips the workflow.
 
 Jobs, in order: path filter, install, lint (typecheck + lint), pnpm audit,
 API unit, web Vitest with coverage, Storybook build, one Playwright spec
 (`e2e/template-sign-flow.spec.ts`), API e2e (LocalStack KMS), `pades-verify`,
-then an aggregate `ci-success` job.
+commitlint, then an aggregate `ci-success` job.
 
 Other workflows that run on pull requests (same docs `paths-ignore` as
 CI, except Chromatic which uses a `paths:` allow-list): `playwright.yml`
@@ -494,9 +506,9 @@ TypeScript (`tsconfig.base.json`): `strict`, `noUncheckedIndexedAccess`,
 are written `prop?: T | undefined`.
 
 Web ESLint (`apps/web/eslint.config.js`) runs at `--max-warnings=0`.
-Only the rules below fail that command. `docs/CONTRIBUTING.md` describes
-a longer list; several of those items are review-only until a follow-up
-PR turns them into lint rules.
+API ESLint (`apps/api/.eslintrc.cjs`) runs the same syntax bans on
+`src` and `test`. `docs/CONTRIBUTING.md` still describes a longer list;
+the items below that ESLint does not fail are review-only.
 
 Enforced today:
 
@@ -505,22 +517,23 @@ Enforced today:
 - No `React.FC` / `FunctionComponent` (`no-restricted-syntax`).
 - Named components are function declarations. Inline components are arrow functions (`react/function-component-definition`).
 - Deep relative imports (`../../…`) are banned outside tests and stories (`no-restricted-imports`).
-- Hex literals are banned in `src/components/**/*.styles.ts` only. Page styles and TSX are not covered.
-- Layer zones and the signer-import ban, for the folders named in the config.
+- Hex literals are banned in `src/**/*.styles.ts`, `src/**/*.tsx`, and `src/features/templates/tagColors.ts` (Literal and template strings). Tests, stories, and `eslint/hex-allowlist.txt` are excluded. Do not add allowlist names; the remainder is a design-cycle list, review by 2026-12-31.
+- `color.tag` (pink, violet, cyan) is a categorical palette for tags and template accents. ESLint rejects `*.color.tag` outside `features/templates/tagColors.ts` and `components/TemplateCard`. It is not a status color.
+- No `eslint-disable` / `eslint-disable-next-line` (`@eslint-community/eslint-comments/no-use`) and `reportUnusedDisableDirectives` is `error`, on web and API. Justified exceptions are file overrides in the ESLint config (test `import/first` and `no-eval`, Vite `?worker` imports, the `exhaustive-deps` files named below, one API spec that throws a string, and the sealing override below).
+- No non-null `!` (`@typescript-eslint/no-non-null-assertion`), no `as unknown as` (`no-restricted-syntax`), and no nested ternaries (`no-nested-ternary`) in production web source and in API source outside `src/sealing/**`. Tests, stories, and `src/test` turn the three off (testing cycle). `apps/api/src/sealing/**` turns off `!` and only the `as unknown as` selector until 2026-12-31 so CMS bytes stay untouched (46 non-null assertions and 13 `as unknown as`). Other `no-restricted-syntax` selectors stay on there. Nested ternaries stay on there.
+- `react-hooks/exhaustive-deps` is off for these files, because an inline disable is banned and changing the dependency list would change behavior. The React-hooks cleanup is a later cycle: `src/hooks/useColumnWidths.ts`, `src/features/signingFill/model/useSigningFillController.ts`, `src/components/UserMenu/UserMenu.tsx`, `src/routes/TemplateEditorRoute.tsx`, `src/routes/UploadRoute.tsx`, `src/lib/pdf.ts`.
+- Layer zones come from component folders, not a hand-written name list. `eslint/component-layers.mjs` reads story titles (`L1/`–`L4/`). A folder with no story is L1. The L1 target is a negation glob, so a new component is checked immediately. L2 and L3 targets are the folders whose stories declare that layer.
+- Signer-surface isolation stays in `eslint.config.js`. New `pages/Signing*` folders match `./src/pages/Signing*/**`. The named signer components on that target list are still explicit.
+- `@signpdf/utils` `extractSignature` is rejected by `no-restricted-imports` on web and API. Use `extractContents()` in `pades-verify-helpers.ts`.
+- `pnpm --filter web lint` also runs `scripts/check-component-coverage.mjs`. A top-level `src/components` folder without a test or a story fails CI. Current gaps are named in `scripts/component-coverage.allowlist` (testing cycle, review by 2026-12-31). A stale name fails the check.
+- Commit subjects are `type(scope): subject` via commitlint (`commitlint.config.js`). The Husky `commit-msg` hook checks the local message. CI lints every commit in the pull request and the pull request title, because a squash merge uses the title as the commit subject.
 
-Documented, and not yet enforced by ESLint (a separate PR is adding the
-rules). Reviewers still apply them. The tree already breaks several:
-`as unknown as` in `lib/pdf.ts`, `lib/pdfjsWorker.ts`,
-`hooks/useColumnWidths.ts`, `features/templates/templatesApi.ts`, and
-`features/documentEditor/model/lib.ts`; a nested ternary in
-`components/Toast/Toast.tsx`; a non-null assertion in
-`pages/VerifyPage/VerifyPage.tsx`.
+Still review-only (ESLint does not fail the build):
 
 - Styled-only props start with `$` so they are not forwarded to the DOM.
 - `{...rest}` is spread before the component's own `aria-*` and `data-*` attributes.
-- No `eslint-disable`. `reportUnusedDisableDirectives` is off, so a stale disable does not fail lint either.
-- No non-null `!`. No `as unknown as`. No nested ternaries.
 - `forwardRef` components set `displayName`. The React preset's `react/display-name` only partly covers this.
+- `react-hooks/set-state-in-effect`, `preserve-manual-memoization`, and `purity` stay off. A later cycle turns them back on.
 
 Component folder, when the component is a real design-system citizen:
 
@@ -540,9 +553,11 @@ On `4a8c663`, these stories have no `layer-N` tag: `VerifyPage` (title
 `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader` (title
 `L2 / TemplateFlowHeader`), `PdfPageView` (title `L3 Widgets/PdfPageView`).
 
-Commit messages: `type(scope): subject`. Husky runs lint-staged and
-`tsc --noEmit`. Do not use `--no-verify`. Do not amend or force-push to
-rewrite a hook failure; add a new commit.
+Commit messages: `type(scope): subject`. Commitlint runs on `commit-msg`
+and in CI (the pull request's commits, and the pull request title).
+Husky also runs lint-staged and `tsc --noEmit` on `pre-commit`. Do not
+use `--no-verify`. Do not amend or force-push to rewrite a hook
+failure; add a new commit.
 
 `apps/api/README.md` is not the endpoint catalog. It still documents only
 `GET /health` and `GET /me`. Use the controllers.

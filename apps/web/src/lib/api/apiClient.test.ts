@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { AxiosError } from 'axios';
-import type { AxiosAdapter } from 'axios';
+import type { AxiosAdapter, AxiosResponse } from 'axios';
 
 vi.mock('../supabase/supabaseClient', () => ({
   supabase: {
@@ -52,8 +52,7 @@ describe('apiClient response interceptor', () => {
         'ERR_BAD_REQUEST',
         config,
         null,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        response as any,
+        response as unknown as AxiosResponse,
       );
       return Promise.reject(err);
     };
@@ -76,8 +75,7 @@ describe('apiClient response interceptor', () => {
         'ERR_BAD_REQUEST',
         config,
         null,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        response as any,
+        response as unknown as AxiosResponse,
       );
       return Promise.reject(err);
     };

@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import { GDriveLogo } from '@/features/gdriveImport/GDriveLogo';
+import { seald } from '@/styles/theme';
 import {
   Card,
   DoneCheck,
@@ -47,7 +48,9 @@ const STEPS = [
 
 function stepState(phase: ImportPhase, idx: number): 'pending' | 'active' | 'done' {
   if (phase === 'done') return 'done';
-  const activeIdx = phase === 'fetching' ? 0 : phase === 'converting' ? 1 : 2;
+  let activeIdx = 2;
+  if (phase === 'fetching') activeIdx = 0;
+  else if (phase === 'converting') activeIdx = 1;
   if (idx < activeIdx) return 'done';
   if (idx === activeIdx) return 'active';
   return 'pending';
@@ -61,7 +64,7 @@ function progressPct(phase: ImportPhase): number {
 }
 
 function CheckIcon({ size = 14 }: { readonly size?: number }) {
-  return <Check size={size} strokeWidth={3} color="#fff" />;
+  return <Check size={size} strokeWidth={3} color={seald.color.fg.inverse} />;
 }
 
 /**

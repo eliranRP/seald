@@ -11,6 +11,7 @@ import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
 import { SendingOverlay } from '../components/SendingOverlay';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
@@ -169,11 +170,9 @@ export function TemplateEditorRoute() {
         : (templates.find((t) => t.id === decodedId) ?? findTemplateById(decodedId)),
     [decodedId, isNewTemplate, templates],
   );
-  const mode: 'new' | 'using' | 'editing' = isNewTemplate
-    ? 'new'
-    : searchParams.get('mode') === 'edit'
-      ? 'editing'
-      : 'using';
+  let mode: 'new' | 'using' | 'editing' = 'using';
+  if (isNewTemplate) mode = 'new';
+  else if (searchParams.get('mode') === 'edit') mode = 'editing';
 
   // Read the wizard handoff (file + signers + optional rename) from
   // location.state once on mount. Same lifecycle reasoning as
@@ -189,7 +188,6 @@ export function TemplateEditorRoute() {
         { replace: true, state: null },
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Local draft id — created lazily once we know the page count.
@@ -236,7 +234,6 @@ export function TemplateEditorRoute() {
         // not-found surface if the template still can't be resolved.
       });
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isNewTemplate]);
 
   const fileForParse = draft?.file ?? initialHandoff?.pendingFile ?? fetchedExampleFile ?? null;
@@ -390,11 +387,7 @@ export function TemplateEditorRoute() {
       signers,
       ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
       ...(sourceTemplate ? { fromTemplateId: sourceTemplate.id } : {}),
-      ...(sourceTemplate && !initialHandoff?.pendingFile
-        ? {}
-        : sourceTemplate
-          ? { fromTemplateFreshUpload: true }
-          : {}),
+      ...(sourceTemplate && initialHandoff?.pendingFile ? { fromTemplateFreshUpload: true } : {}),
     });
   }, [
     draftId,
@@ -552,7 +545,7 @@ export function TemplateEditorRoute() {
         const created = await createTemplate({
           title,
           field_layout: fieldLayout,
-          cover_color: '#EEF2FF',
+          cover_color: seald.color.indigo[50],
           last_signers: lastSigners,
         });
         setTemplates([created, ...getTemplates()]);

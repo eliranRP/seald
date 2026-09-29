@@ -20,17 +20,11 @@ vi.mock('@/features/envelopes', async (importOriginal) => {
 vi.mock('./connectGdriveViaPopup', () => ({ connectGdriveViaPopup: vi.fn() }));
 vi.mock('./openFolderPicker', () => ({ openFolderPicker: vi.fn() }));
 
-// eslint-disable-next-line import/first
 import { apiClient } from '@/lib/api/apiClient';
-// eslint-disable-next-line import/first
 import { fetchPickerCredentials } from '@/components/drive-picker/pickerCredentialsApi';
-// eslint-disable-next-line import/first
 import { saveEnvelopeToGdrive } from '@/features/envelopes';
-// eslint-disable-next-line import/first
 import { connectGdriveViaPopup } from './connectGdriveViaPopup';
-// eslint-disable-next-line import/first
 import { openFolderPicker } from './openFolderPicker';
-// eslint-disable-next-line import/first
 import { useSaveEnvelopeToGdrive } from './useSaveEnvelopeToGdrive';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;

@@ -564,14 +564,18 @@ export function FilterToolbar({ envelopes, viewerEmail }: FilterToolbarProps) {
 
 function formatListPreview(selected: ReadonlyArray<string>): string {
   if (selected.length === 0) return '';
-  if (selected.length === 1) return selected[0]!;
-  return `${selected[0]!}, +${selected.length - 1}`;
+  const first = selected[0];
+  if (first === undefined) return '';
+  if (selected.length === 1) return first;
+  return `${first}, +${selected.length - 1}`;
 }
 
 function formatStatusPreview(selected: ReadonlyArray<StatusOption>): string {
   if (selected.length === 0) return '';
-  if (selected.length === 1) return STATUS_LABELS[selected[0]!];
-  return `${STATUS_LABELS[selected[0]!]}, +${selected.length - 1}`;
+  const first = selected[0];
+  if (first === undefined) return '';
+  if (selected.length === 1) return STATUS_LABELS[first];
+  return `${STATUS_LABELS[first]}, +${selected.length - 1}`;
 }
 
 function formatDatePreview(date: DateFilter): string {
@@ -595,6 +599,8 @@ function formatSignerPreview(
     if (found) return found.email.split('@')[0] ?? found.email;
     return emailKey.split('@')[0] ?? emailKey;
   });
-  if (displays.length === 1) return displays[0]!;
-  return `${displays[0]!}, +${displays.length - 1}`;
+  const first = displays[0];
+  if (first === undefined) return '';
+  if (displays.length === 1) return first;
+  return `${first}, +${displays.length - 1}`;
 }

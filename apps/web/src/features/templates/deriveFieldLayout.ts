@@ -57,7 +57,8 @@ export function inferPageRule(
 ): TemplatePageRule | null {
   if (pages.length === 0) return null;
   if (pages.length === 1) {
-    const only = pages[0]!;
+    const only = pages[0];
+    if (only === undefined) return null;
     if (totalPages > 0 && only === totalPages) return 'last';
     if (only === 1) return 'first';
     return only;
@@ -119,7 +120,8 @@ export function deriveTemplateFieldLayout(
   for (const bucket of groups.values()) {
     const sorted = [...bucket].sort((a, b) => a.page - b.page);
     const pages = Array.from(new Set(sorted.map((f) => f.page))).sort((a, b) => a - b);
-    const head = sorted[0]!;
+    const head = sorted[0];
+    if (head === undefined) continue;
     const templateType = FIELD_KIND_TO_TEMPLATE[head.type];
     if (!templateType) {
       // `email` (or any future kind) isn't supported by templates yet —

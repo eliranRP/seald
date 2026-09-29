@@ -57,7 +57,6 @@ vi.mock('../../lib/api/apiClient', () => ({
   apiClient: { get: apiGet },
 }));
 
-// eslint-disable-next-line import/first
 import { DebugAuthPage } from './DebugAuthPage';
 
 function renderPage() {

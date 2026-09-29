@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { ArrowRight, Check, FileText, Lock, Mail, Send, ShieldCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { seald } from '@/styles/theme';
 import { Button } from '../Button';
 import type { SendingOverlayProps, SendingPhase } from './SendingOverlay.types';
 import {
@@ -257,17 +258,17 @@ export const SendingOverlay = forwardRef<HTMLDivElement, SendingOverlayProps>((p
                 <svg viewBox="0 0 160 110" width="160" height="110" style={{ overflow: 'visible' }}>
                   <defs>
                     <linearGradient id="so-env-body" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0" stopColor="#F8FAFC" />
-                      <stop offset="1" stopColor="#EEF2FF" />
+                      <stop offset="0" stopColor={seald.color.ink[50]} />
+                      <stop offset="1" stopColor={seald.color.indigo[50]} />
                     </linearGradient>
                     <linearGradient id="so-env-flap" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0" stopColor="#FFFFFF" />
-                      <stop offset="1" stopColor="#E0E7FF" />
+                      <stop offset="0" stopColor={seald.color.paper} />
+                      <stop offset="1" stopColor={seald.color.indigo[100]} />
                     </linearGradient>
                     <linearGradient id="so-shimmer" x1="0" x2="1">
-                      <stop offset="0" stopColor="#4F46E5" stopOpacity="0" />
-                      <stop offset=".5" stopColor="#4F46E5" stopOpacity=".2" />
-                      <stop offset="1" stopColor="#4F46E5" stopOpacity="0" />
+                      <stop offset="0" stopColor={seald.color.indigo[600]} stopOpacity="0" />
+                      <stop offset=".5" stopColor={seald.color.indigo[600]} stopOpacity=".2" />
+                      <stop offset="1" stopColor={seald.color.indigo[600]} stopOpacity="0" />
                     </linearGradient>
                   </defs>
                   <rect
@@ -277,29 +278,34 @@ export const SendingOverlay = forwardRef<HTMLDivElement, SendingOverlayProps>((p
                     height="84"
                     rx="8"
                     fill="url(#so-env-body)"
-                    stroke="#C7D2FE"
+                    stroke={seald.color.indigo[200]}
                   />
-                  <path d="M8 26 L80 70 L152 26" fill="none" stroke="#A5B4FC" strokeWidth="1.2" />
+                  <path
+                    d="M8 26 L80 70 L152 26"
+                    fill="none"
+                    stroke={seald.color.indigo[300]}
+                    strokeWidth="1.2"
+                  />
                   <path
                     d="M8 26 L80 2 L152 26 L152 34 L80 12 L8 34 Z"
                     fill="url(#so-env-flap)"
-                    stroke="#C7D2FE"
+                    stroke={seald.color.indigo[200]}
                   />
                   <StageSeal $visible={idx >= 2 || done}>
-                    <circle cx="80" cy="70" r="18" fill="#4F46E5" />
+                    <circle cx="80" cy="70" r="18" fill={seald.color.indigo[600]} />
                     <circle
                       cx="80"
                       cy="70"
                       r="18"
                       fill="none"
-                      stroke="#FFFFFF"
+                      stroke={seald.color.paper}
                       strokeWidth="1"
                       strokeDasharray="2 3"
                       opacity=".6"
                     />
                     <path
                       d="M72 68 C 74 67, 76 65, 78 64 L 84 58 L 86 60 L 80 66 C 79 69, 76 72, 73 73 Z"
-                      fill="#FFFFFF"
+                      fill={seald.color.paper}
                     />
                   </StageSeal>
                   {idx === 1 && !errored && !done ? (
