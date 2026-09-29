@@ -9,16 +9,21 @@
 import { defineConfig } from 'astro/config';
 import { fileURLToPath } from 'node:url';
 
-// Sitemap is hand-authored at apps/landing/public/sitemap.xml — the
-// landing surface only ships one indexable URL (`/`), which makes
-// @astrojs/sitemap (which crashes on a 1-page site under Astro 4.16)
-// overkill anyway.
+// Sitemap is hand-authored at apps/landing/public/sitemap.xml so every
+// public page (home, contact, DSAR, legal) is listed with a lastmod.
+// `build.format: 'file'` emits `contact.html` rather than
+// `contact/index.html`. Cloudflare Pages serves the `.html` file at
+// `/contact` with HTTP 200. The directory format 308s `/contact` to
+// `/contact/`, which disagreed with our no-slash canonicals.
+// Pair `format: 'file'` with `trailingSlash: 'never'` — Astro's
+// documented combination for extensionless URLs.
 
 export default defineConfig({
   site: 'https://seald.nromomentum.com',
   output: 'static',
   trailingSlash: 'never',
   build: {
+    format: 'file',
     inlineStylesheets: 'auto',
     assets: 'assets',
   },

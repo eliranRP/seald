@@ -1,0 +1,39 @@
+# Seald
+
+> Seald is a web application for electronic signatures. It runs in the browser. There is no native app.
+
+Seald lets a person upload a PDF, place signature and form fields, sign it themselves or request signatures from other people, and download a sealed PDF. Seals use the PAdES long-term validation profile (ETSI EN 319 142), an RFC 3161 trusted timestamp from an external authority, and a tamper-evident SHA-256 audit trail. Documents can be checked on the public verification page. Templates remember fields, signers, and signing order.
+
+Support: support@seald.nromomentum.com.
+
+## Product
+
+- Platform: web only, at https://seald.nromomentum.com
+- Category: business e-signature application
+- Not offered as a native mobile or desktop app
+- Sign a PDF yourself, or request signatures in parallel or in order
+- Type, draw, or upload a signature
+- Reusable templates
+- PAdES-LT seals, RFC 3161 timestamps, SHA-256 audit trail
+- Public verification of a sealed document
+- TLS 1.3 in transit and AES-256 at rest
+
+## Pages
+
+- [Home](https://seald.nromomentum.com/): product overview
+- [Contact](https://seald.nromomentum.com/contact): support, privacy, security, legal, and abuse email addresses
+- [Privacy choices](https://seald.nromomentum.com/dsar): data-subject request form
+- [Privacy policy](https://seald.nromomentum.com/legal/privacy)
+- [Terms of service](https://seald.nromomentum.com/legal/terms)
+- [Cookie policy](https://seald.nromomentum.com/legal/cookies)
+- [Data processing agreement](https://seald.nromomentum.com/legal/dpa)
+- [Acceptable use policy](https://seald.nromomentum.com/legal/aup)
+- [Accessibility statement](https://seald.nromomentum.com/legal/accessibility)
+- [ESIGN consumer disclosure](https://seald.nromomentum.com/legal/esign-disclosure)
+- [Imprint](https://seald.nromomentum.com/legal/imprint)
+- [Vulnerability disclosure](https://seald.nromomentum.com/legal/responsible-disclosure)
+- [Sub-processors](https://seald.nromomentum.com/legal/sub-processors)
+
+## Optional
+
+The signed-in app (documents, templates, settings, signing links) is not part of the public site and is marked noindex. Do not treat those URLs as product documentation.

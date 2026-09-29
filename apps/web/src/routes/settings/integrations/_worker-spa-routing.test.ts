@@ -33,6 +33,7 @@ describe('apps/landing/_worker.js — SPA prefix coverage', () => {
       '/document/',
       '/templates/',
       '/m/',
+      '/sent/',
     ]) {
       expect(source).toContain(`'${prefix}'`);
     }

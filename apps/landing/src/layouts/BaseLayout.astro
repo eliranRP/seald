@@ -35,8 +35,8 @@ export interface Props {
 }
 
 const {
-  title = 'Seald — Put your name to it.',
-  description = 'Seald is a quieter way to sign, send, and store documents — built for the contracts you actually care about. EU-grade PAdES seals, RFC 3161 timestamps, audit trail on every page.',
+  title = 'Seald — Free e-signature with a court-ready audit trail',
+  description = 'Sign and send PDFs with Seald, a free e-signature web app. Every sealed file gets a PAdES seal, an RFC 3161 timestamp, and a tamper-evident audit trail.',
   canonical,
   // Default OG image is a 1200×630 PNG. Facebook, LinkedIn, Slack,
   // iMessage and most Twitter ingest pipelines reject SVG, so we ship
@@ -52,45 +52,113 @@ const {
 // — every canonical URL, OG URL, and JSON-LD `url` must point at the
 // real public host. Audit E · BaseLayout M (Astro.site fallback wrong).
 const siteUrl = Astro.site ?? new URL('https://seald.nromomentum.com');
-const canonicalUrl = canonical
-  ? new URL(canonical, siteUrl).toString()
-  : new URL(Astro.url.pathname, siteUrl).toString();
-const ogImageUrl = new URL(ogImage, siteUrl).toString();
 
-// Structured data — keep these in sync with public-facing claims.
+// `build.format: 'file'` makes Astro.url.pathname `/contact.html` at
+// build time. Cloudflare serves that file at `/contact` (200). Canonical
+// and og:url must be the extensionless URL, or they point at a 308.
+function toPublicPath(pathname: string): string {
+  let path = pathname;
+  if (path.endsWith('/index.html')) {
+    path = path.slice(0, -'/index.html'.length);
+  } else if (path.endsWith('.html')) {
+    path = path.slice(0, -'.html'.length);
+  }
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+  if (path === '') path = '/';
+  return path;
+}
+
+const publicPath = toPublicPath(
+  canonical ? new URL(canonical, siteUrl).pathname : Astro.url.pathname,
+);
+const canonicalUrl = new URL(publicPath, siteUrl).toString();
+const ogImageUrl = new URL(ogImage, siteUrl).toString();
+const origin = siteUrl.origin;
+const homeUrl = `${origin}/`;
+const organizationId = `${origin}/#organization`;
+const websiteId = `${origin}/#website`;
+const softwareId = `${origin}/#software`;
+
+// One stable graph on every page. Descriptions do not change with the
+// page. The public name is the Seald brand. A registered legal name,
+// postal address, social profiles, and price offers stay out until published.
+const organizationDescription =
+  'Seald is a web application for preparing, signing, and sealing PDF documents.';
+const softwareDescription =
+  'Seald is a browser-based e-signature application. Upload a PDF, collect signatures, and download a PAdES-sealed file with an RFC 3161 timestamp and a tamper-evident audit trail.';
+
 const organizationLd = {
-  '@context': 'https://schema.org',
   '@type': 'Organization',
+  '@id': organizationId,
   name: 'Seald',
-  url: siteUrl.toString(),
+  url: homeUrl,
   logo: new URL('/icon-512.png', siteUrl).toString(),
-  description,
-  sameAs: [],
+  description: organizationDescription,
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    email: 'support@seald.nromomentum.com',
+    url: new URL('/contact', siteUrl).toString(),
+    availableLanguage: ['en'],
+  },
 };
 
 const websiteLd = {
-  '@context': 'https://schema.org',
   '@type': 'WebSite',
+  '@id': websiteId,
   name: 'Seald',
-  url: siteUrl.toString(),
+  url: homeUrl,
   inLanguage: 'en',
+  publisher: { '@id': organizationId },
 };
 
-// Beta pricing is published on the marketing page itself; we do NOT
-// publish a permanent free offer in Rich Results until paid tiers are
-// finalised. The previous `offers: { price: '0' }` block contradicted
-// Terms §5 ("Pricing for any paid tier introduced after the beta…") and
-// risked FTC §5 deception exposure. Audit E · BaseLayout H/M
-// (softwareLd.offers contradicts Terms).
 const softwareLd = {
-  '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
+  '@id': softwareId,
   name: 'Seald',
   applicationCategory: 'BusinessApplication',
-  operatingSystem: 'Web, iOS, Android',
-  description,
-  url: siteUrl.toString(),
+  operatingSystem: 'Web',
+  description: softwareDescription,
+  featureList: [
+    'Sign a PDF yourself in the browser',
+    'Request signatures from multiple people, in parallel or in order',
+    'Reusable templates that keep fields, signers, and signing order',
+    'Type, draw, or upload a signature',
+    'PAdES long-term validation seals (ETSI EN 319 142)',
+    'RFC 3161 trusted timestamps from an external authority',
+    'Tamper-evident SHA-256 audit trail on the sealed PDF',
+    'Public verification of a sealed document',
+    'TLS 1.3 in transit and AES-256 at rest',
+  ],
+  url: homeUrl,
+  publisher: { '@id': organizationId },
 };
+
+const breadcrumbLd = publicPath.startsWith('/legal/')
+  ? {
+      '@type': 'BreadcrumbList',
+      '@id': `${origin}${publicPath}#breadcrumb`,
+      itemListElement: [
+        {
+          '@type': 'ListItem',
+          position: 1,
+          name: 'Home',
+          item: homeUrl,
+        },
+        {
+          '@type': 'ListItem',
+          position: 2,
+          name: title.replace(/\s+[—–-]\s+Seald$/, ''),
+          item: canonicalUrl,
+        },
+      ],
+    }
+  : null;
+
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [organizationLd, websiteLd, softwareLd, ...(breadcrumbLd ? [breadcrumbLd] : [])],
+}).replace(/</g, '\\u003c');
 ---
 <!doctype html>
 <html lang="en">
@@ -121,35 +189,27 @@ const softwareLd = {
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="en_US" />
+    <meta property="og:image:alt" content="Seald, a web app for e-signatures" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
+    <meta name="twitter:url" content={canonicalUrl} />
 
-    <!-- Favicon + manifest -->
+    <!-- Favicon + manifest. favicon.ico is a real multi-size icon
+         generated from favicon.svg (16, 32, 48). -->
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="alternate icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Sitemap discovery -->
-    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
+    <!-- Sitemap discovery. The index lives at /sitemap.xml (see robots.txt). -->
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 
-    <!-- Preload critical font (Inter) so first paint isn't a FOUT -->
-    <link
-      rel="preload"
-      href="/fonts/inter-variable.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin="anonymous"
-    />
-
-    <!-- JSON-LD -->
-    <script type="application/ld+json" set:html={JSON.stringify(organizationLd)} />
-    <script type="application/ld+json" set:html={JSON.stringify(websiteLd)} />
-    <script type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
+    <!-- JSON-LD: one @graph. Organization is stable across pages. -->
+    <script type="application/ld+json" set:html={jsonLd} />
 
     <!--
       Cookie consent (T-30, /legal/cookies §4).

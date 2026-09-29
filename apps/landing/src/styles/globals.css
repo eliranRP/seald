@@ -2567,6 +2567,55 @@ footer {
   padding: 4px 0;
 }
 
+/* ===== 404 =====
+   Mobile-first. The worker serves this document with HTTP 404. */
+.not-found {
+  min-height: calc(100vh - 240px);
+  display: flex;
+  align-items: center;
+  padding: 48px 0 72px;
+}
+.not-found-inner {
+  max-width: 36rem;
+}
+.not-found h1 {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: clamp(2.25rem, 8vw, 3.5rem);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-tight);
+  margin: 12px 0 16px;
+  color: var(--fg-1);
+}
+.not-found-lead {
+  margin: 0;
+  font-size: 1rem;
+  line-height: var(--lh-relaxed);
+  color: var(--fg-2);
+}
+.not-found-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  margin-top: 28px;
+}
+.not-found-actions .btn {
+  justify-content: center;
+}
+@media (min-width: 640px) {
+  .not-found {
+    padding: 72px 0 96px;
+  }
+  .not-found-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+  .not-found-actions .btn {
+    justify-content: flex-start;
+  }
+}
+
 .legal-banner {
   background: var(--warn-50);
   border-left: 4px solid var(--warn-500);
