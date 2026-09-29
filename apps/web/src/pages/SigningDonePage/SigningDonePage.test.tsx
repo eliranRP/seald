@@ -386,12 +386,11 @@ describe('SigningDonePage', () => {
       renderDone();
 
       const alert = await screen.findByRole('alert', undefined, { timeout: 5_000 });
-      expect(alert).toHaveTextContent(/couldn.?t load the download yet/i);
-      expect(within(alert).getByRole('link', { name: /open the verify page/i })).toHaveAttribute(
-        'href',
-        '/verify/TESTDONE00099',
+      expect(alert).toHaveTextContent(
+        /we couldn.?t load the download yet\. if sealing finishes, we.?ll email signers a link\. you can also check the verify page\./i,
       );
-      expect(within(alert).queryByText(/\/verify\/testdone00099/i)).not.toBeInTheDocument();
+      expect(within(alert).queryByRole('link')).not.toBeInTheDocument();
+      expect(within(alert).queryByText(/open the verify page/i)).not.toBeInTheDocument();
       // Disabled fallback button is still present.
       expect(screen.getByRole('button', { name: /download signed pdf/i })).toBeDisabled();
     });

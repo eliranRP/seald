@@ -84,4 +84,4 @@ export const DRIVE_DISCONNECT_NOTE =
   'Disconnect any time. We revoke access at Google where we can and stop using the token. An encrypted copy stays in our database for now.';
 
 export const SEAL_DOWNLOAD_ERROR =
-  "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page:";
+  "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page.";

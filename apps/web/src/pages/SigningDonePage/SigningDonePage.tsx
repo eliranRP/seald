@@ -327,16 +327,7 @@ export function SigningDonePage() {
             </DownloadHint>
           ) : null}
           {verify.isError && !sealedUrl ? (
-            <DownloadError role="alert">
-              {SEAL_DOWNLOAD_ERROR}{' '}
-              <a
-                href={`/verify/${snap.short_code}`}
-                style={{ color: 'inherit', textDecoration: 'underline' }}
-              >
-                Open the verify page
-              </a>
-              .
-            </DownloadError>
+            <DownloadError role="alert">{SEAL_DOWNLOAD_ERROR}</DownloadError>
           ) : null}
         </Actions>
 
