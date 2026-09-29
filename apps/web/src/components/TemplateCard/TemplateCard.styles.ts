@@ -12,7 +12,7 @@ const ACCENT_BG = css<{ $accent: TemplateCardAccent }>`
   background: ${({ theme, $accent }) => {
     if ($accent === 'amber') return theme.color.warn[50];
     if ($accent === 'emerald') return theme.color.success[50];
-    if ($accent === 'pink') return theme.color.danger[50];
+    if ($accent === 'pink') return theme.color.tag.pink[50];
     return theme.color.indigo[50];
   }};
 `;
@@ -21,7 +21,7 @@ const ACCENT_MARK = css<{ $accent: TemplateCardAccent }>`
   background: ${({ theme, $accent }) => {
     if ($accent === 'amber') return theme.color.warn[500];
     if ($accent === 'emerald') return theme.color.success[500];
-    if ($accent === 'pink') return theme.color.danger[500];
+    if ($accent === 'pink') return theme.color.tag.pink[500];
     return theme.color.indigo[500];
   }};
 `;
@@ -30,14 +30,14 @@ const ACCENT_SOFT = css<{ $accent: TemplateCardAccent }>`
   background: ${({ theme, $accent }) => {
     if ($accent === 'amber') return theme.color.warn[50];
     if ($accent === 'emerald') return theme.color.success[50];
-    if ($accent === 'pink') return theme.color.danger[50];
+    if ($accent === 'pink') return theme.color.tag.pink[50];
     return theme.color.indigo[100];
   }};
   border: 1px solid
     ${({ theme, $accent }) => {
       if ($accent === 'amber') return theme.color.warn[500];
       if ($accent === 'emerald') return theme.color.success[500];
-      if ($accent === 'pink') return theme.color.danger[500];
+      if ($accent === 'pink') return theme.color.tag.pink[500];
       return theme.color.indigo[500];
     }};
 `;

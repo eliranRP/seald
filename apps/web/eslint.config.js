@@ -75,6 +75,13 @@ const typeSyntaxBans = [
   },
 ];
 
+const tagPaletteBan = {
+  selector:
+    "MemberExpression[property.name='tag'][object.type='MemberExpression'][object.property.name='color']",
+  message:
+    'color.tag (pink, violet, cyan) is a categorical palette for tags and template accents only. Do not use it for UI state or meaning.',
+};
+
 const hexSyntaxBans = [
   {
     selector: 'Literal[value=/^#[0-9A-Fa-f]{3,8}$/]',
@@ -245,7 +252,7 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
         ],
       },
     ],
-    'no-restricted-syntax': ['error', ...typeSyntaxBans],
+    'no-restricted-syntax': ['error', ...typeSyntaxBans, tagPaletteBan],
     // Lock in rule 1.6 — once an import has to climb two or more levels
     // it should use the `@/*` alias instead. Same-dir (`./Foo`) and
     // parent-dir (`../sibling`) imports remain idiomatic and are allowed.
@@ -282,6 +289,12 @@ reactPlugin.configs.flat.recommended, reactPlugin.configs.flat['jsx-runtime'], j
     'src/test/**',
     ...hexAllowlist,
   ],
+  rules: {
+    'no-restricted-syntax': ['error', ...typeSyntaxBans, ...hexSyntaxBans, tagPaletteBan],
+  },
+}, // color.tag is allowed only in the tag palette and template-accent card.
+{
+  files: ['src/features/templates/tagColors.ts', 'src/components/TemplateCard/**/*.{ts,tsx}'],
   rules: {
     'no-restricted-syntax': ['error', ...typeSyntaxBans, ...hexSyntaxBans],
   },

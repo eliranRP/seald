@@ -51,8 +51,8 @@ Semantic names are the ones to use in UI:
 
 `theme.color.fg[1]` is the CSS variable `var(--fg-1)`, not a raw hex, so a
 future override on `:root` would flow through. Raw scales (`ink`, `indigo`,
-`success`, `warn`, `danger`, `info`, and the proposed tag ramps below) are
-hex literals inside `theme.ts`.
+`success`, `warn`, `danger`, `info`, and `color.tag` below) are hex literals
+inside `theme.ts`.
 
 ## Color
 
@@ -102,28 +102,36 @@ Only steps 50, 500, and 700 exist. There is no 100/200/300/400/600/800/900.
 Theme keys: `color.success[50]`, `color.warn[500]`, `color.danger[700]`,
 `color.info[500]`, and the same shape for the other steps.
 
-### Proposed tokens: decorative tag ramps
+### `color.tag`: categorical palette
 
-Tag chips need hues the semantic ramps do not cover. These three ramps are
-an explicit proposal for that palette only. They are not status colors.
-Each ramp is steps 50, 500, and 700. Product UI paints tags with 50 and 700;
-the 500 step exists so the ramp matches the semantic shape and is unused
-by current call sites.
+Accepted for tags and template accents only. These hues do not mean status,
+error, success, or any other UI state. Do not use them on banners, buttons,
+validation, or charts.
 
-| Ramp | 50 | 500 | 700 |
+Each ramp is steps 50, 500, and 700. Tag chips use 50 and 700. The template
+card pink accent uses 50 for the wash and 500 for the mark. Violet and cyan
+500 stay in the ramp and are unused by current call sites.
+
+| Key | 50 | 500 | 700 |
 | --- | --- | --- | --- |
-| pink | `#FDF2F8` | `#EC4899` | `#BE185D` |
-| violet | `#F5F3FF` | `#8B5CF6` | `#6D28D9` |
-| cyan | `#ECFEFF` | `#06B6D4` | `#0E7490` |
+| `color.tag.pink` | `#FDF2F8` | `#EC4899` | `#BE185D` |
+| `color.tag.violet` | `#F5F3FF` | `#8B5CF6` | `#6D28D9` |
+| `color.tag.cyan` | `#ECFEFF` | `#06B6D4` | `#0E7490` |
 
-Theme keys: `color.pink`, `color.violet`, `color.cyan`.
+CSS variables are `--tag-pink-50`, `--tag-violet-500`, `--tag-cyan-700`, and
+the same shape for the other steps.
+
+ESLint rejects `*.color.tag` outside `features/templates/tagColors.ts` and
+`components/TemplateCard`. Tests and stories are not part of that guard.
 
 Folded into tokens that already exist:
 
-- There is no `danger.200`. The mobile error-banner border uses `danger.50`
-  (`#FEF2F2`). The previous border was `#FECACA`.
-- There is no green ramp. The tag palette's last slot uses `success`
-  (`#ECFDF5` / `#047857`) in place of `#F0FDF4` / `#166534`.
+- There is no `danger.200`. The mobile error-banner fill is `danger.50`
+  (`#FEF2F2`). Its border is `border.2` (`#CBD5E1`), the stronger hairline,
+  in place of `#FECACA`. A `danger.50` border matches the fill and disappears.
+- There is no green ramp. The tag palette's last slot is `info`
+  (`#EFF6FF` / `#1D4ED8`). `success` stays slot 2, so the two slots no longer
+  render the same pair. The old green pair was `#F0FDF4` / `#166534`.
 - There is no `brand.drive.blue`. Drive marks use `brand.google.blue`
   (`#4285F4`), the same hex. `brand.drive.green` and `brand.drive.yellow`
   stay, because they are not the Google mark colors.
@@ -401,7 +409,7 @@ transition. Primary press scales to 0.98 and uses indigo 800. Focus halo is
 | `UserMenu` | Name, email, sign-out, account actions. | Right side of `NavBar`. |
 | `EmailMasthead` | Preview of the email header. | Storybook / email preview, not the sent MIME. |
 | `TagChip` | Label and color. | A single tag. Colors come from `features/templates/tagColors.ts`, not from `Badge` tones. |
-| `TemplateCard` | `accent`: `indigo` \| `amber` \| `emerald` \| `pink`. | Template library card. `pink` is not a theme ramp. |
+| `TemplateCard` | `accent`: `indigo` \| `amber` \| `emerald` \| `pink`. | Template library card. The pink accent is `color.tag.pink`, not a status color. |
 | `TemplateModeBanner` | `tone`: `success` \| `info`. | "You are editing / using a template". |
 | `TemplateFlowHeader` | `step` 1 \| 2 \| 3. `mode`: `new` \| `using` \| `editing`. | Wizard sub-header under `NavBar`. |
 | `RemoveLinkedCopiesDialog` | `scope`: `only-this` \| `all-pages`. | Deleting a field that was placed on many pages. |
@@ -499,8 +507,10 @@ Escape handling goes through `hooks/useEscapeKey.ts`. Trap focus; the
 disconnect modal and template list are the reference implementations.
 
 **Tags.** Not `Badge` tones. `features/templates/tagColors.ts` maps a few
-names to hex pairs and hashes unknown names into an 8-color palette that
-includes pink, violet, and cyan. Those hues are outside `tokens.css`.
+names to token pairs and hashes unknown names into an 8-slot palette.
+Pink, violet, and cyan in that palette are `color.tag`, a categorical
+scale for tags and template accents. They are not status colors. The
+eighth slot is `info`, so it does not repeat `success`.
 
 ## Known inconsistencies
 

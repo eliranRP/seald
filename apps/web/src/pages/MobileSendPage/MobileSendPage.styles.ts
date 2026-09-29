@@ -210,7 +210,7 @@ export const ErrorBanner = styled.div`
   margin: 0 16px 12px;
   padding: 12px 14px;
   background: ${({ theme }) => theme.color.danger[50]};
-  border: 1px solid ${({ theme }) => theme.color.danger[50]};
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
   border-radius: 12px;
   color: ${({ theme }) => theme.color.danger[700]};
   font-size: 13px;

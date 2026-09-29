@@ -36,16 +36,16 @@
   --info-500: #3b82f6;
   --info-700: #1d4ed8;
 
-  /* Proposed decorative tag ramps. See DESIGN_SYSTEM.md. */
-  --pink-50: #fdf2f8;
-  --pink-500: #ec4899;
-  --pink-700: #be185d;
-  --violet-50: #f5f3ff;
-  --violet-500: #8b5cf6;
-  --violet-700: #6d28d9;
-  --cyan-50: #ecfeff;
-  --cyan-500: #06b6d4;
-  --cyan-700: #0e7490;
+  /* Categorical tag / template-accent palette. See DESIGN_SYSTEM.md. */
+  --tag-pink-50: #fdf2f8;
+  --tag-pink-500: #ec4899;
+  --tag-pink-700: #be185d;
+  --tag-violet-50: #f5f3ff;
+  --tag-violet-500: #8b5cf6;
+  --tag-violet-700: #6d28d9;
+  --tag-cyan-50: #ecfeff;
+  --tag-cyan-500: #06b6d4;
+  --tag-cyan-700: #0e7490;
 
   --google-blue: #4285f4;
   --google-green: #34a853;
