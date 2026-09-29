@@ -13,7 +13,7 @@ export class SigningPrepPage {
     // Both must be ticked before "Start signing" enables.
     await this.page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
     await this.page
-      .getByRole('checkbox', { name: /access electronic records on this device/i })
+      .getByRole('checkbox', { name: /open and download a PDF on this device/i })
       .check();
     await this.page.getByRole('button', { name: /start signing/i }).click();
   }

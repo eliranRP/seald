@@ -13,6 +13,7 @@ import {
 } from '@react-pdf/renderer';
 import * as React from 'react';
 import QRCode from 'qrcode';
+import { AUDIT_PDF_OPERATOR_LINE, LEGAL_ENTITY_NAME } from 'shared';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
 
@@ -59,11 +60,6 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
-  /** T-22 — retention window (years). Mirrors `ENVELOPE_RETENTION_YEARS`
-   *  from `apps/api/src/config/env.schema.ts`. Surfaced on the
-   *  Certificate of Completion cover so the printed PDF is the legal
-   *  authoritative record of what we committed to retain. */
-  readonly retentionYears: number;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -86,7 +82,6 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
-      retentionYears={input.retentionYears}
     />,
   );
   // renderToBuffer returns Buffer in Node; widen the type for the call
@@ -956,7 +951,6 @@ interface DocumentRenderProps {
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
-  retentionYears: number;
 }
 
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
@@ -965,13 +959,13 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
   return (
     <Document
       title={`Audit trail — ${props.envelope.title}`}
-      author="Seald"
+      author={LEGAL_ENTITY_NAME}
       creator="Seald"
       subject={`Audit trail for ${props.envelope.short_code}`}
     >
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
-        <Hero envelope={props.envelope} retentionYears={props.retentionYears} />
+        <Hero envelope={props.envelope} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -1005,8 +999,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <Section num="04" title="Terms used in this document" />
         <Text style={styles.termsIntro}>
           The following definitions explain every field and event recorded in this audit trail. This
-          glossary is provided so the document can stand alone as a record of legal evidence in any
-          subsequent proceeding.
+          glossary is provided so the document can be read on its own.
         </Text>
         <TermsGrid terms={TERMS_PAGE_3} />
         <PageFooter ctx={ctx} />
@@ -1018,7 +1011,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>
-          This audit trail was issued by Seald, Inc. For questions, contact
+          This audit trail was issued by {LEGAL_ENTITY_NAME}. For questions, contact
           support@seald.nromomentum.com. The document on file is authoritative — this attestation
           describes what we observed during signing and the cryptographic evidence we retained.
         </Text>
@@ -1099,7 +1092,7 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
             <SealdMark size={10} />
           </View>
           <Text style={styles.footerBrandWord}>Seald</Text>
-          <Text style={styles.footerCaption}>· Audit trail issued by Seald, Inc.</Text>
+          <Text style={styles.footerCaption}>· Audit trail issued by {LEGAL_ENTITY_NAME}</Text>
         </View>
         {/* react-pdf 4.5 has a known issue where a Text with a `render`
             callback collapses its parent row when paired with `fixed`.
@@ -1113,13 +1106,7 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({
-  envelope,
-  retentionYears,
-}: {
-  envelope: Envelope;
-  retentionYears: number;
-}): React.ReactElement {
+function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
   const completed = envelope.completed_at
     ? formatDateShort(envelope.completed_at)
     : formatDateShort(envelope.created_at);
@@ -1135,17 +1122,16 @@ function Hero({
       </View>
       <Text style={styles.heroSubtitle}>
         The audit trail on these pages links each signatory to the signed document and records the
-        evidence we collected along the way — identity, consent, timestamps, and a cryptographic
-        fingerprint of the file before and after signing. Definitions for every field are on the
-        last page.
+        evidence we collected along the way — identity, consent, the time we recorded each step,
+        SHA-256 of the uploaded PDF, and SHA-256 of the sealed PDF when a sealed file exists.
+        Definitions for every field are on the last page.
       </Text>
       {/* T-22 — operator attribution + retention commitment. Printed
           alongside the audit trail so the certificate is self-describing
           if it surfaces later as legal evidence detached from the live
           service. */}
       <Text style={styles.heroOperator}>
-        Issued by Seald, Inc. · Retained for {retentionYears} years from sealing · PAdES-LT Advanced
-        Electronic Signature
+        Issued by {LEGAL_ENTITY_NAME}. {AUDIT_PDF_OPERATOR_LINE}
       </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
@@ -1420,14 +1406,14 @@ function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
     },
     {
       label: 'Timestamp',
-      value: 'RFC 3161 trusted',
-      sub: 'Issued by an external timestamp authority.',
+      value: 'Server time',
+      sub: 'Each step uses the time our servers recorded. An external RFC 3161 timestamp is added to the sealed PDF when that service responds.',
       icon: ICONS.clockCircle,
     },
     {
       label: 'Storage',
-      value: 'Encrypted at rest',
-      sub: 'AES-256. Retrieved on verification only.',
+      value: 'Access-controlled',
+      sub: 'Files sit in access-controlled cloud storage. We do not encrypt each file with a key you control.',
       icon: ICONS.lock,
     },
     {
@@ -1499,18 +1485,17 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
   {
     num: '07',
     name: 'Digital signature',
-    body: 'An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded RFC 3161 trusted timestamp. Validity is revoked if the document is tampered with after signing.',
+    body: 'When sealing is configured, the issuer adds its own PAdES seal to the finished PDF. If a digital seal was applied, editing the sealed PDF breaks that seal. The seal is not an advanced or qualified electronic signature, and a timestamp is included only when the timestamp service responds.',
   },
   {
     num: '08',
     name: 'Verification check',
-    body: 'Additional guarantees of identity the requester may enable for each signer:',
+    body: 'How the signer was reached. The product emails a private link. Signers do not need a Seald account. Access codes, SMS, and ID checks are not offered.',
     subItems: [
-      { k: 'Email', v: "The recipient's email is validated via a unique link." },
-      { k: 'Access code', v: 'The signer is given a distinct code to open the document.' },
-      { k: 'SMS', v: 'A code is sent via text message prior to signing.' },
-      { k: 'ID verification', v: 'The signer presents a government-issued ID.' },
-      { k: 'Account', v: 'The signer is authenticated against a Seald account.' },
+      {
+        k: 'Email',
+        v: 'The recipient opens a unique link sent to the address the sender entered.',
+      },
     ],
   },
 ];
@@ -1533,7 +1518,7 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
       },
       {
         k: 'ESIGN disclosure acknowledged',
-        v: 'The signer affirmed they read the Consumer Disclosure and can access electronic records on this device (ESIGN §7001(c)(1)(C)(ii)).',
+        v: 'The signer affirmed they read the Consumer Disclosure and can open and download a PDF on this device.',
       },
       {
         k: 'Intent to sign confirmed',
@@ -1565,8 +1550,8 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   },
   {
     num: '12',
-    name: 'Trusted timestamp (RFC 3161)',
-    body: 'A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
+    name: 'Timestamp (RFC 3161)',
+    body: 'When the timestamp service responds, an external RFC 3161 token is embedded in the sealed PDF so the seal time does not depend on our clock. It is not present if every timestamp service fails. Audit-step times are the times our servers recorded.',
   },
   {
     num: '13',
@@ -1576,7 +1561,7 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   {
     num: '14',
     name: 'Delivery mode',
-    body: 'Parallel: all signers receive the request simultaneously. Sequential: signers receive it in a defined order.',
+    body: 'Everyone invited on a request is emailed at the same time. The product does not route signers one after another.',
   },
 ];
 

@@ -728,8 +728,9 @@ export function EnvelopeDetailPage() {
       kind: 'sealed',
       icon: FileCheck2,
       title: 'Sealed PDF',
-      description: 'Final signed document with all fields filled and certificate page.',
-      meta: isComplete ? 'Signed + audit-stamped' : 'Available once all signers complete',
+      description:
+        'Final signed document with fields filled in. The audit trail is a separate PDF.',
+      meta: isComplete ? 'Signed PDF' : 'Available once all signers complete',
       available: isComplete,
       recommended: isComplete,
       primaryLabel: 'sealed PDF',
@@ -738,7 +739,7 @@ export function EnvelopeDetailPage() {
       kind: 'audit',
       icon: ShieldCheck,
       title: 'Audit trail',
-      description: 'Cryptographic event log — IPs, timestamps, hashes.',
+      description: 'Separate PDF of the hash-chained event log.',
       meta: isComplete ? 'PDF' : 'Produced when the envelope is sealed',
       available: isComplete,
     },
@@ -890,9 +891,7 @@ export function EnvelopeDetailPage() {
         <Grid>
           <TimelineCard>
             <TimelineHeading>Activity timeline</TimelineHeading>
-            <TimelineSubtitle>
-              Every event on this envelope — cryptographically sealed in the audit trail.
-            </TimelineSubtitle>
+            <TimelineSubtitle>Activity on this envelope is hash-chained.</TimelineSubtitle>
             <ActivityTimeline events={timelineEvents} />
           </TimelineCard>
 
@@ -924,8 +923,8 @@ export function EnvelopeDetailPage() {
               <div>
                 <strong>Audit trail</strong>
                 <Muted>
-                  This envelope is sealed with an eIDAS-aligned advanced electronic signature
-                  (PAdES-LT). Every event is timestamped and cryptographically anchored.
+                  Activity on this envelope is hash-chained. After everyone signs, we seal the PDF
+                  and generate a separate audit PDF.
                 </Muted>
                 {/* The audit PDF is produced by the sealing job, so it
                     only exists once the envelope is completed. Hide the

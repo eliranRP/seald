@@ -5,37 +5,26 @@ import { renderWithTheme } from '../../test/renderWithTheme';
 import { AuthBrandPanel } from './AuthBrandPanel';
 
 describe('AuthBrandPanel', () => {
-  it('renders the heading "Documents, ... sealed ... in minutes."', () => {
+  it('renders the heading as an upload-and-send instruction', () => {
     renderWithTheme(<AuthBrandPanel />);
-    // "sealed" is wrapped in <em> inside the heading, so the whole string is
-    // split across DOM nodes. Assert on substrings instead.
     const heading = screen.getByRole('heading', { level: 1 });
-    expect(heading.textContent).toContain('Documents,');
-    expect(heading.textContent).toContain('sealed');
-    expect(heading.textContent).toContain('in minutes.');
+    expect(heading.textContent).toContain('Upload a PDF');
+    expect(heading.textContent).not.toMatch(/in minutes/i);
   });
 
-  it('renders the testimonial quote', () => {
+  it('renders a product value statement instead of a named testimonial', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(
-      screen.getByText(/moved our entire contract workflow onto Seald in a weekend/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/hash-chained audit trail/i)).toBeInTheDocument();
+    expect(screen.queryByText('Maya Raskin')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Northwind/)).not.toBeInTheDocument();
   });
 
-  it('renders the author name and role', () => {
+  it('renders the trust footer without AES-256 or PAdES-LT guarantees', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(screen.getByText('Maya Raskin')).toBeInTheDocument();
-    expect(screen.getByText(/General Counsel, Northwind/)).toBeInTheDocument();
-  });
-
-  it('renders the trust footer line with verifiable capability claims', () => {
-    renderWithTheme(<AuthBrandPanel />);
-    // Avoid certification claims (SOC 2 / ISO) and "eIDAS-qualified" framing
-    // until those certifications exist or a QTSP is wired (T-13 in
-    // .audit/LEGAL_GAPS.md). Assert the technical-capability replacements.
-    expect(screen.getByText(/PAdES-LT/)).toBeInTheDocument();
-    expect(screen.getByText(/RFC 3161 timestamps/)).toBeInTheDocument();
-    expect(screen.getByText(/AES-256 at rest/)).toBeInTheDocument();
+    expect(screen.getByText(/PAdES seal when configured/)).toBeInTheDocument();
+    expect(screen.getByText(/access-controlled storage/)).toBeInTheDocument();
+    expect(screen.queryByText(/AES-256/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/PAdES-LT/)).not.toBeInTheDocument();
   });
 
   it('has no axe violations', async () => {

@@ -12,10 +12,10 @@ import {
 import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
-import { ESIGN_DISCLOSURE_VERSION } from 'shared';
+import { ESIGN_DISCLOSURE_VERSION, RECORD_ACCESS_ATTESTATION } from 'shared';
+import { SignatureLevelNote } from '@/components/shared/SignatureLevelNote';
 import {
   AccountNote,
-  AesDisclosure,
   Checkbox,
   Chip,
   DeclineLink,
@@ -208,26 +208,18 @@ function Content() {
               type="checkbox"
               checked={canAccess}
               onChange={(e) => setCanAccess(e.target.checked)}
-              aria-label="I can access electronic records on this device"
+              aria-label={RECORD_ACCESS_ATTESTATION}
             />
-            <span>
-              I can access and retain electronic records on this device — for example, by viewing
-              this page and downloading a PDF (as required by ESIGN&nbsp;§&nbsp;101(c)(1)(C)(ii)).
-            </span>
+            <span>{RECORD_ACCESS_ATTESTATION}</span>
           </TosRow>
         </IdCard>
 
-        <AesDisclosure>
-          Seald produces an Advanced Electronic Signature (PAdES-LT) — legally equivalent to a
-          handwritten signature in most jurisdictions. Some documents (wills, real-estate
-          conveyances, certain DE/FR/IT/ES instruments) require a Qualified Electronic Signature or
-          wet ink. Consult counsel if unsure.
-        </AesDisclosure>
+        <SignatureLevelNote />
         {/* Item 10 — demoted from <Subhero> so the legal screen above stays
             the focal point. Visible but not promoted as marketing copy. */}
         <AccountNote>No Seald account required.</AccountNote>
 
-        {/* Item 5 — single subdued opt-out group below AesDisclosure.
+        {/* Item 5 — single subdued opt-out group below SignatureLevelNote.
             We tag the <summary> with role="button" explicitly because
             JSDom's accessibility tree does not currently implement the
             implicit summary→button mapping that browsers ship; the

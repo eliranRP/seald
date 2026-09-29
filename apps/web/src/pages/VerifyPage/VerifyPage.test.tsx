@@ -668,20 +668,21 @@ describe('VerifyPage', () => {
     });
   });
 
-  // The footer's trust statements are public claims (PAdES-LT, RFC 3161,
-  // AES-256). Removing them silently would weaken the user's verification
-  // confidence; pin them so a copy refactor needs to acknowledge the
-  // change.
-  it('renders the public trust footer with all three guarantees', async () => {
+  // The footer names the operating company and the audit-chain check the
+  // payload actually returns. PAdES and RFC 3161 stay off until the
+  // verify response says they are present.
+  it('renders the public trust footer from the verify payload', async () => {
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     await waitFor(() => {
-      expect(screen.getByText(/aes-256 at rest/i)).toBeInTheDocument();
+      expect(screen.getByText(/sha-256 audit chain/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/rfc 3161 timestamps/i)).toBeInTheDocument();
-    expect(screen.getByText(/pades-lt seal/i)).toBeInTheDocument();
-    expect(screen.getByText(/verification by seald, inc/i)).toBeInTheDocument();
+    expect(screen.getByText(/verification by nro momentum llc/i)).toBeInTheDocument();
+    expect(screen.getByText(/issued by nro momentum llc/i)).toBeInTheDocument();
+    expect(screen.queryByText(/aes-256/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pades-lt/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rsa-4096/i)).not.toBeInTheDocument();
   });
 
   // Verification URL is rendered in the facts panel using the literal

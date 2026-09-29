@@ -243,7 +243,7 @@ export const Actions = styled.div`
 /**
  * T-18 — sender-facing retention disclosure. Sits below the AuditBadge
  * as a quieter caption (micro size, muted color) so it doesn't compete
- * with the success state but the 7-year storage commitment is visible.
+ * with the success state but the retention note stays visible.
  */
 export const RetentionNote = styled.p`
   margin: 0;

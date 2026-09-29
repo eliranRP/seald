@@ -1,3 +1,4 @@
+import { LEGAL_ENTITY_NAME, LEGAL_POSTAL_ADDRESS } from 'shared';
 import { z } from 'zod';
 
 export const envSchema = z
@@ -51,21 +52,16 @@ export const envSchema = z
     /**
      * Legal-footer fields injected into every outbound email template. The
      * values render inside the `<div class="foot">` block of each
-     * `apps/api/src/email/templates/*\/body.html`. Defaults reflect Seald's
-     * pre-incorporation posture; override in production once the entity
-     * filing is complete (CAN-SPAM § 5(a)(5) requires a valid postal
-     * address; CASL § 6(2)(c) and EU consumer-protection law similarly).
+     * `apps/api/src/email/templates/*\/body.html`. Defaults name the
+     * operating company and a street address (CAN-SPAM § 5(a)(5)).
      */
-    EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald, Inc.'),
-    EMAIL_LEGAL_POSTAL: z
-      .string()
-      .min(1)
-      .default('Postal address available on request — write to legal@seald.nromomentum.com.'),
+    EMAIL_LEGAL_ENTITY: z.string().min(1).default(LEGAL_ENTITY_NAME),
+    EMAIL_LEGAL_POSTAL: z.string().min(1).default(LEGAL_POSTAL_ADDRESS),
     EMAIL_PRIVACY_URL: z.string().url().default('https://seald.nromomentum.com/legal/privacy'),
     EMAIL_PREFERENCES_URL: z
       .string()
       .min(1)
-      .default('mailto:privacy@seald.nromomentum.com?subject=Email%20preferences'),
+      .default('mailto:privacy@seald.nromomentum.com?subject=Questions%20about%20these%20emails'),
 
     // PDF signing provider-specific
     PDF_SIGNING_LOCAL_P12_PATH: z.string().optional(),

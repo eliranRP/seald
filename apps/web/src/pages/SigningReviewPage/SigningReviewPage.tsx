@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
+import { INTENT_TO_SIGN_NOTE } from 'shared';
 import { Info, PenTool } from 'lucide-react';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
@@ -400,8 +401,7 @@ function Content() {
             {/* Item 14 — copy acknowledges BOTH the intent-checkbox AND
                 the submit click so the dual-affirmation narrative lines
                 up with the actual gating UI. */}
-            By checking the box below <b>AND</b> clicking <b>Sign and submit</b>, you affirm your
-            electronic signature is the legal equivalent of your handwritten signature.
+            {INTENT_TO_SIGN_NOTE}
           </span>
         </Legal>
 

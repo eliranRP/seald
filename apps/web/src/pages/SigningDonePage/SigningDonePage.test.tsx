@@ -384,7 +384,7 @@ describe('SigningDonePage', () => {
       renderDone();
 
       const alert = await screen.findByRole('alert', undefined, { timeout: 5_000 });
-      expect(alert).toHaveTextContent(/couldn.?t prepare the signed pdf/i);
+      expect(alert).toHaveTextContent(/couldn.?t load the download yet/i);
       // Disabled fallback button is still present.
       expect(screen.getByRole('button', { name: /download signed pdf/i })).toBeDisabled();
     });

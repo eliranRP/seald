@@ -8,7 +8,7 @@ Reason provided:
 
   {{decline_reason}}
 
-To resend with changes, open the dashboard and choose "Duplicate".
+To try again, start a new envelope from the dashboard and upload the PDF.
 The original declined request is retained as audit evidence.
 
   Open dashboard: {{dashboard_url}}

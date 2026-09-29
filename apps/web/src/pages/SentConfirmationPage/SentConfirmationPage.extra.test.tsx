@@ -146,11 +146,11 @@ describe('SentConfirmationPage — not-found fallback', () => {
 });
 
 describe('SentConfirmationPage — single signer copy', () => {
-  it('uses the singular "Invitation delivered to" caption when there is exactly one signer', async () => {
+  it('uses the singular "Invitation queued for" caption when there is exactly one signer', async () => {
     renderAt('env-single');
-    expect(await screen.findByText(/invitation delivered to$/i)).toBeInTheDocument();
+    expect(await screen.findByText(/invitation queued for$/i)).toBeInTheDocument();
     // Plural form is NOT present.
-    expect(screen.queryByText(/invitations delivered to \d+ signers/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/invitations queued for \d+ signers/i)).not.toBeInTheDocument();
   });
 });
 
@@ -165,7 +165,7 @@ describe('SentConfirmationPage — unicode + RTL', () => {
     // The short_code appears twice (DocCode + retention's verify path).
     expect(screen.getAllByText(/UNI-עברית/).length).toBeGreaterThanOrEqual(1);
     // 2 signers -> plural caption.
-    expect(screen.getByText(/invitations delivered to 2 signers/i)).toBeInTheDocument();
+    expect(screen.getByText(/invitations queued for 2 signers/i)).toBeInTheDocument();
   });
 
   it('uses the signers list with an accessible `Signers` label', async () => {
@@ -191,11 +191,11 @@ describe('SentConfirmationPage — primary action', () => {
 });
 
 describe('SentConfirmationPage — retention + audit trust signals', () => {
-  it('surfaces the cryptographic audit-trail badge and 7-year retention notice referencing the verify path', async () => {
+  it('surfaces the hash-chained audit badge and a retention notice that does not promise a purge timer', async () => {
     renderAt('env-single');
-    expect(await screen.findByText(/audit trail sealed/i)).toBeInTheDocument();
-    // Retention copy includes the verify path with the envelope's short_code.
-    expect(screen.getByText(/retains the sealed pdf/i)).toBeInTheDocument();
+    expect(await screen.findByText(/events are hash-chained as they happen/i)).toBeInTheDocument();
+    expect(screen.getByText(/we do not delete sealed files on a timer/i)).toBeInTheDocument();
+    expect(screen.queryByText(/7 years/i)).not.toBeInTheDocument();
     expect(screen.getByText(/\/verify\/NDA-0001/)).toBeInTheDocument();
   });
 });

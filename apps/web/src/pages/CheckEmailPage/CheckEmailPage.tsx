@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MailCheck } from 'lucide-react';
+import { PASSWORD_RESET_NOTE } from 'shared';
 import { AuthShell } from '@/components/AuthShell';
 import { Icon } from '@/components/Icon';
 import { useAuth } from '@/providers/AuthProvider';
@@ -49,8 +50,8 @@ export function CheckEmailPage() {
       </>
     ) : (
       <>
-        We sent a password reset link to <strong>{email || 'your inbox'}</strong>. It&apos;ll expire
-        in 30 minutes.
+        We sent a password reset link to <strong>{email || 'your inbox'}</strong>.{' '}
+        {PASSWORD_RESET_NOTE}
       </>
     );
 

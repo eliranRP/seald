@@ -1,12 +1,8 @@
 import { forwardRef } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import type { AuthBrandPanelProps } from './AuthBrandPanel.types';
+import { AUTH_PANEL_HEADING, PRODUCT_TRUST_LINE, PRODUCT_VALUE_STATEMENT } from 'shared';
 import {
-  AuthorName,
-  AuthorRole,
-  AuthorRow,
-  AuthorText,
-  Avatar,
   Content,
   GlowBottomLeft,
   GlowTopRight,
@@ -14,7 +10,6 @@ import {
   Quote,
   Root,
   Spacer,
-  Subheading,
   Testimonial,
   TrustFooter,
   Wordmark,
@@ -52,34 +47,17 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
         <span>Seald</span>
       </Wordmark>
 
-      <Heading>
-        Documents, <em>sealed</em> in minutes.
-      </Heading>
-
-      <Subheading>
-        The modern way to collect signatures. Upload, place fields, and send — your counterparties
-        finish signing before the meeting ends.
-      </Subheading>
+      <Heading>{AUTH_PANEL_HEADING}</Heading>
 
       <Testimonial>
-        <Quote>
-          &ldquo;We moved our entire contract workflow onto Seald in a weekend. Our clients finish
-          signing before our sales calls end.&rdquo;
-        </Quote>
-        <AuthorRow>
-          <Avatar aria-hidden="true">MR</Avatar>
-          <AuthorText>
-            <AuthorName>Maya Raskin</AuthorName>
-            <AuthorRole>General Counsel, Northwind</AuthorRole>
-          </AuthorText>
-        </AuthorRow>
+        <Quote>{PRODUCT_VALUE_STATEMENT}</Quote>
       </Testimonial>
 
       <Spacer />
 
       <TrustFooter>
         <ShieldCheck size={14} aria-hidden="true" />
-        <span>PAdES-LT &middot; RFC 3161 timestamps &middot; AES-256 at rest</span>
+        <span>{PRODUCT_TRUST_LINE}</span>
       </TrustFooter>
     </Content>
   </Root>

@@ -19,6 +19,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <a href="#features">Features</a>
         <a href="#how">How it works</a>
         <a href="#audit">Audit trail</a>
+        <a href="#cta">Beta</a>
       </div>
       <div class="nav-cta">
         <a href="/signin" class="btn btn-ghost">Sign in</a>
@@ -54,6 +55,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       <a href="#features">Features</a>
       <a href="#how">How it works</a>
       <a href="#audit">Audit trail</a>
+      <a href="#cta">Beta</a>
       <a href="/signin" class="btn btn-ghost">Sign in</a>
       <a href="/signup" class="btn btn-primary">Start free</a>
     </div>
@@ -65,7 +67,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       <div class="container">
         <div class="hero-grid">
           <div class="hero-copy">
-            <span class="eyebrow"><span class="dot"></span>New · RFC 3161 trusted timestamps</span>
+            <span class="eyebrow"><span class="dot"></span>RFC 3161 timestamps when the timestamp service responds</span>
             <h1>
               <span class="word-stack">Put your</span>
               <span class="word-stack"><span class="name">name<svg class="underline" viewBox="0 0 220 28" preserveAspectRatio="none"><path d="M4 18 C 40 6, 90 22, 140 14 C 180 7, 200 18, 216 12" /></svg></span></span>
@@ -173,20 +175,20 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
       <div class="container">
         <div class="trust-grid">
           <div class="trust-cell">
-            <div class="trust-num">AES-256</div>
-            <div class="trust-label">Encryption at rest</div>
+            <div class="trust-num">HTTPS</div>
+            <div class="trust-label">Public site and API</div>
           </div>
           <div class="trust-cell">
-            <div class="trust-num">TLS 1.3</div>
-            <div class="trust-label">Encryption in transit</div>
+            <div class="trust-num">Storage</div>
+            <div class="trust-label">Access-controlled cloud storage</div>
           </div>
           <div class="trust-cell">
             <div class="trust-num">RFC 3161</div>
-            <div class="trust-label">Trusted timestamping</div>
+            <div class="trust-label">Timestamp when the service responds</div>
           </div>
           <div class="trust-cell">
-            <div class="trust-num">PAdES-LT</div>
-            <div class="trust-label">EU long-term signature profile</div>
+            <div class="trust-num">PAdES</div>
+            <div class="trust-label">Seal when configured</div>
           </div>
         </div>
       </div>
@@ -198,13 +200,13 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <div class="section-head reveal">
           <span class="eyebrow"><span class="dot"></span>How it works</span>
           <h2>Three steps to a <em>sealed</em> document.</h2>
-          <p>From PDF to signed contract in less time than it takes to write the email asking for it.</p>
+          <p>Upload a PDF, place fields, and send a signing link.</p>
         </div>
         <div class="steps">
           <div class="step reveal">
             <span class="step-num">01 — Upload</span>
-            <h3 class="step-title">Drop in any&nbsp;PDF</h3>
-            <p class="step-copy">Drag a contract, NDA, or waiver into Seald. Up to 25 MB. We never store the original outside our encrypted vault.</p>
+            <h3 class="step-title">Drop in a PDF</h3>
+            <p class="step-copy">Drop in a PDF up to 25 MB. On a phone you can also start from a photo. We keep the original PDF in our cloud storage, separate from the sealed copy. You can also save the sealed PDF to a Google Drive folder you choose.</p>
             <div class="step-art upload-art">
               <div class="upload-page"></div>
               <div class="upload-zone">Drop a PDF, or browse</div>
@@ -213,7 +215,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
           <div class="step reveal">
             <span class="step-num">02 — Place</span>
             <h3 class="step-title">Place fields and signers</h3>
-            <p class="step-copy">Drop signature, date, initial, and text fields anywhere on the page. Add as many signers as you need — parallel or in order.</p>
+            <p class="step-copy">Drop signature, date, initial, and text fields anywhere on the page. Add the signers you need. Everyone is invited at the same time.</p>
             <div class="step-art place-art">
               <div class="place-tools">
                 <div class="place-tool active">
@@ -253,7 +255,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <div class="section-head reveal">
           <span class="eyebrow"><span class="dot"></span>Everything inside Seald</span>
           <h2>Built for the contracts <em>you actually care about</em>.</h2>
-          <p>A focused product. No tracking pixels, no upsells, no AI-summarizing your private agreements.</p>
+          <p>A focused product. No advertising pixels and no AI reading your contracts. Optional, consent-gated visit counts on the marketing site.</p>
         </div>
         <div class="feat-grid">
           <div class="feat reveal">
@@ -261,7 +263,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <svg viewBox="0 0 24 24"><path d="m12 19 7-7 3 3-7 7-3-3z"/><path d="m18 13-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
             </div>
             <h3>Sign it yourself</h3>
-            <p>Drop in a PDF, type or draw your name, download the sealed copy. Thirty seconds, start to finish.</p>
+            <p>Drop in a PDF, sign, and download the sealed copy.</p>
           </div>
 
           <div class="feat feat-request reveal">
@@ -269,7 +271,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6"/><path d="M19 8v6"/></svg>
             </div>
             <h3>Request signatures</h3>
-            <p>Add as many signers as you need. Send in parallel or in order. Seald nudges, you don't have to.</p>
+            <p>Add the signers you need. Everyone is invited at the same time. Send a reminder yourself, whenever you want. We won't spam signers on a schedule.</p>
             <div class="feat-art">
               <div class="track"><div class="track-fill"></div></div>
               <div class="signers">
@@ -285,7 +287,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
             </div>
             <h3>Reusable templates</h3>
-            <p>Save your standard NDA or SOW once. Seald remembers the fields, signers, and order.</p>
+            <p>Save the fields and the usual signers. Next time they're filled in for you to edit.</p>
             <div class="feat-art">
               <div class="tpl-stack">
                 <div></div><div></div><div></div>
@@ -297,14 +299,14 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <div class="feat-ico">
               <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><polyline points="9 12 11 14 15 10"/></svg>
             </div>
-            <h3>Court-ready audit trail</h3>
-            <p>Every signature carries a SHA-256 fingerprint, an IP, and a UTC timestamp issued by an external RFC 3161 timestamp authority — not us.</p>
+            <h3>Separate audit PDF</h3>
+            <p>An audit PDF with the signer's email, IP, user-agent, and the time we recorded each step, chained with SHA-256. The sealed PDF is timestamped by an external RFC 3161 service when that service is available.</p>
             <div class="feat-art">
               <div class="audit-line"><span class="ts">21:20:50</span><span class="ev">VIEWED</span><span class="ip">4.28.55.97</span></div>
               <div class="audit-line"><span class="ts">21:21:08</span><span class="ev">CONSENTED</span><span class="ip">4.28.55.97</span></div>
               <div class="audit-line"><span class="ts">21:21:22</span><span class="ev">SIGNED</span><span class="ip">4.28.55.97</span></div>
               <div class="audit-line"><span class="ts">21:21:23</span><span class="ev">HASH</span><span class="ip">a2e35e…f675ee</span></div>
-              <div class="audit-line"><span class="ts">21:21:25</span><span class="ev">SEALED</span><span class="ip">RFC 3161</span></div>
+              <div class="audit-line"><span class="ts">21:21:25</span><span class="ev">SEALED</span><span class="ip">SHA-256</span></div>
             </div>
           </div>
 
@@ -312,8 +314,8 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
             <div class="feat-ico">
               <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             </div>
-            <h3>Encrypted in transit and at rest</h3>
-            <p>TLS 1.3 in transit and AES-256 at rest. Sealed PDFs carry their own SHA-256 fingerprint so tampering shows up on inspection — independent of Seald.</p>
+            <h3>A hash you can check</h3>
+            <p>The sealed PDF is hashed with SHA-256. When a digital seal is applied, changing the file breaks that seal — anyone can check it, including without an account.</p>
             <div class="feat-art">
               <div class="lock">
                 <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.2" fill="currentColor"/></svg>
@@ -330,29 +332,27 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <div class="demo-grid">
           <div class="demo-copy reveal">
             <span class="eyebrow"><span class="dot"></span>Try it · No sign-up</span>
-            <h3>Draw your signature, right here.</h3>
-            <p>This is the actual signing pad you'll use inside Seald. Sign with your trackpad or finger — it stays on your device until you decide to send.</p>
+            <h3>Try a drawing pad in your browser.</h3>
+            <p>Nothing you draw here is saved or signed. Inside Seald you can type, draw, or upload a signature for the document you're sending.</p>
             <ul>
               <li>
                 <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-                Type, draw, or upload — three formats, one mark
+                This page is a drawing preview only
               </li>
               <li>
                 <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-                Pressure-sensitive on devices that support it
+                Inside Seald: type, draw, or upload
               </li>
               <li>
                 <span class="ck"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
-                Saved to your account once you're done
+                Nothing from this pad is stored
               </li>
             </ul>
           </div>
           <div class="demo-pad reveal">
             <div class="demo-pad-head">
               <div class="demo-tabs">
-                <button class="demo-tab" data-mode="type">Type</button>
-                <button class="demo-tab active" data-mode="draw">Draw</button>
-                <button class="demo-tab" data-mode="upload">Upload</button>
+                <button class="demo-tab active" type="button" data-mode="draw">Draw</button>
               </div>
               <button class="demo-clear" id="demoClear">Clear</button>
             </div>
@@ -361,8 +361,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
               <div class="demo-hint" id="demoHint">Sign here</div>
             </div>
             <div class="demo-pad-foot">
-              <span class="demo-foot-meta">By signing you agree this is your electronic signature.</span>
-              <button class="btn btn-primary" id="demoApply">Apply</button>
+              <span class="demo-foot-meta">Nothing you draw here is saved or signed.</span>
             </div>
           </div>
         </div>
@@ -375,28 +374,28 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         <div class="audit-grid">
           <div class="audit-copy reveal">
             <span class="eyebrow"><span class="dot"></span>Receipts, not promises</span>
-            <h2>Every sealed document ends with a <em>court-ready audit</em>.</h2>
-            <p>The audit trail is the second-to-last page of every Seald document. It is not a marketing claim — it is a printable, verifiable, cryptographically-anchored record of who signed what, when, and from where.</p>
+            <h2>Every completed envelope includes a <em>separate audit PDF</em>.</h2>
+            <p>Every completed envelope comes with a separate audit PDF: who did what, when, and from where, with a link to verify the file.</p>
             <ul class="audit-bullets">
               <li>
                 <span class="num">01</span>
                 <span class="text">
                   <strong>Identity evidence</strong>
-                  <span>Email verified, account-authenticated, IP and user-agent captured for every action.</span>
+                  <span>We email a private link to the address you enter, and we record IP address and browser on the signing steps. Signers do not need a Seald account.</span>
                 </span>
               </li>
               <li>
                 <span class="num">02</span>
                 <span class="text">
                   <strong>Cryptographic fingerprint</strong>
-                  <span>SHA-256 hash of the file before and after signing. If a single byte changes, the seal breaks.</span>
+                  <span>We hash the file before and after sealing. If a digital seal was applied, editing the sealed PDF breaks that seal.</span>
                 </span>
               </li>
               <li>
                 <span class="num">03</span>
                 <span class="text">
-                  <strong>RFC 3161 trusted timestamp</strong>
-                  <span>Issued by an external timestamping authority — not by Seald. Independently verifiable.</span>
+                  <strong>External RFC 3161 timestamp</strong>
+                  <span>An external RFC 3161 timestamp, so the seal time doesn't depend on our clock — when the timestamp service is available.</span>
                 </span>
               </li>
             </ul>
@@ -505,7 +504,7 @@ import BaseLayout from '@/layouts/BaseLayout.astro';
         </div>
       </div>
       <div class="foot-bottom">
-        <span>© 2026 Seald, Inc. — Put your name to it.</span>
+        <span>© 2026 NRO Momentum LLC — Put your name to it.</span>
       </div>
     </div>
   </footer>

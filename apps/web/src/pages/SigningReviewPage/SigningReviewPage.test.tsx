@@ -248,8 +248,9 @@ describe('SigningReviewPage', () => {
     // intermediate wrapper changes.
     await screen.findByText(/everything look right/i);
     const flat = (document.body.textContent ?? '').replace(/\s+/g, ' ').toLowerCase();
-    expect(flat).toMatch(/checking the box below and clicking sign and submit/);
-    expect(flat).toMatch(/legal equivalent of your handwritten signature/);
+    expect(flat).toMatch(/checking this box and clicking sign and submit/);
+    expect(flat).toMatch(/intend to sign this document electronically/i);
+    expect(flat).not.toMatch(/legal equivalent/i);
   });
 
   // Item 16 — Helper copy was "lock the document and send a signed copy" —

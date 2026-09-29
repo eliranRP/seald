@@ -91,7 +91,7 @@ describe('AuthForm', () => {
     await userEvent.click(submit);
     expect(auth.signUpWithPassword).not.toHaveBeenCalled();
     // After ticking the combined attestation, the same submit click goes through.
-    await userEvent.click(getByLabelText(/legal age and agree/i));
+    await userEvent.click(getByLabelText(/at least 18/i));
     await userEvent.click(submit);
     expect(auth.signUpWithPassword).toHaveBeenCalledTimes(1);
   });
@@ -138,7 +138,7 @@ describe('AuthForm', () => {
     await userEvent.type(getByLabelText(/email/i), 'ada@example.com');
     await userEvent.type(getByLabelText(/^password$/i), 'hunter2!!');
     // Combined ESIGN attestation (audit C: SignUp #10).
-    await userEvent.click(getByLabelText(/legal age and agree/i));
+    await userEvent.click(getByLabelText(/at least 18/i));
     await userEvent.click(getByRole('button', { name: /create account/i }));
     expect(onNeeds).toHaveBeenCalledWith('ada@example.com');
   });
@@ -178,7 +178,7 @@ describe('AuthForm', () => {
     const { getByRole, getByLabelText } = renderWithTheme(<AuthForm mode="signup" />);
     const google = getByRole('button', { name: /sign up with google/i });
     expect(google).toBeDisabled();
-    await userEvent.click(getByLabelText(/legal age and agree/i));
+    await userEvent.click(getByLabelText(/at least 18/i));
     expect(google).not.toBeDisabled();
     await userEvent.click(google);
     expect(auth.signInWithGoogle).toHaveBeenCalledTimes(1);
@@ -196,7 +196,7 @@ describe('AuthForm', () => {
     );
     const skip = getByRole('button', { name: /skip — try it/i });
     expect(skip).toBeDisabled();
-    await userEvent.click(getByLabelText(/legal age and agree/i));
+    await userEvent.click(getByLabelText(/at least 18/i));
     expect(skip).not.toBeDisabled();
     await userEvent.click(skip);
     expect(onSkip).toHaveBeenCalledTimes(1);
@@ -221,7 +221,7 @@ describe('AuthForm', () => {
   // stop event propagation so the checkbox state is preserved.
   it('clicking an inner Terms/Privacy anchor does NOT toggle the consent checkbox', async () => {
     const { getByLabelText, getByRole } = renderWithTheme(<AuthForm mode="signup" />);
-    const checkbox = getByLabelText(/legal age and agree/i) as HTMLInputElement;
+    const checkbox = getByLabelText(/at least 18/i) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     // Click the Terms anchor — should NOT toggle the box.
     const tos = getByRole('link', { name: /terms of service/i });
@@ -251,7 +251,7 @@ describe('AuthForm', () => {
     // The mode-specific checkboxes are the consent attestation only —
     // signup mode has no Keep-me-signed-in.
     expect(getAllByRole('checkbox')).toHaveLength(1);
-    expect(getByLabelText(/legal age and agree.*terms.*privacy/i)).toBeInTheDocument();
+    expect(getByLabelText(/at least 18.*terms of service and privacy policy/i)).toBeInTheDocument();
   });
 
   // Audit C: SignUp #3 — focus the first failing field on submit so
@@ -276,7 +276,7 @@ describe('AuthForm', () => {
     await userEvent.type(getByLabelText(/full name/i), 'A');
     await userEvent.type(getByLabelText(/email/i), 'ada@example.com');
     await userEvent.type(getByLabelText(/^password$/i), 'hunter2!!');
-    await userEvent.click(getByLabelText(/legal age and agree/i));
+    await userEvent.click(getByLabelText(/at least 18/i));
     await userEvent.click(getByRole('button', { name: /create account/i }));
     expect(auth.signUpWithPassword).not.toHaveBeenCalled();
     expect(await findByText(/please enter your name/i)).toBeInTheDocument();

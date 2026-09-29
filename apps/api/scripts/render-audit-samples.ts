@@ -181,7 +181,6 @@ async function main(): Promise<void> {
     sealedSha256: baseEnvelope.sealed_sha256!,
     sealedPages: 9,
     publicUrl: PUBLIC,
-    retentionYears: 7,
   });
   const pCompleted = join(OUT_DIR, 'audit-sample-completed.pdf');
   writeFileSync(pCompleted, completed);
@@ -202,7 +201,6 @@ async function main(): Promise<void> {
     sealedSha256: baseEnvelope.sealed_sha256!,
     sealedPages: 9,
     publicUrl: PUBLIC,
-    retentionYears: 7,
   });
   const pSingle = join(OUT_DIR, 'audit-sample-single.pdf');
   writeFileSync(pSingle, completedSingle);
@@ -244,7 +242,6 @@ async function main(): Promise<void> {
     sealedSha256: null,
     sealedPages: null,
     publicUrl: PUBLIC,
-    retentionYears: 7,
   });
   const pDeclined = join(OUT_DIR, 'audit-sample-declined.pdf');
   writeFileSync(pDeclined, declinedBytes);
@@ -263,7 +260,6 @@ async function main(): Promise<void> {
     sealedSha256: baseEnvelope.sealed_sha256!,
     sealedPages: 9,
     publicUrl: PUBLIC,
-    retentionYears: 7,
   });
   const pLong = join(OUT_DIR, 'audit-sample-long-title.pdf');
   writeFileSync(pLong, longTitleBytes);

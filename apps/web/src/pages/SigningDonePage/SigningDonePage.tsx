@@ -2,18 +2,12 @@ import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
-import { ENVELOPE_RETENTION_YEARS_DEFAULT } from 'shared';
+import { SEAL_DOWNLOAD_ERROR } from 'shared';
 import { Icon } from '@/components/Icon';
+import { RetentionNotice } from '@/components/shared/RetentionNotice';
+import { SignatureLevelNote } from '@/components/shared/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
-
-/**
- * Item 22 — source-of-truth retention period lives in `packages/shared`
- * (`ENVELOPE_RETENTION_YEARS_DEFAULT`). Keep API + SPA + audit PDF + the
- * Privacy Policy in lock-step from the shared constant instead of three
- * hardcoded `7`s that silently drift when env-var defaults change.
- */
-const RETENTION_YEARS = ENVELOPE_RETENTION_YEARS_DEFAULT;
 
 const Page = styled.div`
   min-height: 100vh;
@@ -237,14 +231,6 @@ const RetentionCard = styled.div`
   align-items: flex-start;
 `;
 
-const AesNote = styled.p`
-  margin: ${({ theme }) => theme.space[4]} 0 0;
-  font-size: ${({ theme }) => theme.font.size.micro};
-  color: ${({ theme }) => theme.color.fg[3]};
-  line-height: 1.55;
-  text-align: left;
-`;
-
 /**
  * `/sign/:envelopeId/done` — terminal success screen. Reads the sessionStorage
  * snapshot written by the submit mutation; if missing (user deep-linked),
@@ -349,8 +335,7 @@ export function SigningDonePage() {
           ) : null}
           {verify.isError && !sealedUrl ? (
             <DownloadError role="alert">
-              We couldn&apos;t prepare the signed PDF right now. A copy has been emailed to you; you
-              can also download it any time from{' '}
+              {SEAL_DOWNLOAD_ERROR}{' '}
               <a
                 href={`/verify/${snap.short_code}`}
                 style={{ color: 'inherit', textDecoration: 'underline' }}
@@ -364,30 +349,15 @@ export function SigningDonePage() {
 
         <RetentionCard>
           <Icon icon={ShieldCheck} size={16} />
-          <span>
-            Seald retains the sealed PDF and audit trail for <b>{RETENTION_YEARS} years</b> from
-            sealing. You can verify it any time at{' '}
-            <a
-              href={`/verify/${snap.short_code}`}
-              style={{ color: 'inherit', textDecoration: 'underline' }}
-            >
-              /verify/{snap.short_code}
-            </a>
-            .
-          </span>
+          <RetentionNotice verifyPath={`/verify/${snap.short_code}`} />
         </RetentionCard>
 
-        <AesNote>
-          Seald produces an Advanced Electronic Signature (PAdES-LT) — legally equivalent to a
-          handwritten signature in most jurisdictions. Some documents (wills, real-estate
-          conveyances, certain DE/FR/IT/ES instruments) require a Qualified Electronic Signature or
-          wet ink. Consult counsel if unsure.
-        </AesNote>
+        <SignatureLevelNote />
 
         <Upsell>
           <UpsellChip>
             <Icon icon={Sparkles} size={11} />
-            Free forever
+            Free during beta
           </UpsellChip>
           {/* Item 18 — CTA copy disambiguates from "send another copy"
               and surfaces the signup intent up front. */}

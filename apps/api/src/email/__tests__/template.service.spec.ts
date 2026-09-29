@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { EMAIL_QUESTIONS_LABEL, EMAIL_SIGNATURE_NOTE, EMAIL_TRANSIT_NOTE } from 'shared';
 import { TemplateService } from '../template.service';
 
 describe('TemplateService', () => {
@@ -208,6 +211,43 @@ describe('TemplateService', () => {
       // This is the verb usage referring to "the document that was sealed",
       // not the brand. The verb keeps its trailing -e.
       expect(out.text).toContain('Sealed document:');
+    });
+
+    it('template sources drop retired signature, encryption, and entity claims', () => {
+      const templatesDir = resolve(__dirname, '../templates');
+      const banned = [
+        'Encrypted in transit and at rest',
+        'Email preferences',
+        'eIDAS',
+        'handwritten',
+        'PAdES-LT',
+        '7 years',
+        'Duplicate',
+        'legally equivalent',
+        'Seald, Inc.',
+        'Advanced Electronic',
+      ];
+      const htmlFiles: string[] = [];
+      for (const entry of readdirSync(templatesDir)) {
+        const dir = resolve(templatesDir, entry);
+        if (!statSync(dir).isDirectory()) continue;
+        for (const file of ['body.html', 'body.txt'] as const) {
+          const path = resolve(dir, file);
+          const collapsed = readFileSync(path, 'utf8').replace(/\s+/g, ' ');
+          htmlFiles.push(collapsed);
+          for (const phrase of banned) {
+            expect(collapsed).not.toContain(phrase);
+          }
+        }
+      }
+      const htmlOnly = htmlFiles.filter((body) => body.includes('<div class="foot">'));
+      expect(htmlOnly.length).toBeGreaterThan(0);
+      for (const body of htmlOnly) {
+        expect(body).toContain(EMAIL_TRANSIT_NOTE);
+        expect(body).toContain(EMAIL_QUESTIONS_LABEL);
+      }
+      const invite = htmlFiles.find((body) => body.includes('ESIGN and UETA consent'));
+      expect(invite).toContain(EMAIL_SIGNATURE_NOTE);
     });
 
     it('TITLES default falls back to "Seald — kind"', () => {

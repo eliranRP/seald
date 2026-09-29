@@ -91,6 +91,10 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.PDF_SIGNING_TSA_URL).toBe('https://freetsa.org/tsr');
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
+    expect(env.EMAIL_LEGAL_ENTITY).toBe('NRO Momentum LLC');
+    expect(env.EMAIL_LEGAL_POSTAL).toBe(
+      '3401 Hartzdale Drive, Suite 103B, Unit #631, Camp Hill, PA 17011',
+    );
   });
 
   // Regression for the 2026-05-07 prod incident where stale containers

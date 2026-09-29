@@ -220,7 +220,7 @@ test.describe('signing flow', () => {
     //    affirmation. The "Start signing" button stays disabled until
     //    both are checked.
     await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /access electronic records on this device/i }).check();
+    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
 
     // 5. Click "Start signing" — fires POST /sign/accept-terms +
     //    POST /sign/esign-disclosure (both mocked above) and navigates

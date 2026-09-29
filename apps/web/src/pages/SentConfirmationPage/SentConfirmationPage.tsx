@@ -1,4 +1,6 @@
 import { Check, LayoutList, ShieldCheck } from 'lucide-react';
+import { RetentionNotice } from '@/components/shared/RetentionNotice';
+import { SenderProgressNote } from '@/components/shared/SenderProgressNote';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -29,12 +31,6 @@ import {
   Title,
   Wrap,
 } from './SentConfirmationPage.styles';
-
-/**
- * T-18 — keep this in sync with `ENVELOPE_RETENTION_YEARS` (default `7`)
- * in `apps/api/src/config/env.schema.ts` and the Done page.
- */
-const RETENTION_YEARS = 7;
 
 /** Lightweight projection common to both the local-draft source and the API. */
 interface SentSummary {
@@ -146,11 +142,10 @@ export function SentConfirmationPage() {
             <polyline points="5 13 10 18 19 8" />
           </svg>
         </SealBadge>
-        <Kicker>Delivered</Kicker>
+        <Kicker>Sent</Kicker>
         <Title>Sent. Your envelope is on its way.</Title>
         <Body>
-          Every signer has been emailed a unique link. You&apos;ll get a notification the moment
-          each signature lands — and a final one when the envelope is sealed.
+          <SenderProgressNote />
         </Body>
 
         <DocMeta>
@@ -163,8 +158,8 @@ export function SentConfirmationPage() {
 
         <SignersCaption>
           {summary.signers.length === 1
-            ? 'Invitation delivered to'
-            : `Invitations delivered to ${summary.signers.length} signers`}
+            ? 'Invitation queued for'
+            : `Invitations queued for ${summary.signers.length} signers`}
         </SignersCaption>
         <SignerList aria-label="Signers">
           {summary.signers.map((s) => (
@@ -175,7 +170,7 @@ export function SentConfirmationPage() {
                 <SignerEmail>{s.email}</SignerEmail>
               </SignerMeta>
               <DeliveredChip>
-                <Check size={11} strokeWidth={3} /> Delivered
+                <Check size={11} strokeWidth={3} /> Queued
               </DeliveredChip>
             </SignerItem>
           ))}
@@ -183,12 +178,11 @@ export function SentConfirmationPage() {
 
         <AuditBadge>
           <ShieldCheck size={14} />
-          Audit trail sealed — every event is cryptographically logged
+          Events are hash-chained as they happen. The audit PDF is created when everyone has signed.
         </AuditBadge>
 
         <RetentionNote>
-          Seald retains the sealed PDF and audit trail for {RETENTION_YEARS} years from sealing.
-          Verify any time at <code>/verify/{summary.code}</code>.
+          <RetentionNotice verifyPath={`/verify/${summary.code}`} />
         </RetentionNote>
 
         <Actions>
