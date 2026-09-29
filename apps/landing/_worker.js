@@ -80,6 +80,12 @@ export const MARKETING_PATHS = [
 
 const MARKETING = new Set(MARKETING_PATHS);
 
+// Google Search Console HTML-file verification. The URL must stay
+// `/google9a27f9c75cdae2dc.html` (200). It is not a marketing page, so
+// it is not in the sitemap, and it must not fall through to the SPA
+// shell or the soft-404 homepage.
+const GSC_VERIFICATION_FILE = '/google9a27f9c75cdae2dc.html';
+
 export function isSpaRoute(pathname) {
   if (SPA_EXACT.has(pathname)) return true;
   for (const prefix of SPA_PREFIXES) {
@@ -171,6 +177,37 @@ async function spaShell(request, env) {
   });
 }
 
+async function verificationFile(request, env) {
+  const fileUrl = new URL(request.url);
+  fileUrl.pathname = GSC_VERIFICATION_FILE;
+  fileUrl.search = '';
+  let asset = await env.ASSETS.fetch(new Request(fileUrl.toString(), { method: 'GET' }));
+  // CF Pages strips `.html` inside ASSETS.fetch and 308s to the
+  // extensionless path. Follow that once and answer 200 here so
+  // Google fetches the file at the `.html` URL.
+  if (asset.status >= 300 && asset.status < 400) {
+    const location = asset.headers.get('location');
+    if (location) {
+      const followUrl = new URL(location, fileUrl);
+      if (followUrl.origin === fileUrl.origin) {
+        const followed = await env.ASSETS.fetch(new Request(followUrl.toString(), { method: 'GET' }));
+        if (followed.ok && !(await isHomepageFallback(request, followed, env))) {
+          const headers = new Headers(followed.headers);
+          return new Response(followed.body, {
+            status: 200,
+            statusText: 'OK',
+            headers,
+          });
+        }
+      }
+    }
+  }
+  if (asset.ok && !(await isHomepageFallback(request, asset, env))) {
+    return asset;
+  }
+  return notFound(request, env);
+}
+
 async function marketingPage(request, env) {
   const asset = await env.ASSETS.fetch(request);
   // If the asset pipeline still wants a trailing slash, follow it
@@ -206,6 +243,13 @@ export default {
 
     if (isSpaRoute(pathname)) {
       return spaShell(request, env);
+    }
+
+    if (
+      pathname === GSC_VERIFICATION_FILE ||
+      pathname === '/google9a27f9c75cdae2dc'
+    ) {
+      return verificationFile(request, env);
     }
 
     if (pathname === '/index.html') {

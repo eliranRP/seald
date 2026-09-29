@@ -125,6 +125,16 @@ describe('landing SEO contract (S1a)', () => {
     }
     expect(sitemap).not.toContain('/signin');
     expect(sitemap).not.toContain('/404');
+    expect(sitemap).not.toContain('google9a27f9c75cdae2dc');
+  });
+
+  it('adds the Search Console meta tag and the exact verification file', () => {
+    const layout = read('src/layouts/BaseLayout.astro');
+    expect(layout).toContain(
+      'name="google-site-verification" content="H_Xstu_43x0SSxeQggMkWFsRP9NaQEWEYwXau19TwaA"',
+    );
+    const file = readFileSync(resolve(LANDING, 'public/google9a27f9c75cdae2dc.html'));
+    expect(file.toString('utf8')).toBe('google-site-verification: google9a27f9c75cdae2dc.html');
   });
 
   it('describes Seald as a web app in llms.txt', () => {

@@ -201,4 +201,72 @@ describe('apps/landing/_worker.js routing', () => {
     expect(await response.text()).toContain('Contact');
     expect(fetched).toEqual(['/contact', '/contact/']);
   });
+
+  it('serves the Search Console file at its .html URL, not the SPA or the 404', async () => {
+    const token = 'google-site-verification: google9a27f9c75cdae2dc.html';
+    const { env, fetched } = assetsFrom({
+      '/': { body: HOME, contentType: 'text/html; charset=utf-8', etag: '"home"' },
+      '/404': { body: MISSING, contentType: 'text/html; charset=utf-8', etag: '"missing"' },
+      '/app': { body: SPA, contentType: 'text/html; charset=utf-8', etag: '"app"' },
+      '/google9a27f9c75cdae2dc.html': {
+        body: token,
+        contentType: 'text/html; charset=utf-8',
+        etag: '"gsc"',
+      },
+    });
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/google9a27f9c75cdae2dc.html'),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-robots-tag')).toBeNull();
+    expect(await response.text()).toBe(token);
+    expect(fetched).not.toContain('/app');
+    expect(fetched).not.toContain('/404');
+  });
+
+  it('keeps a 200 on the .html verification URL when assets strip the extension', async () => {
+    const token = 'google-site-verification: google9a27f9c75cdae2dc.html';
+    const env = {
+      ASSETS: {
+        fetch(request: Request): Promise<Response> {
+          const pathname = new URL(request.url).pathname;
+          if (pathname === '/google9a27f9c75cdae2dc.html') {
+            return Promise.resolve(
+              new Response(null, {
+                status: 308,
+                headers: { location: 'https://seald.nromomentum.com/google9a27f9c75cdae2dc' },
+              }),
+            );
+          }
+          if (pathname === '/google9a27f9c75cdae2dc') {
+            return Promise.resolve(
+              new Response(token, {
+                status: 200,
+                headers: { 'content-type': 'text/html; charset=utf-8', etag: '"gsc"' },
+              }),
+            );
+          }
+          if (pathname === '/') {
+            return Promise.resolve(
+              new Response(HOME, {
+                status: 200,
+                headers: { 'content-type': 'text/html; charset=utf-8', etag: '"home"' },
+              }),
+            );
+          }
+          return Promise.resolve(
+            new Response(MISSING, { status: 200, headers: { etag: '"missing"' } }),
+          );
+        },
+      },
+    };
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/google9a27f9c75cdae2dc.html'),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('location')).toBeNull();
+    expect(await response.text()).toBe(token);
+  });
 });
