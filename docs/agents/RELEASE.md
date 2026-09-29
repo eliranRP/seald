@@ -18,19 +18,19 @@ succeeds. The `on:` block does not.
 
 ## 1. Pull request
 
-CI (`.github/workflows/ci.yml`) runs on pull requests and on pushes to
-`main`, except when every changed file is markdown, `docs/**`,
-`Design-Guide/**`, `LICENSE`, `.gitignore`, or `.editorconfig`. A
-docs-only PR does not run lint, unit tests, web tests, Storybook,
-Playwright, API e2e, or the PAdES verifier.
+CI (`.github/workflows/ci.yml`) runs on pull requests (`opened`,
+`synchronize`, `reopened`, `edited`) and on pushes to `main`. A
+docs-only pull request still starts that workflow so commitlint runs,
+including after a title edit. Lint, unit tests, web tests, Storybook,
+Playwright, API e2e, and the PAdES verifier skip a docs-only diff.
+`ci-success` still runs; skipped jobs are not failures. A docs-only
+push to `main` skips `ci.yml` (`paths-ignore` on `push` only).
 
 The same ignore list skips `playwright.yml`, `security.yml`, and
 `lint-meta.yml`. Chromatic uses a `paths:` allow-list, so a docs-only
 PR does not start that job either. CodeQL can still run. This doc does
-not assert that `ci-success` is a required check. If branch protection
-requires `ci-success`, a docs-only PR cannot satisfy it, because the
-job never starts. Treat those checks as absent, not failed and not
-passed.
+not assert that `ci-success` is a required check. Treat the checks
+that never start as absent, not failed and not passed.
 
 When CI does run, `ci-success` is the aggregate. `playwright.yml` runs
 the rest of the browser suite. Chromatic uploads visual diffs and exits

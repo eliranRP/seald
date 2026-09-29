@@ -166,9 +166,11 @@ one. A path missing from the worker is served as the marketing page.
 `apps/web/src/test/spa-worker-routes.contract.test.ts` reads the React
 routes from `AppRoutes.tsx`. A worker path that is not one of those
 routes is still valid when it is the shell rewrite
-(`rewritten.pathname`, `/app`) or a prefix whose segment appears in an
-AppRoutes pattern (`/sent/` because of `/document/:id/sent`). Any other
-worker-only path is added to `LEGACY_EXACT` in that test, with a
+(`rewritten.pathname`, `/app`) or a prefix that covers a whole
+AppRoutes pattern (`/document/` covers `/document/:id/sent`). A later
+segment is not enough. `/sent/` is listed in that test's
+`SHELL_PREFIXES` because the screen is `/document/:id/sent`. Any other
+worker-only exact path is added to `LEGACY_EXACT` in that test, with a
 comment. See `docs/agents/RELEASE.md`.
 
 ## State and data
@@ -451,14 +453,18 @@ Component tests should query by role and name. `vitest-axe` is set up in
 
 ### CI
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`.
-Markdown, `docs/**`, and `Design-Guide/**` are ignored, so a docs-only PR
-does not run this workflow.
+`.github/workflows/ci.yml` runs on pull requests (`opened`,
+`synchronize`, `reopened`, and `edited`) and on pushes to `main`.
+`edited` re-runs the workflow when the pull request title changes, so
+commitlint sees the subject a squash merge would use. A docs-only pull
+request still runs this workflow: commitlint is not behind the path
+filter. Lint, tests, Storybook, and the PAdES verifier skip docs-only
+diffs. A docs-only push to `main` still skips the workflow.
 
 Jobs, in order: path filter, install, lint (typecheck + lint), pnpm audit,
 API unit, web Vitest with coverage, Storybook build, one Playwright spec
 (`e2e/template-sign-flow.spec.ts`), API e2e (LocalStack KMS), `pades-verify`,
-then an aggregate `ci-success` job.
+commitlint, then an aggregate `ci-success` job.
 
 Other workflows that run on pull requests (same docs `paths-ignore` as
 CI, except Chromatic which uses a `paths:` allow-list): `playwright.yml`
@@ -512,8 +518,9 @@ Enforced today:
 - Named components are function declarations. Inline components are arrow functions (`react/function-component-definition`).
 - Deep relative imports (`../../…`) are banned outside tests and stories (`no-restricted-imports`).
 - Hex literals are banned in `src/**/*.styles.ts`, `src/**/*.tsx`, and `src/features/templates/tagColors.ts` (Literal and template strings). Tests, stories, and `eslint/hex-allowlist.txt` are excluded. Do not add allowlist names; the remainder is a design-cycle list, review by 2026-12-31.
-- No `eslint-disable` / `eslint-disable-next-line` (`@eslint-community/eslint-comments/no-use`) and `reportUnusedDisableDirectives` is `error`, on web and API. Justified exceptions are file overrides in the ESLint config (test `import/first` and `no-eval`, Vite `?worker` imports, a short list of `exhaustive-deps` files, one API spec that throws a string, and the sealing override below).
-- No non-null `!` (`@typescript-eslint/no-non-null-assertion`), no `as unknown as` (`no-restricted-syntax`), and no nested ternaries (`no-nested-ternary`) in production web source and in API source outside `src/sealing/**`. Tests, stories, and `src/test` turn the three off (testing cycle). `apps/api/src/sealing/**` turns off `!` and `as unknown as` until 2026-12-31 so CMS bytes stay untouched; nested ternaries stay on there.
+- No `eslint-disable` / `eslint-disable-next-line` (`@eslint-community/eslint-comments/no-use`) and `reportUnusedDisableDirectives` is `error`, on web and API. Justified exceptions are file overrides in the ESLint config (test `import/first` and `no-eval`, Vite `?worker` imports, the `exhaustive-deps` files named below, one API spec that throws a string, and the sealing override below).
+- No non-null `!` (`@typescript-eslint/no-non-null-assertion`), no `as unknown as` (`no-restricted-syntax`), and no nested ternaries (`no-nested-ternary`) in production web source and in API source outside `src/sealing/**`. Tests, stories, and `src/test` turn the three off (testing cycle). `apps/api/src/sealing/**` turns off `!` and only the `as unknown as` selector until 2026-12-31 so CMS bytes stay untouched (46 non-null assertions and 13 `as unknown as`). Other `no-restricted-syntax` selectors stay on there. Nested ternaries stay on there.
+- `react-hooks/exhaustive-deps` is off for these files, because an inline disable is banned and changing the dependency list would change behavior. The React-hooks cleanup is a later cycle: `src/hooks/useColumnWidths.ts`, `src/features/signingFill/model/useSigningFillController.ts`, `src/components/UserMenu/UserMenu.tsx`, `src/routes/TemplateEditorRoute.tsx`, `src/routes/UploadRoute.tsx`, `src/lib/pdf.ts`.
 - Layer zones come from component folders, not a hand-written name list. `eslint/component-layers.mjs` reads story titles (`L1/`–`L4/`). A folder with no story is L1. The L1 target is a negation glob, so a new component is checked immediately. L2 and L3 targets are the folders whose stories declare that layer.
 - Signer-surface isolation stays in `eslint.config.js`. New `pages/Signing*` folders match `./src/pages/Signing*/**`. The named signer components on that target list are still explicit.
 - `@signpdf/utils` `extractSignature` is rejected by `no-restricted-imports` on web and API. Use `extractContents()` in `pades-verify-helpers.ts`.

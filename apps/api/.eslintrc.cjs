@@ -1,3 +1,24 @@
+// `as unknown as` is the only syntax ban today. Sealing turns that
+// selector off and keeps every other selector in `syntaxBans`, so a
+// ban added later is still enforced under src/sealing.
+const asUnknownAsBan = {
+  selector:
+    "TSAsExpression[expression.type='TSAsExpression'][expression.typeAnnotation.type='TSUnknownKeyword']",
+  message:
+    'Do not use `as unknown as`. Narrow the value, or use a single assertion when the types already overlap.',
+};
+const syntaxBans = [asUnknownAsBan];
+
+// A severity-only override inherits the parent selectors. When sealing
+// has no bans of its own, a selector that matches nothing is what
+// drops the cast without turning the whole rule off.
+function syntaxRule(bans) {
+  if (bans.length === 0) {
+    return ['error', { selector: ':not(*)', message: 'No syntax bans in this override.' }];
+  }
+  return ['error', ...bans];
+}
+
 module.exports = {
   root: true,
   env: { node: true, jest: true, es2022: true },
@@ -30,15 +51,7 @@ module.exports = {
     '@eslint-community/eslint-comments/no-use': 'error',
     '@typescript-eslint/no-non-null-assertion': 'error',
     'no-nested-ternary': 'error',
-    'no-restricted-syntax': [
-      'error',
-      {
-        selector:
-          "TSAsExpression[expression.type='TSAsExpression'][expression.typeAnnotation.type='TSUnknownKeyword']",
-        message:
-          'Do not use `as unknown as`. Narrow the value, or use a single assertion when the types already overlap.',
-      },
-    ],
+    'no-restricted-syntax': ['error', ...syntaxBans],
     'no-restricted-imports': [
       'error',
       {
@@ -72,12 +85,13 @@ module.exports = {
     },
     {
       // Forge ASN.1 readers. Time box: clear by 2026-12-31 without changing
-      // CMS bytes. Counted in the C2a PR (non-null assertions and
-      // `as unknown as` at the forge boundary).
+      // CMS bytes. 46 non-null assertions and 13 `as unknown as` in
+      // production files under src/sealing. Only the cast selector is
+      // exempt; other no-restricted-syntax selectors stay on.
       files: ['src/sealing/**/*.ts', 'src/sealing/**/*.tsx'],
       rules: {
         '@typescript-eslint/no-non-null-assertion': 'off',
-        'no-restricted-syntax': 'off',
+        'no-restricted-syntax': syntaxRule(syntaxBans.filter((ban) => ban !== asUnknownAsBan)),
       },
     },
   ],

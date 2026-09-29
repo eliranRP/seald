@@ -2,16 +2,12 @@ name: CI
 
 on:
   pull_request:
+    # `edited` re-runs commitlint when the title changes. A squash merge
+    # uses that title as the commit subject. Docs-only PRs are not
+    # ignored here: commitlint still has to run. Heavy jobs skip
+    # themselves through the path filter below.
+    types: [opened, synchronize, reopened, edited]
     branches: [main]
-    # Skip CI for changes that can't break the build/tests. Anything that
-    # touches code, configs, lockfiles, or workflow YAML still triggers CI.
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'Design-Guide/**'
-      - 'LICENSE'
-      - '.gitignore'
-      - '.editorconfig'
   push:
     branches: [main]
     paths-ignore:

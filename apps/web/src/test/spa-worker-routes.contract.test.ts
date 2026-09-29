@@ -13,18 +13,22 @@ import { describe, expect, it } from 'vitest';
  *
  * - The SPA HTML shell is `rewritten.pathname = '...'` in `_worker.js`
  *   (`/app`). Listing that same path in `SPA_EXACT` is not an orphan.
- * - A `SPA_PREFIXES` entry is in scope when an AppRoutes pattern has
- *   that path segment. `/sent/` matches `/document/:id/sent`.
+ * - A `SPA_PREFIXES` entry is in scope only when a whole AppRoutes
+ *   pattern sits under it (`/document/` covers `/document/:id/sent`).
+ *   A later segment is not enough: `/edit/` does not cover
+ *   `/templates/:id/edit`.
  *
- * Anything else goes in `LEGACY_EXACT` below, with a comment that says
- * why it is not an AppRoutes path. `/contacts` is the only one: the
- * contacts UI is `/signers`, and the worker still keeps that URL on
- * the SPA shell.
+ * `SHELL_PREFIXES` is for a worker prefix whose screen lives on a
+ * different pattern. `/sent/` is there because the confirmation page
+ * is `/document/:id/sent` and `/sent/:id` must still hit the SPA shell.
+ * Anything else that is an exact path goes in `LEGACY_EXACT`, with a
+ * comment. `/contacts` is the only one: the contacts UI is `/signers`.
  */
 
 const APP_ROUTES = resolve(__dirname, '../AppRoutes.tsx');
 const WORKER = resolve(__dirname, '../../../landing/_worker.js');
 const LEGACY_EXACT = ['/contacts'] as const;
+const SHELL_PREFIXES = ['/sent/'] as const;
 
 function quoted(block: string): string[] {
   return [...block.matchAll(/'([^']+)'/g)].map((match) => match[1] ?? '');
@@ -59,16 +63,6 @@ function shellPath(workerSource: string): string | undefined {
   return match?.[1];
 }
 
-function literalSegments(pattern: string): string[] {
-  return pattern.split('/').filter((part) => part.length > 0 && !part.startsWith(':'));
-}
-
-function prefixNamedInRoutes(prefix: string, patterns: readonly string[]): boolean {
-  const name = prefix.replace(/^\/+|\/+$/g, '');
-  if (name.length === 0 || name.includes('/')) return false;
-  return patterns.some((pattern) => literalSegments(pattern).includes(name));
-}
-
 function orphanExact(
   exact: readonly string[],
   samples: readonly string[],
@@ -86,8 +80,8 @@ function orphanPrefixes(prefixes: readonly string[], patterns: readonly string[]
   const samples = patterns.map(sample);
   return prefixes.filter(
     (prefix) =>
-      !samples.some((pathname) => covered(pathname, [], [prefix])) &&
-      !prefixNamedInRoutes(prefix, patterns),
+      !SHELL_PREFIXES.includes(prefix as (typeof SHELL_PREFIXES)[number]) &&
+      !samples.some((pathname) => covered(pathname, [], [prefix])),
   );
 }
 
@@ -110,11 +104,15 @@ describe('AppRoutes and landing worker route parity', () => {
     expect(orphanExact(worker.exact, samples, shell)).toEqual([]);
   });
 
-  it('rejects a worker prefix that matches no AppRoutes path or segment', () => {
+  it('rejects a worker prefix that matches no whole AppRoutes pattern', () => {
     expect(orphanPrefixes(worker.prefixes, patterns)).toEqual([]);
   });
 
-  it('accepts /app and /sent/ from AppRoutes and the shell rewrite', () => {
+  it('rejects a prefix that only shares a later segment, such as /edit/', () => {
+    expect(orphanPrefixes([...worker.prefixes, '/edit/'], patterns)).toEqual(['/edit/']);
+  });
+
+  it('accepts /app from the shell rewrite and /sent/ from SHELL_PREFIXES', () => {
     const withShellRoutes = {
       exact: [...worker.exact, '/app'],
       prefixes: [...worker.prefixes, '/sent/'],

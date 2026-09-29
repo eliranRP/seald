@@ -48,17 +48,20 @@ enforce all of them yet.
       or nested ternary. Web and API lint fail the build on these in
       production source (`CODEBASE_GUIDE.md`, "Enforced today"). Tests,
       stories, and `src/test` turn the three syntax rules off. Sealing
-      (`apps/api/src/sealing/**`) turns off `!` and `as unknown as` until
-      2026-12-31; nested ternaries stay on there.
+      (`apps/api/src/sealing/**`) turns off `!` and only the
+      `as unknown as` selector until 2026-12-31 (46 non-null assertions
+      and 13 casts). Other `no-restricted-syntax` selectors stay on
+      there. Nested ternaries stay on there.
 - [ ] `apps/web/**` changes follow the rules in this file even if CI is still
       running. Do not merge on a red `ci-success` or `playwright-success`
-      job. Docs-only PRs skip `ci.yml`, `playwright.yml`, `security.yml`,
-      and `lint-meta.yml` (`paths-ignore`), and Chromatic's path filter
-      does not match them, so those checks are absent rather than green.
-      If branch protection requires `ci-success`, a docs-only PR cannot
-      satisfy it, because the job never starts. Do not treat missing
-      checks as a failure of the docs, and do not treat them as a passed
-      gate.
+      job. A docs-only PR still runs `ci.yml` so commitlint and
+      `ci-success` can finish. Lint, unit tests, web tests, Storybook,
+      Playwright, API e2e, and the PAdES verifier skip that diff. The
+      same ignore list skips `playwright.yml`, `security.yml`, and
+      `lint-meta.yml`, and Chromatic's path filter does not match, so
+      those checks are absent rather than green. Those three workflows
+      still use the docs `paths-ignore`. A docs-only push to `main`
+      still skips `ci.yml`.
 
 ## 1. Correctness
 
