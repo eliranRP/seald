@@ -65,7 +65,7 @@ export const envSchema = z
     EMAIL_PREFERENCES_URL: z
       .string()
       .min(1)
-      .default('mailto:privacy@seald.nromomentum.com?subject=Questions%20about%20these%20emails'),
+      .default('mailto:privacy@seald.nromomentum.com?subject=Email%20preferences'),
 
     // PDF signing provider-specific
     PDF_SIGNING_LOCAL_P12_PATH: z.string().optional(),

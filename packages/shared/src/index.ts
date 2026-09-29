@@ -24,9 +24,6 @@ export {
   DOWNLOAD_MENU_NOTE,
   DRIVE_DISCONNECT_NOTE,
   SEAL_DOWNLOAD_ERROR,
-  EMAIL_TRANSIT_NOTE,
-  EMAIL_QUESTIONS_LABEL,
-  EMAIL_SIGNATURE_NOTE,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
 export { TEMPLATE_FIELD_TYPES } from './templates';

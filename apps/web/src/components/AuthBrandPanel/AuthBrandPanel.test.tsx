@@ -21,7 +21,8 @@ describe('AuthBrandPanel', () => {
 
   it('renders the trust footer without AES-256 or PAdES-LT guarantees', () => {
     renderWithTheme(<AuthBrandPanel />);
-    expect(screen.getByText(/PAdES digital seal/)).toBeInTheDocument();
+    expect(screen.getByText(/PAdES seal when applied/)).toBeInTheDocument();
+    expect(screen.getByText(/external timestamp when available/)).toBeInTheDocument();
     expect(screen.getByText(/access-controlled storage/)).toBeInTheDocument();
     expect(screen.queryByText(/AES-256/)).not.toBeInTheDocument();
     expect(screen.queryByText(/PAdES-LT/)).not.toBeInTheDocument();

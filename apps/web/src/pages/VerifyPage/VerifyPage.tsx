@@ -200,7 +200,7 @@ interface DerivedView {
   readonly mark: React.ReactNode;
 }
 
-function deriveView(envelope: VerifyEnvelope): DerivedView {
+function deriveView(envelope: VerifyEnvelope, chainIntact: boolean): DerivedView {
   if (envelope.status === 'completed') {
     return {
       variant: 'success',
@@ -211,7 +211,9 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
         </>
       ),
       headingAriaLabel: 'Sealed and intact',
-      body: 'We checked the fingerprint on file against our trust ledger. Everything matches — this PDF has not been altered since it was signed.',
+      body: chainIntact
+        ? 'The SHA-256 stored for the sealed PDF is on this page, and the audit chain is intact.'
+        : 'The SHA-256 stored for the sealed PDF is on this page. The audit chain is not intact.',
       mark: (
         <svg
           viewBox="0 0 24 24"
@@ -422,9 +424,17 @@ interface IntegrityCopyProps {
   readonly sealed: boolean;
   readonly signersDone: number;
   readonly signersAll: number;
+  /** True only when the verify payload says an RFC 3161 timestamp is present. */
+  readonly hasTimestamp: boolean;
 }
 
-function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCopyProps) {
+function IntegrityCopy({
+  variant,
+  sealed,
+  signersDone,
+  signersAll,
+  hasTimestamp,
+}: IntegrityCopyProps) {
   if (variant === 'failed') {
     return (
       <>
@@ -433,7 +443,13 @@ function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCo
     );
   }
   if (sealed) {
-    return <strong>The document, signers, and timestamp are unchanged since the seal.</strong>;
+    return (
+      <strong>
+        {hasTimestamp
+          ? 'The document, signers, and timestamp are unchanged since the seal.'
+          : 'The document and signers are unchanged since the seal.'}
+      </strong>
+    );
   }
   return (
     <>
@@ -550,7 +566,10 @@ interface VerifyContentProps {
 }
 
 function VerifyContent({ data }: VerifyContentProps) {
-  const view = useMemo(() => deriveView(data.envelope), [data.envelope]);
+  const view = useMemo(
+    () => deriveView(data.envelope, data.chain_intact),
+    [data.envelope, data.chain_intact],
+  );
   const sealed = data.envelope.status === 'completed';
   const signersAll = data.signers.length;
   const signersDone = data.signers.filter((s) => s.status === 'completed').length;
@@ -703,6 +722,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   sealed={sealed}
                   signersDone={signersDone}
                   signersAll={signersAll}
+                  hasTimestamp={data.has_rfc3161_timestamp === true}
                 />
               </IntegrityText>
             </IntegrityInner>

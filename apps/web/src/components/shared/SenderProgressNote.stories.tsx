@@ -24,7 +24,6 @@ export const InParagraph: Story = {
 export const Standalone: Story = {};
 
 export const Mobile: Story = {
-  parameters: { viewport: { defaultViewport: 'iphonex' } },
   render: () => (
     // The viewport addon may not be configured in this Storybook; the wrapping
     // 390px div is a safety net so the mobile framing is visible regardless.
@@ -37,7 +36,6 @@ export const Mobile: Story = {
 };
 
 export const Desktop: Story = {
-  parameters: { viewport: { defaultViewport: 'desktop1280' } },
   render: () => (
     <div style={{ width: 1440, maxWidth: '100%' }}>
       <p style={{ margin: 0, lineHeight: 1.5 }}>

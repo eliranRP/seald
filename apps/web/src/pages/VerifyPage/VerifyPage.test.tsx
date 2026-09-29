@@ -686,6 +686,17 @@ describe('VerifyPage', () => {
     expect(screen.queryByText(/rsa-4096/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/seald, inc/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/single byte/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trust ledger/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not been altered since it was signed/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /the sha-256 stored for the sealed pdf is on this page, and the audit chain is intact/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/the document and signers are unchanged since the seal/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/and timestamp are unchanged/i)).not.toBeInTheDocument();
   });
 
   it('shows a PAdES seal and an RFC 3161 timestamp only when the payload says they are present', async () => {
@@ -698,6 +709,9 @@ describe('VerifyPage', () => {
       expect(screen.getByText(/^pades seal$/i)).toBeInTheDocument();
     });
     expect(screen.getByText(/^rfc 3161 timestamp$/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/the document, signers, and timestamp are unchanged since the seal/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/pades-lt/i)).not.toBeInTheDocument();
   });
 
@@ -752,6 +766,11 @@ describe('VerifyPage', () => {
       const badge = screen.getByLabelText(/audit chain status/i);
       expect(badge).toHaveTextContent(/broken|tamper/i);
     });
+    expect(
+      screen.getByText(
+        /the sha-256 stored for the sealed pdf is on this page\. the audit chain is not intact/i,
+      ),
+    ).toBeInTheDocument();
   });
 
   // ---- Download attribute (regression: prompt's bug-floor list says
