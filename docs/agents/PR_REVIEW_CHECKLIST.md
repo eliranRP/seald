@@ -39,7 +39,9 @@ enforce all of them yet.
 ## 0. Scope
 
 - [ ] The PR does one thing. Drive-by refactors are called out or split.
-- [ ] Commit subjects are `type(scope): subject`.
+- [ ] Commit subjects are `type(scope): subject`. CI runs commitlint on
+      the pull request's commits and on the pull request title (a squash
+      merge uses the title). The Husky `commit-msg` hook is the local check.
 - [ ] No secrets, `.env` files, service-role keys, or `VITE_*` values that
       are actually private.
 - [ ] No new `eslint-disable`, `@ts-ignore`, non-null `!`, `as unknown as`,

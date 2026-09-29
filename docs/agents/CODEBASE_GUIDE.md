@@ -163,7 +163,13 @@ New SPA routes must be listed in `apps/landing/_worker.js` (`SPA_EXACT`
 or `SPA_PREFIXES`). Cloudflare Pages does not honor a 200 rewrite in
 `_redirects` (it becomes a 308), so the deploy workflow does not write
 one. A path missing from the worker is served as the marketing page.
-See `docs/agents/RELEASE.md`.
+`apps/web/src/test/spa-worker-routes.contract.test.ts` reads the React
+routes from `AppRoutes.tsx`. A worker path that is not one of those
+routes is still valid when it is the shell rewrite
+(`rewritten.pathname`, `/app`) or a prefix whose segment appears in an
+AppRoutes pattern (`/sent/` because of `/document/:id/sent`). Any other
+worker-only path is added to `LEGACY_EXACT` in that test, with a
+comment. See `docs/agents/RELEASE.md`.
 
 ## State and data
 
@@ -512,7 +518,7 @@ Enforced today:
 - Signer-surface isolation stays in `eslint.config.js`. New `pages/Signing*` folders match `./src/pages/Signing*/**`. The named signer components on that target list are still explicit.
 - `@signpdf/utils` `extractSignature` is rejected by `no-restricted-imports` on web and API. Use `extractContents()` in `pades-verify-helpers.ts`.
 - `pnpm --filter web lint` also runs `scripts/check-component-coverage.mjs`. A top-level `src/components` folder without a test or a story fails CI. Current gaps are named in `scripts/component-coverage.allowlist` (testing cycle, review by 2026-12-31). A stale name fails the check.
-- Commit subjects are `type(scope): subject` via commitlint (`commitlint.config.js`, Husky `commit-msg`).
+- Commit subjects are `type(scope): subject` via commitlint (`commitlint.config.js`). The Husky `commit-msg` hook checks the local message. CI lints every commit in the pull request and the pull request title, because a squash merge uses the title as the commit subject.
 
 Still review-only (ESLint does not fail the build):
 
@@ -539,7 +545,8 @@ On `4a8c663`, these stories have no `layer-N` tag: `VerifyPage` (title
 `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader` (title
 `L2 / TemplateFlowHeader`), `PdfPageView` (title `L3 Widgets/PdfPageView`).
 
-Commit messages: `type(scope): subject` (commitlint on `commit-msg`).
+Commit messages: `type(scope): subject`. Commitlint runs on `commit-msg`
+and in CI (the pull request's commits, and the pull request title).
 Husky also runs lint-staged and `tsc --noEmit` on `pre-commit`. Do not
 use `--no-verify`. Do not amend or force-push to rewrite a hook
 failure; add a new commit.
