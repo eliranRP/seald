@@ -178,7 +178,7 @@ export const WithdrawLink = styled.button`
 /**
  * Item 5 — wraps the three destructive opt-out controls (Wrong recipient /
  * Decline / Withdraw consent) into a single subdued `<details>` block
- * below `AesDisclosure` so accidental clicks during signing require an
+ * below the signature note so accidental clicks during signing require an
  * explicit disclosure step.
  */
 export const OptOutDetails = styled.details`
@@ -219,7 +219,7 @@ export const OptOutBody = styled.div`
 
 /**
  * Item 10 — demoted marketing line. `<small>` semantics so screen-readers
- * de-emphasize it and visual treatment matches `AesDisclosure`'s footer.
+ * de-emphasize it; the type size matches the signature note.
  */
 export const AccountNote = styled.small`
   display: block;
@@ -280,22 +280,6 @@ export const WithdrawDialogEventName = styled.code`
   color: ${({ theme }) => theme.color.fg[2]};
   font-family: ${({ theme }) => theme.font.mono};
   font-size: ${({ theme }) => theme.font.size.micro};
-`;
-
-/**
- * T-26 — small attribution disclosure under the IdCard explaining
- * what level of e-signature Seald produces and when wet ink may
- * still be required.
- */
-export const AesDisclosure = styled.p`
-  margin: ${({ theme }) => theme.space[5]} 0 0;
-  padding: 12px 14px;
-  background: ${({ theme }) => theme.color.ink[50]};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  font-size: ${({ theme }) => theme.font.size.micro};
-  color: ${({ theme }) => theme.color.fg[3]};
-  line-height: 1.55;
 `;
 
 export const ErrorBanner = styled(SharedErrorBanner)`

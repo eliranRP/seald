@@ -27,9 +27,6 @@ export {
   EMAIL_TRANSIT_NOTE,
   EMAIL_QUESTIONS_LABEL,
   EMAIL_SIGNATURE_NOTE,
-  EMAIL_COMPLETED_NOTE,
-  EMAIL_RETRY_NOTE,
-  EMAIL_KEPT_NOTE,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
 export { TEMPLATE_FIELD_TYPES } from './templates';

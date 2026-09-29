@@ -382,7 +382,10 @@ function GDriveLogo({ size = 32 }: { readonly size?: number }) {
 }
 
 const PERMISSIONS = [
-  { icon: Eye, text: 'Read only the files you pick — never your full Drive.' },
+  {
+    icon: Eye,
+    text: 'Access only files you pick or that Seald saves for you — never your full Drive.',
+  },
   { icon: Lock, text: 'Tokens are encrypted at rest with KMS envelope encryption.' },
   { icon: XCircle, text: DRIVE_DISCONNECT_NOTE },
 ] as const;

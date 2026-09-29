@@ -1,8 +1,11 @@
 import { RETENTION_NOTE } from 'shared';
 
 interface RetentionNoticeProps {
-  /** Public verify path, for example `/verify/abc`. */
-  readonly verifyPath: string;
+  /**
+   * Public verify path, for example `/verify/abc`. Omit when no code is
+   * known yet; the notice then states retention only.
+   */
+  readonly verifyPath?: string;
 }
 
 /**
@@ -10,6 +13,9 @@ interface RetentionNoticeProps {
  * There is no purge job, so this does not promise a year count.
  */
 export function RetentionNotice({ verifyPath }: RetentionNoticeProps) {
+  if (!verifyPath) {
+    return <span>{RETENTION_NOTE}</span>;
+  }
   return (
     <span>
       {RETENTION_NOTE} Verify any time at <a href={verifyPath}>{verifyPath}</a>.

@@ -108,15 +108,6 @@ export const Heading = styled.h1`
   }
 `;
 
-export const Subheading = styled.p`
-  margin-top: 18px;
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 15px;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.72);
-  max-width: 440px;
-`;
-
 export const Testimonial = styled.figure`
   margin: 44px 0 0 0;
   padding: 22px;
@@ -135,46 +126,6 @@ export const Quote = styled.blockquote`
   font-size: 16px;
   line-height: 1.55;
   color: rgba(255, 255, 255, 0.92);
-`;
-
-export const AuthorRow = styled.figcaption`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-`;
-
-export const Avatar = styled.span`
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgb(244, 114, 182) 0%, rgb(219, 39, 119) 100%);
-  color: ${({ theme }) => theme.color.paper};
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 12px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: 0.02em;
-`;
-
-export const AuthorText = styled.div`
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-`;
-
-export const AuthorName = styled.span`
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 13px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: rgba(255, 255, 255, 0.95);
-`;
-
-export const AuthorRole = styled.span`
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.55);
 `;
 
 /** Spacer absorbs any remaining vertical space before the trust footer. */

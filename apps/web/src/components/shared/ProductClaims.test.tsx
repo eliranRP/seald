@@ -23,6 +23,12 @@ describe('shared product claims', () => {
     expect(screen.queryByText(/7 years/i)).not.toBeInTheDocument();
   });
 
+  it('omits the verify link when no path is known', () => {
+    renderWithTheme(<RetentionNotice />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByText(/do not delete sealed files on a timer/i)).toBeInTheDocument();
+  });
+
   it('describes the emails the sender actually receives', () => {
     renderWithTheme(
       <p>

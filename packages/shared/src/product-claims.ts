@@ -89,12 +89,3 @@ export const EMAIL_QUESTIONS_LABEL = 'Questions about these emails';
 
 export const EMAIL_SIGNATURE_NOTE =
   'Seald records a simple electronic signature with ESIGN and UETA consent, keeps a tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF when a seal is applied. It is not an advanced or qualified electronic signature. Whether that is enough depends on the document and where it will be enforced.';
-
-export const EMAIL_COMPLETED_NOTE =
-  'Everyone has signed. Download the sealed PDF and the separate audit PDF from the links below. When a seal is applied, changing the PDF breaks that seal.';
-
-export const EMAIL_RETRY_NOTE =
-  'To try again, start a new envelope from the dashboard and upload the PDF.';
-
-export const EMAIL_KEPT_NOTE =
-  'Your copy and the audit trail are kept. We do not delete them on a timer.';

@@ -28,11 +28,10 @@
  *     SigningPrepPage.tsx)
  *
  * `esign_v0.2` records the in-flow attestation ("I can open and
- * download a PDF on this device"). The landing disclosure page keeps
- * its own version string until Legal revises that page. Don't
- * repurpose old version strings; bump to a fresh value when the
- * in-flow disclosure copy changes so historical audit events remain
- * unambiguous.
+ * download a PDF on this device") and is the version string on
+ * `/legal/esign-disclosure`. Don't repurpose old version strings;
+ * bump to a fresh value when the in-flow disclosure copy changes so
+ * historical audit events remain unambiguous.
  */
 export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.2';
 

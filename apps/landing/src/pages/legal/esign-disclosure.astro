@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'esign_disclosure_v0.1';
+const VERSION = 'esign_v0.2';
 ---
 <BaseLayout
   title="ESIGN Consumer Disclosure — Seald"
@@ -11,7 +11,7 @@ const VERSION = 'esign_disclosure_v0.1';
       <header>
         <section class="legal-banner">
           <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
-          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-29</code></p>
         </section>
         <h1>ESIGN Consumer Disclosure</h1>
         <p>Please read this disclosure carefully before consenting to use electronic records and electronic signatures with Seald, Inc. ("<strong>Seald</strong>", "we"). It describes your rights under the federal Electronic Signatures in Global and National Commerce Act, 15 U.S.C. § 7001(c)(1) ("<strong>ESIGN</strong>"), the Uniform Electronic Transactions Act ("<strong>UETA</strong>") in states that have adopted it, and (in New York) the Electronic Signatures and Records Act ("<strong>ESRA</strong>"), N.Y. State Tech. Law § 301 et seq.</p>
@@ -57,12 +57,12 @@ const VERSION = 'esign_disclosure_v0.1';
 
       <section id="demonstrated-ability">
         <h2>6. Confirming your ability to access</h2>
-        <p>Federal ESIGN, § 7001(c)(1)(C)(ii), requires that your consent be given in a manner that "reasonably demonstrates" your ability to access the Electronic Records in the form they will be delivered. The Seald signing screen presents this disclosure and the document for review using the same browser and PDF rendering you will use to sign. By clicking "I have read this disclosure" and "I can access electronic records on this device", you affirm that ability. Seald records the affirmation, the disclosure version, the timestamp, and your IP and user-agent in the audit trail.</p>
+        <p>Federal ESIGN, § 7001(c)(1)(C)(ii), requires that your consent be given in a manner that "reasonably demonstrates" your ability to access the Electronic Records in the form they will be delivered. The Seald signing screen presents this disclosure and the document for review using the same browser and PDF rendering you will use to sign. By checking "I have read Seald's Consumer Disclosure" and "I can open and download a PDF on this device.", you affirm that ability. Seald records the affirmation, the disclosure version, the timestamp, and your IP and user-agent in the audit trail.</p>
       </section>
 
       <section id="retention">
         <h2>7. Retention of Electronic Records</h2>
-        <p>Once a document is signed, Seald produces a sealed PDF (PAdES long-term-validation profile, ETSI EN 319 142, anchored by an RFC 3161 trusted timestamp) and an audit trail. Both are retained for seven (7) years from completion by default, in line with the U.S. statute-of-limitations defaults and the UK Limitation Act 1980. You may verify the sealed document at any time during that period at the verification URL printed on the audit trail. If a record is required by law, court order, or active dispute, we retain it for the longer of the seven-year period and the period legally required.</p>
+        <p>Once a document is signed, Seald keeps the PDF and a separate audit trail. When a seal is applied, the PDF is PAdES-sealed. A timestamp is added when a timestamp authority answers. We do not delete sealed files on a timer. You can verify a stored document at the verification URL printed on the audit trail for as long as we store it. If a record is required by law, court order, or an active dispute, we keep it for the period legally required.</p>
       </section>
 
       <section id="excluded">
@@ -80,7 +80,7 @@ const VERSION = 'esign_disclosure_v0.1';
           <li>Negotiable instruments under UCC Article 3;</li>
           <li>Other documents excluded by your state's UETA or, in New York, by ESRA.</li>
         </ul>
-        <p>Some categories require a Qualified Electronic Signature ("QES") under Regulation (EU) No 910/2014 ("eIDAS") in EU member states (notably Germany, France, Italy, and Spain). Seald produces an Advanced Electronic Signature ("AdES"), not a QES. If you are signing under EU member-state law, consult counsel about whether QES is required.</p>
+        <p>Some categories require a Qualified Electronic Signature ("QES") under Regulation (EU) No 910/2014 ("eIDAS") in EU member states (notably Germany, France, Italy, and Spain). Seald records a simple electronic signature. It is not an advanced or qualified electronic signature. If you are signing under EU member-state law, consult counsel about whether a qualified electronic signature is required.</p>
       </section>
 
       <section id="contact">
