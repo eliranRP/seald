@@ -274,7 +274,6 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
       PDF_SIGNING_LOCAL_P12_PATH: p12!.path,
       PDF_SIGNING_LOCAL_P12_PASS: p12!.password,
       PDF_SIGNING_TSA_URL: tsa.url,
-      ENVELOPE_RETENTION_YEARS: 7,
       WORKER_ENABLED: false,
       GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
       GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,

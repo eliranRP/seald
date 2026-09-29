@@ -480,8 +480,7 @@ Mobile: `pages/MobileSendPage/` (its own screens, not `AppShell`) and
 ## UX patterns
 
 **Auth.** Split layout: editorial brand panel (serif headline "Documents,
-*sealed* in minutes.", one testimonial, trust line "PAdES-LT · RFC 3161
-timestamps · AES-256 at rest") and a single column form. Google button, then
+*sealed* in minutes.", one testimonial, trust line "PAdES seal when applied · external timestamp when available · access-controlled storage") and a single column form. Google button, then
 email and password. Guest entry is a text button under the form. Errors use
 a danger banner with an `AlertTriangle` icon (`role="alert"`).
 

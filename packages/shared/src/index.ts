@@ -3,7 +3,6 @@ export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
 export type { FeatureFlag } from './feature-flags';
 export {
   ESIGN_DISCLOSURE_VERSION,
-  ENVELOPE_RETENTION_YEARS_DEFAULT,
   LEGAL_CONTACT_EMAIL_DEFAULT,
   ESIGN_EXCLUDED_CATEGORIES,
   SIGNER_AUTH_TIERS,

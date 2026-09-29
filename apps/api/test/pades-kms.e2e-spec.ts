@@ -242,7 +242,6 @@ const TEST_ENV_BASE: Omit<
   EMAIL_PRIVACY_URL: 'https://seald.nromomentum.com/legal/privacy',
   EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',
   PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
-  ENVELOPE_RETENTION_YEARS: 7,
   WORKER_ENABLED: false,
   GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
   GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,

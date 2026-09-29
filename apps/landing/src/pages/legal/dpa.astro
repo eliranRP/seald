@@ -67,7 +67,7 @@ const VERSION = 'dpa_v0.1';
           <li><strong>EU SCCs Module 2</strong> (controller-to-processor) or <strong>Module 3</strong> (processor-to-processor), which the parties hereby execute and incorporate by reference. Specific Module 2 selections: Clause 7 (docking) is included; Clause 9(a) Option 2 (general written authorization) governs Sub-processors with the thirty-day notice in Section 4 above; Clause 11(a) optional language on independent dispute resolution is omitted; Clause 17 governing law is the law of Ireland; Clause 18 forum and jurisdiction is the courts of Ireland; Annexes I.A, I.B, I.C, and II are completed by reference to Annex I and Annex II of this DPA.</li>
           <li>For UK-origin transfers, the <strong>UK Addendum</strong> to the EU SCCs (or, where the parties prefer, the <strong>UK IDTA</strong>) is incorporated and completed using the same Annex information.</li>
         </ol>
-        <p>Seald has performed a Transfer Impact Assessment ("TIA"), available on request, that documents the supplementary technical and organizational measures (encryption in transit using TLS and encryption at rest by our infrastructure providers, U.S. surveillance-law assessment, government-request transparency).</p>
+        <p>Supplementary technical and organizational measures for these transfers: TLS encryption in transit between users and the Service and between Seald's servers and its Sub-processors, encryption at rest by Seald's database and file-storage Sub-processor, U.S. surveillance-law assessment, government-request transparency.</p>
       </section>
 
       <section id="liability">
@@ -92,7 +92,7 @@ const VERSION = 'dpa_v0.1';
           <li><strong>Frequency:</strong> continuous for the duration of the Agreement.</li>
           <li><strong>Nature of processing:</strong> hosting, transmission, signing, sealing (PAdES seal when applied), audit-trail capture, retention, deletion.</li>
           <li><strong>Purpose:</strong> providing the Service.</li>
-          <li><strong>Retention:</strong> as set out in our <a href="/legal/privacy">Privacy Policy</a>; default seven (7) years for completed envelopes.</li>
+          <li><strong>Retention:</strong> as set out in our <a href="/legal/privacy">Privacy Policy</a>. We don't currently delete completed records on a schedule, and we don't promise to keep them for any particular period.</li>
         </ul>
         <h3>I.C Competent supervisory authority</h3>
         <p>The Irish Data Protection Commission acts as competent supervisory authority for EU SCC purposes; the UK Information Commissioner's Office for UK Addendum/IDTA purposes.</p>
@@ -101,13 +101,13 @@ const VERSION = 'dpa_v0.1';
       <section id="annex-ii">
         <h2>Annex II — Technical and organizational measures</h2>
         <ul>
-          <li><strong>Encryption.</strong> Data is encrypted in transit using TLS and at rest by our infrastructure providers.</li>
-          <li><strong>Cryptographic key management.</strong> Document-sealing keys are held in AWS Key Management Service (KMS) in us-east-2; private key material is non-exportable from KMS.</li>
+          <li><strong>Encryption.</strong> TLS in transit between users and the Service, and between Seald's servers and its database, file-storage and email Sub-processors. Traffic between software components on the same server (the reverse proxy, the API and the document-conversion service) isn't separately encrypted. Data stored by Seald's database and file-storage Sub-processor is encrypted at rest by that Sub-processor.</li>
+          <li><strong>Cryptographic key management.</strong> Where Seald uses AWS Key Management Service (KMS) for document-sealing or Google Drive token-wrapping keys, the key material is non-exportable from KMS.</li>
           <li><strong>Document integrity.</strong> Completed files include a PAdES seal when applied and an RFC 3161 timestamp when available.</li>
           <li><strong>Audit chain.</strong> Each audit event includes a SHA-256 hash of the prior event, surfacing tampering.</li>
-          <li><strong>Access control.</strong> Role-based access; multi-factor authentication for personnel access to production; least-privilege defaults.</li>
-          <li><strong>Logging and monitoring.</strong> Authentication and access logs retained for eighteen (18) months.</li>
-          <li><strong>Backup and recovery.</strong> Encrypted backups retained for thirty-five (35) days.</li>
+          <li><strong>Access control.</strong> Access to customer data in production is limited to operators of the Service.</li>
+          <li><strong>Logging and monitoring.</strong> Envelope audit events are kept with the envelope. We don't currently promise a separate retention period for authentication or access logs.</li>
+          <li><strong>Backup and recovery.</strong> Seald doesn't currently keep separate backups of Customer Personal Data. Data lost from the primary database or file storage may not be recoverable.</li>
           <li><strong>Vendor management.</strong> Sub-processors are vetted for data-protection compliance and bound to equivalent obligations.</li>
           <li><strong>Personnel.</strong> Confidentiality obligations and security training.</li>
         </ul>

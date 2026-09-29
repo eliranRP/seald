@@ -78,13 +78,13 @@ const VERSION = 'privacy_v0.1';
 
       <section id="transfers">
         <h2>5. International transfers</h2>
-        <p>Seald processes personal information primarily in the United States. Our database, object storage, and authentication services run on Supabase in the AWS us-east-2 region; our cryptographic key service runs on AWS KMS in us-east-2; our content delivery and DNS run on Cloudflare's global network.</p>
+        <p>Our database, object storage, and authentication services run on Supabase in the AWS eu-central-1 (Frankfurt) region. Our content delivery and DNS run on Cloudflare's global network.</p>
         <p>For personal information originating in the EEA, the UK, or Switzerland and transferred to the United States, we rely on the following transfer mechanisms (in priority order):</p>
         <ul>
           <li><strong>EU-U.S. Data Privacy Framework ("DPF")</strong> and the UK Extension and Swiss-U.S. Framework, where the recipient is certified.</li>
           <li><strong>Standard Contractual Clauses</strong> ("SCCs", Commission Implementing Decision (EU) 2021/914), Module 2 (controller-to-processor) or Module 3 (processor-to-processor), with the UK International Data Transfer Addendum or the UK International Data Transfer Agreement ("IDTA") for UK-origin data.</li>
         </ul>
-        <p>A Transfer Impact Assessment is available on request at <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
+        <p>Questions about international transfers can be sent to <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
       </section>
 
       <section id="retention">
@@ -92,10 +92,9 @@ const VERSION = 'privacy_v0.1';
         <table>
           <thead><tr><th>Category</th><th>Retention period</th></tr></thead>
           <tbody>
-            <tr><td>Completed envelopes (sealed PDF, audit events, original PDF)</td><td>Seven (7) years from completion, in line with U.S. statute-of-limitations defaults and the UK Limitation Act 1980. Configurable per environment via <code>ENVELOPE_RETENTION_YEARS=7</code>.</td></tr>
-            <tr><td>Authentication and access logs</td><td>Eighteen (18) months</td></tr>
+            <tr><td>Completed envelopes (sealed PDF, audit events, original PDF)</td><td>We don't currently delete completed records on a schedule, and we don't promise to keep them for any particular period. The sender is responsible for keeping any records it is required to keep.</td></tr>
+            <tr><td>Authentication and access logs</td><td>We don't promise to keep authentication or access logs for a particular period.</td></tr>
             <tr><td>Account profile and contact data</td><td>Until you request deletion, plus a 30-day grace window during which a closed account can be restored</td></tr>
-            <tr><td>Encrypted backups</td><td>Thirty-five (35) days, after which they are overwritten</td></tr>
             <tr><td>Support correspondence</td><td>Three (3) years from the last interaction</td></tr>
           </tbody>
         </table>
@@ -143,7 +142,7 @@ const VERSION = 'privacy_v0.1';
 
       <section id="security">
         <h2>9. Security</h2>
-        <p>We protect personal information with technical and organizational measures appropriate to the risk. Data is encrypted in transit using TLS and at rest by our infrastructure providers. Completed files include a PAdES seal when applied and an RFC 3161 timestamp when available. Audit events are chained with SHA-256 to make tampering detectable. No method of transmission or storage is perfectly secure.</p>
+        <p>We protect personal information with technical and organizational measures appropriate to the risk. Data is encrypted with TLS in transit between your device and our services, and between our servers and our database, file-storage and email providers. Documents, signatures and audit records are stored with our database and file-storage provider, which encrypts them at rest. Completed files include a PAdES seal when applied and an RFC 3161 timestamp when available. Audit events are chained with SHA-256 to make tampering detectable. No method of transmission or storage is perfectly secure.</p>
         <p>Suspected security issues should be reported to <a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a>.</p>
       </section>
 

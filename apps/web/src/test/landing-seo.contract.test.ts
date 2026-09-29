@@ -16,11 +16,13 @@ const LANDING = resolve(__dirname, '../../../landing');
 const OVERCLAIMS = [
   'court-ready',
   'PAdES-LT',
+  'PAdES-LTV',
   'long-term validation',
   'signing order',
   'in parallel or in order',
   'TLS 1.3',
   'AES-256',
+  'Retained 7 years',
   'Free e-signature',
 ];
 

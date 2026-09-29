@@ -41,21 +41,6 @@ import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
 // Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Cover line on the certificate of completion.
- *
- * A PAdES CMS seal is applied only when `SealingModule` selects
- * `KmsPadesSigner` or `P12PadesSigner`. `NoopPadesSigner` uploads the
- * burned-in PDF with a SHA-256 and no CMS signature. An RFC 3161
- * timestamp is requested only when a TSA URL is configured, and a
- * failed round-trip degrades to a seal with no timestamp
- * (`kms-cms-signer.ts`, `tsa-client.ts`). `ENVELOPE_RETENTION_YEARS`
- * does not purge anything, so this line does not promise a retention
- * period.
- */
-export const AUDIT_TRAIL_OPERATOR_LINE =
-  'Seald · PAdES seal when applied · RFC 3161 timestamp when available';
-
 export interface AuditPdfInput {
   readonly envelope: Envelope;
   /** All envelope_events ordered ascending by created_at. The repo already
@@ -379,7 +364,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   // Operator line under the hero subtitle. Tight 7.5pt caption so it
-  // doesn't compete with the hero text. Wording is AUDIT_TRAIL_OPERATOR_LINE.
+  // doesn't compete with the hero text.
   heroOperator: {
     fontFamily: 'Inter',
     fontSize: 7.5,
@@ -1140,13 +1125,12 @@ function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
         fingerprint of the file before and after signing. Definitions for every field are on the
         last page.
       </Text>
-      {/* A CMS seal exists only for KmsPadesSigner / P12PadesSigner
-          (NoopPadesSigner returns the PDF unchanged). An RFC 3161
-          timestamp is best-effort and is omitted when the TSA is unset
-          or the round-trip fails. Nothing deletes sealed files when
-          ENVELOPE_RETENTION_YEARS elapses, so this line states neither
-          a retention period nor a long-term validation profile. */}
-      <Text style={styles.heroOperator}>{AUDIT_TRAIL_OPERATOR_LINE}</Text>
+      {/* The renderer is not told whether this file got a CMS seal or
+          a timestamp. NoopPadesSigner returns the PDF unchanged, and a
+          TSA failure leaves a seal with no timestamp. */}
+      <Text style={styles.heroOperator}>
+        Seald · PAdES seal when applied · RFC 3161 timestamp when available
+      </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
         <Text style={styles.sealScript}>Sealed</Text>
@@ -1420,14 +1404,14 @@ function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
     },
     {
       label: 'Timestamp',
-      value: 'RFC 3161 trusted',
-      sub: 'Issued by an external timestamp authority.',
+      value: 'RFC 3161 when available',
+      sub: 'Added by an external timestamp authority when it responds.',
       icon: ICONS.clockCircle,
     },
     {
       label: 'Storage',
-      value: 'Encrypted at rest',
-      sub: 'AES-256. Retrieved on verification only.',
+      value: 'Access-controlled',
+      sub: 'Stored with our file-storage provider, which encrypts it at rest.',
       icon: ICONS.lock,
     },
     {
@@ -1489,7 +1473,7 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
   {
     num: '05',
     name: 'Request identifier',
-    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the original file.',
+    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.',
   },
   {
     num: '06',
@@ -1499,19 +1483,13 @@ const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
   {
     num: '07',
     name: 'Digital signature',
-    body: 'An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded RFC 3161 trusted timestamp. Validity is revoked if the document is tampered with after signing.',
+    body: 'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. It shows whether the file has changed since sealing, and it includes an RFC 3161 timestamp when a timestamp authority responds. The seal identifies Seald as the sealer, not the signer.',
   },
   {
     num: '08',
     name: 'Verification check',
-    body: 'Additional guarantees of identity the requester may enable for each signer:',
-    subItems: [
-      { k: 'Email', v: "The recipient's email is validated via a unique link." },
-      { k: 'Access code', v: 'The signer is given a distinct code to open the document.' },
-      { k: 'SMS', v: 'A code is sent via text message prior to signing.' },
-      { k: 'ID verification', v: 'The signer presents a government-issued ID.' },
-      { k: 'Account', v: 'The signer is authenticated against a Seald account.' },
-    ],
+    body: 'How the signer was identified:',
+    subItems: [{ k: 'Email', v: 'The signer opened a unique link sent to their email address.' }],
   },
 ];
 
@@ -1673,7 +1651,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
       label: 'Digital signature',
       value:
         ctx.sealedSha256 !== null
-          ? 'Enabled · RFC 3161 trusted timestamp'
+          ? 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available'
           : 'Not applicable (unsealed)',
       check: ctx.sealedSha256 !== null,
     },

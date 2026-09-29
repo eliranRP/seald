@@ -36,17 +36,6 @@
 export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.2';
 
 /**
- * Default retention period for sealed envelopes, in years. Aligns with
- * the typical US contract statute of limitations (4–6 years for breach
- * of contract in most states) plus eIDAS preservation guidance, with a
- * one-year safety margin. Automatic deletion is not implemented.
- * `ENVELOPE_RETENTION_YEARS` only supplies this number; nothing purges
- * sealed files when it elapses. Do not tell signers the record is kept
- * or deleted on this timer.
- */
-export const ENVELOPE_RETENTION_YEARS_DEFAULT = 7;
-
-/**
  * Mailto target for "Stop signing electronically and request paper
  * copies" — required by ESIGN §7001(c)(1)(B). Override per environment
  * via `VITE_LEGAL_CONTACT_EMAIL`; the default is intentionally a

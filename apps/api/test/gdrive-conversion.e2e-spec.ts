@@ -61,7 +61,6 @@ const TEST_ENV: AppEnv = {
   EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.nromomentum.com',
   PDF_SIGNING_PROVIDER: 'local',
   PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
-  ENVELOPE_RETENTION_YEARS: 7,
   WORKER_ENABLED: false,
   GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
   GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,

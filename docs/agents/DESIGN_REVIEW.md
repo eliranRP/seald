@@ -27,7 +27,7 @@ use the halo instead. Finding 5 covers that split.
 and the wordmark, JetBrains Mono for ids, Caveat only for a typed
 signature. The auth panel uses that split well: serif headline "Documents,
 sealed in minutes.", a single testimonial, and a quiet trust line
-(PAdES-LT, RFC 3161, AES-256). The form column is one task.
+(PAdES seal when applied, external timestamp when available, access-controlled storage). The form column is one task.
 
 **The component kit is real, not a slide deck.** `Button`, `TextField`,
 `Badge`, `StatusBadge`, `Avatar`, `PageHeader`, `NavBar`, and the editor
@@ -205,7 +205,7 @@ optional, so a field can ship with only a placeholder.
 "Maya Raskin, General Counsel, Northwind"
 (`AuthBrandPanel.tsx`). If that person and company are not a real,
 approved testimonial, it should not ship on `/signin`. The trust line is
-specific (PAdES-LT) and should stay accurate when the sealing tier changes.
+conditional (a PAdES seal when applied, an external timestamp when available) and should stay accurate when the sealing tier changes.
 
 **11. Cookie banner vs. form.** The SPA loads
 `/scripts/cookie-consent.js` on every route, including signing and verify.

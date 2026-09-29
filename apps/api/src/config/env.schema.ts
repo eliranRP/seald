@@ -96,8 +96,6 @@ export const envSchema = z
      */
     PDF_SIGNING_TSA_URLS: z.string().optional(),
 
-    ENVELOPE_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
-
     /**
      * Enables the in-process background worker (poll envelope_jobs, seal
      * PDFs, send completed emails). Defaults to false so tests don't race

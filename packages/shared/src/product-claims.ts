@@ -2,8 +2,7 @@
  * User-facing product claims that must stay aligned with what the code
  * actually does. Marketing and the SPA should import these strings.
  * HTML email templates copy the sentences they need; they cannot import
- * TypeScript. The audit-trail cover line lives next to the renderer
- * (`AUDIT_TRAIL_OPERATOR_LINE`).
+ * TypeScript. The audit-trail cover line is rendered in `audit-pdf.tsx`.
  *
  * Do not describe the product as an advanced or qualified electronic
  * signature, or as legally equivalent to a handwritten signature.
@@ -42,8 +41,8 @@ export const AGE_CONSENT_ARIA_LABEL =
   "I'm 18 or older (16 where allowed), and I agree to Seald's Terms of Service and Privacy Policy";
 
 /**
- * Sealed files are kept until a deletion job exists. `ENVELOPE_RETENTION_YEARS`
- * only changes a label; it does not purge anything.
+ * Sealed files are kept until a deletion job exists. Nothing purges them
+ * on a timer.
  */
 export const RETENTION_NOTE =
   'You can verify this document for as long as we store it. We do not delete sealed files on a timer.';
