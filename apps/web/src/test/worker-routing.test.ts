@@ -21,7 +21,7 @@ function securityHeaders(): Record<string, string> {
   const block = raw.split('# Long-cache')[0] ?? '';
   const headers: Record<string, string> = {};
   for (const line of block.split('\n')) {
-    const match = /^  ([^:\s][^:]*):\s*(.+)$/.exec(line);
+    const match = /^ {2}([^:\s][^:]*):\s*(.+)$/.exec(line);
     if (!match) continue;
     const name = match[1];
     const value = match[2];
