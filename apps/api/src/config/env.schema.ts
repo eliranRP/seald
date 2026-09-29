@@ -49,18 +49,15 @@ export const envSchema = z
     EMAIL_FROM_ADDRESS: z.string().email().default('onboarding@resend.dev'),
     EMAIL_FROM_NAME: z.string().min(1).default('Seald'),
     /**
-     * Legal-footer fields injected into every outbound email template. The
-     * values render inside the `<div class="foot">` block of each
-     * `apps/api/src/email/templates/*\/body.html`. Defaults reflect Seald's
-     * pre-incorporation posture; override in production once the entity
-     * filing is complete (CAN-SPAM § 5(a)(5) requires a valid postal
-     * address; CASL § 6(2)(c) and EU consumer-protection law similarly).
+     * CAN-SPAM footer. The public brand is "Seald". This postal line is
+     * the only place the operating address appears. Do not put an LLC
+     * name in marketing, UI, or email body text.
      */
-    EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald, Inc.'),
+    EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald'),
     EMAIL_LEGAL_POSTAL: z
       .string()
       .min(1)
-      .default('Postal address available on request — write to legal@seald.nromomentum.com.'),
+      .default('3401 Hartzdale Drive, Suite 103B, Unit #631, Camp Hill, PA 17011'),
     EMAIL_PRIVACY_URL: z.string().url().default('https://seald.nromomentum.com/legal/privacy'),
     EMAIL_PREFERENCES_URL: z
       .string()
