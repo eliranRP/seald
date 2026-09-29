@@ -1,6 +1,6 @@
 import { Clock, LayoutList, ShieldCheck } from 'lucide-react';
-import { RetentionNotice } from '@/components/shared/RetentionNotice';
-import { SenderProgressNote } from '@/components/shared/SenderProgressNote';
+import { RetentionNotice } from '@/components/RetentionNotice';
+import { SenderProgressNote } from '@/components/SenderProgressNote';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';

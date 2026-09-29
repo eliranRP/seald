@@ -4,8 +4,8 @@ import styled from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
 import { Icon } from '@/components/Icon';
-import { RetentionNotice } from '@/components/shared/RetentionNotice';
-import { SignatureLevelNote } from '@/components/shared/SignatureLevelNote';
+import { RetentionNotice } from '@/components/RetentionNotice';
+import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
 

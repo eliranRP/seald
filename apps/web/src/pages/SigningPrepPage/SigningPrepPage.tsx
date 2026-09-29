@@ -13,7 +13,7 @@ import { Icon } from '@/components/Icon';
 import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import { ESIGN_DISCLOSURE_VERSION, RECORD_ACCESS_ATTESTATION } from 'shared';
-import { SignatureLevelNote } from '@/components/shared/SignatureLevelNote';
+import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import {
   AccountNote,
   Checkbox,
