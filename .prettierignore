@@ -1,0 +1,3 @@
+# Google's HTML-file check compares the body exactly. Prettier's trailing
+# newline would change the token file.
+apps/landing/public/google9a27f9c75cdae2dc.html

@@ -134,6 +134,7 @@ describe('landing SEO contract (S1a)', () => {
       'name="google-site-verification" content="H_Xstu_43x0SSxeQggMkWFsRP9NaQEWEYwXau19TwaA"',
     );
     const file = readFileSync(resolve(LANDING, 'public/google9a27f9c75cdae2dc.html'));
+    expect(file.length).toBe(53);
     expect(file.toString('utf8')).toBe('google-site-verification: google9a27f9c75cdae2dc.html');
   });
 
