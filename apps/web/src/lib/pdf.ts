@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+import type { PDFDocumentLoadingTask, PDFDocumentProxy } from 'pdfjs-dist';
 // Vite `?worker&url` bundles our local worker entry (which installs the
 // Map.upsert polyfill before delegating to pdfjs's real worker). Loading
 // the worker this way avoids CORS issues and keeps pdfjs happy without a
@@ -8,7 +8,7 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 // eslint-disable-next-line import/no-unresolved
 import pdfjsWorkerUrl from './pdfjsWorker?worker&url';
 
-// pdfjs-dist v5 calls `getOrInsertComputed` (and the sibling `getOrInsert`)
+// pdfjs-dist v6 calls `getOrInsertComputed` (and the sibling `getOrInsert`)
 // from the TC39 Map/WeakMap upsert proposal — currently stage-3 and not yet
 // shipping in stable Chrome / Safari. Without these, page.render() throws
 // "...getOrInsertComputed is not a function" and the canvas paints nothing
@@ -87,6 +87,10 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
 
     let cancelled = false;
     let loaded: PDFDocumentProxy | null = null;
+    // pdfjs-dist v6 removed `PDFDocumentProxy.destroy()`. The loading task
+    // is what aborts the worker; hold it so unmount can release it even
+    // when the proxy never settled.
+    let loadingTask: PDFDocumentLoadingTask | null = null;
     setLoading(true);
     setError(null);
 
@@ -100,14 +104,15 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
               // emit Access-Control-Allow-Credentials).
               getDocument({ url: source })
             : getDocument({ data: new Uint8Array(await source.arrayBuffer()) });
+        loadingTask = task;
         loaded = await task.promise;
         if (cancelled) {
-          loaded.destroy().catch(() => {});
+          task.destroy().catch(() => {});
           return;
         }
         setDoc((prev) => {
           if (prev) {
-            prev.destroy().catch(() => {});
+            prev.loadingTask.destroy().catch(() => {});
           }
           return loaded;
         });
@@ -127,16 +132,14 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
 
     return () => {
       cancelled = true;
-      if (loaded) {
-        loaded.destroy().catch(() => {});
-      }
+      loadingTask?.destroy().catch(() => {});
     };
   }, [source]);
 
   // Release the resident doc when the hook unmounts entirely.
   useEffect(
     () => () => {
-      if (doc) doc.destroy().catch(() => {});
+      if (doc) doc.loadingTask.destroy().catch(() => {});
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],

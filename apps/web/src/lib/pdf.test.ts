@@ -9,7 +9,7 @@ interface UpsertMap<K, V> extends Map<K, V> {
 }
 
 /**
- * Regression for the production bug where pdfjs-dist v5's `page.render()`
+ * Regression for the production bug where pdfjs-dist's `page.render()`
  * threw `this[#methodPromises].getOrInsertComputed is not a function`,
  * leaving the canvas blank with the error overflowing into the surrounding
  * UI. The library calls a TC39 stage-3 Map.upsert proposal API that isn't
@@ -17,7 +17,7 @@ interface UpsertMap<K, V> extends Map<K, V> {
  * module load. These tests pin the polyfill in place — if either install
  * goes missing, pdfjs render breaks for every user.
  */
-describe('Map.upsert polyfill (pdfjs-dist v5 dependency)', () => {
+describe('Map.upsert polyfill (pdfjs-dist dependency)', () => {
   it('exposes Map.prototype.getOrInsertComputed after importing lib/pdf', () => {
     const m = new Map<string, number>() as UpsertMap<string, number>;
     expect(typeof m.getOrInsertComputed).toBe('function');
