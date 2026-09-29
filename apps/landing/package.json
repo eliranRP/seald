@@ -13,8 +13,8 @@
     "lint": "astro check"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.9",
-    "astro": "^6.3.2",
+    "@astrojs/check": "^0.9.10",
+    "astro": "^7.3.5",
     "typescript": "^5.6.3"
   }
 }

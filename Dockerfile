@@ -8,7 +8,7 @@
 # ---------------------------------------------------------------------------
 
 # -------- 1. base: pnpm-ready node --------
-FROM node:20-bookworm-slim AS base
+FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/usr/local/share/pnpm \
     PATH=/usr/local/share/pnpm:$PATH \
     CI=true
@@ -48,7 +48,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts --prod --filter api... --filter shared
 
 # -------- 5. runtime --------
-FROM node:20-bookworm-slim AS runtime
+FROM node:22-bookworm-slim AS runtime
 ENV NODE_ENV=production \
     NODE_OPTIONS="--enable-source-maps"
 # dumb-init for clean SIGTERM propagation → lets the worker's OnModuleDestroy

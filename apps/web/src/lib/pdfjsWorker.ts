@@ -1,4 +1,4 @@
-// Worker entry for pdfjs-dist v5. Vite bundles this as a Web Worker via
+// Worker entry for pdfjs-dist v6. Vite bundles this as a Web Worker via
 // the `?worker` query in `pdf.ts`, so module imports resolve and run in
 // the worker realm. We install the TC39 Map/WeakMap upsert polyfills here
 // — pdfjs hits them inside the worker too, and the polyfill on the main

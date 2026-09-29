@@ -8,10 +8,12 @@ vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 
 // Stub pdfjs-dist so DocumentPageCanvas does not try to hit /sign/pdf in jsdom.
 vi.mock('pdfjs-dist', () => ({
-  getDocument: () => ({ promise: Promise.reject(new Error('jsdom-stub')) }),
+  getDocument: () => ({
+    promise: Promise.reject(new Error('jsdom-stub')),
+    destroy: () => Promise.resolve(),
+  }),
   GlobalWorkerOptions: { workerSrc: '' },
 }));
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
 
 // eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';

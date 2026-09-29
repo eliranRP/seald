@@ -14,10 +14,12 @@ vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 // The placeholder branch is still exercised; we only need to prevent the
 // `getDocument` call chain from crashing under jsdom.
 vi.mock('pdfjs-dist', () => ({
-  getDocument: () => ({ promise: Promise.reject(new Error('jsdom-stub')) }),
+  getDocument: () => ({
+    promise: Promise.reject(new Error('jsdom-stub')),
+    destroy: () => Promise.resolve(),
+  }),
   GlobalWorkerOptions: { workerSrc: '' },
 }));
-vi.mock('pdfjs-dist/build/pdf.worker.min.mjs?url', () => ({ default: '' }));
 
 // eslint-disable-next-line import/first
 import { signApiClient } from '../../lib/api/signApiClient';

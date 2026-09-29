@@ -265,7 +265,7 @@ re-count lines; that file's numbers are stale.
 
 ## 9. How to verify locally
 
-Install once: `pnpm install` from the repo root (Node 20+, pnpm 9.12).
+Install once: `pnpm install` from the repo root (Node >=22.12, pnpm 9.12).
 
 ### The gate
 
