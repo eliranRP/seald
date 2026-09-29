@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
+import { INTENT_TO_SIGN_NOTE } from 'shared';
 import { Info, PenTool } from 'lucide-react';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
@@ -224,6 +225,20 @@ function inputKindFor(kind: ReviewFieldKind): FieldInputKind | null {
   return null;
 }
 
+const INTENT_ACTION = 'Sign and submit';
+
+function IntentCopy() {
+  const at = INTENT_TO_SIGN_NOTE.indexOf(INTENT_ACTION);
+  if (at < 0) return <>{INTENT_TO_SIGN_NOTE}</>;
+  return (
+    <>
+      {INTENT_TO_SIGN_NOTE.slice(0, at)}
+      <b>{INTENT_ACTION}</b>
+      {INTENT_TO_SIGN_NOTE.slice(at + INTENT_ACTION.length)}
+    </>
+  );
+}
+
 function Content() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
@@ -390,7 +405,7 @@ function Content() {
         <Heading>Everything look right?</Heading>
         <Helper>
           {/* Item 16 — softer/clearer terminal-action copy. */}
-          Once you submit, we&apos;ll seal the document and email a signed copy to everyone.
+          Once everyone has signed, we seal the document and email each signer a link to it.
         </Helper>
         <ReviewList items={items} />
 
@@ -400,8 +415,7 @@ function Content() {
             {/* Item 14 — copy acknowledges BOTH the intent-checkbox AND
                 the submit click so the dual-affirmation narrative lines
                 up with the actual gating UI. */}
-            By checking the box below <b>AND</b> clicking <b>Sign and submit</b>, you affirm your
-            electronic signature is the legal equivalent of your handwritten signature.
+            <IntentCopy />
           </span>
         </Legal>
 

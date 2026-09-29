@@ -60,7 +60,7 @@ describe('CheckEmailPage', () => {
 
   it('uses the signup copy variant when mode=signup', () => {
     renderAt('/check-email?email=jamie%40seald.app&mode=signup');
-    // Distinct from the reset copy ("It'll expire in 30 minutes").
+    // Distinct from the reset copy, which does not state a link lifetime.
     expect(screen.getByText(/activate your account/i)).toBeInTheDocument();
   });
 

@@ -249,16 +249,14 @@ describe('SigningReviewPage', () => {
     await screen.findByText(/everything look right/i);
     const flat = (document.body.textContent ?? '').replace(/\s+/g, ' ').toLowerCase();
     expect(flat).toMatch(/checking the box below and clicking sign and submit/);
-    expect(flat).toMatch(/legal equivalent of your handwritten signature/);
+    expect(flat).toMatch(/intend to sign this document electronically/i);
+    expect(flat).not.toMatch(/legal equivalent/i);
   });
 
-  // Item 16 — Helper copy was "lock the document and send a signed copy" —
-  // softened/clarified to "seal the document and email a signed copy to
-  // everyone."
-  it('uses the updated helper copy ("seal the document … email a signed copy")', async () => {
+  it('says the seal and the signer email happen after everyone has signed', async () => {
     renderReview();
     const helper = await screen.findByText(
-      /seal the document and email a signed copy to everyone/i,
+      /once everyone has signed, we seal the document and email each signer a link to it/i,
     );
     expect(helper).toBeInTheDocument();
   });

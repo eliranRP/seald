@@ -27,26 +27,22 @@
  *     so the SPA must import THIS same constant — see
  *     SigningPrepPage.tsx)
  *
- * Keep this aligned with the version in
- * `apps/landing/src/pages/legal/esign-disclosure.astro` (`VERSION` in
- * the frontmatter). Don't repurpose old version strings; bump to a
- * fresh value when the disclosure copy changes so historical audit
- * events remain unambiguous.
+ * `esign_v0.2` records the in-flow attestation ("I can open and
+ * download a PDF on this device") and is the version string on
+ * `/legal/esign-disclosure`. Don't repurpose old version strings;
+ * bump to a fresh value when the in-flow disclosure copy changes so
+ * historical audit events remain unambiguous.
  */
-export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.1';
+export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.2';
 
 /**
  * Default retention period for sealed envelopes, in years. Aligns with
  * the typical US contract statute of limitations (4–6 years for breach
  * of contract in most states) plus eIDAS preservation guidance, with a
- * one-year safety margin. Surface this to signers in the prep-page
- * footer, the completion email, and the audit certificate so they
- * know how long the record will remain accessible (ESIGN §7001(d) +
- * UETA §12).
- *
- * The API enforces (or rather, documents — automatic deletion is not
- * yet implemented) the same value via the `ENVELOPE_RETENTION_YEARS`
- * env var.
+ * one-year safety margin. Automatic deletion is not implemented.
+ * `ENVELOPE_RETENTION_YEARS` only supplies this number; nothing purges
+ * sealed files when it elapses. Do not tell signers the record is kept
+ * or deleted on this timer.
  */
 export const ENVELOPE_RETENTION_YEARS_DEFAULT = 7;
 

@@ -106,10 +106,12 @@ export class MobileSendPage {
     await expect(this.page.getByLabel(/Signature field for /)).toHaveCount(n);
   }
 
-  /** Assert the Sent ("Sent for signature") screen is reached. */
+  /** Assert the sent screen is reached. */
   async expectSentScreen(): Promise<void> {
-    // The decorative "Sealed." script header is aria-hidden; the
-    // accessible headline that confirms success is "Sent for signature".
-    await expect(this.page.getByText(/Sent for signature/i)).toBeVisible();
+    // The decorative "Sent." script header is aria-hidden; the
+    // accessible headline matches the desktop sent screen.
+    await expect(
+      this.page.getByRole('heading', { name: /your envelope is on its way/i }),
+    ).toBeVisible();
   }
 }

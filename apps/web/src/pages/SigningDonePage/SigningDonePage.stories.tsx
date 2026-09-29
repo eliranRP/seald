@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -84,7 +85,7 @@ const meta: Meta<typeof SigningDonePage> = {
   title: 'L4/SigningDonePage',
   component: SigningDonePage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story) => (
       <Wrap>

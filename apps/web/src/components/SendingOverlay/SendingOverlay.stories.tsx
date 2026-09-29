@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { SendingOverlay } from './SendingOverlay';
 import type { SendingOverlaySigner } from './SendingOverlay.types';
 
@@ -15,6 +16,7 @@ const meta: Meta<typeof SendingOverlay> = {
   parameters: {
     // The overlay is full-viewport by design, so don't center the canvas.
     layout: 'fullscreen',
+    chromatic: { modes: chromaticViewportModes },
   },
   args: {
     open: true,

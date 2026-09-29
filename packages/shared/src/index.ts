@@ -9,6 +9,22 @@ export {
   SIGNER_AUTH_TIERS,
   CURRENT_SIGNER_AUTH_TIER,
 } from './compliance';
+export {
+  SIGNATURE_LEVEL_NOTE,
+  INTENT_TO_SIGN_NOTE,
+  RECORD_ACCESS_ATTESTATION,
+  AGE_CONSENT_PREFIX,
+  AGE_CONSENT_ARIA_LABEL,
+  RETENTION_NOTE,
+  SENDER_PROGRESS_NOTE,
+  PRODUCT_TRUST_LINE,
+  PRODUCT_VALUE_STATEMENT,
+  AUTH_PANEL_HEADING,
+  PASSWORD_RESET_NOTE,
+  DOWNLOAD_MENU_NOTE,
+  DRIVE_DISCONNECT_NOTE,
+  SEAL_DOWNLOAD_ERROR,
+} from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
 export { TEMPLATE_FIELD_TYPES } from './templates';
 export type {

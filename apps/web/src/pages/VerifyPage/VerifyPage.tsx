@@ -23,7 +23,6 @@ import {
   Card,
   CardHead,
   Container,
-  DesktopOnly,
   DocActions,
   DocMeta,
   DocSub,
@@ -193,15 +192,30 @@ interface DerivedView {
   readonly heading: React.ReactNode;
   // Screen-reader-only label for the H1. The visual heading uses italic
   // emphasis + color to distinguish success/failure; AT users need an
-  // unambiguous semantic equivalent ("Sealed and intact" / "Signer
-  // declined; not sealed" / "Awaiting signatures").
+  // unambiguous semantic equivalent ("Sealed and intact" / "Sealed;
+  // audit chain broken" / "Signer declined; not sealed" /
+  // "Awaiting signatures").
   readonly headingAriaLabel: string;
   readonly eyebrow: string;
   readonly body: string;
   readonly mark: React.ReactNode;
 }
 
-function deriveView(envelope: VerifyEnvelope): DerivedView {
+function deriveView(envelope: VerifyEnvelope, chainIntact: boolean): DerivedView {
+  if (envelope.status === 'completed' && !chainIntact) {
+    return {
+      variant: 'failed',
+      eyebrow: 'Sealed · audit chain broken',
+      heading: (
+        <>
+          This document is <em className="danger">sealed</em>.
+        </>
+      ),
+      headingAriaLabel: 'Sealed; audit chain broken',
+      body: 'The SHA-256 stored for the sealed PDF is on this page. The audit chain is not intact.',
+      mark: <ShieldAlert aria-hidden />,
+    };
+  }
   if (envelope.status === 'completed') {
     return {
       variant: 'success',
@@ -212,7 +226,7 @@ function deriveView(envelope: VerifyEnvelope): DerivedView {
         </>
       ),
       headingAriaLabel: 'Sealed and intact',
-      body: 'We checked the fingerprint on file against our trust ledger. Everything matches — this PDF has not been altered since it was signed.',
+      body: 'The SHA-256 stored for the sealed PDF is on this page, and the audit chain is intact.',
       mark: (
         <svg
           viewBox="0 0 24 24"
@@ -423,9 +437,24 @@ interface IntegrityCopyProps {
   readonly sealed: boolean;
   readonly signersDone: number;
   readonly signersAll: number;
+  /** False when the stored audit chain fails its predecessor-hash check. */
+  readonly chainIntact: boolean;
 }
 
-function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCopyProps) {
+function IntegrityCopy({
+  variant,
+  sealed,
+  signersDone,
+  signersAll,
+  chainIntact,
+}: IntegrityCopyProps) {
+  if (sealed && !chainIntact) {
+    return (
+      <strong>
+        The audit chain for this document is broken. Contact the sender before relying on it.
+      </strong>
+    );
+  }
   if (variant === 'failed') {
     return (
       <>
@@ -434,21 +463,7 @@ function IntegrityCopy({ variant, sealed, signersDone, signersAll }: IntegrityCo
     );
   }
   if (sealed) {
-    return (
-      <>
-        <strong>The document, signers, and timestamp are unchanged since the seal.</strong>
-        {/*
-         * The evocative second sentence is desktop-only — on mobile the
-         * `audit chain · intact` tag carries the same meaning without
-         * the jargon, and the line break collapses awkwardly under the
-         * card. Wrap in a DesktopOnly span (≤640 px = display: none).
-         */}
-        <DesktopOnly>
-          <br />
-          If a single byte of the file had changed, this seal would be broken.
-        </DesktopOnly>
-      </>
-    );
+    return <strong>The document and signers are unchanged since the seal.</strong>;
   }
   return (
     <>
@@ -548,12 +563,24 @@ function CopyShareLinkButton({ shortCode }: CopyShareLinkButtonProps) {
   );
 }
 
+/**
+ * Footer checks follow the verify payload. The API walks the SHA-256
+ * audit chain and does not report a PAdES seal or an RFC 3161 timestamp,
+ * so this list does not name either.
+ */
+function trustFooterItems(): readonly string[] {
+  return ['SHA-256 audit chain'];
+}
+
 interface VerifyContentProps {
   readonly data: VerifyResponse;
 }
 
 function VerifyContent({ data }: VerifyContentProps) {
-  const view = useMemo(() => deriveView(data.envelope), [data.envelope]);
+  const view = useMemo(
+    () => deriveView(data.envelope, data.chain_intact),
+    [data.envelope, data.chain_intact],
+  );
   const sealed = data.envelope.status === 'completed';
   const signersAll = data.signers.length;
   const signersDone = data.signers.filter((s) => s.status === 'completed').length;
@@ -563,8 +590,10 @@ function VerifyContent({ data }: VerifyContentProps) {
   // a second line on narrow viewports.
   const reqId = `REQ ${data.envelope.id.split('-').slice(0, 2).join('-').toUpperCase()}`;
 
+  const chainBroken = !data.chain_intact;
+  const integrityAlert = view.variant === 'failed' || chainBroken;
   return (
-    <Page $variant={view.variant}>
+    <Page $variant={view.variant} data-variant={view.variant}>
       <Container>
         <Verdict>
           <VerdictMark $variant={view.variant} aria-hidden>
@@ -581,8 +610,8 @@ function VerifyContent({ data }: VerifyContentProps) {
               <div aria-hidden style={{ width: 36, height: 46, flexShrink: 0 }}>
                 <Icon icon={FileText} size={28} />
               </div>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <DocTitle>{data.envelope.title}</DocTitle>
+              <div style={{ minWidth: 0, flex: 1, maxWidth: '100%' }}>
+                <DocTitle title={data.envelope.title}>{data.envelope.title}</DocTitle>
                 <DocSub>
                   <span className="id">{reqId}</span>
                   <span className="sep" aria-hidden />
@@ -648,7 +677,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                 {formatDateTime(data.envelope.completed_at ?? data.envelope.sent_at)}
               </FactVal>
               <Tag $tone={sealed ? 'success' : 'neutral'}>
-                {sealed ? 'PAdES-LT' : data.envelope.status}
+                {sealed ? 'Sealed' : data.envelope.status}
               </Tag>
             </Fact>
 
@@ -691,14 +720,10 @@ function VerifyContent({ data }: VerifyContentProps) {
             </Fact>
           </Facts>
 
-          <Integrity $failed={view.variant === 'failed'}>
+          <Integrity $failed={integrityAlert}>
             <IntegrityInner>
-              <IntegrityIco $failed={view.variant === 'failed'}>
-                {view.variant === 'failed' ? (
-                  <ShieldAlert aria-hidden />
-                ) : (
-                  <ShieldCheck aria-hidden />
-                )}
+              <IntegrityIco $failed={integrityAlert} data-testid="integrity-icon">
+                {integrityAlert ? <ShieldAlert aria-hidden /> : <ShieldCheck aria-hidden />}
               </IntegrityIco>
               <IntegrityText>
                 <IntegrityCopy
@@ -706,6 +731,7 @@ function VerifyContent({ data }: VerifyContentProps) {
                   sealed={sealed}
                   signersDone={signersDone}
                   signersAll={signersAll}
+                  chainIntact={data.chain_intact}
                 />
               </IntegrityText>
             </IntegrityInner>
@@ -721,7 +747,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               >
                 {data.chain_intact ? 'Audit chain · intact' : 'Audit chain · broken'}
               </Tag>
-              <span>Seald, Inc. · trust cert RSA-4096</span>
+              <span>Seald</span>
             </IntegrityMeta>
           </Integrity>
 
@@ -759,18 +785,14 @@ function VerifyContent({ data }: VerifyContentProps) {
 
         <Footer>
           <FooterLeft>
-            <span>Verification by Seald, Inc.</span>
+            <span>Verification by Seald</span>
           </FooterLeft>
-          <FooterRight>
-            <span>
-              <Check aria-hidden /> AES-256 at rest
-            </span>
-            <span>
-              <Check aria-hidden /> RFC 3161 timestamps
-            </span>
-            <span>
-              <Check aria-hidden /> PAdES-LT seal
-            </span>
+          <FooterRight $alert={chainBroken}>
+            {trustFooterItems().map((label) => (
+              <span key={label}>
+                {chainBroken ? <ShieldAlert aria-hidden /> : <Check aria-hidden />} {label}
+              </span>
+            ))}
           </FooterRight>
         </Footer>
       </Container>

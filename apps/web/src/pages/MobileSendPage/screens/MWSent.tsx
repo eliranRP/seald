@@ -1,5 +1,6 @@
 import { Check, FileText } from 'lucide-react';
 import styled from 'styled-components';
+import { SENDER_PROGRESS_NOTE } from 'shared';
 import { PrimaryBtn, SecondaryBtn } from '../MobileSendPage.styles';
 import type { MobileSigner } from '../types';
 
@@ -28,7 +29,7 @@ const SuccessHalo = styled.div`
  * theme token means a future font swap (e.g. self-hosted) only needs to
  * touch one place.
  */
-const Sealed = styled.div`
+const SentMark = styled.div`
   font-family: ${({ theme }) => theme.font.script};
   font-size: 64px;
   font-weight: 600;
@@ -51,10 +52,11 @@ const Headline = styled.h1`
   margin: 0 0 8px;
 `;
 
-const Lead = styled.div`
+const Lead = styled.p`
   font-size: 14px;
   color: var(--fg-3);
-  max-width: 280px;
+  line-height: 1.5;
+  max-width: 100%;
   margin: 0 auto 28px;
 `;
 
@@ -115,18 +117,14 @@ export interface MWSentProps {
 
 export function MWSent(props: MWSentProps) {
   const { title, code, signers, onView, onAnother } = props;
-  const headline =
-    signers.length === 1
-      ? `We've emailed ${signers[0]?.name.split(' ')[0] ?? 'your signer'}.`
-      : `We've emailed ${signers.length} signers.`;
   return (
     <Wrap>
       <SuccessHalo aria-hidden>
         <Check size={32} />
       </SuccessHalo>
-      <Sealed aria-hidden>Sealed.</Sealed>
-      <Headline>Sent for signature</Headline>
-      <Lead>{headline} You&apos;ll get a notification the moment they sign.</Lead>
+      <SentMark aria-hidden>Sent.</SentMark>
+      <Headline>Your envelope is on its way.</Headline>
+      <Lead>{SENDER_PROGRESS_NOTE}</Lead>
       <Card>
         <Thumb aria-hidden>
           <FileText size={20} />

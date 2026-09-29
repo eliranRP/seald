@@ -38,7 +38,7 @@ function renderAt() {
 // must tick the combined attestation before the Skip button enables.
 // Encapsulated here so the assertion is self-contained.
 async function tickSignupConsents(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByLabelText(/legal age and agree/i));
+  await user.click(screen.getByLabelText(/18 or older/i));
 }
 
 describe('SignUpPage — mobile-aware Skip routing', () => {

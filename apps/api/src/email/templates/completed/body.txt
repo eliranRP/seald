@@ -1,8 +1,6 @@
 {{envelope_title}} is signed and sealed.
 
-All parties have signed. The sealed PDF has been produced with a
-tamper-evident signature and an audit trail documenting every step
-of the process.
+Everyone has signed. Download the sealed PDF and the separate audit PDF from the links below. When a seal is applied, changing the PDF breaks that seal.
 
 Download:
   Sealed document: {{sealed_url}}

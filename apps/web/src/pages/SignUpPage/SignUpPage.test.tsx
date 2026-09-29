@@ -55,7 +55,7 @@ describe('SignUpPage', () => {
     // Consent gates Skip in signup mode (commit 5a3f252) — tick both first so
     // the skip handler actually runs through the page-level navigation.
     // Combined ESIGN attestation (audit C: SignUp #10).
-    await user.click(screen.getByLabelText(/legal age and agree/i));
+    await user.click(screen.getByLabelText(/18 or older/i));
 
     await user.click(screen.getByRole('button', { name: /skip/i }));
 
@@ -82,7 +82,7 @@ describe('SignUpPage', () => {
     await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'hunter2hunter');
     // Combined ESIGN attestation (audit C: SignUp #10).
-    await user.click(screen.getByLabelText(/legal age and agree/i));
+    await user.click(screen.getByLabelText(/18 or older/i));
 
     await user.click(screen.getByRole('button', { name: /create account/i }));
 
@@ -103,7 +103,7 @@ describe('SignUpPage', () => {
   it('clicking the inner Terms/Privacy anchors does NOT toggle the consent checkbox', async () => {
     const user = userEvent.setup();
     renderSignUp({});
-    const checkbox = screen.getByLabelText(/legal age and agree/i) as HTMLInputElement;
+    const checkbox = screen.getByLabelText(/18 or older/i) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     await user.click(screen.getByRole('link', { name: /terms of service/i }));
     expect(checkbox.checked).toBe(false);
@@ -120,7 +120,7 @@ describe('SignUpPage', () => {
     await user.type(screen.getByLabelText(/email/i), 'ada@example.com');
     await user.type(screen.getByLabelText(/^password$/i), 'hunter2hunter');
     // Combined ESIGN attestation (audit C: SignUp #10).
-    await user.click(screen.getByLabelText(/legal age and agree/i));
+    await user.click(screen.getByLabelText(/18 or older/i));
 
     await user.click(screen.getByRole('button', { name: /create account/i }));
 

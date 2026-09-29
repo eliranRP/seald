@@ -11,7 +11,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import styled from 'styled-components';
-import { isFeatureEnabled } from 'shared';
+import { DRIVE_DISCONNECT_NOTE, isFeatureEnabled } from 'shared';
 import type { ApiError } from '@/lib/api/apiClient';
 import { seald } from '@/styles/theme';
 import { Avatar } from '@/components/Avatar';
@@ -382,9 +382,12 @@ function GDriveLogo({ size = 32 }: { readonly size?: number }) {
 }
 
 const PERMISSIONS = [
-  { icon: Eye, text: 'Read only the files you pick — never your full Drive.' },
+  {
+    icon: Eye,
+    text: 'Access only files you pick or that Seald saves for you — never your full Drive.',
+  },
   { icon: Lock, text: 'Tokens are encrypted at rest with KMS envelope encryption.' },
-  { icon: XCircle, text: 'Revoke access any time — disconnecting deletes the tokens.' },
+  { icon: XCircle, text: DRIVE_DISCONNECT_NOTE },
 ] as const;
 
 const PermissionText = styled.span`

@@ -60,8 +60,8 @@
       {{signer_list_html}}
 
       <p class="muted">
-        Nothing is lost — you can relaunch the envelope with an extended deadline, or start fresh
-        with a revised document.
+        To try again, start a new envelope from the dashboard and upload the PDF. The original
+        expired request is retained with its audit trail.
       </p>
 
       <table
@@ -72,7 +72,7 @@
         style="margin-top: 14px; border-collapse: separate"
       >
         <tr>
-          <td style="padding-right: 10px">
+          <td>
             <a
               href="{{dashboard_url}}"
               class="cta cta-primary"
@@ -92,29 +92,7 @@
                 letter-spacing: -0.005em;
                 margin: 0;
               "
-              >Resend with new deadline</a
-            >
-          </td>
-          <td>
-            <a
-              href="{{dashboard_url}}"
-              class="cta-ghost"
-              target="_blank"
-              rel="noopener noreferrer"
-              style="
-                display: inline-block;
-                padding: 10px 18px;
-                background: #ffffff;
-                color: #0b1220 !important;
-                text-decoration: none !important;
-                border: 1px solid #e2e8f0;
-                border-radius: 10px;
-                font-weight: 600;
-                font-size: 14px;
-                line-height: 1.2;
-                margin: 0;
-              "
-              >Archive envelope</a
+              >Open dashboard</a
             >
           </td>
         </tr>
@@ -125,10 +103,10 @@
       </div>
     </div>
     <div class="foot">
-      <strong style="color: #1f2937">{{legal_entity}}</strong> · Encrypted in transit and at rest<br />
-      {{legal_postal}}<br />
+      <strong style="color: #1f2937">{{legal_entity}}</strong>, {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
       <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
-      <a href="{{preferences_url}}">Email preferences</a>
+      <a href="{{preferences_url}}">Questions about these emails</a>
     </div>
   </div>
 </div>

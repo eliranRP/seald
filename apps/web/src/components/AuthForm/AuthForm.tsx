@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useId, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { AGE_CONSENT_ARIA_LABEL, AGE_CONSENT_PREFIX } from 'shared';
 import { useAuth } from '@/providers/AuthProvider';
 import { Icon } from '../Icon';
 import { TextField } from '../TextField';
@@ -299,13 +300,11 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
                 type="checkbox"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                aria-label="Confirm I am of legal age and agree to Seald's Terms of Service and Privacy Policy"
+                aria-label={AGE_CONSENT_ARIA_LABEL}
                 aria-invalid={fieldErrors.agreed ? true : undefined}
               />
               <TosText>
-                <TosLabel htmlFor={agreedId}>
-                  I confirm I&apos;m of legal age and agree to Seald&apos;s{' '}
-                </TosLabel>
+                <TosLabel htmlFor={agreedId}>{AGE_CONSENT_PREFIX}</TosLabel>
                 <a href="/legal/terms" target="_blank" rel="noopener noreferrer">
                   Terms of Service
                 </a>{' '}

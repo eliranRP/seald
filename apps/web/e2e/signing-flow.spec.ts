@@ -220,7 +220,7 @@ test.describe('signing flow', () => {
     //    affirmation. The "Start signing" button stays disabled until
     //    both are checked.
     await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /access electronic records on this device/i }).check();
+    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
 
     // 5. Click "Start signing" — fires POST /sign/accept-terms +
     //    POST /sign/esign-disclosure (both mocked above) and navigates
@@ -240,12 +240,9 @@ test.describe('signing flow', () => {
     await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
     await page.getByRole('button', { name: /sign and submit/i }).click();
 
-    // 8. Land on /done and assert the success heading. The Done page
-    //    H1 was changed from the brand wordmark ("Seald.") to a
-    //    verb-led affirmation ("Signed and sealed.") in PR-4 (item 17)
-    //    so the legal completion screen tells the signer what just
-    //    happened instead of restating the brand.
+    // 8. Land on /done. The heading records this signature. The sealed
+    //    PDF email goes out after everyone has signed.
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: /signed and sealed/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
   });
 });

@@ -1,21 +1,15 @@
 import { forwardRef } from 'react';
 import { ShieldCheck } from 'lucide-react';
 import type { AuthBrandPanelProps } from './AuthBrandPanel.types';
+import { AUTH_PANEL_HEADING, PRODUCT_TRUST_LINE, PRODUCT_VALUE_STATEMENT } from 'shared';
 import {
-  AuthorName,
-  AuthorRole,
-  AuthorRow,
-  AuthorText,
-  Avatar,
   Content,
   GlowBottomLeft,
   GlowTopRight,
   Heading,
-  Quote,
   Root,
   Spacer,
-  Subheading,
-  Testimonial,
+  Statement,
   TrustFooter,
   Wordmark,
   WordmarkMark,
@@ -23,8 +17,8 @@ import {
 
 /**
  * L2 domain component — editorial left-side panel rendered alongside the
- * auth forms (sign-in / sign-up / reset). Hardcoded brand copy, a testimonial
- * card, and a trust footer. Hides itself on narrow viewports so pages can
+ * auth forms (sign-in / sign-up / reset). Hardcoded brand copy, a product
+ * statement, and a trust footer. Hides itself on narrow viewports so pages can
  * collapse to a single centered form without any consumer coordination.
  */
 export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((props, ref) => (
@@ -52,34 +46,15 @@ export const AuthBrandPanel = forwardRef<HTMLElement, AuthBrandPanelProps>((prop
         <span>Seald</span>
       </Wordmark>
 
-      <Heading>
-        Documents, <em>sealed</em> in minutes.
-      </Heading>
+      <Heading>{AUTH_PANEL_HEADING}</Heading>
 
-      <Subheading>
-        The modern way to collect signatures. Upload, place fields, and send — your counterparties
-        finish signing before the meeting ends.
-      </Subheading>
-
-      <Testimonial>
-        <Quote>
-          &ldquo;We moved our entire contract workflow onto Seald in a weekend. Our clients finish
-          signing before our sales calls end.&rdquo;
-        </Quote>
-        <AuthorRow>
-          <Avatar aria-hidden="true">MR</Avatar>
-          <AuthorText>
-            <AuthorName>Maya Raskin</AuthorName>
-            <AuthorRole>General Counsel, Northwind</AuthorRole>
-          </AuthorText>
-        </AuthorRow>
-      </Testimonial>
+      <Statement>{PRODUCT_VALUE_STATEMENT}</Statement>
 
       <Spacer />
 
       <TrustFooter>
         <ShieldCheck size={14} aria-hidden="true" />
-        <span>PAdES-LT &middot; RFC 3161 timestamps &middot; AES-256 at rest</span>
+        <span>{PRODUCT_TRUST_LINE}</span>
       </TrustFooter>
     </Content>
   </Root>

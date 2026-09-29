@@ -10,6 +10,7 @@ import {
   type Ref,
 } from 'react';
 import { ChevronDown, Download, Info, Loader2 } from 'lucide-react';
+import { DOWNLOAD_MENU_NOTE } from 'shared';
 import {
   ChevronButton,
   Divider,
@@ -219,10 +220,7 @@ export const DownloadMenu = forwardRef<HTMLDivElement, DownloadMenuProps>((props
             <FooterIcon>
               <Info size={12} aria-hidden />
             </FooterIcon>
-            <span>
-              All downloads include SHA-256 verification. The audit trail can be independently
-              verified using the envelope reference code.
-            </span>
+            <span>{DOWNLOAD_MENU_NOTE}</span>
           </Footer>
         </Menu>
       ) : null}

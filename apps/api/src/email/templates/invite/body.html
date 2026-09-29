@@ -203,9 +203,10 @@
           <path d="M7 10 L9 12 L13 8" />
         </svg>
         <div>
-          Seald uses eIDAS-aligned advanced electronic signatures (PAdES-LT) with a full audit
-          trail. Your signature is independently verifiable and, in most jurisdictions, legally
-          equivalent to a handwritten signature.
+          Seald records a simple electronic signature with ESIGN and UETA consent, keeps a
+          tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF
+          when a seal is applied. It is not an advanced or qualified electronic signature. Whether
+          that is enough depends on the document and where it will be enforced.
         </div>
       </div>
       <div class="verify">
@@ -214,12 +215,12 @@
       </div>
     </div>
     <div class="foot">
-      <strong style="color: #1f2937">{{legal_entity}}</strong> · Encrypted in transit and at rest<br />
+      <strong style="color: #1f2937">{{legal_entity}}</strong>, {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
       You received this because <a href="mailto:{{sender_email}}">{{sender_email}}</a> invited you
       to sign a document.<br />
-      {{legal_postal}}<br />
       <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
-      <a href="{{preferences_url}}">Email preferences</a>
+      <a href="{{preferences_url}}">Questions about these emails</a>
     </div>
   </div>
 </div>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderSigningRoute } from '../../test/renderSigningRoute';
 import { MOCK_ENVELOPE_ID } from '../../test/signingApiMock';
@@ -71,11 +71,13 @@ describe('SigningDonePage', () => {
       timestamp: '2026-04-24T00:00:00Z',
     });
     renderDone();
-    // Item 17 — hero copy is now verb-led ("Signed and sealed.") instead
-    // of the unhelpful brand-name-only "Seald.".
-    expect(screen.getByRole('heading', { name: /signed and sealed/i })).toBeInTheDocument();
-    expect(screen.getByText(/maya@example\.com/i)).toBeInTheDocument();
-    expect(screen.getByText(/eliran azulay/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^signed\.$/i })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /your signature has been recorded\. when everyone has signed, we'll email you a link to the sealed pdf\./i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/we've sent a signed copy/i)).not.toBeInTheDocument();
   });
 
   // Item 18 — the upsell email input must visibly carry the snapshot's
@@ -384,7 +386,11 @@ describe('SigningDonePage', () => {
       renderDone();
 
       const alert = await screen.findByRole('alert', undefined, { timeout: 5_000 });
-      expect(alert).toHaveTextContent(/couldn.?t prepare the signed pdf/i);
+      expect(alert).toHaveTextContent(
+        /we couldn.?t load the download yet\. if sealing finishes, we.?ll email signers a link\. you can also check the verify page\./i,
+      );
+      expect(within(alert).queryByRole('link')).not.toBeInTheDocument();
+      expect(within(alert).queryByText(/open the verify page/i)).not.toBeInTheDocument();
       // Disabled fallback button is still present.
       expect(screen.getByRole('button', { name: /download signed pdf/i })).toBeDisabled();
     });

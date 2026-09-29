@@ -52,8 +52,8 @@
       <span class="kicker kicker-success">Complete · Fully executed</span>
       <h1>All signatures collected on <em>{{envelope_title}}</em>.</h1>
       <p>
-        Everyone has signed. The executed PDF is attached and permanently stored in your Seald
-        library.
+        Everyone has signed. Download the sealed PDF and the separate audit PDF from the links
+        below. When a seal is applied, changing the PDF breaks that seal.
       </p>
 
       {{signer_list_html}} {{timeline_html}}
@@ -86,7 +86,7 @@
                 letter-spacing: -0.005em;
                 margin: 0;
               "
-              >Download signed PDF</a
+              >Download sealed PDF</a
             >
           </td>
           <td>
@@ -108,7 +108,7 @@
                 line-height: 1.2;
                 margin: 0;
               "
-              >View audit trail</a
+              >Download audit PDF</a
             >
           </td>
         </tr>
@@ -119,10 +119,10 @@
       </div>
     </div>
     <div class="foot">
-      <strong style="color: #1f2937">{{legal_entity}}</strong> · Encrypted in transit and at rest<br />
-      {{legal_postal}}<br />
+      <strong style="color: #1f2937">{{legal_entity}}</strong>, {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
       <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
-      <a href="{{preferences_url}}">Email preferences</a>
+      <a href="{{preferences_url}}">Questions about these emails</a>
     </div>
   </div>
 </div>

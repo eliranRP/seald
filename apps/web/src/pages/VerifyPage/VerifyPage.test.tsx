@@ -668,20 +668,48 @@ describe('VerifyPage', () => {
     });
   });
 
-  // The footer's trust statements are public claims (PAdES-LT, RFC 3161,
-  // AES-256). Removing them silently would weaken the user's verification
-  // confidence; pin them so a copy refactor needs to acknowledge the
-  // change.
-  it('renders the public trust footer with all three guarantees', async () => {
+  // The public verify payload has no seal or timestamp flag. The page
+  // names the SHA-256 audit chain and does not claim a timestamp.
+  it('shows the SHA-256 audit chain for the real verify payload and does not claim a timestamp', async () => {
     get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
     const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
     render(<VerifyPage />, { wrapper: Wrapper });
     await waitFor(() => {
-      expect(screen.getByText(/aes-256 at rest/i)).toBeInTheDocument();
+      expect(screen.getByText(/sha-256 audit chain/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/rfc 3161 timestamps/i)).toBeInTheDocument();
-    expect(screen.getByText(/pades-lt seal/i)).toBeInTheDocument();
-    expect(screen.getByText(/verification by seald, inc/i)).toBeInTheDocument();
+    expect(screen.getByText(/^verification by seald$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^seald$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/aes-256 at rest/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pades-lt/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pades seal/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rfc 3161/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rsa-4096/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/seald, inc/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/single byte/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/trust ledger/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/not been altered since it was signed/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /the sha-256 stored for the sealed pdf is on this page, and the audit chain is intact/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/the document and signers are unchanged since the seal/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/and timestamp are unchanged/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/rfc 3161 timestamp/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('data-variant', 'success');
+    expect(
+      screen.getByTestId('integrity-icon').querySelector('.lucide-shield-check'),
+    ).not.toBeNull();
+    expect(screen.getByRole('contentinfo').querySelector('.lucide-check')).not.toBeNull();
+    expect(document.querySelector('.lucide-shield-alert')).toBeNull();
+    const intactHeading = screen.getByRole('heading', { name: 'Sealed and intact' });
+    expect(intactHeading.querySelector('em')).not.toHaveClass('danger');
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
+      'title',
+      SIGNED_PAYLOAD.envelope.title,
+    );
   });
 
   // Verification URL is rendered in the facts panel using the literal
@@ -735,6 +763,41 @@ describe('VerifyPage', () => {
       const badge = screen.getByLabelText(/audit chain status/i);
       expect(badge).toHaveTextContent(/broken|tamper/i);
     });
+    expect(
+      screen.getByText(
+        /the sha-256 stored for the sealed pdf is on this page\. the audit chain is not intact/i,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Sealed · audit chain broken')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sealed; audit chain broken' })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'The audit chain for this document is broken. Contact the sender before relying on it.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/seal intact/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/unchanged since the seal/i)).not.toBeInTheDocument();
+    const page = screen.getByRole('main');
+    expect(page).toHaveAttribute('data-variant', 'failed');
+    const brokenHeading = screen.getByRole('heading', { name: 'Sealed; audit chain broken' });
+    const emphasis = brokenHeading.querySelector('em');
+    expect(emphasis).toHaveClass('danger');
+    expect(emphasis).toHaveStyle({ color: seald.color.danger[700] });
+    const verdictMark = page.querySelector('.lucide-shield-alert')?.parentElement;
+    expect(verdictMark).toHaveStyle({
+      backgroundColor: seald.color.danger[50],
+      color: seald.color.danger[700],
+    });
+    const integrityIcon = screen.getByTestId('integrity-icon');
+    expect(integrityIcon.querySelector('.lucide-shield-alert')).not.toBeNull();
+    expect(integrityIcon.querySelector('.lucide-shield-check')).toBeNull();
+    const footer = screen.getByRole('contentinfo');
+    expect(footer.querySelector('.lucide-shield-alert')).not.toBeNull();
+    expect(footer.querySelector('.lucide-check')).toBeNull();
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
+      'title',
+      SIGNED_PAYLOAD.envelope.title,
+    );
   });
 
   // ---- Download attribute (regression: prompt's bug-floor list says

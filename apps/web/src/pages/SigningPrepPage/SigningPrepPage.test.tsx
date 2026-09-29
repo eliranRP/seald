@@ -61,7 +61,7 @@ describe('SigningPrepPage', () => {
     // Only one of two checked — still disabled (T-14 requires both).
     expect(start).toBeDisabled();
     const access = screen.getByRole('checkbox', {
-      name: /access electronic records on this device/i,
+      name: /open and download a PDF on this device/i,
     });
     await userEvent.click(access);
     expect(start).not.toBeDisabled();
@@ -75,7 +75,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
@@ -84,7 +84,7 @@ describe('SigningPrepPage', () => {
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(
         '/sign/esign-disclosure',
-        { disclosure_version: 'esign_v0.1' },
+        { disclosure_version: 'esign_v0.2' },
         expect.any(Object),
       );
     });
@@ -111,7 +111,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
@@ -125,7 +125,7 @@ describe('SigningPrepPage', () => {
     );
     expect(post).toHaveBeenCalledWith(
       '/sign/esign-disclosure',
-      { disclosure_version: 'esign_v0.1' },
+      { disclosure_version: 'esign_v0.2' },
       expect.any(Object),
     );
   });
@@ -170,7 +170,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
@@ -188,7 +188,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     await waitFor(() => {
@@ -207,7 +207,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     const start = screen.getByRole('button', { name: /start signing/i });
     await userEvent.click(start);
@@ -230,7 +230,7 @@ describe('SigningPrepPage', () => {
       await screen.findByRole('checkbox', { name: /read the consumer disclosure/i }),
     );
     await userEvent.click(
-      screen.getByRole('checkbox', { name: /access electronic records on this device/i }),
+      screen.getByRole('checkbox', { name: /open and download a PDF on this device/i }),
     );
     await userEvent.click(screen.getByRole('button', { name: /start signing/i }));
     const alert = await screen.findByRole('alert');

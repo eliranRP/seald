@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { FileCheck2, FileText, HardDriveUpload, Package, ShieldCheck } from 'lucide-react';
 import { DownloadMenu } from './DownloadMenu';
 import type { DownloadMenuItem } from './DownloadMenu.types';
@@ -16,8 +17,8 @@ const sealed = (available: boolean): DownloadMenuItem => ({
   kind: 'sealed',
   icon: FileCheck2,
   title: 'Sealed PDF',
-  description: 'Final signed document with all fields filled and certificate page.',
-  meta: available ? '5 pages · 312 KB · PAdES-LT' : 'Available once all signers complete',
+  description: 'Final signed document with fields filled in. The audit trail is a separate PDF.',
+  meta: available ? '5 pages · 312 KB' : 'Available once all signers complete',
   available,
   recommended: available,
   primaryLabel: 'sealed PDF',
@@ -27,7 +28,7 @@ const audit: DownloadMenuItem = {
   kind: 'audit',
   icon: ShieldCheck,
   title: 'Audit trail',
-  description: 'Cryptographic event log — IPs, timestamps, hashes.',
+  description: 'Separate PDF of the hash-chained event log.',
   meta: 'PDF · 2 pages',
   available: true,
 };
@@ -58,7 +59,7 @@ const meta: Meta<typeof DownloadMenu> = {
   title: 'L3/DownloadMenu',
   component: DownloadMenu,
   tags: ['autodocs'],
-  parameters: { layout: 'padded' },
+  parameters: { layout: 'padded', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story) => (
       <div style={{ padding: 140, display: 'flex', justifyContent: 'flex-end' }}>

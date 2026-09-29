@@ -65,13 +65,13 @@ const STEPS: ReadonlyArray<StepSpec> = [
   {
     key: 'uploading',
     icon: Lock,
-    label: 'Uploading + encrypting',
-    detail: 'Hashing pages and sealing at rest',
+    label: 'Uploading the PDF',
+    detail: 'Saving the original in cloud storage',
   },
   {
     key: 'adding-signers',
     icon: ShieldCheck,
-    label: 'Anchoring audit trail',
+    label: 'Adding signers',
     detail: 'Attaching signers to the envelope',
   },
   {
@@ -132,9 +132,9 @@ export const SendingOverlay = forwardRef<HTMLDivElement, SendingOverlayProps>((p
   const pct = done ? 100 : Math.round((idx / STEPS.length) * 100);
 
   let kicker: string;
-  if (done) kicker = 'Delivered';
+  if (done) kicker = 'Sent';
   else if (errored) kicker = 'Send failed';
-  else kicker = 'Sealing your envelope';
+  else kicker = 'Sending your envelope';
 
   let title: string;
   if (done) title = 'Sent. Your envelope is on its way.';
@@ -142,7 +142,7 @@ export const SendingOverlay = forwardRef<HTMLDivElement, SendingOverlayProps>((p
   else title = 'Generating and sending your document…';
 
   let statusLine: string;
-  if (done) statusLine = 'All signer invites delivered';
+  if (done) statusLine = 'Signer invites are queued';
   else if (errored) statusLine = 'Nothing has been sent. Try again?';
   else statusLine = `${STEPS[idx]?.detail ?? ''}…`;
 

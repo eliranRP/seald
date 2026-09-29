@@ -411,13 +411,13 @@ describe('MWReview — editable affordance (§6)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// §7 MWSent — Caveat font on Sealed., Headline as <h1>
+// §7 MWSent — Caveat font on Sent., Headline as <h1>
 // ---------------------------------------------------------------------------
 
 import { MWSent } from './screens/MWSent';
 
 describe('MWSent — typography (§7)', () => {
-  it('"Sealed." element uses the Caveat font family', () => {
+  it('"Sent." element uses the Caveat font family', () => {
     render(
       <ThemeProvider theme={seald}>
         <MemoryRouter>
@@ -431,7 +431,7 @@ describe('MWSent — typography (§7)', () => {
         </MemoryRouter>
       </ThemeProvider>,
     );
-    const sealed = screen.getByText(/sealed\./i);
+    const sealed = screen.getByText(/^sent\.$/i);
     const fontFamily = window.getComputedStyle(sealed).fontFamily;
     expect(fontFamily.toLowerCase()).toContain('caveat');
   });
@@ -450,7 +450,7 @@ describe('MWSent — typography (§7)', () => {
         </MemoryRouter>
       </ThemeProvider>,
     );
-    const heading = screen.getByRole('heading', { name: /sent for signature/i, level: 1 });
+    const heading = screen.getByRole('heading', { name: /your envelope is on its way/i, level: 1 });
     expect(heading).toBeInTheDocument();
   });
 });

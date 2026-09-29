@@ -39,16 +39,19 @@ describe('SendingOverlay', () => {
     expect(dialog).toHaveAttribute('aria-live', 'polite');
   });
 
-  it("shows the 'Sealing your envelope' kicker while in flight", () => {
+  it("shows the 'Sending your envelope' kicker while in flight", () => {
     const { getByText } = renderWithTheme(
       <SendingOverlay {...defaultProps({ phase: 'creating' })} />,
     );
-    expect(getByText('Sealing your envelope')).toBeInTheDocument();
+    expect(getByText('Sending your envelope')).toBeInTheDocument();
+    expect(getByText('Uploading the PDF')).toBeInTheDocument();
+    expect(getByText('Adding signers')).toBeInTheDocument();
   });
 
-  it("shows the 'Delivered' kicker and 100% on phase=done", () => {
+  it("shows the 'Sent' kicker and 100% on phase=done", () => {
     const { getByText } = renderWithTheme(<SendingOverlay {...defaultProps({ phase: 'done' })} />);
-    expect(getByText('Delivered')).toBeInTheDocument();
+    expect(getByText('Sent')).toBeInTheDocument();
+    expect(getByText('Signer invites are queued')).toBeInTheDocument();
     expect(getByText('100%')).toBeInTheDocument();
   });
 

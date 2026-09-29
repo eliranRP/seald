@@ -495,7 +495,7 @@ test.describe('template + sign happy path', () => {
 
     // T-14 disclosure ack + ESIGN demonstrated-ability affirmation.
     await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /access electronic records on this device/i }).check();
+    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
     await page.getByRole('button', { name: /start signing/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
 
@@ -511,7 +511,7 @@ test.describe('template + sign happy path', () => {
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
     // PR-4 audit (item 17) replaced the brand-wordmark <h1> with a
     // verb-led affirmation. Match the new copy.
-    await expect(page.getByRole('heading', { name: /signed and sealed/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
 
     // ---------------------- 5. Assert mock-side contracts
 

@@ -61,7 +61,7 @@ describe('SentConfirmationPage', () => {
       </MemoryRouter>,
     );
     expect(
-      await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i }),
+      await screen.findByRole('heading', { level: 1, name: /your envelope is on its way/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText(/maya raskin/i)).toBeInTheDocument();
   });
@@ -96,7 +96,7 @@ describe('SentConfirmationPage', () => {
     );
 
     // Wait for the page to hydrate from the API stub.
-    await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i });
+    await screen.findByRole('heading', { level: 1, name: /your envelope is on its way/i });
 
     const backBtn = screen.getByRole('button', { name: /back to documents/i });
     await userEvent.click(backBtn);
@@ -126,7 +126,7 @@ describe('SentConfirmationPage', () => {
         </Routes>
       </MemoryRouter>,
     );
-    await screen.findByRole('heading', { level: 1, name: /sent\. your envelope is on its way/i });
+    await screen.findByRole('heading', { level: 1, name: /your envelope is on its way/i });
     await userEvent.click(screen.getByRole('button', { name: /back to documents/i }));
     expect(await screen.findByText('/documents')).toBeInTheDocument();
   });

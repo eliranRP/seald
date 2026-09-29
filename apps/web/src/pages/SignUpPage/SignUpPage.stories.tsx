@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { AuthContext } from '../../providers/AuthProvider';
@@ -46,7 +47,7 @@ const meta: Meta<typeof SignUpPage> = {
   title: 'L4/SignUpPage',
   component: SignUpPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
   decorators: [
     (Story) => (
       <Wrap>

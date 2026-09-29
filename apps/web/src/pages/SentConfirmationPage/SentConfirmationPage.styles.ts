@@ -212,8 +212,8 @@ export const DeliveredChip = styled.span`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
-  background: ${({ theme }) => theme.color.success[50]};
-  color: ${({ theme }) => theme.color.success[700]};
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[2]};
   font-size: 11px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   padding: 3px 8px;
@@ -222,14 +222,17 @@ export const DeliveredChip = styled.span`
 
 export const AuditBadge = styled.div`
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: ${({ theme }) => theme.space[2]};
+  max-width: 100%;
   padding: ${({ theme }) => `${theme.space[2]} ${theme.space[3]}`};
   background: ${({ theme }) => theme.color.indigo[50]};
   color: ${({ theme }) => theme.color.indigo[800]};
-  border-radius: ${({ theme }) => theme.radius.pill};
+  border-radius: ${({ theme }) => theme.radius.md};
   font-size: 12px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: ${({ theme }) => theme.font.lineHeight.snug};
+  text-align: left;
 `;
 
 export const Actions = styled.div`
@@ -243,7 +246,7 @@ export const Actions = styled.div`
 /**
  * T-18 — sender-facing retention disclosure. Sits below the AuditBadge
  * as a quieter caption (micro size, muted color) so it doesn't compete
- * with the success state but the 7-year storage commitment is visible.
+ * with the success state but the retention note stays visible.
  */
 export const RetentionNote = styled.p`
   margin: 0;
