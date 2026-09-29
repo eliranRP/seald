@@ -17,4 +17,8 @@ describe('apps/landing/_worker.js — /oauth/ SPA prefix coverage (Bug G)', () =
     expect(source).toMatch(/SPA_PREFIXES\s*=\s*\[/);
     expect(source).toContain("'/oauth/'");
   });
+
+  it('includes /sent/ so /sent/:id is rewritten to the SPA shell', () => {
+    expect(source).toContain("'/sent/'");
+  });
 });
