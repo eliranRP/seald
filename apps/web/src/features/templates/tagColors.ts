@@ -5,6 +5,7 @@
  * slot in the palette so the colour stays stable across reloads.
  *
  * Slot order is part of the hash contract — do not reorder `PALETTE`.
+ * The last slot reuses `success` (the green ramp was folded into it).
  */
 
 import { seald } from '@/styles/theme';
@@ -30,7 +31,7 @@ const PALETTE = [
   { bg: seald.color.violet[50], fg: seald.color.violet[700] },
   { bg: seald.color.cyan[50], fg: seald.color.cyan[700] },
   { bg: seald.color.danger[50], fg: seald.color.danger[700] },
-  { bg: seald.color.green[50], fg: seald.color.green[700] },
+  { bg: seald.color.success[50], fg: seald.color.success[700] },
 ] as const satisfies readonly TagColor[];
 
 function hashStr(s: string): number {

@@ -376,7 +376,7 @@ function GDriveLogo({ size = 32 }: { readonly size?: number }) {
       <title>Google Drive</title>
       <path d="M11 4 L21 4 L31 21 L26 30 L16 13 Z" fill={seald.color.brand.drive.yellow} />
       <path d="M11 4 L1 21 L6 30 L16 13 Z" fill={seald.color.brand.drive.green} />
-      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill={seald.color.brand.drive.blue} />
+      <path d="M6 30 L26 30 L31 21 L11 21 Z" fill={seald.color.brand.google.blue} />
     </svg>
   );
 }

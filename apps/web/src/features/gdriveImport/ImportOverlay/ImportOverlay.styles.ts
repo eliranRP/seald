@@ -296,7 +296,7 @@ export const DoneCheck = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.fg.inverse};
   animation: ${checkPop} 400ms cubic-bezier(0.5, 1.8, 0.5, 1);
   ${reducedMotion}
 `;

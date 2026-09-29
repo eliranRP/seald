@@ -64,7 +64,7 @@ function progressPct(phase: ImportPhase): number {
 }
 
 function CheckIcon({ size = 14 }: { readonly size?: number }) {
-  return <Check size={size} strokeWidth={3} color={seald.color.paper} />;
+  return <Check size={size} strokeWidth={3} color={seald.color.fg.inverse} />;
 }
 
 /**

@@ -28,13 +28,16 @@ export const seald = {
     },
     success: { 50: '#ECFDF5', 500: '#10B981', 700: '#047857' },
     warn: { 50: '#FFFBEB', 500: '#F59E0B', 700: '#B45309' },
-    danger: { 50: '#FEF2F2', 200: '#FECACA', 500: '#EF4444', 700: '#B91C1C' },
+    danger: { 50: '#FEF2F2', 500: '#EF4444', 700: '#B91C1C' },
     info: { 50: '#EFF6FF', 500: '#3B82F6', 700: '#1D4ED8' },
-    /** Tag chips and hash-stable tag palette. Values match the previous inline hexes. */
-    pink: { 50: '#FDF2F8', 700: '#BE185D' },
-    violet: { 50: '#F5F3FF', 700: '#6D28D9' },
-    cyan: { 50: '#ECFEFF', 700: '#0E7490' },
-    green: { 50: '#F0FDF4', 700: '#166534' },
+    /**
+     * Proposed decorative tag ramps (50/500/700). Not status colors.
+     * Documented in docs/agents/DESIGN_SYSTEM.md. The green tag slot
+     * reuses `success` instead of a fourth ramp.
+     */
+    pink: { 50: '#FDF2F8', 500: '#EC4899', 700: '#BE185D' },
+    violet: { 50: '#F5F3FF', 500: '#8B5CF6', 700: '#6D28D9' },
+    cyan: { 50: '#ECFEFF', 500: '#06B6D4', 700: '#0E7490' },
     /** Brand marks. These are not theme accents — they stay the vendor colors. */
     brand: {
       google: {
@@ -44,7 +47,6 @@ export const seald = {
         red: '#EA4335',
       },
       drive: {
-        blue: '#4285F4',
         green: '#1FA463',
         yellow: '#FBBC04',
       },

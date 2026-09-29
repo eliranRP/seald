@@ -2,14 +2,13 @@ import styled, { keyframes } from 'styled-components';
 
 /**
  * Shared modal chrome for the WT-E Drive import dialogs (progress + failed).
- * Mirrors `ExitConfirmDialog.styles.ts` so the visual contract is identical
- * — every dialog in the app uses the same backdrop opacity, card radius,
- * and footer button alignment.
+ * The scrim is the shared `theme.color.overlay` token. Card radius and
+ * footer button alignment stay aligned with the other dialogs.
  */
 export const Backdrop = styled.div`
   position: fixed;
   inset: 0;
-  background: rgba(11, 18, 32, 0.48);
+  background: ${({ theme }) => theme.color.overlay};
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
   align-items: center;

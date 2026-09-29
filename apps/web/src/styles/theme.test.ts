@@ -22,9 +22,12 @@ describe('theme.ts ↔ tokens.css parity', () => {
     ['success-500', seald.color.success[500]],
     ['warn-500', seald.color.warn[500]],
     ['danger-500', seald.color.danger[500]],
-    ['danger-200', seald.color.danger[200]],
     ['info-500', seald.color.info[500]],
+    ['pink-50', seald.color.pink[50]],
+    ['pink-500', seald.color.pink[500]],
     ['pink-700', seald.color.pink[700]],
+    ['violet-500', seald.color.violet[500]],
+    ['cyan-500', seald.color.cyan[500]],
     ['google-blue', seald.color.brand.google.blue],
     ['drive-green', seald.color.brand.drive.green],
   ])('palette %s matches', (name, expected) => {

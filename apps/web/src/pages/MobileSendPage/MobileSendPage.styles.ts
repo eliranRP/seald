@@ -133,7 +133,7 @@ export const PrimaryBtn = styled.button`
   padding: 14px;
   border-radius: 14px;
   background: var(--indigo-600);
-  color: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.fg.inverse};
   font-size: 15px;
   font-weight: 600;
   display: inline-flex;
@@ -210,7 +210,7 @@ export const ErrorBanner = styled.div`
   margin: 0 16px 12px;
   padding: 12px 14px;
   background: ${({ theme }) => theme.color.danger[50]};
-  border: 1px solid ${({ theme }) => theme.color.danger[200]};
+  border: 1px solid ${({ theme }) => theme.color.danger[50]};
   border-radius: 12px;
   color: ${({ theme }) => theme.color.danger[700]};
   font-size: 13px;

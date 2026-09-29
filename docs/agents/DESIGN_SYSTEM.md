@@ -51,7 +51,8 @@ Semantic names are the ones to use in UI:
 
 `theme.color.fg[1]` is the CSS variable `var(--fg-1)`, not a raw hex, so a
 future override on `:root` would flow through. Raw scales (`ink`, `indigo`,
-`success`, `warn`, `danger`, `info`) are hex literals inside `theme.ts`.
+`success`, `warn`, `danger`, `info`, and the proposed tag ramps below) are
+hex literals inside `theme.ts`.
 
 ## Color
 
@@ -100,6 +101,32 @@ Only steps 50, 500, and 700 exist. There is no 100/200/300/400/600/800/900.
 
 Theme keys: `color.success[50]`, `color.warn[500]`, `color.danger[700]`,
 `color.info[500]`, and the same shape for the other steps.
+
+### Proposed tokens: decorative tag ramps
+
+Tag chips need hues the semantic ramps do not cover. These three ramps are
+an explicit proposal for that palette only. They are not status colors.
+Each ramp is steps 50, 500, and 700. Product UI paints tags with 50 and 700;
+the 500 step exists so the ramp matches the semantic shape and is unused
+by current call sites.
+
+| Ramp | 50 | 500 | 700 |
+| --- | --- | --- | --- |
+| pink | `#FDF2F8` | `#EC4899` | `#BE185D` |
+| violet | `#F5F3FF` | `#8B5CF6` | `#6D28D9` |
+| cyan | `#ECFEFF` | `#06B6D4` | `#0E7490` |
+
+Theme keys: `color.pink`, `color.violet`, `color.cyan`.
+
+Folded into tokens that already exist:
+
+- There is no `danger.200`. The mobile error-banner border uses `danger.50`
+  (`#FEF2F2`). The previous border was `#FECACA`.
+- There is no green ramp. The tag palette's last slot uses `success`
+  (`#ECFDF5` / `#047857`) in place of `#F0FDF4` / `#166534`.
+- There is no `brand.drive.blue`. Drive marks use `brand.google.blue`
+  (`#4285F4`), the same hex. `brand.drive.green` and `brand.drive.yellow`
+  stay, because they are not the Google mark colors.
 
 ### Shadows
 

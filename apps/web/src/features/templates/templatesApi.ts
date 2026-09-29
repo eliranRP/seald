@@ -1,5 +1,6 @@
 import type { AxiosRequestConfig } from 'axios';
 import { apiClient } from '@/lib/api/apiClient';
+import { seald } from '@/styles/theme';
 import type { TemplateFieldLayout as TemplateField, TemplateSummary } from './templates';
 
 /**
@@ -63,7 +64,7 @@ function toSummary(t: ApiTemplate): TemplateSummary {
     fieldCount: t.field_layout.length,
     lastUsed: t.last_used_at ? new Date(t.last_used_at).toLocaleDateString() : '—',
     uses: t.uses_count,
-    cover: t.cover_color ?? '#EEF2FF',
+    cover: t.cover_color ?? seald.color.indigo[50],
     exampleFile: '',
     fields: t.field_layout,
     tags: t.tags ?? [],

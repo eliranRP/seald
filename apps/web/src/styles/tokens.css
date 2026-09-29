@@ -30,27 +30,29 @@
   --warn-500: #f59e0b;
   --warn-700: #b45309;
   --danger-50: #fef2f2;
-  --danger-200: #fecaca;
   --danger-500: #ef4444;
   --danger-700: #b91c1c;
   --info-50: #eff6ff;
+  --info-500: #3b82f6;
+  --info-700: #1d4ed8;
+
+  /* Proposed decorative tag ramps. See DESIGN_SYSTEM.md. */
   --pink-50: #fdf2f8;
+  --pink-500: #ec4899;
   --pink-700: #be185d;
   --violet-50: #f5f3ff;
+  --violet-500: #8b5cf6;
   --violet-700: #6d28d9;
   --cyan-50: #ecfeff;
+  --cyan-500: #06b6d4;
   --cyan-700: #0e7490;
-  --green-50: #f0fdf4;
-  --green-700: #166534;
+
   --google-blue: #4285f4;
   --google-green: #34a853;
   --google-yellow: #fbbc05;
   --google-red: #ea4335;
-  --drive-blue: #4285f4;
   --drive-green: #1fa463;
   --drive-yellow: #fbbc04;
-  --info-500: #3b82f6;
-  --info-700: #1d4ed8;
 
   --fg-1: var(--ink-900);
   --fg-2: var(--ink-700);
