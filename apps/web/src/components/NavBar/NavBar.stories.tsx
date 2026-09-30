@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { NavBar } from './NavBar';
 import type { NavItem } from './NavBar.types';
 import { seald } from '../../styles/theme';
@@ -8,7 +9,7 @@ const meta: Meta<typeof NavBar> = {
   title: 'L3/NavBar',
   component: NavBar,
   tags: ['autodocs', 'layer-3'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
 };
 export default meta;
 type Story = StoryObj<typeof NavBar>;
@@ -72,4 +73,14 @@ export const LogoSlot: Story = {
       user={{ name: 'Jamie Okonkwo' }}
     />
   ),
+};
+
+export const Mobile: Story = {
+  render: () => <InteractiveDemo />,
+  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
+};
+
+export const Desktop: Story = {
+  render: () => <InteractiveDemo />,
+  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
 };

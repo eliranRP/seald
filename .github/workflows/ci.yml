@@ -335,7 +335,7 @@ jobs:
         run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Run template + sign happy-path spec
-        run: pnpm --filter web exec playwright test --project=chromium e2e/template-sign-flow.spec.ts
+        run: pnpm --filter web exec playwright test --project=chromium e2e/template-sign-flow.spec.ts e2e/api-keys.spec.ts
 
       - name: Upload Playwright report on failure
         if: failure()
