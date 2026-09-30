@@ -12,15 +12,15 @@ export const Label = styled.label`
 `;
 
 export const Input = styled.input`
-  width: 20px;
-  height: 20px;
-  margin-top: 2px;
+  width: ${({ theme }) => theme.space[5]};
+  height: ${({ theme }) => theme.space[5]};
+  margin-top: ${({ theme }) => theme.space[1]};
   flex-shrink: 0;
-  accent-color: ${({ theme }) => theme.color.indigo[600]};
+  accent-color: ${({ theme }) => theme.color.accent.base};
 
   &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.color.indigo[600]};
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 

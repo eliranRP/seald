@@ -298,7 +298,6 @@ export function createPgMemDb(): PgMemHandle {
       require_owner_approval   boolean not null default true,
       allow_new_recipients     boolean not null default false,
       always_require_signin    boolean not null default false,
-      approval_notify          text not null default 'email' check (approval_notify in ('email', 'none')),
       created_at               timestamptz not null default now(),
       last_used_at             timestamptz,
       expires_at               timestamptz,

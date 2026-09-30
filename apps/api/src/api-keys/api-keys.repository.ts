@@ -1,4 +1,4 @@
-import type { ApiKeyApprovalNotify, ApiKeyScope } from 'shared';
+import type { ApiKeyScope } from 'shared';
 import type { ApiKeyRecord } from './api-keys.types';
 
 export interface InsertApiKeyInput {
@@ -10,22 +10,29 @@ export interface InsertApiKeyInput {
   readonly requireOwnerApproval: boolean;
   readonly allowNewRecipients: boolean;
   readonly alwaysRequireSignin: boolean;
-  readonly approvalNotify: ApiKeyApprovalNotify;
   readonly expiresAt: string;
 }
 
-export interface PatchApiKeyInput {
-  readonly requireOwnerApproval?: boolean;
-  readonly allowNewRecipients?: boolean;
-  readonly alwaysRequireSignin?: boolean;
-  readonly approvalNotify?: ApiKeyApprovalNotify;
+/**
+ * A non-revoked key occupies a slot until `expires_at`. A missing expiry
+ * still counts, so a row cannot hide from the cap. Expired rows stay
+ * listed and can be revoked, but they do not block a new key.
+ */
+export function countsTowardLiveCap(
+  expiresAt: string | Date | null | undefined,
+  nowMs: number,
+): boolean {
+  if (expiresAt == null) return true;
+  const ms = expiresAt instanceof Date ? expiresAt.getTime() : Date.parse(expiresAt);
+  return Number.isNaN(ms) || ms > nowMs;
 }
 
 export abstract class ApiKeysRepository {
   /**
-   * Insert one live key under a per-owner lock. Enforces the live-key
-   * cap and the unique live name. `name` null asks the repository to
-   * assign the next free `Key N`.
+   * Insert one live key under a per-owner lock. The cap counts keys that
+   * are not revoked and not expired. The unique live name still includes
+   * expired rows. `name` null asks the repository to assign the next free
+   * `Key N`.
    */
   abstract insertLive(input: InsertApiKeyInput): Promise<ApiKeyRecord>;
 
@@ -34,12 +41,6 @@ export abstract class ApiKeysRepository {
   abstract findByIdForOwner(id: string, ownerId: string): Promise<ApiKeyRecord | null>;
 
   abstract findByPrefix(prefix: string): Promise<ApiKeyRecord | null>;
-
-  abstract patch(
-    id: string,
-    ownerId: string,
-    patch: PatchApiKeyInput,
-  ): Promise<ApiKeyRecord | null>;
 
   /** Sets `revoked_at` when it is still null. Returns the row either way. */
   abstract revoke(id: string, ownerId: string, revokedAt: string): Promise<ApiKeyRecord | null>;

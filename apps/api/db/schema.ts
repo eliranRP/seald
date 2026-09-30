@@ -305,8 +305,6 @@ export type EmailKindDb =
   | 'signed_to_sender'
   | 'api_key_created';
 
-export type ApiKeyApprovalNotifyDb = 'email' | 'none';
-
 export interface ApiKeysTable {
   id: Generated<string>;
   owner_id: string;
@@ -317,11 +315,6 @@ export interface ApiKeysTable {
   require_owner_approval: ColumnType<boolean, boolean | undefined, boolean | undefined>;
   allow_new_recipients: ColumnType<boolean, boolean | undefined, boolean | undefined>;
   always_require_signin: ColumnType<boolean, boolean | undefined, boolean | undefined>;
-  approval_notify: ColumnType<
-    ApiKeyApprovalNotifyDb,
-    ApiKeyApprovalNotifyDb | undefined,
-    ApiKeyApprovalNotifyDb | undefined
-  >;
   created_at: ColumnType<Date, string | undefined, never>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   expires_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;

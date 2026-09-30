@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { ChevronRight } from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
 import { BackLink, Page, Title } from './developers/DevelopersKeysScreen.styles';
@@ -15,6 +16,8 @@ const List = styled.ul`
 const Row = styled(Link)`
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.space[3]};
   min-height: 44px;
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -26,8 +29,8 @@ const Row = styled(Link)`
   font-weight: ${({ theme }) => theme.font.weight.medium};
 
   &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.color.indigo[600]};
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 
@@ -49,11 +52,17 @@ export function SettingsIndexView(props: {
       <List>
         {showIntegrations ? (
           <li>
-            <Row to={phone ? '/m/send/settings' : '/settings/integrations'}>Integrations</Row>
+            <Row to={phone ? '/m/send/settings' : '/settings/integrations'}>
+              <span>Integrations</span>
+              <ChevronRight aria-hidden size={18} />
+            </Row>
           </li>
         ) : null}
         <li>
-          <Row to={phone ? '/m/settings/developers' : '/settings/developers'}>Developers</Row>
+          <Row to={phone ? '/m/settings/developers' : '/settings/developers'}>
+            <span>Developers</span>
+            <ChevronRight aria-hidden size={18} />
+          </Row>
         </li>
       </List>
     </Page>

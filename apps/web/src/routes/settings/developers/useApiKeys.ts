@@ -1,12 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  createApiKey,
-  listApiKeys,
-  noticeForKeyError,
-  patchApiKey,
-  revokeApiKey,
-} from './apiKeyClient';
-import type { CreateKeyInput, PatchKeyInput } from './types';
+import { createApiKey, listApiKeys, noticeForKeyError, revokeApiKey } from './apiKeyClient';
+import type { CreateKeyInput } from './types';
 
 export const API_KEYS_QUERY = ['me', 'api-keys'] as const;
 
@@ -20,6 +14,7 @@ export function useApiKeys() {
 export function useApiKeyMutations(
   onCreated: (secret: string) => void,
   onError: (notice: string) => void,
+  onRevoked: () => void,
 ) {
   const queryClient = useQueryClient();
 
@@ -36,17 +31,14 @@ export function useApiKeyMutations(
     onError: (err: unknown) => onError(noticeForKeyError(err)),
   });
 
-  const patch = useMutation({
-    mutationFn: (args: { id: string; patch: PatchKeyInput }) => patchApiKey(args.id, args.patch),
-    onSuccess: settle,
-    onError: (err: unknown) => onError(noticeForKeyError(err)),
-  });
-
   const revoke = useMutation({
     mutationFn: (id: string) => revokeApiKey(id),
-    onSuccess: settle,
+    onSuccess: () => {
+      settle();
+      onRevoked();
+    },
     onError: (err: unknown) => onError(noticeForKeyError(err)),
   });
 
-  return { create, patch, revoke };
+  return { create, revoke };
 }

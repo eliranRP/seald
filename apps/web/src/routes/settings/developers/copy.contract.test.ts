@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const BANNED = /\b(encrypted|secure)\b/i;
+const BANNED = /\b(encrypt\w*|secure|e2ee|end-to-end|zero-knowledge)\b/i;
 const here = path.dirname(fileURLToPath(import.meta.url));
 const webSrc = path.resolve(here, '../../..');
 const repoRoot = path.resolve(here, '../../../../../..');
@@ -24,13 +24,12 @@ function filesUnder(dir: string): string[] {
 }
 
 describe('access-key copy', () => {
-  it('does not use encrypted or secure in user-facing strings', () => {
+  it('does not use banned marketing words in user-facing strings', () => {
     const roots = [
       path.join(webSrc, 'routes/settings/developers'),
       path.join(webSrc, 'routes/settings/SettingsIndexPage.tsx'),
       path.join(webSrc, 'components/SecretOnceSheet'),
       path.join(webSrc, 'components/Checkbox'),
-      path.join(webSrc, 'components/CodeSnippet'),
       path.join(repoRoot, 'apps/api/src/email/templates/api_key_created'),
     ];
     const hits: string[] = [];

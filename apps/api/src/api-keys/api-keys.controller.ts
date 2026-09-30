@@ -6,7 +6,6 @@ import {
   HttpCode,
   NotFoundException,
   Param,
-  Patch,
   Post,
 } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -14,7 +13,6 @@ import type { AuthUser } from '../auth/auth-user';
 import { readAmrSignInAt } from './amr';
 import { ApiKeysService } from './api-keys.service';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
-import { PatchApiKeyDto } from './dto/patch-api-key.dto';
 import { RevokeApiKeyDto } from './dto/revoke-api-key.dto';
 import { isMcpSurfaceEnabled } from './mcp-enabled';
 
@@ -41,16 +39,6 @@ export class ApiKeysController {
   ) {
     this.requireFlag();
     return this.svc.create(user, body, readAmrSignInAt(authorization));
-  }
-
-  @Patch(':id')
-  async patch(
-    @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
-    @Body() body: PatchApiKeyDto,
-  ) {
-    this.requireFlag();
-    return this.svc.patch(user, id, body);
   }
 
   @Post(':id/revoke')

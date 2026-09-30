@@ -33,9 +33,9 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
 
   /**
    * Remote MCP server and agent access keys. Off until a later change
-   * turns it on. While false, `/mcp` and `/me/api-keys` 404 and the
-   * Developers settings row is omitted. `MCP_DISABLED=true` does the
-   * same at request time, without a rebuild.
+   * turns it on. While false, `/me/api-keys` 404s and the Developers
+   * settings row is omitted. `MCP_DISABLED=true` does the same at
+   * request time, without a rebuild.
    */
   mcpServer: false,
 } as const;

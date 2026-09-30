@@ -145,10 +145,32 @@ describe('ApiKeysService', () => {
     expect(twice?.lastUsedAt).toBe(later.toISOString());
   });
 
-  it('patches the unattended setting from a session and does not return the secret', async () => {
+  it('lets one of two concurrent creates through when one slot remains', async () => {
+    for (let n = 0; n < 9; n += 1) {
+      await svc.create(USER, {}, null, now);
+    }
+    const results = await Promise.allSettled([
+      svc.create(USER, {}, null, now),
+      svc.create(USER, {}, null, now),
+    ]);
+    const fulfilled = results.filter((result) => result.status === 'fulfilled');
+    const rejected = results.filter((result) => result.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject({ message: 'key_limit' });
+  });
+
+  it('does not count expired keys toward the cap', async () => {
+    for (let n = 0; n < 10; n += 1) {
+      await svc.create(USER, {}, null, now);
+    }
+    const past = new Date(Date.now() - 60_000).toISOString();
+    for (let index = 0; index < repo.rows.length; index += 1) {
+      const row = repo.rows[index];
+      if (!row) continue;
+      repo.rows[index] = { ...row, expiresAt: past };
+    }
     const created = await svc.create(USER, {}, null, now);
-    const patched = await svc.patch(USER, created.id, { require_owner_approval: false });
-    expect(patched.require_owner_approval).toBe(false);
-    expect(JSON.stringify(patched)).not.toContain(created.secret);
+    expect(created.name).toBe('Key 11');
   });
 });

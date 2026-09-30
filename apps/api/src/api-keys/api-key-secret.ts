@@ -21,10 +21,17 @@ export interface ParsedApiKey {
   readonly keyHash: string;
 }
 
+/** Short checksum of the secret body. Not a password hash. */
 function checksumOf(body: string): string {
   return createHash('sha256').update(body).digest('hex').slice(0, CHECKSUM_HEX_LENGTH);
 }
 
+/**
+ * Hex SHA-256 of the full bearer. The secret is 32 bytes from
+ * crypto.randomBytes (256 bits), not a password, so a slow password hash
+ * would add nothing. A CodeQL "password hash too weak" alert on this
+ * SHA-256 is a false positive.
+ */
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }

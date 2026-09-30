@@ -4,8 +4,8 @@ import { MAX_LIVE_API_KEYS, isApiKeyScope, type ApiKeyScope } from 'shared';
 import type { ApiKeysTable, Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import { nextKeyName } from './api-key-secret';
-import type { InsertApiKeyInput, PatchApiKeyInput } from './api-keys.repository';
-import { ApiKeysRepository } from './api-keys.repository';
+import type { InsertApiKeyInput } from './api-keys.repository';
+import { ApiKeysRepository, countsTowardLiveCap } from './api-keys.repository';
 import {
   ApiKeyLimitError,
   ApiKeyNameTakenError,
@@ -43,7 +43,6 @@ function toRecord(row: Row): ApiKeyRecord {
     requireOwnerApproval: row.require_owner_approval,
     allowNewRecipients: row.allow_new_recipients,
     alwaysRequireSignin: row.always_require_signin,
-    approvalNotify: row.approval_notify === 'none' ? 'none' : 'email',
     createdAt: toIso(row.created_at) ?? new Date(0).toISOString(),
     lastUsedAt: toIso(row.last_used_at),
     expiresAt: toIso(row.expires_at),
@@ -87,15 +86,17 @@ export class ApiKeysPgRepository extends ApiKeysRepository {
       return await this.db.transaction().execute(async (trx) => {
         // cspell:disable-next-line
         await sql`select pg_advisory_xact_lock(${lockA}::integer, ${lockB}::integer)`.execute(trx);
-        const live = await trx
+        const notRevoked = await trx
           .selectFrom('api_keys')
           .selectAll()
           .where('owner_id', '=', input.ownerId)
           .where('revoked_at', 'is', null)
           .execute();
-        if (live.length >= MAX_LIVE_API_KEYS) throw new ApiKeyLimitError();
-        const name = input.name ?? nextKeyName(live.map((row) => row.name));
-        if (live.some((row) => row.name.toLowerCase() === name.toLowerCase())) {
+        const nowMs = Date.now();
+        const occupying = notRevoked.filter((row) => countsTowardLiveCap(row.expires_at, nowMs));
+        if (occupying.length >= MAX_LIVE_API_KEYS) throw new ApiKeyLimitError();
+        const name = input.name ?? nextKeyName(notRevoked.map((row) => row.name));
+        if (notRevoked.some((row) => row.name.toLowerCase() === name.toLowerCase())) {
           throw new ApiKeyNameTakenError();
         }
         const inserted = await trx
@@ -109,7 +110,6 @@ export class ApiKeysPgRepository extends ApiKeysRepository {
             require_owner_approval: input.requireOwnerApproval,
             allow_new_recipients: input.allowNewRecipients,
             always_require_signin: input.alwaysRequireSignin,
-            approval_notify: input.approvalNotify,
             expires_at: input.expiresAt,
           })
           .returningAll()
@@ -154,31 +154,6 @@ export class ApiKeysPgRepository extends ApiKeysRepository {
       .where('prefix', '=', prefix)
       .executeTakeFirst();
     return row ? toRecord(row) : null;
-  }
-
-  async patch(id: string, ownerId: string, patch: PatchApiKeyInput): Promise<ApiKeyRecord | null> {
-    const existing = await this.findByIdForOwner(id, ownerId);
-    if (!existing || existing.revokedAt) return existing;
-    const row = await this.db
-      .updateTable('api_keys')
-      .set({
-        ...(patch.requireOwnerApproval !== undefined
-          ? { require_owner_approval: patch.requireOwnerApproval }
-          : {}),
-        ...(patch.allowNewRecipients !== undefined
-          ? { allow_new_recipients: patch.allowNewRecipients }
-          : {}),
-        ...(patch.alwaysRequireSignin !== undefined
-          ? { always_require_signin: patch.alwaysRequireSignin }
-          : {}),
-        ...(patch.approvalNotify !== undefined ? { approval_notify: patch.approvalNotify } : {}),
-      })
-      .where('id', '=', id)
-      .where('owner_id', '=', ownerId)
-      .where('revoked_at', 'is', null)
-      .returningAll()
-      .executeTakeFirst();
-    return row ? toRecord(row) : existing;
   }
 
   async revoke(id: string, ownerId: string, revokedAt: string): Promise<ApiKeyRecord | null> {

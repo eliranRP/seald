@@ -15,7 +15,6 @@ import {
   MAX_API_KEY_EXPIRY_DAYS,
   isApiKeyScope,
   normalizeApiKeyScopes,
-  type ApiKeyApprovalNotify,
   type ApiKeyScope,
 } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
@@ -24,7 +23,6 @@ import type { AppEnv } from '../config/env.schema';
 import { insertOutboundEmailIdempotent } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { hashesEqual, generateApiKey, parseApiKeyToken } from './api-key-secret';
-import type { PatchApiKeyInput } from './api-keys.repository';
 import { ApiKeysRepository } from './api-keys.repository';
 import {
   ApiKeyLimitError,
@@ -45,13 +43,6 @@ export interface CreateApiKeyBody {
   readonly scopes?: unknown;
   readonly expires_at?: unknown;
   readonly always_require_signin?: unknown;
-}
-
-export interface PatchApiKeyBody {
-  readonly require_owner_approval?: unknown;
-  readonly allow_new_recipients?: unknown;
-  readonly always_require_signin?: unknown;
-  readonly approval_notify?: unknown;
 }
 
 export interface VerifiedApiKey {
@@ -99,15 +90,6 @@ export class ApiKeysService {
     });
     await this.enqueueCreatedNotice(user, record);
     return { ...toApiKeyView(record.row), secret: record.secret };
-  }
-
-  async patch(user: AuthUser, id: string, body: PatchApiKeyBody): Promise<ApiKeyView> {
-    this.requireMailbox(user);
-    this.requireUuid(id);
-    const patch = parsePatch(body);
-    const row = await this.keys.patch(id, user.id, patch);
-    if (!row || row.revokedAt) throw new NotFoundException('not_found');
-    return toApiKeyView(row);
   }
 
   async revoke(
@@ -168,7 +150,6 @@ export class ApiKeysService {
           requireOwnerApproval: true,
           allowNewRecipients: false,
           alwaysRequireSignin: input.alwaysRequireSignin,
-          approvalNotify: 'email',
           expiresAt: input.expiresAt,
         });
         return { row, secret: generated.token };
@@ -276,44 +257,4 @@ function parseOptionalBoolean(value: unknown): boolean {
   if (value === undefined) return false;
   if (typeof value !== 'boolean') throw new BadRequestException('validation_error');
   return value;
-}
-
-function parsePatch(body: PatchApiKeyBody): PatchApiKeyInput {
-  const patch: {
-    requireOwnerApproval?: boolean;
-    allowNewRecipients?: boolean;
-    alwaysRequireSignin?: boolean;
-    approvalNotify?: ApiKeyApprovalNotify;
-  } = {};
-  let seen = false;
-  if (body.require_owner_approval !== undefined) {
-    if (typeof body.require_owner_approval !== 'boolean') {
-      throw new BadRequestException('validation_error');
-    }
-    patch.requireOwnerApproval = body.require_owner_approval;
-    seen = true;
-  }
-  if (body.allow_new_recipients !== undefined) {
-    if (typeof body.allow_new_recipients !== 'boolean') {
-      throw new BadRequestException('validation_error');
-    }
-    patch.allowNewRecipients = body.allow_new_recipients;
-    seen = true;
-  }
-  if (body.always_require_signin !== undefined) {
-    if (typeof body.always_require_signin !== 'boolean') {
-      throw new BadRequestException('validation_error');
-    }
-    patch.alwaysRequireSignin = body.always_require_signin;
-    seen = true;
-  }
-  if (body.approval_notify !== undefined) {
-    if (body.approval_notify !== 'email' && body.approval_notify !== 'none') {
-      throw new BadRequestException('validation_error');
-    }
-    patch.approvalNotify = body.approval_notify;
-    seen = true;
-  }
-  if (!seen) throw new BadRequestException('validation_error');
-  return patch;
 }

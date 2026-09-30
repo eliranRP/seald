@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { MAX_LIVE_API_KEYS } from 'shared';
 import { nextKeyName } from './api-key-secret';
-import type { InsertApiKeyInput, PatchApiKeyInput } from './api-keys.repository';
-import { ApiKeysRepository } from './api-keys.repository';
+import type { InsertApiKeyInput } from './api-keys.repository';
+import { ApiKeysRepository, countsTowardLiveCap } from './api-keys.repository';
 import {
   ApiKeyLimitError,
   ApiKeyNameTakenError,
@@ -40,15 +40,16 @@ export class InMemoryApiKeysRepository extends ApiKeysRepository {
 
   async insertLive(input: InsertApiKeyInput): Promise<ApiKeyRecord> {
     return this.lock(input.ownerId, async () => {
-      const live = this.rows.filter(
+      const notRevoked = this.rows.filter(
         (row) => row.ownerId === input.ownerId && row.revokedAt === null,
       );
-      if (live.length >= MAX_LIVE_API_KEYS) throw new ApiKeyLimitError();
+      const occupying = notRevoked.filter((row) => countsTowardLiveCap(row.expiresAt, Date.now()));
+      if (occupying.length >= MAX_LIVE_API_KEYS) throw new ApiKeyLimitError();
       if (this.rows.some((row) => row.prefix === input.prefix)) {
         throw new ApiKeyPrefixCollisionError();
       }
-      const name = input.name ?? nextKeyName(live.map((row) => row.name));
-      if (live.some((row) => row.name.toLowerCase() === name.toLowerCase())) {
+      const name = input.name ?? nextKeyName(notRevoked.map((row) => row.name));
+      if (notRevoked.some((row) => row.name.toLowerCase() === name.toLowerCase())) {
         throw new ApiKeyNameTakenError();
       }
       const row: ApiKeyRecord = {
@@ -61,7 +62,6 @@ export class InMemoryApiKeysRepository extends ApiKeysRepository {
         requireOwnerApproval: input.requireOwnerApproval,
         allowNewRecipients: input.allowNewRecipients,
         alwaysRequireSignin: input.alwaysRequireSignin,
-        approvalNotify: input.approvalNotify,
         createdAt: new Date().toISOString(),
         lastUsedAt: null,
         expiresAt: input.expiresAt,
@@ -84,21 +84,6 @@ export class InMemoryApiKeysRepository extends ApiKeysRepository {
 
   async findByPrefix(prefix: string): Promise<ApiKeyRecord | null> {
     return this.rows.find((row) => row.prefix === prefix) ?? null;
-  }
-
-  async patch(id: string, ownerId: string, patch: PatchApiKeyInput): Promise<ApiKeyRecord | null> {
-    const row = await this.findByIdForOwner(id, ownerId);
-    if (!row || row.revokedAt) return row;
-    const next: ApiKeyRecord = {
-      ...row,
-      requireOwnerApproval: patch.requireOwnerApproval ?? row.requireOwnerApproval,
-      allowNewRecipients: patch.allowNewRecipients ?? row.allowNewRecipients,
-      alwaysRequireSignin: patch.alwaysRequireSignin ?? row.alwaysRequireSignin,
-      approvalNotify: patch.approvalNotify ?? row.approvalNotify,
-    };
-    const index = this.rows.findIndex((item) => item.id === id);
-    if (index >= 0) this.rows[index] = next;
-    return next;
   }
 
   async revoke(id: string, ownerId: string, revokedAt: string): Promise<ApiKeyRecord | null> {

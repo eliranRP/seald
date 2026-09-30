@@ -1,4 +1,4 @@
-import type { ApiKeyApprovalNotify, ApiKeyScope } from 'shared';
+import type { ApiKeyScope } from 'shared';
 
 /** A stored key. `keyHash` never leaves the server. */
 export interface ApiKeyRecord {
@@ -11,7 +11,6 @@ export interface ApiKeyRecord {
   readonly requireOwnerApproval: boolean;
   readonly allowNewRecipients: boolean;
   readonly alwaysRequireSignin: boolean;
-  readonly approvalNotify: ApiKeyApprovalNotify;
   readonly createdAt: string;
   readonly lastUsedAt: string | null;
   readonly expiresAt: string | null;
@@ -27,7 +26,6 @@ export interface ApiKeyView {
   readonly require_owner_approval: boolean;
   readonly allow_new_recipients: boolean;
   readonly always_require_signin: boolean;
-  readonly approval_notify: ApiKeyApprovalNotify;
   readonly created_at: string;
   readonly last_used_at: string | null;
   readonly expires_at: string | null;
@@ -47,7 +45,6 @@ export function toApiKeyView(row: ApiKeyRecord): ApiKeyView {
     require_owner_approval: row.requireOwnerApproval,
     allow_new_recipients: row.allowNewRecipients,
     always_require_signin: row.alwaysRequireSignin,
-    approval_notify: row.approvalNotify,
     created_at: row.createdAt,
     last_used_at: row.lastUsedAt,
     expires_at: row.expiresAt,

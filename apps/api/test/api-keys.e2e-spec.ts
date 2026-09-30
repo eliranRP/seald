@@ -107,15 +107,18 @@ describe('API keys (e2e)', () => {
     await app.close();
   });
 
-  it('404s key routes and /mcp when the flag is off', async () => {
+  it('404s key routes when the flag is off', async () => {
     disableMcp();
     expect(isFeatureEnabled('mcpServer')).toBe(false);
     const listed = await request(app.getHttpServer())
       .get('/me/api-keys')
       .set('Authorization', `Bearer ${token}`);
     expect(listed.status).toBe(404);
-    const probe = await request(app.getHttpServer()).post('/mcp').send({});
-    expect(probe.status).toBe(404);
+    const created = await request(app.getHttpServer())
+      .post('/me/api-keys')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(created.status).toBe(404);
   });
 
   it('creates, lists without the secret, and revokes', async () => {
@@ -151,76 +154,44 @@ describe('API keys (e2e)', () => {
     expect(keys.expiredApprovalKeyIds).toEqual([created.body.id]);
   });
 
-  it('authenticates a key, and rejects expired, revoked, and a missing scope', async () => {
+  it('rejects a seald_live_ bearer on session routes', async () => {
     const created = await request(app.getHttpServer())
       .post('/me/api-keys')
       .set('Authorization', `Bearer ${token}`)
-      .send({ scopes: ['envelopes:read'] });
-    const secret = created.body.secret as string;
-
-    const ok = await request(app.getHttpServer())
-      .post('/mcp')
-      .set('Authorization', `Bearer ${secret}`)
-      .send({ required_scope: 'envelopes:read' });
-    expect(ok.status).toBe(200);
-    expect(ok.body).toEqual({
-      ok: true,
-      key_id: created.body.id,
-      scopes: ['envelopes:read'],
-    });
-    expect(JSON.stringify(ok.body)).not.toContain(secret);
-
-    const denied = await request(app.getHttpServer())
-      .post('/mcp')
-      .set('Authorization', `Bearer ${secret}`)
-      .send({ required_scope: 'envelopes:send' });
-    expect(denied.status).toBe(200);
-    expect(denied.body).toEqual({ isError: true, slug: 'insufficient_scope' });
-
-    const sessionOnMcp = await request(app.getHttpServer())
-      .post('/mcp')
-      .set('Authorization', `Bearer ${token}`)
       .send({});
-    expect(sessionOnMcp.status).toBe(401);
-
+    const secret = created.body.secret as string;
     const keyOnSessionRoute = await request(app.getHttpServer())
       .get('/me/api-keys')
       .set('Authorization', `Bearer ${secret}`);
     expect(keyOnSessionRoute.status).toBe(401);
-
     const keyOnEnvelopes = await request(app.getHttpServer())
       .get('/envelopes')
       .set('Authorization', `Bearer ${secret}`);
     expect(keyOnEnvelopes.status).toBe(401);
-
-    await request(app.getHttpServer())
-      .post(`/me/api-keys/${created.body.id}/revoke`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ revoked: true });
-    const revoked = await request(app.getHttpServer())
-      .post('/mcp')
-      .set('Authorization', `Bearer ${secret}`)
-      .send({});
-    expect(revoked.status).toBe(401);
-    expect(revoked.body.error).toBe('key_revoked');
   });
 
-  it('rejects an expired key', async () => {
-    const created = await request(app.getHttpServer())
-      .post('/me/api-keys')
-      .set('Authorization', `Bearer ${token}`)
-      .send({});
-    const row = keys.rows.find((item) => item.id === created.body.id);
-    expect(row).toBeDefined();
-    const expiredAt = new Date(Date.now() - 60_000).toISOString();
-    const index = keys.rows.findIndex((item) => item.id === created.body.id);
-    keys.rows[index] = { ...row!, expiresAt: expiredAt };
-    const res = await request(app.getHttpServer())
-      .post('/mcp')
-      .set('Authorization', `Bearer ${created.body.secret}`)
-      .send({});
-    expect(res.status).toBe(401);
-    expect(res.body.error).toBe('key_expired');
+  it('allows only one of two creates when one slot is left', async () => {
+    for (let n = 0; n < 9; n += 1) {
+      const made = await request(app.getHttpServer())
+        .post('/me/api-keys')
+        .set('Authorization', `Bearer ${token}`)
+        .send({});
+      expect(made.status).toBe(201);
+    }
+    const [first, second] = await Promise.all([
+      request(app.getHttpServer())
+        .post('/me/api-keys')
+        .set('Authorization', `Bearer ${token}`)
+        .send({}),
+      request(app.getHttpServer())
+        .post('/me/api-keys')
+        .set('Authorization', `Bearer ${token}`)
+        .send({}),
+    ]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    expect(statuses).toEqual([201, 409]);
+    const denied = first.status === 409 ? first : second;
+    expect(denied.body.error).toBe('key_limit');
   });
 
   it('rejects a null expiry and a key without a mailbox', async () => {

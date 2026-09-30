@@ -4,7 +4,6 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { render, screen } from '@testing-library/react';
 import type { AuthContextValue } from '../providers/AuthProvider';
 import { RedirectWhenAuthed } from './RedirectWhenAuthed';
-import { rememberPostSignInPath } from '../routes/settings/developers/postSignInPath';
 
 const baseAuth: AuthContextValue = {
   session: null,
@@ -44,7 +43,6 @@ function renderAt(path: string) {
         </Route>
         <Route path="/documents" element={<div>desktop dashboard</div>} />
         <Route path="/m/send" element={<div>mobile send page</div>} />
-        <Route path="/settings/developers" element={<div>developers page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -83,16 +81,5 @@ describe('RedirectWhenAuthed', () => {
     mobileViewport = true;
     renderAt('/signin');
     expect(screen.getByText('mobile send page')).toBeInTheDocument();
-  });
-
-  it('returns a signed-in visitor to the allowlisted developers path', () => {
-    authState = {
-      ...baseAuth,
-      user: { id: 'u1', email: 'a@b.co', name: 'Alex' },
-    };
-    mobileViewport = false;
-    rememberPostSignInPath('/settings/developers');
-    renderAt('/signin');
-    expect(screen.getByText('developers page')).toBeInTheDocument();
   });
 });

@@ -30,7 +30,7 @@ describe('ApiKeysPgRepository', () => {
     await handle.close();
   });
 
-  const base = (prefix: string, name: string | null) => ({
+  const base = (prefix: string, name: string | null, expiresAt = '2026-12-29T00:00:00.000Z') => ({
     ownerId,
     name,
     prefix,
@@ -39,8 +39,7 @@ describe('ApiKeysPgRepository', () => {
     requireOwnerApproval: true,
     allowNewRecipients: false,
     alwaysRequireSignin: false,
-    approvalNotify: 'email' as const,
-    expiresAt: '2026-12-29T00:00:00.000Z',
+    expiresAt,
   });
 
   it('stores a hash and prefix, not a recoverable secret column', async () => {
@@ -65,5 +64,13 @@ describe('ApiKeysPgRepository', () => {
     const again = await repo.insertLive(base('seald_live_afterrevoke', null));
     expect(again.name).toBe('Key 1');
     await expect(repo.expirePendingApprovals(first!.id, new Date())).resolves.toBeUndefined();
+  });
+
+  it('does not count expired keys toward the cap', async () => {
+    for (let n = 0; n < 10; n += 1) {
+      await repo.insertLive(base(`seald_live_exp${n}xxxx`, `Old ${n}`, '2020-01-01T00:00:00.000Z'));
+    }
+    const fresh = await repo.insertLive(base('seald_live_stillok01', 'Fresh'));
+    expect(fresh.name).toBe('Fresh');
   });
 });

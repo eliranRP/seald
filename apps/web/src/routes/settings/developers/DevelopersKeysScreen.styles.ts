@@ -23,8 +23,8 @@ export const BackLink = styled(Link)`
   text-decoration: none;
 
   &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.color.indigo[600]};
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 
@@ -46,6 +46,11 @@ export const CrumbLink = styled(Link)`
 
   &:hover {
     color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 
@@ -103,12 +108,21 @@ export const Meta = styled.p`
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
   word-break: break-all;
+  direction: ltr;
+  unicode-bidi: isolate;
+`;
+
+export const Expiry = styled.p`
+  margin: ${({ theme }) => `${theme.space[1]} 0 0`};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
 export const Actions = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[2]};
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
 `;
 
 export const TextButton = styled.button`
@@ -119,19 +133,19 @@ export const TextButton = styled.button`
   min-height: 44px;
   font: inherit;
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme }) => theme.color.indigo[700]};
+  color: ${({ theme }) => theme.color.fg[2]};
   cursor: pointer;
 
   &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.color.indigo[600]};
-    outline-offset: 2px;
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 
 export const Panel = styled.div`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[2]};
+  gap: ${({ theme }) => theme.space[3]};
   padding-top: ${({ theme }) => theme.space[2]};
 `;
 
@@ -140,8 +154,8 @@ export const Fieldset = styled.fieldset`
   margin: 0;
   padding: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[3]};
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
 `;
 
 export const Legend = styled.legend`
@@ -152,18 +166,54 @@ export const Legend = styled.legend`
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
-export const RadioLabel = styled.label`
-  display: inline-flex;
+export const Segment = styled.div`
+  display: flex;
+  width: 100%;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  overflow: hidden;
+`;
+
+export const SegmentOption = styled.label<{ $on: boolean }>`
+  position: relative;
+  flex: 1;
+  display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
+  justify-content: center;
   min-height: 44px;
+  cursor: pointer;
   font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme, $on }) =>
+    $on ? theme.font.weight.semibold : theme.font.weight.regular};
   color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme, $on }) => ($on ? theme.color.accent.subtle : theme.color.bg.surface)};
+  border-right: 1px solid ${({ theme }) => theme.color.border[1]};
+
+  &:last-child {
+    border-right: none;
+  }
+
+  &:focus-within {
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+
+  input {
+    position: absolute;
+    opacity: 0;
+    width: ${({ theme }) => theme.space[1]};
+    height: ${({ theme }) => theme.space[1]};
+  }
 `;
 
 export const Notice = styled.p`
   margin: 0;
   color: ${({ theme }) => theme.color.danger[700]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+`;
+
+export const CapNote = styled.p`
+  margin: 0;
+  color: ${({ theme }) => theme.color.fg[2]};
   font-size: ${({ theme }) => theme.font.size.bodySm};
 `;
 
@@ -174,30 +224,18 @@ export const Muted = styled.p`
   line-height: ${({ theme }) => theme.font.lineHeight.normal};
 `;
 
-export const SectionTitle = styled.h2`
-  margin: ${({ theme }) => `${theme.space[4]} 0 0`};
-  font-size: ${({ theme }) => theme.font.size.h5};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[1]};
-`;
-
-export const Tiles = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[2]};
-`;
-
-export const Tile = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[3]};
-  min-height: 44px;
-  min-width: 160px;
-  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[3]}`};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
+export const Toast = styled.div`
+  position: fixed;
+  left: ${({ theme }) => theme.space[4]};
+  right: ${({ theme }) => theme.space[4]};
+  bottom: ${({ theme }) => theme.space[4]};
+  z-index: ${({ theme }) => theme.z.toast};
+  margin: 0 auto;
+  max-width: 720px;
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.bg.surface};
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.fg.inverse};
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme }) => theme.color.fg[1]};
+  box-shadow: ${({ theme }) => theme.shadow.lg};
 `;
