@@ -9,7 +9,7 @@ A sender picks a short recipe, fills in a folder or a URL or an address list, an
 
 ## Summary
 
-Store recipes in `automations`. The matcher writes `automation_jobs` and `automation_runs` inside the same transaction as `appendEvent`. A worker in the same process as `EmailWorkerService` claims the job with `for update skip locked`, performs one action, and retries with backoff. Actions: POST a JSON webhook, upload the sealed PDF and the audit trail to a Google Drive folder the user already picked, or email a copy to a list. Slack is named and not built.
+Store recipes in `automations`. The event transaction writes one pending `automation_triggers` row. Matching into `automation_jobs` and `automation_runs` runs after commit. A worker in the same process as `EmailWorkerService` claims the job with `for update skip locked`, performs one action, and retries with backoff. Actions: POST a JSON webhook, upload the sealed PDF and the audit trail to a Google Drive folder the user already picked, or email a copy to a list. Slack is named and not built.
 
 The feature is dark until `workflowAutomations` is `true` in `packages/shared/src/feature-flags.ts`. While it is false, routes return 404 and the settings index row is omitted. `AUTOMATIONS_DISABLED=true` does the same at request time, without a rebuild. There is no new `NAV_ITEMS` entry.
 
@@ -59,17 +59,19 @@ Last migration on `main` is `0019_email_signed_to_sender.sql`. Open PR #367 alre
 
 ## Shared foundations
 
-The matcher runs inside `appendEvent`’s transaction (`envelopes.repository.pg.ts`, around line 1349). It inserts `automation_jobs` and `automation_runs` before that transaction commits. A process crash after the event is visible cannot lose the job.
+`appendEvent` (`envelopes.repository.pg.ts`, around line 1349) inserts the envelope event and one `automation_triggers` row in the same transaction. The trigger row stores the event id and `status = 'pending'`. It does not look up recipes, and it does not insert `automation_runs` or `automation_jobs`.
 
-A checkpoint row stores the last `envelope_events.id` the matcher finished. On startup the worker scans events after that id and inserts any missing jobs. The unique key makes the scan a no-op when the in-transaction insert already landed.
+Matching runs after that transaction commits. The worker claims pending triggers, loads the envelope, selects enabled recipes, and inserts the run and the job. It then sets the trigger to `matched`. A matcher exception is logged. The trigger stays `pending`. The signer’s submit and the sealing step have already committed, so a matcher bug does not fail either one.
 
-Listener errors must not roll back the signer’s submit. The match insert is part of the event transaction, so a matcher bug fails the event write and the request returns an error the user can retry. The match itself only inserts rows. It does not call the network. Keep that function small and covered by the repository test.
+A checkpoint row stores the last `envelope_events.id` the rescan finished. On startup the worker inserts a pending trigger for any event after that id that has none, then matches every pending trigger. The unique run key makes a second match a no-op. That rescan is the fallback when the after-commit match did not finish.
+
+The match only inserts rows. It does not call the network. Keep that function small and covered by the repository test.
 
 Account-deletion inserts of `retention_deleted` do not go through `appendEvent`. They are not triggers.
 
-MCP tools that create envelopes call the existing services, which call `appendEvent`, which matches. Agents do not get a side door that skips recipes.
+MCP tools that create envelopes call the existing services, which call `appendEvent`, which writes the trigger row. Agents do not get a side door that skips recipes. Read tools do not wait for the matcher. The hook is A1 on this track, not an MCP step.
 
-MCP tools over recipes are their own PRs after the webhook action exists. They call this feature’s service. They do not return webhook signing secrets after create. Creating or editing a recipe that adds an external destination — a webhook URL, an email address that is not the owner’s mailbox, or a Drive folder — creates an owner approval, same as an agent send, and emails the owner. The settings form uses that queue too. The recipe stays disabled until the owner approves.
+MCP tools over recipes are their own PRs after the webhook action exists. They call this feature’s service. They do not return webhook signing secrets after create. Creating or editing a recipe that adds an external destination — a webhook URL, an email address that is not the owner’s mailbox, or a Drive folder — returns `approval_pending` and stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The settings form uses that same approval. `POST /automations/:id/test` and `automations_test_webhook` return `recipe_not_approved` and do not call the network while that approval is still open.
 
 ## Recipes
 
@@ -159,6 +161,13 @@ create table public.automation_secrets (
   created_at             timestamptz not null default now()
 );
 
+create table public.automation_triggers (
+  event_id    uuid primary key references public.envelope_events(id) on delete cascade,
+  status      text not null default 'pending' check (status in ('pending', 'matched')),
+  created_at  timestamptz not null default now(),
+  matched_at  timestamptz
+);
+
 create table public.automation_jobs (
   id             uuid primary key default gen_random_uuid(),
   run_id         uuid not null unique,
@@ -204,28 +213,33 @@ Webhook secrets are recoverable, because the worker has to compute HMAC. API key
 
 Screens, emails, and toasts say “Secret set” and the rotation date. They do not mention keys, algorithms, or ciphertext.
 
-RLS: `enable row level security` on all four tables, no policies.
+RLS: `enable row level security` on all five tables, no policies.
 
-Indexes: `(owner_id, enabled)` on `automations`; `(scheduled_for)` on `automation_jobs` where `status = 'pending'`; `(owner_id, created_at desc)` on `automation_runs`. Unique index `automation_runs_dedupe_idx` on `(automation_id, envelope_id, trigger, coalesce(signer_id, '00000000-0000-0000-0000-000000000000'::uuid))`.
+Indexes: `(owner_id, enabled)` on `automations`; `(scheduled_for)` on `automation_jobs` where `status = 'pending'`; `(status)` on `automation_triggers` where `status = 'pending'`; `(owner_id, created_at desc)` on `automation_runs`. Unique index `automation_runs_dedupe_idx` on `(automation_id, envelope_id, trigger, coalesce(signer_id, '00000000-0000-0000-0000-000000000000'::uuid))`.
 
 `updated_at` uses the existing `set_updated_at` trigger pattern from `envelopes`.
 
-Account deletion: `owner_id` cascades. `MeService` does not need a special case beyond what `on delete cascade` removes. Confirm in the account-deletion test that recipes, secrets, jobs, and runs go away with the user. Envelope events on preserved sealed envelopes (`0012_preserve_envelopes_on_user_delete.sql`) can outlive the owner; `automation_runs.owner_id` still cascades with the user, so history is deleted with the account. That is acceptable: the audit chain on the envelope remains, the recipe log does not.
+Account deletion: `owner_id` cascades. `MeService` does not need a special case beyond what `on delete cascade` removes. Confirm in the account-deletion test that recipes, secrets, jobs, and runs go away with the user. Trigger rows follow the event. Envelope events on preserved sealed envelopes (`0012_preserve_envelopes_on_user_delete.sql`) can outlive the owner; `automation_runs.owner_id` still cascades with the user, so history is deleted with the account. That is acceptable: the audit chain on the envelope remains, the recipe log does not.
 
 ## Execution
 
 ```
 appendEvent transaction
   → insert envelope_events
-  → matcher inserts automation_runs and automation_jobs
+  → insert automation_triggers (event id, pending)
   → commit
+matcher, after commit (and again on startup rescan)
+  → match pending triggers into automation_runs and automation_jobs
+  → mark the trigger matched
 AutomationWorkerService  (WORKER_ENABLED, same process)
   → claim job (skip locked)
   → run the action
   → mark run done, or retrying with scheduled_for, or failed
 ```
 
-Matcher rules:
+A matcher failure is logged and leaves the trigger `pending`. The signer’s submit and sealing stay committed. The startup rescan finishes the match. Unique run keys make that second match a no-op.
+
+Matcher rules, which run after commit on a pending trigger and do not run inside the event transaction:
 
 1. Load the envelope by id. If `owner_id` is null (preserved envelope after account deletion), stop.
 2. Map `event_type` to `automation_trigger`. Unmapped types stop.
@@ -233,7 +247,7 @@ Matcher rules:
 4. Insert the run. The unique key is `(automation_id, envelope_id, trigger, coalesce(signer_id, '00000000-0000-0000-0000-000000000000'::uuid))`. A duplicate event for the same signer and trigger is a no-op. Two signers on one envelope still produce two `signed` runs.
 5. Insert the job only when the run insert returned a row.
 
-The matcher does not perform HTTP, Drive, or email. It only inserts, so signing submit is not waiting on a customer URL.
+The matcher runs after commit. It does not perform HTTP, Drive, or email. A matcher error is logged and does not fail the signer’s submit or sealing.
 
 Worker, `apps/api/src/automations/automation-worker.service.ts`, copied in structure from `EmailWorkerService`:
 
@@ -399,7 +413,7 @@ Session JWT, flag-gated 404, owner scoped.
 | `POST` | `/automations/:id/rotate-secret` | New secret once. |
 | `DELETE` | `/automations/:id` | Cascade. |
 | `GET` | `/automations/:id/runs?cursor=` | Newest first, 20 per page. |
-| `POST` | `/automations/:id/test` | One webhook POST, `type: automation.test`, not stored as a run. |
+| `POST` | `/automations/:id/test` | One webhook POST, `type: automation.test`, not stored as a run. Returns `recipe_not_approved` and does not call the network while the recipe is waiting on approval. |
 | `POST` | `/automations/:id/runs/:runId/retry` | One tap. Same run id. Allowed only when `retryable` is true. Otherwise `retry_not_allowed`. |
 
 Create validates the recipe id against the table above and rejects a trigger/action pair that is not in that table (`validation_error`).
@@ -408,7 +422,7 @@ Create validates the recipe id against the table above and rejects a trigger/act
 
 Concept A, v2. Minimal copy. The main task is one or two taps. Extra fields sit behind “Advanced”. Routes `/settings/automations`, `/settings/automations/new?recipe=<id>`, `/settings/automations/:id`, and the same paths under `/m/settings/automations`. One column, 720px cap, the same component tree in both shells. Sheets are bottom sheets on mobile and dialogs on desktop.
 
-Status words are Done, Failed, Retrying, Off, and Expired. A disabled recipe shows Off. A run in backoff shows Retrying. A finished success shows Done. A finished failure shows Failed. Do not show Queued or Sent.
+Status words are Done, Failed, Retrying, Off, Expired, and Denied. A disabled recipe shows Off. A run in backoff shows Retrying. A finished success shows Done. A finished failure shows Failed. Denied is the approval word, not a run status. Do not show Queued or Sent.
 
 Entry is the settings index row (desktop `/settings`, phone `/m/settings`). The phone drawer has one “Settings” row. Drive stays at `/m/send/settings`. No new `NAV_ITEMS` item. Flag off hides the row.
 
@@ -418,9 +432,9 @@ Flow:
 2. “Use this” is the second tap. Webhook asks for the URL. Drive saves to “My Drive / Seald” with no picker. Email defaults to the owner. “Only for one template”, extra addresses, and a different Drive folder are behind “Advanced”.
 3. List: a switch per recipe (`ReminderToggle` promoted to a shared switch, `role="switch"`, 44px target) and the last-run word. “3 of 10” sits behind “Advanced”. The switch PATCHes `enabled`. A disabled recipe shows Off. Runs already in flight still finish.
 4. The server generates the webhook secret. `SecretOnceSheet` shows it with Copy and nothing else. It is copyable only on that create sheet, and again only when the owner rotates. Afterwards the list says “Secret set”. The sheet does not describe how the secret is stored. The old secret verifies for 24 hours after rotation.
-5. Run history is a pushed screen, `RunList`, 20 per page. Words are Done, Failed, Retrying, Off, and Expired. A temporary failure that has finished automatic retries shows Failed and a Retry button. A permanent failure shows Failed and Fix, which opens the recipe. One short reason (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Retrying shows “attempt n of 8”.
+5. Run history is a pushed screen, `RunList`, 20 per page. Run words are Done, Failed, Retrying, Off, and Expired. Denied is the approval word. A temporary failure that has finished automatic retries shows Failed and a Retry button. A permanent failure shows Failed and Fix, which opens the recipe. One short reason (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Retrying shows “attempt n of 8”.
 6. Retry calls `POST /automations/:id/runs/:runId/retry` and keeps the same run id. Fix does not call that endpoint.
-7. “Send test event” is behind “Advanced”. It calls `POST /automations/:id/test` with the same address checks and a 10 second timeout. Body `type` is `automation.test`. It is not stored as a run.
+7. “Send test event” is behind “Advanced”. It calls `POST /automations/:id/test` with the same address checks and a 10 second timeout. Body `type` is `automation.test`. It is not stored as a run. The control stays off, and the API returns `recipe_not_approved` without calling the network, until the recipe is approved.
 
 Empty history: “Nothing has run yet. Send a document that matches this recipe.”
 
@@ -430,7 +444,7 @@ Shared components, each in its own PR before the page that needs it: `SecretOnce
 
 Unit, Jest:
 
-- Matcher: `sealed` enqueues `sealed_save_drive` and ignores a `declined` recipe. A crash after commit still leaves the job (the insert is in the transaction). Two signers produce two runs. A duplicate of the same signer and trigger inserts one.
+- Matcher: `sealed` enqueues `sealed_save_drive` and ignores a `declined` recipe. The event transaction writes a pending trigger and does not insert the job. A crash after commit leaves that trigger. Matching after commit, or the startup rescan, inserts the job. A thrown match does not roll the event back. Two signers produce two runs. A duplicate of the same signer and trigger inserts one.
 - Webhook signer: known body and secret produce the expected hex. During rotation both headers are present. `timingSafeEqual` rejects a different length. Timestamp outside 300 seconds fails.
 - SSRF: `http://`, `https://127.0.0.1`, `https://169.254.169.254`, `https://10.0.0.1`, `https://100.64.0.1`, a NAT64 address, a hostname that resolves to `192.168.0.5`, and any 3xx are blocked and do not open a socket. Use a stub resolver.
 - Payload fixture for each `type` has no key matching `/token|sign_url|access_token/i`.
@@ -454,20 +468,21 @@ Do not mark the feature done on unit tests alone. The e2e covers matcher → job
 
 ## Pull requests
 
-One feature per pull request, in the order the product review listed for this track. Each of these PRs uses minimal copy, one or two taps, and an “Advanced” link for the rest. The MCP document’s step 1 is the in-transaction call site. This track registers the matcher and then ships each action alone. The flag stays off until a later change turns it on.
+One feature per pull request, in the order the product review listed for this track. Each of these PRs uses minimal copy, one or two taps, and an “Advanced” link for the rest. The matcher hook lives in A1. MCP read tools do not depend on it, and it is not an MCP step. This track then ships each action alone. The flag stays off until a later change turns it on.
 
 | PR | Feature |
 | --- | --- |
-| A1 | Tables and the durable matcher inside `appendEvent`, worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan. |
-| A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks, `POST /automations/:id/test`, and the MCP tool `automations_test_webhook` in the same PR. Secrets use `AUTOMATION_SECRETS_KEY`. The API create path is enough for e2e. The screen is not in this PR. |
-| A3 | Automation tools behind owner approval: list, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure. External destinations stay disabled until the owner approves. `automations:write` is off by default. |
+| A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan of pending triggers and of events after the checkpoint. A matcher failure does not roll back submit or sealing. |
+| A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks. Secrets use `AUTOMATION_SECRETS_KEY`. No test endpoint and no `automations_test_webhook`. The e2e fixture inserts an enabled recipe. A production create of an external destination stays disabled until the owner approves. The screen is not in this PR. |
+| A2b | `POST /automations/:id/test` and `automations_test_webhook`. Both return `recipe_not_approved` and do not call the network while the recipe is waiting on approval. Ships after the approval email exists (MCP step 7a). A test is not stored as a run. |
+| A3 | Automation tools behind owner approval: list, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure. External destinations stay disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. `automations:write` is off by default. The test tool is A2b, not this PR. |
 | A4 | Shared UI if the MCP track has not landed it: `SecretOnceSheet`, `RunList`, `Checkbox`, `MWBottomSheet`, switch from `ReminderToggle`. |
 | A5 | Settings index row if missing, then the automations page: gallery, one-tap create, list with switches, secret shown once with Copy only, run history with Retry or Fix. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
-| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. Approval before enable. |
-| A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. Approval when a recipient is not the owner. |
+| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. Approval before enable. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
+| A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. Approval when a recipient is not the owner. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
 | A8 | Twenty-failure auto-disable, and the owner email that goes with it. |
 
-`workflowAutomations` flips on in its own change after A2 has posted a test event to a staging URL.
+`workflowAutomations` flips on in its own change after A2b has posted a test event to a staging URL.
 
 Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 
@@ -491,12 +506,12 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 | Drive token revoked and the user is not told | Run `dead` with `reconnect_required`. History screen uses that sentence. |
 | `sealed` runs before files exist | Trigger on `sealed`, which `SealingService` appends after the objects are stored. Do not trigger Drive on `all_signed`. |
 | Duplicate emails on worker retry | `dedupe_key` and `insertOutboundEmailIdempotent`. |
-| Matcher throws and the signer’s submit fails | The match is an insert in the same transaction. A thrown match rolls the event back so the client can retry. It never calls the network, so a customer URL cannot fail submit. |
+| Matcher throws and the signer’s submit or sealing fails | The event transaction writes the event and one pending trigger row. Matching runs after commit. A thrown match is logged, the trigger stays pending, and the startup rescan finishes it. Submit and sealing stay committed. The matcher never calls the network. |
 | Free database growth | Caps on recipes and recipients. Succeeded runs age out at 30 days. Failed runs stay until resolved, which is a small set. No PDF bytes in these tables. |
 | Two deploys both claim jobs | `skip locked`, same as email. Safe if a second node appears later. |
 | Enum `automation_copy` added before the template exists | `upsertRecipe` refuses `email_copy` until the email PR. The dispatcher’s unknown-kind path must not be the steady state. |
 | A recipe emails the signer a second signing link | `automation_copy` has verify and dashboard URLs only, plus the stop link. |
-| A recipe starts posting to a URL the owner did not check | External destinations wait for in-app approval. Test send is separate and not stored as a run. |
+| A recipe starts posting to a URL the owner did not check | External destinations stay disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A test POST is refused with `recipe_not_approved` until that approval is done. A test is not stored as a run. |
 | Job stuck in `running` after a crash | Reclaim when `locked_at` is older than 15 minutes. |
 
 ## Legal text

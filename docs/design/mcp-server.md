@@ -9,7 +9,7 @@ An MCP server lets an AI agent or other bot prepare a document, place fields, se
 
 ## Summary
 
-Host a remote MCP endpoint on the existing Nest API (`POST /mcp` on the EC2 host behind Caddy). Authenticate with a per-user API key first, and with OAuth 2.1 in a later phase that reuses the Supabase login the sender already has. Tools call `EnvelopesService`, `ContactsService`, `TemplatesService`, and the Google Drive module. Send, remind, and cancel return `approval_pending` until the owner approves in Seald. A confirmation token only checks that the draft did not change. Signing stays on `POST /sign/submit`.
+Host a remote MCP endpoint on the existing Nest API (`POST /mcp` on the EC2 host behind Caddy). Authenticate with a per-user API key first, and with OAuth 2.1 in a later phase that reuses the Supabase login the sender already has. Tools call `EnvelopesService`, `ContactsService`, `TemplatesService`, and the Google Drive module. Send, remind, and cancel return `approval_pending` until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A confirmation token only checks that the draft did not change. Signing stays on `POST /sign/submit`.
 
 The feature is dark until `mcpServer` is `true` in `packages/shared/src/feature-flags.ts`. While it is false, `/mcp` returns 404, the same way `gdriveIntegration` hides `/integrations/gdrive/*`.
 
@@ -21,7 +21,7 @@ The feature is dark until `mcpServer` is `true` in `packages/shared/src/feature-
 4. Tool names are `noun_verb`. No name contains `sign`. Changes are additive. A breaking argument change is a new tool name. `initialize` pins the protocol revision. JSON we send to a customer’s URL carries a `version` field.
 5. Scopes are least privilege. `envelopes:read` is the only scope pre-checked, and it covers documents only. `envelopes:send` and `automations:write` are off until the owner taps them. An agent cannot change `require_owner_approval`. That column defaults to true, and only a Supabase session on the Developers page can set it.
 6. The web app stays the place a person approves, reviews, and manages keys. Mobile-first, one column, no new `NAV_ITEMS` row.
-7. Every feature pull request follows the same UX rule: minimal copy, one or two taps for the main task, and anything else behind an “Advanced” link. Status words in the product are only Done, Failed, Retrying, Off, and Expired.
+7. Every feature pull request follows the same UX rule: minimal copy, one or two taps for the main task, and anything else behind an “Advanced” link. Status words in the product are only Done, Failed, Retrying, Off, Expired, and Denied.
 
 ## Non-goals
 
@@ -60,16 +60,16 @@ Envelope statuses the tools return: `draft`, `awaiting_others`, `sealing`, `comp
 
 Both this server and [workflow automations](./workflow-automations.md) sit on one in-process domain-event publisher.
 
-`appendEvent` is the normal insert (`envelopes.repository.pg.ts`, its own transaction around line 1349). Account deletion also inserts `retention_deleted` directly and that row is not a trigger. Automation matches are inserted inside the `appendEvent` transaction, with a checkpointed rescan as backup. See the automations doc. An in-process publish after commit is only a fast-path kick. A crash between commit and a later insert must not drop a `sealed` webhook.
+`appendEvent` is the normal insert (`envelopes.repository.pg.ts`, its own transaction around line 1349). Account deletion also inserts `retention_deleted` directly and that row is not a trigger. When the automations tables exist, that same transaction also inserts one `automation_triggers` row (the event id, status `pending`). It does not look up recipes and it does not insert runs or jobs. Matching runs after commit. A matcher error is logged, the trigger stays `pending`, and the signer’s submit and sealing stay committed. Startup rescan of pending triggers is the fallback, so a crash after commit does not drop a `sealed` webhook. See the automations doc.
 
 Listeners:
 
-- Automations subscribe and enqueue `automation_jobs` when `workflowAutomations` is on.
+- After commit, automations match pending triggers into `automation_jobs` when `workflowAutomations` is on.
 - MCP does not need a listener to perform its own tool calls. It calls the existing services, and those services already `appendEvent`.
 
-The durable-match PR is its own pull request and lands before any recipe can fire. MCP does not need it to serve read tools.
+The matcher hook is automations A1. It is not an MCP step. Read tools, and steps 2–6, do not depend on it.
 
-When both flags are on, MCP manages automations through the same `AutomationsService` the settings UI uses. Those tools are their own PRs, after the webhook action exists. Creating or editing a recipe that adds an external destination (webhook URL, email address that is not the owner, Drive folder) requires the same in-app owner approval as a send, plus an email to the owner. That applies to MCP and to the settings form. `automations:write` is never pre-checked.
+When both flags are on, MCP manages automations through the same `AutomationsService` the settings UI uses. Those tools are their own PRs, after the webhook action exists. Creating or editing a recipe that adds an external destination (webhook URL, email address that is not the owner, Drive folder) returns `approval_pending` and stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. That applies to MCP and to the settings form. `automations:write` is never pre-checked. A test webhook is refused until that approval is done.
 
 | Tool | Service | Scope |
 | --- | --- | --- |
@@ -131,12 +131,12 @@ Two mechanisms, same scopes, same owner id. Keys ship in step 2. OAuth ships in 
 | --- | --- |
 | `envelopes:read` | List, search, status, pending signers, get, events, download URL, suggest fields. |
 | `envelopes:write` | Create, patch, delete draft, upload, signers, place fields. |
-| `envelopes:send` | Preview, send, remind, cancel, and the in-app approval queue. Default is human approval in the app. A confirmation token is not enough. |
+| `envelopes:send` | Preview, send, remind, and cancel. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A confirmation token is not enough. |
 | `contacts:read` / `contacts:write` | Contact CRUD. |
 | `templates:read` / `templates:write` | Template CRUD, use, example PDF. |
 | `gdrive:read` | List accounts and files, connect URL. |
-| `gdrive:write` | Disconnect, start conversion, save sealed files to a folder. Disconnect and save both need in-app approval. |
-| `automations:read` / `automations:write` | Later MCP tools. `automations:write` is off until the user checks it. Creating a recipe with an external destination still needs in-app approval. |
+| `gdrive:write` | Disconnect, start conversion, save sealed files to a folder. Disconnect and save both need approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
+| `automations:read` / `automations:write` | Later MCP tools. `automations:write` is off until the user checks it. Creating a recipe with an external destination still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
 
 There is no scope that can sign, and no scope that can create API keys. Key management is the SPA session only (`RequireAuth`, Supabase JWT), so a leaked agent key cannot mint another key.
 
@@ -174,7 +174,7 @@ RLS on, no policies, same posture as `contacts` and `envelopes`. The API role by
 
 Generation:
 
-1. 32 random bytes (256 bits), base64url, plus a short checksum so a truncated paste fails closed. Register the `seald_live_` prefix with GitHub secret scanning in the same PR.
+1. 32 random bytes (256 bits), base64url, plus a short checksum so a truncated paste fails closed. Registering the `seald_live_` prefix with GitHub secret scanning is later, while the name is in quiet use (#366). The keys pull request does not register it.
 2. Display form `seald_live_<secret>`, shown once in the settings UI.
 3. `prefix` is `seald_live_` plus the first 8 characters of the secret. The unique index is on the full `prefix`, not a partial index, so two live keys cannot share one.
 4. `key_hash` is hex SHA-256 of the full secret. SHA-256 is the right function because the secret is 256 bits of randomness, not a password, so a slow hash would only add latency. The secret is not stored, not logged, and not recoverable.
@@ -223,7 +223,7 @@ Conventions for every tool:
 - The slug matches `HttpExceptionFilter`, which returns `{ "error": "<slug>" }`. MCP maps that slug through and adds `message`, `retryable`, and `next_steps`. It does not invent a second slug vocabulary.
 - `approval_pending` is a successful tool result, not an error: `{ "status": "approval_pending", "approval_id", "summary" }`.
 - `owner_id` always comes from the credential, never from the arguments.
-- Every mutating tool requires `idempotency_key` (string, 8–200 chars) and `dry_run` (boolean). `dry_run: true` runs validation and returns `{ "dry_run": true, "would": {…} }` without writing, sending, consuming a confirmation, or opening an approval. It does not store an idempotency row.
+- Every mutating tool requires `idempotency_key` (string, 8–200 chars) and `dry_run` (boolean). Both fields are required. A schema that marks either one optional does not match this rule. `dry_run: true` runs validation and returns `{ "dry_run": true, "would": {…} }` without writing, sending, consuming a confirmation, or opening an approval. It does not store an idempotency row.
 - Every list takes `limit` (default 20, max 50) and `cursor`, and returns `next_cursor`. The cursor is opaque and built from `(updated_at, id)`. This includes contacts, templates, events, approvals, and automation runs. The service method grows the cursor; the controller and the tool both pass it through.
 - Annotations: `readOnlyHint`, `destructiveHint`, `openWorldHint` as marked per tool.
 - Tools not yet shipped are absent from `tools/list`, not stubbed.
@@ -288,6 +288,7 @@ Input:
   "title": "string, optional, substring",
   "signer": "string, optional, substring of signer name or email",
   "status": ["draft|awaiting_others|sealing|completed|declined|expired|canceled"],
+  "tags": "string, optional, same filter as envelopes_list",
   "date_from": "date-time, optional, inclusive",
   "date_to": "date-time, optional, exclusive",
   "template_id": "uuid, optional",
@@ -307,6 +308,7 @@ What the code does today, and what this tool adds:
 | --- | --- | --- |
 | Title | `list` already applies `lower(title) like` and `lower(short_code) like`, after `owner_id =`. | Leftmost column of `envelopes_owner_status_updated_idx` (`0002_envelopes.sql`) bounds the owner. Title stays a residual predicate. No new title index in this PR. |
 | Status | `list` filters `e.status`. | Same index: `(owner_id, status, updated_at desc)`. |
+| Tags | `list` already filters `tags`. | Search uses that same predicate. No new index in this PR. |
 | Date range | `list` uses a half-open window on `updated_at` (`DateWindow`). The tool maps `date_from` / `date_to` onto that window. | Same index, `updated_at` is the third column. |
 | Signer name or email | `list` accepts exact `signerEmails` only (`lower(email) in (...)`), not a name substring. | `envelope_signers` is unique on `(envelope_id, email)` and has `envelope_signers_envelope_signed_idx` on `(envelope_id, signed_at)`. The search method joins signers for the owner’s envelope ids and applies `lower(name) like` or `email like`. Email is `citext`. A new `(email)` index is not required for a substring match. |
 | Template | No `source_template_id` column yet. | This tool’s migration (next free id, not `0020`) adds nullable `envelopes.source_template_id` and index `(owner_id, source_template_id)`. The column stays null until the `templates_use` PR sets it. A filter on a null column returns no rows. |
@@ -383,15 +385,15 @@ Input: `{ "envelope_id": "uuid", "kind"?: "sealed"|"original"|"audit" }`. Output
 
 **`envelopes_create`** → `EnvelopesService.createDraft`.
 
-Input: `{ "title": "string (1–200)", "idempotency_key"?: "string" }`. Output: `Envelope`. Writes event `created` with `actor_kind: sender`.
+Input: `{ "title": "string (1–200)", "idempotency_key": "string", "dry_run": "boolean" }`. Output: `Envelope`. Writes event `created` with `actor_kind: sender`.
 
 **`envelopes_update`** → `EnvelopesService.patchDraft`.
 
-Input: `{ "envelope_id", "title"?, "expires_at"?, "tags"?, "idempotency_key"? }`. Tags follow `PatchEnvelopeDto` (max 10, 32 chars). Drafts only (`envelope_not_draft`).
+Input: `{ "envelope_id", "title"?, "expires_at"?, "tags"?, "idempotency_key": "string", "dry_run": "boolean" }`. Tags follow `PatchEnvelopeDto` (max 10, 32 chars). Drafts only (`envelope_not_draft`).
 
 **`envelopes_delete_draft`** → `EnvelopesService.deleteDraft`. `destructiveHint: true`.
 
-Input: `{ "envelope_id", "idempotency_key"? }`. Output: `{ "deleted": true }`. Sent envelopes use cancel, not delete.
+Input: `{ "envelope_id", "idempotency_key": "string", "dry_run": "boolean" }`. Output: `{ "deleted": true }`. Sent envelopes use cancel, not delete.
 
 **`envelopes_upload_pdf`** → `EnvelopesService.uploadOriginal`.
 
@@ -418,7 +420,7 @@ Flow:
 
 1. Client `POST /mcp/uploads` as `multipart/form-data` field `file`, same MCP credential, multer limit 30 MB, service limit 25 MB (same numbers as `POST /envelopes/:id/upload`).
 2. The handler stores the bytes with `StorageService` at `mcp-uploads/<owner_id>/<id>` and inserts an `mcp_uploads` row with `expires_at` 15 minutes out. Response: `{ "upload_id", "sha256", "byte_length" }`.
-3. Tool input: `{ "envelope_id", "upload_id" }`. The handler loads the row for that owner, rejects it when `consumed_at` is set or `expires_at` has passed, calls `uploadOriginal`, sets `consumed_at`, then deletes the object. A cleanup pass deletes expired unconsumed rows. The cleanup owner is this worker loop, not a new process.
+3. Tool input: `{ "envelope_id", "upload_id", "idempotency_key": "string", "dry_run": "boolean" }`. The handler loads the row for that owner, rejects it when `consumed_at` is set or `expires_at` has passed, calls `uploadOriginal`, sets `consumed_at`, then deletes the object. A cleanup pass deletes expired unconsumed rows. The cleanup owner is this worker loop, not a new process.
 
 Output: `{ "pages": number, "sha256": "string" }`. Event `pdf_uploaded` is the one `uploadOriginal` already appends.
 
@@ -426,11 +428,11 @@ Drive-sourced PDFs skip this route; see `gdrive_import_as_pdf` in M5.
 
 **`envelopes_add_signer`** → `EnvelopesService.addSigner` with `AddSignerDto`.
 
-Input: either `{ "envelope_id", "contact_id" }` or `{ "envelope_id", "email", "name", "color"? }`. Output: `Signer`. Duplicate email on the envelope is `signer_email_taken`.
+Input: either `{ "envelope_id", "contact_id" }` or `{ "envelope_id", "email", "name", "color"? }`. Both shapes require `idempotency_key` and `dry_run`. Output: `Signer`. Duplicate email on the envelope is `signer_email_taken`.
 
 **`envelopes_remove_signer`** → `EnvelopesService.removeSigner`. `destructiveHint: true`.
 
-Input: `{ "envelope_id", "signer_id" }`. Output: `{ "removed": true }`.
+Input: `{ "envelope_id", "signer_id", "idempotency_key": "string", "dry_run": "boolean" }`. Output: `{ "removed": true }`.
 
 ### Fields and send (M3) — scopes `envelopes:write` and `envelopes:send`
 
@@ -451,11 +453,11 @@ Output: `{ "fields": ["Field without id"], "note": "Suggestions only. Call envel
 
 **`envelopes_place_fields`** → `EnvelopesService.replaceFields`. Scope `envelopes:write`.
 
-Input: `{ "envelope_id", "fields": [FieldPlacement] }`. This replaces the whole set, same as `PUT /envelopes/:id/fields` (`ArrayMaxSize(500)`). Draft only. Every `signer_id` must belong to the envelope.
+Input: `{ "envelope_id", "fields": [FieldPlacement], "idempotency_key": "string", "dry_run": "boolean" }`. This replaces the whole set, same as `PUT /envelopes/:id/fields` (`ArrayMaxSize(500)`). Draft only. Every `signer_id` must belong to the envelope.
 
 **`envelopes_preview_send`** → the checks at the start of `EnvelopesService.send`, without `sendDraft`. Scope `envelopes:send`. `readOnlyHint: false`, `destructiveHint: false`. It writes a confirmation row, so it is not read-only.
 
-Checks: file present, at least one signer, at least one field, every signer has a required `signature` or `initials` field. On success the server stores a confirmation row and returns a token, and it opens an in-app approval when the key requires one.
+Checks: file present, at least one signer, at least one field, every signer has a required `signature` or `initials` field. On success the server stores a confirmation row and returns a token. When the key requires approval, `approval` is `email`. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The preview does not send.
 
 Input: `{ "envelope_id" }`.
 
@@ -472,7 +474,7 @@ Output:
     "file_sha256": "string"
   },
   "signer_is_account_owner": false,
-  "approval": "in_app",
+  "approval": "email",
   "approval_id": "uuid|null",
   "confirmation_token": "string",
   "expires_in_seconds": 600
@@ -489,11 +491,11 @@ The token proves that a preview of this exact envelope was generated within the 
 
 **`envelopes_send`** → `EnvelopesService.send`, only after the approval rule below. Scope `envelopes:send`. `openWorldHint: true`.
 
-Input: `{ "envelope_id", "confirmation_token", "idempotency_key"? }`.
+Input: `{ "envelope_id", "confirmation_token", "idempotency_key": "string", "dry_run": "boolean" }`.
 
 Each key and grant has `require_owner_approval`, default true. Only a Supabase session can set it to false. No tool argument can.
 
-- When it is true, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not call `sendDraft`. That result is success, not an error. The server emails the owner and, after the owner posts Approve, the server runs the action. The agent does not send. It polls `approvals_get` until the status is `done`, `denied`, or `expired`.
+- When it is true, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not call `sendDraft`. That result is success, not an error. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. After the owner posts Approve, the server runs the action. The agent does not send. It polls `approvals_get` until the status is `done`, `denied`, or `expired`.
 - Setting the flag to false is the unattended opt-in, behind a warning sheet quoting Terms §4.1. Daily caps still apply.
 - Even then, a signer email that is not already in the owner’s contacts or on an earlier envelope of that owner falls back to approval. The only exception is `allow_new_recipients`, also set only in the SPA.
 - An edit to the draft after the approval request changes `subject_hash` and the request can no longer be approved.
@@ -506,25 +508,29 @@ The tool result after approval is the `Envelope` with status `awaiting_others`. 
 
 **`envelopes_remind`** → `EnvelopesService.remindSigner`. Scope `envelopes:send`. `openWorldHint: true`.
 
-Preview tool `envelopes_preview_remind` with `{ "envelope_id", "signer_id" }` returns the signer name and email plus a confirmation token. Send tool input adds `confirmation_token`. The one-per-hour guard stays (`remind_throttled`, 429). The tool result is `{ "status": "queued" }`, matching the controller’s 202 body. The reminder email is still rendered by `TemplateService` kind `reminder` and drained by `EmailWorkerService`.
+Preview tool `envelopes_preview_remind` with `{ "envelope_id", "signer_id" }` returns the signer name and email plus a confirmation token. Send tool input is `{ "envelope_id", "signer_id", "confirmation_token", "idempotency_key": "string", "dry_run": "boolean" }`. The one-per-hour guard stays (`remind_throttled`, 429).
+
+When approval applies (the default, and any first-time recipient), the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not call `remindSigner`. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. After the owner approves, the result is `{ "status": "queued" }`, matching the controller’s 202 body. The reminder email is still rendered by `TemplateService` kind `reminder` and drained by `EmailWorkerService`. Reminding mints a new signer token, so links already sent stop working. See Insert A.
 
 **`envelopes_cancel`** → `EnvelopesService.cancel`. Scope `envelopes:send`. `destructiveHint: true`, `openWorldHint: true`.
 
-Preview tool names the envelope and says withdrawal emails will go out. Input adds `confirmation_token`. Allowed from `awaiting_others` or `sealing`, same as the service. Output: `{ "status": "canceled" }`.
+Preview tool names the envelope and says withdrawal emails will go out. Input is `{ "envelope_id", "confirmation_token", "idempotency_key": "string", "dry_run": "boolean" }`. Allowed from `awaiting_others` or `sealing`, same as the service.
+
+When approval applies, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not call `cancel`. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. After the owner approves, the output is `{ "status": "canceled" }`.
 
 ### Templates and contacts (M4)
 
 **`contacts_list` / `contacts_get` / `contacts_create` / `contacts_update` / `contacts_delete`** → `ContactsService`. Read vs write scopes as named. Delete is `destructiveHint: true`.
 
-Create input matches `CreateContactDto`: `name` (1–200), `email`, `color` (`#RRGGBB`). Output is the contact row (`id`, `name`, `email`, `color`).
+Create input matches `CreateContactDto`: `name` (1–200), `email`, `color` (`#RRGGBB`), plus required `idempotency_key` and `dry_run`. Update and delete take the same two fields. Output is the contact row (`id`, `name`, `email`, `color`).
 
 **`templates_list` / `templates_get` / `templates_create` / `templates_update` / `templates_delete`** → `TemplatesService`.
 
-Create and update pass the existing DTOs. `field_layout` entries use template types `signature | initial | date | text | checkbox` and `pageRule` `all | allButLast | first | last | <page number>` (`packages/shared/src/templates.ts`). That is a different spelling from envelope field kind `initials`. The use-tool maps `initial` → `initials`.
+Create, update, and delete pass the existing DTOs plus required `idempotency_key` and `dry_run`. `field_layout` entries use template types `signature | initial | date | text | checkbox` and `pageRule` `all | allButLast | first | last | <page number>` (`packages/shared/src/templates.ts`). That is a different spelling from envelope field kind `initials`. The use-tool maps `initial` → `initials`.
 
 **`templates_use`** → `TemplatesService.use`, then `EnvelopesService.replaceFields`. Scope `templates:read` + `envelopes:write`.
 
-Input: `{ "template_id", "envelope_id" }`. The envelope must be a draft with a known `original_pages` and at least one signer. The tool:
+Input: `{ "template_id", "envelope_id", "idempotency_key": "string", "dry_run": "boolean" }`. The envelope must be a draft with a known `original_pages` and at least one signer. The tool:
 
 1. Calls `use`, which bumps `uses_count` and `last_used_at`.
 2. Expands each `field_layout` entry across pages using `pageRule` and `original_pages`. A numeric page past the end of the PDF is skipped.
@@ -545,7 +551,11 @@ If Drive is off, these tools are omitted from `tools/list`. Scope does not bypas
 
 Output: `{ "url": "string", "note": "Open this URL in a browser. The agent cannot approve Google’s consent screen." }`. The human finishes OAuth. The agent then calls `gdrive_list_accounts`.
 
-**`gdrive_disconnect`** → `GDriveService` delete used by `DELETE /integrations/gdrive/accounts/:id`. `gdrive:write`, `destructiveHint: true`. Requires a confirmation token from `gdrive_preview_disconnect`.
+**`gdrive_disconnect`** → `GDriveService` delete used by `DELETE /integrations/gdrive/accounts/:id`. `gdrive:write`, `destructiveHint: true`.
+
+Input: `{ "account_id", "confirmation_token", "idempotency_key": "string", "dry_run": "boolean" }`. The confirmation token comes from `gdrive_preview_disconnect` and only checks that the account did not change. It is not the owner’s approval.
+
+When approval applies, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not delete the account. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. After the owner approves, the account is disconnected.
 
 **`gdrive_list_files`** → the files proxy behind `GET /integrations/gdrive/files`. `gdrive:read`, `readOnlyHint: true`.
 
@@ -555,11 +565,11 @@ This list is only files the `drive.file` scope already allows: files the user pi
 
 **`gdrive_import_as_pdf`** → conversion controller + `uploadOriginal`. `gdrive:read` and `envelopes:write`.
 
-Input: `{ "envelope_id", "file_id" }`. PDF files are fetched and passed to `uploadOriginal`. `doc` / `docx` go through `ConversionService` (Gotenberg, `GDRIVE_GOTENBERG_URL`, size cap `GDRIVE_CONVERSION_MAX_BYTES`). The tool waits up to 25 seconds, inside the 30 second request timeout, and returns `{ "pages", "sha256" }` or `conversion_pending` with a `job_id` the client can poll via `gdrive_conversion_status` → `GET /integrations/gdrive/conversion/:jobId`.
+Input: `{ "envelope_id", "file_id", "idempotency_key": "string", "dry_run": "boolean" }`. PDF files are fetched and passed to `uploadOriginal`. `doc` / `docx` go through `ConversionService` (Gotenberg, `GDRIVE_GOTENBERG_URL`, size cap `GDRIVE_CONVERSION_MAX_BYTES`). The tool waits up to 25 seconds, inside the 30 second request timeout, and returns `{ "pages", "sha256" }` or `conversion_pending` with a `job_id` the client can poll via `gdrive_conversion_status` → `GET /integrations/gdrive/conversion/:jobId`.
 
 **`envelopes_save_to_drive`** → `EnvelopesService.saveToGoogleDrive` → `GdriveExportService.exportEnvelope`. `gdrive:write`. `openWorldHint: true`.
 
-Preview returns folder id, folder name, and file names. Input: `{ "envelope_id", "folder_id", "folder_name"?, "confirmation_token" }`. The folder must already be one the app can write (picker selection or a folder the app created). The service refreshes the Drive token, updates files in place when `gdrive_envelope_exports` already has ids for that folder, and maps errors the way `mapGdriveSaveError` does (`gdrive_not_connected`, `token-expired`, `rate-limited`, `permission-denied`, `drive-upstream-error`). Partial success stays a tool error slug `gdrive_partial` plus the file ids that landed, matching the HTTP 207 behavior.
+Preview returns folder id, folder name, and file names. Input: `{ "envelope_id", "folder_id", "folder_name"?, "confirmation_token", "idempotency_key": "string", "dry_run": "boolean" }`. When approval applies, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not upload. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The folder must already be one the app can write (picker selection or a folder the app created). The service refreshes the Drive token, updates files in place when `gdrive_envelope_exports` already has ids for that folder, and maps errors the way `mapGdriveSaveError` does (`gdrive_not_connected`, `token-expired`, `rate-limited`, `permission-denied`, `drive-upstream-error`). Partial success stays a tool error slug `gdrive_partial` plus the file ids that landed, matching the HTTP 207 behavior.
 
 The default folder is “My Drive / Seald”. If `folder_id` is omitted, the service creates that folder when it does not already exist (the app creates it, so `drive.file` can write it) and saves there. A different folder is an Advanced choice in the SPA. The agent cannot open the Google Picker.
 
@@ -590,23 +600,23 @@ These ship in the later pull requests named in the plan. Until that PR they are 
 
 **`gdrive_search_files`** → `gdrive:read`, `readOnlyHint: true`. Input `{ "q", "limit"?, "cursor"? }`. Same file set as `gdrive_list_files`: files the user picked or this app created. The description says `drive.file` cannot search the rest of the user’s Drive. `q` is a substring of the name. It does not add a Google scope.
 
-**`envelopes_fix_signer`** → correct a name or email and re-invite, only through approval. Scope `envelopes:send`. Refused with `signer_already_signed` when `signed_at` is set. The previous invite stops working because the token hash from the plaintext-token pull request no longer matches.
+**`envelopes_fix_signer`** → correct a name or email and re-invite, only through approval. Scope `envelopes:send`. Refused with `signer_already_signed` when `signed_at` is set. The previous invite stops working because the fix mints a new signer token. The old link no longer matches. A hash of the old token cannot be turned back into that link. Input requires `idempotency_key` and `dry_run`. When approval applies, the result is `approval_pending`. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary.
 
-**`envelopes_change_expiry`** → new `expires_at` on a sent envelope, through approval. Scope `envelopes:send`. Drafts keep using `envelopes_update`.
+**`envelopes_change_expiry`** → new `expires_at` on a sent envelope, through approval. Scope `envelopes:send`. Drafts keep using `envelopes_update`. Input requires `idempotency_key` and `dry_run`. When approval applies, the result is `approval_pending`. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary.
 
 ### Automations (after the webhook action exists)
 
-Same `AutomationsService` as the settings API. `automations:write` is off by default. Creating or enabling a recipe with an external destination returns `approval_pending` and stays disabled until the owner approves.
+Same `AutomationsService` as the settings API. `automations:write` is off by default. Creating or enabling a recipe with an external destination returns `approval_pending` and stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary.
 
 | Tool | Notes |
 | --- | --- |
 | `automations_list` | Cursor. No secrets. |
 | `automations_upsert_recipe` | External URL, extra recipients, or a Drive folder need owner approval. |
 | `automations_set_enabled` | Enabling an external recipe needs the same approval. |
-| `automations_list_runs` | Cursor. Status words are Done, Failed, Retrying, Off, Expired. |
+| `automations_list_runs` | Cursor. Run words are Done, Failed, Retrying, Off, and Expired. Denied is the approval word, not a run status. |
 | `automations_get_run` | One run, including the plain-language failure and whether Retry is allowed. |
 | `automations_retry_run` | Re-enqueues that run id. Refuses a permanent failure with `retry_not_allowed`. |
-| `automations_test_webhook` | Signed sample, same address checks and 10 second timeout. `type` is `automation.test`. Not stored as a run. |
+| `automations_test_webhook` | Signed sample, same address checks and 10 second timeout. `type` is `automation.test`. Not stored as a run. Refused with `recipe_not_approved`, and it does not call the network, while the recipe is still waiting on approval. |
 
 ## Resources and prompts
 
@@ -658,7 +668,9 @@ Default `require_owner_approval` is true. Every request emails the owner. The li
 
 The agent prepares. The signer signs. There is no signing tool.
 
-The signer’s path is unchanged, except the signing token is no longer stored in `outbound_emails.payload`. A prerequisite PR, before any send tool, stores `token_hash` (SHA-256 of the raw token) and drops `?t=` from `payload`. `EmailDispatcherService` rebuilds the link at send time. Account deletion already deletes outbound rows. Until that PR is merged, send tools stay out of `tools/list`.
+The signer’s path is unchanged, except the signing token is no longer stored in `outbound_emails.payload`. A hash cannot be turned back into a link. Insert A, before any send tool, mints a new signer token at invite send and at reminder send, stores only that token’s hash on the signer row, and puts the new link in that one dispatch. After the worker sends, it clears the raw token from the payload. A re-dispatch or a reminder invalidates links already emailed, because the previous token no longer matches.
+
+Migration note. Rows already queued with a plaintext `?t=` are sent by minting a new token for that dispatch, which invalidates any earlier copy of the same link. The down script cannot put those old tokens back. Open PR #367 (`0020_envelope_reminders.sql`, `ReminderWorkerService`) shares this path: each reminder mints a fresh link, or the current link stays valid until that worker is updated. This migration does not rewrite tokens #367 has already emailed. Account deletion already deletes outbound rows. Until Insert A is merged, send tools stay out of `tools/list`.
 
 `POST /sign/start` still exchanges the link token for cookie `seald_sign`. Then `accept-terms`, `esign-disclosure`, `intent-to-sign`, and `submit` or `decline`. That sequence records intent and the ESIGN disclosure (`ESIGN_DISCLOSURE_VERSION` in `packages/shared/src/compliance.ts`, currently `esign_v0.3`). Code review for every MCP PR checks that `src/mcp` does not import `signing.service.ts` or `signer-session.service.ts`.
 
@@ -666,13 +678,13 @@ If the authenticated MCP identity is the same person as a signer on the envelope
 
 `SIGNATURE_LEVEL_NOTE` stays on the Developers page: simple electronic signature, ESIGN and UETA consent, hash-chained audit trail, PAdES seal when a seal is applied. `ESIGN_EXCLUDED_CATEGORIES` stays a sender warning.
 
-Audit certificate, before the first send-capable release: `audit-pdf.tsx` prints one line when `metadata.mcp` is present, “Prepared with {client_name} via Seald MCP”. The line is a fact about the tool, not a claim the agent signed. The PDF test fixture is regenerated in that PR. The chain already covers the metadata through canonical JSON.
+Audit certificate, before the first send-capable release: `audit-pdf.tsx` prints one line when `metadata.mcp` is present. The line uses the owner’s key name, for example “Sent via Key 2”. If the key has no name, the line is “Sent via API key”. It does not print `client_name` or any other string the agent reported. The line is a fact about the tool, not a claim the agent signed. The PDF test fixture is regenerated in that PR. The chain already covers the metadata through canonical JSON.
 
 Attribution on MCP-originated events:
 
 - `actor_kind` stays `sender` or `system`. No new enum value.
-- `metadata.mcp` = `{ "key_id": "uuid|null", "key_name": "string|null", "key_prefix": "string|null", "client_name": "string", "client_name_source": "key_name|oauth_client|header|unknown", "tool": "string" }`. Names are copied onto the row at write time. Later renames do not rewrite the chain.
-- `user_agent` is `SealdMCP/1 <client_name>`, truncated. `ip` is `extractClientIp` of the MCP request.
+- `metadata.mcp` = `{ "key_id": "uuid|null", "key_name": "string|null", "key_prefix": "string|null", "tool": "string" }`. The key name is copied onto the row at write time. Later renames do not rewrite the chain. The object does not include `client_name`, a header-supplied name, or `client_name_source`.
+- `user_agent` is `SealdMCP/1`, with no client name. `ip` is `extractClientIp` of the MCP request.
 
 `createDraft`, `send`, `cancel`, and `remindSigner` take an optional metadata bag. SPA controllers pass nothing, so those events stay `metadata: {}`.
 
@@ -748,7 +760,7 @@ Legal text for the terms, privacy notice, DPA, and acceptable-use policy is in [
 
 Concept A, with the v2 rule: minimal copy, one or two taps for the main task, and extra fields behind “Advanced”. One column, 720px cap, the same component tree at desktop and phone. No new `NAV_ITEMS` row. The words to use are “settings index row” and “user-menu row”.
 
-Status words everywhere in this UI are Done, Failed, Retrying, Off, and Expired. Do not show Queued or Sent.
+Status words everywhere in this UI are Done, Failed, Retrying, Off, Expired, and Denied. Do not show Queued or Sent. Denied is the approval word.
 
 | Route | Who | What |
 | --- | --- | --- |
@@ -786,17 +798,17 @@ These routes 404 when the flag is off or `MCP_DISABLED` is set. An API key canno
 
 Email is the primary channel. The in-app queue is secondary. The word on every approval surface is Deny, not Decline. Decline stays the signer’s word on `/sign`.
 
-The approval row stores `link_token_hash` (SHA-256 of the raw token), `owner_id`, `action` (one of send, remind, cancel, save-to-drive, or the recipe change), `subject_hash`, `expires_at`, `approved_at`, and `denied_at`. The raw token is 32 random bytes, base64url, and it is never stored. It is single-use. It is bound to that one action and that owner. An edit to the envelope changes `subject_hash` and the token no longer matches, so the page shows expired. `expires_at` is 24 hours after create. `approved_at` or `denied_at` stamps the decision. A second POST finds one of those columns set.
+The approval row stores `link_token_hash` (SHA-256 of the raw token), `owner_id`, `action` (one of send, remind, cancel, save-to-drive, disconnect, or the recipe change), `subject_hash`, `expires_at`, `approved_at`, and `denied_at`. The raw token is 32 random bytes, base64url. The approval row stores only the hash. It is single-use. It is bound to that one action and that owner. An edit to the envelope changes `subject_hash` and the token no longer matches, so the page shows expired. `expires_at` is 24 hours after create. `approved_at` or `denied_at` stamps the decision. A second POST finds one of those columns set.
 
-Creating the row inserts one `outbound_emails` row, kind `approval_request`, to the account mailbox. `dedupe_key` is `approval_request:<approval_id>`, so a retry does not send a second mail. The template is `apps/api/src/email/templates/approval_request/` (`subject.txt`, `body.html`, `body.txt`), registered in `TemplateService` and in `TEMPLATE_KINDS` in `email-dispatcher.service.ts`. It uses the existing shell: the 560px card in `templates/_email.css`, the same masthead and legal footer as `invite` and `reminder`. The body is the document title, up to three recipient names and then “+N”, and the agent or key name. A large Approve button and a small Deny link both open the page. The line “Expires in 24h” sits under them. No document bytes, no recipient emails, no signing token, and no API key.
+Creating the row inserts one `outbound_emails` row, kind `approval_request`, to the account mailbox. `dedupe_key` is `approval_request:<approval_id>`, so a retry does not send a second mail. The template is `apps/api/src/email/templates/approval_request/` (`subject.txt`, `body.html`, `body.txt`), registered in `TemplateService` and in `TEMPLATE_KINDS` in `email-dispatcher.service.ts`. It uses the existing shell: the 560px card in `templates/_email.css`, the same masthead and legal footer as `invite` and `reminder`. The body is the document title, up to three recipient names and then “+N”, and the owner’s key name (for example “Key 2”), or “Sent via API key” when the key has no name. It does not include an agent-reported client name. A large Approve button and a small Deny link both open the page. The line “Expires in 24h” sits under them. No document bytes, no recipient emails, no signing token, and no API key.
 
-The link is `https://seald.nromomentum.com/approve/<token>`. `EmailDispatcherService` rebuilds it at send time. The outbox payload stores `link_token_hash`, not the raw token.
+The link is `https://seald.nromomentum.com/approve/<token>`. The hash cannot be turned back into that link. The request that creates the approval row mints the token once, stores `link_token_hash`, and places the raw token in that `approval_request` payload so the dispatcher can build the link. After a successful send the worker clears the raw token from the payload. A retry of the same row reuses the token still on the row and does not mint another one. There is no login on the page. The emailed token is the second factor.
 
-The page is the public route `/approve/:token`, outside `AppShell` and outside `RequireAuth`, the same idea as `/oauth/`. Add `/approve/` to `SPA_PREFIXES` in `apps/landing/_worker.js` and to the worker contract test. It does not redirect to `/m/send`. There is no login. The page is a logo and one card. The card’s one line is the document title, up to three recipient names then “+N”, and the agent and key name. It does not show document contents or recipient email addresses. While the row is open the card has Approve and Deny.
+The page is the public route `/approve/:token`, outside `AppShell` and outside `RequireAuth`, the same idea as `/oauth/`. Add `/approve/` to `SPA_PREFIXES` in `apps/landing/_worker.js` and to the worker contract test. It does not redirect to `/m/send`. There is no login. The page is a logo and one card. The card’s one line is the document title, up to three recipient names then “+N”, and the owner’s key name (for example “Key 2”), or “Sent via API key” when the key has no name. It does not include an agent-reported client name. It does not show document contents or recipient email addresses. While the row is open the card has Approve and Deny.
 
 GET never acts. Mail prefetch must not approve. `GET /approvals/from-email/:token` returns the one-line summary and sets a `SameSite=Strict` CSRF cookie. It does not write `approved_at` or `denied_at`.
 
-Approve and Deny are separate POSTs, `POST /approvals/from-email`, with the token, the decision, and the CSRF value in a hidden field. A POST missing the cookie or the field is `csrf_invalid` and does not decide. There is no session on this route. The emailed token is the second factor. On Approve the server sets `approved_at` and runs the action in that request (send, remind, cancel, or the recipe enable). The agent is not called back to finish it. On Deny the server sets `denied_at` and does not run the action.
+Approve and Deny are separate POSTs, `POST /approvals/from-email`, with the token, the decision, and the CSRF value in a hidden field. A POST missing the cookie or the field is `csrf_invalid` and does not decide. There is no session on this route. The emailed token is the second factor. On Approve the server sets `approved_at` and runs the action in that request (send, remind, cancel, disconnect, save-to-drive, or the recipe enable). The agent is not called back to finish it. On Deny the server sets `denied_at` and does not run the action.
 
 Responses for the page and both API routes send `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and `Content-Security-Policy: frame-ancestors 'none'`. The HTML is `noindex`. GET and POST are rate limited per IP and per token (10 per minute).
 
@@ -827,7 +839,7 @@ The in-app queue stays at `/settings/approvals` and `/m/settings/approvals` for 
 
 #### Security trade-offs
 
-The owner’s mailbox is the approval factor. Anyone who can read that mailbox can approve until the token expires. The mitigations in this design are the 24 hour expiry, the single-use binding to one action and one owner, the daily caps (20 sends, 25 new recipients, 50 email copies), the first-document-per-recipient rule (a new address falls back to approval even when the key is unattended), and the audit trail. Optional hardening is a later phase: require a signed-in session before an external-destination recipe or another high-risk approval can complete. That phase is not in step 7.
+The owner’s mailbox is the approval factor. Anyone who can read that mailbox can approve until the token expires. The mitigations in this design are the 24 hour expiry, the single-use binding to one action and one owner, the daily caps (20 sends, 25 new recipients, 50 email copies), the first-document-per-recipient rule (a new address falls back to approval even when the key is unattended), and the audit trail. Optional hardening is a later phase: require a signed-in session before an external-destination recipe or another high-risk approval can complete. That phase is not in steps 7a, 7b, or 7c. The no-login page stays as specified above.
 
 ## Test plan
 
@@ -842,12 +854,12 @@ Contract tests, Jest, `apps/api/src/mcp/__tests__/tool-catalog.contract.spec.ts`
 
 Service tests:
 
-- Preview then in-app send does not call `send` until the owner approves.
+- Preview then email-first approval does not call `send` until the owner approves. Remind, cancel, and `gdrive_disconnect` return `approval_pending` the same way.
 - `unattended` with a first-time recipient does not call `send`.
 - Send without a token does not call `send`.
 - A second use of the token fails, including two concurrent callers.
 - Patching the draft after preview changes `subject_hash` and the token fails.
-- `metadata.mcp` on `created` includes `key_name` and `key_prefix`, and `verifyEventChain` still passes.
+- `metadata.mcp` on `created` includes `key_name` and `key_prefix`, does not include `client_name`, and `verifyEventChain` still passes. The certificate line is “Sent via Key 2” or “Sent via API key”.
 - Idempotent replay returns the stored body. A second credential with the same client key does not replay the first credential’s row.
 - Two concurrent sends at the daily cap produce one success and one `send_daily_cap`.
 - Revoked key is 401.
@@ -879,33 +891,37 @@ Web, Vitest, `renderWithProviders`, queries by role:
 
 One feature per pull request. The product review’s 14 steps are the base. Rows marked **Insert** are required by the other reviews and are their own pull requests. Every feature PR uses minimal copy, one or two taps, and an “Advanced” link for the rest. The flag stays off until a later change turns it on. Each tool PR updates the parity test.
 
+The matcher hook is automations A1 in the companion doc. It is not a step in this table. Steps 2–6 do not depend on it. Read tools do not wait for it.
+
 | Step | Feature |
 | --- | --- |
 | Before 3 | Shared UI: `SecretOnceSheet`, `RunList`, `Checkbox`, and promoting `MWBottomSheet` and `ReminderToggle` into `components/`. |
-| 1 | Durable match inside `appendEvent`’s transaction. This is not a post-commit hook. The hash chain is unchanged. The function only inserts rows, so it does not call the network. If the automations tables are not in this PR, the call site no-ops until the automations migration registers the matcher. A handler that ran after commit and only logged errors would drop a `sealed` job on a crash, so that shape is out. |
-| 2 | API keys: migration (next free id, not `0020`), hashed secret, cap of 10, revoked key is 401, session auth only. `require_owner_approval` defaults to true. `POST {}` names the key `Key N` and sets a 90-day expiry. Null expiry and anything past 365 days are rejected. |
+| 2 | API keys: migration (next free id, not `0020`), hashed secret, cap of 10, revoked key is 401, session auth only. `require_owner_approval` defaults to true. `POST {}` names the key `Key N` and sets a 90-day expiry. Null expiry and anything past 365 days are rejected. GitHub secret scanning for `seald_live_` is later. |
 | 3 | Developers page on `/settings/developers` and `/m/settings/developers`, the `/settings` and `/m/settings` index, and one mobile drawer Settings row. One-tap create. Show-once sheet is Copy only. “Connect a client” snippets with placeholders. ChatGPT and Claude tiles say “Later”. Only `envelopes:read` is pre-checked. Hidden when the flag is off. No new `NAV_ITEMS`. |
 | 4 | Transport plus `me_get`. `initialize` and `tools/list`. 404 when the flag is off, 401 for a bad key. Structured error envelope. `seald://guide`. Credential boundary. `MCP_DISABLED`. Parity test for the routes that exist. |
-| 5 | `envelopes_search` and `envelopes_get`. Title, short code, signer name or email, status, dates. Cursor. No tokens in the output. |
+| 5 | `envelopes_search` and `envelopes_get`. Title, short code, signer name or email, status, tags, dates. Cursor. No tokens in the output. |
 | 6 | `envelopes_status`, `envelopes_download_url`, and `envelopes_list_pending`. Per-signer state, `next_action`, `can_remind_at`. Short-lived download URLs. |
-| 7 | Owner approvals. `approval_request` email in the 560px shell (large Approve, small Deny, “Expires in 24h”), deduped. Public `/approve/:token` outside `AppShell`: logo, one card, no login, no document contents, no recipient emails. States pending, done, denied, expired. `link_token_hash`, `approved_at`, `denied_at`. GET never acts. Approve and Deny are CSRF POSTs. `no-store`, `no-referrer`, `noindex`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, rate limit. The server runs the action. The tool returns `approval_pending` (“pending owner approval”) and the agent polls. Deny emails a signed-in Revoke. In-app queue stays secondary. |
-| 8 | Draft, upload, and signers. `idempotency_key` and `dry_run`. Staging upload up to 25 MB. `signer_email_taken` on a duplicate. |
+| 7a | Approval email and the public `/approve` page. `approval_request` in the 560px shell (large Approve, small Deny, “Expires in 24h”), deduped. Public `/approve/:token` outside `AppShell`: logo, one card, no login, no document contents, no recipient emails. States pending, done, denied, expired. `link_token_hash`, `approved_at`, `denied_at`. The raw token is minted once and cleared from the payload after send. GET never acts. Approve and Deny are CSRF POSTs. `no-store`, `no-referrer`, `noindex`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, rate limit. The server runs the action. Deny emails a signed-in Revoke. |
+| 7b | In-app queue and bell at `/settings/approvals` and `/m/settings/approvals`. Toast. Session Approve and Deny. Secondary to the email. |
+| 7c | Approval-aware tools. `approvals_get`, `approvals_list`, and `seald://approvals/pending`. Mutating tools that need approval return `approval_pending` (“pending owner approval”) and the agent polls. Send, remind, cancel, disconnect, and recipe changes use this from their own steps. |
+| 8 | Draft, upload, and signers. `idempotency_key` and `dry_run` are required. Staging upload up to 25 MB. `signer_email_taken` on a duplicate. |
 | 9 | Suggest and place fields. Suggestions never write. Placing fields checks that the signers belong to the draft. Drafts only. |
-| Insert A | Remove the plaintext `?t=` token from `outbound_emails.payload`. Store `token_hash`. Rebuild the link at dispatch. This merges before step 10. |
-| Insert B | Audit-certificate attribution line when `metadata.mcp` is present (“Prepared with {client_name} via Seald MCP”). This merges before step 10. |
-| 10 | Send via approval. Returns `approval_pending`. Sends only after the owner approves. An edit after the request invalidates it. First-time recipients still require approval. Caps are 20 sends and 25 new recipients. Prompt `first-send`. Depends on Insert A, Insert B, and step 7. |
-| 11 | Remind and cancel via approval. The hourly throttle stays. Withdrawal mail goes out. Prompt `chase-overdue`. |
+| Insert A | Remove the plaintext `?t=` token from `outbound_emails.payload`. Mint a new signer token at invite send and at reminder send. Store only the hash. A re-dispatch or a reminder invalidates links already sent. #367 either mints a fresh link on each reminder, or the current link stays valid until that worker is updated. This merges before step 10. |
+| Insert B | Audit-certificate line when `metadata.mcp` is present: the owner’s key name (“Sent via Key 2”) or “Sent via API key”. No agent-reported client name on the certificate or in the audit trail. This merges before step 10. |
+| 10 | Send via approval. Returns `approval_pending`. Sends only after the owner approves. An edit after the request invalidates it. First-time recipients still require approval. Caps are 20 sends and 25 new recipients. Prompt `first-send`. Depends on Insert A, Insert B, and steps 7a and 7c. |
+| 11 | Remind and cancel via approval. Both return `approval_pending` until the owner approves. The hourly throttle stays. Withdrawal mail goes out. A reminder mints a new signer token. Prompt `chase-overdue`. Depends on steps 7a and 7c. |
 | 12 | Contacts, `contacts_import`, and `contacts_search`. Upsert by email. Per-row errors. Cap of 100 rows per call. Cursor. |
 | 13 | `envelopes_create_from_template` and `templates_get_schema`. `initial` maps to `initials`. A use counts only on success. Prefill values are validated. |
-| 14 | Drive import and `gdrive_search_files`. `drive.file` only. Conversion can be polled. |
+| 14 | Drive import, `gdrive_search_files`, and `gdrive_disconnect`. `drive.file` only. Conversion can be polled. Disconnect returns `approval_pending` until the owner approves (steps 7a and 7c). |
 
 Later, one feature each:
 
 - `envelopes_fix_signer` and `envelopes_change_expiry`, both through approval.
 - `envelopes_bulk_send_from_template` and `batches_get`. One approval for the batch. Rows count against the 20 and 25 caps. Prompt `bulk-send`.
-- Automations tables, with the matcher from step 1 registered and the worker off.
-- Webhook action. Secrets use app-level encryption with a key in the environment, not a billed key service. The screen says “secret set”.
-- Automation tools behind the same owner approval, including `automations_test_webhook`, `automations_get_run`, and `automations_retry_run`.
+- Automations tables and the matcher (automations A1), worker off. Read tools do not depend on it.
+- Webhook action. Secrets use app-level encryption with a key in the environment, not a billed key service. The screen says “secret set”. The test webhook ships in the following pull request and is refused until the recipe is approved.
+- Automation tools behind the same owner approval, including `automations_get_run` and `automations_retry_run`. `automations_test_webhook` ships with the test endpoint, after approval exists, and refuses an unapproved recipe.
+- Registering the `seald_live_` prefix with GitHub secret scanning. Later, while the name is in quiet use (#366).
 - Drive-save recipe. The default folder is “My Drive / Seald”.
 - OAuth 2.1 with ChatGPT and Claude pre-registered, or client metadata documents. No open registration and no paste-a-redirect step. Connected apps appear on the Developers page only after this.
 - Agent activity list from `envelope_events.metadata.mcp` (writes only), using `RunList`.
@@ -924,15 +940,15 @@ Turning `mcpServer` on is its own change after step 6 has been used with a real 
 
 | Risk | What we do |
 | --- | --- |
-| Agent sends mail the owner did not want | In-app approval by default. First-time recipient falls back to approval. Daily caps. Token bound to subject hash and consumed under row lock. |
-| Signing token in the mail outbox | Insert A removes `?t=` from `payload` before send tools exist. |
+| Agent sends mail the owner did not want | Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. First-time recipient falls back to approval. Daily caps. Token bound to subject hash and consumed under row lock. |
+| Signing token in the mail outbox | Insert A mints a new signer token at send and at reminder time and does not leave `?t=` in `payload`. A hash is not reversible. |
 | Agent signs for a person | No signing tool. `agent_is_signer` when the key’s owner is a signer on that envelope. |
 | Document text steers the model | Untrusted-data wrapping. No tool can skip the approval queue. |
 | Key leaked | Hashed secret, show-once sheet, 90-day default, revoke, 10-key cap, credential boundary. |
 | OAuth client impersonation | Pre-registered hosts or CIMD. No open registrar. |
 | Metadata shape drift | Only `metadata.mcp` with the fields listed above. Existing `verifyEventChain` tests. |
 | Free-tier database | New indexes are the ones in the search section, partial, and sized for the current list query. |
-| Two product tracks editing `appendEvent` | Durable automation matches are specified in the automations doc and land in that track’s PR, not inside an MCP tool PR. |
+| Two product tracks editing `appendEvent` | The event transaction writes one pending trigger row. Matching after commit is specified in the automations doc and lands in A1, not inside an MCP tool PR. |
 
 ## Legal text
 
