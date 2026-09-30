@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'privacy_v0.1';
+const VERSION = 'privacy_v0.2';
 ---
 <BaseLayout
   title="Privacy Policy — Seald"
@@ -10,20 +10,19 @@ const VERSION = 'privacy_v0.1';
     <article>
       <header>
         <section class="legal-banner">
-          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:legal@seald.nromomentum.com">legal@seald.nromomentum.com</a> for the countersigned production version.</p>
-          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+          <p><strong>Draft — not legal advice.</strong> This document is published in good faith as Seald's working draft. It has not yet been reviewed by counsel and may change before becoming binding. If you are reviewing this on behalf of a customer, please contact <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> for the countersigned production version.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-30</code></p>
         </section>
         <h1>Privacy Policy</h1>
-        <p>This Privacy Policy explains how Seald, Inc. ("<strong>Seald</strong>", "we", "us") collects, uses, discloses, and protects personal information when you visit <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> or use the Seald e-signature service (the "<strong>Service</strong>"). It covers visitors and users in the United States, the European Economic Area ("<strong>EEA</strong>"), and the United Kingdom ("<strong>UK</strong>").</p>
+        <p>This Privacy Policy explains how Eliran Azulay, an individual resident in Israel who operates the Seald service under the name "Seald" ("<strong>Seald</strong>", "we", "us"), collects, uses, discloses, and protects personal information when you visit <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> or use the Seald e-signature service (the "<strong>Service</strong>"). It covers visitors and users in the United States, the European Economic Area ("<strong>EEA</strong>"), and the United Kingdom ("<strong>UK</strong>").</p>
       </header>
 
       <section id="controller">
         <h2>1. Who we are</h2>
-        <p>Seald is the controller of personal information collected through the Site and the Service, except where Seald processes personal information on behalf of a customer organization, in which case Seald is a processor and the customer is the controller. The terms of that processor relationship are set out in our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
+        <p>Seald is operated by Eliran Azulay, an individual resident in Israel, who is the controller (under Israel's Protection of Privacy Law, 5741-1981, the database controller) of personal information collected through the Site and the Service, except where Seald processes personal information on behalf of a customer organization, in which case Seald is a processor and the customer is the controller. The terms of that processor relationship are set out in our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
         <dl>
           <dt>Privacy contact</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
-          <dt>EU representative (Art. 27 GDPR)</dt><dd>{`{{TODO: appoint before publication — {EU_REP_NAME} — appointment pending publication}}`}</dd>
-          <dt>UK representative (Art. 27 UK GDPR)</dt><dd>{`{{TODO: appoint before publication — {UK_REP_NAME} — appointment pending publication}}`}</dd>
+          <dt>Postal address</dt><dd>Seald (Eliran Azulay), Chlenov 24, Tel Aviv-Yafo 6604806, Israel</dd>
           <dt>Data Protection Officer</dt><dd>Seald has not appointed a DPO. Our processing does not meet the GDPR Article 37(1) thresholds (no large-scale processing of special categories, no large-scale systematic monitoring of public areas). All privacy enquiries are handled by the address above.</dd>
         </dl>
       </section>
@@ -121,6 +120,7 @@ const VERSION = 'privacy_v0.1';
       <section id="rights-us">
         <h2>8. Your rights — California, Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Delaware, New Hampshire, New Jersey</h2>
         <p>Depending on your state of residence, you may have rights under the California Consumer Privacy Act as amended by the California Privacy Rights Act ("<strong>CCPA/CPRA</strong>"), the Colorado Privacy Act, the Connecticut Data Privacy Act, the Virginia Consumer Data Protection Act, the Utah Consumer Privacy Act, the Texas Data Privacy and Security Act, the Oregon Consumer Privacy Act, the Montana Consumer Data Privacy Act, the Iowa Consumer Data Protection Act, the Delaware Personal Data Privacy Act, New Hampshire SB 255, and the New Jersey Data Privacy Act.</p>
+        <p>Seald does not currently meet the thresholds that make these laws apply to it; we nonetheless honour the requests below voluntarily.</p>
         <ul>
           <li><strong>Right to know</strong> what categories and specific pieces of personal information we have collected, the sources, the purposes, and the recipients (CCPA § 1798.110, § 1798.115).</li>
           <li><strong>Right to delete</strong> personal information we collected from you (CCPA § 1798.105).</li>
@@ -142,7 +142,7 @@ const VERSION = 'privacy_v0.1';
       <section id="security">
         <h2>9. Security</h2>
         <p>We protect personal information with technical and organizational measures appropriate to the risk. Data is encrypted with TLS in transit between your device and our services, and between our servers and our database, file-storage and email providers. Documents, signatures and audit records are stored with our database and file-storage provider, which encrypts them at rest. Completed files include a PAdES seal when applied and an RFC 3161 timestamp when available. Audit events are chained with SHA-256 to make tampering detectable. No method of transmission or storage is perfectly secure.</p>
-        <p>Suspected security issues should be reported to <a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a>.</p>
+        <p>Suspected security issues should be reported to <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
       </section>
 
       <section id="children">
@@ -164,8 +164,8 @@ const VERSION = 'privacy_v0.1';
         <h2>13. Contact</h2>
         <dl>
           <dt>Privacy questions and rights requests</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
-          <dt>Sub-processor change subscription</dt><dd><a href="mailto:subscribe-subprocessors@seald.nromomentum.com?subject=Subscribe%20%E2%80%94%20sub-processor%20changes">subscribe-subprocessors@seald.nromomentum.com</a></dd>
-          <dt>Security</dt><dd><a href="mailto:security@seald.nromomentum.com">security@seald.nromomentum.com</a></dd>
+          <dt>Sub-processor change subscription</dt><dd><a href="mailto:privacy@seald.nromomentum.com?subject=Subscribe%20%E2%80%94%20sub-processor%20changes">privacy@seald.nromomentum.com</a></dd>
+          <dt>Security</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
         </dl>
       </section>
     </article>

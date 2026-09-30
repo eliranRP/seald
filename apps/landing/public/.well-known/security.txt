@@ -1,4 +1,4 @@
-# Seald, Inc. — Vulnerability Disclosure Policy
+# Seald — Vulnerability Disclosure Policy
 # https://datatracker.ietf.org/doc/html/rfc9116
 #
 # If you believe you've found a security issue affecting the Seald
@@ -9,7 +9,7 @@
 # DO NOT include sensitive personal data (your own or anyone else's) in
 # your report. Include only the minimum reproduction information needed.
 
-Contact: mailto:security@seald.nromomentum.com
+Contact: mailto:privacy@seald.nromomentum.com
 Contact: https://seald.nromomentum.com/legal/responsible-disclosure
 Expires: 2027-04-30T00:00:00.000Z
 Preferred-Languages: en

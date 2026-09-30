@@ -27,7 +27,7 @@ describe('TemplateService — HTML escaping (F-001)', () => {
     verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
     short_code: 'abcde12345xyz',
     public_url: 'https://seald.nromomentum.com',
-    legal_entity: 'Seald, Inc.',
+    legal_entity: 'Seald',
     legal_postal: 'Postal address available on request — write to legal@seald.test.',
     privacy_url: 'https://seald.nromomentum.com/legal/privacy',
     preferences_url: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',

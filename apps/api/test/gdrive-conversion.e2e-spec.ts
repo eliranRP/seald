@@ -55,7 +55,7 @@ const TEST_ENV: AppEnv = {
   EMAIL_PROVIDER: 'logging',
   EMAIL_FROM_ADDRESS: 'onboarding@resend.dev',
   EMAIL_FROM_NAME: 'Seald',
-  EMAIL_LEGAL_ENTITY: 'Seald, Inc.',
+  EMAIL_LEGAL_ENTITY: 'Seald',
   EMAIL_LEGAL_POSTAL: 'addr',
   EMAIL_PRIVACY_URL: 'https://seald.nromomentum.com/legal/privacy',
   EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.nromomentum.com',
