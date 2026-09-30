@@ -95,6 +95,9 @@ importers:
       '@signpdf/utils':
         specifier: ^3
         version: 3.3.0
+      canvas:
+        specifier: ^3.2.3
+        version: 3.2.3
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -125,6 +128,9 @@ importers:
       pdf-lib:
         specifier: ^1.17
         version: 1.17.1
+      pdfjs-dist:
+        specifier: 6.3.289
+        version: 6.3.289
       pg:
         specifier: ^8.20.0
         version: 8.20.0
@@ -204,9 +210,6 @@ importers:
       '@typescript-eslint/parser':
         specifier: 8.59.3
         version: 8.59.3(eslint@8.57.1)(typescript@5.6.3)
-      canvas:
-        specifier: ^3.2.3
-        version: 3.2.3
       eslint:
         specifier: 8.57.1
         version: 8.57.1
@@ -216,9 +219,6 @@ importers:
       jest:
         specifier: ^30.4.2
         version: 30.4.2(@types/node@20.16.10)(ts-node@10.9.2(@swc/core@1.15.30(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3))
-      pdfjs-dist:
-        specifier: 6.3.289
-        version: 6.3.289
       pg-mem:
         specifier: ^3.0.14
         version: 3.0.14(kysely@0.29.0)

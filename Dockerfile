@@ -46,6 +46,10 @@ RUN pnpm --filter shared build && pnpm --filter api build
 FROM deps AS prune
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts --prod --filter api... --filter shared
+# node-canvas (MIT) is a production dependency of the field-placement
+# preview. `--ignore-scripts` skips its prebuild download; rebuild pulls
+# the published N-API binary (Cairo bundled via rpath, no system libs).
+RUN pnpm rebuild canvas
 
 # -------- 5. runtime --------
 FROM node:22-bookworm-slim AS runtime
