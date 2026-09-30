@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The save action on the signing-done card must stay inside the card on a
@@ -41,6 +41,19 @@ const VERIFY = {
   audit_url: 'https://signed.example/audit.pdf?sig=layout',
 };
 
+/**
+ * The page loads Inter with font-display: swap. Measuring before the
+ * face arrives can wrap the save button under the email.
+ */
+async function waitForFonts(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 /** Large button horizontal padding is theme.space[5]. */
 async function expectSharedLgPadding(button: Locator) {
   const padding = await button.evaluate((el) => {
@@ -73,6 +86,7 @@ test.describe('signing-done save button layout', () => {
     test(`save button stays inside the card at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await page.goto(`/sign/${ENVELOPE_ID}/done`);
+      await waitForFonts(page);
 
       const button = page.getByRole('button', { name: /save to my seald account/i });
       const card = page.getByRole('region', { name: /create your free seald account/i });

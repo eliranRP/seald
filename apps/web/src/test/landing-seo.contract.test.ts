@@ -97,6 +97,11 @@ describe('landing SEO contract (S1a)', () => {
     expect(frontmatter).toContain("name: 'Seald'");
     expect(frontmatter).not.toContain('legalName');
     expect(frontmatter).not.toContain('NRO Momentum');
+    for (const pathname of MARKETING_PATHS) {
+      const source = read(pageFile(pathname));
+      const body = source.split('---').slice(2).join('---');
+      expect(body, pathname).not.toContain('NRO Momentum');
+    }
     expect(frontmatter).not.toContain('PostalAddress');
     expect(frontmatter).toContain("operatingSystem: 'Web'");
     expect(frontmatter).toContain("applicationCategory: 'BusinessApplication'");
