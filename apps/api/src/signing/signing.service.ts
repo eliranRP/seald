@@ -443,12 +443,13 @@ export class SigningService {
       metadata: {},
     });
 
-    // The sender hears about every other party's signature. When the
-    // sender is also a signer, skip this notice — they get the completion
-    // mail only. The row sits in the outbox until EmailWorkerService
+    // Progress mail is only for a signature that leaves someone still
+    // waiting. The completion mail covers the last signature, and a
+    // sender who is also this signer does not get a mail about their
+    // own signature. The row sits in the outbox until EmailWorkerService
     // drains it (WORKER_ENABLED), same as invites.
     const senderEmail = envelope.sender_email;
-    if (senderEmail && !sameMailbox(senderEmail, signer.email)) {
+    if (senderEmail && !submitted.all_signed && !sameMailbox(senderEmail, signer.email)) {
       const fresh = await this.repo.findByIdWithAll(envelope.id);
       const roster = fresh?.signers ?? envelope.signers;
       const progress = countSigned(roster, signer.id, submitted.signer.signed_at);

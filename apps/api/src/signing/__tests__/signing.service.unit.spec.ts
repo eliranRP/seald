@@ -709,6 +709,35 @@ describe('SigningService.submit', () => {
     expect(JSON.stringify(notice?.payload)).not.toContain('access_token');
   });
 
+  it('does not queue signed_to_sender when this signature completes the envelope', async () => {
+    const env = envelopeAwaitingOthers({
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+      signers: [freshSigner({ email: 'ada@example.com' })],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({
+            email: 'ada@example.com',
+            signed_at: '2026-04-26T10:00:00.000Z',
+          }),
+          all_signed: true,
+          envelope_status: 'sealing',
+        };
+      },
+    });
+    await svc.submit(
+      env,
+      freshSigner({ email: 'ada@example.com', tc_accepted_at: '2026-04-25T10:00:00.000Z' }),
+      null,
+      null,
+    );
+    expect(spy.outboundInserts.find((row) => row.kind === 'signed_to_sender')).toBeUndefined();
+    expect(spy.events.map((event) => event.event_type)).toEqual(['signed', 'all_signed']);
+    expect(spy.jobs).toEqual([{ envelope_id: ENV_ID, kind: 'seal' }]);
+  });
+
   it('does not email the sender about their own signature', async () => {
     const env = envelopeAwaitingOthers({
       sender_email: 'Sender@Example.com',

@@ -178,7 +178,7 @@ export class SealingService {
     }
     timelineEvents.push({
       label: 'Envelope sealed and audit trail locked',
-      at: formatIsoForTimeline(new Date().toISOString()),
+      at: formatIsoForTimeline(sealedEvent.created_at),
     });
     const timelineHtml = buildTimelineHtml(timelineEvents);
     const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;

@@ -1,1 +1,1 @@
-{{signer_name}} signed {{envelope_title}}
+{{signer_name}} signed "{{envelope_title}}"

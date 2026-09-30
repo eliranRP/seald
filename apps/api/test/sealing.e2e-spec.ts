@@ -241,19 +241,12 @@ describe('Sealing pipeline (e2e)', () => {
     expect(sealedEvents[0]!.actor_kind).toBe('system');
     expect(sealedEvents[0]!.metadata).toMatchObject({ sealed_sha256: after.sealed_sha256 });
 
-    // Progress mail went out at submit time: the sender is not the signer.
+    // This submit is the only signature, so it completes the envelope.
+    // The completion mail covers that; there is no signed_to_sender row.
     const progress = outbound.rows.filter(
       (r) => r.envelope_id === envId && r.kind === 'signed_to_sender',
     );
-    expect(progress).toHaveLength(1);
-    expect(progress[0]!.to_email).toBe('sender@example.com');
-    expect(progress[0]!.payload).toMatchObject({
-      signer_name: 'Ada',
-      signed_count: 1,
-      total_signers: 1,
-      dashboard_url: `http://localhost:5173/document/${envId}`,
-    });
-    expect(JSON.stringify(progress[0]!.payload)).not.toMatch(/\?t=/);
+    expect(progress).toHaveLength(0);
 
     // `completed` email queued for the signer and the sender.
     const completedEmails = outbound.rows.filter(

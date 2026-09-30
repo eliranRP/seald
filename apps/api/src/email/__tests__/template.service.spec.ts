@@ -221,9 +221,12 @@ describe('TemplateService', () => {
         dashboard_url: 'https://seald.nromomentum.com/document/env-1',
         short_code: 'abcde12345xyz',
       });
-      expect(out.subject).toBe('Maya Raskin signed NDA v1');
+      expect(out.subject).toBe('Maya Raskin signed "NDA v1"');
       expect(out.text).toContain('Maya Raskin signed NDA v1.');
       expect(out.text).toContain('2 of 3 signed.');
+      expect(out.text).toContain('The finished file is emailed when everyone has signed.');
+      expect(out.text).toContain('Open in Seald:');
+      expect(out.html).toContain('Open in Seald');
       expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
       expect(out.html).not.toContain('?t=');
       expect(out.text).not.toContain('?t=');

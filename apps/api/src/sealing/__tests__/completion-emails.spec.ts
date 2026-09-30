@@ -107,6 +107,9 @@ describe('SealingService completion emails', () => {
     }
     const sender = completed.find((row) => row.to_email === 'sender@example.com');
     expect(sender?.signer_id).toBeNull();
+    // The sealed line uses the sealed event's created_at (factory default),
+    // not the clock at fan-out time.
+    expect(String(sender?.payload.timeline_html)).toContain('Apr 25, 2026 · 10:00 AM UTC');
   });
 
   it('sends the sender a single completion email when they are also a signer', async () => {

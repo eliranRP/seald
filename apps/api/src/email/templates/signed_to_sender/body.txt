@@ -2,7 +2,9 @@
 
 {{signed_count}} of {{total_signers}} signed.
 
-Open the envelope:
+The finished file is emailed when everyone has signed.
+
+Open in Seald:
   {{dashboard_url}}
 
 Reference code: {{short_code}}
