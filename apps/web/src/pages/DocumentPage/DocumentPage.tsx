@@ -27,6 +27,7 @@ import { ReminderToggle } from '@/components/ReminderToggle';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
+import { CANVAS_WIDTH, usePageCanvasHeights } from '@/lib/canvas-coords';
 import {
   DEFAULT_LEFT_WIDTH,
   DEFAULT_RIGHT_WIDTH,
@@ -151,6 +152,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     setPageWrapRefForPage,
     scrollToPage,
   } = useCanvasScroll({ initialPage, totalPages, paperResetKey: pdfDoc });
+  const pageHeights = usePageCanvasHeights(pdfDoc ?? null, CANVAS_WIDTH);
 
   const { zoom, zoomIn, zoomOut, resetZoom, zoomInDisabled, zoomOutDisabled } = useCanvasZoom();
 
@@ -374,6 +376,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
                     const isLive = visiblePages.has(pageNum);
                     const pageFields = fields.filter((f) => f.page === pageNum);
+                    const measured = pageHeights.get(pageNum);
+                    const pageSize =
+                      measured === undefined
+                        ? paperSize
+                        : { width: CANVAS_WIDTH, height: Math.round(measured) };
                     const pageCanvasRef = {
                       get current() {
                         return canvasRefsRef.current.get(pageNum) ?? null;
@@ -387,14 +394,14 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                       >
                         <CanvasScaler
                           style={{
-                            width: paperSize.width * zoom,
-                            height: paperSize.height * zoom,
+                            width: pageSize.width * zoom,
+                            height: pageSize.height * zoom,
                           }}
                         >
                           <CanvasScaleInner
                             style={{
-                              width: paperSize.width,
-                              height: paperSize.height,
+                              width: pageSize.width,
+                              height: pageSize.height,
                               transform: `scale(${String(zoom)})`,
                             }}
                           >

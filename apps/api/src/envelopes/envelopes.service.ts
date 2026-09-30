@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
+import { ENVELOPE_STATUSES, fieldPlacementError, isFeatureEnabled } from 'shared';
 import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -603,6 +603,8 @@ export class EnvelopesService {
       if (!envelopeSignerIds.has(f.signer_id)) {
         throw new BadRequestException('signer_not_in_envelope');
       }
+      const placementError = fieldPlacementError(f, envelope.original_pages);
+      if (placementError) throw new BadRequestException(placementError);
     }
 
     return this.repo.replaceFields(envelope_id, fields);

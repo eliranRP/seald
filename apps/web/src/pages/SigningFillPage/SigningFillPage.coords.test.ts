@@ -5,6 +5,7 @@ import {
   CANVAS_WIDTH,
   denormalizeCoord,
   normalizeCoord,
+  placeSignerField,
 } from '@/lib/canvas-coords';
 
 import type { SignerFieldKind } from '@/components/SignerField';
@@ -34,7 +35,7 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
 };
 
 /* ------------------------------------------------------------------ */
-/*  Helper: replicate the inline field-to-pixel logic from the page   */
+/*  Helper: the page places fields through placeSignerField (no snap) */
 /* ------------------------------------------------------------------ */
 
 interface RawField {
@@ -52,12 +53,12 @@ interface PixelRect {
 }
 
 function fieldToPixels(f: RawField, uiKind: SignerFieldKind, canvasHeight: number): PixelRect {
-  return {
-    w: f.width ? denormalizeCoord(f.width, CANVAS_WIDTH) : DEFAULT_FIELD_W[uiKind],
-    h: f.height ? denormalizeCoord(f.height, canvasHeight) : DEFAULT_FIELD_H[uiKind],
-    x: denormalizeCoord(f.x, CANVAS_WIDTH),
-    y: denormalizeCoord(f.y, canvasHeight),
-  };
+  return placeSignerField(
+    f,
+    { w: DEFAULT_FIELD_W[uiKind], h: DEFAULT_FIELD_H[uiKind] },
+    CANVAS_WIDTH,
+    canvasHeight,
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -225,10 +226,10 @@ describe('fieldToPixels integration', () => {
       'signature',
       a4CanvasHeight,
     );
-    expect(px.x).toBe(Math.round(0.25 * CANVAS_WIDTH));
-    expect(px.y).toBe(Math.round(0.6 * a4CanvasHeight));
-    expect(px.w).toBe(Math.round(0.3571 * CANVAS_WIDTH));
-    expect(px.h).toBe(Math.round(0.073 * a4CanvasHeight));
+    expect(px.x).toBe(0.25 * CANVAS_WIDTH);
+    expect(px.y).toBe(0.6 * a4CanvasHeight);
+    expect(px.w).toBe(0.3571 * CANVAS_WIDTH);
+    expect(px.h).toBe(0.073 * a4CanvasHeight);
   });
 
   it('uses defaults when width/height are null', () => {
@@ -238,7 +239,7 @@ describe('fieldToPixels integration', () => {
       a4CanvasHeight,
     );
     expect(px.x).toBe(280);
-    expect(px.y).toBe(Math.round(0.5 * a4CanvasHeight));
+    expect(px.y).toBe(0.5 * a4CanvasHeight);
     expect(px.w).toBe(24);
     expect(px.h).toBe(24);
   });

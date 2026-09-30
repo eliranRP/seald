@@ -64,10 +64,11 @@ import {
 } from './SigningFillPage.styles';
 
 import {
+  CANVAS_HEIGHT_FALLBACK,
   CANVAS_WIDTH,
-  denormalizeCoord,
-  useCanvasHeight,
+  placeSignerField,
   useCanvasWidth,
+  usePageCanvasHeights,
 } from '@/lib/canvas-coords';
 import { usePdfDocument } from '@/lib/pdf';
 
@@ -121,7 +122,7 @@ function Content() {
   // (`computeCanvasWidth`); height threads the same width through so the
   // aspect ratio stays correct.
   const canvasWidth = useCanvasWidth();
-  const canvasHeight = useCanvasHeight(signingPdfDoc);
+  const pageHeights = usePageCanvasHeights(signingPdfDoc, canvasWidth);
   const { fieldsByPage, fieldCountByPage } = useFieldsByPage(fields);
 
   // All field interaction state + handlers (rule 1.5 — page stays thin).
@@ -381,6 +382,7 @@ function Content() {
               // sort is on the rendered slice only — `fieldsByPage`
               // and downstream state stay untouched.
               const orderedFields = [...pageFields].sort(compareFieldsForReadingOrder);
+              const pageHeight = pageHeights.get(p) ?? CANVAS_HEIGHT_FALLBACK;
               return (
                 <DocumentPageCanvas
                   key={p}
@@ -393,14 +395,15 @@ function Content() {
                   {orderedFields.map((f) => {
                     const uiKind = toUiKind(f);
                     const label = fieldLabel(f, uiKind);
-                    const width = f.width
-                      ? denormalizeCoord(f.width, canvasWidth)
-                      : DEFAULT_FIELD_W[uiKind];
-                    const height = f.height
-                      ? denormalizeCoord(f.height, canvasHeight)
-                      : DEFAULT_FIELD_H[uiKind];
-                    const x = denormalizeCoord(f.x, canvasWidth);
-                    const y = denormalizeCoord(f.y, canvasHeight);
+                    const placed = placeSignerField(
+                      f,
+                      { w: DEFAULT_FIELD_W[uiKind], h: DEFAULT_FIELD_H[uiKind] },
+                      canvasWidth,
+                      pageHeight,
+                    );
+                    const { x, y } = placed;
+                    const width = placed.w;
+                    const height = placed.h;
                     return (
                       <SignerField
                         key={f.id}

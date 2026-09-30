@@ -36,7 +36,12 @@ import {
 } from '../features/templates/templatesApi';
 import type { TemplateSummary } from '../features/templates';
 
-import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
+import {
+  CANVAS_HEIGHT_FALLBACK,
+  CANVAS_WIDTH,
+  usePageCanvasHeights,
+  normalizeCoord,
+} from '../lib/canvas-coords';
 import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 const TOAST_AUTO_DISMISS_MS = 4000;
 
@@ -583,20 +588,22 @@ export function TemplateEditorRoute() {
 
   // ---- Send-to-sign (using mode primary) -------------------------------
 
-  const tplCanvasHeight = useCanvasHeight(pdfDoc);
+  const pageHeights = usePageCanvasHeights(pdfDoc, CANVAS_WIDTH);
 
   const toNormalized = useCallback(
     (field: PlacedFieldValue): Pick<FieldPlacement, 'x' | 'y' | 'width' | 'height'> => {
       const widthPx = field.width ?? DEFAULT_PX[field.type as FieldKind]?.w ?? DEFAULT_PX.text.w;
       const heightPx = field.height ?? DEFAULT_PX[field.type as FieldKind]?.h ?? DEFAULT_PX.text.h;
+      const measured = pageHeights.get(field.page) ?? pageHeights.get(1);
+      const pageHeight = measured === undefined ? CANVAS_HEIGHT_FALLBACK : Math.round(measured);
       return {
         x: normalizeCoord(field.x, CANVAS_WIDTH),
-        y: normalizeCoord(field.y, tplCanvasHeight),
+        y: normalizeCoord(field.y, pageHeight),
         width: normalizeCoord(widthPx, CANVAS_WIDTH),
-        height: normalizeCoord(heightPx, tplCanvasHeight),
+        height: normalizeCoord(heightPx, pageHeight),
       };
     },
-    [tplCanvasHeight],
+    [pageHeights],
   );
 
   const runSend = useCallback(
