@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
@@ -7,10 +6,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  PayloadTooLargeException,
-  UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import { PDFDocument } from 'pdf-lib';
 import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
 import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
 import { APP_ENV } from '../config/config.module';
@@ -56,9 +52,9 @@ import {
   ShortCodeCollisionError,
 } from './envelopes.repository';
 import { generateShortCode } from './short-code';
+import { inspectPdfBytes } from './pdf-inspection.service';
 
-const MAX_PDF_BYTES = 25 * 1024 * 1024; // 25 MB per spec §3.1
-const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
+export type { ListResult };
 
 type Envelope = WireEnvelope;
 type EnvelopeStatus = Envelope['status'];
@@ -68,7 +64,7 @@ const MAX_SHORT_CODE_RETRIES = 5;
 
 /**
  * Sender-side orchestration for envelope drafts: create, read, list, patch,
- * delete, upload-commit, signer management, field replacement, duplicate,
+ * delete, upload-commit, signer management, field replacement, expiry,
  * and audit-event stream. Owner isolation, state-machine guards, and
  * domain-error → HTTP-exception mapping all live here.
  *
@@ -422,7 +418,8 @@ export class EnvelopesService {
    * delegated to {@link GdriveExportService}. Drive-side / account-side
    * errors (`GdriveNotConnectedError`, `TokenExpiredError`,
    * `RateLimitedError`, `DrivePermissionDeniedError`, `DriveUpstreamError`)
-   * bubble up; the controller maps them to HTTP.
+   * bubble up. `mapGdriveSaveError` turns them into the HTTP body the
+   * save route returns.
    */
   async saveToGoogleDrive(
     owner_id: string,
@@ -499,9 +496,9 @@ export class EnvelopesService {
    * record in DB via setOriginalFile.
    *
    * Called by the controller after Multer has buffered the multipart body.
-   * Validations are duplicated here (the controller also enforces) because the
-   * service is the authority — keeps the data layer correct even if a future
-   * caller bypasses the controller.
+   * PDF checks live in `inspectPdfBytes` so upload and a later inspect
+   * tool share one implementation. The controller only rejects an empty
+   * multipart body before calling this.
    */
   async uploadOriginal(owner_id: string, id: string, body: Buffer): Promise<Envelope> {
     // Gate ownership + draft status BEFORE touching storage.
@@ -509,25 +506,7 @@ export class EnvelopesService {
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
-    if (body.length > MAX_PDF_BYTES) throw new PayloadTooLargeException('file_too_large');
-    if (body.length < PDF_MAGIC.length || !body.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
-      throw new UnsupportedMediaTypeException('file_not_pdf');
-    }
-
-    let pages: number;
-    try {
-      const doc = await PDFDocument.load(body, {
-        updateMetadata: false,
-        ignoreEncryption: false,
-        throwOnInvalidObject: true,
-      });
-      pages = doc.getPageCount();
-    } catch {
-      throw new BadRequestException('file_unreadable');
-    }
-    if (pages <= 0) throw new BadRequestException('file_unreadable');
-
-    const sha256 = createHash('sha256').update(body).digest('hex');
+    const { pages, sha256 } = await inspectPdfBytes(body);
     const file_path = `${envelope.id}/original.pdf`;
     await this.storage.upload(file_path, body, 'application/pdf');
 
@@ -999,6 +978,26 @@ export class EnvelopesService {
         reminder_cadence: '',
       },
     });
+  }
+
+  /**
+   * Flip due `awaiting_others` envelopes to `expired`, enqueue an
+   * `audit_only` job for each, and append the `expired` audit event.
+   * `POST /internal/cron/expire` delegates here. Returns the expired ids
+   * in the order the repository reported them.
+   */
+  async expireDue(now: Date, limit: number): Promise<readonly string[]> {
+    const ids = await this.repo.expireEnvelopes(now, limit);
+    for (const id of ids) {
+      await this.repo.enqueueJob(id, 'audit_only');
+      await this.repo.appendEvent({
+        envelope_id: id,
+        actor_kind: 'system',
+        event_type: 'expired',
+        metadata: {},
+      });
+    }
+    return ids;
   }
 }
 

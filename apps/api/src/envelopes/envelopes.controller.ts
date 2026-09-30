@@ -5,8 +5,6 @@ import {
   Delete,
   Get,
   HttpCode,
-  HttpException,
-  HttpStatus,
   NotFoundException,
   Param,
   ParseUUIDPipe,
@@ -26,27 +24,17 @@ import type { Envelope, EnvelopeGdriveSaveResult } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
-import {
-  DrivePermissionDeniedError,
-  DriveUpstreamError,
-  GDriveError,
-  GdriveNotConnectedError,
-  TokenExpiredError,
-} from '../integrations/gdrive/dto/error-codes';
-import { RateLimitedError } from '../integrations/gdrive/rate-limiter';
 import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
 import { PlaceFieldsDto } from './dto/place-fields.dto';
 import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
-import type {
-  EnvelopeEvent,
-  EnvelopeField,
-  EnvelopeSigner,
-  ListResult,
-} from './envelopes.repository';
-import { EnvelopesService } from './envelopes.service';
+import type { EnvelopeEvent, EnvelopeField, EnvelopeSigner } from './envelope.entity';
+import { EnvelopesService, type ListResult } from './envelopes.service';
+import { normalizeFieldPlacements } from './field-placement.service';
+import { mapGdriveSaveError } from './gdrive-save-error.service';
+import { resolveSenderIdentity } from './sender-identity.service';
 
 type EnvelopeStatus = Envelope['status'];
 
@@ -150,22 +138,10 @@ export class EnvelopesController {
     @Req() req: Request,
     @Body() dto: SendEnvelopeDto = {},
   ): Promise<Envelope> {
-    // The sender's display identity is threaded into the invite email's
-    // "From: <name>" line, so we need at least an email. JWT email always
-    // wins (anti-spoofing — a signed-in user can't impersonate via body);
-    // body sender_email is only consulted for anonymous Supabase sessions
-    // (guest mode) where the JWT carries `email: null`.
-    const sender_email = user.email ?? dto.sender_email ?? null;
-    if (!sender_email) {
-      throw new BadRequestException('sender_email_missing');
-    }
-    const sender_name = user.email ? null : (dto.sender_name ?? null);
-    return this.svc.send(
-      user.id,
-      id,
-      { email: sender_email, name: sender_name },
-      { ip: extractClientIp(req), user_agent: req.headers['user-agent'] ?? null },
-    );
+    return this.svc.send(user.id, id, resolveSenderIdentity(user, dto), {
+      ip: extractClientIp(req),
+      user_agent: req.headers['user-agent'] ?? null,
+    });
   }
 
   /**
@@ -194,16 +170,7 @@ export class EnvelopesController {
     @Param('signer_id', ParseUUIDPipe) signer_id: string,
     @Body() dto: SendEnvelopeDto = {},
   ): Promise<{ status: 'queued' }> {
-    // Same JWT-email-wins resolution as POST /:id/send. Anonymous senders
-    // (guest mode) include `sender_email` in the body so the reminder can
-    // still go out under their identity.
-    const sender_email = user.email ?? dto.sender_email ?? null;
-    if (!sender_email) throw new BadRequestException('sender_email_missing');
-    const sender_name = user.email ? null : (dto.sender_name ?? null);
-    await this.svc.remindSigner(user.id, id, signer_id, {
-      email: sender_email,
-      name: sender_name,
-    });
+    await this.svc.remindSigner(user.id, id, signer_id, resolveSenderIdentity(user, dto));
     return { status: 'queued' };
   }
 
@@ -233,21 +200,7 @@ export class EnvelopesController {
     @Body() dto: PlaceFieldsDto,
   ): Promise<{ fields: ReadonlyArray<EnvelopeField> }> {
     return this.svc
-      .replaceFields(
-        user.id,
-        id,
-        dto.fields.map((f) => ({
-          signer_id: f.signer_id,
-          kind: f.kind,
-          page: f.page,
-          x: f.x,
-          y: f.y,
-          width: f.width ?? null,
-          height: f.height ?? null,
-          required: f.required ?? true,
-          link_id: f.link_id ?? null,
-        })),
-      )
+      .replaceFields(user.id, id, normalizeFieldPlacements(dto.fields))
       .then((fields) => ({ fields }));
   }
 
@@ -329,55 +282,6 @@ export class EnvelopesController {
       throw mapGdriveSaveError(err);
     }
   }
-}
-
-/**
- * Map the errors that flow out of `EnvelopesService.saveToGoogleDrive`
- * onto HTTP exceptions. `NotFoundException` / `ConflictException` thrown
- * by the service (envelope not found / not sealed) pass straight through;
- * the gdrive-domain errors get the wireframe `{ code, message }` body.
- */
-function mapGdriveSaveError(err: unknown): unknown {
-  if (err instanceof HttpException) return err;
-  if (err instanceof GdriveNotConnectedError) {
-    return new HttpException(
-      { code: 'gdrive-not-connected', message: 'gdrive_not_connected' },
-      HttpStatus.CONFLICT,
-    );
-  }
-  if (err instanceof TokenExpiredError) {
-    return new HttpException(
-      { code: 'token-expired', message: 'reconnect_required' },
-      HttpStatus.CONFLICT,
-    );
-  }
-  if (err instanceof RateLimitedError) {
-    return new HttpException(
-      {
-        code: 'rate-limited',
-        message: 'gdrive_rate_limited',
-        retryAfter: Math.ceil(err.retryAfterMs / 1000),
-      },
-      HttpStatus.TOO_MANY_REQUESTS,
-    );
-  }
-  if (err instanceof DrivePermissionDeniedError) {
-    return new HttpException(
-      { code: 'permission-denied', message: 'folder_not_writable' },
-      HttpStatus.FORBIDDEN,
-    );
-  }
-  if (err instanceof DriveUpstreamError || err instanceof GDriveError) {
-    return new HttpException(
-      { code: 'drive-upstream-error', message: 'drive_request_failed' },
-      HttpStatus.BAD_GATEWAY,
-    );
-  }
-  // Unknown — opaque 502, body deliberately omits err.message.
-  return new HttpException(
-    { code: 'drive-upstream-error', message: 'drive_request_failed' },
-    HttpStatus.BAD_GATEWAY,
-  );
 }
 
 const STATUS_SET = new Set<string>(ENVELOPE_STATUSES);

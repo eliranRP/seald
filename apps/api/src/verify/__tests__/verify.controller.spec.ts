@@ -1,6 +1,7 @@
 import { Test } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { VerifyController } from '../verify.controller';
+import { VerifyService } from '../verify.service';
 import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { StorageService } from '../../storage/storage.service';
 import type { Envelope, EnvelopeEvent } from '../../envelopes/envelope.entity';
@@ -94,6 +95,7 @@ describe('VerifyController', () => {
     const moduleRef = await Test.createTestingModule({
       controllers: [VerifyController],
       providers: [
+        VerifyService,
         { provide: EnvelopesRepository, useValue: repo },
         { provide: StorageService, useValue: storage },
       ],

@@ -19,6 +19,61 @@ function syntaxRule(bans) {
   return ['error', ...bans];
 }
 
+// Rule S.5. Repeated in the transport and service overrides because an
+// override replaces the whole `no-restricted-imports` config.
+const signpdfExtractSignatureBan = {
+  name: '@signpdf/utils',
+  importNames: ['extractSignature'],
+  message:
+    'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
+};
+
+// MCP design step 0. Transport (HTTP controllers and src/mcp) calls
+// application services. It does not open repositories or the database.
+// Services do not import controllers or the MCP module.
+const transportDbMessage =
+  'Controllers and the MCP module call application services. They do not import repositories or the database.';
+
+const transportImportBan = [
+  'error',
+  {
+    paths: [
+      signpdfExtractSignatureBan,
+      { name: 'pg', message: transportDbMessage },
+      { name: 'kysely', message: transportDbMessage },
+    ],
+    patterns: [
+      {
+        group: [
+          '**/*.repository',
+          '**/*.repository.pg',
+          '**/*.repository.ts',
+          '**/*.repository.pg.ts',
+          '**/db',
+          '**/db/**',
+        ],
+        message: transportDbMessage,
+      },
+    ],
+  },
+];
+
+const serviceTransportMessage =
+  'Application services do not import HTTP controllers or the MCP transport.';
+
+const serviceImportBan = [
+  'error',
+  {
+    paths: [signpdfExtractSignatureBan],
+    patterns: [
+      {
+        group: ['**/*.controller', '**/*.controller.ts', '**/mcp', '**/mcp/**'],
+        message: serviceTransportMessage,
+      },
+    ],
+  },
+];
+
 module.exports = {
   root: true,
   env: { node: true, jest: true, es2022: true },
@@ -30,13 +85,12 @@ module.exports = {
     tsconfigRootDir: __dirname,
   },
   plugins: ['@typescript-eslint', '@eslint-community/eslint-comments'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'prettier',
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'prettier'],
   rules: {
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
     '@typescript-eslint/no-explicit-any': 'warn',
     // Node.js best-practices skill, rule 2.3 — every promise must be awaited or
     // attached with .catch(); fire-and-forget loses errors and crashes the process
@@ -55,14 +109,7 @@ module.exports = {
     'no-restricted-imports': [
       'error',
       {
-        paths: [
-          {
-            name: '@signpdf/utils',
-            importNames: ['extractSignature'],
-            message:
-              'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
-          },
-        ],
+        paths: [signpdfExtractSignatureBan],
       },
     ],
   },
@@ -70,7 +117,12 @@ module.exports = {
     {
       // CLIs + smoke scripts run interactively; console output is the contract.
       // Specs still use double-casts for test doubles (testing cycle).
-      files: ['scripts/**/*.{ts,js,mjs,cjs}', 'test/**/*.{ts,js}', '**/*.spec.ts', '**/__tests__/**'],
+      files: [
+        'scripts/**/*.{ts,js,mjs,cjs}',
+        'test/**/*.{ts,js}',
+        '**/*.spec.ts',
+        '**/__tests__/**',
+      ],
       rules: {
         'no-console': 'off',
         '@typescript-eslint/no-non-null-assertion': 'off',
@@ -92,6 +144,41 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-non-null-assertion': 'off',
         'no-restricted-syntax': syntaxRule(syntaxBans.filter((ban) => ban !== asUnknownAsBan)),
+      },
+    },
+    {
+      // Last among service files so a future src/mcp/*.service.ts is
+      // covered by the MCP override below, not this one.
+      files: ['src/**/*.service.ts'],
+      excludedFiles: ['src/mcp/**'],
+      rules: {
+        'no-restricted-imports': serviceImportBan,
+      },
+    },
+    {
+      files: ['src/**/*.controller.ts', 'src/mcp/**/*.ts'],
+      rules: {
+        'no-restricted-imports': transportImportBan,
+      },
+    },
+    {
+      // Step 0d: the MCP module is a transport. It calls services.
+      // It does not call controllers, repositories, or the database.
+      files: ['src/mcp/**/*.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          {
+            paths: transportImportBan[1].paths,
+            patterns: [
+              ...transportImportBan[1].patterns,
+              {
+                group: ['**/*.controller', '**/*.controller.ts'],
+                message: 'The MCP module calls application services, not HTTP controllers.',
+              },
+            ],
+          },
+        ],
       },
     },
   ],
