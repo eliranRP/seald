@@ -32,7 +32,6 @@ import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type { EnvelopeEvent, EnvelopeField, EnvelopeSigner } from './envelope.entity';
 import { EnvelopesService, type ListResult } from './envelopes.service';
-import { normalizeFieldPlacements } from './field-placement.service';
 import { mapGdriveSaveError } from './gdrive-save-error.http-errors';
 import { resolveSenderIdentity } from './sender-identity';
 
@@ -199,9 +198,7 @@ export class EnvelopesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: PlaceFieldsDto,
   ): Promise<{ fields: ReadonlyArray<EnvelopeField> }> {
-    return this.svc
-      .replaceFields(user.id, id, normalizeFieldPlacements(dto.fields))
-      .then((fields) => ({ fields }));
+    return this.svc.replaceFields(user.id, id, dto.fields).then((fields) => ({ fields }));
   }
 
   @Get(':id/events')

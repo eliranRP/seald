@@ -30,7 +30,6 @@ import {
 import { SigningTokenService } from '../signing/signing-token.service';
 import { StorageService } from '../storage/storage.service';
 import type {
-  CreateFieldInput,
   DateWindow,
   EnvelopeBucket,
   EnvelopeEvent,
@@ -52,6 +51,7 @@ import {
   ShortCodeCollisionError,
 } from './envelopes.repository';
 import { generateShortCode } from './short-code';
+import { normalizeFieldPlacements, type FieldPlacementInput } from './field-placement.service';
 import { inspectPdfBytes } from './pdf-inspection';
 
 export type { ListResult };
@@ -589,23 +589,29 @@ export class EnvelopesService {
     if (!removed) throw new NotFoundException('envelope_not_found');
   }
 
+  /**
+   * Replace a draft's fields. Omitted `required` becomes true, and omitted
+   * width, height, and link id become null, before the repository write.
+   * Callers do not depend on the `envelope_fields.required` database default.
+   */
   async replaceFields(
     owner_id: string,
     envelope_id: string,
-    fields: readonly CreateFieldInput[],
+    fields: readonly FieldPlacementInput[],
   ): Promise<readonly EnvelopeField[]> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
+    const normalized = normalizeFieldPlacements(fields);
     const envelopeSignerIds = new Set(envelope.signers.map((s) => s.id));
-    for (const f of fields) {
+    for (const f of normalized) {
       if (!envelopeSignerIds.has(f.signer_id)) {
         throw new BadRequestException('signer_not_in_envelope');
       }
     }
 
-    return this.repo.replaceFields(envelope_id, fields);
+    return this.repo.replaceFields(envelope_id, normalized);
   }
 
   async listEvents(owner_id: string, envelope_id: string): Promise<readonly EnvelopeEvent[]> {

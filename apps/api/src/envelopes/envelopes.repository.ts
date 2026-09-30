@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { FieldSchema, SignatureFormat, SignerRole } from 'shared';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
+import type { FieldPlacementInput } from './field-placement.service';
 
 export type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent };
 
@@ -60,17 +61,8 @@ export interface AddSignerInput {
   readonly role?: SignerRole;
 }
 
-export interface CreateFieldInput {
-  readonly signer_id: string;
-  readonly kind: FieldKind;
-  readonly page: number;
-  readonly x: number;
-  readonly y: number;
-  readonly width?: number | null;
-  readonly height?: number | null;
-  readonly required?: boolean;
-  readonly link_id?: string | null;
-}
+/** Same shape as {@link FieldPlacementInput}. One field-input type. */
+export type CreateFieldInput = FieldPlacementInput;
 
 export interface SendDraftInput {
   readonly envelope_id: string;

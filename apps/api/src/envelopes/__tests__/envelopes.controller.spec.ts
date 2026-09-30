@@ -384,33 +384,19 @@ describe('EnvelopesController', () => {
   });
 
   describe('PUT /envelopes/:id/fields (placeFields)', () => {
-    it('maps optional placement fields to nullable defaults', async () => {
+    it('forwards the field list; defaults are applied in the service', async () => {
       svc.replaceFields.mockResolvedValue([] as never);
-      await controller.placeFields(USER, 'env-1', {
-        fields: [
-          {
-            signer_id: 'signer-1',
-            kind: 'signature',
-            page: 1,
-            x: 0.1,
-            y: 0.2,
-            // width/height/required/link_id omitted
-          },
-        ],
-      } as never);
-      expect(svc.replaceFields).toHaveBeenCalledWith(USER.id, 'env-1', [
+      const fields = [
         {
           signer_id: 'signer-1',
-          kind: 'signature',
+          kind: 'signature' as const,
           page: 1,
           x: 0.1,
           y: 0.2,
-          width: null,
-          height: null,
-          required: true,
-          link_id: null,
         },
-      ]);
+      ];
+      await controller.placeFields(USER, 'env-1', { fields } as never);
+      expect(svc.replaceFields).toHaveBeenCalledWith(USER.id, 'env-1', fields);
     });
 
     it('preserves explicit width/height/required/link_id', async () => {

@@ -116,6 +116,7 @@ class FakeContactsRepo extends ContactsRepository {
 class FakeEnvelopesRepo extends EnvelopesRepository {
   envelopes = new Map<string, Envelope>();
   events: EnvelopeEvent[] = [];
+  lastReplaced: ReadonlyArray<CreateFieldInput> | null = null;
   shortCodesSeen = new Set<string>();
   throwShortCodeCollisionNTimes = 0;
 
@@ -349,6 +350,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   ): Promise<readonly EnvelopeField[]> {
     const e = this.envelopes.get(envelope_id);
     if (!e) throw new Error('envelope_not_found');
+    this.lastReplaced = fields;
     const mapped: EnvelopeField[] = fields.map((f, i) => ({
       id: `f_${i}_${envelope_id}`,
       signer_id: f.signer_id,
@@ -1086,6 +1088,20 @@ describe('EnvelopesService', () => {
         { signer_id: s.id, kind: 'signature', page: 1, x: 0.1, y: 0.1 },
       ]);
       expect(fields).toHaveLength(1);
+      expect(fields[0]).toMatchObject({ required: true, width: null, height: null, link_id: null });
+      expect(repo.lastReplaced).toEqual([
+        {
+          signer_id: s.id,
+          kind: 'signature',
+          page: 1,
+          x: 0.1,
+          y: 0.1,
+          width: null,
+          height: null,
+          required: true,
+          link_id: null,
+        },
+      ]);
     });
 
     it('409 on non-draft', async () => {

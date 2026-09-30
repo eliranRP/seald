@@ -925,7 +925,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             y: f.y,
             width: f.width ?? null,
             height: f.height ?? null,
-            required: f.required,
+            required: f.required ?? true,
             link_id: f.link_id ?? null,
           })),
         )
