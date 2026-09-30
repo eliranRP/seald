@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import type { ApiKeysRepository } from '../../api-keys/api-keys.repository';
 import type { AuthUser } from '../../auth/auth-user';
 import type { ContactsRepository } from '../../contacts/contacts.repository';
 import type { OutboundEmailsRepository } from '../../email/outbound-emails.repository';
@@ -87,6 +88,9 @@ function makeMocks(envelopesRepoOverrides: Partial<EnvelopesRepository> = {}) {
   const gdrive = {
     revokeAllBeforeAccountDeletion: jest.fn(async () => undefined),
   } as unknown as GDriveService;
+  const apiKeysRepo = {
+    deleteAllByOwner: jest.fn(async () => 0),
+  } as unknown as ApiKeysRepository;
   const storage = {
     createSignedUrl: jest.fn(async (path: string) => `https://signed.test/${path}`),
   } as unknown as StorageService;
@@ -101,6 +105,7 @@ function makeMocks(envelopesRepoOverrides: Partial<EnvelopesRepository> = {}) {
     tombstonesRepo,
     gdriveRepo,
     gdrive,
+    apiKeysRepo,
   };
 }
 
@@ -116,6 +121,7 @@ function build(m: ReturnType<typeof makeMocks>): MeService {
     m.tombstonesRepo,
     m.gdriveRepo,
     m.gdrive,
+    m.apiKeysRepo,
   );
 }
 

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { ApiKeysRepository } from '../api-keys/api-keys.repository';
 import type { AuthUser } from '../auth/auth-user';
 import { ContactsRepository } from '../contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
@@ -143,6 +144,7 @@ export class MeService {
     // Supabase admin actually observe.
     @Inject(GDRIVE_REPOSITORY) private readonly gdriveRepo: GDriveRepository,
     private readonly gdrive: GDriveService,
+    private readonly apiKeysRepo: ApiKeysRepository,
   ) {}
 
   /**
@@ -454,7 +456,9 @@ export class MeService {
    *      envelopes is `ON DELETE SET NULL` (migration 0012) so a
    *      bypass still keeps sealed envelopes. The Drive FK is
    *      `ON DELETE CASCADE` (migration 0021); step 4 already
-   *      removed those rows when this service ran.
+   *      removed those rows when this service ran. api_keys also
+   *      cascades (migration 0022); the explicit delete below is
+   *      what runs when deleteUser fails or is delayed.
    *
    * If the Supabase call fails we map to 503 — the user can retry; all
    * preceding steps are idempotent.
@@ -463,6 +467,9 @@ export class MeService {
     const emailHash = createHash('sha256')
       .update((user.email ?? '').toLowerCase())
       .digest('hex');
+
+    const keysDeleted = await this.apiKeysRepo.deleteAllByOwner(user.id);
+    this.logger.log(`account-delete: api_keys deleted=${keysDeleted} user=${user.id}`);
 
     const wiped = await this.idempotencyRepo.deleteByUser(user.id);
     this.logger.log(`account-delete: idempotency_records wiped=${wiped} user=${user.id}`);

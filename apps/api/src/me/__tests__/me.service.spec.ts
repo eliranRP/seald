@@ -1,6 +1,7 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
+import type { ApiKeysRepository } from '../../api-keys/api-keys.repository';
 import type { AuthUser } from '../../auth/auth-user';
 import type { ContactsRepository } from '../../contacts/contacts.repository';
 import type { OutboundEmailsRepository } from '../../email/outbound-emails.repository';
@@ -108,6 +109,12 @@ function makeMocks() {
       calls.push('gdrive.revokeAllBeforeAccountDeletion');
     }),
   } as unknown as GDriveService;
+  const apiKeysRepo = {
+    deleteAllByOwner: jest.fn(async () => {
+      calls.push('apiKeys.deleteAllByOwner');
+      return 2;
+    }),
+  } as unknown as ApiKeysRepository;
   // Default storage stub returns a deterministic signed URL per path so
   // tests can assert wiring; failure mode is opt-in via mockRejectedValueOnce.
   const storage = {
@@ -127,6 +134,7 @@ function makeMocks() {
     tombstonesRepo,
     gdriveRepo,
     gdrive,
+    apiKeysRepo,
   };
 }
 
@@ -142,6 +150,7 @@ function build(mocks: ReturnType<typeof makeMocks>): MeService {
     mocks.tombstonesRepo,
     mocks.gdriveRepo,
     mocks.gdrive,
+    mocks.apiKeysRepo,
   );
 }
 
@@ -270,7 +279,9 @@ describe('MeService.deleteAccount', () => {
     //   6. tombstone recorded BEFORE supabase admin so a partial
     //      failure still leaves a forensic breadcrumb
     //   7. supabase admin call last
+    expect(mocks.apiKeysRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
     expect(mocks.calls).toEqual([
+      'apiKeys.deleteAllByOwner',
       'idempotency.deleteByUser',
       'contacts.deleteAllByOwner',
       'templates.deleteAllByOwner',

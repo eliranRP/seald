@@ -90,6 +90,9 @@ const baseVars = {
   total_signers: 3,
   signed_count: 2,
   signer_name: 'Maya Raskin',
+  key_name: 'Key 1',
+  key_prefix: 'seald_live_abcdefgh',
+  settings_url: `${publicUrl}/settings/developers`,
   signer_list_html: signerListEmailName,
   timeline_html: timelineHtml,
 };
@@ -132,6 +135,7 @@ const kinds: ReadonlyArray<EmailTemplateKind> = [
   'expired_to_sender',
   'expired_to_signer',
   'signed_to_sender',
+  'api_key_created',
 ];
 
 const BARE_EMAIL = /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;
