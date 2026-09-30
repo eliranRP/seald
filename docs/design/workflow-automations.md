@@ -155,6 +155,8 @@ create table public.automation_secrets (
   automation_id          uuid primary key references public.automations(id) on delete cascade,
   secret_ciphertext      bytea not null,
   secret_nonce           bytea not null,
+  url_ciphertext         bytea not null,
+  url_nonce              bytea not null,
   previous_ciphertext    bytea,
   previous_nonce         bytea,
   previous_retired_at    timestamptz,
@@ -210,9 +212,9 @@ create table public.automation_runs (
 | `email_copy` | `{ "to": ["email", …] }` Max 10 addresses. |
 | `slack` | Unused. |
 
-Webhook secrets are recoverable, because the worker has to compute HMAC. API keys in the MCP design are the opposite: those are stored as a SHA-256 hash and cannot be read back. Automation secrets are encrypted in the application with a 32-byte key from `AUTOMATION_SECRETS_KEY`, AES-GCM, with AAD set to `automation_id`. The row stores a nonce and the ciphertext. There is no call to a remote key service and no per-request charge. If the env var is unset, creating a webhook recipe returns 503 `automation_secrets_not_configured`. Do not store the secret in plaintext `config`, and do not reuse the Drive token path. Document bytes stay on the storage path they use today.
+Webhook secrets are recoverable, because the worker has to compute HMAC. API keys in the MCP design are the opposite: those are stored as a SHA-256 hash and cannot be read back. Automation secrets are encrypted in the application with a 32-byte key from `AUTOMATION_SECRETS_KEY`, AES-GCM. The signing secret uses AAD `automation_id`, `secret_nonce`, and `secret_ciphertext`. The URL uses its own nonce, `url_nonce`, and `url_ciphertext`, and a distinct AAD, `automation_id:url`. Never reuse the secret’s nonce (`secret_nonce` or `previous_nonce`) for the URL under the same AES-GCM key. There is no call to a remote key service and no per-request charge. If the env var is unset, creating a webhook recipe returns 503 `automation_secrets_not_configured`. Do not store the secret in plaintext `config`, and do not reuse the Drive token path. Document bytes stay on the storage path they use today.
 
-The webhook URL is secret configuration. It may contain credentials in the path or the query. Create and update accept the URL, encrypt it with the same `AUTOMATION_SECRETS_KEY` on the secret row, and do not write it to `config`, logs, run history, or a later GET. Responses show `url_host` only. Do not echo the URL. Do not log it.
+The webhook URL is secret configuration. It may contain credentials in the path or the query. Create and update accept the URL, encrypt it on the secret row with `url_nonce` and AAD `automation_id:url`, and do not write it to `config`, logs, run history, or a later GET. This is the application-level encryption the Annex II line describes. Responses show `url_host` only. Do not echo the URL. Do not log it.
 
 Screens, emails, and toasts say “Secret set” and the rotation date. They do not mention keys, algorithms, or ciphertext.
 
@@ -548,7 +550,7 @@ Until the PR that sets `workflowAutomations` to true, no customer account can us
 
 **T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
 
-**D-5 correction (DPA Annex II).** Webhook signing secrets and webhook URLs are stored encrypted at the application level, with the key held outside the database; they are not covered by the AWS KMS bullet. Keep this as a plain Annex II measure. Don't use it in brand or marketing copy. Implementation, not customer copy: the worker uses AES-GCM with `AUTOMATION_SECRETS_KEY` and AAD set to `automation_id`. This Annex II line ships only in the PR that actually implements application-level encryption of webhook secrets and URLs, and only if that PR's tests prove it. It stays out of all brand, marketing and UI copy.
+**D-5 correction (DPA Annex II).** Webhook signing secrets and webhook URLs are stored encrypted at the application level, with the key held outside the database; they are not covered by the AWS KMS bullet. Keep this as a plain Annex II measure. Don't use it in brand or marketing copy. Implementation, not customer copy: the worker uses AES-GCM with `AUTOMATION_SECRETS_KEY`. The signing secret and the URL each have their own nonce and a distinct AAD (`automation_id` and `automation_id:url`). This Annex II line ships only in the PR that actually implements application-level encryption of webhook secrets and URLs, and only if that PR's tests prove it. It stays out of all brand, marketing and UI copy.
 
 **P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
