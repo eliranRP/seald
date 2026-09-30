@@ -90,6 +90,7 @@ test.describe('signing-done save button layout', () => {
       });
       expect(lines).toBeGreaterThan(0);
       expect(lines).toBeLessThanOrEqual(2);
+      if (width === 320) expect(lines).toBe(2);
 
       const { scrollWidth, clientWidth } = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
@@ -105,6 +106,7 @@ test.describe('signing-done save button layout', () => {
       if (!emailBox) throw new Error('email field has no box');
       expect(Math.round(emailBox.height)).toBe(48);
       if (width === 1440) {
+        expect(Math.abs(buttonBox.y - emailBox.y)).toBeLessThanOrEqual(1);
         expect(Math.round(emailBox.height)).toBe(Math.round(buttonBox.height));
       }
       if (width === 1440 || width === 390) {
@@ -155,9 +157,8 @@ test.describe('signing-done save button layout', () => {
         return range.getClientRects().length;
       });
       expect(lines).toBeGreaterThan(0);
-      // Shared lg padding is 20px. At 390 that leaves this 65-character
-      // label on three lines. A tighter padding is only for the shipped
-      // label when it exceeds two lines at 320, which it does not.
+      // Stacked at 390 this label is three lines with the shared 20px
+      // padding. The two-line cap applies once the button has its own row.
       expect(lines).toBeLessThanOrEqual(width === 390 ? 3 : 2);
 
       const sharesRow = Math.abs(buttonBox.y - emailBox.y) < 4;
