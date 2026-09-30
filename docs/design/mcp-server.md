@@ -21,6 +21,7 @@ The feature is dark until `mcpServer` is `true` in `packages/shared/src/feature-
 4. Tool names are `noun_verb`. No name contains `sign`. Changes are additive. A breaking argument change is a new tool name. `initialize` pins the protocol revision. JSON we send to a customer’s URL carries a `version` field.
 5. Scopes are least privilege. `envelopes:read` is the only scope pre-checked, and it covers documents only. `envelopes:send` and `automations:write` are off until the owner taps them. An agent cannot change `require_owner_approval`. That column defaults to true, and only a Supabase session on the Developers page can set it.
 6. The web app stays the place a person approves, reviews, and manages keys. Mobile-first, one column, no new `NAV_ITEMS` row.
+7. Every feature pull request follows the same UX rule: minimal copy, one or two taps for the main task, and anything else behind an “Advanced” link. Status words in the product are only Done, Failed, Retrying, Off, and Expired.
 
 ## Non-goals
 
@@ -492,7 +493,7 @@ Input: `{ "envelope_id", "confirmation_token", "idempotency_key"? }`.
 
 Each key and grant has `require_owner_approval`, default true. Only a Supabase session can set it to false. No tool argument can.
 
-- When it is true, the tool returns `{ "status": "approval_pending", "approval_id", "summary" }` and does not call `sendDraft`. That result is success, not an error. The owner approves or rejects on `/settings/approvals` and `/m/settings/approvals` (one component; the drawer stays a single Settings row) or by a one-tap link emailed to the account mailbox. The link expires in 24 hours. The decision is a Supabase session, and it is written into the audit metadata. Only then does the API call `send`. The agent polls `approvals_get` or `envelopes_status`.
+- When it is true, the tool returns `{ "status": "approval_pending", "approval_id", "summary" }` and does not call `sendDraft`. That result is success, not an error. Every request emails the account owner. The email link opens a standalone confirmation page. The token in that link is the second factor. The in-app queue is a secondary path for someone already in Seald. Only then does the API call `send`. The agent polls `approvals_get` or `envelopes_status`.
 - Setting the flag to false is the unattended opt-in, behind a warning sheet quoting Terms §4.1. Daily caps still apply.
 - Even then, a signer email that is not already in the owner’s contacts or on an earlier envelope of that owner falls back to approval. The only exception is `allow_new_recipients`, also set only in the SPA.
 - An edit to the draft after the approval request changes `subject_hash` and the request can no longer be approved.
@@ -560,14 +561,14 @@ Input: `{ "envelope_id", "file_id" }`. PDF files are fetched and passed to `uplo
 
 Preview returns folder id, folder name, and file names. Input: `{ "envelope_id", "folder_id", "folder_name"?, "confirmation_token" }`. The folder must already be one the app can write (picker selection or a folder the app created). The service refreshes the Drive token, updates files in place when `gdrive_envelope_exports` already has ids for that folder, and maps errors the way `mapGdriveSaveError` does (`gdrive_not_connected`, `token-expired`, `rate-limited`, `permission-denied`, `drive-upstream-error`). Partial success stays a tool error slug `gdrive_partial` plus the file ids that landed, matching the HTTP 207 behavior.
 
-The agent cannot open the Google Picker. The human picks the folder in the SPA (settings or the envelope download menu). The agent passes the folder id the user copied, or an id stored on an automation recipe. M5 does not add a server-side folder browser beyond `gdrive_list_files`.
+The default folder is “My Drive / Seald”. If `folder_id` is omitted, the service creates that folder when it does not already exist (the app creates it, so `drive.file` can write it) and saves there. A different folder is an Advanced choice in the SPA. The agent cannot open the Google Picker.
 
 
 ### Approvals — scope `envelopes:read` to list, and the owner’s session to decide
 
-**`approvals_list`** → pending requests for this owner. `readOnlyHint: true`. Input `{ "limit"?, "cursor"? }`. Output `{ "items": [{ "approval_id", "tool", "summary", "requested_at", "expires_at" }], "next_cursor" }`.
+**`approvals_list`** → requests for this owner. `readOnlyHint: true`. Input `{ "status"?: "pending|approved|rejected|expired", "limit"?, "cursor"? }`. Output `{ "items": [{ "approval_id", "tool", "summary", "status", "requested_at", "expires_at" }], "next_cursor" }`. `status` is a column on the row. A pending row whose `expires_at` has passed is returned as `expired` and is not approvable.
 
-**`approvals_get`** already described above is the single-row read. There is no `approvals_decide` tool. The agent cannot set `approved`.
+**`approvals_get`** already described above is the single-row read. There is no `approvals_decide` tool. The agent cannot set `approved`. Approving or declining is the session endpoint in the settings section.
 
 Resource `seald://approvals/pending` is the first page of `approvals_list`.
 
@@ -602,8 +603,9 @@ Same `AutomationsService` as the settings API. `automations:write` is off by def
 | `automations_list` | Cursor. No secrets. |
 | `automations_upsert_recipe` | External URL, extra recipients, or a Drive folder need owner approval. |
 | `automations_set_enabled` | Enabling an external recipe needs the same approval. |
-| `automations_list_runs` | Cursor. Status words match the UI: Queued, Retrying, Done, Failed. |
-| `automations_get_run` | One run, including the plain-language failure. |
+| `automations_list_runs` | Cursor. Status words are Done, Failed, Retrying, Off, Expired. |
+| `automations_get_run` | One run, including the plain-language failure and whether Retry is allowed. |
+| `automations_retry_run` | Re-enqueues that run id. Refuses a permanent failure with `retry_not_allowed`. |
 | `automations_test_webhook` | Signed sample, same address checks and 10 second timeout. `type` is `automation.test`. Not stored as a run. |
 
 ## Resources and prompts
@@ -652,7 +654,7 @@ The confirmation token stops a wrong document from going out. It is not the owne
 
 `envelopes_preview_send` returns a one-time token bound to `subject_hash`. `envelopes_send` requires that token. The token is consumed only in the same transaction that calls `send`, with `SELECT … FOR UPDATE`. A second caller gets `confirmation_invalid`.
 
-Default `require_owner_approval` is true. The owner resolves the request in Seald or by a one-tap email link that expires in 24 hours. That resolution is a Supabase session. Turning the flag off is an explicit per-key choice, and only the session can do it. The first time a key emails someone, the send falls back to approval even if the flag is off.
+Default `require_owner_approval` is true. Every request emails the owner. The link opens a standalone page, and the single-use token is the second factor. No login. Turning the flag off is an explicit per-key choice, and only a session on the Developers page can do it. The first time a key emails someone, the send falls back to approval even if the flag is off.
 
 The agent prepares. The signer signs. There is no signing tool.
 
@@ -744,7 +746,9 @@ Legal text for the terms, privacy notice, DPA, and acceptable-use policy is in [
 
 ## Settings UI
 
-Concept A. One column, 720px cap, the same component tree at desktop and phone. No new `NAV_ITEMS` row. The words to use are “settings index row” and “user-menu row”.
+Concept A, with the v2 rule: minimal copy, one or two taps for the main task, and extra fields behind “Advanced”. One column, 720px cap, the same component tree at desktop and phone. No new `NAV_ITEMS` row. The words to use are “settings index row” and “user-menu row”.
+
+Status words everywhere in this UI are Done, Failed, Retrying, Off, and Expired. Do not show Queued or Sent.
 
 | Route | Who | What |
 | --- | --- | --- |
@@ -757,14 +761,14 @@ Concept A. One column, 720px cap, the same component tree at desktop and phone. 
 
 The page:
 
-1. Title “Developers”. Sentence: keys let an app or AI agent prepare and send documents on your behalf. Signers still sign from their own link.
-2. `SIGNATURE_LEVEL_NOTE` as helper text.
-3. Empty state: “No keys yet” and “New key”. Under it, “Connect a client”: server URL with copy, snippets for Claude Code and Cursor with `<YOUR_KEY>` only. ChatGPT and Claude app tiles say “Later”. They are not a key flow. No URL-embedded key.
-4. Key list, up to 10 live keys: name, `seald_live_` plus the first 8 characters, scope labels (Send in amber), created, last used (relative, absolute, and zone), expiry, Revoke. Last used is v1. “Agent activity” is a later PR, a `RunList` of write events that carry `metadata.mcp`, labeled as writes only.
-5. New-key sheet (dialog on desktop, full-height sheet on mobile): name, scope checkboxes, expiry. Only `envelopes:read` is pre-checked. That scope is documents only. Templates, contacts, and Drive read are opt-in. Send stays off until tapped, with helper text that every send still needs the owner’s approval in Seald. Expiry defaults to 90 days. Choices are 30, 90, and 365 days, plus “No expiry (not recommended)”. The API still accepts a null expiry. The UI default is 90 days.
-6. Secret sheet, shared `SecretOnceSheet`: full `seald_live_…`, Copy, checkbox “I have saved this key” gating Done. Closing drops the value. The snippet in that sheet may contain the key only while the sheet is open.
-7. Revoke sheet: names the key, shows the prefix and last used, says there is no grace period. Focus starts on Cancel.
-8. After the OAuth PR (M6): “Connected apps” (client name, scopes, last used, revoke). Empty until a grant exists. Until then the ChatGPT and Claude tiles stay “Later”.
+1. Title “Developers”. One sentence: keys let an app prepare and send on your behalf. Signers still sign from their own link. `SIGNATURE_LEVEL_NOTE` sits behind “Advanced”.
+2. Empty state: “New key”. One tap creates the key. The server names it `Key N` (the next free N for that owner). Scope is `envelopes:read` only. Expiry is 90 days. There is no Never option. The API rejects a null expiry and any expiry more than 365 days out.
+3. “Advanced” on that create opens name, scope checkboxes, and expiry. Templates, contacts, and Drive read stay off until tapped. Send stays off until tapped. Expiry choices are 30, 90, and 365 days. 90 is selected. 365 is the maximum.
+4. Under the list, “Connect a client”: server URL with Copy, snippets for Claude Code and Cursor with `<YOUR_KEY>` only. ChatGPT and Claude app tiles say “Later”. They are not a key flow.
+5. Key list, up to 10 live keys: name, prefix, expiry. A key past `expires_at` shows Expired. Revoke is on the row. Last used and scope labels sit behind “Advanced”. “Agent activity” is a later PR.
+6. Show-once sheet, shared `SecretOnceSheet`: the full `seald_live_…` value and Copy. No checkbox and no “I saved it” step. Closing drops the value. The snippet may contain the key only while the sheet is open.
+7. Revoke asks once, focus on Cancel.
+8. After the OAuth pull request: “Connected apps”. Empty until a grant exists. Until then the ChatGPT and Claude tiles stay “Later”.
 
 Flag off: the settings index row is omitted. Direct visits get the not-available state the Drive page uses, not a broken form.
 
@@ -773,16 +777,42 @@ API (session JWT only):
 | Method | Path | Body |
 | --- | --- | --- |
 | `GET` | `/me/api-keys` | List without hashes. |
-| `POST` | `/me/api-keys` | `{ name, scopes, expires_at? }` → row plus `secret` once. |
+| `POST` | `/me/api-keys` | `{}` creates `Key N`, scope `envelopes:read`, expiry 90 days, and returns `secret` once. Advanced fields: `name`, `scopes`, `expires_at` (required if sent; max 365 days; null is `validation_error`). |
 | `POST` | `/me/api-keys/:id/revoke` | `{ revoked: true }`. |
 
 These routes 404 when the flag is off or `MCP_DISABLED` is set. An API key cannot call them.
 
-### Owner approval queue
+### Owner approval
 
-Own route and own PR: `/settings/approvals` and `/m/settings/approvals`.
+Email is the primary channel. The in-app queue is secondary.
 
-Each row is an agent send waiting on the owner: document title, recipient names, key name, and when it was requested. Actions are Approve and Reject. Approve calls `send`. Reject stamps the approval `rejected` and does not send. The same screen is the mobile sheet and the desktop page, one component. The one-tap email link lands here after session login, never on a URL that carries the signing token.
+Creating a pending approval inserts one `outbound_emails` row, kind `owner_approval`, to the account mailbox. `dedupe_key` is `owner_approval:<approval_id>`. The template lives at `apps/api/src/email/templates/owner_approval/` (`subject.txt`, `body.html`, `body.txt`) and is added to `TEMPLATE_KINDS` in `email-dispatcher.service.ts`. It uses the same card, masthead, and legal footer as `invite` (`template-fragments.ts`, footer vars injected by `EmailDispatcherService`). Copy is one line: the document title, the recipient names, and the agent or key name, plus a button that opens the confirmation page. No signing token, no `?t=` signer link, and no secret.
+
+The link is `https://seald.nromomentum.com/approve/<token>`. The token is 32 random bytes, base64url. The row stores only its SHA-256, bound to `approval_id`, `owner_id`, and `subject_hash`, with `expires_at` 24 hours out and `consumed_at` null. A second decision finds the token already consumed.
+
+The page is one public route, `/approve/:token`, mounted outside `AppShell` and outside `RequireAuth`, the same idea as `/oauth/`. Add `/approve/` to `SPA_PREFIXES` in `apps/landing/_worker.js` and to the worker contract test. It does not redirect to `/m/send`. The document is `noindex`. The response sends `frame-ancestors 'none'`.
+
+Opening the link only renders. Mail prefetch must not approve. The API read is `GET /approvals/from-email/:token`. It returns the one-line summary and sets a `SameSite=Strict` CSRF cookie. It does not change `status`. The page shows that one line (document, recipients, agent or key) and two buttons, Approve and Deny. There is no login step and no session. The emailed token is the second factor.
+
+The decision is `POST /approvals/from-email` with the approval token, the decision, and the CSRF value in a hidden field. A POST missing the cookie or the field is `csrf_invalid` and does not decide.
+
+After the POST the same page shows one word: Done, Denied, or Expired. Done means the action ran. Denied means the row is `rejected` and nothing was sent. Expired means the token is past 24 hours, already used, or `subject_hash` no longer matches.
+
+Rate limit GET and POST per IP and per token (10 per minute). Record the decision on the approval row (`decided_at`, `decided_via: email|app`) and in the envelope audit metadata. Do not write the raw token into the event or the mail payload. `EmailDispatcherService` rebuilds the link at send time from the hash lookup the same way Insert A rebuilds signer links, except this token is the approval token, not a signer token.
+
+The in-app queue stays available at `/settings/approvals` and `/m/settings/approvals`. `status` is `pending`, `approved`, `rejected`, or `expired`. The UI word for `expired` is Expired. A read that sees `expires_at` in the past stamps `expired`.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/approvals?status=` | In-app list. Each item includes `status`. Session required. |
+| `GET` | `/approvals/:id` | In-app detail. Session required. |
+| `POST` | `/approvals/:id/approve` | In-app one tap. Session required. Calls `send` when `pending`. |
+| `POST` | `/approvals/:id/decline` | In-app one tap. Session required. Stamps `rejected`. |
+| `GET` | `/approve/:token` | Public page on the product host. Renders only. No shell. |
+| `GET` | `/approvals/from-email/:token` | Summary plus CSRF cookie. Does not decide. |
+| `POST` | `/approvals/from-email` | Decision. CSRF required. No session. |
+
+The header bell is the in-app alternative. Its badge is the count of `pending` rows. A new row while the app is open shows a toast with the document title. The toast opens the in-app detail. Someone who only has the email never sees the shell.
 
 ## Test plan
 
@@ -819,26 +849,28 @@ MCP Inspector or the same JSON-RPC from Jest, `apps/api/test/mcp.e2e-spec.ts`:
 
 Web, Vitest, `renderWithProviders`, queries by role:
 
-- Developers page: empty, 90-day default, read-only checkbox pre-checked, secret shown once, revoke confirm, ChatGPT tile is “Later”.
+- Developers page: one tap on “New key” creates `Key 1` with a 90-day expiry and no Never choice. The show-once sheet has Copy and no checkbox. ChatGPT tile is “Later”.
 - `/m/settings` index renders one list. The mobile drawer test expects a single “Settings” row.
-- Approval queue: approve calls send, reject does not.
+- Approval email renders the document, the recipients, and the key name, and contains no signer `?t=`.
+- `GET /approvals/from-email/:token` does not change status. A POST without the CSRF cookie returns `csrf_invalid`. A valid POST shows Done, Denied, or Expired and does not require a session.
+- In-app queue: Approve calls send, Decline does not, a row older than 24 hours shows Expired. The bell count matches pending rows.
 
 `migrations-convention.spec.ts` already fails a top-level `*_down.sql` and a missing down pair.
 
 ## Pull requests
 
-One feature per pull request. The product review’s 14 steps are the base. Rows marked **Insert** are required by the other reviews and are their own pull requests. The flag stays off until a later change turns it on. Each tool PR updates the parity test.
+One feature per pull request. The product review’s 14 steps are the base. Rows marked **Insert** are required by the other reviews and are their own pull requests. Every feature PR uses minimal copy, one or two taps, and an “Advanced” link for the rest. The flag stays off until a later change turns it on. Each tool PR updates the parity test.
 
 | Step | Feature |
 | --- | --- |
 | Before 3 | Shared UI: `SecretOnceSheet`, `RunList`, `Checkbox`, and promoting `MWBottomSheet` and `ReminderToggle` into `components/`. |
 | 1 | Durable match inside `appendEvent`’s transaction. This is not a post-commit hook. The hash chain is unchanged. The function only inserts rows, so it does not call the network. If the automations tables are not in this PR, the call site no-ops until the automations migration registers the matcher. A handler that ran after commit and only logged errors would drop a `sealed` job on a crash, so that shape is out. |
-| 2 | API keys: migration (next free id, not `0020`), hashed secret, cap of 10, revoked key is 401, session auth only. `require_owner_approval` defaults to true. |
-| 3 | Developers page on `/settings/developers` and `/m/settings/developers`, the `/settings` and `/m/settings` index, and one mobile drawer Settings row. Show-once key. Revoke confirm. “Connect a client” snippets with placeholders. ChatGPT and Claude tiles say “Later” and are not a key flow. Only `envelopes:read` is pre-checked. Hidden when the flag is off. No new `NAV_ITEMS`. |
+| 2 | API keys: migration (next free id, not `0020`), hashed secret, cap of 10, revoked key is 401, session auth only. `require_owner_approval` defaults to true. `POST {}` names the key `Key N` and sets a 90-day expiry. Null expiry and anything past 365 days are rejected. |
+| 3 | Developers page on `/settings/developers` and `/m/settings/developers`, the `/settings` and `/m/settings` index, and one mobile drawer Settings row. One-tap create. Show-once sheet is Copy only. “Connect a client” snippets with placeholders. ChatGPT and Claude tiles say “Later”. Only `envelopes:read` is pre-checked. Hidden when the flag is off. No new `NAV_ITEMS`. |
 | 4 | Transport plus `me_get`. `initialize` and `tools/list`. 404 when the flag is off, 401 for a bad key. Structured error envelope. `seald://guide`. Credential boundary. `MCP_DISABLED`. Parity test for the routes that exist. |
 | 5 | `envelopes_search` and `envelopes_get`. Title, short code, signer name or email, status, dates. Cursor. No tokens in the output. |
 | 6 | `envelopes_status`, `envelopes_download_url`, and `envelopes_list_pending`. Per-signer state, `next_action`, `can_remind_at`. Short-lived download URLs. |
-| 7 | Owner approvals. Default on for every key. Approve or reject on `/settings/approvals` and `/m/settings/approvals`. Requests expire after 24 hours. The decision is stored in the audit metadata. `approvals_get`, `approvals_list`, and `seald://approvals/pending`. No tool can approve or change the mode. |
+| 7 | Owner approvals. Default on for every key. Primary path: `owner_approval` email (existing layout and footer) and a public `/approve/:token` page with no login and no app shell. The token is the second factor. GET renders; POST decides, with CSRF. Page is `noindex` and cannot be framed. Result words are Done, Denied, or Expired. Secondary path: bell, toast, and the in-app queue. `status` column. 24 hour expiry. Hashed token bound to the approval, the preview hash, and the owner. Rate limit and audit. `approvals_get`, `approvals_list`, and `seald://approvals/pending`. No tool can approve or change the mode. |
 | 8 | Draft, upload, and signers. `idempotency_key` and `dry_run`. Staging upload up to 25 MB. `signer_email_taken` on a duplicate. |
 | 9 | Suggest and place fields. Suggestions never write. Placing fields checks that the signers belong to the draft. Drafts only. |
 | Insert A | Remove the plaintext `?t=` token from `outbound_emails.payload`. Store `token_hash`. Rebuild the link at dispatch. This merges before step 10. |
@@ -855,8 +887,8 @@ Later, one feature each:
 - `envelopes_bulk_send_from_template` and `batches_get`. One approval for the batch. Rows count against the 20 and 25 caps. Prompt `bulk-send`.
 - Automations tables, with the matcher from step 1 registered and the worker off.
 - Webhook action. Secrets use app-level encryption with a key in the environment, not a billed key service. The screen says “secret set”.
-- Automation tools behind the same owner approval, including `automations_test_webhook` and `automations_get_run`.
-- Drive-save recipe.
+- Automation tools behind the same owner approval, including `automations_test_webhook`, `automations_get_run`, and `automations_retry_run`.
+- Drive-save recipe. The default folder is “My Drive / Seald”.
 - OAuth 2.1 with ChatGPT and Claude pre-registered, or client metadata documents. No open registration and no paste-a-redirect step. Connected apps appear on the Developers page only after this.
 - Agent activity list from `envelope_events.metadata.mcp` (writes only), using `RunList`.
 

@@ -242,8 +242,9 @@ Worker, `apps/api/src/automations/automation-worker.service.ts`, copied in struc
 - Claim SQL mirrors `claimNext` on `outbound_emails`: pick a job in `pending` with `scheduled_for <= now()` and `attempts < max_attempts`, `for update skip locked`, set status `running`, set `locked_at = now()`, increment `attempts`. A job left `running` with `locked_at` older than 15 minutes is claimed again. The run status `retrying` is what the history UI shows between attempts.
 - On success: set the run to `done` and delete the job. The run remains.
 - On a transient failure: set the run to `retrying`, set `last_error` (truncated to 500 chars), set the job back to `pending`, and set `scheduled_for`. Backoff matches email: `backoffMs` (2, 4, 8, … minutes, cap 6 hours). `max_attempts` 8.
-- On a permanent failure (4xx other than 408 and 429, SSRF rejection, missing Drive connection, bad config): set the run to `failed`, delete the job, no retry.
-- After `max_attempts`: set the run to `failed` and delete the job. The failed run stays until the owner retries it, edits the recipe, or deletes the recipe. It is not deleted at 30 days.
+- On a permanent failure (4xx other than 408 and 429, SSRF rejection, missing Drive connection, bad config): set the run to `failed`, set `retryable` false, delete the job. The UI shows Fix, which opens the recipe. There is no Retry button.
+- After `max_attempts` on a temporary failure (timeout, DNS, 408, 429, 5xx): set the run to `failed`, set `retryable` true, delete the job. The UI shows one-tap Retry. The failed run stays until Retry succeeds, the owner edits the recipe, or the owner deletes it. It is not deleted at 30 days.
+- `POST /automations/:id/runs/:runId/retry` inserts a new job for that same run id. The unique `run_id` on `automation_jobs` makes a second tap a no-op while a job exists. A permanent failure returns `retry_not_allowed` and does not insert a job. The MCP tool `automations_retry_run` calls this same method.
 - Twenty consecutive `failed` runs on one recipe set `enabled = false` and email the owner. Queued jobs already claimed still finish.
 - Idle sleep 5 seconds, error sleep 10 seconds, same as the email worker.
 
@@ -329,12 +330,12 @@ A later version increments `version` and keeps sending `v1` until the recipe is 
 
 Recipe `sealed_save_drive`, trigger `envelope_sealed` only. The sealed and audit objects exist at that point (`SealingService` writes them before the `sealed` event).
 
-The folder id is whatever the user selected with the Google Picker in the recipe form. That is the same picker the envelope “Save to Google Drive” flow uses (`GET /integrations/gdrive/picker-credentials`, `google.picker` folder mode). Picker selection is what grants `drive.file` access to that folder. A hand-typed folder id from outside the picker will fail with `permission-denied`, and the run goes `dead` with that slug so the user reconnects or re-picks.
+The default folder is “My Drive / Seald”. Creating the recipe does not ask the user to pick a folder. On the first run the worker creates a folder named Seald in My Drive if that folder id is not stored yet. The app creates it, so `drive.file` can write it, and the recipe stores the new `folder_id`. “Advanced” opens the existing Google Picker (`GET /integrations/gdrive/picker-credentials`, folder mode) for a different folder. A hand-typed folder id is not accepted. A picker folder the app cannot write fails the run as `failed` / `permission-denied`, and the row shows Fix.
 
 Execution calls `GdriveExportService.exportEnvelope` with the envelope’s sealed and audit storage paths and the recipe’s `folder_id` / `folder_name`. The service:
 
-- Refreshes the access token (`GDriveService.getAccessToken`). `TokenExpiredError` → run `dead`, slug `reconnect_required`. The history row tells the user to open Drive settings.
-- No connected account → `dead`, slug `gdrive_not_connected`.
+- Refreshes the access token (`GDriveService.getAccessToken`). `TokenExpiredError` → run `failed`, `retryable` false, slug `reconnect_required`. The history row shows Fix.
+- No connected account → `failed`, `retryable` false, slug `gdrive_not_connected`.
 - `RateLimitedError` → transient, honor `retryAfterMs` as `scheduled_for` if it is later than the normal backoff.
 - Updates files in place when `gdrive_envelope_exports` already has ids for that envelope, account, and folder (`0017`). A retry after a partial upload continues from those ids.
 - Partial success (sealed stored, audit failed) → run `retrying` if attempts remain, `last_error` naming the artifact. The export row already keeps the successful file id.
@@ -351,6 +352,8 @@ Action `email_copy` inserts `outbound_emails` through `insertOutboundEmailIdempo
 New `email_kind` value `automation_copy`, added with `alter type … add value` in this feature’s migration (same pattern as `0019`). A new value cannot run inside a transaction in older Postgres; follow whatever `0019` did (`add value if not exists` outside an explicit transaction block). Down migrations cannot remove an enum value safely; the down script documents that the value remains, matching the caution needed for `signed_to_sender`.
 
 Template files under `apps/api/src/email/templates/automation_copy/`, registered in `TemplateService` and in `TEMPLATE_KINDS` inside `email-dispatcher.service.ts`. Subject and body state that the sender asked Seald to forward a notice. Include title, status, signer name when present, verify URL, and a link to the envelope in the app (`/document/<id>`). Do not include a signing link.
+
+`TEMPLATE_KINDS` also gains `owner_approval` in the approvals pull request (see the MCP doc). That template is the owner’s second factor, not an `automation_copy`. Recipe mail does not reuse it. The stop link on `automation_copy` is a separate single-use hash and is not an approval token.
 
 `dedupe_key`: `automation_copy:<run_id>:<email>`. A worker retry that inserts again hits the unique index and `insertOutboundEmailIdempotent` treats that as success.
 
@@ -374,7 +377,7 @@ No new infrastructure.
 | Recipients per email recipe | 10 | Bounds outbox fan-out. |
 | Email copies per owner per UTC day | 50 | Shared with the MCP quota, so a recipe cannot flood the mail provider. |
 | Webhook response stored | Status code only, body discarded after 64 KB | Keeps Postgres small. |
-| Run retention | Succeeded runs older than 30 days, 200 rows per idle pass. Failed runs stay until Retry later, an edit, or delete. | A bad URL stays visible until the owner deals with it. |
+| Run retention | Done runs older than 30 days, 200 rows per idle pass. Failed runs stay until Retry, Fix, or delete. | A bad URL stays visible until the owner deals with it. |
 | Worker | Same Node process, `WORKER_ENABLED`, in-flight 2, batch 1 | Shares the Kysely pool in `DbModule`. Does not add a connection. |
 | Webhook timeout | 10s | Leaves room under other work on the event loop. `fetch` is asynchronous; the seal loop is not blocked on the socket. |
 | PDF size | Existing 25 MB caps (`MAX_PDF_BYTES`, `GDRIVE_CONVERSION_MAX_BYTES`) | Drive upload already holds artifact bytes in memory. Automations do not raise that. |
@@ -397,25 +400,27 @@ Session JWT, flag-gated 404, owner scoped.
 | `DELETE` | `/automations/:id` | Cascade. |
 | `GET` | `/automations/:id/runs?cursor=` | Newest first, 20 per page. |
 | `POST` | `/automations/:id/test` | One webhook POST, `type: automation.test`, not stored as a run. |
-| `POST` | `/automations/:id/runs/:runId/retry` | Re-enqueue a failed run. Same run id. |
+| `POST` | `/automations/:id/runs/:runId/retry` | One tap. Same run id. Allowed only when `retryable` is true. Otherwise `retry_not_allowed`. |
 
 Create validates the recipe id against the table above and rejects a trigger/action pair that is not in that table (`validation_error`).
 
 ### UI
 
-Concept A. Routes `/settings/automations`, `/settings/automations/new?recipe=<id>`, `/settings/automations/:id`, and the same paths under `/m/settings/automations`. One column, 720px cap, the same component tree in both shells. Sheets are bottom sheets on mobile and dialogs on desktop.
+Concept A, v2. Minimal copy. The main task is one or two taps. Extra fields sit behind “Advanced”. Routes `/settings/automations`, `/settings/automations/new?recipe=<id>`, `/settings/automations/:id`, and the same paths under `/m/settings/automations`. One column, 720px cap, the same component tree in both shells. Sheets are bottom sheets on mobile and dialogs on desktop.
+
+Status words are Done, Failed, Retrying, Off, and Expired. A disabled recipe shows Off. A run in backoff shows Retrying. A finished success shows Done. A finished failure shows Failed. Do not show Queued or Sent.
 
 Entry is the settings index row (desktop `/settings`, phone `/m/settings`). The phone drawer has one “Settings” row. Drive stays at `/m/send/settings`. No new `NAV_ITEMS` item. Flag off hides the row.
 
 Flow:
 
-1. Empty state is the recipe gallery. Each card is one sentence (“When the document is sealed, save it to a Drive folder”) and “Use this”. Launch gallery is webhook and Drive only. Email cards appear in the email PR. Nothing says “coming soon”.
-2. Create is two steps. Step one is the gallery. Step two is the form for that card only: webhook URL, or Drive folder picker (“Saving with <account>”), or address chips. “Only for one template” stays hidden until `source_template_id` is written.
-3. List: “3 of 10”, a switch per recipe (`ReminderToggle` promoted to a shared switch, `role="switch"`, 44px target), last-run badge, then “Add another”. The switch PATCHes `enabled`. Queued runs still finish.
-4. On webhook create, `SecretOnceSheet` shows the signing secret once: Copy, checkbox “I have saved this secret”, Done gated on the checkbox. Afterwards the list says “Secret set” and the rotation date. Rotate shows the new secret once. The old secret verifies for 24 hours. The sheet and the list do not describe how the secret is stored.
-5. Run history is a pushed screen, `RunList`, 20 per page. Status words are Queued, Retrying, Done, Failed. Done is emerald, Failed is red, Queued and Retrying are amber. The word is “Done”, including Drive and email. Failures use plain language (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Retrying rows show the next try time and “attempt n of 8”.
-6. A failed run offers “Edit recipe” and “Retry later”. Retry later re-enqueues that same run id. It does not delete the row. Failed runs stay until that retry succeeds, the recipe is edited, or the recipe is deleted.
-7. “Send test event” calls `POST /automations/:id/test`. It uses the same signer, SSRF rules, and 10 second timeout. Body `type` is `automation.test`. It is not stored as a run. The sheet shows the status code or the plain-language failure.
+1. Empty state is the recipe gallery. Each card is one short line and “Use this”. Launch gallery is webhook and Drive only. Email cards appear in the email PR. Nothing says “coming soon”.
+2. “Use this” is the second tap. Webhook asks for the URL. Drive saves to “My Drive / Seald” with no picker. Email defaults to the owner. “Only for one template”, extra addresses, and a different Drive folder are behind “Advanced”.
+3. List: a switch per recipe (`ReminderToggle` promoted to a shared switch, `role="switch"`, 44px target) and the last-run word. “3 of 10” sits behind “Advanced”. The switch PATCHes `enabled`. A disabled recipe shows Off. Runs already in flight still finish.
+4. The server generates the webhook secret. `SecretOnceSheet` shows it with Copy and nothing else. It is copyable only on that create sheet, and again only when the owner rotates. Afterwards the list says “Secret set”. The sheet does not describe how the secret is stored. The old secret verifies for 24 hours after rotation.
+5. Run history is a pushed screen, `RunList`, 20 per page. Words are Done, Failed, Retrying, Off, and Expired. A temporary failure that has finished automatic retries shows Failed and a Retry button. A permanent failure shows Failed and Fix, which opens the recipe. One short reason (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Retrying shows “attempt n of 8”.
+6. Retry calls `POST /automations/:id/runs/:runId/retry` and keeps the same run id. Fix does not call that endpoint.
+7. “Send test event” is behind “Advanced”. It calls `POST /automations/:id/test` with the same address checks and a 10 second timeout. Body `type` is `automation.test`. It is not stored as a run.
 
 Empty history: “Nothing has run yet. Send a document that matches this recipe.”
 
@@ -429,7 +434,7 @@ Unit, Jest:
 - Webhook signer: known body and secret produce the expected hex. During rotation both headers are present. `timingSafeEqual` rejects a different length. Timestamp outside 300 seconds fails.
 - SSRF: `http://`, `https://127.0.0.1`, `https://169.254.169.254`, `https://10.0.0.1`, `https://100.64.0.1`, a NAT64 address, a hostname that resolves to `192.168.0.5`, and any 3xx are blocked and do not open a socket. Use a stub resolver.
 - Payload fixture for each `type` has no key matching `/token|sign_url|access_token/i`.
-- Backoff schedule matches `backoffMs` for attempts 1 through 8, then `failed`. A `running` job with `locked_at` older than 15 minutes is claimed again. Twenty consecutive failures disable the recipe.
+- Backoff schedule matches `backoffMs` for attempts 1 through 8, then `failed` with `retryable` true. A 404 is `failed` with `retryable` false. A second retry while a job exists for that run id inserts nothing. A `running` job with `locked_at` older than 15 minutes is claimed again. Twenty consecutive failures disable the recipe.
 - Drive action: mock `GdriveExportService` to throw `TokenExpiredError` and expect `failed` / `reconnect_required`. A partial error with attempts remaining expects `retrying`.
 - Email action: one `automation_copy` row per address, stable `dedupe_key`, second insert does not throw out of `insertOutboundEmailIdempotent`.
 
@@ -443,22 +448,22 @@ E2E, `apps/api/test/automations.e2e-spec.ts`:
 
 Migration convention spec must pass, including the down file’s location.
 
-Web, Vitest: gallery is the empty state; list shows the switch and “3 of 10”; secret sheet gates Done on the checkbox; history says Done, not Sent; a failed row offers Retry later. Query by role. Cover `/settings/automations` and `/m/settings/automations`.
+Web, Vitest: gallery is the empty state; Drive create does not open a picker and names “My Drive / Seald”; the secret sheet has Copy and no checkbox; a temporary failure shows Retry; a permanent failure shows Fix and no Retry. Query by role. Cover `/settings/automations` and `/m/settings/automations`.
 
 Do not mark the feature done on unit tests alone. The e2e covers matcher → job → webhook POST, and a Vitest test covers the mobile recipe screen.
 
 ## Pull requests
 
-One feature per pull request, in the order the product review listed for this track. The MCP document’s step 1 is the in-transaction call site. This track registers the matcher and then ships each action alone. The flag stays off until a later change turns it on.
+One feature per pull request, in the order the product review listed for this track. Each of these PRs uses minimal copy, one or two taps, and an “Advanced” link for the rest. The MCP document’s step 1 is the in-transaction call site. This track registers the matcher and then ships each action alone. The flag stays off until a later change turns it on.
 
 | PR | Feature |
 | --- | --- |
 | A1 | Tables and the durable matcher inside `appendEvent`, worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan. |
 | A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks, `POST /automations/:id/test`, and the MCP tool `automations_test_webhook` in the same PR. Secrets use `AUTOMATION_SECRETS_KEY`. The API create path is enough for e2e. The screen is not in this PR. |
-| A3 | Automation tools behind owner approval: list, upsert, enable, list runs, `automations_get_run`. External destinations stay disabled until the owner approves. `automations:write` is off by default. |
+| A3 | Automation tools behind owner approval: list, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure. External destinations stay disabled until the owner approves. `automations:write` is off by default. |
 | A4 | Shared UI if the MCP track has not landed it: `SecretOnceSheet`, `RunList`, `Checkbox`, `MWBottomSheet`, switch from `ReminderToggle`. |
-| A5 | Settings index row if missing, then the automations page: gallery, two-step create, list with switches, secret shown once, run history with Done and Retry later. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
-| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Folder picker. Approval before enable. |
+| A5 | Settings index row if missing, then the automations page: gallery, one-tap create, list with switches, secret shown once with Copy only, run history with Retry or Fix. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
+| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. Approval before enable. |
 | A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. Approval when a recipient is not the owner. |
 | A8 | Twenty-failure auto-disable, and the owner email that goes with it. |
 
