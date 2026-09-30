@@ -109,4 +109,60 @@ describe('apiClient response interceptor', () => {
       /couldn't reach the server/i,
     );
   });
+
+  // Every toast that reads err.message, and useSaveEnvelopeToGdrive's
+  // /not[_-]sealed/ fallback, now see the filter's { error } slug
+  // instead of the HTTP status text.
+  it('surfaces a slug from an { error } body', async () => {
+    const adapter: AxiosAdapter = (config) => {
+      const response = {
+        data: { error: 'key_limit' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+      };
+      const err = new AxiosError(
+        'Request failed with status code 409',
+        'ERR_BAD_REQUEST',
+        config,
+        null,
+        response as unknown as AxiosResponse,
+      );
+      return Promise.reject(err);
+    };
+    await expect(
+      withAdapter(adapter, () => apiClient.post('/me/api-keys', {})),
+    ).rejects.toMatchObject({
+      message: 'key_limit',
+      code: 'key_limit',
+    });
+  });
+
+  it('turns an envelope_not_sealed slug into the message Drive save matches', async () => {
+    const adapter: AxiosAdapter = (config) => {
+      const response = {
+        data: { error: 'envelope_not_sealed' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+      };
+      const err = new AxiosError(
+        'Request failed with status code 409',
+        'ERR_BAD_REQUEST',
+        config,
+        null,
+        response as unknown as AxiosResponse,
+      );
+      return Promise.reject(err);
+    };
+    await expect(
+      withAdapter(adapter, () => apiClient.post('/envelopes/x/gdrive', {})),
+    ).rejects.toMatchObject({
+      message: 'envelope_not_sealed',
+      code: 'envelope_not_sealed',
+      status: 409,
+    });
+  });
 });
