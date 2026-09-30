@@ -159,9 +159,9 @@ export const RightRailFooter = styled.div`
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
 
-/** The toggle itself has no padding; the rail supplies the inset. */
+/** The toggle itself has no padding; the rail supplies the inset, including under the help text. */
 export const ReminderSlot = styled.div`
-  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]} 0;
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
 `;
 
 /**

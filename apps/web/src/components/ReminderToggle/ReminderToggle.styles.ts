@@ -7,7 +7,7 @@ import styled from 'styled-components';
  * global one in globalStyles (2px border.focus / indigo 500, offset 2).
  * This rule only pins the color so a local override cannot use indigo 600.
  */
-export const Root = styled.div`
+export const Root = styled.label`
   display: flex;
   align-items: flex-start;
   gap: ${({ theme }) => theme.space[2]};
@@ -16,6 +16,14 @@ export const Root = styled.div`
   padding: 0;
   cursor: pointer;
   font-family: ${({ theme }) => theme.font.sans};
+
+  &:has(input[aria-busy='true']) {
+    cursor: progress;
+  }
+
+  &:has(input:disabled) {
+    cursor: not-allowed;
+  }
 `;
 
 export const Input = styled.input`
@@ -72,7 +80,7 @@ export const CopyCol = styled.span`
   padding-top: ${({ theme }) => theme.space[1]};
 `;
 
-export const Text = styled.label`
+export const Text = styled.span`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};

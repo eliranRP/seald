@@ -996,6 +996,7 @@ export class EnvelopesService {
         expires_at_readable: formatExpiresAt(envelope.expires_at),
         public_url: publicUrl,
         signer_list_html: signerListHtml,
+        reminder_cadence: '',
       },
     });
   }

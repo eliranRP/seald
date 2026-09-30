@@ -120,6 +120,7 @@ describe('ReminderSchedulerService', () => {
     const payload = emails[0]?.payload ?? {};
     expect(payload).not.toHaveProperty('sign_url');
     expect(payload['automated']).toBe(true);
+    expect(payload['reminder_cadence']).toContain('up to 7 automatic daily reminders');
     expect(JSON.stringify(payload)).not.toMatch(/[?&]t=/);
     expect(payload['envelope_title']).toBe('Spec Envelope');
     expect(payload['verify_url']).toBe(`https://seald.example/verify/${envelopes[0]!.short_code}`);

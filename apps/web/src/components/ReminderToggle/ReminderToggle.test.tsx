@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import { ThemeProvider } from 'styled-components';
 import { seald } from '@/styles/theme';
 import { ReminderToggle } from './ReminderToggle';
@@ -46,14 +47,38 @@ describe('ReminderToggle', () => {
     expect(css).not.toContain('1.4');
   });
 
-  it('marks the switch busy while a save is pending', () => {
-    render(
+  it('toggles from the help text because the whole row is the label', async () => {
+    const user = userEvent.setup();
+    render(<Harness />);
+    const toggle = screen.getByRole('switch', { name: /^email reminders$/i });
+    const hint = screen.getByText(/until they sign or the request expires/i);
+    expect(hint.closest('label')).toContainElement(toggle);
+    await user.click(hint);
+    expect(toggle).not.toBeChecked();
+  });
+
+  it('stays enabled and keeps focus while a save is pending', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(
       <ThemeProvider theme={seald}>
-        <ReminderToggle enabled pending onChange={() => undefined} />
+        <ReminderToggle enabled pending={false} onChange={onChange} />
       </ThemeProvider>,
     );
-    const toggle = screen.getByRole('switch', { name: /email reminders/i });
-    expect(toggle).toBeDisabled();
+    const toggle = screen.getByRole('switch', { name: /^email reminders$/i });
+    toggle.focus();
+    rerender(
+      <ThemeProvider theme={seald}>
+        <ReminderToggle enabled pending onChange={onChange} />
+      </ThemeProvider>,
+    );
+    expect(toggle).toBeEnabled();
     expect(toggle).toHaveAttribute('aria-busy', 'true');
+    expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    expect(toggle).toHaveFocus();
+    await user.click(toggle);
+    await user.click(screen.getByText(/until they sign or the request expires/i));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(toggle).toBeChecked();
   });
 });

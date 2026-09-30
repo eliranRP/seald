@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { AUTOMATED_REMINDER_CADENCE } from '../reminder-cadence';
 import { TemplateService } from '../template.service';
 
 describe('TemplateService', () => {
@@ -147,6 +148,7 @@ describe('TemplateService', () => {
         legal_postal: 'Chlenov 24, Tel Aviv-Yafo 6604806, Israel',
         privacy_url: 'https://seald.nromomentum.com/legal/privacy',
         preferences_url: 'mailto:privacy@seald.nromomentum.com',
+        reminder_cadence: AUTOMATED_REMINDER_CADENCE,
       });
       expect(out.subject).toBe('Reminder: please sign "MSA"');
       expect(out.html).toContain('Seald</strong> · Chlenov 24');
@@ -165,6 +167,22 @@ describe('TemplateService', () => {
       expect(out.text).toContain('Review and sign:');
       expect(out.text).toContain('Seald · Chlenov 24');
       expect(out.text).toContain('MSA');
+    });
+
+    it('omits the automatic-reminder sentence unless reminder_cadence is set', () => {
+      const out = svc.render('reminder', {
+        sender_name: 'Ada Lovelace',
+        sender_email: 'ada@example.com',
+        envelope_title: 'MSA',
+        sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+        reminder_cadence: '',
+      });
+      expect(out.html).not.toContain('automatic daily reminders');
+      expect(out.text).not.toContain('automatic daily reminders');
+      expect(out.html).toContain('asked you to sign a document.');
+      expect(out.text).toContain('asked you to sign a document.');
+      expect(out.html).toContain('simple electronic signature');
+      expect(out.text).toContain('simple electronic signature');
     });
 
     it('uses the same e-signature notice text as the invite', () => {

@@ -374,7 +374,8 @@ describe('EnvelopeDetailPage', () => {
     await user.click(toggle);
 
     expect(toggle).not.toBeChecked();
-    expect(toggle).toBeDisabled();
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-disabled', 'true');
     expect(toggle).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('Reminders off')).toBeNull();
 

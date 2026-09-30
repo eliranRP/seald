@@ -5,6 +5,7 @@ import {
   DuplicateOutboundEmailError,
   OutboundEmailsRepository,
 } from '../email/outbound-emails.repository';
+import { AUTOMATED_REMINDER_CADENCE } from '../email/reminder-cadence';
 import { buildSignerListHtmlFromSigners } from '../email/template-fragments';
 import { EnvelopesRepository, type ReminderCandidate } from '../envelopes/envelopes.repository';
 import { formatExpiresAt } from '../envelopes/envelopes.service';
@@ -118,6 +119,7 @@ export class ReminderSchedulerService {
       expires_at_readable: formatExpiresAt(envelope.expires_at),
       public_url: publicUrl,
       automated: true,
+      reminder_cadence: AUTOMATED_REMINDER_CADENCE,
       signer_list_html: buildSignerListHtmlFromSigners(envelope.signers, {
         highlightEmail: signer.email,
         showEmails: false,

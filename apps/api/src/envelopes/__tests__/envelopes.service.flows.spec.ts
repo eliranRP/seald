@@ -926,6 +926,7 @@ describe('EnvelopesService — flow coverage', () => {
       );
       expect(String(reminders[0]!.payload.sender_name)).toBe('Sender Name');
       expect(reminders[0]!.payload.automated).toBeUndefined();
+      expect(reminders[0]!.payload.reminder_cadence).toBe('');
 
       // Token rotation actually persisted a fresh hash.
       expect(repo.rotateLog).toHaveLength(1);
