@@ -1091,10 +1091,6 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     user_agent: string | null,
   ): Promise<SubmitResult | null> {
     return this.db.transaction().execute(async (trx) => {
-      // pg-mem does not implement SELECT ... FOR UPDATE locking semantics,
-      // but the row-conditional UPDATE below (where signed_at is null) is
-      // sufficient on its own — whichever writer updates the row first wins
-      // and the second gets 0 rows.
       const existing = await trx
         .selectFrom('envelope_signers')
         .selectAll()
@@ -1105,6 +1101,18 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       if (existing.declined_at !== null) return null;
       if (existing.tc_accepted_at === null) return null;
       if (existing.signature_format === null) return null;
+
+      // Serialize signers on this envelope. Without the lock, two final
+      // signers can both count `total - 1` under READ COMMITTED and neither
+      // flips the row to sealing. pg-mem accepts FOR UPDATE but does not
+      // lock; the real-Postgres concurrency test covers that.
+      const locked = await trx
+        .selectFrom('envelopes')
+        .select(['id'])
+        .where('id', '=', existing.envelope_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!locked) return null;
 
       const now = new Date().toISOString();
       const signerRow = await trx
@@ -1165,6 +1173,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         signer: toSignerDomain(signerRow),
         all_signed,
         envelope_status,
+        done,
+        total,
       };
     });
   }

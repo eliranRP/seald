@@ -43,7 +43,8 @@ const vars = {
   expired_at_readable: 'Apr 24, 2026',
   expires_at_readable: 'in 4 days',
   total_signers: 3,
-  signed_count: 1,
+  signed_count: 2,
+  signer_name: 'Maya Raskin',
   signer_list_html: signerListHtml,
   timeline_html: timelineHtml,
 };
@@ -57,6 +58,7 @@ const kinds = [
   'withdrawn_after_sign',
   'expired_to_sender',
   'expired_to_signer',
+  'signed_to_sender',
 ] as const;
 
 for (const k of kinds) {

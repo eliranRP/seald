@@ -1,0 +1,12 @@
+{{signer_name}} signed {{envelope_title}}.
+
+{{signed_count}} of {{total_signers}} signed.
+
+The finished file is emailed when everyone has signed.
+
+Open in Seald:
+  {{dashboard_url}}
+
+Reference code: {{short_code}}
+
+Sent via Seald · {{public_url}}

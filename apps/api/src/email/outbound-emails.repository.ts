@@ -16,6 +16,7 @@ export interface OutboundEmailRow {
   readonly last_error: string | null;
   readonly provider_id: string | null;
   readonly source_event_id: string | null;
+  readonly dedupe_key: string;
   readonly created_at: string;
 }
 
@@ -27,6 +28,13 @@ export interface InsertOutboundEmailInput {
   readonly to_name: string;
   readonly payload: Readonly<Record<string, unknown>>;
   readonly source_event_id?: string | null;
+  /**
+   * When set, a second insert with the same key is a duplicate. Use a
+   * stable value (`signed_to_sender:<envelope>:<signer>`,
+   * `completed:<envelope>:<email>`). Omit it for one-shot rows; the
+   * column default assigns a fresh id.
+   */
+  readonly dedupe_key?: string;
   readonly scheduled_for?: string;
   readonly max_attempts?: number;
 }
@@ -37,9 +45,9 @@ export interface InsertOutboundEmailInput {
  * worker's email-drain loop (Phase 3e).
  *
  * Uniqueness is enforced at the DB by `(envelope_id, signer_id, kind,
- * source_event_id)` so the same triggering event cannot enqueue the same
- * email to the same signer twice — idempotency safety net for re-entrant
- * service calls.
+ * source_event_id)` and by `dedupe_key` (migration 0019). The tuple does
+ * not cover sender-addressed rows (`signer_id` is null — Postgres treats
+ * those nulls as distinct). Callers that must send once pass `dedupe_key`.
  */
 export abstract class OutboundEmailsRepository {
   /** Insert a single row. Returns the created row. Throws on duplicate-unique. */
