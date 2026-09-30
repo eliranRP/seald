@@ -12,7 +12,7 @@ matched on first pass, and what deltas were corrected.
 1. Open `Design-Guide/project/verify-flow.html` directly in a Chrome window
    sized 1440 × 900 (the artboard width the design renders on).
 2. `pnpm --filter web build-storybook` then load
-   `Pages/VerifyPage > Completed` at the same viewport. Chromatic baselines
+   `L4/VerifyPage > Completed` at the same viewport. Chromatic baselines
    capture the pixel-perfect screenshot for visual regression.
 3. Compare typography (`font-family`, `font-weight`, `font-size`,
    `line-height`, letter-spacing), spacing (margins/padding/gaps in 4px
@@ -72,14 +72,14 @@ in `theme.space`:
 
 ## Typography crosswalk
 
-| Design                                    | React style                                  |
-| ----------------------------------------- | -------------------------------------------- |
-| Verdict h1: `serif 44/1.05 / -0.02em`     | `VerdictHeading` — serif 44 / 1.05 / -0.02em |
-| Verdict eyebrow: `12 / 0.14em / 600`      | `VerdictEyebrow`                             |
-| Doc title h2: `serif 19 / 1.2 / -0.005em` | `DocTitle`                                   |
-| Body: `sans 16 / 1.55`                    | `VerdictBody` (theme.font.size.body)         |
-| Caption: `sans 13 / 1.5`                  | `theme.font.size.caption`                    |
-| Mono hash: `mono 12 / 1.5`                | `FactVal` with `$hash` prop                  |
+| Design                                    | React style                                                                                               |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Verdict h1: `serif 44/1.05 / -0.02em`     | `VerdictHeading` — serif, h3 (28px) on the phone, h1 (48px) from 641px, lineHeight.tight / tracking.tight |
+| Verdict eyebrow: `12 / 0.14em / 600`      | `VerdictEyebrow`                                                                                          |
+| Doc title h2: `serif 19 / 1.2 / -0.005em` | `DocTitle` — serif h5 (18px), lineHeight.snug / tracking.tight                                            |
+| Body: `sans 16 / 1.55`                    | `VerdictBody` (theme.font.size.body)                                                                      |
+| Caption: `sans 13 / 1.5`                  | `theme.font.size.caption`                                                                                 |
+| Mono hash: `mono 12 / 1.5`                | `FactVal` with `$hash` prop                                                                               |
 
 ## Section parity checklist
 

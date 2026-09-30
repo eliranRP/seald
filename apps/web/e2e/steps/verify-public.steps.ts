@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect } from '@playwright/test';
 import { createBdd } from 'playwright-bdd';
 import { test } from '../fixtures/test';
@@ -133,6 +135,62 @@ Then(
     expect(filename!).toMatch(new RegExp(`${suffix.replace('.', '\\.')}$`, 'i'));
   },
 );
+
+/**
+ * Reads `theme.font.size` from the theme source so the assertion stays
+ * tied to the token. Playwright's e2e project cannot import `src/`
+ * (that file sits outside the e2e rootDir).
+ */
+function headingTokenSize(name: string): string {
+  if (name !== 'h1' && name !== 'h3' && name !== 'h5') {
+    throw new Error(`unsupported heading size token: ${name}`);
+  }
+  const source = readFileSync(join(process.cwd(), 'src/styles/theme.ts'), 'utf8');
+  const match = new RegExp(`${name}:\\s*'(\\d+px)'`).exec(source);
+  const px = match?.[1];
+  if (px === undefined) {
+    throw new Error(`theme.font.size.${name} is missing from theme.ts`);
+  }
+  return px;
+}
+
+When('the viewport is set to a 640x900 window', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 900 });
+});
+
+When('the viewport is set to a 641x900 window', async ({ page }) => {
+  await page.setViewportSize({ width: 641, height: 900 });
+});
+
+When('the viewport is set to a 1440x900 desktop', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+});
+
+Then(
+  'the verify verdict heading font size is the {string} token',
+  async ({ page }, token: string) => {
+    const heading = page.getByRole('heading', { level: 1 });
+    await expect(heading).toBeVisible();
+    await expect(heading).toHaveCSS('font-size', headingTokenSize(token));
+  },
+);
+
+Then(
+  'the verify document title font size is the {string} token',
+  async ({ page }, token: string) => {
+    const title = page.getByRole('heading', { level: 2 });
+    await expect(title).toBeVisible();
+    await expect(title).toHaveCSS('font-size', headingTokenSize(token));
+  },
+);
+
+Then('the verify page does not overflow horizontally', async ({ page }) => {
+  const overflow = await page.evaluate(() => {
+    const root = document.documentElement;
+    return root.scrollWidth - root.clientWidth;
+  });
+  expect(overflow).toBeLessThanOrEqual(1);
+});
 
 Then('the audit chain status badge reads {string}', async ({ page }, expected: string) => {
   // Playwright's `getByLabel` only resolves `aria-label` for form

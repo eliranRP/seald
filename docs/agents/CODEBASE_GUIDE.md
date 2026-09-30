@@ -548,9 +548,9 @@ index.ts
 
 New stories should use a title of `L1/`, `L2/`, `L3/`, or `L4/` and tags
 `autodocs` plus `layer-N`. That is the target, not the current tree.
-On `4a8c663`, these stories have no `layer-N` tag: `VerifyPage` (title
-`Pages/VerifyPage`), `DownloadMenu`, `ActivityTimeline`, `SignerStack`,
-`SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader` (title
+On `4a8c663`, these stories have no `layer-N` tag: `DownloadMenu`,
+`ActivityTimeline`, `SignerStack`, `SignerProgressBar`,
+`SendingOverlay`, `TemplateFlowHeader` (title
 `L2 / TemplateFlowHeader`), `PdfPageView` (title `L3 Widgets/PdfPageView`).
 
 Commit messages: `type(scope): subject`. Commitlint runs on `commit-msg`

@@ -15,11 +15,33 @@ import { VERIFY_KEY } from '../../features/verify';
  * a fresh QueryClient so cache state does not leak between cases.
  */
 
+/**
+ * Storybook has no global viewport presets. These two options are the
+ * widths the design review measures: 390 and 1440. Chromatic modes use
+ * the same pair.
+ */
+const verifyViewports = {
+  mobile: {
+    name: 'Mobile',
+    styles: { width: '390px', height: '844px' },
+    type: 'mobile' as const,
+  },
+  desktop: {
+    name: 'Desktop',
+    styles: { width: '1440px', height: '900px' },
+    type: 'desktop' as const,
+  },
+};
+
 const meta: Meta<typeof VerifyPage> = {
-  title: 'Pages/VerifyPage',
+  title: 'L4/VerifyPage',
   component: VerifyPage,
-  tags: ['autodocs', 'page'],
-  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
+  tags: ['autodocs', 'layer-4'],
+  parameters: {
+    layout: 'fullscreen',
+    chromatic: { modes: chromaticViewportModes },
+    viewport: { options: verifyViewports },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof VerifyPage>;
@@ -249,8 +271,10 @@ function StoryHarness({ data, forcedState }: WithDataProps) {
   );
 }
 
+/** Intact seal at the 1440×900 desktop viewport. The verdict uses h1. */
 export const Completed: Story = {
   render: () => <StoryHarness data={COMPLETED} />,
+  globals: { viewport: { value: 'desktop', isRotated: false } },
 };
 
 export const Declined: Story = {
@@ -281,7 +305,9 @@ export const NotFound: Story = {
  *
  * Pinned as its own Chromatic baseline so a regression that drops the
  * badge or swaps the danger color is caught visually on every PR.
+ * Shown at the 390×844 phone viewport, where the verdict uses h3.
  */
 export const ChainBroken: Story = {
   render: () => <StoryHarness data={{ ...COMPLETED, chain_intact: false }} />,
+  globals: { viewport: { value: 'mobile', isRotated: false } },
 };
