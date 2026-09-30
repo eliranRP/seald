@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { useState } from 'react';
 import { SignatureCapture } from './SignatureCapture';
 
@@ -24,7 +25,7 @@ const meta: Meta<typeof SignatureCapture> = {
   title: 'L2/SignatureCapture',
   component: SignatureCapture,
   tags: ['autodocs', 'layer-2'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
 };
 export default meta;
 type Story = StoryObj<typeof SignatureCapture>;
@@ -34,4 +35,16 @@ export const Signature: Story = {
 };
 export const Initials: Story = {
   render: () => <InteractiveDemo kind="initials" />,
+};
+
+/** Open signature sheet at the 390×844 phone viewport. */
+export const Mobile: Story = {
+  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
+  render: () => <InteractiveDemo kind="signature" />,
+};
+
+/** Open signature sheet at the 1440×900 desktop viewport. */
+export const Desktop: Story = {
+  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
+  render: () => <InteractiveDemo kind="signature" />,
 };

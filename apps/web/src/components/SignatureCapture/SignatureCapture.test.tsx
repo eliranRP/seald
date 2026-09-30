@@ -13,6 +13,20 @@ beforeEach(() => {
 });
 
 describe('SignatureCapture', () => {
+  it('labels the footer as audit-logged without an encryption claim', () => {
+    const { getByText, queryByText } = renderWithTheme(
+      <SignatureCapture
+        open
+        kind="signature"
+        defaultName="Maya Raskin"
+        onCancel={() => {}}
+        onApply={() => {}}
+      />,
+    );
+    expect(getByText('Audit-logged')).toBeInTheDocument();
+    expect(queryByText(/encrypt/i)).toBeNull();
+  });
+
   it('renders nothing when closed', () => {
     const { queryByRole } = renderWithTheme(
       <SignatureCapture

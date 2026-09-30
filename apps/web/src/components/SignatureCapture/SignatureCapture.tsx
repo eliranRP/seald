@@ -402,7 +402,7 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
         <Footer>
           <FooterMeta>
             <Icon icon={ShieldCheck} size={12} />
-            Encrypted and audit-logged
+            Audit-logged
           </FooterMeta>
           <FooterActions>
             <CancelBtn type="button" onClick={onCancel}>

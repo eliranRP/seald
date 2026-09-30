@@ -49,6 +49,21 @@ describe('IntegrationsPage', () => {
     expect(screen.queryByRole('navigation', { name: /settings rail/i })).toBeNull();
   });
 
+  it('describes Drive permissions without an encryption claim', async () => {
+    mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
+    renderPage();
+    expect(
+      await screen.findByText('Access is restricted and every action is logged.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Disconnect any time. We revoke access at Google where we can and stop using the token. A copy stays in our database for now.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/encrypt/i)).toBeNull();
+    expect(screen.queryByText(/\bKMS\b/)).toBeNull();
+  });
+
   it('shows a Connect Google Drive CTA when no accounts are connected', async () => {
     mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
     renderPage();
