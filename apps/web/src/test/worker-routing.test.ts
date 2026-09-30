@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import worker, { isSpaRoute, MARKETING_PATHS } from '../../../landing/_worker.js';
+import { QUIET_ROBOTS_TXT, robotsTxt } from '../../../landing/indexing.config.js';
 
 /**
  * Behavioral coverage for apps/landing/_worker.js (SEO cycle S1a).
@@ -151,7 +152,7 @@ describe('apps/landing/_worker.js routing', () => {
     const { env, fetched } = site();
     const response = await worker.fetch(new Request('https://seald.nromomentum.com/contact'), env);
     expect(response.status).toBe(200);
-    expect(response.headers.get('x-robots-tag')).toBeNull();
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(await response.text()).toContain('Contact');
     expect(fetched).toEqual(['/contact']);
   });
@@ -168,6 +169,7 @@ describe('apps/landing/_worker.js routing', () => {
       const response = await worker.fetch(new Request(`https://seald.nromomentum.com${from}`), env);
       expect(response.status, from).toBe(308);
       expect(response.headers.get('location'), from).toBe(`https://seald.nromomentum.com${to}`);
+      expect(response.headers.get('x-robots-tag'), from).toBe('noindex, nofollow');
       for (const [name, value] of Object.entries(securityHeaders())) {
         expect(response.headers.get(name), `${from} ${name}`).toBe(value);
       }
@@ -181,7 +183,7 @@ describe('apps/landing/_worker.js routing', () => {
       env,
     );
     expect(response.status).toBe(404);
-    expect(response.headers.get('x-robots-tag')).toBe('noindex');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(await response.text()).toContain('Page not found');
     expect(fetched).toContain('/');
     expect(fetched).toContain('/404');
@@ -206,6 +208,7 @@ describe('apps/landing/_worker.js routing', () => {
       env,
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(response.headers.get('content-type')).toContain('image/x-icon');
     expect(await response.text()).toBe('icon');
   });
@@ -239,6 +242,7 @@ describe('apps/landing/_worker.js routing', () => {
     };
     const response = await worker.fetch(new Request('https://seald.nromomentum.com/contact'), env);
     expect(response.status).toBe(200);
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(await response.text()).toContain('Contact');
     expect(fetched).toEqual(['/contact', '/contact/']);
   });
@@ -261,7 +265,7 @@ describe('apps/landing/_worker.js routing', () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
-    expect(response.headers.get('x-robots-tag')).toBeNull();
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(await response.text()).toBe(token);
     expect(fetched).not.toContain('/app');
     expect(fetched).not.toContain('/404');
@@ -309,24 +313,65 @@ describe('apps/landing/_worker.js routing', () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
     expect(response.headers.get('location')).toBeNull();
     expect(await response.text()).toBe(token);
   });
 
-  it('passes robots, sitemap, and llms.txt through with their content types', async () => {
-    const cases: Array<[string, string, string]> = [
-      ['/robots.txt', 'text/plain; charset=utf-8', 'User-agent:'],
-      ['/sitemap.xml', 'application/xml; charset=utf-8', '<urlset>'],
-      ['/llms.txt', 'text/plain; charset=utf-8', '# Seald'],
-    ];
-    for (const [path, contentType, snippet] of cases) {
+  it('serves robots.txt that allows crawling and names no sitemap', async () => {
+    const { env, fetched } = site();
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/robots.txt'),
+      env,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8');
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    const body = await response.text();
+    expect(body).toBe(robotsTxt());
+    expect(body).toBe(QUIET_ROBOTS_TXT);
+    expect(body).toMatch(/User-agent: \*\nAllow: \/\n/);
+    expect(body).not.toMatch(/^Disallow:/m);
+    expect(body).not.toMatch(/^Sitemap:/m);
+    expect(body).not.toContain('Disallow: /');
+    expect(fetched).toEqual([]);
+  });
+
+  it('does not serve indexing.config.js', async () => {
+    const { env, fetched } = assetsFrom({
+      '/': { body: HOME, contentType: 'text/html; charset=utf-8', etag: '"home"' },
+      '/404': { body: MISSING, contentType: 'text/html; charset=utf-8', etag: '"missing"' },
+      '/indexing.config.js': {
+        body: 'export const SEO_INDEXING_ENABLED = false;\n// trademark unresolved\n',
+        contentType: 'text/javascript; charset=utf-8',
+        etag: '"cfg"',
+      },
+    });
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/indexing.config.js'),
+      env,
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    const body = await response.text();
+    expect(body).toContain('Page not found');
+    expect(body).not.toMatch(/trademark/i);
+    expect(body).not.toContain('SEO_INDEXING_ENABLED');
+    expect(fetched).not.toContain('/indexing.config.js');
+  });
+
+  it('does not serve sitemap.xml or llms.txt', async () => {
+    for (const path of ['/sitemap.xml', '/sitemap-index.xml', '/llms.txt']) {
       const { env, fetched } = site();
       const response = await worker.fetch(new Request(`https://seald.nromomentum.com${path}`), env);
-      expect(response.status, path).toBe(200);
-      expect(response.headers.get('content-type'), path).toBe(contentType);
-      expect(response.headers.get('x-robots-tag'), path).toBeNull();
-      expect(await response.text(), path).toContain(snippet);
-      expect(fetched, path).toEqual([path]);
+      expect(response.status, path).toBe(404);
+      expect(response.headers.get('x-robots-tag'), path).toBe('noindex, nofollow');
+      const body = await response.text();
+      expect(body, path).not.toContain('<urlset');
+      expect(body, path).not.toContain('<loc>');
+      expect(body, path).not.toContain('# Seald');
+      expect(body, path).toContain('Page not found');
+      expect(fetched, path).not.toContain(path);
     }
   });
 });

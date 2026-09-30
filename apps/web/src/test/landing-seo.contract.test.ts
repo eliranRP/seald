@@ -1,14 +1,27 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MARKETING_PATHS } from '../../../landing/_worker.js';
+import {
+  INDEXABLE_ROBOTS_TXT,
+  QUIET_ROBOTS_TXT,
+  SEO_INDEXING_ENABLED,
+  robotsTxt,
+} from '../../../landing/indexing.config.js';
 import { toPublicPath } from '../../../landing/src/public-path.js';
 import { renderSitemap } from '../../../landing/sitemap.js';
 
 /**
- * Pins the S1a technical-SEO contract: public meta length, robots
- * allow-list, sitemap coverage, llms.txt, SPA noindex, and the
- * stable Organization graph. Body copy is out of scope.
+ * Pins the S1a technical-SEO contract and the quiet-use switch
+ * (SEO_INDEXING_ENABLED). Public meta length, robots allow-list,
+ * sitemap coverage, the llms.txt source, SPA noindex, and the stable
+ * Organization graph stay. Body copy is out of scope. Quiet use does
+ * not publish llms.txt, JSON-LD, or a sitemap link.
+ *
+ * Quiet use expects noindex, an allow-all robots.txt, and no sitemap.
+ * Assertions that change when indexing is turned back on follow the flag.
+ * The constant itself is pinned to false so a flip fails CI until the
+ * re-enable steps in docs/seo-indexing.md are done.
  */
 
 const LANDING = resolve(__dirname, '../../../landing');
@@ -35,6 +48,26 @@ function pageFile(pathname: string): string {
   return `src/pages${pathname}.astro`;
 }
 
+function astroPages(dir: string): string[] {
+  const found: string[] = [];
+  for (const entry of readdirSync(dir)) {
+    const full = resolve(dir, entry);
+    if (statSync(full).isDirectory()) {
+      found.push(...astroPages(full));
+    } else if (entry.endsWith('.astro')) {
+      found.push(full);
+    }
+  }
+  return found;
+}
+
+function directiveLines(robots: string): string[] {
+  return robots
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+}
+
 describe('landing SEO contract (S1a)', () => {
   it('gives every public page a 150–160 character description', () => {
     for (const pathname of MARKETING_PATHS) {
@@ -59,7 +92,7 @@ describe('landing SEO contract (S1a)', () => {
     expect(source).toContain('sign in to the Seald web app to open your documents');
     expect(source).not.toContain('web application now');
     const layout = read('src/layouts/BaseLayout.astro');
-    expect(layout).toContain('{!noindex && <link rel="canonical" href={canonicalUrl} />}');
+    expect(layout).toContain('{indexable && <link rel="canonical" href={canonicalUrl} />}');
   });
 
   it('matches the homepage offer to the page and drops the dead pricing anchor', () => {
@@ -119,14 +152,62 @@ describe('landing SEO contract (S1a)', () => {
     }
     expect(layout).not.toContain('sitemap-index.xml');
     expect(layout).not.toContain('rel="preload"');
-    expect(layout).toContain('href="/sitemap.xml"');
+    expect(layout.match(/rel="sitemap"/g)?.length).toBe(1);
+    expect(layout).toContain(
+      '{indexable && <link rel="sitemap" type="application/xml" href="/sitemap.xml" />}',
+    );
+    expect(layout).toContain(
+      '{SEO_INDEXING_ENABLED && <script type="application/ld+json" set:html={jsonLd} />}',
+    );
+    expect(layout).toContain(
+      "indexable ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'",
+    );
+    expect(layout).toContain('const indexable = SEO_INDEXING_ENABLED && !noindex;');
+    expect(layout).not.toContain('<meta name="robots" content="index, follow');
+    const homeFooter = read('src/pages/index.astro').split('<footer')[1] ?? '';
+    const layoutFooter = layout.split('<footer')[1] ?? '';
+    expect(homeFooter).not.toMatch(/sitemap/i);
+    expect(layoutFooter).not.toMatch(/sitemap/i);
     expect(layout).toContain('href="/favicon.ico"');
     expect(layout).toContain('og:image');
     expect(layout).toContain('twitter:card');
   });
 
-  it('allows search and AI crawlers and disallows the app surface', () => {
+  it('defaults indexing to off', () => {
+    expect(SEO_INDEXING_ENABLED).toBe(false);
+    expect(read('indexing.config.js')).toContain('export const SEO_INDEXING_ENABLED = false;');
+  });
+
+  it('puts noindex on every page through the one layout', () => {
+    const pages = astroPages(resolve(LANDING, 'src/pages'));
+    expect(pages.length).toBeGreaterThan(0);
+    for (const page of pages) {
+      expect(readFileSync(page, 'utf8'), page).toContain('BaseLayout');
+    }
+    const layout = read('src/layouts/BaseLayout.astro');
+    expect(layout).toContain('name="robots"');
+    expect(layout).toContain('noindex, nofollow');
+    const html = readFileSync(resolve(__dirname, '../../index.html'), 'utf8');
+    expect(html).toContain('<meta name="robots" content="noindex, nofollow" />');
+    expect(html).not.toContain('index, follow');
+  });
+
+  it('allows crawling and publishes no sitemap while indexing is off', () => {
     const robots = read('public/robots.txt');
+    expect(robots).toBe(QUIET_ROBOTS_TXT);
+    expect(robots).toBe(robotsTxt());
+    expect(robots).toMatch(/User-agent: \*\nAllow: \/\n/);
+    expect(robots).toMatch(/crawling stays allowed/i);
+    expect(directiveLines(robots)).toEqual(['User-agent: *', 'Allow: /']);
+    expect(robots).not.toMatch(/^Disallow:/m);
+    expect(robots).not.toMatch(/^Sitemap:/m);
+    expect(robots).not.toContain('Disallow: /');
+    expect(robots).not.toMatch(/trademark/i);
+    expect(read('indexing.config.js')).not.toMatch(/trademark/i);
+  });
+
+  it('keeps the previous robots.txt for when indexing is turned on', () => {
+    expect(INDEXABLE_ROBOTS_TXT).not.toBe(QUIET_ROBOTS_TXT);
     for (const bot of [
       'GPTBot',
       'OAI-SearchBot',
@@ -136,9 +217,9 @@ describe('landing SEO contract (S1a)', () => {
       'ClaudeBot',
       'Bingbot',
     ]) {
-      expect(robots).toContain(`User-agent: ${bot}`);
+      expect(INDEXABLE_ROBOTS_TXT).toContain(`User-agent: ${bot}`);
     }
-    expect(robots).toContain('Allow: /');
+    expect(INDEXABLE_ROBOTS_TXT).toContain('Allow: /');
     for (const path of [
       '/app$',
       '/app/',
@@ -155,14 +236,26 @@ describe('landing SEO contract (S1a)', () => {
       '/signup',
       '/sent/',
     ]) {
-      expect(robots).toContain(`Disallow: ${path}`);
+      expect(INDEXABLE_ROBOTS_TXT).toContain(`Disallow: ${path}`);
     }
-    expect(robots).toContain('Sitemap: https://seald.nromomentum.com/sitemap.xml');
-    expect(robots).not.toMatch(/^Disallow: \/app$/m);
+    expect(INDEXABLE_ROBOTS_TXT).toContain('Sitemap: https://seald.nromomentum.com/sitemap.xml');
+    expect(INDEXABLE_ROBOTS_TXT).not.toMatch(/^Disallow: \/app$/m);
   });
 
-  it('lists every public page in the sitemap with a build-time lastmod', () => {
+  it('does not generate a sitemap while indexing is off', () => {
     expect(existsSync(resolve(LANDING, 'public/sitemap.xml'))).toBe(false);
+    expect(SEO_INDEXING_ENABLED).toBe(false);
+    const config = read('astro.config.mjs');
+    expect(config).toContain('SEO_INDEXING_ENABLED ? [sitemapLastmod()] : []');
+    expect(config).toContain('if (!SEO_INDEXING_ENABLED) return;');
+    expect(config).toContain("copyFileSync(fileURLToPath(new URL('./llms.txt', import.meta.url))");
+    const workflow = readFileSync(
+      resolve(__dirname, '../../../../.github/workflows/deploy-cloudflare.yml'),
+      'utf8',
+    );
+    expect(workflow).toContain('rm -f "$DEST/indexing.config.js"');
+    expect(workflow).toContain('test ! -e "$DEST/indexing.config.js"');
+    expect(workflow).not.toContain('cp apps/landing/indexing.config.js');
     const sitemap = renderSitemap(MARKETING_PATHS, '2026-01-02');
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1] ?? '');
     const lastmods = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map(
@@ -195,8 +288,9 @@ describe('landing SEO contract (S1a)', () => {
     expect(existsSync(resolve(LANDING, 'public/google-site-verification.html'))).toBe(false);
   });
 
-  it('describes Seald as a web app in llms.txt', () => {
-    const llms = read('public/llms.txt');
+  it('keeps llms.txt off the public site until indexing is on', () => {
+    expect(existsSync(resolve(LANDING, 'public/llms.txt'))).toBe(false);
+    const llms = read('llms.txt');
     expect(llms).toMatch(/web application/i);
     expect(llms).toMatch(/no native app/i);
     expect(llms).not.toContain('NRO Momentum');
