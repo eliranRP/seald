@@ -71,7 +71,7 @@ Account-deletion inserts of `retention_deleted` do not go through `appendEvent`.
 
 MCP tools that create envelopes call the existing services, which call `appendEvent`, which writes the trigger row. Agents do not get a side door that skips recipes. Read tools do not wait for the matcher. The hook is A1 on this track, not an MCP step.
 
-MCP tools over recipes are their own PRs after the webhook action exists. They call this feature’s service. They do not return webhook signing secrets after create. Creating or editing a recipe that adds an external destination — a webhook URL, an email address that is not the owner’s mailbox, or a Drive folder — returns `approval_pending` and stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The settings form uses that same approval. `POST /automations/:id/test` and `automations_test_webhook` return `recipe_not_approved` and do not call the network while that approval is still open.
+MCP tools over recipes are their own PRs after the webhook action exists. They call this feature’s service. They do not return webhook signing secrets after create. Owner approval applies only to changes an agent makes through MCP. Creating or editing a recipe that adds an external destination — a webhook URL, an email address that is not the owner’s mailbox, or a Drive folder — returns `approval_pending` and stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A signed-in Save in the app does not wait: the flow is recipe, then Save, then on. An external destination sends the owner a short notification email. It is not an approval. `POST /automations/:id/test` and `automations_test_webhook` return `recipe_not_approved` and do not call the network while an MCP recipe is still waiting on approval. A recipe the owner saved in the app can be tested.
 
 ## Recipes
 
@@ -88,7 +88,7 @@ The user picks one of these. The form asks only for the blanks.
 | `sent_webhook` | When the document is sent | `sent` | `webhook` | HTTPS URL |
 | `expired_notify_me` | When the request expires | `expired` | `email_copy` | Sender mailbox. |
 
-`sent` fires once per signer. A `sent_webhook` recipe runs once per `sent` event. The payload’s `signer` object tells the receiver which invitation went out. The recipe form says that.
+`sent` fires once per signer. A `sent_webhook` recipe runs once per `sent` event. The payload’s `signer` object tells the receiver which invitation went out. That note sits behind Advanced. The main form does not explain it.
 
 Scope is the whole account, or one template.
 
@@ -99,11 +99,11 @@ Template scope needs the envelope to remember the template. Add nullable `envelo
 
 One owner may save at most 10 recipes (free-plan cap below). A recipe is one trigger and one action. “When sealed, save to Drive and call a webhook” is two recipes. That is deliberate.
 
-Slack is not a recipe yet. The action enum includes `slack` so a later migration does not rewrite the type. The worker, if it ever sees that action, finishes the run as `dead` with slug `action_not_available` and does not call the network. The UI does not offer it.
+Slack is not a recipe yet. The action enum includes `slack` so a later migration does not rewrite the type. The worker, if it ever sees that action, finishes the run as `failed` with `retryable` false and slug `action_not_available`, and does not call the network. The UI does not offer it.
 
 ## Data model
 
-Migration: next free id, not `0020` (PR #367). Down script drops the new tables and the new enum types, and drops `envelopes.source_template_id` if this migration added it. The `recipe` column stores the ids below. Rename `sealed_save_drive` and `sealed_webhook` in this document before that migration is written. Do not ship a `signed_` id for a recipe that fires on `sealed`. `signed_notify_list` stays, because it fires on per-signer `signed`.
+Migration: next free id, not `0020` (PR #367). Down script drops the new tables and the new enum types, and drops `envelopes.source_template_id` if this migration added it. The `recipe` column stores the ids below. Do not ship a `signed_` id for a recipe that fires on `sealed`. `signed_notify_list` stays, because it fires on per-signer `signed`.
 
 ```sql
 create type automation_scope as enum ('account', 'template');
@@ -190,6 +190,7 @@ create table public.automation_runs (
   trigger          automation_trigger not null,
   action           automation_action not null,
   status           automation_run_status not null default 'queued',
+  retryable        boolean not null default true,
   attempts         integer not null default 0,
   last_error       text,
   response_status  integer,
@@ -325,7 +326,7 @@ Do not send the request through a customer-supplied proxy.
 
 `type` is `envelope.sealed`, `envelope.sent`, `signer.signed`, `signer.declined`, `envelope.expired`, or `envelope.viewed`.
 
-Default `config.payload_detail` is `ids`. The `data` object is then `envelope_id`, `status`, and `verify_url` only. `with_signer` adds `title`, `short_code`, and `signer` (`id`, `name`, `email`) and is an explicit choice on the recipe form, with a line that those fields leave Seald. `signer` is omitted when the event has no `signer_id`.
+Default `config.payload_detail` is `ids`. The `data` object is then `envelope_id`, `status`, and `verify_url` only. `with_signer` adds `title`, `short_code`, and `signer` (`id`, `name`, `email`) and is an explicit choice behind Advanced. The line that those fields leave Seald sits behind Advanced too. The main form does not show it. `signer` is omitted when the event has no `signer_id`.
 
 The example JSON above is the `with_signer` shape. Tests cover both shapes.
 
@@ -373,13 +374,13 @@ Template files under `apps/api/src/email/templates/automation_copy/`, registered
 
 The run is `done` once the outbox rows are inserted, not when Resend accepts them. Delivery retries belong to `EmailDispatcherService`, which is already built. If the insert throws for a reason other than a duplicate, the automation run retries.
 
-`declined_notify_me` and `expired_notify_me` default `to` to `envelopes.sender_email`. If that column is null, the run is `dead` with `sender_email_missing`.
+`declined_notify_me` and `expired_notify_me` default `to` to `envelopes.sender_email`. If that column is null, the run is `failed` with `retryable` false and slug `sender_email_missing`.
 
 Cap 10 recipients on one recipe. Validate emails the same way `CreateContactDto` does (trim, lower-case, max 320). The worker does not expand “all contacts”. A separate counter allows 50 `automation_copy` recipient-messages per owner per UTC day, shared with the MCP quota, enforced with `pg_advisory_xact_lock` on the owner id. Over the cap, the run stays queued until the next UTC day rather than being marked failed. Slug `email_copy_daily_cap`.
 
 This mail is separate from `signed_to_sender` and `completed`. Turning on `signed_notify_list` does not suppress those.
 
-`email_copy` to any address other than the owner’s mailbox needs the owner approval described above, before the recipe can enable. The message footer states that the account owner asked Seald to send it, and includes a stop link that disables that recipe. The stop link is a single-use token stored as a hash, same family as the approval link, and it does not carry a signing token.
+An MCP recipe that emails any address other than the owner’s mailbox stays disabled until the owner approves, as described above. A signed-in Save turns that recipe on immediately and sends a short notification email. The message footer states that the account owner asked Seald to send it, and includes a stop link that disables that recipe. The stop link is a single-use token stored as a hash, same family as the approval link, and it does not carry a signing token.
 
 ## Free-plan limits
 
@@ -422,23 +423,23 @@ Create validates the recipe id against the table above and rejects a trigger/act
 
 Concept A, v2. Minimal copy. The main task is one or two taps. Extra fields sit behind “Advanced”. Routes `/settings/automations`, `/settings/automations/new?recipe=<id>`, `/settings/automations/:id`, and the same paths under `/m/settings/automations`. One column, 720px cap, the same component tree in both shells. Sheets are bottom sheets on mobile and dialogs on desktop.
 
-Status words are Done, Failed, Retrying, Off, Expired, and Denied. A disabled recipe shows Off. A run in backoff shows Retrying. A finished success shows Done. A finished failure shows Failed. Denied is the approval word, not a run status. Do not show Queued or Sent.
+Status words are Done, Failed, Retrying, Off, Expired, and Denied. A disabled recipe shows Off. A queued or running run shows no status word. A run in backoff shows Retrying. A finished success shows Done. A finished failure shows Failed. Expired is not a run status: a run does not expire. Expired is an approval past 24 hours or a changed draft. Denied is the approval word, not a run status. Do not show Queued or Sent.
 
 Entry is the settings index row (desktop `/settings`, phone `/m/settings`). The phone drawer has one “Settings” row. Drive stays at `/m/send/settings`. No new `NAV_ITEMS` item. Flag off hides the row.
 
 Flow:
 
 1. Empty state is the recipe gallery. Each card is one short line and “Use this”. Launch gallery is webhook and Drive only. Email cards appear in the email PR. Nothing says “coming soon”.
-2. “Use this” is the second tap. Webhook asks for the URL. Drive saves to “My Drive / Seald” with no picker. Email defaults to the owner. “Only for one template”, extra addresses, and a different Drive folder are behind “Advanced”.
+2. “Use this” is the second tap. Webhook asks for the URL. Drive saves to “My Drive / Seald” with no picker. Email defaults to the owner. Save turns the recipe on. The flow is recipe, then Save, then on. The owner does not approve their own change. An external destination sends a short notification email. “Only for one template”, extra addresses, a different Drive folder, the once-per-signer note, and the `with_signer` warning sit behind “Advanced”.
 3. List: a switch per recipe (`ReminderToggle` promoted to a shared switch, `role="switch"`, 44px target) and the last-run word. “3 of 10” sits behind “Advanced”. The switch PATCHes `enabled`. A disabled recipe shows Off. Runs already in flight still finish.
 4. The server generates the webhook secret. `SecretOnceSheet` shows it with Copy and nothing else. It is copyable only on that create sheet, and again only when the owner rotates. Afterwards the list says “Secret set”. The sheet does not describe how the secret is stored. The old secret verifies for 24 hours after rotation.
-5. Run history is a pushed screen, `RunList`, 20 per page. Run words are Done, Failed, Retrying, Off, and Expired. Denied is the approval word. A temporary failure that has finished automatic retries shows Failed and a Retry button. A permanent failure shows Failed and Fix, which opens the recipe. One short reason (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Retrying shows “attempt n of 8”.
+5. Run history is a pushed screen, `RunList`, 20 per page. A queued or running run shows no status word. A run in backoff shows Retrying and “attempt n of 8”. A finished success shows Done. A temporary failure that has finished automatic retries shows Failed and a Retry button (`retryable` true). A permanent failure shows Failed and Fix (`retryable` false), which opens the recipe. One short reason (“Drive needs to be reconnected”, “The URL was rejected”, “The site returned 404”). Expired and Denied are not run words.
 6. Retry calls `POST /automations/:id/runs/:runId/retry` and keeps the same run id. Fix does not call that endpoint.
-7. “Send test event” is behind “Advanced”. It calls `POST /automations/:id/test` with the same address checks and a 10 second timeout. Body `type` is `automation.test`. It is not stored as a run. The control stays off, and the API returns `recipe_not_approved` without calling the network, until the recipe is approved.
+7. “Send test event” is behind “Advanced”. It calls `POST /automations/:id/test` with the same address checks and a 10 second timeout. Body `type` is `automation.test`. It is not stored as a run. A recipe the owner saved in the app can be tested. An MCP recipe that is still waiting on approval keeps the control off, and the API returns `recipe_not_approved` without calling the network.
 
 Empty history: “Nothing has run yet. Send a document that matches this recipe.”
 
-Shared components, each in its own PR before the page that needs it: `SecretOnceSheet`, `RunList`, `Checkbox`, and promoting `MWBottomSheet` and `ReminderToggle` into `components/`.
+Shared components, each in its own PR before the page that needs it: `SecretOnceSheet`, `RunList`, `Checkbox`, `CodeSnippet`, the header bell, and promoting `MWBottomSheet` and `ReminderToggle` into `components/`.
 
 ## Test plan
 
@@ -473,13 +474,13 @@ One feature per pull request, in the order the product review listed for this tr
 | PR | Feature |
 | --- | --- |
 | A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan of pending triggers and of events after the checkpoint. A matcher failure does not roll back submit or sealing. |
-| A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks. Secrets use `AUTOMATION_SECRETS_KEY`. No test endpoint and no `automations_test_webhook`. The e2e fixture inserts an enabled recipe. A production create of an external destination stays disabled until the owner approves. The screen is not in this PR. |
-| A2b | `POST /automations/:id/test` and `automations_test_webhook`. Both return `recipe_not_approved` and do not call the network while the recipe is waiting on approval. Ships after the approval email exists (MCP step 7a). A test is not stored as a run. |
-| A3 | Automation tools behind owner approval: list, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure. External destinations stay disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. `automations:write` is off by default. The test tool is A2b, not this PR. |
-| A4 | Shared UI if the MCP track has not landed it: `SecretOnceSheet`, `RunList`, `Checkbox`, `MWBottomSheet`, switch from `ReminderToggle`. |
-| A5 | Settings index row if missing, then the automations page: gallery, one-tap create, list with switches, secret shown once with Copy only, run history with Retry or Fix. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
-| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. Approval before enable. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
-| A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. Approval when a recipient is not the owner. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
+| A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks. Secrets use `AUTOMATION_SECRETS_KEY`. No test endpoint and no `automations_test_webhook`. The e2e fixture inserts an enabled recipe. A signed-in create turns an external destination on and sends a short notification email. An MCP create stays disabled until the owner approves. The screen is not in this PR. |
+| A2b | `POST /automations/:id/test` and `automations_test_webhook`. Both return `recipe_not_approved` and do not call the network while an MCP recipe is waiting on approval. A recipe the owner saved in the app can be tested. Ships after the approval email exists (MCP step 7a). A test is not stored as a run. |
+| A3 | Automation tools. List, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure (`retryable` false). An MCP external destination stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The settings Save path is not this approval. `automations:write` is off by default. The test tool is A2b, not this PR. |
+| A4 | Shared UI if the MCP track has not landed it: `SecretOnceSheet`, `RunList`, `Checkbox`, `CodeSnippet`, the header bell, `MWBottomSheet`, switch from `ReminderToggle`. |
+| A5 | Settings index row if missing, then the automations page: gallery, one-tap create, list with switches, secret shown once with Copy only, run history with Retry or Fix. Save turns the recipe on. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
+| A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. A signed-in Save turns it on and sends a short notification email. An MCP enable still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
+| A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. A signed-in Save turns on a recipe whose recipient is not the owner, and sends a short notification email. An MCP enable still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
 | A8 | Twenty-failure auto-disable, and the owner email that goes with it. |
 
 `workflowAutomations` flips on in its own change after A2b has posted a test event to a staging URL.
@@ -503,7 +504,7 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 | Replay of a captured webhook | Timestamp window plus receiver-side dedupe on run id. |
 | Secret in `config` jsonb or in logs | Secret only in the encrypted columns, with the key in the environment. Logs store slugs and status codes. The product copy says “Secret set”. |
 | Customer URL hangs the API process | 10 second abort, in-flight cap 2, separate from the seal claim loop. |
-| Drive token revoked and the user is not told | Run `dead` with `reconnect_required`. History screen uses that sentence. |
+| Drive token revoked and the user is not told | Run `failed` with `retryable` false and slug `reconnect_required`. History screen uses that sentence. |
 | `sealed` runs before files exist | Trigger on `sealed`, which `SealingService` appends after the objects are stored. Do not trigger Drive on `all_signed`. |
 | Duplicate emails on worker retry | `dedupe_key` and `insertOutboundEmailIdempotent`. |
 | Matcher throws and the signer’s submit or sealing fails | The event transaction writes the event and one pending trigger row. Matching runs after commit. A thrown match is logged, the trigger stays pending, and the startup rescan finishes it. Submit and sealing stay committed. The matcher never calls the network. |
@@ -511,7 +512,7 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 | Two deploys both claim jobs | `skip locked`, same as email. Safe if a second node appears later. |
 | Enum `automation_copy` added before the template exists | `upsertRecipe` refuses `email_copy` until the email PR. The dispatcher’s unknown-kind path must not be the steady state. |
 | A recipe emails the signer a second signing link | `automation_copy` has verify and dashboard URLs only, plus the stop link. |
-| A recipe starts posting to a URL the owner did not check | External destinations stay disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A test POST is refused with `recipe_not_approved` until that approval is done. A test is not stored as a run. |
+| A recipe starts posting to a URL the owner did not check | An MCP external destination stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A signed-in Save turns the recipe on and sends a short notification email. A test POST to an unapproved MCP recipe is refused with `recipe_not_approved`. A test is not stored as a run. |
 | Job stuck in `running` after a crash | Reclaim when `locked_at` is older than 15 minutes. |
 
 ## Legal text
