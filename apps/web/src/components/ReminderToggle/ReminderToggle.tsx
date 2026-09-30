@@ -1,5 +1,6 @@
 import { useId, useRef } from 'react';
 import { Bell } from 'lucide-react';
+import { MAX_AUTOMATED_REMINDERS } from 'shared';
 import { Icon } from '../Icon';
 import { Copy, CopyCol, Input, Root, Text } from './ReminderToggle.styles';
 import type { ReminderToggleProps } from './ReminderToggle.types';
@@ -66,7 +67,8 @@ export function ReminderToggle({
           Email reminders
         </Text>
         <Copy id={hintId}>
-          Unsigned signers get a reminder about once a day until they sign or the request expires.
+          Unsigned signers get up to {MAX_AUTOMATED_REMINDERS} daily reminders, about once a day,
+          until they sign or the request expires.
         </Copy>
       </CopyCol>
     </Root>

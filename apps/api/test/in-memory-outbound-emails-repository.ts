@@ -107,14 +107,16 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
     return row ? signUrlFromPayload(row.payload) : null;
   }
 
-  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+  async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
     const nowIso = now.toISOString();
+    const allowed = envelopeIds && envelopeIds.length > 0 ? new Set(envelopeIds) : null;
     const due = this.rows
       .filter(
         (r) =>
           (r.status === 'pending' || r.status === 'failed') &&
           r.scheduled_for <= nowIso &&
-          r.attempts < r.max_attempts,
+          r.attempts < r.max_attempts &&
+          (allowed === null || (r.envelope_id !== null && allowed.has(r.envelope_id))),
       )
       .sort((a, b) => (a.scheduled_for < b.scheduled_for ? -1 : 1));
     const picked = due[0];

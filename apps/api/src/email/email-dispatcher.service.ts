@@ -74,10 +74,13 @@ export class EmailDispatcherService {
    * have been processed in this call. Returns a tidy summary for the
    * caller (cron endpoint, dev script, tests) to log or surface.
    */
-  async flushOnce(maxBatch = 50): Promise<FlushResult> {
+  async flushOnce(
+    maxBatch = 50,
+    scope?: { readonly envelopeIds?: readonly string[] },
+  ): Promise<FlushResult> {
     const outcomes: DispatchOutcome[] = [];
     for (let i = 0; i < maxBatch; i += 1) {
-      const outcome = await this.dispatchOne();
+      const outcome = await this.dispatchOne(scope?.envelopeIds);
       if (!outcome) break;
       outcomes.push(outcome);
     }
@@ -103,8 +106,8 @@ export class EmailDispatcherService {
    * dispatch outcome describing what happened (sent / retry / failed /
    * skipped). Exposed directly for tests.
    */
-  async dispatchOne(): Promise<DispatchOutcome | null> {
-    const claimed = await this.repo.claimNext(new Date());
+  async dispatchOne(envelopeIds?: readonly string[]): Promise<DispatchOutcome | null> {
+    const claimed = await this.repo.claimNext(new Date(), envelopeIds);
     if (!claimed) return null;
 
     try {

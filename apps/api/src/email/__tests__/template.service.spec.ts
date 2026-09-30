@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { MAX_AUTOMATED_REMINDERS } from 'shared';
 import { AUTOMATED_REMINDER_CADENCE } from '../reminder-cadence';
 import { TemplateService } from '../template.service';
 
@@ -160,8 +161,7 @@ describe('TemplateService', () => {
       expect(flatText).toContain('This request expires on 2026-05-24 00:00 UTC');
       expect(flatHtml).not.toContain('Reminder sent by');
       expect(flatText).not.toContain('Reminder sent by');
-      const footer =
-        'Unless the sender turns them off, Seald sends up to 7 automatic daily reminders; they stop sooner if you sign or decline, or when the request expires or is cancelled.';
+      const footer = `Unless the sender turns them off, Seald sends up to ${MAX_AUTOMATED_REMINDERS} automatic daily reminders; they stop sooner if you sign or decline, or when the request expires or is cancelled.`;
       expect(flatHtml).toContain(footer);
       expect(flatText).toContain(footer);
       expect(out.text).toContain('Review and sign:');

@@ -217,6 +217,19 @@ describe('EmailDispatcherService', () => {
     expect(result.failed + result.retried + result.skipped).toBe(0);
     expect(sender.calls).toHaveLength(3);
   });
+
+  it('flushOnce leaves pending rows for other envelopes alone', async () => {
+    await repo.insert(inviteRow({ envelope_id: 'env-1', signer_id: 's-1' }));
+    await repo.insert(
+      inviteRow({ envelope_id: 'env-other', signer_id: 's-2', to_email: 'other@example.com' }),
+    );
+
+    const result = await dispatcher.flushOnce(50, { envelopeIds: ['env-1'] });
+    expect(result.claimed).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(repo.rows.find((row) => row.envelope_id === 'env-other')?.status).toBe('pending');
+    expect(sender.calls).toHaveLength(1);
+  });
 });
 
 describe('EmailDispatcherService — automated reminder sign link', () => {

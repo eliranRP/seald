@@ -42,6 +42,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
   let pool: Pool | undefined;
   let db: Kysely<Database> | undefined;
   let repo: EnvelopesPgRepository | undefined;
+  const ownedEnvelopeIds: string[] = [];
 
   beforeAll(async () => {
     if (!databaseUrl) throw new Error('SUBMIT_SIGNER_DATABASE_URL missing');
@@ -65,6 +66,14 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     repo = new EnvelopesPgRepository(db);
   }, 180_000);
 
+  afterEach(async () => {
+    if (!pool || ownedEnvelopeIds.length === 0) return;
+    const ids = ownedEnvelopeIds.splice(0);
+    await pool.query(`delete from public.outbound_emails where envelope_id = any($1::uuid[])`, [
+      ids,
+    ]);
+  });
+
   afterAll(async () => {
     await db?.destroy();
   });
@@ -84,6 +93,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       privacy_version: 'pp-v1',
       expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
+    ownedEnvelopeIds.push(envelope.id);
     const ada = await readySigner(envelopes, envelope.id, 'ada@example.com');
     const bea = await readySigner(envelopes, envelope.id, 'bea@example.com');
     await database
@@ -150,6 +160,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       privacy_version: 'pp-v1',
       expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
+    ownedEnvelopeIds.push(envelope.id);
     const signer = await envelopes.addSigner(envelope.id, {
       email: `ada-${ownerId.slice(0, 8)}@example.com`,
       name: 'Ada',
@@ -225,6 +236,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     await pg.query('insert into auth.users (id) values ($1)', [ownerId]);
 
     const raced = await sentEnvelope(envelopes, ownerId, 1);
+    ownedEnvelopeIds.push(raced.envelope.id);
     const racedSigner = raced.signers[0];
     if (!racedSigner) throw new Error('missing signer');
     const now = new Date();
@@ -239,6 +251,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     expect(claims.filter(Boolean)).toHaveLength(1);
 
     const sent = await sentEnvelope(envelopes, ownerId, 6);
+    ownedEnvelopeIds.push(sent.envelope.id);
     await pg.query(
       `update public.envelope_signers set access_token_sent_at = $1 where envelope_id = $2`,
       [aged, sent.envelope.id],
@@ -283,7 +296,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
         EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.example',
       } as AppEnv,
     );
-    await dispatcher.flushOnce(50);
+    await dispatcher.flushOnce(50, { envelopeIds: [sent.envelope.id] });
 
     const reminderRows = await pg.query<{ n: string }>(
       `select count(*)::text as n from public.outbound_emails

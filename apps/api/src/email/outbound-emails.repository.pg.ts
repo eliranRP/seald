@@ -185,10 +185,15 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     return signUrlFromPayload(parsePayload(row.payload));
   }
 
-  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+  async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
     // Atomic claim: pick the oldest due row with available attempts, flip its
     // status to `sending`, bump attempts. The sub-select uses
     // `for update skip locked` so concurrent dispatchers don't contend.
+    // An envelope list keeps a test flush from draining unrelated rows.
+    const envelopeClause =
+      envelopeIds && envelopeIds.length > 0
+        ? sql`and envelope_id in (${sql.join(envelopeIds.map((id) => sql.lit(id)))})`
+        : sql``;
     const result = await sql<Record<string, unknown>>`
       update public.outbound_emails
       set status = 'sending',
@@ -198,6 +203,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         where status in ('pending', 'failed')
           and scheduled_for <= ${now.toISOString()}
           and attempts < max_attempts
+          ${envelopeClause}
         order by scheduled_for asc, created_at asc
         for update skip locked
         limit 1

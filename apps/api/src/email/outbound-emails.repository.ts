@@ -92,9 +92,10 @@ export abstract class OutboundEmailsRepository {
    *
    * Uses `for update skip locked` so multiple dispatchers can run in
    * parallel without fighting over rows. Returns null when the queue is
-   * empty.
+   * empty. `envelopeIds` limits the claim to those envelopes so a test
+   * drain cannot take another session's pending rows.
    */
-  abstract claimNext(now: Date): Promise<OutboundEmailRow | null>;
+  abstract claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null>;
 
   /** Mark a claimed row as delivered. */
   abstract markSent(id: string, provider_id: string, sent_at: Date): Promise<void>;

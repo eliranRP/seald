@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
+import { MAX_AUTOMATED_REMINDERS } from 'shared';
 import { ThemeProvider } from 'styled-components';
+import { vi } from 'vitest';
 import { seald } from '@/styles/theme';
 import { ReminderToggle } from './ReminderToggle';
+
+const capHint = new RegExp(
+  `up to ${MAX_AUTOMATED_REMINDERS} daily reminders[\\s\\S]*until they sign or the request expires`,
+  'i',
+);
 
 function Harness({ initial = true }: { readonly initial?: boolean }) {
   const [enabled, setEnabled] = useState(initial);
@@ -21,7 +27,7 @@ describe('ReminderToggle', () => {
     render(<Harness />);
     const toggle = screen.getByRole('switch', { name: /email reminders/i });
     expect(toggle).toBeChecked();
-    expect(screen.getByText(/until they sign or the request expires/i)).toBeInTheDocument();
+    expect(screen.getByText(capHint)).toBeInTheDocument();
     await user.click(toggle);
     expect(toggle).not.toBeChecked();
   });
@@ -51,7 +57,7 @@ describe('ReminderToggle', () => {
     const user = userEvent.setup();
     render(<Harness />);
     const toggle = screen.getByRole('switch', { name: /^email reminders$/i });
-    const hint = screen.getByText(/until they sign or the request expires/i);
+    const hint = screen.getByText(capHint);
     expect(hint.closest('label')).toContainElement(toggle);
     await user.click(hint);
     expect(toggle).not.toBeChecked();
@@ -77,7 +83,7 @@ describe('ReminderToggle', () => {
     expect(toggle).toHaveAttribute('aria-disabled', 'true');
     expect(toggle).toHaveFocus();
     await user.click(toggle);
-    await user.click(screen.getByText(/until they sign or the request expires/i));
+    await user.click(screen.getByText(capHint));
     expect(onChange).not.toHaveBeenCalled();
     expect(toggle).toBeChecked();
   });

@@ -89,6 +89,32 @@ describe('EnvelopesPgRepository — reminder candidates', () => {
     expect(await repo.listReminderCandidates(now, 10)).toEqual([]);
   });
 
+  it('refuses the claim when the envelope is canceled', async () => {
+    const { envelopeId, signerId } = await sendOne();
+    await handle.db
+      .updateTable('envelope_signers')
+      .set({
+        access_token_sent_at: new Date(Date.now() - 25 * HOUR).toISOString(),
+        last_reminded_at: null,
+      })
+      .where('id', '=', signerId)
+      .execute();
+    await handle.db
+      .updateTable('envelopes')
+      .set({ status: 'canceled' })
+      .where('id', '=', envelopeId)
+      .execute();
+
+    expect(await repo.tryClaimReminder(signerId, new Date())).toBe(false);
+
+    const signer = await handle.db
+      .selectFrom('envelope_signers')
+      .select(['last_reminded_at'])
+      .where('id', '=', signerId)
+      .executeTakeFirst();
+    expect(signer?.last_reminded_at ?? null).toBeNull();
+  });
+
   it('omits an envelope whose reminders are disabled', async () => {
     const { envelopeId, signerId } = await sendOne();
     await handle.db

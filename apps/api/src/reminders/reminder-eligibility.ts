@@ -1,8 +1,7 @@
+export { MAX_AUTOMATED_REMINDERS } from 'shared';
+
 /** Unsigned signers are reminded once per this window, measured from the later of invite, last reminder mail, and last_reminded_at. */
 export const REMINDER_INTERVAL_MS = 24 * 60 * 60 * 1000;
-
-/** Automated reminders stop after this many per signer, even if the request is still open. */
-export const MAX_AUTOMATED_REMINDERS = 7;
 
 export interface ReminderClock {
   /** Envelope status. Only `awaiting_others` is eligible. */

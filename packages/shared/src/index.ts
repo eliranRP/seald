@@ -1,5 +1,6 @@
 export * from './signer';
 export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
+export { MAX_AUTOMATED_REMINDERS } from './reminders';
 export type { FeatureFlag } from './feature-flags';
 export {
   ESIGN_DISCLOSURE_VERSION,
