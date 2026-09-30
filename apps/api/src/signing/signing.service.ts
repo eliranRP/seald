@@ -3,6 +3,7 @@ import {
   ConflictException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
   PreconditionFailedException,
@@ -16,6 +17,7 @@ import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { Inject } from '@nestjs/common';
+import { insertOutboundEmailIdempotent, sameMailbox } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { buildTimelineHtml, type TimelineEventFragment } from '../email/template-fragments';
 import type {
@@ -86,6 +88,8 @@ export interface SignMeResponse {
  */
 @Injectable()
 export class SigningService {
+  private readonly logger = new Logger(SigningService.name);
+
   constructor(
     private readonly repo: EnvelopesRepository,
     private readonly tokens: SigningTokenService,
@@ -432,7 +436,7 @@ export class SigningService {
       throw new PreconditionFailedException('signature_required');
     }
 
-    await this.repo.appendEvent({
+    const signedEvent = await this.repo.appendEvent({
       envelope_id: envelope.id,
       signer_id: signer.id,
       actor_kind: 'signer',
@@ -441,6 +445,44 @@ export class SigningService {
       user_agent: userAgent,
       metadata: {},
     });
+
+    // Progress mail is only for a signature that leaves someone still
+    // waiting. The completion mail covers the last signature, and a
+    // sender who is also this signer does not get a mail about their
+    // own signature. Counts come from the submit transaction. A failure
+    // here must not fail the signature: the row is already committed,
+    // and a 500 would turn the signer's retry into 409 already_signed.
+    // The row sits in the outbox until EmailWorkerService drains it
+    // (WORKER_ENABLED), same as invites.
+    const senderEmail = envelope.sender_email;
+    if (senderEmail && !submitted.all_signed && !sameMailbox(senderEmail, signer.email)) {
+      const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+      try {
+        await insertOutboundEmailIdempotent(this.outboundEmails, {
+          envelope_id: envelope.id,
+          signer_id: null,
+          kind: 'signed_to_sender',
+          to_email: senderEmail,
+          to_name: envelope.sender_name ?? senderEmail,
+          source_event_id: signedEvent.id,
+          dedupe_key: `signed_to_sender:${envelope.id}:${signer.id}`,
+          payload: {
+            signer_name: signer.name,
+            envelope_title: envelope.title,
+            signed_count: submitted.done,
+            total_signers: submitted.total,
+            dashboard_url: `${publicUrl}/document/${envelope.id}`,
+            short_code: envelope.short_code,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unknown';
+        this.logger.warn(
+          `signed_to_sender enqueue failed envelope=${envelope.id} signer=${signer.id}: ${message}`,
+        );
+      }
+    }
 
     if (submitted.all_signed) {
       await this.repo.appendEvent({
