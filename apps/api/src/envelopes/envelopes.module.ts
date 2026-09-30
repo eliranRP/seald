@@ -15,6 +15,6 @@ import { EnvelopesService } from './envelopes.service';
   imports: [AuthModule, ContactsModule, GDriveModule],
   controllers: [EnvelopesController],
   providers: [EnvelopesService, { provide: EnvelopesRepository, useClass: EnvelopesPgRepository }],
-  exports: [EnvelopesRepository],
+  exports: [EnvelopesRepository, EnvelopesService],
 })
 export class EnvelopesModule {}

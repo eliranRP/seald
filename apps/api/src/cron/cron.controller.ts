@@ -12,7 +12,7 @@ import { Public } from '../auth/public.decorator';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailDispatcherService, type FlushResult } from '../email/email-dispatcher.service';
-import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { EnvelopesService } from '../envelopes/envelopes.service';
 import {
   ReminderSchedulerService,
   type ReminderSweepResult,
@@ -30,7 +30,7 @@ import {
 @Controller('internal/cron')
 export class CronController {
   constructor(
-    private readonly repo: EnvelopesRepository,
+    private readonly envelopes: EnvelopesService,
     private readonly emailDispatcher: EmailDispatcherService,
     private readonly reminders: ReminderSchedulerService,
     @Inject(APP_ENV) private readonly env: AppEnv,
@@ -51,16 +51,7 @@ export class CronController {
     @Headers('x-cron-secret') secret: string | undefined,
   ): Promise<{ expired_count: number; envelope_ids: string[] }> {
     this.assertSecret(secret);
-    const ids = await this.repo.expireEnvelopes(new Date(), 100);
-    for (const id of ids) {
-      await this.repo.enqueueJob(id, 'audit_only');
-      await this.repo.appendEvent({
-        envelope_id: id,
-        actor_kind: 'system',
-        event_type: 'expired',
-        metadata: {},
-      });
-    }
+    const ids = await this.envelopes.expireDue(new Date(), 100);
     return { expired_count: ids.length, envelope_ids: [...ids] };
   }
 
