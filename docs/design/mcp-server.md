@@ -1101,13 +1101,13 @@ Turning `mcpServer` on is its own change after step 6 has been used with a real 
 
 ## Legal text
 
-Drafts for counsel. Not licensed counsel, and not legal advice. An Israeli lawyer and a US lawyer review them before they bind anyone. The v0.4 text ships in each feature’s enabling PR, so the legal pages never describe a feature that is not live. Terms and Privacy are material changes (Terms §14 and Privacy §12 promise 30 days’ notice).
+Drafts for counsel. Not licensed counsel, and not legal advice. An Israeli lawyer and a US lawyer review them before they bind anyone. The v0.4 text ships in each feature’s enabling PR, so the legal pages never describe a feature that is not live. Terms and Privacy are material changes (Terms §14 and Privacy §12 promise 30 days’ notice). The 30-day Terms and Privacy change notice must be sent at least 30 days before the flag-flip PR is deployed.
 
 That compliance PR uses the drafts in PR #368 comment 5907683343 (T1–T4, P1–P5, D-1–D-5, S1, A1–A2), plus T1a and the corrections below. Version bumps stay `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
 
 **T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
 
-**D-5 correction (DPA Annex II).** Webhook signing secrets and webhook URLs are stored encrypted at the application level, with the key held outside the database; they are not covered by the AWS KMS bullet. Keep this as a plain Annex II measure. Don't use it in brand or marketing copy. The mechanism is an internal implementation note in the automations doc.
+**D-5 correction (DPA Annex II).** Webhook signing secrets and webhook URLs are stored encrypted at the application level, with the key held outside the database; they are not covered by the AWS KMS bullet. Keep this as a plain Annex II measure. Don't use it in brand or marketing copy. The mechanism is an internal implementation note in the automations doc. This Annex II line ships only in the PR that actually implements application-level encryption of webhook secrets and URLs, and only if that PR's tests prove it. It stays out of all brand, marketing and UI copy.
 
 **P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
