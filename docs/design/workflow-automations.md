@@ -63,7 +63,7 @@ Last migration on `main` is `0019_email_signed_to_sender.sql`. Open PR #367 alre
 
 Matching runs after that transaction commits. The worker claims pending triggers, loads the envelope, selects enabled recipes, and inserts the run and the job. It then sets the trigger to `matched`. A matcher exception is logged. The trigger stays `pending`. The signer’s submit and the sealing step have already committed, so a matcher bug does not fail either one.
 
-A checkpoint row stores `(created_at, id)`, not the uuid alone. `envelope_events.id` is a random uuid, so “after that id” is not an order. On startup the worker rescans from five minutes before the checkpoint. The overlap is safe because the unique run key makes a second match a no-op. Matching runs after commit. It does not run inside the signer’s transaction, so a matcher bug cannot fail submit or sealing. A SAVEPOINT inside `appendEvent` is the other acceptable shape. This design uses after-commit. There is no path where a matcher error rolls the event back.
+A checkpoint row stores `(created_at, id)`, not the uuid alone. `envelope_events.id` is a random uuid, so “after that id” is not an order. On startup the worker rescans from five minutes before the checkpoint. The partial index on `automation_triggers` where `status = 'pending'` can also find every pending row, so the checkpoint is an optimization, not a correctness requirement. A missed checkpoint still matches. The overlap is safe because the unique run key makes a second match a no-op. Matching runs after commit. It does not run inside the signer’s transaction, so a matcher bug cannot fail submit or sealing. A SAVEPOINT inside `appendEvent` is the other acceptable shape. This design uses after-commit. There is no path where a matcher error rolls the event back.
 
 The match only inserts rows. It does not call the network. Keep that function small and covered by the repository test.
 
@@ -220,6 +220,8 @@ RLS: `enable row level security` on all five tables, no policies.
 
 Indexes: `(owner_id, enabled)` on `automations`; `(scheduled_for)` on `automation_jobs` where `status = 'pending'`; `(status)` on `automation_triggers` where `status = 'pending'`; `(owner_id, created_at desc)` on `automation_runs`. Unique index `automation_runs_dedupe_idx` on `(automation_id, envelope_id, trigger, coalesce(signer_id, '00000000-0000-0000-0000-000000000000'::uuid))`.
 
+`automation_triggers` retention: the matcher sets `status = 'matched'` and `matched_at`, inserts the run, then deletes that trigger row in the same transaction. The run is the history. A daily pass deletes any `matched` row whose `matched_at` is older than 24 hours, in case that delete was skipped. Pending rows stay until they match or the envelope event is deleted. Because the partial index finds every pending row, the checkpoint only limits how far a scan looks. It is not required for correctness.
+
 `updated_at` uses the existing `set_updated_at` trigger pattern from `envelopes`.
 
 Account deletion: `owner_id` cascades. `MeService` does not need a special case beyond what `on delete cascade` removes. Confirm in the account-deletion test that recipes, secrets, jobs, and runs go away with the user. Trigger rows follow the event. Envelope events on preserved sealed envelopes (`0012_preserve_envelopes_on_user_delete.sql`) can outlive the owner; `automation_runs.owner_id` still cascades with the user, so history is deleted with the account. That is acceptable: the audit chain on the envelope remains, the recipe log does not.
@@ -233,7 +235,7 @@ appendEvent transaction
   → commit
 matcher, after commit (and again on startup rescan)
   → match pending triggers into automation_runs and automation_jobs
-  → mark the trigger matched
+  → mark the trigger matched, then delete that row (retention; a daily pass removes any matched row older than 24 hours)
 AutomationWorkerService  (WORKER_ENABLED, same process)
   → claim job (skip locked)
   → run the action
@@ -410,6 +412,7 @@ No new infrastructure.
 | Email copies per owner per UTC day | 50 | Shared with the MCP quota, so a recipe cannot flood the mail provider. |
 | Webhook response stored | Status code only, body discarded after 64 KB | Keeps Postgres small. |
 | Run retention | Done runs older than 30 days, 200 rows per idle pass. Failed runs stay until Retry, Fix, or delete. | A bad URL stays visible until the owner deals with it. |
+| Trigger retention | Delete `automation_triggers` on match. Sweep leftover `matched` rows after 24 hours. | The partial pending index is the rescan. The checkpoint is an optimization. |
 | Worker | Same Node process, `WORKER_ENABLED`, in-flight 2, batch 1 | Shares the Kysely pool in `DbModule`. Does not add a connection. |
 | Webhook timeout | 10s | Leaves room under other work on the event loop. `fetch` is asynchronous; the seal loop is not blocked on the socket. |
 | PDF size | Existing 25 MB caps (`MAX_PDF_BYTES`, `GDRIVE_CONVERSION_MAX_BYTES`) | Drive upload already holds artifact bytes in memory. Automations do not raise that. |
@@ -490,7 +493,7 @@ One feature per pull request, in the order the product review listed for this tr
 
 | PR | Feature |
 | --- | --- |
-| A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan from `(created_at, id)` minus five minutes. A matcher failure does not roll back submit or sealing. The test is: the matcher throws, submit succeeds, and the rescan inserts the run. |
+| A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Partial index on `automation_triggers` where `status = 'pending'`. Matched trigger rows are deleted on match, with a 24-hour sweep for any that remain. The pending scan makes the checkpoint an optimization. Startup rescan from `(created_at, id)` minus five minutes. A matcher failure does not roll back submit or sealing. The test is: the matcher throws, submit succeeds, and the rescan inserts the run. |
 | A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks. Secrets use `AUTOMATION_SECRETS_KEY`. No test endpoint and no `automations_test_webhook`. The e2e fixture inserts an enabled recipe. A signed-in create turns an external destination on and sends a short notification email. An MCP create stays disabled until the owner approves. The screen is not in this PR. |
 | A2b | `POST /automations/:id/test` and `automations_test_webhook`. Both return `recipe_not_approved` and do not call the network while an MCP recipe is waiting on approval. A recipe the owner saved in the app can be tested. Ships after the approval email exists (MCP step 7a). A test is not stored as a run. |
 | A3 | Automation tools. List, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure (`retryable` false). An MCP external destination stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The settings Save path is not this approval. `automations:write` is off by default. The test tool is A2b, not this PR. |
