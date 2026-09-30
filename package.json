@@ -40,7 +40,6 @@
       "@parcel/watcher",
       "@swc/core",
       "@tailwindcss/oxide",
-      "canvas",
       "core-js",
       "esbuild",
       "msw",

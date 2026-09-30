@@ -1,9 +1,13 @@
-import type { FieldKind } from 'shared';
+import type {
+  PlacementBox,
+  PlacementKind,
+  PlacementNearestText,
+  PlacementValidation,
+} from 'shared';
 
 /**
- * MCP placement unit: PDF points from the top-left of the page as
- * displayed (CropBox with /Rotate applied, y down). Stored fields are
- * 0–1 fractions of that same page, top-left, page numbers from 1.
+ * Internal displayed-page box. `w` and `h` match the swap-point helpers
+ * in displayed-page.ts. The public contract uses `width` and `height`.
  */
 export interface DisplayedBox {
   readonly x: number;
@@ -22,188 +26,137 @@ export interface PdfUserBox {
 
 export interface PageSize {
   readonly page: number;
-  /** Displayed width in PDF points. */
   readonly width: number;
-  /** Displayed height in PDF points. */
   readonly height: number;
   readonly rotation: 0 | 90 | 180 | 270;
   readonly mediaBox: PdfUserBox;
   readonly cropBox: PdfUserBox;
 }
 
-export interface TextRun {
-  readonly page: number;
-  readonly text: string;
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
+export const PLACEMENT_UNITS = 'pdf_points_top_left_displayed';
+export const TEXT_LINE_CAP = 2000;
+export const INSPECT_PAGE_LIMIT = 50;
 
-export interface AcroFormFieldInfo {
-  readonly name: string;
-  readonly page: number;
-  /** PDF field type: Tx, Btn, Ch, or Sig. */
-  readonly fieldType: string;
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
-
-export interface DocumentInspection {
-  readonly documentId: string;
-  readonly pageCount: number;
-  readonly pages: readonly PageSize[];
-  readonly textRuns: readonly TextRun[];
-  readonly acroFormFields: readonly AcroFormFieldInfo[];
-}
-
-export const FIELD_TYPE_INPUTS = [
-  'signature',
-  'initials',
-  'date',
-  'text',
-  'checkbox',
-  'email',
-  'name',
+export const FORM_WIDGET_TYPES = [
+  'Signature',
+  'Text',
+  'CheckBox',
+  'RadioButton',
+  'PushButton',
+  'ComboBox',
+  'ListBox',
 ] as const;
 
-export type FieldTypeInput = (typeof FIELD_TYPE_INPUTS)[number];
+export type FormWidgetType = (typeof FORM_WIDGET_TYPES)[number];
 
-export const ANCHOR_POSITIONS = ['before', 'after', 'above', 'below', 'over'] as const;
-export type AnchorPosition = (typeof ANCHOR_POSITIONS)[number];
-
-export interface SignerRef {
-  readonly id: string;
-  readonly name?: string;
-  readonly color?: string;
+export interface InspectPage {
+  readonly page: number;
+  readonly view_width: number;
+  readonly view_height: number;
+  readonly rotation: 0 | 90 | 180 | 270;
+  readonly mediabox: PdfUserBox;
+  readonly cropbox: PdfUserBox;
 }
 
-export interface AnchorSpec {
-  /** Exact substring. Matching is case-sensitive. */
+export interface InspectTextItem {
+  readonly page: number;
   readonly text: string;
-  /** 1-based index in reading order. Defaults to 1. */
+  readonly box: PlacementBox;
+}
+
+export interface InspectFormField {
+  readonly page: number;
+  readonly name: string;
+  readonly type: FormWidgetType;
+  readonly box: PlacementBox;
+  readonly suggested_kind: PlacementKind;
+}
+
+export interface InspectDocumentResult {
+  readonly page_count: number;
+  readonly units: typeof PLACEMENT_UNITS;
+  readonly pages: readonly InspectPage[];
+  readonly text: readonly InspectTextItem[];
+  readonly text_granularity: 'word' | 'line';
+  readonly next_cursor: string | null;
+  readonly form_fields: readonly InspectFormField[];
+}
+
+export interface PlacementBoxInput {
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+}
+
+export interface AnchorLocator {
+  readonly text: string;
   readonly occurrence?: number;
-  readonly position: AnchorPosition;
-  /** Extra shift in displayed points. Positive x is right, positive y is down. */
-  readonly offset?: { readonly x?: number; readonly y?: number };
-  /** Limit the search to this page (1-based). */
+  readonly page?: number;
+  readonly match?: 'exact' | 'case_insensitive';
+  readonly position?: 'right' | 'left' | 'above' | 'below' | 'over';
+  readonly gap?: number;
+  readonly dx?: number;
+  readonly dy?: number;
+  readonly width?: number;
+  readonly height?: number;
+}
+
+export interface FormFieldLocator {
+  readonly name: string;
   readonly page?: number;
 }
 
-interface PlacementBase {
-  readonly type: FieldTypeInput;
-  readonly signer: SignerRef;
-  readonly required?: boolean;
-}
-
-export interface CoordinatePlacement extends PlacementBase {
-  readonly page: number;
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
-
-export interface AnchorPlacement extends PlacementBase {
-  readonly anchor: AnchorSpec;
-  /** Field size in displayed points. Defaults from the seal's per-kind fractions. */
-  readonly w?: number;
-  readonly h?: number;
-}
-
-export interface AcroFormPlacement extends PlacementBase {
-  readonly acroformField: string;
-}
-
-export type PlacementInput = CoordinatePlacement | AnchorPlacement | AcroFormPlacement;
-
-/**
- * Envelope field row plus the facts the preview loop needs.
- * `x`, `y`, `width`, `height` are the stored 0–1 fractions.
- * `box` is that rectangle denormalized back to displayed points.
- */
-export interface PlacedField {
-  readonly id: string;
+export interface PlacementFieldInput {
   readonly signer_id: string;
-  readonly signer_name: string;
-  readonly signer_color: string;
-  readonly kind: FieldKind;
-  readonly link_id: string | null;
+  readonly kind?: string;
+  readonly required?: boolean;
+  readonly label?: string;
+  readonly client_ref?: string;
+  readonly box?: PlacementBoxInput;
+  readonly anchor?: AnchorLocator;
+  readonly form_field?: FormFieldLocator;
+}
+
+export interface NormalizedPlacement {
   readonly page: number;
   readonly x: number;
   readonly y: number;
   readonly width: number;
   readonly height: number;
+}
+
+export interface PlacementFieldOutput {
+  readonly id: string | null;
+  readonly client_ref: string | null;
+  readonly label: string | null;
+  readonly signer_id: string;
+  readonly kind: PlacementKind;
   readonly required: boolean;
-  readonly box: DisplayedBox;
-}
-
-export type FieldIssueCode =
-  | 'out_of_bounds'
-  | 'too_small'
-  | 'overlap'
-  | 'missing_signature'
-  | 'anchor_not_found'
-  | 'page_not_found'
-  | 'covers_text';
-
-export interface FieldIssue {
-  readonly code: FieldIssueCode;
-  readonly severity: 'error' | 'warning';
-  readonly fieldId: string | null;
-  readonly signerId: string | null;
-  readonly message: string;
-  readonly page: number | null;
-  readonly box: DisplayedBox | null;
-}
-
-export interface NearestText {
-  readonly text: string;
-  readonly distance: number;
-  readonly box: DisplayedBox;
-}
-
-export interface FieldReport {
-  readonly id: string;
-  readonly kind: FieldKind;
-  readonly signerId: string;
   readonly page: number;
-  readonly box: DisplayedBox;
-  readonly nearestText: NearestText | null;
+  readonly box: PlacementBox;
+  readonly normalized: NormalizedPlacement;
+  readonly source: string;
+  readonly nearest_text: PlacementNearestText | null;
 }
 
-export interface ValidationReport {
-  readonly ok: boolean;
-  readonly errors: readonly FieldIssue[];
-  readonly warnings: readonly FieldIssue[];
-  readonly fields: readonly FieldReport[];
+export interface PlaceFieldsResult {
+  readonly fields: readonly PlacementFieldOutput[];
+  readonly report: PlacementValidation;
+  readonly persisted: boolean;
 }
 
-export interface PlacementResult {
-  readonly fields: readonly PlacedField[];
-  readonly errors: readonly FieldIssue[];
-  readonly validation: ValidationReport;
-}
-
-export interface FieldPatch {
-  readonly type?: FieldTypeInput;
-  readonly signer?: SignerRef;
+export interface FieldUpdateInput {
+  readonly field_id: string;
+  readonly dx?: number;
+  readonly dy?: number;
+  readonly box?: PlacementBoxInput;
+  readonly width?: number;
+  readonly height?: number;
+  readonly kind?: string;
+  readonly signer_id?: string;
   readonly required?: boolean;
-  readonly page?: number;
-  readonly x?: number;
-  readonly y?: number;
-  readonly w?: number;
-  readonly h?: number;
-  readonly anchor?: AnchorSpec;
-  readonly acroformField?: string;
 }
 
-export interface PreviewPage {
-  readonly page: number;
-  readonly png: Buffer;
-  readonly width: number;
-  readonly height: number;
-  readonly scale: number;
-}
+export type PlacementMode = 'replace' | 'append';

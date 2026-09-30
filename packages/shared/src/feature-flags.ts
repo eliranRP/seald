@@ -30,16 +30,9 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
    * already multi-account; this flag only controls the UI affordance.
    */
   gdriveMultiAccount: false,
-
-  /**
-   * Remote MCP server. Off until a later change turns it on. The field
-   * placement engine checks this flag and refuses every call while it
-   * is false. No MCP route is mounted in this change.
-   */
-  mcpServer: false,
 } as const;
 
-export type FeatureFlag = 'gdriveIntegration' | 'gdriveMultiAccount' | 'mcpServer';
+export type FeatureFlag = 'gdriveIntegration' | 'gdriveMultiAccount';
 
 /**
  * Runtime override hook for tests / local walkthroughs. Production never

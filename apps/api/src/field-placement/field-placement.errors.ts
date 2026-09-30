@@ -1,15 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
-
-/**
- * Placement refused because `mcpServer` is off. Same 404 shape as the
- * other dark features, so a caller cannot tell the engine exists.
- */
-export class FieldPlacementDisabledError extends NotFoundException {
-  constructor() {
-    super('not_found');
-  }
-}
-
+/** A PDF the engine could not read. Not a placement slug. */
 export class FieldPlacementError extends Error {
   readonly code: string;
 

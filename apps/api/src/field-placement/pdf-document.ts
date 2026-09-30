@@ -1,3 +1,4 @@
+import type { PlacementBox, PlacementKind } from 'shared';
 import { PDFDocument } from 'pdf-lib';
 import {
   displayedBoxFromPdfRect,
@@ -6,35 +7,36 @@ import {
   type PdfViewport,
 } from './displayed-page';
 import { FieldPlacementError } from './field-placement.errors';
-import type {
-  AcroFormFieldInfo,
-  DocumentInspection,
-  PageSize,
-  TextRun,
-} from './field-placement.types';
+import type { DisplayedBox, FormWidgetType, PageSize } from './field-placement.types';
 import {
   inspectWithPdfjs,
   listPdfPathBounds,
   type PdfjsTextSnapshot,
+  type PdfjsWidgetSnapshot,
   type PdfPathBound,
 } from './pdfjs-host';
+import { groupTextLines, type TextLine, type TextPiece } from './text-index';
 
 export interface PageGeometry {
   readonly info: PageSize;
   readonly viewport: PdfViewport;
 }
 
-export interface LoadedPdf {
-  readonly bytes: Uint8Array;
-  readonly pages: readonly PageGeometry[];
-  readonly inspection: DocumentInspection;
+export interface LoadedFormField {
+  readonly page: number;
+  readonly name: string;
+  readonly type: FormWidgetType;
+  readonly box: PlacementBox;
+  readonly suggested_kind: PlacementKind;
 }
 
-export interface PdfRectLike {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
+export interface LoadedDocument {
+  readonly bytes: Uint8Array;
+  readonly pageCount: number;
+  readonly pages: readonly PageGeometry[];
+  readonly words: readonly TextPiece[];
+  readonly lines: readonly TextLine[];
+  readonly formFields: readonly LoadedFormField[];
 }
 
 export function normalizeRotation(angle: number): 0 | 90 | 180 | 270 {
@@ -43,10 +45,11 @@ export function normalizeRotation(angle: number): 0 | 90 | 180 | 270 {
   return 0;
 }
 
-function textRunBox(
-  item: PdfjsTextSnapshot,
-  viewport: PdfViewport,
-): { x: number; y: number; w: number; h: number } {
+function asPlacement(box: DisplayedBox): PlacementBox {
+  return { x: box.x, y: box.y, width: box.w, height: box.h };
+}
+
+function textPieceBox(item: PdfjsTextSnapshot, viewport: PdfViewport): DisplayedBox {
   const a = item.transform[0] ?? 0;
   const b = item.transform[1] ?? 0;
   const c = item.transform[2] ?? 0;
@@ -73,10 +76,7 @@ function textRunBox(
   return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
 }
 
-function widgetBox(
-  rect: readonly number[],
-  viewport: PdfViewport,
-): { x: number; y: number; w: number; h: number } | null {
+function widgetDisplayed(rect: readonly number[], viewport: PdfViewport): DisplayedBox | null {
   const x1 = rect[0];
   const y1 = rect[1];
   const x2 = rect[2];
@@ -92,7 +92,31 @@ function widgetBox(
   });
 }
 
-export async function loadPdf(documentId: string, bytes: Uint8Array): Promise<LoadedPdf> {
+export function classifyWidget(widget: PdfjsWidgetSnapshot): FormWidgetType | null {
+  if (widget.fieldType === 'Sig') return 'Signature';
+  if (widget.fieldType === 'Tx') return 'Text';
+  if (widget.fieldType === 'Ch') return widget.combo ? 'ComboBox' : 'ListBox';
+  if (widget.fieldType !== 'Btn') return null;
+  if (widget.pushButton) return 'PushButton';
+  if (widget.radioButton) return 'RadioButton';
+  if (widget.checkBox) return 'CheckBox';
+  return null;
+}
+
+export function suggestedKind(type: FormWidgetType, name: string): PlacementKind {
+  const normalized = name.toLowerCase();
+  if (normalized.startsWith('sig')) return 'signature';
+  if (normalized.startsWith('init')) return 'initials';
+  if (normalized.startsWith('date')) return 'date';
+  if (normalized.startsWith('email')) return 'email';
+  if (normalized.startsWith('name')) return 'name';
+  if (normalized.includes('checkbox')) return 'checkbox';
+  if (type === 'Signature') return 'signature';
+  if (type === 'CheckBox') return 'checkbox';
+  return 'text';
+}
+
+export async function loadPdf(bytes: Uint8Array): Promise<LoadedDocument> {
   let snapshot;
   try {
     snapshot = await inspectWithPdfjs(bytes);
@@ -105,15 +129,11 @@ export async function loadPdf(documentId: string, bytes: Uint8Array): Promise<Lo
   const lib = await PDFDocument.load(bytes);
   const libPages = lib.getPages();
   const pages: PageGeometry[] = [];
-  const textRuns: TextRun[] = [];
-  const acroFormFields: AcroFormFieldInfo[] = [];
   const viewports = new Map<number, PdfViewport>();
 
   for (const raw of snapshot.pages) {
     const libPage = libPages[raw.page - 1];
-    if (!libPage) {
-      throw new FieldPlacementError('invalid_pdf', `page ${raw.page} is missing`);
-    }
+    if (!libPage) throw new FieldPlacementError('invalid_pdf', `page ${raw.page} is missing`);
     const viewport = viewportFromTransform(raw.width, raw.height, raw.transform);
     viewports.set(raw.page, viewport);
     const media = libPage.getMediaBox();
@@ -129,36 +149,41 @@ export async function loadPdf(documentId: string, bytes: Uint8Array): Promise<Lo
     pages.push({ info, viewport });
   }
 
+  const words: TextPiece[] = [];
   for (const item of snapshot.textItems) {
     const viewport = viewports.get(item.page);
     if (!viewport) continue;
-    const box = textRunBox(item, viewport);
-    textRuns.push({ page: item.page, text: item.str, ...box });
-  }
-
-  for (const widget of snapshot.widgets) {
-    const viewport = viewports.get(widget.page);
-    if (!viewport) continue;
-    const box = widgetBox(widget.rect, viewport);
-    if (!box) continue;
-    acroFormFields.push({
-      name: widget.fieldName,
-      page: widget.page,
-      fieldType: widget.fieldType,
-      ...box,
+    words.push({
+      page: item.page,
+      text: item.str,
+      box: asPlacement(textPieceBox(item, viewport)),
     });
   }
 
+  const formFields: LoadedFormField[] = [];
+  for (const widget of snapshot.widgets) {
+    const viewport = viewports.get(widget.page);
+    if (!viewport) continue;
+    const type = classifyWidget(widget);
+    const displayed = widgetDisplayed(widget.rect, viewport);
+    if (!type || !displayed) continue;
+    formFields.push({
+      page: widget.page,
+      name: widget.fieldName,
+      type,
+      box: asPlacement(displayed),
+      suggested_kind: suggestedKind(type, widget.fieldName),
+    });
+  }
+  formFields.sort((a, b) => a.page - b.page || a.box.y - b.box.y || a.box.x - b.box.x);
+
   return {
     bytes: new Uint8Array(bytes),
+    pageCount: pages.length,
     pages,
-    inspection: {
-      documentId,
-      pageCount: pages.length,
-      pages: pages.map((page) => page.info),
-      textRuns,
-      acroFormFields,
-    },
+    words,
+    lines: groupTextLines(words),
+    formFields,
   };
 }
 

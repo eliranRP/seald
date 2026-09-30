@@ -26,6 +26,10 @@ export interface PdfjsWidgetSnapshot {
   readonly fieldName: string;
   readonly fieldType: string;
   readonly rect: readonly number[];
+  readonly checkBox: boolean;
+  readonly radioButton: boolean;
+  readonly pushButton: boolean;
+  readonly combo: boolean;
 }
 
 export interface PdfjsInspection {
@@ -52,12 +56,12 @@ const pending = new Map<number, Pending>();
 let queue: Promise<void> = Promise.resolve();
 
 const PDFJS_HREF = pathToFileURL(nodeRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href;
-const CANVAS_PATH = nodeRequire.resolve('canvas');
 
 /**
  * pdf.js is ESM and uses `import.meta`. Jest evaluates tests inside a
  * VM, and turning on Node's VM-module flag breaks other suites (jose).
  * This worker is a real Node thread, so `import()` works there.
+ * The thread holds no PDF cache: each call opens the bytes it is given.
  */
 const WORKER_SOURCE = `
 const { parentPort } = require('worker_threads');
@@ -149,27 +153,15 @@ async function handle(msg) {
           fieldName: annotation.fieldName,
           fieldType: typeof annotation.fieldType === 'string' ? annotation.fieldType : 'unknown',
           rect,
+          checkBox: annotation.checkBox === true,
+          radioButton: annotation.radioButton === true,
+          pushButton: annotation.pushButton === true,
+          combo: annotation.combo === true,
         });
       }
     }
     if (typeof pdf.cleanup === 'function') pdf.cleanup();
     return { pages, textItems, widgets };
-  }
-
-  if (msg.op === 'render') {
-    const { createCanvas } = require(msg.canvasPath);
-    const { pdf } = await open(msg);
-    const page = await pdf.getPage(msg.pageNumber);
-    const viewport = page.getViewport({ scale: msg.scale });
-    const width = Math.max(1, Math.ceil(viewport.width));
-    const height = Math.max(1, Math.ceil(viewport.height));
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, width, height);
-    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
-    if (typeof pdf.cleanup === 'function') pdf.cleanup();
-    return { png: canvas.toBuffer('image/png'), width, height };
   }
 
   if (msg.op === 'paths') {
@@ -277,7 +269,6 @@ function dispatch(op: string, extra: Record<string, unknown>): Promise<unknown> 
       id,
       op,
       pdfjsHref: PDFJS_HREF,
-      canvasPath: CANVAS_PATH,
       ...extra,
     });
   });
@@ -292,6 +283,10 @@ function numberList(value: unknown, count: number): readonly number[] | null {
     out.push(item);
   }
   return out;
+}
+
+function readFlag(value: unknown): boolean {
+  return value === true;
 }
 
 function readInspection(value: unknown): PdfjsInspection {
@@ -341,35 +336,28 @@ function readInspection(value: unknown): PdfjsInspection {
       !isRecord(widget) ||
       typeof widget.fieldName !== 'string' ||
       typeof widget.page !== 'number'
-    )
+    ) {
       continue;
+    }
     const rect = numberList(widget.rect, 4);
     if (!rect) continue;
     const fieldType = typeof widget.fieldType === 'string' ? widget.fieldType : 'unknown';
-    widgets.push({ page: widget.page, fieldName: widget.fieldName, fieldType, rect });
+    widgets.push({
+      page: widget.page,
+      fieldName: widget.fieldName,
+      fieldType,
+      rect,
+      checkBox: readFlag(widget.checkBox),
+      radioButton: readFlag(widget.radioButton),
+      pushButton: readFlag(widget.pushButton),
+      combo: readFlag(widget.combo),
+    });
   }
   return { pages, textItems, widgets };
 }
 
 export async function inspectWithPdfjs(bytes: Uint8Array): Promise<PdfjsInspection> {
   return readInspection(await call('inspect', { bytes }));
-}
-
-export async function renderPdfPage(
-  bytes: Uint8Array,
-  pageNumber: number,
-  scale: number,
-): Promise<{ png: Buffer; width: number; height: number }> {
-  const value = await call('render', { bytes, pageNumber, scale });
-  if (!isRecord(value)) {
-    throw new FieldPlacementError('invalid_pdf', 'pdf.js did not return a preview');
-  }
-  const png = value.png;
-  const pngBytes = Buffer.isBuffer(png) || png instanceof Uint8Array ? png : null;
-  if (!pngBytes || typeof value.width !== 'number' || typeof value.height !== 'number') {
-    throw new FieldPlacementError('invalid_pdf', 'pdf.js did not return a preview');
-  }
-  return { png: Buffer.from(pngBytes), width: value.width, height: value.height };
 }
 
 export async function listPdfPathBounds(bytes: Uint8Array): Promise<PdfPathBound[]> {

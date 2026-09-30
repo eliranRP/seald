@@ -72,6 +72,20 @@ export interface CreateFieldInput {
   readonly link_id?: string | null;
 }
 
+/** Full replacement of one envelope_fields row, keyed by its id. */
+export interface FieldUpdateById {
+  readonly field_id: string;
+  readonly signer_id: string;
+  readonly kind: FieldKind;
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly required: boolean;
+  readonly link_id: string | null;
+}
+
 export interface SendDraftInput {
   readonly envelope_id: string;
   readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
@@ -331,6 +345,23 @@ export abstract class EnvelopesRepository {
     fields: ReadonlyArray<CreateFieldInput>,
   ): Promise<ReadonlyArray<EnvelopeField>>;
 
+  /**
+   * Patch fields by id and delete others in one transaction. Concrete
+   * so test fakes that never update fields still compile. Postgres and
+   * the in-memory repository override it. A missing update id throws
+   * `EnvelopeFieldNotFoundError`.
+   */
+  updateFieldsById(
+    envelope_id: string,
+    updates: ReadonlyArray<FieldUpdateById>,
+    remove: ReadonlyArray<string>,
+  ): Promise<ReadonlyArray<EnvelopeField>> {
+    void envelope_id;
+    void updates;
+    void remove;
+    return Promise.reject(new Error('updateFieldsById is not implemented'));
+  }
+
   // Send + lifecycle
   abstract sendDraft(input: SendDraftInput): Promise<Envelope | null>;
 
@@ -538,6 +569,14 @@ export class EnvelopeSignerEmailTakenError extends Error {
   constructor() {
     super('envelope_signer_email_taken');
     this.name = 'EnvelopeSignerEmailTakenError';
+  }
+}
+
+/** updateFieldsById was asked to patch an id that is not on the envelope. */
+export class EnvelopeFieldNotFoundError extends Error {
+  constructor() {
+    super('field_not_found');
+    this.name = 'EnvelopeFieldNotFoundError';
   }
 }
 

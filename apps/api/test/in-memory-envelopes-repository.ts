@@ -20,9 +20,11 @@ import type {
 } from '../src/envelopes/envelopes.repository';
 import { REMINDER_INTERVAL_MS } from '../src/reminders/reminder-eligibility';
 import {
+  EnvelopeFieldNotFoundError,
   EnvelopeSignerEmailTakenError,
   EnvelopesRepository,
   ShortCodeCollisionError,
+  type FieldUpdateById,
 } from '../src/envelopes/envelopes.repository';
 import { decodeListCursor, encodeListCursor, sortValueForKey } from '../src/envelopes/list-cursor';
 import { applyListFilters } from '../src/envelopes/list-filters';
@@ -370,6 +372,36 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     }));
     this.envelopes.set(envelope_id, { ...e, fields: mapped });
     return mapped;
+  }
+
+  override async updateFieldsById(
+    envelope_id: string,
+    updates: readonly FieldUpdateById[],
+    remove: readonly string[],
+  ): Promise<readonly EnvelopeField[]> {
+    const e = this.envelopes.get(envelope_id);
+    if (!e) throw new Error('envelope_not_found');
+    const removed = new Set(remove);
+    const fields = e.fields.filter((field) => !removed.has(field.id));
+    for (const update of updates) {
+      const index = fields.findIndex((field) => field.id === update.field_id);
+      const current = fields[index];
+      if (!current) throw new EnvelopeFieldNotFoundError();
+      fields[index] = {
+        ...current,
+        signer_id: update.signer_id,
+        kind: update.kind,
+        page: update.page,
+        x: update.x,
+        y: update.y,
+        width: update.width,
+        height: update.height,
+        required: update.required,
+        link_id: update.link_id,
+      };
+    }
+    this.envelopes.set(envelope_id, { ...e, fields });
+    return fields;
   }
 
   async sendDraft(input: {

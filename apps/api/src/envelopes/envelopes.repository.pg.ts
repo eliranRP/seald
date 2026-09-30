@@ -38,6 +38,8 @@ import {
   type SubmitResult,
   type ReminderCandidate,
   type UpdateDraftMetadataPatch,
+  type FieldUpdateById,
+  EnvelopeFieldNotFoundError,
 } from './envelopes.repository';
 import { REMINDER_INTERVAL_MS } from '../reminders/reminder-eligibility';
 
@@ -930,6 +932,47 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           })),
         )
         .returningAll()
+        .execute();
+      return rows.map(toFieldDomain);
+    });
+  }
+
+  override async updateFieldsById(
+    envelope_id: string,
+    updates: ReadonlyArray<FieldUpdateById>,
+    remove: ReadonlyArray<string>,
+  ): Promise<ReadonlyArray<EnvelopeField>> {
+    return this.db.transaction().execute(async (trx) => {
+      if (remove.length > 0) {
+        await trx
+          .deleteFrom('envelope_fields')
+          .where('envelope_id', '=', envelope_id)
+          .where('id', 'in', [...remove])
+          .execute();
+      }
+      for (const update of updates) {
+        const updated = await trx
+          .updateTable('envelope_fields')
+          .set({
+            signer_id: update.signer_id,
+            kind: update.kind,
+            page: update.page,
+            x: update.x,
+            y: update.y,
+            width: update.width,
+            height: update.height,
+            required: update.required,
+            link_id: update.link_id,
+          })
+          .where('envelope_id', '=', envelope_id)
+          .where('id', '=', update.field_id)
+          .executeTakeFirst();
+        if ((updated?.numUpdatedRows ?? 0n) === 0n) throw new EnvelopeFieldNotFoundError();
+      }
+      const rows = await trx
+        .selectFrom('envelope_fields')
+        .selectAll()
+        .where('envelope_id', '=', envelope_id)
         .execute();
       return rows.map(toFieldDomain);
     });
