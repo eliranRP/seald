@@ -541,6 +541,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       });
 
       const allSigned = signers.every((s) => s.signed_at !== null);
+      const done = signers.filter((s) => s.signed_at !== null).length;
       const nextEnv: Envelope = {
         ...env,
         signers,
@@ -553,6 +554,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
         signer: signedSigner,
         all_signed: allSigned,
         envelope_status: nextEnv.status,
+        done,
+        total: signers.length,
       };
     }
     return null;

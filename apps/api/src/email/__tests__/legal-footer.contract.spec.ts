@@ -13,6 +13,7 @@ const TEMPLATES = [
   'expired_to_signer',
   'invite',
   'reminder',
+  'signed_to_sender',
   'withdrawn_after_sign',
   'withdrawn_to_signer',
 ] as const;

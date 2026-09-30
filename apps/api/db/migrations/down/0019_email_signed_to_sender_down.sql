@@ -28,4 +28,7 @@ alter table public.outbound_emails
 drop type email_kind;
 alter type email_kind_v0018 rename to email_kind;
 
+delete from public.schema_migrations
+ where filename = '0019_email_signed_to_sender.sql';
+
 commit;

@@ -59,6 +59,9 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
 
   async insert(input: InsertOutboundEmailInput): Promise<OutboundEmailRow> {
     try {
+      // DO NOTHING so a duplicate unique key does not abort a surrounding
+      // transaction the way a caught 23505 would. No row means the notice
+      // was already stored (dedupe_key, or the older signer/kind tuple).
       const row = await this.db
         .insertInto('outbound_emails')
         .values({
@@ -73,10 +76,13 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
           ...(input.scheduled_for ? { scheduled_for: input.scheduled_for } : {}),
           ...(input.max_attempts !== undefined ? { max_attempts: input.max_attempts } : {}),
         })
+        .onConflict((oc) => oc.doNothing())
         .returningAll()
-        .executeTakeFirstOrThrow();
+        .executeTakeFirst();
+      if (!row) throw new DuplicateOutboundEmailError();
       return toDomain(rowRecord(row));
     } catch (err) {
+      if (err instanceof DuplicateOutboundEmailError) throw err;
       if (isOutboundUniqueViolation(err)) throw new DuplicateOutboundEmailError();
       throw err;
     }

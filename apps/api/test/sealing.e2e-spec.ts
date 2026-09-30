@@ -209,6 +209,111 @@ describe('Sealing pipeline (e2e)', () => {
     };
   }
 
+  it('queues signed_to_sender when the first of two signers finishes', async () => {
+    const auth = { Authorization: `Bearer ${tokenA}` };
+    const ada = await contactsRepo.create({
+      owner_id: USER_A,
+      name: 'Ada',
+      email: 'ada@example.com',
+      color: '#112233',
+    });
+    const bea = await contactsRepo.create({
+      owner_id: USER_A,
+      name: 'Bea',
+      email: 'bea@example.com',
+      color: '#445566',
+    });
+    const env = await request(app.getHttpServer())
+      .post('/envelopes')
+      .set(auth)
+      .send({ title: 'Contract' });
+    await request(app.getHttpServer())
+      .post(`/envelopes/${env.body.id}/upload`)
+      .set(auth)
+      .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+    const signerA = await request(app.getHttpServer())
+      .post(`/envelopes/${env.body.id}/signers`)
+      .set(auth)
+      .send({ contact_id: ada.id });
+    const signerB = await request(app.getHttpServer())
+      .post(`/envelopes/${env.body.id}/signers`)
+      .set(auth)
+      .send({ contact_id: bea.id });
+    await request(app.getHttpServer())
+      .put(`/envelopes/${env.body.id}/fields`)
+      .set(auth)
+      .send({
+        fields: [signerA.body.id, signerB.body.id].map((signer_id: string, index: number) => ({
+          signer_id,
+          kind: 'signature',
+          page: 1,
+          x: 0.1,
+          y: 0.5 + index * 0.2,
+          width: 0.2,
+          height: 0.05,
+          required: true,
+        })),
+      });
+    await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
+
+    const invites = outbound.rows.filter(
+      (row) => row.envelope_id === env.body.id && row.kind === 'invite',
+    );
+    expect(invites.map((row) => row.to_email).sort()).toEqual([
+      'ada@example.com',
+      'bea@example.com',
+    ]);
+
+    const sign = async (email: string): Promise<void> => {
+      const invite = invites.find((row) => row.to_email === email);
+      const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite?.payload.sign_url))?.[1];
+      expect(token).toBeDefined();
+      const started = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: env.body.id, token });
+      const setCookie = started.headers['set-cookie'] as unknown as string[] | string;
+      const cookie = (Array.isArray(setCookie) ? setCookie[0]! : setCookie).split(';')[0]!;
+      await request(app.getHttpServer())
+        .post('/sign/accept-terms')
+        .set('Cookie', cookie)
+        .expect(204);
+      await request(app.getHttpServer())
+        .post('/sign/signature')
+        .set('Cookie', cookie)
+        .field('format', 'drawn')
+        .attach('image', TINY_PNG, { filename: 's.png', contentType: 'image/png' })
+        .expect(200);
+      await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie).expect(200);
+    };
+
+    await sign('ada@example.com');
+    expect(envelopesRepo.envelopes.get(env.body.id)!.status).toBe('awaiting_others');
+    const progress = outbound.rows.filter(
+      (row) => row.envelope_id === env.body.id && row.kind === 'signed_to_sender',
+    );
+    expect(progress).toHaveLength(1);
+    expect(progress[0]).toMatchObject({
+      to_email: 'sender@example.com',
+      signer_id: null,
+      dedupe_key: `signed_to_sender:${env.body.id}:${signerA.body.id}`,
+    });
+    expect(progress[0]!.payload).toMatchObject({
+      signer_name: 'Ada',
+      signed_count: 1,
+      total_signers: 2,
+      dashboard_url: `http://localhost:5173/document/${env.body.id}`,
+    });
+    expect(JSON.stringify(progress[0]!.payload)).not.toMatch(/\?t=/);
+
+    await sign('bea@example.com');
+    expect(envelopesRepo.envelopes.get(env.body.id)!.status).toBe('sealing');
+    expect(
+      outbound.rows.filter(
+        (row) => row.envelope_id === env.body.id && row.kind === 'signed_to_sender',
+      ),
+    ).toHaveLength(1);
+  });
+
   it('seal job: produces sealed.pdf + audit.pdf, transitions to completed, queues completed email', async () => {
     const { envId, signerId } = await buildSignedEnvelope();
 

@@ -272,7 +272,8 @@ export function createPgMemDb(): PgMemHandle {
     mem.public.none(`alter table public.outbound_emails alter column kind type text`);
   }
   mem.public.none(`
-    alter table public.outbound_emails add column dedupe_key text;
+    alter table public.outbound_emails
+      add column dedupe_key text not null default gen_random_uuid()::text;
     create unique index outbound_emails_dedupe_key_key
       on public.outbound_emails (dedupe_key);
   `);

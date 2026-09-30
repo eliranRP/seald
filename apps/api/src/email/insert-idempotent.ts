@@ -21,7 +21,10 @@ export async function insertOutboundEmailIdempotent(
   }
 }
 
-/** Case-insensitive mailbox compare. citext does this in Postgres. */
+/**
+ * Compare mailboxes after trim, without case. citext folds case only;
+ * it does not trim, so the padding is handled here.
+ */
 export function sameMailbox(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
 }

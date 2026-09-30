@@ -3,6 +3,7 @@ import {
   ConflictException,
   GoneException,
   Injectable,
+  Logger,
   NotFoundException,
   PayloadTooLargeException,
   PreconditionFailedException,
@@ -87,6 +88,8 @@ export interface SignMeResponse {
  */
 @Injectable()
 export class SigningService {
+  private readonly logger = new Logger(SigningService.name);
+
   constructor(
     private readonly repo: EnvelopesRepository,
     private readonly tokens: SigningTokenService,
@@ -446,32 +449,39 @@ export class SigningService {
     // Progress mail is only for a signature that leaves someone still
     // waiting. The completion mail covers the last signature, and a
     // sender who is also this signer does not get a mail about their
-    // own signature. The row sits in the outbox until EmailWorkerService
-    // drains it (WORKER_ENABLED), same as invites.
+    // own signature. Counts come from the submit transaction. A failure
+    // here must not fail the signature: the row is already committed,
+    // and a 500 would turn the signer's retry into 409 already_signed.
+    // The row sits in the outbox until EmailWorkerService drains it
+    // (WORKER_ENABLED), same as invites.
     const senderEmail = envelope.sender_email;
     if (senderEmail && !submitted.all_signed && !sameMailbox(senderEmail, signer.email)) {
-      const fresh = await this.repo.findByIdWithAll(envelope.id);
-      const roster = fresh?.signers ?? envelope.signers;
-      const progress = countSigned(roster, signer.id, submitted.signer.signed_at);
       const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-      await insertOutboundEmailIdempotent(this.outboundEmails, {
-        envelope_id: envelope.id,
-        signer_id: null,
-        kind: 'signed_to_sender',
-        to_email: senderEmail,
-        to_name: envelope.sender_name ?? senderEmail,
-        source_event_id: signedEvent.id,
-        dedupe_key: `signed_to_sender:${envelope.id}:${signer.id}`,
-        payload: {
-          signer_name: signer.name,
-          envelope_title: envelope.title,
-          signed_count: progress.signed,
-          total_signers: progress.total,
-          dashboard_url: `${publicUrl}/document/${envelope.id}`,
-          short_code: envelope.short_code,
-          public_url: publicUrl,
-        },
-      });
+      try {
+        await insertOutboundEmailIdempotent(this.outboundEmails, {
+          envelope_id: envelope.id,
+          signer_id: null,
+          kind: 'signed_to_sender',
+          to_email: senderEmail,
+          to_name: envelope.sender_name ?? senderEmail,
+          source_event_id: signedEvent.id,
+          dedupe_key: `signed_to_sender:${envelope.id}:${signer.id}`,
+          payload: {
+            signer_name: signer.name,
+            envelope_title: envelope.title,
+            signed_count: submitted.done,
+            total_signers: submitted.total,
+            dashboard_url: `${publicUrl}/document/${envelope.id}`,
+            short_code: envelope.short_code,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unknown';
+        this.logger.warn(
+          `signed_to_sender enqueue failed envelope=${envelope.id} signer=${signer.id}: ${message}`,
+        );
+      }
     }
 
     if (submitted.all_signed) {
@@ -709,32 +719,6 @@ function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
 }
 
 /** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
-function countSigned(
-  signers: ReadonlyArray<{ readonly id: string; readonly signed_at: string | null }>,
-  signerId: string,
-  signedAt: string | null,
-): { readonly signed: number; readonly total: number } {
-  let signed = 0;
-  let sawSelf = false;
-  for (const row of signers) {
-    if (row.id === signerId) sawSelf = true;
-    if (rowHasSigned(row, signerId, signedAt)) signed += 1;
-  }
-  const total = sawSelf ? signers.length : signers.length + 1;
-  if (!sawSelf && signedAt !== null) signed += 1;
-  return { signed, total };
-}
-
-function rowHasSigned(
-  row: { readonly id: string; readonly signed_at: string | null },
-  signerId: string,
-  signedAt: string | null,
-): boolean {
-  if (row.id !== signerId) return row.signed_at !== null;
-  if (row.signed_at !== null) return true;
-  return signedAt !== null;
-}
-
 function formatUtc(iso: string): string {
   const date = new Date(iso);
   const year = date.getUTCFullYear();

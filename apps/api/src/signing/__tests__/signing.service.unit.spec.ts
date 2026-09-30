@@ -624,6 +624,8 @@ describe('SigningService.submit', () => {
           signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
           all_signed: true,
           envelope_status: 'sealing',
+          done: 1,
+          total: 1,
         };
       },
     });
@@ -649,6 +651,8 @@ describe('SigningService.submit', () => {
           signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
           all_signed: false,
           envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
         };
       },
     });
@@ -669,7 +673,7 @@ describe('SigningService.submit', () => {
           id: otherId,
           name: 'Bea',
           email: 'bea@example.com',
-          signed_at: '2026-04-25T12:00:00.000Z',
+          signed_at: null,
         }),
         makeSigner({ id: waitingId, name: 'Cam', email: 'cam@example.com', signed_at: null }),
       ],
@@ -681,6 +685,8 @@ describe('SigningService.submit', () => {
           signer: freshSigner({ name: 'Ada', signed_at: '2026-04-26T10:00:00.000Z' }),
           all_signed: false,
           envelope_status: 'awaiting_others',
+          done: 2,
+          total: 3,
         };
       },
     });
@@ -724,6 +730,8 @@ describe('SigningService.submit', () => {
           }),
           all_signed: true,
           envelope_status: 'sealing',
+          done: 1,
+          total: 1,
         };
       },
     });
@@ -754,6 +762,8 @@ describe('SigningService.submit', () => {
           }),
           all_signed: true,
           envelope_status: 'sealing',
+          done: 1,
+          total: 1,
         };
       },
     });
@@ -764,6 +774,67 @@ describe('SigningService.submit', () => {
       null,
     );
     expect(spy.outboundInserts.find((row) => row.kind === 'signed_to_sender')).toBeUndefined();
+  });
+
+  it('does not email the sender about their own non-final signature', async () => {
+    const otherId = '00000000-0000-0000-0000-0000000000ee';
+    const env = envelopeAwaitingOthers({
+      sender_email: ' Sender@Example.com ',
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+      signers: [
+        freshSigner({ email: 'sender@example.com' }),
+        makeSigner({ id: otherId, name: 'Bea', email: 'bea@example.com', signed_at: null }),
+      ],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({
+            email: 'sender@example.com',
+            signed_at: '2026-04-26T10:00:00.000Z',
+          }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
+        };
+      },
+    });
+    await svc.submit(
+      env,
+      freshSigner({ email: 'sender@example.com', tc_accepted_at: '2026-04-25T10:00:00.000Z' }),
+      null,
+      null,
+    );
+    expect(spy.outboundInserts.find((row) => row.kind === 'signed_to_sender')).toBeUndefined();
+    expect(spy.jobs).toHaveLength(0);
+  });
+
+  it('still accepts the signature when the progress email insert fails', async () => {
+    const env = envelopeAwaitingOthers({
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
+        };
+      },
+      async insertOutbound() {
+        throw new Error('outbox_down');
+      },
+    });
+    await expect(
+      svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null),
+    ).resolves.toEqual({ status: 'submitted', envelope_status: 'awaiting_others' });
+    expect(spy.events.map((event) => event.event_type)).toEqual(['signed']);
+    expect(spy.outboundInserts).toHaveLength(0);
   });
 
   it('treats a duplicate sender notice as success so a retry does not fail the signature', async () => {
@@ -777,6 +848,8 @@ describe('SigningService.submit', () => {
           signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
           all_signed: false,
           envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
         };
       },
       async insertOutbound() {
