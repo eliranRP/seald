@@ -64,6 +64,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       status: 'draft',
       delivery_mode: 'parallel',
       original_pages: null,
+      placement_version: 2,
+      original_page_geometry: null,
       original_sha256: null,
       sealed_sha256: null,
       sender_email: null,
@@ -308,6 +310,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       ...e,
       original_pages: input.pages,
       original_sha256: input.sha256,
+      original_page_geometry: input.page_geometry ? [...input.page_geometry] : null,
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);

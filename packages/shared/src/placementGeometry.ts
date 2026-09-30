@@ -175,6 +175,47 @@ export function displayedBoxToPdfDraw(
   return { x: anchor.x, y: anchor.y, width, height, rotate: geometry.rotation };
 }
 
+/** Axis-aligned box in PDF user space. Lower-left origin. */
+export interface PdfAxisBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Page geometry persisted on `envelopes.original_page_geometry` at upload.
+ * `view_width` / `view_height` are the displayed page (CropBox, else MediaBox,
+ * with `/Rotate` applied) in PDF points. `page` is 1-based.
+ */
+export interface StoredPageGeometry {
+  readonly page: number;
+  readonly view_width: number;
+  readonly view_height: number;
+  readonly rotation: PageRotation;
+  readonly mediabox: PdfAxisBox;
+  readonly cropbox: PdfAxisBox;
+}
+
+/** Build one persisted page record from the boxes pdf-lib reports. */
+export function storedPageGeometry(input: {
+  readonly page: number;
+  readonly rotation: number;
+  readonly mediabox: PdfAxisBox;
+  readonly cropbox: PdfAxisBox;
+}): StoredPageGeometry {
+  const rotation = normalizePageRotation(input.rotation);
+  const size = displayedPageSize({ box: input.cropbox, rotation });
+  return {
+    page: input.page,
+    view_width: size.width,
+    view_height: size.height,
+    rotation,
+    mediabox: input.mediabox,
+    cropbox: input.cropbox,
+  };
+}
+
 function unitInterval(value: number): boolean {
   return Number.isFinite(value) && value >= 0 && value <= 1;
 }

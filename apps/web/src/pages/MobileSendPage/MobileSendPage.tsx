@@ -33,6 +33,7 @@ import {
   buildDroppedField,
   commitDrag,
   deleteFields,
+  mobileFieldFractions,
   MOBILE_STEP_ORDER,
   toggleSelection,
   type CanvasBounds,
@@ -82,6 +83,7 @@ const FIELD_TYPE_TO_API: Readonly<Record<MobileFieldType, FieldPlacement['kind']
   dat: 'date',
   txt: 'text',
   chk: 'checkbox',
+  eml: 'email',
 };
 
 /**
@@ -252,6 +254,7 @@ export function MobileSendPage() {
     width: 320,
     height: 340,
   });
+  const [pageBoxes, setPageBoxes] = useState<ReadonlyMap<number, CanvasBounds>>(() => new Map());
 
   // Sheet routing
   const [sheet, setSheet] = useState<'apply' | 'assign' | 'addSigner' | null>(null);
@@ -463,6 +466,20 @@ export function MobileSendPage() {
   }, [signers.length, contacts.length]);
 
   // ---- placement ----
+  const handleCanvasMeasured = useCallback(
+    (size: CanvasBounds): void => {
+      setCanvasBounds(size);
+      setPageBoxes((prev) => {
+        const current = prev.get(page);
+        if (current && current.width === size.width && current.height === size.height) return prev;
+        const next = new Map(prev);
+        next.set(page, size);
+        return next;
+      });
+    },
+    [page],
+  );
+
   const handleCanvasTap = useCallback(
     (pos: { x: number; y: number }): void => {
       if (!armedTool) return;
@@ -583,25 +600,18 @@ export function MobileSendPage() {
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
-            const xPct = canvasBounds.width > 0 ? f.x / canvasBounds.width : 0;
-            const yPct = canvasBounds.height > 0 ? f.y / canvasBounds.height : 0;
-            // Approximate normalized field size — the API expects 0–1 box
-            // coords. Mobile's fixed pixel widths scale uniformly.
-            // The DTO requires `width`/`height` keys; emitting `w`/`h`
-            // here caused every mobile send to 400 because Nest's
-            // ValidationPipe runs with `forbidNonWhitelisted: true`.
-            const widthPct = canvasBounds.width > 0 ? 80 / canvasBounds.width : 0.25;
-            const heightPct = canvasBounds.height > 0 ? 28 / canvasBounds.height : 0.08;
+            const box = pageBoxes.get(f.page) ?? canvasBounds;
+            const frac = mobileFieldFractions(f, box);
             return f.signerIds.flatMap((sid) => {
               const serverId = localToServer.get(sid);
               if (!serverId) return [];
               return linked.map<FieldPlacement>((p) => ({
                 signer_id: serverId,
                 page: p,
-                x: xPct,
-                y: yPct,
-                width: widthPct,
-                height: heightPct,
+                x: frac.x,
+                y: frac.y,
+                width: frac.width,
+                height: frac.height,
                 kind: FIELD_TYPE_TO_API[f.type],
                 ...(f.type === 'txt' || f.type === 'chk' ? { required: true } : {}),
               }));
@@ -616,7 +626,18 @@ export function MobileSendPage() {
     } finally {
       sendingRef.current = false;
     }
-  }, [pdfFile, signers, contacts, remindersEnabled, runSend, title, user, fields, canvasBounds]);
+  }, [
+    pdfFile,
+    signers,
+    contacts,
+    remindersEnabled,
+    runSend,
+    title,
+    user,
+    fields,
+    canvasBounds,
+    pageBoxes,
+  ]);
 
   // ---- per-step CTA ----
   const stepNum = MOBILE_STEP_ORDER.indexOf(step) + 1;
@@ -767,7 +788,7 @@ export function MobileSendPage() {
             }}
             onDeleteSelected={handleDeleteSelected}
             onCommitDrag={handleCommitDrag}
-            onCanvasMeasured={setCanvasBounds}
+            onCanvasMeasured={handleCanvasMeasured}
           />
         )}
         {step === 'review' && pdfFile && (
@@ -781,6 +802,12 @@ export function MobileSendPage() {
               totalPages={totalPages}
               remindersEnabled={remindersEnabled}
               onRemindersEnabledChange={setRemindersEnabled}
+              pdfDoc={doc}
+              canvasWidth={pageBoxes.get(1)?.width ?? canvasBounds.width}
+              placement={fields.flatMap((field) => {
+                const box = pageBoxes.get(field.page);
+                return box ? [mobileFieldFractions(field, box)] : [];
+              })}
             />
             {sendPhase === 'error' && sendError && (
               <div

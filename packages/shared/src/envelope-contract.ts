@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FIELD_PLACEMENT_ERRORS, fieldPlacementError } from './pdf-page-geometry';
+import { FIELD_PLACEMENT_ERRORS, fieldPlacementError } from './placementGeometry';
 
 export const ENVELOPE_STATUSES = [
   'draft',
@@ -156,6 +156,36 @@ export const EnvelopeSchema = z.object({
   status: z.enum(ENVELOPE_STATUSES),
   delivery_mode: z.enum(DELIVERY_MODES),
   original_pages: z.number().int().positive().nullable(),
+  /**
+   * 1 = MediaBox seal used before displayed-page placement. Existing rows
+   * stay on 1. 2 = CropBox + /Rotate fractions. New drafts are inserted as 2.
+   * Absent payloads are treated as 1 by the seal.
+   */
+  placement_version: z.union([z.literal(1), z.literal(2)]).optional(),
+  /** Per-page geometry captured at upload. Null until a PDF is stored. */
+  original_page_geometry: z
+    .array(
+      z.object({
+        page: z.number().int().positive(),
+        view_width: z.number().positive(),
+        view_height: z.number().positive(),
+        rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+        mediabox: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().positive(),
+          height: z.number().positive(),
+        }),
+        cropbox: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().positive(),
+          height: z.number().positive(),
+        }),
+      }),
+    )
+    .nullable()
+    .optional(),
   original_sha256: sha256.nullable(),
   sealed_sha256: sha256.nullable(),
   sender_email: z.string().email().nullable(),

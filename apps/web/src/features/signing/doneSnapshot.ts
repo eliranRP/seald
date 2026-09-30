@@ -18,6 +18,17 @@
  */
 export type DeclineReason = 'declined' | 'consent-withdrawn' | 'not-the-recipient';
 
+/** Fractions of the displayed page, captured before the signer session ends. */
+export interface DonePlacementField {
+  readonly id: string;
+  readonly kind: string;
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface DoneSnapshot {
   readonly kind: 'submitted' | 'declined';
   readonly envelope_id: string;
@@ -38,6 +49,14 @@ export interface DoneSnapshot {
    * carry it (the reader treats missing as 'declined').
    */
   readonly decline_reason?: DeclineReason | undefined;
+  /** Present after submit so the signed-document view can redraw the boxes. */
+  readonly placement?: ReadonlyArray<DonePlacementField> | undefined;
+  /**
+   * Envelope placement version at submit. 1 keeps page-1 aspect on the
+   * signed view so a mixed-size envelope sealed with the old math does
+   * not shift. Missing snapshots are treated as 1.
+   */
+  readonly placement_version?: 1 | 2 | undefined;
 }
 
 const KEY = 'sealed.sign.last';
@@ -84,7 +103,28 @@ function isValidSnapshot(value: unknown): value is DoneSnapshot {
   ) {
     return false;
   }
+  if (v.placement !== undefined && !isPlacement(v.placement)) return false;
+  if (v.placement_version !== undefined && v.placement_version !== 1 && v.placement_version !== 2) {
+    return false;
+  }
   return true;
+}
+
+function isPlacement(value: unknown): value is ReadonlyArray<DonePlacementField> {
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => {
+    if (item === null || typeof item !== 'object') return false;
+    const field = item as Record<string, unknown>;
+    return (
+      typeof field.id === 'string' &&
+      typeof field.kind === 'string' &&
+      typeof field.page === 'number' &&
+      typeof field.x === 'number' &&
+      typeof field.y === 'number' &&
+      typeof field.width === 'number' &&
+      typeof field.height === 'number'
+    );
+  });
 }
 
 export function readDoneSnapshot(envelope_id: string): DoneSnapshot | null {

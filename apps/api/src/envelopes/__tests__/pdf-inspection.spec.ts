@@ -17,6 +17,24 @@ describe('inspectPdfBytes', () => {
 
     expect(inspected.pages).toBe(2);
     expect(inspected.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(inspected.page_geometry).toEqual([
+      {
+        page: 1,
+        view_width: 200,
+        view_height: 100,
+        rotation: 0,
+        mediabox: { x: 0, y: 0, width: 200, height: 100 },
+        cropbox: { x: 0, y: 0, width: 200, height: 100 },
+      },
+      {
+        page: 2,
+        view_width: 200,
+        view_height: 100,
+        rotation: 0,
+        mediabox: { x: 0, y: 0, width: 200, height: 100 },
+        cropbox: { x: 0, y: 0, width: 200, height: 100 },
+      },
+    ]);
   });
 
   it('rejects a buffer that is not a PDF', async () => {

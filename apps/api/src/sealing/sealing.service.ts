@@ -295,12 +295,19 @@ export class SealingService {
       for (const f of signerFields) {
         const pageIdx = Math.max(0, f.page - 1);
         if (pageIdx >= pages.length) continue;
-        burnInField(pages[pageIdx]!, f, {
-          sigImg,
-          initialsImg,
-          helvetica,
-          helveticaBold: helvetica, // bold unused for text fields
-        });
+        burnInField(
+          pages[pageIdx]!,
+          f,
+          {
+            sigImg,
+            initialsImg,
+            helvetica,
+            helveticaBold: helvetica, // bold unused for text fields
+          },
+          // Version 1 keeps the MediaBox seal so an envelope prepared
+          // before displayed-page math does not move when it is re-sealed.
+          envelope.placement_version === 2 ? 2 : 1,
+        );
       }
     }
 

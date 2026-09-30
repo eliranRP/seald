@@ -54,12 +54,96 @@ export function defaultHeight(kind: string): number {
 const TEXT_INSET_PT = 22;
 const TEXT_SIZE_PT = 12;
 
+/** 1 = MediaBox seal. 2 = displayed page (CropBox + /Rotate). */
+export type PlacementVersion = 1 | 2;
+
 /**
- * Render a single field onto a PDF page — the EXACT logic that produces
- * the sealed PDF. Both the sealing service and calibration tests call
- * this function so they can never diverge.
+ * Render a single field onto a PDF page. Version 2 is the displayed-page
+ * seal. Version 1 is the MediaBox seal kept for envelopes that were
+ * prepared before that math, so re-sealing them does not move fields.
+ * Callers that omit the version get version 2 (new drafts). The sealing
+ * service always passes the envelope's `placement_version`.
  */
-export function burnInField(page: PDFPage, f: BurnInField, assets: BurnInAssets): void {
+export function burnInField(
+  page: PDFPage,
+  f: BurnInField,
+  assets: BurnInAssets,
+  placementVersion: PlacementVersion = 2,
+): void {
+  if (placementVersion === 1) {
+    burnInFieldLegacy(page, f, assets);
+    return;
+  }
+  burnInFieldDisplayed(page, f, assets);
+}
+
+/**
+ * MediaBox seal: `getWidth`/`getHeight`, no page rotation, checkbox mark
+ * fixed at 10pt and shifted 22pt to the right of the field box.
+ */
+function burnInFieldLegacy(page: PDFPage, f: BurnInField, assets: BurnInAssets): void {
+  const pw = page.getWidth();
+  const ph = page.getHeight();
+  const w = (f.width ?? defaultWidth(f.kind)) * pw;
+  const h = (f.height ?? defaultHeight(f.kind)) * ph;
+  const cx = f.x * pw + w / 2;
+  const cy = ph - f.y * ph - h / 2;
+
+  if (f.kind === 'signature') {
+    if (assets.sigImg) {
+      page.drawImage(assets.sigImg, { x: cx - w / 2, y: cy - h / 2, width: w, height: h });
+    }
+  } else if (f.kind === 'initials') {
+    if (assets.initialsImg) {
+      page.drawImage(assets.initialsImg, { x: cx - w / 2, y: cy - h / 2, width: w, height: h });
+    }
+  } else if (f.kind === 'checkbox') {
+    const cbSize = 10;
+    const cbX = cx - w / 2 + 22;
+    const cbY = cy - cbSize / 2;
+    page.drawRectangle({
+      x: cbX,
+      y: cbY,
+      width: cbSize,
+      height: cbSize,
+      borderColor: rgb(0, 0, 0),
+      borderWidth: 0.5,
+    });
+    if (f.value_boolean === true) {
+      const inset = cbSize * 0.15;
+      const iw = cbSize - inset * 2;
+      const ih = cbSize - inset * 2;
+      const left = cbX + inset;
+      const bottom = cbY + inset;
+      const stroke = 1.2;
+      page.drawLine({
+        start: { x: left, y: bottom + ih * 0.6 },
+        end: { x: left + iw * 0.4, y: bottom + ih * 0.15 },
+        thickness: stroke,
+        color: rgb(0, 0, 0),
+      });
+      page.drawLine({
+        start: { x: left + iw * 0.4, y: bottom + ih * 0.15 },
+        end: { x: left + iw, y: bottom + ih * 0.95 },
+        thickness: stroke,
+        color: rgb(0, 0, 0),
+      });
+    }
+  } else {
+    const text = f.value_text ?? '';
+    const fontSize = 12;
+    const textHeight = assets.helvetica.heightAtSize(fontSize);
+    page.drawText(text, {
+      x: cx - w / 2 + 22,
+      y: cy - textHeight / 2,
+      size: fontSize,
+      font: assets.helvetica,
+      color: rgb(0, 0, 0),
+    });
+  }
+}
+
+function burnInFieldDisplayed(page: PDFPage, f: BurnInField, assets: BurnInAssets): void {
   const geometry = pageGeometryOf(page);
   const widthFrac = f.width ?? defaultWidth(f.kind);
   const heightFrac = f.height ?? defaultHeight(f.kind);

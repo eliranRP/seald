@@ -188,6 +188,20 @@ export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOpti
     mutationFn: () => api.submit(),
     onSuccess: () => {
       const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
+      const placement = (me?.fields ?? []).flatMap((field) => {
+        if (typeof field.width !== 'number' || typeof field.height !== 'number') return [];
+        return [
+          {
+            id: field.id,
+            kind: field.kind,
+            page: field.page,
+            x: field.x,
+            y: field.y,
+            width: field.width,
+            height: field.height,
+          },
+        ];
+      });
       writeDoneSnapshot({
         kind: 'submitted',
         envelope_id: envelopeId,
@@ -196,6 +210,10 @@ export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOpti
         sender_name: opts.senderName,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
+        ...(placement.length > 0 ? { placement } : {}),
+        ...(me?.envelope.placement_version === 1 || me?.envelope.placement_version === 2
+          ? { placement_version: me.envelope.placement_version }
+          : {}),
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.submitted', envelope_id: envelopeId });

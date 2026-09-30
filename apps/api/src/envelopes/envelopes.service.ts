@@ -59,6 +59,17 @@ export type { ListResult };
 type Envelope = WireEnvelope;
 type EnvelopeStatus = Envelope['status'];
 
+/**
+ * Page count for place-fields bounds. Stored geometry wins over
+ * `original_pages` so a field cannot target a page the upload did not
+ * record. x+w and y+h are checked inside `fieldPlacementError`.
+ */
+function placementPageCount(envelope: Envelope): number | null {
+  const geometry = envelope.original_page_geometry;
+  if (geometry && geometry.length > 0) return geometry.length;
+  return envelope.original_pages;
+}
+
 const DEFAULT_EXPIRY_DAYS = 30;
 const MAX_SHORT_CODE_RETRIES = 5;
 
@@ -506,11 +517,16 @@ export class EnvelopesService {
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
-    const { pages, sha256 } = await inspectPdfBytes(body);
+    const { pages, sha256, page_geometry } = await inspectPdfBytes(body);
     const file_path = `${envelope.id}/original.pdf`;
     await this.storage.upload(file_path, body, 'application/pdf');
 
-    return this.setOriginalFile(owner_id, id, { file_path, sha256, pages });
+    return this.setOriginalFile(owner_id, id, {
+      file_path,
+      sha256,
+      pages,
+      page_geometry,
+    });
   }
 
   /**
@@ -603,7 +619,7 @@ export class EnvelopesService {
       if (!envelopeSignerIds.has(f.signer_id)) {
         throw new BadRequestException('signer_not_in_envelope');
       }
-      const placementError = fieldPlacementError(f, envelope.original_pages);
+      const placementError = fieldPlacementError(f, placementPageCount(envelope));
       if (placementError) throw new BadRequestException(placementError);
     }
 

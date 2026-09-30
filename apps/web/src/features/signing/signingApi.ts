@@ -14,6 +14,8 @@ export interface SignMeEnvelope {
   readonly short_code: string;
   readonly status: string;
   readonly original_pages: number | null;
+  /** Missing on older payloads. Treat missing as 1 (page-1 aspect). */
+  readonly placement_version?: 1 | 2;
   readonly expires_at: string;
   readonly tc_version: string;
   readonly privacy_version: string;

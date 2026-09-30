@@ -50,6 +50,8 @@ export interface SetOriginalFileInput {
   readonly file_path: string;
   readonly sha256: string;
   readonly pages: number;
+  /** Displayed-page geometry from the uploaded PDF. Omitted stores null. */
+  readonly page_geometry?: ReadonlyArray<import('shared').StoredPageGeometry> | null;
 }
 
 export interface AddSignerInput {

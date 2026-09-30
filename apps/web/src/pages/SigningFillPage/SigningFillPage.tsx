@@ -66,6 +66,7 @@ import {
 import {
   CANVAS_HEIGHT_FALLBACK,
   CANVAS_WIDTH,
+  canvasHeightForPage,
   placeSignerField,
   useCanvasWidth,
   usePageCanvasHeights,
@@ -382,7 +383,9 @@ function Content() {
               // sort is on the rendered slice only — `fieldsByPage`
               // and downstream state stay untouched.
               const orderedFields = [...pageFields].sort(compareFieldsForReadingOrder);
-              const pageHeight = pageHeights.get(p) ?? CANVAS_HEIGHT_FALLBACK;
+              const placementVersion = envelope.placement_version === 2 ? 2 : 1;
+              const pageHeight =
+                canvasHeightForPage(pageHeights, p, placementVersion) ?? CANVAS_HEIGHT_FALLBACK;
               return (
                 <DocumentPageCanvas
                   key={p}
@@ -391,6 +394,8 @@ function Content() {
                   title={envelope.title}
                   pdfSrc={pdfSrc ?? undefined}
                   width={canvasWidth}
+                  pageHeight={pageHeight}
+                  data-surface="signing"
                 >
                   {orderedFields.map((f) => {
                     const uiKind = toUiKind(f);
@@ -408,6 +413,8 @@ function Content() {
                       <SignerField
                         key={f.id}
                         kind={uiKind}
+                        data-surface="signing"
+                        data-field-page={p}
                         label={label}
                         required={f.required}
                         active={activeFieldId === f.id}

@@ -279,6 +279,15 @@ export function createPgMemDb(): PgMemHandle {
       on public.outbound_emails (dedupe_key);
   `);
 
+  // 0023 — placement_version + original_page_geometry. Default version
+  // 1 matches envelopes already in flight; createDraft inserts 2.
+  mem.public.none(`
+    alter table public.envelopes
+      add column if not exists placement_version smallint not null default 1;
+    alter table public.envelopes
+      add column if not exists original_page_geometry jsonb;
+  `);
+
   // 0020 — reminders_enabled + last_reminded_at.
   mem.public.none(`
     alter table public.envelopes

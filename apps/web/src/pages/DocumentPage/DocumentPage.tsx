@@ -27,10 +27,18 @@ import { ReminderToggle } from '@/components/ReminderToggle';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
-import { CANVAS_WIDTH, usePageCanvasHeights } from '@/lib/canvas-coords';
+import {
+  CANVAS_WIDTH,
+  canvasHeightForPage,
+  placeSignerField,
+  usePageCanvasHeights,
+} from '@/lib/canvas-coords';
 import {
   DEFAULT_LEFT_WIDTH,
   DEFAULT_RIGHT_WIDTH,
+  FIELD_HEIGHT,
+  FIELD_SIZE,
+  FIELD_WIDTH,
   expandSelectionToGroup,
   hasAnyGrouped,
   isFullyGrouped,
@@ -98,6 +106,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     initialPage = 1,
     pdfDoc,
     pdfLoading,
+    placementVersion = 2,
     fields,
     onFieldsChange,
     availableFieldKinds,
@@ -140,6 +149,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   const [signerPopoverFor, setSignerPopoverFor] = useState<string | null>(null);
   const [pagesPopoverFor, setPagesPopoverFor] = useState<string | null>(null);
   const [groupPagesPopoverOpen, setGroupPagesPopoverOpen] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   // -------------------------- feature hooks
   const {
@@ -351,6 +361,16 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                       Back
                     </Button>
                   ) : null}
+                  {pdfDoc ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={previewing}
+                      onClick={() => setPreviewing((on) => !on)}
+                    >
+                      {previewing ? 'Edit fields' : 'Preview placement'}
+                    </Button>
+                  ) : null}
                 </CenterHeaderSide>
                 <PageToolbar
                   currentPage={currentPage}
@@ -376,7 +396,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => {
                     const isLive = visiblePages.has(pageNum);
                     const pageFields = fields.filter((f) => f.page === pageNum);
-                    const measured = pageHeights.get(pageNum);
+                    const measured = canvasHeightForPage(pageHeights, pageNum, placementVersion);
                     const pageSize =
                       measured === undefined
                         ? paperSize
@@ -410,6 +430,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                 ref={setCanvasRefForPage(pageNum)}
                                 currentPage={pageNum}
                                 totalPages={totalPages}
+                                data-surface="editor"
+                                data-page-box={pageNum}
                                 {...(title ? { title } : {})}
                                 {...(docId ? { docId } : {})}
                                 {...(pdfDoc ? { pdfDoc } : {})}
@@ -419,51 +441,91 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                                 onClick={handleCanvasBackgroundClick}
                                 onMouseDown={(e) => handleCanvasMouseDown(e, pageNum)}
                               >
-                                {pageFields.map((field) => {
-                                  const isSelected = selectedIds.includes(field.id);
-                                  const inGroup = isSelected && selectedIds.length > 1;
-                                  return (
-                                    <PlacedField
-                                      key={field.id}
-                                      field={field}
-                                      signers={placedFieldSigners}
-                                      selected={isSelected}
-                                      inGroup={inGroup}
-                                      canvasRef={pageCanvasRef}
-                                      onSelect={(e) => {
-                                        e.stopPropagation();
-                                        const additive = e.shiftKey || e.metaKey || e.ctrlKey;
-                                        // Persistent groups expand to all members so clicking
-                                        // any tile selects the whole group — same gesture for
-                                        // single-click and shift/meta-click.
-                                        setSelectedIds((prev) => {
-                                          let base: ReadonlyArray<string>;
-                                          if (!additive) base = [field.id];
-                                          else if (prev.includes(field.id)) {
-                                            base = prev.filter((id) => id !== field.id);
-                                          } else base = [...prev, field.id];
-                                          return expandSelectionToGroup(base, fields);
-                                        });
-                                        setSignerPopoverFor(null);
-                                        setPagesPopoverFor(null);
-                                      }}
-                                      onOpenSignerPopover={(e) => {
-                                        e.stopPropagation();
-                                        setSignerPopoverFor(field.id);
-                                      }}
-                                      onOpenPagesPopover={(e) => {
-                                        e.stopPropagation();
-                                        setPagesPopoverFor(field.id);
-                                      }}
-                                      onRemove={() => removeField(field.id)}
-                                      onToggleRequired={toggleRequired}
-                                      onMove={moveField}
-                                      onResize={resizeField}
-                                      onDragEnd={clearSnapGuides}
-                                      zoom={zoom}
-                                    />
-                                  );
-                                })}
+                                {previewing
+                                  ? pageFields.map((field) => {
+                                      const kindSize = FIELD_SIZE[field.type];
+                                      const fw = field.width ?? kindSize?.w ?? FIELD_WIDTH;
+                                      const fh = field.height ?? kindSize?.h ?? FIELD_HEIGHT;
+                                      const placed = placeSignerField(
+                                        {
+                                          x: field.x / pageSize.width,
+                                          y: field.y / pageSize.height,
+                                          width: fw / pageSize.width,
+                                          height: fh / pageSize.height,
+                                        },
+                                        { w: fw, h: fh },
+                                        pageSize.width,
+                                        pageSize.height,
+                                      );
+                                      return (
+                                        <div
+                                          key={field.id}
+                                          data-surface="preview"
+                                          data-field-kind={field.type}
+                                          data-field-page={pageNum}
+                                          data-field-id={field.id}
+                                          style={{
+                                            position: 'absolute',
+                                            left: placed.x,
+                                            top: placed.y,
+                                            width: placed.w,
+                                            height: placed.h,
+                                            boxSizing: 'border-box',
+                                            border: '1.5px solid #4F46E5',
+                                            background: 'rgba(79, 70, 229, 0.12)',
+                                            pointerEvents: 'none',
+                                          }}
+                                        />
+                                      );
+                                    })
+                                  : null}
+                                {!previewing
+                                  ? pageFields.map((field) => {
+                                      const isSelected = selectedIds.includes(field.id);
+                                      const inGroup = isSelected && selectedIds.length > 1;
+                                      return (
+                                        <PlacedField
+                                          key={field.id}
+                                          field={field}
+                                          signers={placedFieldSigners}
+                                          selected={isSelected}
+                                          inGroup={inGroup}
+                                          canvasRef={pageCanvasRef}
+                                          onSelect={(e) => {
+                                            e.stopPropagation();
+                                            const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+                                            // Persistent groups expand to all members so clicking
+                                            // any tile selects the whole group — same gesture for
+                                            // single-click and shift/meta-click.
+                                            setSelectedIds((prev) => {
+                                              let base: ReadonlyArray<string>;
+                                              if (!additive) base = [field.id];
+                                              else if (prev.includes(field.id)) {
+                                                base = prev.filter((id) => id !== field.id);
+                                              } else base = [...prev, field.id];
+                                              return expandSelectionToGroup(base, fields);
+                                            });
+                                            setSignerPopoverFor(null);
+                                            setPagesPopoverFor(null);
+                                          }}
+                                          onOpenSignerPopover={(e) => {
+                                            e.stopPropagation();
+                                            setSignerPopoverFor(field.id);
+                                          }}
+                                          onOpenPagesPopover={(e) => {
+                                            e.stopPropagation();
+                                            setPagesPopoverFor(field.id);
+                                          }}
+                                          onRemove={() => removeField(field.id)}
+                                          onToggleRequired={toggleRequired}
+                                          onMove={moveField}
+                                          onResize={resizeField}
+                                          onDragEnd={clearSnapGuides}
+                                          zoom={zoom}
+                                        />
+                                      );
+                                    })
+                                  : null}
                                 {marqueeRect && marqueeRect.page === pageNum ? (
                                   <MarqueeRect
                                     data-testid="canvas-marquee"

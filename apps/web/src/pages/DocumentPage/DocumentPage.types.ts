@@ -43,6 +43,12 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    * feedback during the multi-second parse step for large PDFs.
    */
   readonly pdfLoading?: boolean | undefined;
+  /**
+   * 1 keeps page 1's aspect on every page (envelopes placed before
+   * displayed-page math). 2 sizes each page by its own viewport.
+   * Omitted means 2 — this editor creates new drafts.
+   */
+  readonly placementVersion?: 1 | 2 | undefined;
 
   // Fields ----------------------------------------------------------------
   readonly fields: ReadonlyArray<PlacedFieldValue>;

@@ -121,6 +121,23 @@ export function usePageCanvasHeights(
 }
 
 /**
+ * Height of the field coordinate box for one page.
+ *
+ * Version 1 envelopes were placed against page 1's aspect on every page.
+ * Using each page's own viewport would move those fields on a mixed-size
+ * document. Version 2 (and any caller that already knows it is placing a
+ * new draft) uses the page's own viewport.
+ */
+export function canvasHeightForPage(
+  heights: ReadonlyMap<number, number>,
+  page: number,
+  placementVersion: number | null | undefined,
+): number | undefined {
+  if (placementVersion === 1) return heights.get(1);
+  return heights.get(page);
+}
+
+/**
  * Compute the actual canvas height from the PDF's first page.
  * Returns CANVAS_HEIGHT_FALLBACK until the PDF is loaded.
  */

@@ -57,6 +57,8 @@ describe('EnvelopesPgRepository — createDraft + findByIdForOwner', () => {
     expect(e.delivery_mode).toBe('parallel');
     expect(e.signers).toEqual([]);
     expect(e.fields).toEqual([]);
+    expect(e.placement_version).toBe(2);
+    expect(e.original_page_geometry).toBeNull();
     expect(e.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
     const got = await repo.findByIdForOwner(ownerId, e.id);
@@ -340,6 +342,23 @@ describe('EnvelopesPgRepository — setOriginalFile', () => {
     });
     expect(got?.original_sha256).toBe(sha);
     expect(got?.original_pages).toBe(4);
+    const geometry = [
+      {
+        page: 1,
+        view_width: 612,
+        view_height: 792,
+        rotation: 0 as const,
+        mediabox: { x: 0, y: 0, width: 612, height: 792 },
+        cropbox: { x: 36, y: 36, width: 540, height: 720 },
+      },
+    ];
+    const withGeometry = await repo.setOriginalFile(e.id, {
+      file_path: 'uploads/a.pdf',
+      sha256: sha,
+      pages: 4,
+      page_geometry: geometry,
+    });
+    expect(withGeometry?.original_page_geometry).toEqual(geometry);
   });
 
   it('returns null on non-draft', async () => {

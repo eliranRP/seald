@@ -1,5 +1,8 @@
 import { FileText, Pencil } from 'lucide-react';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { FieldPlacementStage } from '@/components/FieldPlacementStage';
+import type { PlacementFractionField } from '@/components/FieldPlacementStage';
+import type { PDFDocumentProxy } from '@/lib/pdf';
 import styled from 'styled-components';
 import type { MobilePlacedField, MobileSigner } from '../types';
 
@@ -160,6 +163,9 @@ export interface MWReviewProps {
   readonly totalPages: number;
   readonly remindersEnabled: boolean;
   readonly onRemindersEnabledChange: (enabled: boolean) => void;
+  readonly pdfDoc?: PDFDocumentProxy | null;
+  readonly canvasWidth?: number;
+  readonly placement?: ReadonlyArray<PlacementFractionField>;
 }
 
 export function MWReview(props: MWReviewProps) {
@@ -172,6 +178,9 @@ export function MWReview(props: MWReviewProps) {
     totalPages,
     remindersEnabled,
     onRemindersEnabledChange,
+    pdfDoc,
+    canvasWidth,
+    placement,
   } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
@@ -183,6 +192,14 @@ export function MWReview(props: MWReviewProps) {
   });
   return (
     <Wrap>
+      {pdfDoc && canvasWidth && placement && placement.length > 0 ? (
+        <FieldPlacementStage
+          pdfDoc={pdfDoc}
+          canvasWidth={canvasWidth}
+          fields={placement}
+          surface="preview"
+        />
+      ) : null}
       <Card>
         <Eyebrow>Title</Eyebrow>
         <TitleRow>

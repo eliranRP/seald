@@ -11,7 +11,7 @@
  * into N independent single-signer fields (see `assignSigners` in the page
  * component) so the array is effectively `[string]` everywhere it renders.
  */
-export type MobileFieldType = 'sig' | 'ini' | 'dat' | 'txt' | 'chk';
+export type MobileFieldType = 'sig' | 'ini' | 'dat' | 'txt' | 'chk' | 'eml';
 
 export interface MobileFieldDef {
   readonly k: MobileFieldType;
@@ -49,6 +49,7 @@ export const MOBILE_FIELD_DEFS: ReadonlyArray<MobileFieldDef> = [
   { k: 'dat', label: 'Date', icon: 'calendar', w: 96, h: 32 },
   { k: 'txt', label: 'Text', icon: 'square', w: 140, h: 32 },
   { k: 'chk', label: 'Checkbox', icon: 'check-square', w: 32, h: 32 },
+  { k: 'eml', label: 'Email', icon: 'mail', w: 160, h: 32 },
 ];
 
 export function getFieldDef(k: MobileFieldType): MobileFieldDef {

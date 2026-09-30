@@ -5,6 +5,7 @@ import {
   CANVAS_HEIGHT_FALLBACK,
   normalizeCoord,
   denormalizeCoord,
+  canvasHeightForPage,
   pageCanvasHeight,
   placeSignerField,
   useCanvasHeight,
@@ -112,6 +113,22 @@ describe('canvas-coords', () => {
       expect(onLegal.y).toBeCloseTo(0.5 * legalH, 5);
       expect(onLegal.y - onLetter.y).toBeGreaterThan(90);
       expect(onLegal.y).not.toBe(Math.round(onLegal.y));
+    });
+  });
+
+  describe('canvasHeightForPage', () => {
+    const heights = new Map<number, number>([
+      [1, 725],
+      [2, 922],
+    ]);
+
+    it('uses page 1 for every page on version 1', () => {
+      expect(canvasHeightForPage(heights, 2, 1)).toBe(725);
+      expect(canvasHeightForPage(heights, 1, 1)).toBe(725);
+    });
+
+    it('uses that page on version 2', () => {
+      expect(canvasHeightForPage(heights, 2, 2)).toBe(922);
     });
   });
 

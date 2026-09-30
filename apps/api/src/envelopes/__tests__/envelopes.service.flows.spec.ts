@@ -352,6 +352,7 @@ class FakeRepo extends EnvelopesRepository {
       ...e,
       original_pages: input.pages,
       original_sha256: input.sha256,
+      original_page_geometry: input.page_geometry ? [...input.page_geometry] : null,
       updated_at: new Date().toISOString(),
     } as Envelope;
     this.envelopes.set(envelope_id, next);
@@ -618,6 +619,13 @@ describe('EnvelopesService — flow coverage', () => {
       const env = await svc.createDraft(OWNER, { title: 'X' });
       const out = await svc.uploadOriginal(OWNER, env.id, tinyPdf);
       expect(out.original_pages).toBe(2);
+      expect(out.original_page_geometry).toHaveLength(2);
+      expect(out.original_page_geometry?.[0]).toMatchObject({
+        page: 1,
+        view_width: 200,
+        view_height: 200,
+        rotation: 0,
+      });
       expect(out.original_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(storage.uploads).toHaveLength(1);
       expect(storage.uploads[0]!.path).toBe(`${env.id}/original.pdf`);

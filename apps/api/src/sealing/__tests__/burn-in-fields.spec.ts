@@ -331,6 +331,30 @@ describe('burnInField', () => {
       expect(opts.x).toBeCloseTo(0.1 * PW, 5);
     });
 
+    it('version 1 keeps the 10pt checkbox 22pt to the right of the box', () => {
+      const drawRectSpy = jest.spyOn(page, 'drawRectangle');
+      const f: BurnInField = {
+        kind: 'checkbox',
+        x: 0.1,
+        y: 0.2,
+        width: 0.2,
+        height: 0.04,
+        value_boolean: false,
+      };
+      burnInField(page, f, assets, 1);
+
+      const w = 0.2 * PW;
+      const h = 0.04 * PH;
+      const cx = 0.1 * PW + w / 2;
+      const cy = PH - 0.2 * PH - h / 2;
+      const opts = drawRectSpy.mock.calls[0]![0]!;
+      expect(opts.width).toBe(10);
+      expect(opts.height).toBe(10);
+      expect(opts.x).toBeCloseTo(cx - w / 2 + 22, 5);
+      expect(opts.y).toBeCloseTo(cy - 5, 5);
+      expect(opts.rotate).toBeUndefined();
+    });
+
     it('handles null width/height same as undefined', () => {
       const drawTextSpy = jest.spyOn(page, 'drawText');
       burnInField(

@@ -73,6 +73,44 @@ export interface DragCommitOptions {
   readonly bounds: CanvasBounds;
 }
 
+const KIND_BY_MOBILE = {
+  sig: 'signature',
+  ini: 'initials',
+  dat: 'date',
+  txt: 'text',
+  chk: 'checkbox',
+  eml: 'email',
+} as const;
+
+/**
+ * Fractions of the page the field was placed on. Width and height are the
+ * field's own box, and the page box is that page's displayed viewport —
+ * not a single height shared with every other page.
+ */
+export function mobileFieldFractions(
+  field: MobilePlacedField,
+  box: CanvasBounds,
+): {
+  readonly id: string;
+  readonly kind: (typeof KIND_BY_MOBILE)[MobileFieldType];
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+} {
+  const def = getFieldDef(field.type);
+  return {
+    id: field.id,
+    kind: KIND_BY_MOBILE[field.type],
+    page: field.page,
+    x: box.width > 0 ? field.x / box.width : 0,
+    y: box.height > 0 ? field.y / box.height : 0,
+    width: box.width > 0 ? def.w / box.width : 0,
+    height: box.height > 0 ? def.h / box.height : 0,
+  };
+}
+
 /** Translate the named fields by (dx,dy), clamped to the canvas. */
 export function commitDrag(opts: DragCommitOptions): ReadonlyArray<MobilePlacedField> {
   return opts.fields.map((f) => {

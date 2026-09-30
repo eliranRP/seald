@@ -35,7 +35,8 @@ export {
   fieldPlacementError,
   normalizePageRotation,
   pdfPointToDisplayed,
-} from './pdf-page-geometry';
+  storedPageGeometry,
+} from './placementGeometry';
 export type {
   DisplayedFractionBox,
   DisplayedPoint,
@@ -43,10 +44,12 @@ export type {
   FieldPlacementErrorCode,
   PageGeometry,
   PageRotation,
+  PdfAxisBox,
   PdfDrawPlacement,
   PdfUserPoint,
   PdfUserRect,
-} from './pdf-page-geometry';
+  StoredPageGeometry,
+} from './placementGeometry';
 export { TEMPLATE_FIELD_TYPES } from './templates';
 export type {
   Template,
