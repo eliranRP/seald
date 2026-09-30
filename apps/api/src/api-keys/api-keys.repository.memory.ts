@@ -12,7 +12,7 @@ import {
 
 /**
  * Process-local key store for unit tests and the API e2e. The per-owner
- * promise chain stands in for `pg_advisory_xact_lock`.
+ * promise chain stands in for the Postgres advisory transaction lock.
  */
 export class InMemoryApiKeysRepository extends ApiKeysRepository {
   readonly rows: ApiKeyRecord[] = [];

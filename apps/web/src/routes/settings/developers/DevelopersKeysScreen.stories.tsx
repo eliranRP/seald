@@ -22,7 +22,7 @@ const keys: readonly ApiKeyListItem[] = [
   {
     id: 'k2',
     name: 'Key 2',
-    prefix: 'seald_live_efgh5678',
+    prefix: 'seald_live_abcd5678',
     scopes: ['envelopes:read', 'envelopes:send'],
     require_owner_approval: true,
     allow_new_recipients: false,

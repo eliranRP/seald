@@ -85,6 +85,7 @@ export class ApiKeysPgRepository extends ApiKeysRepository {
     const [lockA, lockB] = advisoryPair(input.ownerId);
     try {
       return await this.db.transaction().execute(async (trx) => {
+        // cspell:disable-next-line
         await sql`select pg_advisory_xact_lock(${lockA}::integer, ${lockB}::integer)`.execute(trx);
         const live = await trx
           .selectFrom('api_keys')

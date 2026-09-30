@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { API_KEY_TOKEN_PREFIX } from 'shared';
 
-/** Unpadded base64url of 32 bytes is 43 characters. */
+/** Base64url of 32 bytes, without padding, is 43 characters. */
 const SECRET_BODY_LENGTH = 43;
 /** Short checksum so a truncated paste fails before a database lookup. */
 const CHECKSUM_HEX_LENGTH = 8;
