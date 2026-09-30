@@ -2252,10 +2252,15 @@ footer {
   padding-top: 28px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 8px 24px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
+}
+.footer-availability {
+  white-space: nowrap;
 }
 
 /* ===== MINIMAL FOOTER (BaseLayout, every page except /) =====
@@ -2309,6 +2314,9 @@ footer {
   margin: 16px 0 0 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
+}
+.minimal-footer-copy.footer-availability {
+  margin-top: 4px;
 }
 
 .reveal {
@@ -2525,14 +2533,6 @@ footer {
 .legal article section {
   margin-top: 16px;
 }
-/* Wide tables (cookies, sub-processors) scroll inside the article.
-   The page sets overflow-x: hidden, so a table wider than the
-   viewport would otherwise be clipped with no way to reach the
-   last column. */
-.legal article {
-  max-width: 100%;
-  overflow-x: auto;
-}
 
 /* Definition lists — used heavily by contact / sub-processors /
    imprint. Two-column grid so the term + definition align without
@@ -2566,10 +2566,15 @@ footer {
 /* Tables — used by cookies, sub-processors, privacy, terms, DPA.
    The wrapper handles mobile overflow without forcing the whole page
    to horizontally scroll. */
+.legal-table-scroll {
+  max-width: 100%;
+  margin: 12px 0 16px;
+  overflow-x: auto;
+}
 .legal article table {
   width: 100%;
   border-collapse: collapse;
-  margin: 12px 0 16px;
+  margin: 0;
   font-size: var(--fs-body-sm);
 }
 .legal article th,
