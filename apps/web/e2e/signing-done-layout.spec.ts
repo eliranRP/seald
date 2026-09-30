@@ -170,6 +170,7 @@ test.describe('signing-done save button layout', () => {
 
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await page.goto(`/sign/${ENVELOPE_ID}/done`);
+      await waitForFonts(page);
 
       const button = page.getByRole('button', { name: /save to my seald account/i });
       const card = page.getByRole('region', { name: /create your free seald account/i });
@@ -224,6 +225,7 @@ test.describe('signing-done save button layout', () => {
   test('shipped save label at 544px stays in the row or fills the next line', async ({ page }) => {
     await page.setViewportSize({ width: 544, height: 900 });
     await page.goto(`/sign/${ENVELOPE_ID}/done`);
+    await waitForFonts(page);
 
     const button = page.getByRole('button', { name: /save to my seald account/i });
     const email = page.getByRole('textbox', { name: /your email/i });
@@ -258,6 +260,7 @@ test.describe('signing-done save button layout', () => {
 
     await page.setViewportSize({ width: 544, height: 900 });
     await page.goto(`/sign/${ENVELOPE_ID}/done`);
+    await waitForFonts(page);
 
     const button = page.getByRole('button', { name: /save to my seald account/i });
     await expect(button).toBeVisible();
