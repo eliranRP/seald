@@ -37,7 +37,13 @@ const meta: Meta<typeof IntegrationsPage> = {
   title: 'L4/Settings/IntegrationsPage',
   component: IntegrationsPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
+  parameters: {
+    layout: 'fullscreen',
+    // Desktop only. At ≤640px this page redirects to /m/send, so the mobile
+    // Chromatic mode captures an empty frame. The phone surface is
+    // MWIntegrations, and it does not show these strings.
+    chromatic: { modes: { desktop: chromaticViewportModes.desktop } },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof IntegrationsPage>;

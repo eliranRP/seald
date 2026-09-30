@@ -49,6 +49,20 @@ describe('IntegrationsPage', () => {
     expect(screen.queryByRole('navigation', { name: /settings rail/i })).toBeNull();
   });
 
+  it('describes Drive permissions without an encryption claim', async () => {
+    mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
+    renderPage();
+    expect(
+      await screen.findByText('Used only for actions you start from your signed-in Seald account.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/encrypt|KMS|every action is logged/i)).toBeNull();
+  });
+
   it('shows a Connect Google Drive CTA when no accounts are connected', async () => {
     mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
     renderPage();

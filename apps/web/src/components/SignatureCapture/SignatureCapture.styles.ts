@@ -168,6 +168,7 @@ export const Footer = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: ${({ theme }) => theme.space[2]};
   margin-top: ${({ theme }) => theme.space[5]};
 `;
 
@@ -176,7 +177,7 @@ export const FooterMeta = styled.div`
   color: ${({ theme }) => theme.color.fg[3]};
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
 export const FooterActions = styled.div`

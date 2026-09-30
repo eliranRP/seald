@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { useState } from 'react';
 import { SignatureCapture } from './SignatureCapture';
 
@@ -24,7 +25,7 @@ const meta: Meta<typeof SignatureCapture> = {
   title: 'L2/SignatureCapture',
   component: SignatureCapture,
   tags: ['autodocs', 'layer-2'],
-  parameters: { layout: 'fullscreen' },
+  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
 };
 export default meta;
 type Story = StoryObj<typeof SignatureCapture>;

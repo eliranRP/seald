@@ -13,6 +13,21 @@ beforeEach(() => {
 });
 
 describe('SignatureCapture', () => {
+  it('says the signature is recorded in the audit trail when you sign', () => {
+    const { getByText, queryByText } = renderWithTheme(
+      <SignatureCapture
+        open
+        kind="signature"
+        defaultName="Maya Raskin"
+        onCancel={() => {}}
+        onApply={() => {}}
+      />,
+    );
+    expect(getByText('Recorded in the audit trail when you sign')).toBeInTheDocument();
+    expect(queryByText(/encrypt/i)).toBeNull();
+    expect(queryByText(/audit-logged/i)).toBeNull();
+  });
+
   it('renders nothing when closed', () => {
     const { queryByRole } = renderWithTheme(
       <SignatureCapture

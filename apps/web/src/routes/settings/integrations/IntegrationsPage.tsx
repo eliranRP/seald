@@ -386,7 +386,7 @@ const PERMISSIONS = [
     icon: Eye,
     text: 'Access only files you pick or that Seald saves for you — never your full Drive.',
   },
-  { icon: Lock, text: 'Tokens are encrypted at rest with KMS envelope encryption.' },
+  { icon: Lock, text: 'Used only for actions you start from your signed-in Seald account.' },
   { icon: XCircle, text: DRIVE_DISCONNECT_NOTE },
 ] as const;
 
