@@ -84,4 +84,57 @@ describe('0021_gdrive_token_erasure', () => {
       await handle.close();
     }
   });
+
+  it('clears tokens on disconnected rows and keeps tokens on active rows', async () => {
+    const clearDisconnected = parts.find(
+      (part) =>
+        /update public\.gdrive_accounts/i.test(part) && /deleted_at is not null/i.test(part),
+    );
+    if (!clearDisconnected) throw new Error('missing disconnected-token update');
+
+    const handle = createPgMemDb();
+    try {
+      const userId = await seedUser(handle);
+      const activeId = randomUUID();
+      const disconnectedId = randomUUID();
+      handle.mem.public.none(`
+        insert into public.gdrive_accounts
+          (id, user_id, google_user_id, google_email, refresh_token_ciphertext,
+           refresh_token_kms_key_arn, scope, deleted_at)
+        values
+          ('${activeId}', '${userId}', 'active-google', 'active@example.com', 'live-secret',
+           'arn:live', 'https://www.googleapis.com/auth/drive.file', null),
+          ('${disconnectedId}', '${userId}', 'old-google', 'old@example.com', 'old-secret',
+           'arn:old', 'https://www.googleapis.com/auth/drive.file', '2026-01-01T00:00:00Z');
+      `);
+
+      handle.mem.public.none(clearDisconnected);
+
+      const active = await handle.db
+        .selectFrom('gdrive_accounts')
+        .select(['refresh_token_ciphertext', 'refresh_token_kms_key_arn', 'google_email'])
+        .where('id', '=', activeId)
+        .executeTakeFirst();
+      expect(active?.refresh_token_ciphertext).toBeTruthy();
+      expect(active?.refresh_token_kms_key_arn).toBeTruthy();
+      expect(active?.google_email).toBe('active@example.com');
+
+      const disconnected = await handle.db
+        .selectFrom('gdrive_accounts')
+        .select([
+          'refresh_token_ciphertext',
+          'refresh_token_kms_key_arn',
+          'google_email',
+          'deleted_at',
+        ])
+        .where('id', '=', disconnectedId)
+        .executeTakeFirst();
+      expect(disconnected?.refresh_token_ciphertext).toBeNull();
+      expect(disconnected?.refresh_token_kms_key_arn).toBeNull();
+      expect(disconnected?.google_email).toBe('old@example.com');
+      expect(disconnected?.deleted_at).toBeTruthy();
+    } finally {
+      await handle.close();
+    }
+  });
 });

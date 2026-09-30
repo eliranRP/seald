@@ -31,10 +31,11 @@ const envSchema = z
 
     STORAGE_BUCKET: z.string().min(1).default('envelopes'),
 
-    // Distinct from the 2026-09-30 stamp, which records the v0.2 text
-    // shipped in #363. .2 is the v0.3 Terms and Privacy text.
+    // 2026-09-30 (no suffix) is the v0.2 text from #363.
+    // .2 is Terms v0.3 and the earlier Privacy v0.3 text.
+    // .3 is Privacy v0.3.1 (Drive retention). Terms stay on .2.
     TC_VERSION: z.string().min(1).default('2026-09-30.2'),
-    PRIVACY_VERSION: z.string().min(1).default('2026-09-30.2'),
+    PRIVACY_VERSION: z.string().min(1).default('2026-09-30.3'),
 
     SIGNER_SESSION_SECRET: z.string().optional(),
     CRON_SECRET: z.string().optional(),

@@ -21,11 +21,15 @@
 --   3. Allows NULL token columns so disconnect can erase the
 --      ciphertext and the CMK ARN in one update and still keep the
 --      connection row (Google email, connected_at, deleted_at).
+--   4. Clears those token columns on rows that were already
+--      disconnected (deleted_at set) before this migration. Active
+--      connections keep their tokens.
 --
--- Idempotent: the delete matches zero rows on a second run, DROP
--- CONSTRAINT IF EXISTS + ADD is safe to repeat, DROP NOT NULL is a
--- no-op when the column is already nullable, and SET NOT NULL is a
--- no-op when it is already required (after the orphan delete).
+-- Idempotent: the deletes and the token update match zero rows on a
+-- second run, DROP CONSTRAINT IF EXISTS + ADD is safe to repeat,
+-- DROP NOT NULL is a no-op when the column is already nullable, and
+-- SET NOT NULL is a no-op when it is already required (after the
+-- orphan delete).
 
 delete from public.gdrive_accounts
   where user_id is null;
@@ -47,6 +51,13 @@ alter table public.gdrive_accounts
 
 alter table public.gdrive_accounts
   alter column refresh_token_kms_key_arn drop not null;
+
+-- Erase tokens that pre-0021 disconnects left behind.
+update public.gdrive_accounts
+  set refresh_token_ciphertext = null,
+      refresh_token_kms_key_arn = null
+  where deleted_at is not null
+    and (refresh_token_ciphertext is not null or refresh_token_kms_key_arn is not null);
 
 comment on column public.gdrive_accounts.refresh_token_ciphertext is
   'KMS envelope-encrypted Google OAuth refresh token, or NULL after disconnect. NEVER plaintext. Layout when present: 4-byte BE wrapped-key-len || wrapped DEK || 12-byte IV || 16-byte GCM tag || AES-256-GCM ciphertext.';

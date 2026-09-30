@@ -131,7 +131,7 @@ describe('operator identity on public pages', () => {
   it('bumps the version and last-updated date on every page whose operator text changed', () => {
     const expected: Record<string, string> = {
       'src/pages/legal/terms.astro': 'terms_v0.3',
-      'src/pages/legal/privacy.astro': 'privacy_v0.3',
+      'src/pages/legal/privacy.astro': 'privacy_v0.3.1',
       'src/pages/legal/dpa.astro': 'dpa_v0.3',
       'src/pages/legal/imprint.astro': 'imprint_v0.2',
       'src/pages/legal/esign-disclosure.astro': 'esign_v0.3',
@@ -209,7 +209,7 @@ describe('operator identity on public pages', () => {
     // 2026-09-30 (no suffix) is the v0.2 text already live from #363.
     const stampForPage: Record<string, string> = {
       'terms_v0.3': '2026-09-30.2',
-      'privacy_v0.3': '2026-09-30.2',
+      'privacy_v0.3.1': '2026-09-30.3',
     };
     const tc = stampForPage[termsVersion];
     const privacyStamp = stampForPage[privacyVersion];
