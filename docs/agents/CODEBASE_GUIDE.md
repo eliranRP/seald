@@ -37,7 +37,7 @@ Production hosts:
 | Email | HTML templates + Postgres outbox. `logging` or Resend. |
 | Drive | Google OAuth, scope `drive.file` only, optional Gotenberg conversion |
 | Tests | Vitest (web), Jest (api unit + e2e), Playwright + playwright-bdd (web e2e), Storybook + Chromatic |
-| Observability | Sentry on the web (`@sentry/react`). API logs via pino. Prometheus client is a dependency. |
+| Observability | Sentry on the web (`@sentry/react`). API logs via Nest's built-in `Logger`. No metrics endpoint. |
 
 ## Repository map
 

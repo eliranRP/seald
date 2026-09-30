@@ -252,7 +252,6 @@ Append to `apps/api/src/config/env.schema.spec.ts` (inside the existing `describ
         STORAGE_BUCKET: 'envelopes',
         SIGNER_SESSION_SECRET: '0'.repeat(64),
         CRON_SECRET: '1'.repeat(64),
-        METRICS_SECRET: '2'.repeat(64),
       }),
     ).toThrow(/RESEND_API_KEY/);
   });
@@ -273,7 +272,6 @@ Append to `apps/api/src/config/env.schema.spec.ts` (inside the existing `describ
         STORAGE_BUCKET: 'envelopes',
         SIGNER_SESSION_SECRET: '0'.repeat(64),
         CRON_SECRET: '1'.repeat(64),
-        METRICS_SECRET: '2'.repeat(64),
       }),
     ).toThrow(/PDF_SIGNING_SSLCOM/);
   });
@@ -322,7 +320,6 @@ export const envSchema = z
 
     SIGNER_SESSION_SECRET: z.string().min(32),
     CRON_SECRET: z.string().min(32),
-    METRICS_SECRET: z.string().min(32),
 
     ...providerSelector,
 
@@ -348,7 +345,7 @@ export const envSchema = z
   .superRefine((env, ctx) => {
     // Secrets required when NODE_ENV !== 'test'
     if (env.NODE_ENV !== 'test') {
-      for (const key of ['SIGNER_SESSION_SECRET', 'CRON_SECRET', 'METRICS_SECRET'] as const) {
+      for (const key of ['SIGNER_SESSION_SECRET', 'CRON_SECRET'] as const) {
         if (!env[key] || env[key].length < 32) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -460,7 +457,6 @@ PRIVACY_VERSION=2026-04-24
 # Secrets (generate with: openssl rand -hex 32)
 SIGNER_SESSION_SECRET=<hex-64>
 CRON_SECRET=<hex-64>
-METRICS_SECRET=<hex-64>
 
 # Email
 EMAIL_PROVIDER=logging    # logging | resend | smtp
