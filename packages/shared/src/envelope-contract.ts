@@ -181,6 +181,9 @@ export const EnvelopeSchema = z.object({
   // empties); read responses pass the value through verbatim. Cap
   // of 10 tags / 32 chars each is enforced by the DTO.
   tags: z.array(z.string().min(1).max(32)).max(10).default([]),
+  // Daily unsigned-signer reminders. Default on; the sender can turn
+  // them off per envelope while it is still a draft or awaiting others.
+  reminders_enabled: z.boolean().default(true),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -217,6 +220,7 @@ export const PatchEnvelopeRequestSchema = z
   .object({
     title: z.string().min(1).max(200).optional(),
     expires_at: iso.optional(),
+    reminders_enabled: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;

@@ -33,6 +33,11 @@ export interface BuildSignerListOptions {
    * to its name — matches the reminder template in the design kit.
    */
   readonly highlightEmail?: string;
+  /**
+   * Include each signer's address. Defaults to true so sender-facing
+   * mail (completed, expired) is unchanged. Reminders pass false.
+   */
+  readonly showEmails?: boolean;
 }
 
 export interface TimelineEventFragment {
@@ -54,6 +59,7 @@ export function buildSignerListHtml(
 ): string {
   if (signers.length === 0) return '';
   const highlight = options?.highlightEmail?.toLowerCase();
+  const showEmails = options?.showEmails !== false;
 
   // Gmail namespace-prefixes every class in the shared <style> block
   // but also strips some class declarations during its render pass —
@@ -130,10 +136,12 @@ export function buildSignerListHtml(
         // Pre-wrap in an inline-styled anchor so Gmail skips its
         // auto-linker. `display: inline-block` on the anchor breaks
         // `text-decoration` inheritance so any parent underline
-        // doesn't reach inside.
-        `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}overflow-wrap:anywhere;">` +
-        `<a href="mailto:${escapeHtml(s.email)}" style="${SIGNER_EMAIL_ANCHOR_STYLE}">${escapeHtml(s.email)}</a>` +
-        `</div>` +
+        // doesn't reach inside. Reminders omit the address entirely.
+        (showEmails
+          ? `<div class="signer-email" style="${SIGNER_EMAIL_STYLE}overflow-wrap:anywhere;">` +
+            `<a href="mailto:${escapeHtml(s.email)}" style="${SIGNER_EMAIL_ANCHOR_STYLE}">${escapeHtml(s.email)}</a>` +
+            `</div>`
+          : '') +
         `<div style="margin-top:8px;">` +
         `<span class="signer-status ${statusClass}" style="${STATUS_STYLE(s.status)}">${escapeHtml(statusLabel)}</span>` +
         `</div>` +
@@ -230,8 +238,10 @@ export function buildSignerListHtmlFromSigners(
     };
     return base;
   });
-  const passOpts =
-    options?.highlightEmail !== undefined ? { highlightEmail: options.highlightEmail } : undefined;
+  const passOpts: BuildSignerListOptions = {
+    ...(options?.highlightEmail !== undefined ? { highlightEmail: options.highlightEmail } : {}),
+    ...(options?.showEmails !== undefined ? { showEmails: options.showEmails } : {}),
+  };
   return buildSignerListHtml(fragments, passOpts);
 }
 

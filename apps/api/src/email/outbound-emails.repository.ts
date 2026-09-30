@@ -61,11 +61,29 @@ export abstract class OutboundEmailsRepository {
   /** Fetch by envelope (ordered by created_at asc). Used by sender's audit view + tests. */
   abstract listByEnvelope(envelope_id: string): Promise<readonly OutboundEmailRow[]>;
 
-  /** Find the most recent invite/reminder row for this (envelope, signer) — used by reminder throttling. */
+  /**
+   * Newest invite or reminder for this signer.
+   * Pass `excludeAutomated` for the manual hourly throttle so a daily
+   * automated reminder does not consume that limit.
+   */
   abstract findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null>;
+
+  /**
+   * Newest non-empty `sign_url` on an invite or reminder for this signer.
+   * The lookup is filtered in SQL (no fixed row window). Automated
+   * reminder rows omit the token; the dispatcher reads it from an earlier
+   * row at render time and does not write it back.
+   * `excludeId` skips the row currently being rendered.
+   */
+  abstract findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null>;
 
   /**
    * Atomically claim one due email (status in pending|failed, scheduled_for
@@ -74,9 +92,10 @@ export abstract class OutboundEmailsRepository {
    *
    * Uses `for update skip locked` so multiple dispatchers can run in
    * parallel without fighting over rows. Returns null when the queue is
-   * empty.
+   * empty. `envelopeIds` limits the claim to those envelopes so a test
+   * drain cannot take another session's pending rows.
    */
-  abstract claimNext(now: Date): Promise<OutboundEmailRow | null>;
+  abstract claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null>;
 
   /** Mark a claimed row as delivered. */
   abstract markSent(id: string, provider_id: string, sent_at: Date): Promise<void>;
@@ -95,6 +114,19 @@ export abstract class OutboundEmailsRepository {
       readonly nextAttemptAt?: Date;
     },
   ): Promise<void>;
+
+  /**
+   * Stop a claimed row without sending it. `email_status` has no skipped
+   * value, so this records `failed` with `attempts = max_attempts` and
+   * `last_error` set to `reason`. The drain loop will not claim it again.
+   */
+  abstract markSkipped(id: string, reason: string): Promise<void>;
+}
+
+/** Plaintext signing link stored on older invite/reminder payloads, if present. */
+export function signUrlFromPayload(payload: Readonly<Record<string, unknown>>): string | null {
+  const url = payload['sign_url'];
+  return typeof url === 'string' && url.length > 0 ? url : null;
 }
 
 /**

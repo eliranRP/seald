@@ -38,6 +38,7 @@ const ENVELOPE: Envelope = {
   tc_version: '1',
   privacy_version: '1',
   tags: [],
+  reminders_enabled: true,
   signers: [
     {
       id: '00000000-0000-0000-0000-0000000000s1',

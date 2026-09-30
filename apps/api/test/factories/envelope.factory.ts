@@ -56,6 +56,7 @@ export function makeEnvelope(
     signers: [],
     fields: [],
     tags: [],
+    reminders_enabled: true,
     created_at: now,
     updated_at: now,
   };

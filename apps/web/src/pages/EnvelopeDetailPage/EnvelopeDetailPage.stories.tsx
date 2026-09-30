@@ -25,6 +25,7 @@ const DETAIL_ENVELOPE: Envelope = {
   tc_version: '2026-04-24',
   privacy_version: '2026-04-24',
   tags: ['msa'],
+  reminders_enabled: true,
   created_at: '2026-09-29T11:00:00.000Z',
   updated_at: '2026-09-29T12:00:00.000Z',
   signers: [

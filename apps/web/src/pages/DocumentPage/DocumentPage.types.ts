@@ -59,6 +59,12 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
 
   // Actions ---------------------------------------------------------------
   readonly onSend: () => void;
+  /**
+   * Daily reminder preference for this send. Defaults to on inside the
+   * page when the parent does not control it.
+   */
+  readonly remindersEnabled?: boolean | undefined;
+  readonly onRemindersEnabledChange?: ((enabled: boolean) => void) | undefined;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
   /**

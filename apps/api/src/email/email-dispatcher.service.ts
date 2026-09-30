@@ -1,8 +1,13 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
-import { OutboundEmailsRepository, type OutboundEmailRow } from './outbound-emails.repository';
+import {
+  OutboundEmailsRepository,
+  signUrlFromPayload,
+  type OutboundEmailRow,
+} from './outbound-emails.repository';
 import { TemplateService, type EmailTemplateKind } from './template.service';
 
 export interface DispatchOutcome {
@@ -51,6 +56,7 @@ export class EmailDispatcherService {
     private readonly repo: OutboundEmailsRepository,
     private readonly sender: EmailSender,
     private readonly templates: TemplateService,
+    private readonly envelopes: EnvelopesRepository,
     @Inject(APP_ENV) env: AppEnv,
   ) {
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
@@ -68,10 +74,13 @@ export class EmailDispatcherService {
    * have been processed in this call. Returns a tidy summary for the
    * caller (cron endpoint, dev script, tests) to log or surface.
    */
-  async flushOnce(maxBatch = 50): Promise<FlushResult> {
+  async flushOnce(
+    maxBatch = 50,
+    scope?: { readonly envelopeIds?: readonly string[] },
+  ): Promise<FlushResult> {
     const outcomes: DispatchOutcome[] = [];
     for (let i = 0; i < maxBatch; i += 1) {
-      const outcome = await this.dispatchOne();
+      const outcome = await this.dispatchOne(scope?.envelopeIds);
       if (!outcome) break;
       outcomes.push(outcome);
     }
@@ -97,12 +106,30 @@ export class EmailDispatcherService {
    * dispatch outcome describing what happened (sent / retry / failed /
    * skipped). Exposed directly for tests.
    */
-  async dispatchOne(): Promise<DispatchOutcome | null> {
-    const claimed = await this.repo.claimNext(new Date());
+  async dispatchOne(envelopeIds?: readonly string[]): Promise<DispatchOutcome | null> {
+    const claimed = await this.repo.claimNext(new Date(), envelopeIds);
     if (!claimed) return null;
 
     try {
-      const rendered = this.render(claimed);
+      const payload = await this.resolvePayload(claimed);
+      if (claimed.kind === 'reminder' && !(await this.reminderStillDue(claimed))) {
+        this.log.warn(
+          `reminder skipped reminder_no_longer_due envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+        );
+        await this.repo.markSkipped(claimed.id, 'reminder_no_longer_due');
+        return { id: claimed.id, status: 'skipped', error: 'reminder_no_longer_due' };
+      }
+      if (claimed.kind === 'reminder' && !signUrlFromPayload(payload)) {
+        this.log.warn(
+          `reminder skipped missing_sign_url envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+        );
+        await this.repo.markFailed(claimed.id, {
+          error: 'missing_sign_url',
+          final: true,
+        });
+        return { id: claimed.id, status: 'failed', error: 'missing_sign_url' };
+      }
+      const rendered = this.render(claimed, payload);
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
@@ -122,13 +149,71 @@ export class EmailDispatcherService {
 
       const result = await this.sender.send(message);
       await this.repo.markSent(claimed.id, result.providerId, new Date());
+      if (
+        claimed.kind === 'reminder' &&
+        claimed.payload['automated'] === true &&
+        claimed.envelope_id
+      ) {
+        try {
+          await this.envelopes.appendEvent({
+            envelope_id: claimed.envelope_id,
+            signer_id: claimed.signer_id,
+            actor_kind: 'system',
+            event_type: 'reminder_sent',
+            metadata: { automated: true },
+          });
+        } catch (err) {
+          // The mail is already sent. A failed audit write must not mark
+          // the row pending again, or the next flush would send it twice.
+          this.log.error(
+            `reminder_sent event failed after send outbound=${claimed.id}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
+      }
       return { id: claimed.id, status: 'sent', provider_id: result.providerId };
     } catch (err) {
       return this.handleSendError(claimed, err);
     }
   }
 
-  private render(row: OutboundEmailRow): ReturnType<TemplateService['render']> | null {
+  /**
+   * Re-check a queued reminder at send time. Enqueue can be hours ahead of
+   * the drain when the worker is off and cron flushes later.
+   * Manual reminders still go out when the sender has turned the daily
+   * switch off; automated ones do not.
+   */
+  private async reminderStillDue(row: OutboundEmailRow): Promise<boolean> {
+    if (!row.envelope_id || !row.signer_id) return false;
+    const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
+    const signer = envelope?.signers.find((item) => item.id === row.signer_id) ?? null;
+    if (!envelope || !signer) return false;
+    if (envelope.status !== 'awaiting_others') return false;
+    if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
+    if (signer.signed_at !== null || signer.declined_at !== null) return false;
+    if (row.payload['automated'] === true && !envelope.reminders_enabled) return false;
+    return true;
+  }
+
+  /**
+   * Automated reminders persist no signing token. Copy the link from the
+   * newest prior invite/reminder into the render vars only — the outbox
+   * row is left unchanged.
+   */
+  private async resolvePayload(row: OutboundEmailRow): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { ...row.payload };
+    if (row.kind !== 'reminder' || signUrlFromPayload(payload)) return payload;
+    if (!row.envelope_id || !row.signer_id) return payload;
+    const signUrl = await this.repo.findLatestSignUrl(row.envelope_id, row.signer_id, row.id);
+    if (!signUrl) return payload;
+    return { ...payload, sign_url: signUrl };
+  }
+
+  private render(
+    row: OutboundEmailRow,
+    payload: Readonly<Record<string, unknown>> = row.payload,
+  ): ReturnType<TemplateService['render']> | null {
     if (!TEMPLATE_KINDS.has(row.kind)) return null;
     // The payload is a JSON blob; TemplateService expects a flat map of
     // string|number values. Coerce unknown values defensively — missing
@@ -137,7 +222,7 @@ export class EmailDispatcherService {
     // sender (e.g. an enterprise tenant) can override the postal block
     // without redeploying.
     const vars: Record<string, string | number> = { ...this.legalFooterVars };
-    for (const [k, v] of Object.entries(row.payload)) {
+    for (const [k, v] of Object.entries(payload)) {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);
     }

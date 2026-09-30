@@ -3,6 +3,7 @@ import {
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
+  signUrlFromPayload,
   type OutboundEmailRow,
 } from '../src/email/outbound-emails.repository';
 
@@ -73,26 +74,49 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null> {
     const match = this.rows
       .filter(
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder'),
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
   }
 
-  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+  async findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null> {
+    const match = this.rows
+      .filter(
+        (r) =>
+          r.id !== excludeId &&
+          r.envelope_id === envelope_id &&
+          r.signer_id === signer_id &&
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          signUrlFromPayload(r.payload) !== null,
+      )
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+    const row = match[0];
+    return row ? signUrlFromPayload(row.payload) : null;
+  }
+
+  async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
     const nowIso = now.toISOString();
+    const allowed = envelopeIds && envelopeIds.length > 0 ? new Set(envelopeIds) : null;
     const due = this.rows
       .filter(
         (r) =>
           (r.status === 'pending' || r.status === 'failed') &&
           r.scheduled_for <= nowIso &&
-          r.attempts < r.max_attempts,
+          r.attempts < r.max_attempts &&
+          (allowed === null || (r.envelope_id !== null && allowed.has(r.envelope_id))),
       )
       .sort((a, b) => (a.scheduled_for < b.scheduled_for ? -1 : 1));
     const picked = due[0];
@@ -117,6 +141,18 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       provider_id,
       sent_at: sent_at.toISOString(),
       last_error: null,
+    };
+  }
+
+  async markSkipped(id: string, reason: string): Promise<void> {
+    const idx = this.rows.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const row = this.rows[idx]!;
+    this.rows[idx] = {
+      ...row,
+      status: 'failed',
+      last_error: reason,
+      attempts: row.max_attempts,
     };
   }
 

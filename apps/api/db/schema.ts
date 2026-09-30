@@ -182,6 +182,9 @@ export interface EnvelopesTable {
   // shape (max 10 tags, 32 chars each, lower-cased + de-duped).
   // Insert is optional because the column has a `default '[]'::jsonb`.
   tags: ColumnType<ReadonlyArray<string>, string | undefined, string | undefined>;
+  // Migration 0020 — sender can turn daily unsigned-signer reminders off.
+  // Default true so rows created before the column existed stay opted in.
+  reminders_enabled: ColumnType<boolean, boolean | undefined, boolean | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -202,6 +205,9 @@ export interface EnvelopeSignersTable {
     string | null | undefined,
     string | null | undefined
   >;
+  // Migration 0020 — set when an automated reminder is claimed. Manual
+  // reminds bump access_token_sent_at instead (token rotation).
+  last_reminded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   verification_checks: ColumnType<string[], string | undefined, string | undefined>;
 
   viewed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;

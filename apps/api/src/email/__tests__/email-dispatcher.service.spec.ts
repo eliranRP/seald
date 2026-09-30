@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { APP_ENV } from '../../config/config.module';
 import type { AppEnv } from '../../config/env.schema';
+import type { Envelope } from '../../envelopes/envelope.entity';
+import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { EmailDispatcherService, backoffMs } from '../email-dispatcher.service';
 import {
   EmailSendError,
@@ -25,6 +28,37 @@ class FakeSender extends EmailSender {
     if (this.error) throw this.error;
     return this.result;
   }
+}
+
+function awaitingEnvelope(overrides: Partial<Envelope> = {}): Envelope {
+  return {
+    id: 'env-1',
+    status: 'awaiting_others',
+    reminders_enabled: true,
+    expires_at: '2099-01-01T00:00:00.000Z',
+    signers: [{ id: 's-1', signed_at: null, declined_at: null }],
+    ...overrides,
+  } as Envelope;
+}
+
+const appendedEvents: Array<{ event_type: string; metadata: Readonly<Record<string, unknown>> }> =
+  [];
+let appendEventError: Error | null = null;
+
+function envelopeRepo(current: () => Envelope | null): EnvelopesRepository {
+  appendedEvents.length = 0;
+  appendEventError = null;
+  return {
+    findByIdWithAll: async () => current(),
+    appendEvent: async (input: { event_type: string; metadata?: Record<string, unknown> }) => {
+      if (appendEventError) throw appendEventError;
+      appendedEvents.push({
+        event_type: input.event_type,
+        metadata: input.metadata ?? {},
+      });
+      return { id: 'evt-reminder' };
+    },
+  } as unknown as EnvelopesRepository;
 }
 
 const env: AppEnv = {
@@ -70,6 +104,7 @@ describe('EmailDispatcherService', () => {
         TemplateService,
         { provide: OutboundEmailsRepository, useValue: repo },
         { provide: EmailSender, useValue: sender },
+        { provide: EnvelopesRepository, useValue: envelopeRepo(() => awaitingEnvelope()) },
         { provide: APP_ENV, useValue: env },
       ],
     }).compile();
@@ -181,6 +216,179 @@ describe('EmailDispatcherService', () => {
     expect(result.sent).toBe(3);
     expect(result.failed + result.retried + result.skipped).toBe(0);
     expect(sender.calls).toHaveLength(3);
+  });
+
+  it('flushOnce leaves pending rows for other envelopes alone', async () => {
+    await repo.insert(inviteRow({ envelope_id: 'env-1', signer_id: 's-1' }));
+    await repo.insert(
+      inviteRow({ envelope_id: 'env-other', signer_id: 's-2', to_email: 'other@example.com' }),
+    );
+
+    const result = await dispatcher.flushOnce(50, { envelopeIds: ['env-1'] });
+    expect(result.claimed).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(repo.rows.find((row) => row.envelope_id === 'env-other')?.status).toBe('pending');
+    expect(sender.calls).toHaveLength(1);
+  });
+});
+
+describe('EmailDispatcherService — automated reminder sign link', () => {
+  let repo: InMemoryOutboundEmailsRepository;
+  let sender: FakeSender;
+  let dispatcher: EmailDispatcherService;
+  let current: Envelope;
+
+  beforeEach(async () => {
+    repo = new InMemoryOutboundEmailsRepository();
+    sender = new FakeSender();
+    current = awaitingEnvelope();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        EmailDispatcherService,
+        TemplateService,
+        { provide: OutboundEmailsRepository, useValue: repo },
+        { provide: EmailSender, useValue: sender },
+        { provide: EnvelopesRepository, useValue: envelopeRepo(() => current) },
+        { provide: APP_ENV, useValue: env },
+      ],
+    }).compile();
+    await moduleRef.init();
+    dispatcher = moduleRef.get(EmailDispatcherService);
+  });
+
+  it('renders the prior invite link without writing the token back onto the reminder row', async () => {
+    const invite = await repo.insert(inviteRow());
+    const inviteIdx = repo.rows.findIndex((row) => row.id === invite.id);
+    repo.rows[inviteIdx] = { ...repo.rows[inviteIdx]!, status: 'sent' };
+
+    const reminder = await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        source_event_id: '00000000-0000-0000-0000-0000000000e1',
+        payload: {
+          sender_name: 'Eliran Azulay',
+          sender_email: 'eliran@seald.app',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          expires_at_readable: '2026-05-24 00:00 UTC',
+          public_url: 'http://localhost:5173',
+        },
+      }),
+    );
+
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('sent');
+    expect(sender.calls[0]?.html).toContain('http://localhost:5173/sign/env-1?t=abc');
+    const stored = repo.rows.find((row) => row.id === reminder.id);
+    expect(stored?.payload).not.toHaveProperty('sign_url');
+    expect(JSON.stringify(stored?.payload)).not.toContain('?t=');
+    expect(appendedEvents).toHaveLength(0);
+  });
+
+  it('fails a reminder that has no prior signing link instead of sending a dead CTA', async () => {
+    await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        payload: {
+          sender_name: 'Ada',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          public_url: 'http://localhost:5173',
+        },
+      }),
+    );
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('failed');
+    expect(outcome?.error).toBe('missing_sign_url');
+    expect(sender.calls).toHaveLength(0);
+    expect(appendedEvents).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain('missing_sign_url');
+  });
+
+  async function queueReminder(automated = true): Promise<void> {
+    const invite = await repo.insert(inviteRow());
+    const inviteIdx = repo.rows.findIndex((row) => row.id === invite.id);
+    repo.rows[inviteIdx] = { ...repo.rows[inviteIdx]!, status: 'sent' };
+    await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        source_event_id: '00000000-0000-0000-0000-0000000000e1',
+        payload: {
+          sender_name: 'Eliran Azulay',
+          sender_email: 'eliran@seald.app',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          public_url: 'http://localhost:5173',
+          ...(automated ? { automated: true } : {}),
+        },
+      }),
+    );
+  }
+
+  it('sends nothing after the signer signs', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({
+      signers: [
+        { id: 's-1', signed_at: '2026-05-02T01:00:00.000Z', declined_at: null },
+      ] as Envelope['signers'],
+    });
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+    expect(appendedEvents).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      'reminder_no_longer_due',
+    );
+  });
+
+  it('records reminder_sent only after an automated reminder is sent', async () => {
+    await queueReminder(true);
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('sent');
+    expect(appendedEvents).toEqual([
+      { event_type: 'reminder_sent', metadata: { automated: true } },
+    ]);
+  });
+
+  it('stays sent and does not resend when the reminder_sent event write throws', async () => {
+    await queueReminder(true);
+    appendEventError = new Error('audit_chain_broken');
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const outcome = await dispatcher.dispatchOne();
+
+    expect(outcome?.status).toBe('sent');
+    expect(sender.calls).toHaveLength(1);
+    expect(repo.rows.find((row) => row.kind === 'reminder')?.status).toBe('sent');
+    expect(appendedEvents).toHaveLength(0);
+    expect(error.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      'reminder_sent event failed after send',
+    );
+
+    const again = await dispatcher.dispatchOne();
+    expect(again).toBeNull();
+    expect(sender.calls).toHaveLength(1);
+  });
+
+  it('sends nothing after automated reminders are turned off', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({ reminders_enabled: false });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+  });
+
+  it('sends nothing after the envelope is canceled', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({ status: 'canceled' });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
   });
 });
 

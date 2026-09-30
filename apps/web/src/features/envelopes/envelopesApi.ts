@@ -71,6 +71,8 @@ export interface Envelope {
   readonly signers: ReadonlyArray<EnvelopeSigner>;
   readonly fields: ReadonlyArray<EnvelopeField>;
   readonly tags: ReadonlyArray<string>;
+  /** Absent on older payloads; treat missing as on. */
+  readonly reminders_enabled?: boolean;
   readonly created_at: string;
   readonly updated_at: string;
   readonly gdriveExport?: EnvelopeGdriveExportState | null;
@@ -175,6 +177,8 @@ export interface PatchEnvelopeInput {
    * send the user-typed values verbatim.
    */
   readonly tags?: ReadonlyArray<string>;
+  /** Daily unsigned-signer reminders. Omit to leave the current value. */
+  readonly reminders_enabled?: boolean;
 }
 
 export async function patchEnvelope(

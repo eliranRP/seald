@@ -6,6 +6,7 @@ import {
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
+  signUrlFromPayload,
   type OutboundEmailRow,
 } from './outbound-emails.repository';
 
@@ -33,6 +34,24 @@ function toDomain(row: Record<string, unknown>): OutboundEmailRow {
     dedupe_key: typeof row['dedupe_key'] === 'string' ? row['dedupe_key'] : '',
     created_at: new Date(row['created_at'] as string | Date).toISOString(),
   };
+}
+
+function parsePayload(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+    return {};
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
 }
 
 /**
@@ -131,23 +150,50 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null> {
-    const row = await this.db
+    let query = this.db
       .selectFrom('outbound_emails')
       .selectAll()
       .where('envelope_id', '=', envelope_id)
       .where('signer_id', '=', signer_id)
-      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
-      .orderBy('created_at', 'desc')
-      .limit(1)
-      .executeTakeFirst();
+      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]));
+    if (options?.excludeAutomated) {
+      query = query.where(sql<boolean>`coalesce(payload->>'automated', 'false') <> 'true'`);
+    }
+    const row = await query.orderBy('created_at', 'desc').limit(1).executeTakeFirst();
     return row ? toDomain(rowRecord(row)) : null;
   }
 
-  async claimNext(now: Date): Promise<OutboundEmailRow | null> {
+  async findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null> {
+    let query = this.db
+      .selectFrom('outbound_emails')
+      .select(['payload'])
+      .where('envelope_id', '=', envelope_id)
+      .where('signer_id', '=', signer_id)
+      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
+      .where(sql<boolean>`nullif(payload->>'sign_url', '') is not null`)
+      .orderBy('created_at', 'desc')
+      .limit(1);
+    if (excludeId) query = query.where('id', '!=', excludeId);
+    const row = await query.executeTakeFirst();
+    if (!row) return null;
+    return signUrlFromPayload(parsePayload(row.payload));
+  }
+
+  async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
     // Atomic claim: pick the oldest due row with available attempts, flip its
     // status to `sending`, bump attempts. The sub-select uses
     // `for update skip locked` so concurrent dispatchers don't contend.
+    // An envelope list keeps a test flush from draining unrelated rows.
+    const envelopeClause =
+      envelopeIds && envelopeIds.length > 0
+        ? sql`and envelope_id in (${sql.join(envelopeIds.map((id) => sql.lit(id)))})`
+        : sql``;
     const result = await sql<Record<string, unknown>>`
       update public.outbound_emails
       set status = 'sending',
@@ -157,6 +203,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
         where status in ('pending', 'failed')
           and scheduled_for <= ${now.toISOString()}
           and attempts < max_attempts
+          ${envelopeClause}
         order by scheduled_for asc, created_at asc
         for update skip locked
         limit 1
@@ -178,6 +225,17 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       })
       .where('id', '=', id)
       .execute();
+  }
+
+  async markSkipped(id: string, reason: string): Promise<void> {
+    const safeError = reason.length > 500 ? `${reason.slice(0, 497)}…` : reason;
+    await sql`
+      update public.outbound_emails
+      set status = 'failed',
+          last_error = ${safeError},
+          attempts = max_attempts
+      where id = ${id}
+    `.execute(this.db);
   }
 
   async markFailed(
