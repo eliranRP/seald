@@ -11,6 +11,9 @@ export interface ExpandedTemplateField {
   readonly type: TemplateFieldType;
   readonly x: number;
   readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly coordVersion?: 2;
   readonly label?: string;
   readonly signerIndex?: number;
   readonly signerRoleId?: string;
@@ -59,6 +62,9 @@ export function expandTemplateLayout(
         type: tf.type,
         x: tf.x,
         y: tf.y,
+        ...(tf.width !== undefined ? { width: tf.width } : {}),
+        ...(tf.height !== undefined ? { height: tf.height } : {}),
+        ...(tf.coordVersion === 2 ? { coordVersion: 2 as const } : {}),
         ...(tf.label !== undefined ? { label: tf.label } : {}),
         ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),

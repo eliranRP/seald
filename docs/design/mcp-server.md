@@ -558,18 +558,18 @@ Create input matches `CreateContactDto`: `name` (1–200), `email`, `color` (`#R
 
 **`templates_list` / `templates_get` / `templates_create` / `templates_update` / `templates_delete`** → `TemplatesService`.
 
-Create, update, and delete pass the existing DTOs plus required `idempotency_key` and `dry_run`. `field_layout` entries use template types `signature | initial | date | text | checkbox` and `pageRule` `all | allButLast | first | last | <page number>` (`packages/shared/src/templates.ts`). That is a different spelling from envelope field kind `initials`. The use-tool maps `initial` → `initials`.
+Create, update, and delete pass the existing DTOs plus required `idempotency_key` and `dry_run`. `field_layout` entries use template types `signature | initial | date | text | checkbox | email` and `pageRule` `all | allButLast | first | last | <page number>` (`packages/shared/src/templates.ts`). That is a different spelling from envelope field kind `initials`. The use-tool maps `initial` → `initials` and `email` → `email`. Legacy coordinates are 560-grid editor pixels and are converted to 0–1 at apply time. `coordVersion` 2 is already 0–1.
 
-**`templates_use`** → `TemplatesService.use`, then `EnvelopesService.replaceFields`. Scope `templates:read` + `envelopes:write`.
+**`templates_use`** → `TemplateApplyService.apply` (which calls `EnvelopesService.replaceFields`, then `TemplatesService.use`). Scope `templates:read` + `envelopes:write`. `POST /templates/:id/use` still only bumps `uses_count` and is not this tool.
 
-Input: `{ "template_id", "envelope_id", "idempotency_key": "string", "dry_run": "boolean" }`. The envelope must be a draft with a known `original_pages` and at least one signer. The tool:
+Input: `{ "template_id", "envelope_id", "idempotency_key": "string", "dry_run": "boolean" }`. The envelope must be a draft with a known `original_pages`, a stored original PDF, and at least one signer. The tool:
 
-1. Calls `use`, which bumps `uses_count` and `last_used_at`.
-2. Expands each `field_layout` entry across pages using `pageRule` and `original_pages`. A numeric page past the end of the PDF is skipped.
-3. Assigns fields to signers in list order, matching `last_signers` by email when the emails line up, otherwise the first signer.
-4. Calls `replaceFields` with the expanded list.
+1. Expands each `field_layout` entry across pages using `pageRule` and `original_pages`. A numeric page past the end of the PDF is skipped.
+2. Assigns fields to signers only when `last_signers` and the envelope signers are the same list (same length, emails equal in order, case-insensitive) and the field's `signerRoleId` or `signerIndex` resolves. Otherwise the tool returns `template_role_unmapped` and writes nothing.
+3. Converts legacy 560-grid pixels to 0–1 with `x/560` and `y/(560×displayedHeight/displayedWidth)` from `inspectPdfBytes` page sizes, fills per-kind default width and height, and passes `coordVersion` 2 through.
+4. Calls `replaceFields`, then bumps `uses_count` and `last_used_at`.
 
-Output: `{ "template_id", "uses_count", "fields": ["Field"] }`. If the template has no layout, the tool returns `template_has_no_fields` and does not bump use. (Implementation detail to confirm in the PR: bump only after a successful replace, so a failed replace does not count as a use.)
+Output: `{ "template_id", "uses_count", "fields": ["Field"] }`. If the template has no layout, the tool returns `template_has_no_fields` and does not bump use. A failed replace does not count as a use.
 
 **`templates_attach_example`** takes a completed `document_id` from `documents_upload`, then `TemplatesService.attachExamplePdf`. Scope `templates:write`. Input requires `idempotency_key` and `dry_run`.
 
@@ -1037,7 +1037,7 @@ Merge order: 0a, 0b, 0c, then 0d, in parallel with Insert A, then 2, 4, 5, 6 (re
 | --- | --- |
 | 0a | Service extraction, before step 4. No behaviour change. `resolveSenderIdentity` and Drive save errors move out of the envelopes controller. |
 | 0b | `GDriveService.listFiles`, conversion start, and `DriveImportService` move out of the Drive controller and the browser. No behaviour change. |
-| 0c | `TemplateApplyService` moves the template layout expansion off the browser. No behaviour change. |
+| 0c | `TemplateApplyService` moves the template layout expansion off the browser. #375 also lands email fields, 560-grid to 0–1, `template_role_unmapped`, and a use count only after replace succeeds. See step 13. |
 | 0d | Eslint `no-restricted-imports`: `src/mcp` may import `*.service.ts` and `packages/shared` only. After 0a, 0b, and 0c. |
 | Before 3 | Shared UI: `SecretOnceSheet`, `RunList`, `Checkbox`, `CodeSnippet`, the header bell, and promoting `MWBottomSheet` and `ReminderToggle` into `components/`. `MWBottomSheet` is a prerequisite of step 7d. |
 | 2 | API keys: migration (next free id, not `0020`), hashed secret, cap of 10, revoked key is 401 and expires that key’s pending approvals, session auth only. Fresh login uses `amr[].timestamp`, not `iat`. `require_owner_approval` defaults to true. `POST {}` names the key `Key N` and sets a 90-day expiry. Null expiry and anything past 365 days are rejected. GitHub partner secret scanning is not used. |
@@ -1063,7 +1063,7 @@ Merge order: 0a, 0b, 0c, then 0d, in parallel with Insert A, then 2, 4, 5, 6 (re
 | 10 | Send via approval. Returns `approval_pending` and `review_url` immediately. This is also when `envelopes_prepare` may return that result. Sends only after the owner approves. An owner edit re-mints the token and the old link shows “Fields updated”. An agent edit with no new preview expires the approval. An agent re-preview mints a new token, sets `expires_at` to 24 hours from that preview, sends a new email, and the old link shows “Updated, see the newest email”. A known recipient is an earlier web-app or owner-approved envelope. A contact alone, even one the owner created, does not count. Caps are 20 sends per owner, across keys and grants, and 25 new recipients. A bounce rate over 5% or 2 complaints in 7 days suspends the owner’s `envelopes:send`. Prompt `first-send` says never to open an approval link. Depends on Insert A, Insert B, the signing-copy PR, and steps 7a, 7c, 7d, and 9. |
 | 11 | Remind and cancel via approval. Both always use the approval path and return `approval_pending` until the owner approves. Neither takes `confirmation_token`. Cancel’s Approve requires a session. The hourly throttle stays. Withdrawal mail goes out. Until Insert A, the #367 automatic sweep reuses the current link. Manual remind already rotates the signer token, and that rotation stays. After Insert A, remind rotation happens at send time and the stored email payload holds only an id. Prompt `chase-overdue`. Depends on steps 7a and 7c. |
 | 12 | Contacts, `contacts_import`, and `contacts_search`. Upsert by email. Per-row errors. Cap of 100 rows per call. Cursor. |
-| 13 | `envelopes_create_from_template` and `templates_get_schema`. `initial` maps to `initials`. A use counts only on success. No prefill. |
+| 13 | `envelopes_create_from_template` and `templates_get_schema` (the MCP tools, idempotency, and dry_run). No prefill. Already done in 0c (#375): `email` is a template field; `initial` maps to `initials`; legacy 560-grid pixels convert to 0–1 with `x/560` and `y/(560×H/W)` from `inspectPdfBytes`; new saves write `coordVersion` 2 with per-kind default width and height; a role mismatch returns `template_role_unmapped`; `uses_count` increments only after `replaceFields` succeeds. `POST /templates/:id/use` still only bumps the count. |
 | 14 | `gdrive_disconnect` and save-to-Drive. Both always use the approval path and do not take `confirmation_token`. Import and search shipped in 8d. `drive.file` only. A non-default folder requires a session to approve. Disconnect’s Approve requires a session even for the default folder. Both return `approval_pending` with `review_url`. |
 
 Later, one feature each:

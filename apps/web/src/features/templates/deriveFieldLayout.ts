@@ -33,7 +33,12 @@
 
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
-import type { TemplateField, TemplateFieldType, TemplatePageRule } from 'shared';
+import {
+  toTemplateCoordV2,
+  type TemplateField,
+  type TemplateFieldType,
+  type TemplatePageRule,
+} from 'shared';
 
 // `FieldKind` (editor canon: 'initials') vs `TemplateFieldType` (template
 // canon: 'initial'). The same singular/plural reconciliation as
@@ -44,7 +49,15 @@ const FIELD_KIND_TO_TEMPLATE: Partial<Record<FieldKind, TemplateFieldType>> = {
   date: 'date',
   text: 'text',
   checkbox: 'checkbox',
+  email: 'email',
 };
+
+/** Displayed page size used to turn editor pixels into `coordVersion` 2. */
+export interface TemplateDerivePageSize {
+  readonly page: number;
+  readonly width: number;
+  readonly height: number;
+}
 
 /**
  * Pure inference helper exported separately so unit tests can hit every
@@ -93,11 +106,17 @@ interface DerivedFieldLayoutSigner {
  * can rebind every field to its original signer instead of collapsing
  * them onto the first signer. When omitted, the layout is back-compat
  * (no `signerIndex`) and consumers fall back to signers[0].
+ *
+ * Coordinates are written as `coordVersion` 2 (0–1 of the displayed
+ * page). `pageSizes` supplies the aspect: the field's page, else the
+ * first known page, else a 560×740 grid. Width and height use the
+ * shared per-kind pixel defaults when the editor has not resized.
  */
 export function deriveTemplateFieldLayout(
   fields: ReadonlyArray<PlacedFieldValue>,
   totalPages: number,
   signers?: ReadonlyArray<DerivedFieldLayoutSigner>,
+  pageSizes?: ReadonlyArray<TemplateDerivePageSize>,
 ): ReadonlyArray<TemplateField> {
   if (fields.length === 0) return [];
 
@@ -124,11 +143,19 @@ export function deriveTemplateFieldLayout(
     if (head === undefined) continue;
     const templateType = FIELD_KIND_TO_TEMPLATE[head.type];
     if (!templateType) {
-      // `email` (or any future kind) isn't supported by templates yet —
-      // skip silently so saving a doc that contains one doesn't crash.
-      // The user can re-place it on the resolved document.
       continue;
     }
+    const pageSize = pageSizes?.find((size) => size.page === head.page) ?? pageSizes?.[0];
+    const box = toTemplateCoordV2(
+      {
+        type: templateType,
+        x: head.x,
+        y: head.y,
+        ...(head.width !== undefined ? { width: head.width } : {}),
+        ...(head.height !== undefined ? { height: head.height } : {}),
+      },
+      pageSize,
+    );
     // Derive signerIndex AND signerRoleId from the head field's first
     // assigned signer. Linked copies share an assignment in the editor
     // today (the group toolbar applies the picker to every member), so
@@ -152,8 +179,7 @@ export function deriveTemplateFieldLayout(
       out.push({
         type: templateType,
         pageRule: rule,
-        x: head.x,
-        y: head.y,
+        ...box,
         ...(head.linkId ? { label: head.linkId } : {}),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),
@@ -168,8 +194,7 @@ export function deriveTemplateFieldLayout(
       out.push({
         type: templateType,
         pageRule: page,
-        x: head.x,
-        y: head.y,
+        ...box,
         ...(head.linkId ? { label: head.linkId } : {}),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),

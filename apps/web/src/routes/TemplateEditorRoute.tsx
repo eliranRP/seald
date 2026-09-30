@@ -36,7 +36,12 @@ import {
 } from '../features/templates/templatesApi';
 import type { TemplateSummary } from '../features/templates';
 
-import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
+import {
+  CANVAS_HEIGHT_FALLBACK,
+  CANVAS_WIDTH,
+  useCanvasHeight,
+  normalizeCoord,
+} from '../lib/canvas-coords';
 import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 const TOAST_AUTO_DISMISS_MS = 4000;
 
@@ -45,16 +50,13 @@ const TOAST_AUTO_DISMISS_MS = 4000;
 // addSigner payload — the API DTO rejects non-UUID `contact_id` values.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Fields available in the templates flow. Email isn't supported by
-// templates (the saved layout has no signer-specific email plumbing),
-// so we strip it out of the palette here even though the underlying
-// editor surface accepts it for the regular sign flow.
 const TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
   'signature',
   'initials',
   'date',
   'text',
   'checkbox',
+  'email',
 ];
 
 const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> = {
@@ -244,6 +246,7 @@ export function TemplateEditorRoute() {
     loading: pdfLoading,
     error: pdfError,
   } = usePdfDocument(fileForParse);
+  const tplCanvasHeight = useCanvasHeight(pdfDoc);
 
   /**
    * Saved-doc branch (no pendingFile, sourceTemplate exists, no example
@@ -353,9 +356,6 @@ export function TemplateEditorRoute() {
       }
     }
 
-    const id = createDocument(file, resolvedPages);
-    setDraftId(id);
-
     const signersFromHandoff = initialHandoff?.templateSigners ?? [];
     const signers = signersFromHandoff.map((s) => ({
       id: s.id,
@@ -364,32 +364,59 @@ export function TemplateEditorRoute() {
       color: s.color,
     }));
 
-    let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
-    if (sourceTemplate) {
-      // Pass `lastSigners` so the resolver backfills `signerRoleId`
-      // for legacy templates that only stored `signerIndex` — see the
-      // rebinder's stable-id rules. Without it, the wizard's
-      // remove-then-add path would still shift kept signers' fields.
-      const resolved = resolveTemplateFields(
-        sourceTemplate.fields,
-        resolvedPages,
-        sourceTemplate.lastSigners,
-      );
-      // Apply the user-spec signer-count rules: bind by ordinal, drop
-      // fields whose owning signer was removed, fall back to signers[0]
-      // only for legacy (pre-signerIndex) templates. Centralized in
-      // `rebindFieldsToSigners` so UploadRoute and this route share the
-      // exact same semantics. See `rebindFieldsToSigners.test.ts` for
-      // the regression cases tied to bug #2.
-      pendingFields = rebindFieldsToSigners(resolved, signers);
-    }
+    let cancelled = false;
+    const commit = (gridH: number): void => {
+      if (cancelled) return;
+      const id = createDocument(file, resolvedPages);
+      setDraftId(id);
+      let pendingFields: ReadonlyArray<PlacedFieldValue> = [];
+      if (sourceTemplate) {
+        // Pass `lastSigners` so the resolver backfills `signerRoleId`
+        // for legacy templates that only stored `signerIndex` — see the
+        // rebinder's stable-id rules. Without it, the wizard's
+        // remove-then-add path would still shift kept signers' fields.
+        const resolved = resolveTemplateFields(
+          sourceTemplate.fields,
+          resolvedPages,
+          sourceTemplate.lastSigners,
+        );
+        // Apply the user-spec signer-count rules: bind by ordinal, drop
+        // fields whose owning signer was removed, fall back to signers[0]
+        // only for legacy (pre-signerIndex) templates. Centralized in
+        // `rebindFieldsToSigners` so UploadRoute and this route share the
+        // exact same semantics. See `rebindFieldsToSigners.test.ts` for
+        // the regression cases tied to bug #2.
+        pendingFields = rebindFieldsToSigners(resolved, signers, gridH);
+      }
+      updateDocument(id, {
+        signers,
+        ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
+        ...(sourceTemplate ? { fromTemplateId: sourceTemplate.id } : {}),
+        ...(sourceTemplate && initialHandoff?.pendingFile ? { fromTemplateFreshUpload: true } : {}),
+      });
+    };
 
-    updateDocument(id, {
-      signers,
-      ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
-      ...(sourceTemplate ? { fromTemplateId: sourceTemplate.id } : {}),
-      ...(sourceTemplate && initialHandoff?.pendingFile ? { fromTemplateFreshUpload: true } : {}),
-    });
+    const hasV2 = sourceTemplate?.fields.some((field) => field.coordVersion === 2) ?? false;
+    if (hasV2 && pdfDoc) {
+      void pdfDoc
+        .getPage(1)
+        .then((page) => {
+          const vp = page.getViewport({ scale: 1 });
+          const gridH =
+            vp.width > 0 ? CANVAS_WIDTH * (vp.height / vp.width) : CANVAS_HEIGHT_FALLBACK;
+          commit(gridH);
+        })
+        .catch(() => {
+          commit(CANVAS_HEIGHT_FALLBACK);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    commit(tplCanvasHeight);
+    return () => {
+      cancelled = true;
+    };
   }, [
     draftId,
     fileForParse,
@@ -397,6 +424,7 @@ export function TemplateEditorRoute() {
     numPages,
     pdfLoading,
     pdfError,
+    pdfDoc,
     createDocument,
     updateDocument,
     initialHandoff?.templateSigners,
@@ -404,6 +432,7 @@ export function TemplateEditorRoute() {
     sourceTemplate,
     fetchedExampleFile,
     examplePdfFetchSettled,
+    tplCanvasHeight,
   ]);
 
   // ---- Editor state ----------------------------------------------------
@@ -520,7 +549,9 @@ export function TemplateEditorRoute() {
       // owning signer's ordinal — see `TemplateField.signerIndex`. On
       // reuse, fields are rebound to the same ordinal so per-signer
       // colors and assignments survive the round-trip.
-      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages, draft.signers);
+      const fieldLayout = deriveTemplateFieldLayout(draft.fields, draft.totalPages, draft.signers, [
+        { page: 1, width: CANVAS_WIDTH, height: tplCanvasHeight },
+      ]);
       // Capture the current signer roster as `last_signers` so the
       // next user of this template starts with the same recipients
       // pre-filled. Previously this was only persisted in
@@ -579,11 +610,9 @@ export function TemplateEditorRoute() {
         tone: 'error',
       });
     }
-  }, [draft, renamedTitle, sourceTemplate, navigate]);
+  }, [draft, renamedTitle, sourceTemplate, navigate, tplCanvasHeight]);
 
   // ---- Send-to-sign (using mode primary) -------------------------------
-
-  const tplCanvasHeight = useCanvasHeight(pdfDoc);
 
   const toNormalized = useCallback(
     (field: PlacedFieldValue): Pick<FieldPlacement, 'x' | 'y' | 'width' | 'height'> => {
@@ -694,6 +723,7 @@ export function TemplateEditorRoute() {
         draft.fields,
         draft.totalPages,
         draft.signers,
+        [{ page: 1, width: CANVAS_WIDTH, height: tplCanvasHeight }],
       );
       // Defensive merge for the "saved with one signer when sender
       // removed one" report: when the draft's roster shrank below the
@@ -730,7 +760,7 @@ export function TemplateEditorRoute() {
         });
     }
     runSend().catch(() => {});
-  }, [sourceTemplate, draft, runSend]);
+  }, [sourceTemplate, draft, runSend, tplCanvasHeight]);
 
   // ---- Navigation guards (Back / cancel) -------------------------------
 

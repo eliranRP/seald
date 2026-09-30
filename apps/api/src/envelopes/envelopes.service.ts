@@ -590,6 +590,20 @@ export class EnvelopesService {
   }
 
   /**
+   * Original PDF bytes for a draft the caller owns. Template apply
+   * reads these so it can convert 560-grid pixels with the displayed
+   * page aspect from `inspectPdfBytes`. Throws `file_not_ready` when
+   * the upload has not been stored.
+   */
+  async readOriginalPdf(owner_id: string, id: string): Promise<Buffer> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const paths = await this.repo.getFilePaths(id);
+    if (!paths?.original_file_path) throw new BadRequestException('file_not_ready');
+    return this.storage.download(paths.original_file_path);
+  }
+
+  /**
    * Replace a draft's fields. Omitted `required` becomes true, and omitted
    * width, height, and link id become null, before the repository write.
    * Callers do not depend on the `envelope_fields.required` database default.

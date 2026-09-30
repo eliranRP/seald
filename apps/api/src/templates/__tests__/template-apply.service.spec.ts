@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { PDFDocument } from 'pdf-lib';
 import type { Template, TemplateLastSigner } from 'shared';
 import type { EnvelopeField } from '../../envelopes/envelope.entity';
 import type { EnvelopesService } from '../../envelopes/envelopes.service';
@@ -6,6 +7,7 @@ import {
   TemplateApplyNotReadyError,
   TemplateApplyService,
   TemplateHasNoFieldsError,
+  TemplateRoleUnmappedError,
 } from '../template-apply.service';
 import type { TemplatesService } from '../templates.service';
 
@@ -40,12 +42,26 @@ function template(overrides?: Partial<Template>): Template {
   };
 }
 
+/** Displayed page 200×100. Grid height is 560 * 100/200 = 280. */
+const PAGE = { width: 200, height: 100 };
+const GRID_HEIGHT = 560 * (PAGE.height / PAGE.width);
+
+let pdfBytes: Buffer;
+
+beforeAll(async () => {
+  const doc = await PDFDocument.create();
+  doc.addPage([PAGE.width, PAGE.height]);
+  doc.addPage([PAGE.width, PAGE.height]);
+  pdfBytes = Buffer.from(await doc.save());
+});
+
 function makeService(): {
   svc: TemplateApplyService;
   get: jest.Mock;
   use: jest.Mock;
   getById: jest.Mock;
   replaceFields: jest.Mock;
+  readOriginalPdf: jest.Mock;
 } {
   const get = jest.fn(async () => template());
   const use = jest.fn(async () => template({ uses_count: 4 }));
@@ -60,9 +76,17 @@ function makeService(): {
     async (_owner: string, _id: string, fields: readonly EnvelopeField[]) =>
       fields.map((field, index) => ({ ...field, id: `field-${index}` })),
   );
+  const readOriginalPdf = jest.fn(async () => pdfBytes);
   const templates = { get, use } as unknown as TemplatesService;
-  const envelopes = { getById, replaceFields } as unknown as EnvelopesService;
-  return { svc: new TemplateApplyService(templates, envelopes), get, use, getById, replaceFields };
+  const envelopes = { getById, replaceFields, readOriginalPdf } as unknown as EnvelopesService;
+  return {
+    svc: new TemplateApplyService(templates, envelopes),
+    get,
+    use,
+    getById,
+    replaceFields,
+    readOriginalPdf,
+  };
 }
 
 describe('TemplateApplyService', () => {
@@ -86,15 +110,29 @@ describe('TemplateApplyService', () => {
     expect(out.template_id).toBe(TEMPLATE_ID);
     expect(out.uses_count).toBe(4);
     // pageRule "all" on 2 pages → role-b. Numeric page 9 is past the end.
+    // 400 and 12.5 are 560-grid pixels on a 200×100 page (grid height 280).
+    const placed = replaceFields.mock.calls[0]?.[2] as Array<{
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    }>;
+    expect(placed).toHaveLength(2);
+    for (const field of placed) {
+      expect(field.x).toBeCloseTo(400 / 560, 10);
+      expect(field.y).toBeCloseTo(12.5 / GRID_HEIGHT, 10);
+      expect(field.width).toBeCloseTo(80 / 560, 10);
+      expect(field.height).toBeCloseTo(54 / GRID_HEIGHT, 10);
+    }
     expect(replaceFields).toHaveBeenCalledWith(OWNER, ENVELOPE_ID, [
       {
         signer_id: 'signer-b',
         kind: 'initials',
         page: 1,
-        x: 400,
-        y: 12.5,
-        width: null,
-        height: null,
+        x: placed[0]!.x,
+        y: placed[0]!.y,
+        width: placed[0]!.width,
+        height: placed[0]!.height,
         required: true,
         link_id: 'tpl-link-1',
       },
@@ -102,10 +140,10 @@ describe('TemplateApplyService', () => {
         signer_id: 'signer-b',
         kind: 'initials',
         page: 2,
-        x: 400,
-        y: 12.5,
-        width: null,
-        height: null,
+        x: placed[1]!.x,
+        y: placed[1]!.y,
+        width: placed[1]!.width,
+        height: placed[1]!.height,
         required: true,
         link_id: 'tpl-link-1',
       },
@@ -121,23 +159,66 @@ describe('TemplateApplyService', () => {
       }),
     );
     await svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID);
+    const placed = replaceFields.mock.calls[0]?.[2][0] as { x: number; y: number };
+    expect(placed).toMatchObject({ signer_id: 'signer-b', kind: 'date' });
+    expect(placed.x).toBeCloseTo(1 / 560, 10);
+    expect(placed.y).toBeCloseTo(2 / GRID_HEIGHT, 10);
+  });
+
+  it('maps an email field and keeps coordVersion 2 fractions', async () => {
+    const { svc, get, replaceFields } = makeService();
+    get.mockResolvedValue(
+      template({
+        field_layout: [
+          {
+            type: 'email',
+            pageRule: 'first',
+            x: 0.25,
+            y: 0.4,
+            width: 0.3,
+            height: 0.1,
+            coordVersion: 2,
+            signerRoleId: 'role-a',
+          },
+        ],
+      }),
+    );
+    await svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID);
     expect(replaceFields.mock.calls[0]?.[2][0]).toMatchObject({
-      signer_id: 'signer-b',
-      kind: 'date',
-      x: 1,
-      y: 2,
+      signer_id: 'signer-a',
+      kind: 'email',
+      x: 0.25,
+      y: 0.4,
+      width: 0.3,
+      height: 0.1,
     });
   });
 
-  it('assigns every field to the first signer when emails do not line up', async () => {
-    const { svc, getById, replaceFields } = makeService();
+  it('returns template_role_unmapped when a lined-up field has no signer', async () => {
+    const { svc, get, replaceFields, use } = makeService();
+    get.mockResolvedValue(
+      template({
+        field_layout: [{ type: 'text', pageRule: 'first', x: 10, y: 20 }],
+      }),
+    );
+    await expect(svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID)).rejects.toBeInstanceOf(
+      TemplateRoleUnmappedError,
+    );
+    expect(replaceFields).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it('returns template_role_unmapped when emails do not line up', async () => {
+    const { svc, getById, replaceFields, use } = makeService();
     getById.mockResolvedValue({
       original_pages: 1,
       signers: [{ id: 'signer-z', email: 'someone-else@example.com' }],
     });
-    await svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID);
-    const placed = replaceFields.mock.calls[0]?.[2] as Array<{ signer_id: string }>;
-    expect(placed.every((field) => field.signer_id === 'signer-z')).toBe(true);
+    await expect(svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID)).rejects.toBeInstanceOf(
+      TemplateRoleUnmappedError,
+    );
+    expect(replaceFields).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('does not bump use when the template has no layout', async () => {
@@ -169,6 +250,16 @@ describe('TemplateApplyService', () => {
     );
     expect(noSigners.replaceFields).not.toHaveBeenCalled();
     expect(noSigners.use).not.toHaveBeenCalled();
+  });
+
+  it('does not bump use when the original PDF cannot be read', async () => {
+    const { svc, use, replaceFields, readOriginalPdf } = makeService();
+    readOriginalPdf.mockRejectedValue(new ConflictException('file_not_ready'));
+    await expect(svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(replaceFields).not.toHaveBeenCalled();
+    expect(use).not.toHaveBeenCalled();
   });
 
   it('does not bump use when replaceFields fails', async () => {

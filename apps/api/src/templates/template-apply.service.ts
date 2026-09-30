@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import {
   expandTemplateLayout,
+  normalizeTemplateFieldBox,
   type ExpandedTemplateField,
   type TemplateFieldType,
   type TemplateLastSigner,
@@ -12,6 +13,7 @@ import {
   normalizeFieldPlacements,
   type FieldPlacementInput,
 } from '../envelopes/field-placement.service';
+import { inspectPdfBytes, type PdfPageSize } from '../envelopes/pdf-inspection';
 import { TemplatesService } from './templates.service';
 
 /**
@@ -27,15 +29,28 @@ export class TemplateHasNoFieldsError extends Error {
 }
 
 /**
- * The draft has no page count or no signers, so the layout cannot be
- * placed. This is not an HTTP response; nothing mounts this service
- * on a route.
+ * The draft has no page count, no original PDF, or no signers, so the
+ * layout cannot be placed. This is not an HTTP response; nothing mounts
+ * this service on a route.
  */
 export class TemplateApplyNotReadyError extends Error {
   readonly code = 'template_apply_not_ready' as const;
   constructor(reason: 'missing_pages' | 'no_signers') {
     super(reason);
     this.name = 'TemplateApplyNotReadyError';
+  }
+}
+
+/**
+ * The envelope signers are not the template's saved roster, or a field
+ * does not name a signer in that roster. Nothing is written and
+ * `uses_count` stays put. Callers must not fall back to the first signer.
+ */
+export class TemplateRoleUnmappedError extends Error {
+  readonly code = 'template_role_unmapped' as const;
+  constructor() {
+    super('template_role_unmapped');
+    this.name = 'TemplateRoleUnmappedError';
   }
 }
 
@@ -57,9 +72,14 @@ interface SignerRef {
  * is the server-side expansion the browser used to do, for a later
  * `templates_use` tool. It is not wired to that route.
  *
- * Stored template coordinates are PDF points and may be greater than 1.
- * They are passed through. `replaceFields` does not clamp them, and this
- * service does not convert them to the 0–1 place-fields range.
+ * Legacy coordinates are 560-grid editor pixels. They become 0–1 with
+ * `x / 560` and `y / (560 * displayedHeight / displayedWidth)`, using
+ * each page's displayed size from `inspectPdfBytes`. `coordVersion` 2
+ * is already that fraction. Width and height default per kind when the
+ * row omitted them.
+ *
+ * A signer roster that does not match `last_signers` by email, or a
+ * field whose role does not resolve, throws `template_role_unmapped`.
  *
  * `uses_count` increments only after `replaceFields` succeeds.
  */
@@ -84,8 +104,15 @@ export class TemplateApplyService {
     if (totalPages == null) throw new TemplateApplyNotReadyError('missing_pages');
     if (envelope.signers.length === 0) throw new TemplateApplyNotReadyError('no_signers');
 
+    const pdf = await this.envelopes.readOriginalPdf(ownerId, envelopeId);
+    const inspected = await inspectPdfBytes(pdf);
     const expanded = expandTemplateLayout(template.field_layout, totalPages, template.last_signers);
-    const placements = assignTemplateFields(expanded, template.last_signers, envelope.signers);
+    const placements = assignTemplateFields(
+      expanded,
+      template.last_signers,
+      envelope.signers,
+      inspected.pageSizes,
+    );
     const stored = await this.envelopes.replaceFields(
       ownerId,
       envelopeId,
@@ -104,6 +131,7 @@ function toEnvelopeKind(type: TemplateFieldType): FieldKind {
     case 'date':
     case 'text':
     case 'checkbox':
+    case 'email':
       return type;
     default: {
       const unexpected: never = type;
@@ -126,25 +154,33 @@ function emailsLineUp(
 /**
  * When `last_signers` and the envelope signers are the same list (same
  * length, emails equal in order, case-insensitive), a field follows its
- * `signerRoleId` or `signerIndex`. Otherwise every field goes to the
- * first signer.
+ * `signerRoleId` or `signerIndex`. A mismatch throws
+ * {@link TemplateRoleUnmappedError} instead of using the first signer.
  */
 function assignTemplateFields(
   fields: ReadonlyArray<ExpandedTemplateField>,
   lastSigners: ReadonlyArray<TemplateLastSigner>,
   signers: ReadonlyArray<SignerRef>,
+  pageSizes: readonly PdfPageSize[],
 ): FieldPlacementInput[] {
-  const first = signers[0];
-  if (!first) throw new TemplateApplyNotReadyError('no_signers');
-  const linedUp = emailsLineUp(lastSigners, signers);
+  if (signers.length === 0) throw new TemplateApplyNotReadyError('no_signers');
+  if (!emailsLineUp(lastSigners, signers)) throw new TemplateRoleUnmappedError();
   return fields.map((field) => {
-    const signerId = linedUp ? signerIdForField(field, lastSigners, signers, first.id) : first.id;
+    const signerId = signerIdForField(field, lastSigners, signers);
+    if (signerId === undefined) throw new TemplateRoleUnmappedError();
+    const page = pageSizes.find((size) => size.page === field.page);
+    if (page === undefined || !(page.width > 0) || !(page.height > 0)) {
+      throw new TemplateApplyNotReadyError('missing_pages');
+    }
+    const box = normalizeTemplateFieldBox(field, { width: page.width, height: page.height });
     const placement: FieldPlacementInput = {
       signer_id: signerId,
       kind: toEnvelopeKind(field.type),
       page: field.page,
-      x: field.x,
-      y: field.y,
+      x: box.x,
+      y: box.y,
+      width: box.width,
+      height: box.height,
       ...(field.linkId !== undefined ? { link_id: field.linkId } : {}),
     };
     return placement;
@@ -155,8 +191,7 @@ function signerIdForField(
   field: ExpandedTemplateField,
   lastSigners: ReadonlyArray<TemplateLastSigner>,
   signers: ReadonlyArray<SignerRef>,
-  fallbackId: string,
-): string {
+): string | undefined {
   let index: number | undefined;
   if (field.signerRoleId !== undefined) {
     const found = lastSigners.findIndex((row) => row.id === field.signerRoleId);
@@ -165,6 +200,6 @@ function signerIdForField(
   if (index === undefined && field.signerIndex !== undefined) {
     index = field.signerIndex;
   }
-  if (index === undefined) return fallbackId;
-  return signers[index]?.id ?? fallbackId;
+  if (index === undefined) return undefined;
+  return signers[index]?.id;
 }

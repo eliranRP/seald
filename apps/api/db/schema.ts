@@ -57,19 +57,25 @@ export interface DeletedUserTombstonesTable {
   deleted_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
-export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
+export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox' | 'email';
 
 /**
  * One field layout entry inside `templates.field_layout`. Mirrors the
  * `TemplateField` shape exported from packages/shared/src/templates.ts —
  * the canonical client-side type. See migration 0008 for the column comment.
+ * `coordVersion` 2 stores 0–1 fractions; omitted means 560-grid pixels.
  */
 export interface TemplateFieldLayoutDb {
   type: TemplateFieldTypeDb;
   pageRule: 'all' | 'allButLast' | 'first' | 'last' | number;
   x: number;
   y: number;
+  width?: number;
+  height?: number;
+  coordVersion?: 2;
   label?: string;
+  signerIndex?: number;
+  signerRoleId?: string;
 }
 
 /**

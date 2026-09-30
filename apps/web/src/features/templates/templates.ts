@@ -161,6 +161,9 @@ export interface ResolvedField {
   readonly type: TemplateFieldType;
   readonly x: number;
   readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly coordVersion?: 2;
   readonly label?: string;
   /**
    * Mirrors `TemplateField.signerIndex`. Kept for legacy fallback;
