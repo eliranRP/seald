@@ -110,31 +110,58 @@ test.describe('signing-done save button layout', () => {
     });
   }
 
-  test('a 65-character save label stays inside the card at 1440px', async ({ page }) => {
-    const label = 'Save to my Seald account and keep this signed document forever now';
-    expect(label.length).toBeGreaterThanOrEqual(65);
+  for (const width of [390, 546, 1440]) {
+    test(`a 65-character save label stays within two lines at ${width}px`, async ({ page }) => {
+      const label = 'Save to my Seald account and keep this signed document forever now';
+      expect(label.length).toBeGreaterThanOrEqual(65);
 
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`/sign/${ENVELOPE_ID}/done`);
+      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
+      await page.goto(`/sign/${ENVELOPE_ID}/done`);
 
-    const button = page.getByRole('button', { name: /save to my seald account/i });
-    const card = page.getByRole('region', { name: /create your free seald account/i });
-    await expect(button).toBeVisible();
-    await button.evaluate((el, next) => {
-      el.textContent = next;
-    }, label);
+      const button = page.getByRole('button', { name: /save to my seald account/i });
+      const card = page.getByRole('region', { name: /create your free seald account/i });
+      await expect(button).toBeVisible();
+      await button.evaluate((el, next) => {
+        el.textContent = next;
+      }, label);
 
-    const buttonBox = await page.getByRole('button', { name: label }).boundingBox();
-    const cardBox = await card.boundingBox();
-    const emailBox = await page.getByRole('textbox', { name: /your email/i }).boundingBox();
-    if (!buttonBox || !cardBox || !emailBox) {
-      throw new Error('save button, email field, or upsell card has no box');
-    }
+      const labeled = page.getByRole('button', { name: label });
+      const buttonBox = await labeled.boundingBox();
+      const cardBox = await card.boundingBox();
+      const emailBox = await page.getByRole('textbox', { name: /your email/i }).boundingBox();
+      if (!buttonBox || !cardBox || !emailBox) {
+        throw new Error('save button, email field, or upsell card has no box');
+      }
 
-    expect(buttonBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
-    expect(buttonBox.y).toBeGreaterThanOrEqual(cardBox.y - 1);
-    expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
-    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 1);
-    expect(emailBox.width).toBeGreaterThanOrEqual(200);
-  });
+      expect(buttonBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+      expect(buttonBox.y).toBeGreaterThanOrEqual(cardBox.y - 1);
+      expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+      expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 1);
+
+      const lines = await labeled.evaluate((el) => {
+        const text = [...el.childNodes].find((node) => node.nodeType === Node.TEXT_NODE);
+        if (!text) return 0;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        return range.getClientRects().length;
+      });
+      expect(lines).toBeGreaterThan(0);
+      expect(lines).toBeLessThanOrEqual(2);
+
+      const sharesRow = Math.abs(buttonBox.y - emailBox.y) < 4;
+      if (sharesRow) {
+        expect(Math.round(buttonBox.height)).toBe(48);
+        expect(Math.round(buttonBox.height)).toBe(Math.round(emailBox.height));
+      }
+
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+
+      const textFits = await labeled.evaluate((el) => el.scrollWidth <= el.clientWidth);
+      expect(textFits).toBe(true);
+    });
+  }
 });

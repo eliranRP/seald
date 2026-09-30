@@ -111,32 +111,18 @@ export const Default: Story = {
   name: 'Sealed terminal screen',
 };
 
-/** Phone width. The save action stacks under the email field and stays inside the card. */
+/** Phone width. Chromatic captures this story at 390px. */
 export const Mobile: Story = {
   name: 'Signing done (mobile 390)',
   parameters: {
     chromatic: { modes: { mobile: chromaticViewportModes.mobile } },
   },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 390, margin: '0 auto' }}>
-        <Story />
-      </div>
-    ),
-  ],
 };
 
-/** Desktop width. The card is the 560px column; the save action sits beside the field. */
+/** Desktop width. Chromatic captures this story at 1440px. */
 export const Desktop: Story = {
   name: 'Signing done (desktop 1440)',
   parameters: {
     chromatic: { modes: { desktop: chromaticViewportModes.desktop } },
   },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 1440, margin: '0 auto' }}>
-        <Story />
-      </div>
-    ),
-  ],
 };

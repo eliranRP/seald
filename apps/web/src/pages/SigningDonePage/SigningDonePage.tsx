@@ -185,19 +185,22 @@ const UpsellForm = styled.form`
 
   @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
 
     & > input {
       width: auto;
-      flex-basis: ${({ theme }) => upsellFieldMin(theme)};
+      flex: 1 1 ${({ theme }) => upsellFieldMin(theme)};
+      /* The 200px floor only applies in the row. In the stack it overflows below ~296px. */
+      min-width: ${({ theme }) => upsellFieldMin(theme)};
     }
   }
 `;
 
 /**
- * The slot is the flex item beside the field. The button fills the slot
- * (fullWidth) instead of sitting in the row itself, so a long label shrinks
- * the slot and wraps rather than crushing the field or leaving the card.
+ * Beside the field the slot keeps its label width. If that no longer fits,
+ * flex-wrap drops it onto the next line at the full row width instead of
+ * squeezing the label into three or four lines.
  */
 const SaveSlot = styled.div`
   width: 100%;
@@ -205,14 +208,21 @@ const SaveSlot = styled.div`
 
   @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
     width: auto;
-    flex: 0 1 max-content;
-    min-width: 0;
+    flex: 0 0 auto;
     max-width: 100%;
+
+    & > button {
+      width: auto;
+      max-width: 100%;
+      padding-inline: ${({ theme }) => theme.space[5]};
+    }
   }
 
   & > button {
     min-height: ${({ theme }) => theme.space[12]};
     overflow-wrap: anywhere;
+    /* lg padding leaves a 65-character label on a third line at phone width. */
+    padding-inline: ${({ theme }) => theme.space[2]};
   }
 
   /* The shared halo is ~1.14:1 on this ink card. Use the focus stroke instead. */
@@ -225,7 +235,6 @@ const SaveSlot = styled.div`
 const UpsellInput = styled.input`
   flex: 1 1 auto;
   width: 100%;
-  min-width: ${({ theme }) => upsellFieldMin(theme)};
   min-height: ${({ theme }) => theme.space[12]};
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
