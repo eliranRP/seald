@@ -29,8 +29,10 @@ function checksumOf(body: string): string {
 /**
  * Hex SHA-256 of the full bearer. The secret is 32 bytes from
  * crypto.randomBytes (256 bits), not a password, so a slow password hash
- * would add nothing. A CodeQL "password hash too weak" alert on this
- * SHA-256 is a false positive.
+ * would add nothing. CodeQL alerts #28 and #29 ("password hash too
+ * weak") on this SHA-256 are false positives. The inline suppression
+ * marks the sink; dismissing the alerts needs a token this checkout
+ * does not have.
  */
 function hashToken(token: string): string {
   // cspell:disable-next-line
