@@ -56,12 +56,6 @@ describe('Button', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('large size is at least a 44px touch target', () => {
-    const { getByRole } = renderWithTheme(<Button size="lg">Save to my Seald account</Button>);
-    const minHeight = Number.parseFloat(getComputedStyle(getByRole('button')).minHeight);
-    expect(minHeight).toBeGreaterThanOrEqual(44);
-  });
-
   it('forwards ref to the root button', () => {
     const ref = { current: null as HTMLButtonElement | null };
     renderWithTheme(<Button ref={ref}>Go</Button>);

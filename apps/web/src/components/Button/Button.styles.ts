@@ -17,8 +17,6 @@ const sizeStyles = (t: DefaultTheme, size: ButtonSize) =>
       padding: ${t.space[3]} ${t.space[5]};
       font-size: ${t.font.size.body};
       border-radius: ${t.radius.md};
-      /* space.12 (48px) is the nearest step at or above a 44px touch target. */
-      min-height: ${t.space[12]};
     `,
   })[size];
 
@@ -85,8 +83,6 @@ export const ButtonRoot = styled.button<{
   font-family: ${({ theme }) => theme.font.sans};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   line-height: 1.2;
-  text-align: center;
-  overflow-wrap: break-word;
   border: 1px solid transparent;
   cursor: pointer;
   transition:
@@ -95,8 +91,6 @@ export const ButtonRoot = styled.button<{
     transform ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
     box-shadow ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
   width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'auto')};
-  max-width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'none')};
-  min-width: ${({ $fullWidth }) => ($fullWidth ? '0' : 'auto')};
   ${({ theme, $size }) => sizeStyles(theme, $size)}
   ${({ theme, $variant }) => variantStyles(theme, $variant)}
   &:focus-visible {

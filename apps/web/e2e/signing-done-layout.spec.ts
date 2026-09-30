@@ -90,6 +90,22 @@ test.describe('signing-done save button layout', () => {
       });
       expect(lines).toBeGreaterThan(0);
       expect(lines).toBeLessThanOrEqual(2);
+
+      const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+
+      const textFits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth);
+      expect(textFits).toBe(true);
+
+      if (width === 320 || width === 390) {
+        const email = page.getByRole('textbox', { name: /your email/i });
+        const emailBox = await email.boundingBox();
+        if (!emailBox) throw new Error('email field has no box');
+        expect(emailBox.height).toBeGreaterThanOrEqual(44);
+      }
     });
   }
 });

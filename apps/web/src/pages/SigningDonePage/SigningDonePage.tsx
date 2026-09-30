@@ -5,6 +5,7 @@ import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import type { SealdTheme } from '@/styles/theme';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
@@ -164,6 +165,15 @@ const UpsellBody = styled.div`
   line-height: 1.55;
 `;
 
+/**
+ * Card content width where the email field and the save action can share
+ * a row. Narrower than this, the action stacks so a long label wraps
+ * inside the card instead of spilling past its edge. The length is four
+ * space.24 steps plus space.16.
+ */
+const upsellRowMin = (theme: SealdTheme): string =>
+  `calc(${theme.space[24]} * 4 + ${theme.space[16]})`;
+
 const UpsellForm = styled.form`
   margin-top: ${({ theme }) => theme.space[4]};
   display: flex;
@@ -171,22 +181,43 @@ const UpsellForm = styled.form`
   align-items: stretch;
   gap: ${({ theme }) => theme.space[2]};
 
-  & > button {
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-  }
-
-  /* Wide card: field and action share a row (space.24 * 4 + space.16). */
-  @container upsell (min-width: calc(${({ theme }) => theme.space[24]} * 4 + ${({ theme }) =>
-    theme.space[16]})) {
+  @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
     flex-direction: row;
     align-items: center;
 
+    & > input {
+      width: auto;
+    }
+  }
+`;
+
+/** Full-width while stacked. Beside the field, the slot sizes to the label. */
+const SaveSlot = styled.div`
+  display: flex;
+  width: 100%;
+  min-height: ${({ theme }) => theme.space[12]};
+
+  @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
+    /* Keep the label on one line. Shrinking this slot wraps it and the
+       control grows past the 48px field beside it. */
+    width: auto;
+    flex: 0 0 auto;
+    max-width: 100%;
+
     & > button {
       width: auto;
-      flex: 0 0 auto;
+      max-width: 100%;
     }
+  }
+
+  & > button {
+    min-height: ${({ theme }) => theme.space[12]};
+  }
+
+  /* The shared halo is ~1.14:1 on this ink card. Use the focus stroke instead. */
+  & > button:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.border.focus};
+    outline-offset: 2px;
   }
 `;
 
@@ -194,6 +225,7 @@ const UpsellInput = styled.input`
   flex: 1 1 auto;
   width: 100%;
   min-width: 0;
+  min-height: ${({ theme }) => theme.space[12]};
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: ${({ theme }) => theme.radius.md};
@@ -268,7 +300,7 @@ export function SigningDonePage() {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
 
-  const sealedUrl = verify.data?.envelope?.status === 'completed' ? verify.data.sealed_url : null;
+  const sealedUrl = verify.data?.envelope.status === 'completed' ? verify.data.sealed_url : null;
   const isSealing = !sealedUrl && !verify.isError;
   const downloadName = safeDownloadName(snap.title, '-signed');
 
@@ -371,9 +403,11 @@ export function SigningDonePage() {
               type="email"
               aria-label="Your email"
             />
-            <Button type="submit" variant="secondary" size="lg">
-              Save to my Seald account
-            </Button>
+            <SaveSlot>
+              <Button fullWidth type="submit" variant="secondary" size="lg">
+                Save to my Seald account
+              </Button>
+            </SaveSlot>
           </UpsellForm>
           {saveError ? <UpsellError role="alert">{saveError}</UpsellError> : null}
         </Upsell>
