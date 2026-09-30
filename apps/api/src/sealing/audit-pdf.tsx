@@ -1566,7 +1566,7 @@ const SEALED_REQUEST_ID_TERM =
   'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.';
 
 const UNSEALED_REQUEST_ID_TERM =
-  'The unique reference number of the document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain this audit trail.';
+  'The unique reference number of this request. With this ID, anyone can look up the request on seald.nromomentum.com/verify, check the audit chain, and obtain this audit trail.';
 
 const SEALED_DIGITAL_SIGNATURE_TERM =
   'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. It shows whether the file has changed since sealing, and it includes an RFC 3161 timestamp when a timestamp authority responds. The seal identifies Seald as the sealer, not the signer.';

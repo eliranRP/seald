@@ -46,6 +46,8 @@ const RETIRED_SOURCE_CLAIMS = [
 
 const COVER_LINE = 'Seald · PAdES seal when applied · RFC 3161 timestamp when available';
 const SEALED_SIGNATURE_ROW = 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available';
+const UNSEALED_REQUEST_ID =
+  'The unique reference number of this request. With this ID, anyone can look up the request on seald.nromomentum.com/verify, check the audit chain, and obtain this audit trail.';
 
 describe('audit PDF rendered claims', () => {
   let sealedText = '';
@@ -112,9 +114,14 @@ describe('audit PDF rendered claims', () => {
     expect(sealedText).not.toContain('Verified via account authentication');
     expect(sealedText).toContain('From created to sealed.');
     expect(sealedText).toContain('the sealed file');
+    expect(sealedText).toContain(
+      'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.',
+    );
+    expect(sealedText).not.toContain(UNSEALED_REQUEST_ID);
     expect(unsealedText).toContain('From created to the last event.');
     expect(unsealedText).not.toContain('the sealed file');
     expect(unsealedText).not.toContain('reference number of the sealed document');
+    expect(unsealedText).toContain(UNSEALED_REQUEST_ID);
     expect(unsealedText).toContain('This audit trail details specific information');
     expect(unsealedText).toContain('This file has no digital seal.');
   });
@@ -138,6 +145,7 @@ describe('audit PDF rendered claims', () => {
     expect(noopText).not.toContain('created to sealed');
     expect(noopText).not.toContain('the sealed file');
     expect(noopText).not.toContain('reference number of the sealed document');
+    expect(noopText).toContain(UNSEALED_REQUEST_ID);
     expect(noopText).toContain('This file has no digital seal.');
   });
 
