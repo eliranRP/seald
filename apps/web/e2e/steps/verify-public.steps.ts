@@ -154,6 +154,14 @@ function headingTokenSize(name: string): string {
   return px;
 }
 
+When('the viewport is set to a 640x900 window', async ({ page }) => {
+  await page.setViewportSize({ width: 640, height: 900 });
+});
+
+When('the viewport is set to a 641x900 window', async ({ page }) => {
+  await page.setViewportSize({ width: 641, height: 900 });
+});
+
 When('the viewport is set to a 1440x900 desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
 });

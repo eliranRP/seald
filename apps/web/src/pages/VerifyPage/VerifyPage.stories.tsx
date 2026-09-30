@@ -34,9 +34,9 @@ const verifyViewports = {
 };
 
 const meta: Meta<typeof VerifyPage> = {
-  title: 'Pages/VerifyPage',
+  title: 'L4/VerifyPage',
   component: VerifyPage,
-  tags: ['autodocs', 'page'],
+  tags: ['autodocs', 'layer-4'],
   parameters: {
     layout: 'fullscreen',
     chromatic: { modes: chromaticViewportModes },
@@ -271,22 +271,10 @@ function StoryHarness({ data, forcedState }: WithDataProps) {
   );
 }
 
+/** Intact seal at the 1440×900 desktop viewport. The verdict uses h1. */
 export const Completed: Story = {
   render: () => <StoryHarness data={COMPLETED} />,
-};
-
-/** Completed seal at the 390×844 phone viewport. The verdict uses h3. */
-export const Mobile: Story = {
-  render: () => <StoryHarness data={COMPLETED} />,
-  globals: { viewport: { value: 'mobile', isRotated: false } },
-  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
-};
-
-/** Completed seal at the 1440×900 desktop viewport. The verdict uses h1. */
-export const Desktop: Story = {
-  render: () => <StoryHarness data={COMPLETED} />,
   globals: { viewport: { value: 'desktop', isRotated: false } },
-  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
 };
 
 export const Declined: Story = {
@@ -317,7 +305,9 @@ export const NotFound: Story = {
  *
  * Pinned as its own Chromatic baseline so a regression that drops the
  * badge or swaps the danger color is caught visually on every PR.
+ * Shown at the 390×844 phone viewport, where the verdict uses h3.
  */
 export const ChainBroken: Story = {
   render: () => <StoryHarness data={{ ...COMPLETED, chain_intact: false }} />,
+  globals: { viewport: { value: 'mobile', isRotated: false } },
 };

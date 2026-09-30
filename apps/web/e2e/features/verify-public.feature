@@ -15,12 +15,20 @@ Feature: Public verifier surfaces seal + audit-chain trust signals
     And the audit-PDF download link saves with a ".pdf" filename
     And the audit chain status badge reads "intact"
 
-  @smoke
-  Scenario: Verify headings use the type scale at 390 and 1440
+  @verify @smoke
+  Scenario: Verify headings use the type scale at 390, 640, 641, and 1440
     Given a sealed envelope is published at short code "TyPeSc4leH1"
     And the viewport is set to a 390x844 phone
     When the user opens "/verify/TyPeSc4leH1"
     Then the verify verdict heading font size is the "h3" token
+    And the verify document title font size is the "h5" token
+    And the verify page does not overflow horizontally
+    When the viewport is set to a 640x900 window
+    Then the verify verdict heading font size is the "h3" token
+    And the verify document title font size is the "h5" token
+    And the verify page does not overflow horizontally
+    When the viewport is set to a 641x900 window
+    Then the verify verdict heading font size is the "h1" token
     And the verify document title font size is the "h5" token
     And the verify page does not overflow horizontally
     When the viewport is set to a 1440x900 desktop

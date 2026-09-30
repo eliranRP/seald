@@ -268,7 +268,7 @@ breakpoints, and are not listed here.
 | Query | Files | Who hits it |
 | --- | --- | --- |
 | `max-width: 400px` | `pages/CheckEmailPage/CheckEmailPage.styles.ts` | Auth, outside `AppShell`. Phones hit it. |
-| `max-width: 640px` | `useIsMobileViewport` (`AppShell` redirect); `AuthShell.styles.ts`; `AuthForm.styles.ts`; `ForgotPasswordPage.tsx`; `VerifyPage.styles.ts` (8); `SigningDonePage.tsx` (2) | The redirect sends phones away from dashboard CSS. Auth, verify, and signing-done are outside the shell, so phones hit those 640px rules. |
+| `max-width: 640px` | `useIsMobileViewport` (`AppShell` redirect); `AuthShell.styles.ts`; `AuthForm.styles.ts`; `ForgotPasswordPage.tsx`; `VerifyPage.styles.ts` (6); `SigningDonePage.tsx` (2) | The redirect sends phones away from dashboard CSS. Auth, verify, and signing-done are outside the shell, so phones hit those 640px rules. |
 | `max-width: 760px` | `components/SendingOverlay/SendingOverlay.styles.ts` | Desktop send overlay. A phone already redirected by `AppShell` does not see it. |
 | `max-width: 768px` | `DashboardPage.styles.ts` (4); `UploadPage.styles.ts`; `TemplatesListPage.styles.ts` (`MOBILE = '768px'`) | Inside `AppShell`. Phones are on `/m/send` and do not see these. A window from 641px to 768px still does. |
 | `max-width: 768px` | `SigningFillPage.styles.ts` (9); `RecipientHeader.styles.ts` | Signing is outside `AppShell`. Phones hit these. |

@@ -182,7 +182,7 @@ export const VerdictHeading = styled.h1`
    * breakpoint) is h1 (48px), the nearest step to the old 44px.
    */
   font-size: ${({ theme }) => theme.font.size.h3};
-  line-height: 1.05;
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
   margin: 0 0 ${({ theme }) => theme.space[3]};
@@ -256,8 +256,8 @@ export const DocTitle = styled.h2`
   /* h5 (18px) is the nearest scale step to the old 19px, and stays under the verdict. */
   font-size: ${({ theme }) => theme.font.size.h5};
   color: ${({ theme }) => theme.color.fg[1]};
-  letter-spacing: -0.005em;
-  line-height: 1.2;
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
+  line-height: ${({ theme }) => theme.font.lineHeight.snug};
   margin: 0 0 4px;
   min-width: 0;
   max-width: 100%;
