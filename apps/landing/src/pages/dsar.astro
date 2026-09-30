@@ -5,7 +5,7 @@
 //   - CCPA/CPRA §7011-§7027: businesses must provide at least two methods
 //     for submitting verifiable consumer requests, including an
 //     "easy-to-find" interactive web form for opt-out of sale/share.
-//   - GDPR Art. 12: requests must be facilitated by appropriate means.
+//   - Israel PPL ss.13-14: access and correction requests (30-day reply).
 //   - California "DNSMPI" / "Your Privacy Choices" link in the footer
 //     points here.
 //
@@ -15,7 +15,7 @@
 // flow; until then the SLA holds because all intake routes through the
 // same address.
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'dsar_v0.1';
+const VERSION = 'dsar_v0.2';
 ---
 <BaseLayout
   title="Your privacy choices — Seald"
@@ -25,11 +25,11 @@ const VERSION = 'dsar_v0.1';
     <article>
       <header>
         <section class="legal-banner">
-          <p><strong>Draft.</strong> All submissions reach our privacy team. Acknowledgement within 10 business days; resolution within 30 days (CCPA / CPRA) or one month (GDPR / UK GDPR), extensible by up to two months for genuinely complex requests with notice to you. We may need to verify your identity before acting on a request.</p>
-          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-04-30</code></p>
+          <p><strong>Draft.</strong> All submissions go to privacy@seald.nromomentum.com. Acknowledgement within 10 business days; resolution within 30 days (Israel Privacy Law; CCPA / CPRA), extensible where the law allows, with notice to you. We may need to verify your identity before acting on a request.</p>
+          <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-30</code></p>
         </section>
         <h1>Your privacy choices</h1>
-        <p>Use this form to exercise rights under the GDPR, UK GDPR, CCPA / CPRA, and the U.S. state-omnibus regimes (Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Tennessee, Indiana, Delaware, New Jersey, New Hampshire, Minnesota, Maryland, Rhode Island, Kentucky, plus any others where similar laws apply). It is also the link behind the "Your Privacy Choices" / "Do Not Sell or Share My Personal Information" footer. We do not currently sell or share personal information for cross-context behavioral advertising; submitting an opt-out is still honored on a forward-looking basis.</p>
+        <p>Use this form to exercise rights under Israel's Protection of Privacy Law, the CCPA / CPRA, and the U.S. state-omnibus regimes (Colorado, Connecticut, Virginia, Utah, Texas, Oregon, Montana, Iowa, Tennessee, Indiana, Delaware, New Jersey, New Hampshire, Minnesota, Maryland, Rhode Island, Kentucky, plus any others where similar laws apply). It is also the link behind the "Your Privacy Choices" / "Do Not Sell or Share My Personal Information" footer. We do not currently sell or share personal information for cross-context behavioral advertising; submitting an opt-out is still honored on a forward-looking basis.</p>
       </header>
 
       <section id="form">
@@ -68,8 +68,7 @@ const VERSION = 'dsar_v0.1';
             <select id="dsar-jurisdiction" name="jurisdiction" required aria-required="true">
               <option value="">Select…</option>
               <option value="CCPA / CPRA (California, USA)">CCPA / CPRA (California, USA)</option>
-              <option value="GDPR (European Union)">GDPR (European Union)</option>
-              <option value="UK GDPR (United Kingdom)">UK GDPR (United Kingdom)</option>
+              <option value="Israel Privacy Protection Law">Israel Privacy Protection Law</option>
               <option value="US state omnibus (other than California)">US state omnibus (other than California)</option>
               <option value="Other / I'm not sure">Other / I'm not sure</option>
             </select>
@@ -116,8 +115,8 @@ const VERSION = 'dsar_v0.1';
         <ol>
           <li><strong>Acknowledgement.</strong> Within 10 business days of receipt we send a written acknowledgement and, if needed, a verification request.</li>
           <li><strong>Verification.</strong> We confirm we are talking to you (or your authorized agent). For account-tied requests we typically rely on a code sent to the email on file; for non-account requests we may need additional information.</li>
-          <li><strong>Resolution.</strong> Within 30 calendar days (CCPA / CPRA) or one calendar month (GDPR / UK GDPR) we either fulfill the request, deny it with a reason, or extend the deadline by up to 60 / 60 days for genuinely complex matters and notify you of the extension.</li>
-          <li><strong>Appeal.</strong> If you disagree with our decision you can reply to the same thread to request internal review (state-omnibus regimes). EU/UK residents may also lodge a complaint with their supervisory authority — see your local data-protection authority.</li>
+          <li><strong>Resolution.</strong> Within 30 calendar days (Israel Privacy Law; CCPA / CPRA) we either fulfill the request or deny it with a reason. Where U.S. state law allows, we may extend the deadline for genuinely complex matters and will notify you of the extension.</li>
+          <li><strong>Appeal.</strong> If you disagree with our decision you can reply to the same thread to request internal review (state-omnibus regimes). Israeli residents may appeal a refusal to the Magistrates' Court within 30 days, or complain to the Privacy Protection Authority at ppa@justice.gov.il.</li>
         </ol>
       </section>
 

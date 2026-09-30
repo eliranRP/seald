@@ -126,7 +126,7 @@ describe('DSAR form submit handler — required-field validation', () => {
   it('shows the inline error and does not navigate when the name is missing', () => {
     buildFormDom({
       email: 'a@b.com',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: ['access'],
     });
     loadAndSubmit();
@@ -137,7 +137,7 @@ describe('DSAR form submit handler — required-field validation', () => {
   it('shows the inline error when the email is missing', () => {
     buildFormDom({
       name: 'Jane',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: ['access'],
     });
     loadAndSubmit();
@@ -160,7 +160,7 @@ describe('DSAR form submit handler — required-field validation', () => {
     buildFormDom({
       name: 'Jane',
       email: 'a@b.com',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: [],
     });
     loadAndSubmit();
@@ -184,7 +184,7 @@ describe('DSAR form submit handler — required-field validation', () => {
     buildFormDom({
       name: 'Jane Doe',
       email: 'jane@example.com',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: ['access'],
     });
     loadAndSubmit();
@@ -201,7 +201,7 @@ describe('DSAR form submit handler — mailto generation', () => {
     buildFormDom({
       name: 'Jane Doe',
       email: 'jane@example.com',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: ['access', 'delete'],
     });
     loadAndSubmit();
@@ -235,7 +235,7 @@ describe('DSAR form submit handler — mailto generation', () => {
     buildFormDom({
       name: 'Jane Doe',
       email: 'jane@example.com',
-      jurisdiction: 'GDPR (European Union)',
+      jurisdiction: 'Israel Privacy Protection Law',
       types: ['portability'],
     });
     loadAndSubmit();
@@ -248,7 +248,7 @@ describe('DSAR form submit handler — mailto generation', () => {
     buildFormDom({
       name: 'יוסף Cohen 👋',
       email: 'yosef@example.com',
-      jurisdiction: 'UK GDPR (United Kingdom)',
+      jurisdiction: 'Israel Privacy Protection Law',
       details: 'Please delete account "abc / 123" — שלום.',
       types: ['delete'],
     });
@@ -265,7 +265,7 @@ describe('DSAR form submit handler — mailto generation', () => {
     buildFormDom({
       name: '  Jane Doe  ',
       email: '  jane@example.com  ',
-      jurisdiction: '  GDPR (European Union)  ',
+      jurisdiction: '  Israel Privacy Protection Law  ',
       details: '  some detail  ',
       types: ['access'],
     });
@@ -274,7 +274,7 @@ describe('DSAR form submit handler — mailto generation', () => {
     const body = url.searchParams.get('body') ?? '';
     expect(body).toContain('Name: Jane Doe');
     expect(body).toContain('Email: jane@example.com');
-    expect(body).toContain('Jurisdiction: GDPR (European Union)');
+    expect(body).toContain('Jurisdiction: Israel Privacy Protection Law');
     expect(body).toContain('some detail');
   });
 });

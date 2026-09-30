@@ -130,17 +130,18 @@ describe('operator identity on public pages', () => {
 
   it('bumps the version and last-updated date on every page whose operator text changed', () => {
     const expected: Record<string, string> = {
-      'src/pages/legal/terms.astro': 'terms_v0.2',
-      'src/pages/legal/privacy.astro': 'privacy_v0.2',
-      'src/pages/legal/dpa.astro': 'dpa_v0.2',
+      'src/pages/legal/terms.astro': 'terms_v0.3',
+      'src/pages/legal/privacy.astro': 'privacy_v0.3',
+      'src/pages/legal/dpa.astro': 'dpa_v0.3',
       'src/pages/legal/imprint.astro': 'imprint_v0.2',
       'src/pages/legal/esign-disclosure.astro': 'esign_v0.3',
       'src/pages/legal/aup.astro': 'aup_v0.2',
-      'src/pages/legal/cookies.astro': 'cookies_v0.3',
-      'src/pages/legal/accessibility.astro': 'accessibility_v0.2',
+      'src/pages/legal/cookies.astro': 'cookies_v0.4',
+      'src/pages/legal/accessibility.astro': 'accessibility_v0.3',
       'src/pages/legal/responsible-disclosure.astro': 'responsible_disclosure_v0.2',
-      'src/pages/legal/sub-processors.astro': 'sub_processors_v0.2',
-      'src/pages/contact.astro': 'contact_v0.2',
+      'src/pages/legal/sub-processors.astro': 'sub_processors_v0.3',
+      'src/pages/contact.astro': 'contact_v0.3',
+      'src/pages/dsar.astro': 'dsar_v0.2',
     };
     for (const [rel, version] of Object.entries(expected)) {
       const source = read(resolve(LANDING, rel));
@@ -180,6 +181,8 @@ describe('operator identity on public pages', () => {
     expect(imprint).not.toContain('ec.europa.eu/consumers/odr');
     expect(privacy).not.toContain('EU representative');
     expect(privacy).not.toContain('UK representative');
+    expect(privacy).toContain('Your rights — Israel');
+    expect(privacy).not.toMatch(/GDPR|Standard Contractual|\bEEA\b/);
   });
 
   it('agrees that post is service and email to privacy@ is only a copy', () => {

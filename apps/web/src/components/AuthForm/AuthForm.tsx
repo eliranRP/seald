@@ -70,7 +70,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [keep, setKeep] = useState(true);
-  // Combined ESIGN/GDPR attestation (audit C: SignUp #10). One checkbox
+  // Combined ESIGN and privacy-policy attestation (audit C: SignUp #10). One checkbox
   // attests BOTH that the user is of legal age (T-24) AND that they
   // agree to Seald's Terms + Privacy Policy. ESIGN-valid for a single
   // affirmative consent covering multiple disclosures.
@@ -99,7 +99,7 @@ export const AuthForm = forwardRef<HTMLFormElement, AuthFormProps>((props, ref) 
   // The combined attestation gates the password Submit. It ALSO gates
   // Google + Skip in signup mode — both create an account on our side
   // (Google = OAuth-claimed user, Skip = guest session bound to our
-  // Privacy Policy) so the affirmative ESIGN/GDPR consent must happen
+  // Privacy Policy) so the affirmative ESIGN and privacy-policy consent must happen
   // before either flow starts. Signin mode shows no checkbox and is
   // unaffected.
   const signupConsented = agreed;

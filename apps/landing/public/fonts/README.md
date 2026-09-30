@@ -2,7 +2,7 @@
 
 The landing page references the following families from `globals.css` via
 `@font-face`. To stay off the Google Fonts CDN (per design-guide rule and
-to avoid third-party DNS / GDPR friction) the variable WOFF2 files must
+to avoid third-party DNS / privacy friction) the variable WOFF2 files must
 live in this directory:
 
 | File                            | Family         | Weight axis | License |
