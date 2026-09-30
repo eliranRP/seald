@@ -91,7 +91,7 @@ const VERSION = 'cookies_v0.4';
           <li>You can withdraw your consent at any time, with the same ease as giving it, by clicking <strong>Manage cookie preferences</strong> in the footer of every page.</li>
           <li>Continued browsing is never treated as consent.</li>
         </ul>
-        <p>We honor the Global Privacy Control browser signal as an opt-out for the analytics category, in line with California CCPA Regulations § 7025 and the universal-opt-out mechanisms required by Colorado and Connecticut.</p>
+        <p>If your browser sends the Global Privacy Control ("GPC") signal and you have not made a choice, we treat it as a rejection of the analytics beacon and nothing non-essential fires. We record that rejection in the strictly necessary <code>seald_consent_v1</code> cookie so we don't ask again. If you accepted analytics before turning GPC on, or accept later through <strong>Manage cookie preferences</strong>, that choice stays in place until you change it.</p>
       </section>
 
       <section id="control">
