@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { strictBooleanString } from './strict-boolean-string';
 
 const envSchema = z
   .object({
@@ -97,13 +98,15 @@ const envSchema = z
 
     /**
      * Enables the in-process background worker (poll envelope_jobs, seal
-     * PDFs, send completed emails). Defaults to false so tests don't race
+     * PDFs, send completed emails). Parsed with `strictBooleanString` —
+     * `z.coerce.boolean()` treats the string `"false"` as true and would
+     * start the workers anyway. Defaults to false so tests don't race
      * the worker; production deploys set WORKER_ENABLED=true explicitly
      * (the single-node docker-compose template does this by default). A
      * horizontally-scaled deploy can run dedicated worker nodes while
      * keeping API nodes worker-disabled.
      */
-    WORKER_ENABLED: z.coerce.boolean().default(false),
+    WORKER_ENABLED: strictBooleanString(false),
 
     /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
