@@ -115,9 +115,9 @@ enforce all of them yet.
       `styles.ts`, `test.tsx`, `stories.tsx`, and `index.ts`.
 - [ ] New stories use a title of `L1/`, `L2/`, `L3/`, or `L4/`, with tags
       `autodocs` and `layer-N`. That is the target for new stories. On
-      `main` `4a8c663` these stories have no `layer-N` tag: `VerifyPage`,
-      `DownloadMenu`, `ActivityTimeline`, `SignerStack`,
-      `SignerProgressBar`, `SendingOverlay`, `TemplateFlowHeader`,
+      `main` `4a8c663` these stories have no `layer-N` tag: `DownloadMenu`,
+      `ActivityTimeline`, `SignerStack`, `SignerProgressBar`,
+      `SendingOverlay`, `TemplateFlowHeader`,
       `PdfPageView` (see `CODEBASE_GUIDE.md`). Do not treat a missing tag
       on an untouched story as a regression to fix in the same PR.
 - [ ] Story viewport coverage follows the standing rule above.
