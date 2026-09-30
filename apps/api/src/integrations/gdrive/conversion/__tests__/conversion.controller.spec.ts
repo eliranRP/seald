@@ -43,7 +43,7 @@ function makeCtrl(opts?: { capacity?: number; windowMs?: number }): {
     capacity: opts?.capacity ?? 30,
     windowMs: opts?.windowMs ?? 60_000,
   });
-  const imports = new DriveImportService(svc as unknown as ConversionService, limiter, gateway);
+  const imports = new DriveImportService(svc as unknown as ConversionService, limiter);
   const ctrl = new ConversionController(imports, gateway);
   return { ctrl, svc, gateway, limiter };
 }

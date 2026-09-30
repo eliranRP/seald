@@ -2,9 +2,8 @@ import type { FieldKind } from 'shared';
 
 /**
  * One field as `PUT /envelopes/:id/fields` accepts it, before defaults.
- * This is also the repository's `CreateFieldInput`. Coordinates are
- * normalized 0–1, top-left origin, page ≥ 1. Anchor text and AcroForm
- * reuse extend this module; they do not live in a controller.
+ * Coordinates are normalized 0–1, top-left origin, page ≥ 1. Anchor text
+ * and AcroForm reuse extend this module; they do not live in a controller.
  */
 export interface FieldPlacementInput {
   readonly signer_id: string;
@@ -19,13 +18,30 @@ export interface FieldPlacementInput {
 }
 
 /**
+ * A row ready for `envelope_fields`. `required` is always boolean so the
+ * repository write does not depend on the column default. Width, height,
+ * and link id are null when the caller omitted them.
+ */
+export interface NormalizedFieldPlacement {
+  readonly signer_id: string;
+  readonly kind: FieldKind;
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number | null;
+  readonly height: number | null;
+  readonly required: boolean;
+  readonly link_id: string | null;
+}
+
+/**
  * Apply the place-fields defaults: omitted width, height, and link id
  * become null; omitted required becomes true. `EnvelopesService.replaceFields`
- * calls this so a caller does not depend on the database default.
+ * calls this once so a caller does not depend on the database default.
  */
 export function normalizeFieldPlacements(
   fields: readonly FieldPlacementInput[],
-): FieldPlacementInput[] {
+): NormalizedFieldPlacement[] {
   return fields.map((f) => ({
     signer_id: f.signer_id,
     kind: f.kind,

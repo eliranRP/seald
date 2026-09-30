@@ -8,6 +8,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
+import { pdfWithMalformedCropBox, pdfWithoutMediaBox } from './pdf-geometry-fixtures';
 import type { AppEnv } from '../../config/env.schema';
 import type { Contact } from '../../contacts/contact.entity';
 import {
@@ -392,6 +393,9 @@ class FakeRepo extends EnvelopesRepository {
     this.envelopes.set(envelope_id, { ...e, signers } as Envelope);
     return true;
   }
+  async listApplySigners() {
+    return [];
+  }
   async replaceFields(envelope_id: string, fields: readonly CreateFieldInput[]) {
     const e = this.envelopes.get(envelope_id);
     if (!e) throw new Error('envelope_not_found');
@@ -655,6 +659,20 @@ describe('EnvelopesService — flow coverage', () => {
       await expect(svc.uploadOriginal(OWNER, env.id, huge)).rejects.toBeInstanceOf(
         PayloadTooLargeException,
       );
+    });
+
+    it('accepts a PDF with no MediaBox and a PDF with a malformed CropBox', async () => {
+      const missing = await svc.createDraft(OWNER, { title: 'No box' });
+      const missingOut = await svc.uploadOriginal(OWNER, missing.id, await pdfWithoutMediaBox());
+      expect(missingOut.original_pages).toBeGreaterThanOrEqual(1);
+
+      const malformed = await svc.createDraft(OWNER, { title: 'Bad crop' });
+      const malformedOut = await svc.uploadOriginal(
+        OWNER,
+        malformed.id,
+        await pdfWithMalformedCropBox(),
+      );
+      expect(malformedOut.original_pages).toBeGreaterThanOrEqual(1);
     });
 
     it('415 file_not_pdf when bytes lack the %PDF- magic', async () => {

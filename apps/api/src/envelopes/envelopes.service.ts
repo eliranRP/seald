@@ -38,6 +38,7 @@ import type {
   EnvelopeSortKey,
   ListCursor,
   ListResult,
+  ApplySignerRef,
   SetOriginalFileInput,
   SortDir,
   UpdateDraftMetadataPatch,
@@ -578,6 +579,19 @@ export class EnvelopesService {
       }
       throw err;
     }
+  }
+
+  /**
+   * Signers for template apply, in signing order, with `contact_id`.
+   * The public signer list omits that id; template roles are contact ids.
+   */
+  async listApplySigners(
+    owner_id: string,
+    envelope_id: string,
+  ): Promise<ReadonlyArray<ApplySignerRef>> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    return this.repo.listApplySigners(envelope_id);
   }
 
   async removeSigner(owner_id: string, envelope_id: string, signer_id: string): Promise<void> {

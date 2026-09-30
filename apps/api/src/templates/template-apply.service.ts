@@ -4,15 +4,12 @@ import {
   normalizeTemplateFieldBox,
   type ExpandedTemplateField,
   type TemplateFieldType,
-  type TemplateLastSigner,
 } from 'shared';
 import type { FieldKind } from 'shared';
 import { EnvelopesService } from '../envelopes/envelopes.service';
 import type { EnvelopeField } from '../envelopes/envelope.entity';
-import {
-  normalizeFieldPlacements,
-  type FieldPlacementInput,
-} from '../envelopes/field-placement.service';
+import type { ApplySignerRef } from '../envelopes/envelopes.repository';
+import type { FieldPlacementInput } from '../envelopes/field-placement.service';
 import { inspectPdfBytes, type PdfPageSize } from '../envelopes/pdf-inspection';
 import { TemplatesService } from './templates.service';
 
@@ -42,9 +39,9 @@ export class TemplateApplyNotReadyError extends Error {
 }
 
 /**
- * The envelope signers are not the template's saved roster, or a field
- * does not name a signer in that roster. Nothing is written and
- * `uses_count` stays put. Callers must not fall back to the first signer.
+ * A field names neither a role nor an index, so the browser's
+ * first-signer fallback does not apply. Nothing is written and
+ * `uses_count` stays put.
  */
 export class TemplateRoleUnmappedError extends Error {
   readonly code = 'template_role_unmapped' as const;
@@ -60,11 +57,6 @@ export interface TemplateApplyResult {
   readonly fields: readonly EnvelopeField[];
 }
 
-interface SignerRef {
-  readonly id: string;
-  readonly email: string;
-}
-
 /**
  * Applies a template layout onto a draft envelope.
  *
@@ -78,10 +70,16 @@ interface SignerRef {
  * is already that fraction. Width and height default per kind when the
  * row omitted them.
  *
- * A signer roster that does not match `last_signers` by email, or a
- * field whose role does not resolve, throws `template_role_unmapped`.
+ * `signerRoleId` matches `envelope_signers.contact_id` (the SPA roster
+ * id). `expandTemplateLayout` fills a missing role from
+ * `last_signers[signerIndex]` first. A role that is not on the envelope
+ * is dropped, and so is an out-of-range index. A field with neither is
+ * `template_role_unmapped` — not the first signer.
  *
- * `uses_count` increments only after `replaceFields` succeeds.
+ * `uses_count` increments only after `replaceFields` succeeds. An
+ * expansion that places nothing because every page is out of range
+ * does not write and does not count as a use. `replaceFields`
+ * normalizes the rows; this service does not normalize them again.
  */
 @Injectable()
 export class TemplateApplyService {
@@ -107,17 +105,11 @@ export class TemplateApplyService {
     const pdf = await this.envelopes.readOriginalPdf(ownerId, envelopeId);
     const inspected = await inspectPdfBytes(pdf);
     const expanded = expandTemplateLayout(template.field_layout, totalPages, template.last_signers);
-    const placements = assignTemplateFields(
-      expanded,
-      template.last_signers,
-      envelope.signers,
-      inspected.pageSizes,
-    );
-    const stored = await this.envelopes.replaceFields(
-      ownerId,
-      envelopeId,
-      normalizeFieldPlacements(placements),
-    );
+    if (expanded.length === 0) throw new TemplateApplyNotReadyError('missing_pages');
+    const signers = await this.envelopes.listApplySigners(ownerId, envelopeId);
+    if (signers.length === 0) throw new TemplateApplyNotReadyError('no_signers');
+    const placements = assignTemplateFields(expanded, signers, inspected.pageSizes);
+    const stored = await this.envelopes.replaceFields(ownerId, envelopeId, placements);
     const updated = await this.templates.use(ownerId, templateId);
     return { template_id: updated.id, uses_count: updated.uses_count, fields: stored };
   }
@@ -140,34 +132,25 @@ function toEnvelopeKind(type: TemplateFieldType): FieldKind {
   }
 }
 
-function emailsLineUp(
-  lastSigners: ReadonlyArray<TemplateLastSigner>,
-  signers: ReadonlyArray<SignerRef>,
-): boolean {
-  if (lastSigners.length === 0 || lastSigners.length !== signers.length) return false;
-  return lastSigners.every((row, index) => {
-    const signer = signers[index];
-    return signer !== undefined && row.email.toLowerCase() === signer.email.toLowerCase();
-  });
-}
-
 /**
- * When `last_signers` and the envelope signers are the same list (same
- * length, emails equal in order, case-insensitive), a field follows its
- * `signerRoleId` or `signerIndex`. A mismatch throws
- * {@link TemplateRoleUnmappedError} instead of using the first signer.
+ * Bind like the SPA's `rebindFieldsToSigners`, except a field with
+ * neither a role nor an index throws {@link TemplateRoleUnmappedError}
+ * instead of using the first signer.
+ *
+ * A set `signerRoleId` that is not a `contact_id` on the envelope is
+ * dropped and does not fall through to `signerIndex`. An index past the
+ * roster is dropped.
  */
 function assignTemplateFields(
   fields: ReadonlyArray<ExpandedTemplateField>,
-  lastSigners: ReadonlyArray<TemplateLastSigner>,
-  signers: ReadonlyArray<SignerRef>,
+  signers: ReadonlyArray<ApplySignerRef>,
   pageSizes: readonly PdfPageSize[],
 ): FieldPlacementInput[] {
   if (signers.length === 0) throw new TemplateApplyNotReadyError('no_signers');
-  if (!emailsLineUp(lastSigners, signers)) throw new TemplateRoleUnmappedError();
-  return fields.map((field) => {
-    const signerId = signerIdForField(field, lastSigners, signers);
-    if (signerId === undefined) throw new TemplateRoleUnmappedError();
+  const placements: FieldPlacementInput[] = [];
+  for (const field of fields) {
+    const signerId = signerIdForField(field, signers);
+    if (signerId === undefined) continue;
     const page = pageSizes.find((size) => size.page === field.page);
     if (page === undefined || !(page.width > 0) || !(page.height > 0)) {
       throw new TemplateApplyNotReadyError('missing_pages');
@@ -183,23 +166,26 @@ function assignTemplateFields(
       height: box.height,
       ...(field.linkId !== undefined ? { link_id: field.linkId } : {}),
     };
-    return placement;
-  });
+    placements.push(placement);
+  }
+  return placements;
 }
 
+/**
+ * `undefined` means drop the field. A field with no role and no index
+ * throws instead of binding `signers[0]`.
+ */
 function signerIdForField(
   field: ExpandedTemplateField,
-  lastSigners: ReadonlyArray<TemplateLastSigner>,
-  signers: ReadonlyArray<SignerRef>,
+  signers: ReadonlyArray<ApplySignerRef>,
 ): string | undefined {
-  let index: number | undefined;
   if (field.signerRoleId !== undefined) {
-    const found = lastSigners.findIndex((row) => row.id === field.signerRoleId);
-    if (found >= 0) index = found;
+    const match = signers.find((signer) => signer.contact_id === field.signerRoleId);
+    return match?.id;
   }
-  if (index === undefined && field.signerIndex !== undefined) {
-    index = field.signerIndex;
+  if (field.signerIndex !== undefined) {
+    if (field.signerIndex < 0 || field.signerIndex >= signers.length) return undefined;
+    return signers[field.signerIndex]?.id;
   }
-  if (index === undefined) return undefined;
-  return signers[index]?.id;
+  throw new TemplateRoleUnmappedError();
 }

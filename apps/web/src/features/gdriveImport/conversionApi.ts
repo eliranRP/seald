@@ -24,7 +24,13 @@ export type ConversionErrorCode =
    * Synthesized client-side when the SPA issues DELETE on the job — the
    * orchestrator surfaces it as a benign close (no failure dialog).
    */
-  | 'cancelled';
+  | 'cancelled'
+  /**
+   * A job failed with a code this client does not know. Distinct from
+   * `conversion-failed`, which means the converter itself failed or the
+   * code was missing.
+   */
+  | 'import-failed';
 
 export interface ConversionStartRequest {
   readonly accountId: string;

@@ -50,13 +50,8 @@ export {
   toTemplateCoordV2,
 } from './template-coords';
 export type { NormalizedTemplateBox, TemplatePageAspect } from './template-coords';
-export {
-  DRIVE_IMPORT_ERROR_CODES,
-  driveImportErrorCode,
-  driveImportStep,
-  pdfFileNameForDriveImport,
-} from './drive-import';
-export type { DriveImportErrorCode, DriveImportStep } from './drive-import';
+export { driveImportErrorCode, driveImportStep, pdfFileNameForDriveImport } from './drive-import';
+export type { DriveImportErrorCode } from './drive-import';
 export {
   ENVELOPE_STATUSES,
   DELIVERY_MODES,

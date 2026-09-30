@@ -82,14 +82,69 @@ function normalizePageRotation(angle: number): PdfPageRotation {
   return 0;
 }
 
-function copyBox(box: PdfUserBox): PdfUserBox {
-  return { x: box.x, y: box.y, width: box.width, height: box.height };
+/** pdf.js default page when `/MediaBox` is missing: US Letter, 612×792 pt. */
+const LETTER_BOX: PdfUserBox = { x: 0, y: 0, width: 612, height: 792 };
+
+function finiteBox(box: PdfUserBox): PdfUserBox | undefined {
+  const { x, y, width, height } = box;
+  if (![x, y, width, height].every((n) => Number.isFinite(n))) return undefined;
+  const left = Math.min(x, x + width);
+  const bottom = Math.min(y, y + height);
+  const boxWidth = Math.abs(width);
+  const boxHeight = Math.abs(height);
+  if (!(boxWidth > 0) || !(boxHeight > 0)) return undefined;
+  return { x: left, y: bottom, width: boxWidth, height: boxHeight };
 }
 
+/** Intersection of the crop with the media box. An empty overlap uses the media box. */
+function clipToMedia(crop: PdfUserBox, media: PdfUserBox): PdfUserBox {
+  const left = Math.max(crop.x, media.x);
+  const bottom = Math.max(crop.y, media.y);
+  const right = Math.min(crop.x + crop.width, media.x + media.width);
+  const top = Math.min(crop.y + crop.height, media.y + media.height);
+  const width = right - left;
+  const height = top - bottom;
+  if (!(width > 0) || !(height > 0)) return media;
+  return { x: left, y: bottom, width, height };
+}
+
+function readMediaBox(page: PDFPage): PdfUserBox {
+  try {
+    return finiteBox(page.getMediaBox()) ?? LETTER_BOX;
+  } catch {
+    return LETTER_BOX;
+  }
+}
+
+function readCropBox(page: PDFPage, mediaBox: PdfUserBox): PdfUserBox {
+  try {
+    const crop = finiteBox(page.getCropBox());
+    if (!crop) return mediaBox;
+    return clipToMedia(crop, mediaBox);
+  } catch {
+    return mediaBox;
+  }
+}
+
+function readRotation(page: PDFPage): PdfPageRotation {
+  try {
+    return normalizePageRotation(page.getRotation().angle);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Displayed size at pdf.js scale 1. A missing or unusable MediaBox is
+ * Letter. A CropBox that is not a 4-number rectangle falls back to the
+ * MediaBox. Reversed corners are normalized, then the crop is clipped
+ * to the media box. Geometry errors stay inside this function so
+ * `inspectPdfBytes` does not report `file_unreadable`.
+ */
 function pageSizeOf(page: PDFPage, pageNumber: number): PdfPageSize {
-  const cropBox = copyBox(page.getCropBox());
-  const mediaBox = copyBox(page.getMediaBox());
-  const rotation = normalizePageRotation(page.getRotation().angle);
+  const mediaBox = readMediaBox(page);
+  const cropBox = readCropBox(page, mediaBox);
+  const rotation = readRotation(page);
   const swap = rotation === 90 || rotation === 270;
   return {
     page: pageNumber,

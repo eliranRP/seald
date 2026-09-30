@@ -14,6 +14,7 @@ export const DRIVE_IMPORT_ERROR_CODES = [
   'unsupported-mime',
   'rate-limited',
   'cancelled',
+  'import-failed',
 ] as const;
 
 export type DriveImportErrorCode = (typeof DRIVE_IMPORT_ERROR_CODES)[number];
@@ -21,10 +22,11 @@ export type DriveImportErrorCode = (typeof DRIVE_IMPORT_ERROR_CODES)[number];
 const KNOWN: ReadonlySet<string> = new Set(DRIVE_IMPORT_ERROR_CODES);
 
 export function driveImportErrorCode(candidate: string | undefined): DriveImportErrorCode {
-  if (candidate !== undefined && KNOWN.has(candidate)) {
+  if (candidate !== undefined && candidate.length > 0 && KNOWN.has(candidate)) {
     return candidate as DriveImportErrorCode;
   }
-  return 'conversion-failed';
+  if (candidate === undefined || candidate.length === 0) return 'conversion-failed';
+  return 'import-failed';
 }
 
 export function pdfFileNameForDriveImport(name: string): string {
@@ -40,7 +42,8 @@ export type DriveImportStep =
 
 /**
  * Same branches the import hook used: `done` without an asset URL
- * keeps polling; `failed` uses the view's code or `conversion-failed`.
+ * keeps polling. `failed` uses the view's code. A missing code is
+ * `conversion-failed`. Any other string is `import-failed`.
  */
 export function driveImportStep(view: {
   readonly status: string;

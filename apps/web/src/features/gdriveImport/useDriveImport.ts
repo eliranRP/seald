@@ -149,8 +149,9 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
           await runPollLoop(start.jobId, file);
         } catch (err) {
           if (cancelledRef.current) return;
-          // Map the API's `{ error: '<code>' }` body onto our enum;
-          // anything we can't recognise becomes 'conversion-failed'.
+          // Map the API's `{ error: '<code>' }` body onto our enum.
+          // A missing code is `conversion-failed`. Any other unknown
+          // string is `import-failed`.
           setState({ kind: 'failed', file, error: extractStartErrorCode(err) });
         }
       })();

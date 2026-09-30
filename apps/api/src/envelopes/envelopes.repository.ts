@@ -1,7 +1,7 @@
 import type { z } from 'zod';
 import type { FieldSchema, SignatureFormat, SignerRole } from 'shared';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
-import type { FieldPlacementInput } from './field-placement.service';
+import type { NormalizedFieldPlacement } from './field-placement.service';
 
 export type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent };
 
@@ -61,8 +61,14 @@ export interface AddSignerInput {
   readonly role?: SignerRole;
 }
 
-/** Same shape as {@link FieldPlacementInput}. One field-input type. */
-export type CreateFieldInput = FieldPlacementInput;
+/** Normalized row passed to `replaceFields`. Callers run `normalizeFieldPlacements` first. */
+export type CreateFieldInput = NormalizedFieldPlacement;
+
+/** Envelope signer id plus the contact id a template roster uses. */
+export interface ApplySignerRef {
+  readonly id: string;
+  readonly contact_id: string | null;
+}
 
 export interface SendDraftInput {
   readonly envelope_id: string;
@@ -318,6 +324,14 @@ export abstract class EnvelopesRepository {
 
   abstract addSigner(envelope_id: string, input: AddSignerInput): Promise<EnvelopeSigner>;
   abstract removeSigner(envelope_id: string, signer_id: string): Promise<boolean>;
+
+  /**
+   * Signers in signing order, including `contact_id`. Template apply
+   * matches `signerRoleId` to that contact id. The public signer wire
+   * type stays without it.
+   */
+  abstract listApplySigners(envelope_id: string): Promise<ReadonlyArray<ApplySignerRef>>;
+
   abstract replaceFields(
     envelope_id: string,
     fields: ReadonlyArray<CreateFieldInput>,

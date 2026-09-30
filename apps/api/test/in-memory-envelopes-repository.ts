@@ -37,11 +37,13 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   readonly envelopes = new Map<string, Envelope>();
   readonly events: EnvelopeEvent[] = [];
   readonly shortCodes = new Set<string>();
+  private readonly signerContacts = new Map<string, string | null>();
 
   reset(): void {
     this.envelopes.clear();
     this.events.length = 0;
     this.shortCodes.clear();
+    this.signerContacts.clear();
     this.signerTokenHashes.clear();
     this.reminderClock.clear();
     this.signerMeta.clear();
@@ -334,6 +336,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       declined_at: null,
     };
     this.envelopes.set(envelope_id, { ...e, signers: [...e.signers, signer] });
+    this.signerContacts.set(signer.id, input.contact_id ?? null);
     return signer;
   }
 
@@ -344,7 +347,17 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const signers = e.signers.filter((s) => s.id !== signer_id);
     if (signers.length === before) return false;
     this.envelopes.set(envelope_id, { ...e, signers });
+    this.signerContacts.delete(signer_id);
     return true;
+  }
+
+  async listApplySigners(envelope_id: string) {
+    const e = this.envelopes.get(envelope_id);
+    if (!e) return [];
+    return e.signers.map((signer) => ({
+      id: signer.id,
+      contact_id: this.signerContacts.get(signer.id) ?? null,
+    }));
   }
 
   async replaceFields(

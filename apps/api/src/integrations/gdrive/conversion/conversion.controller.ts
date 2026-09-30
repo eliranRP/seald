@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -56,8 +57,15 @@ export class ConversionController {
     @Body() body: ConversionStartRequest,
   ): Promise<ConversionStartResponse> {
     this.requireFlag();
+    if (!body || typeof body !== 'object') {
+      throw new BadRequestException('body_required');
+    }
     try {
-      return await this.imports.start(user.id, body);
+      return await this.imports.start(user.id, {
+        accountId: body.accountId,
+        fileId: body.fileId,
+        mimeType: body.mimeType,
+      });
     } catch (err) {
       throw mapConversionStartHttpError(err);
     }

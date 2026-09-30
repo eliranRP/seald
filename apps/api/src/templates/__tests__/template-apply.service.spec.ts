@@ -62,6 +62,7 @@ function makeService(): {
   getById: jest.Mock;
   replaceFields: jest.Mock;
   readOriginalPdf: jest.Mock;
+  listApplySigners: jest.Mock;
 } {
   const get = jest.fn(async () => template());
   const use = jest.fn(async () => template({ uses_count: 4 }));
@@ -72,13 +73,22 @@ function makeService(): {
       { id: 'signer-b', email: 'bea@example.com' },
     ],
   }));
+  const listApplySigners = jest.fn(async () => [
+    { id: 'signer-a', contact_id: 'role-a' },
+    { id: 'signer-b', contact_id: 'role-b' },
+  ]);
   const replaceFields = jest.fn(
     async (_owner: string, _id: string, fields: readonly EnvelopeField[]) =>
       fields.map((field, index) => ({ ...field, id: `field-${index}` })),
   );
   const readOriginalPdf = jest.fn(async () => pdfBytes);
   const templates = { get, use } as unknown as TemplatesService;
-  const envelopes = { getById, replaceFields, readOriginalPdf } as unknown as EnvelopesService;
+  const envelopes = {
+    getById,
+    replaceFields,
+    readOriginalPdf,
+    listApplySigners,
+  } as unknown as EnvelopesService;
   return {
     svc: new TemplateApplyService(templates, envelopes),
     get,
@@ -86,6 +96,7 @@ function makeService(): {
     getById,
     replaceFields,
     readOriginalPdf,
+    listApplySigners,
   };
 }
 
@@ -133,7 +144,6 @@ describe('TemplateApplyService', () => {
         y: placed[0]!.y,
         width: placed[0]!.width,
         height: placed[0]!.height,
-        required: true,
         link_id: 'tpl-link-1',
       },
       {
@@ -144,17 +154,17 @@ describe('TemplateApplyService', () => {
         y: placed[1]!.y,
         width: placed[1]!.width,
         height: placed[1]!.height,
-        required: true,
         link_id: 'tpl-link-1',
       },
     ]);
     expect(out.fields).toHaveLength(2);
   });
 
-  it('uses signerIndex when emails line up and no role id is stored', async () => {
+  it('uses signerIndex when no role was stored and last_signers cannot backfill one', async () => {
     const { svc, get, replaceFields } = makeService();
     get.mockResolvedValue(
       template({
+        last_signers: [],
         field_layout: [{ type: 'date', pageRule: 'first', x: 1, y: 2, signerIndex: 1 }],
       }),
     );
@@ -208,14 +218,39 @@ describe('TemplateApplyService', () => {
     expect(use).not.toHaveBeenCalled();
   });
 
-  it('returns template_role_unmapped when emails do not line up', async () => {
-    const { svc, getById, replaceFields, use } = makeService();
-    getById.mockResolvedValue({
-      original_pages: 1,
-      signers: [{ id: 'signer-z', email: 'someone-else@example.com' }],
-    });
+  it('binds by contact id and drops a field whose signer was removed', async () => {
+    const { svc, get, listApplySigners, replaceFields, use } = makeService();
+    get.mockResolvedValue(
+      template({
+        last_signers: [
+          ...LAST_SIGNERS,
+          { id: 'role-c', name: 'Cam', email: 'cam@example.com', color: '#778899' },
+        ],
+        field_layout: [
+          { type: 'signature', pageRule: 'first', x: 10, y: 20, signerRoleId: 'role-b' },
+          { type: 'date', pageRule: 'first', x: 30, y: 40, signerRoleId: 'role-c' },
+        ],
+      }),
+    );
+    listApplySigners.mockResolvedValue([
+      { id: 'signer-z', contact_id: 'someone-else' },
+      { id: 'signer-b', contact_id: 'role-b' },
+    ]);
+    await svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID);
+    const placed = replaceFields.mock.calls[0]?.[2] as Array<{ signer_id: string; kind: string }>;
+    expect(placed).toEqual([expect.objectContaining({ signer_id: 'signer-b', kind: 'signature' })]);
+    expect(use).toHaveBeenCalled();
+  });
+
+  it('does not count a use when every page is out of range', async () => {
+    const { svc, get, replaceFields, use } = makeService();
+    get.mockResolvedValue(
+      template({
+        field_layout: [{ type: 'signature', pageRule: 9, x: 10, y: 20, signerRoleId: 'role-a' }],
+      }),
+    );
     await expect(svc.apply(OWNER, TEMPLATE_ID, ENVELOPE_ID)).rejects.toBeInstanceOf(
-      TemplateRoleUnmappedError,
+      TemplateApplyNotReadyError,
     );
     expect(replaceFields).not.toHaveBeenCalled();
     expect(use).not.toHaveBeenCalled();

@@ -25,8 +25,6 @@ import { TokenExpiredError } from './dto/error-codes';
 import { DriveFilesService, type DriveFile } from './drive-files.service';
 import { mapDriveError, mapDriveFilesHttpError } from './drive-files.http-errors';
 
-export { GDRIVE_FILES_PROXY, type DriveFile, type FilesProxy } from './drive-files.service';
-
 /**
  * OAuth + Drive proxy routes for the Drive integration.
  *

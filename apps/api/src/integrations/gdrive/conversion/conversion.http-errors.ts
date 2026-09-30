@@ -1,6 +1,5 @@
-import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import {
-  ConversionBodyRequiredError,
   InvalidConversionAccountIdError,
   InvalidConversionFileIdError,
   UnsupportedConversionMimeError,
@@ -9,14 +8,12 @@ import { RateLimitedError } from '../rate-limiter';
 
 /**
  * Maps `DriveImportService.start` failures onto the conversion route's
- * existing HTTP bodies. Unknown errors become `conversion-failed` and
- * the response never includes `err.message`.
+ * existing HTTP bodies. Only `NotFoundException` passes through. Any
+ * other `HttpException` becomes `conversion-failed`. The response never
+ * includes `err.message`.
  */
 export function mapConversionStartHttpError(err: unknown): HttpException {
-  if (err instanceof HttpException) return err;
-  if (err instanceof ConversionBodyRequiredError) {
-    return new BadRequestException('body_required');
-  }
+  if (err instanceof NotFoundException) return err;
   if (err instanceof InvalidConversionAccountIdError) {
     return new BadRequestException({
       code: 'invalid-account-id',

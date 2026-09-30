@@ -182,6 +182,31 @@ describe('useDriveImport', () => {
     expect(onReady).not.toHaveBeenCalled();
   });
 
+  it('failed: an unknown error code is a generic import failure', async () => {
+    startConversion.mockResolvedValue({ jobId: 'job-unknown', status: 'pending' });
+    pollConversion.mockResolvedValue({
+      jobId: 'job-unknown',
+      status: 'failed',
+      errorCode: 'not-a-real-code' as 'conversion-failed',
+    });
+
+    const onReady = vi.fn();
+    const { result } = renderHook(
+      () => useDriveImport({ accountId: 'acct-1', onReady, pollIntervalMs: 5 }),
+      { wrapper },
+    );
+
+    await act(async () => {
+      result.current.beginImport(DOC_FILE);
+    });
+
+    await waitFor(() => expect(result.current.state.kind).toBe('failed'));
+    if (result.current.state.kind === 'failed') {
+      expect(result.current.state.error).toBe('import-failed');
+    }
+    expect(onReady).not.toHaveBeenCalled();
+  });
+
   it('start error: surfaces synthesized failed state when POST throws', async () => {
     startConversion.mockRejectedValue(new Error('boom'));
 

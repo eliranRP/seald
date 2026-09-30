@@ -2,13 +2,7 @@ import { Module, Logger, type Provider } from '@nestjs/common';
 import { APP_ENV } from '../../config/config.module';
 import type { AppEnv } from '../../config/env.schema';
 import { AuthModule } from '../../auth/auth.module';
-import {
-  GDriveController,
-  GDRIVE_CONFIG,
-  GDRIVE_FILES_PROXY,
-  type GDriveConfig,
-  type FilesProxy,
-} from './gdrive.controller';
+import { GDriveController, GDRIVE_CONFIG, type GDriveConfig } from './gdrive.controller';
 import { GDriveService, GOOGLE_OAUTH_CLIENT } from './gdrive.service';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY } from './gdrive.repository';
@@ -21,7 +15,7 @@ import { makeDriveUploader } from './drive-uploader.adapters';
 import { OAuthStateStore } from './oauth-pkce';
 import { FetchGoogleOAuthClient } from './google-oauth.client';
 import { GDriveRateLimiter } from './rate-limiter';
-import { DriveFilesService } from './drive-files.service';
+import { DriveFilesService, GDRIVE_FILES_PROXY, type FilesProxy } from './drive-files.service';
 import { makeFilesProxy } from './files-proxy';
 
 export { GDRIVE_FILES_PROXY };

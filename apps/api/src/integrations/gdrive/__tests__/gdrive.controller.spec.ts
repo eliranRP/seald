@@ -1,8 +1,8 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../../../auth/auth-user';
 import { IS_PUBLIC_KEY } from '../../../auth/public.decorator';
-import { GDriveController, type FilesProxy } from '../gdrive.controller';
-import { DriveFilesService } from '../drive-files.service';
+import { GDriveController } from '../gdrive.controller';
+import { DriveFilesService, type FilesProxy } from '../drive-files.service';
 import { GDriveService, type GoogleOAuthClient } from '../gdrive.service';
 import { GDriveKmsService, type KmsClientPort } from '../gdrive-kms.service';
 import { type GDriveAccount, type GDriveRepository } from '../gdrive.repository';

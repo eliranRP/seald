@@ -344,6 +344,10 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     return true;
   }
 
+  async listApplySigners() {
+    return [];
+  }
+
   async replaceFields(
     envelope_id: string,
     fields: readonly CreateFieldInput[],
