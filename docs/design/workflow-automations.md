@@ -353,7 +353,7 @@ New `email_kind` value `automation_copy`, added with `alter type … add value` 
 
 Template files under `apps/api/src/email/templates/automation_copy/`, registered in `TemplateService` and in `TEMPLATE_KINDS` inside `email-dispatcher.service.ts`. Subject and body state that the sender asked Seald to forward a notice. Include title, status, signer name when present, verify URL, and a link to the envelope in the app (`/document/<id>`). Do not include a signing link.
 
-`TEMPLATE_KINDS` also gains `owner_approval` in the approvals pull request (see the MCP doc). That template is the owner’s second factor, not an `automation_copy`. Recipe mail does not reuse it. The stop link on `automation_copy` is a separate single-use hash and is not an approval token.
+`TEMPLATE_KINDS` also gains `approval_request` and `approval_denied` in the approvals pull request (see the MCP doc). Those templates use the same 560px shell. They are the owner’s second factor, not an `automation_copy`. Recipe mail does not reuse them. The stop link on `automation_copy` is a separate single-use hash and is not an approval token.
 
 `dedupe_key`: `automation_copy:<run_id>:<email>`. A worker retry that inserts again hits the unique index and `insertOutboundEmailIdempotent` treats that as success.
 

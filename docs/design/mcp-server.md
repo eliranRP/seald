@@ -493,7 +493,7 @@ Input: `{ "envelope_id", "confirmation_token", "idempotency_key"? }`.
 
 Each key and grant has `require_owner_approval`, default true. Only a Supabase session can set it to false. No tool argument can.
 
-- When it is true, the tool returns `{ "status": "approval_pending", "approval_id", "summary" }` and does not call `sendDraft`. That result is success, not an error. Every request emails the account owner. The email link opens a standalone confirmation page. The token in that link is the second factor. The in-app queue is a secondary path for someone already in Seald. Only then does the API call `send`. The agent polls `approvals_get` or `envelopes_status`.
+- When it is true, the tool returns `{ "status": "approval_pending", "message": "pending owner approval", "approval_id" }` and does not call `sendDraft`. That result is success, not an error. The server emails the owner and, after the owner posts Approve, the server runs the action. The agent does not send. It polls `approvals_get` until the status is `done`, `denied`, or `expired`.
 - Setting the flag to false is the unattended opt-in, behind a warning sheet quoting Terms §4.1. Daily caps still apply.
 - Even then, a signer email that is not already in the owner’s contacts or on an earlier envelope of that owner falls back to approval. The only exception is `allow_new_recipients`, also set only in the SPA.
 - An edit to the draft after the approval request changes `subject_hash` and the request can no longer be approved.
@@ -502,7 +502,7 @@ Remind, cancel, and save-to-Drive use the same default. MCP elicitation is not t
 
 The tool result after approval is the `Envelope` with status `awaiting_others`. It does not include `sign_url`. Send must not run until the plaintext-token PR (below) has removed `?t=` from `outbound_emails.payload`.
 
-**`approvals_get`** → reads the approval row for this owner. Scope `envelopes:read`. `readOnlyHint: true`. Input `{ "approval_id" }`. Output `{ "status": "pending|approved|rejected|expired", "summary" }`. The agent cannot set `approved`.
+**`approvals_get`** → reads the approval row for this owner. Scope `envelopes:read`. `readOnlyHint: true`. Input `{ "approval_id" }`. Output `{ "status": "pending|done|denied|expired" }`. The agent cannot set the status. `done` means the server already ran the action.
 
 **`envelopes_remind`** → `EnvelopesService.remindSigner`. Scope `envelopes:send`. `openWorldHint: true`.
 
@@ -566,9 +566,9 @@ The default folder is “My Drive / Seald”. If `folder_id` is omitted, the ser
 
 ### Approvals — scope `envelopes:read` to list, and the owner’s session to decide
 
-**`approvals_list`** → requests for this owner. `readOnlyHint: true`. Input `{ "status"?: "pending|approved|rejected|expired", "limit"?, "cursor"? }`. Output `{ "items": [{ "approval_id", "tool", "summary", "status", "requested_at", "expires_at" }], "next_cursor" }`. `status` is a column on the row. A pending row whose `expires_at` has passed is returned as `expired` and is not approvable.
+**`approvals_list`** → requests for this owner. `readOnlyHint: true`. Input `{ "status"?: "pending|done|denied|expired", "limit"?, "cursor"? }`. Output `{ "items": [{ "approval_id", "tool", "status", "requested_at", "expires_at" }], "next_cursor" }`. A pending row whose `expires_at` has passed is returned as `expired`.
 
-**`approvals_get`** already described above is the single-row read. There is no `approvals_decide` tool. The agent cannot set `approved`. Approving or declining is the session endpoint in the settings section.
+**`approvals_get`** already described above is the single-row read. There is no `approvals_decide` tool. The agent cannot Approve or Deny. The server runs the action after a valid POST.
 
 Resource `seald://approvals/pending` is the first page of `approvals_list`.
 
@@ -637,7 +637,7 @@ Message body, in short:
 2. Add signers. Create contacts only if the user asked to save them.
 3. If `template_id` is set, `templates_use`. Otherwise `envelopes_suggest_fields`, show the suggestion, then `envelopes_place_fields` after the user accepts the placement.
 4. `envelopes_preview_send`. Show the summary. The owner approves in Seald. The token alone is not approval.
-5. `envelopes_send` only after `approvals_get` says `approved`. If `require_owner_approval` is already false and every recipient is already known, send may proceed in the same turn. The agent never turns that flag off.
+5. `envelopes_send` returns “pending owner approval”. Poll `approvals_get` until it says `done`. If `require_owner_approval` is already false and every recipient is already known, send may proceed in the same turn. The agent never turns that flag off.
 6. Report status, signer names, and the verify path `/verify/{short_code}`. Do not include a signing link.
 
 **`status-check`** — argument `envelope_id` or `query`. Tells the model to call `envelopes_search` or `envelopes_status`, then summarize who has viewed or signed. Read-only.
@@ -784,35 +784,50 @@ These routes 404 when the flag is off or `MCP_DISABLED` is set. An API key canno
 
 ### Owner approval
 
-Email is the primary channel. The in-app queue is secondary.
+Email is the primary channel. The in-app queue is secondary. The word on every approval surface is Deny, not Decline. Decline stays the signer’s word on `/sign`.
 
-Creating a pending approval inserts one `outbound_emails` row, kind `owner_approval`, to the account mailbox. `dedupe_key` is `owner_approval:<approval_id>`. The template lives at `apps/api/src/email/templates/owner_approval/` (`subject.txt`, `body.html`, `body.txt`) and is added to `TEMPLATE_KINDS` in `email-dispatcher.service.ts`. It uses the same card, masthead, and legal footer as `invite` (`template-fragments.ts`, footer vars injected by `EmailDispatcherService`). Copy is one line: the document title, the recipient names, and the agent or key name, plus a button that opens the confirmation page. No signing token, no `?t=` signer link, and no secret.
+The approval row stores `link_token_hash` (SHA-256 of the raw token), `owner_id`, `action` (one of send, remind, cancel, save-to-drive, or the recipe change), `subject_hash`, `expires_at`, `approved_at`, and `denied_at`. The raw token is 32 random bytes, base64url, and it is never stored. It is single-use. It is bound to that one action and that owner. An edit to the envelope changes `subject_hash` and the token no longer matches, so the page shows expired. `expires_at` is 24 hours after create. `approved_at` or `denied_at` stamps the decision. A second POST finds one of those columns set.
 
-The link is `https://seald.nromomentum.com/approve/<token>`. The token is 32 random bytes, base64url. The row stores only its SHA-256, bound to `approval_id`, `owner_id`, and `subject_hash`, with `expires_at` 24 hours out and `consumed_at` null. A second decision finds the token already consumed.
+Creating the row inserts one `outbound_emails` row, kind `approval_request`, to the account mailbox. `dedupe_key` is `approval_request:<approval_id>`, so a retry does not send a second mail. The template is `apps/api/src/email/templates/approval_request/` (`subject.txt`, `body.html`, `body.txt`), registered in `TemplateService` and in `TEMPLATE_KINDS` in `email-dispatcher.service.ts`. It uses the existing shell: the 560px card in `templates/_email.css`, the same masthead and legal footer as `invite` and `reminder`. The body is the document title, up to three recipient names and then “+N”, and the agent or key name. A large Approve button and a small Deny link both open the page. The line “Expires in 24h” sits under them. No document bytes, no recipient emails, no signing token, and no API key.
 
-The page is one public route, `/approve/:token`, mounted outside `AppShell` and outside `RequireAuth`, the same idea as `/oauth/`. Add `/approve/` to `SPA_PREFIXES` in `apps/landing/_worker.js` and to the worker contract test. It does not redirect to `/m/send`. The document is `noindex`. The response sends `frame-ancestors 'none'`.
+The link is `https://seald.nromomentum.com/approve/<token>`. `EmailDispatcherService` rebuilds it at send time. The outbox payload stores `link_token_hash`, not the raw token.
 
-Opening the link only renders. Mail prefetch must not approve. The API read is `GET /approvals/from-email/:token`. It returns the one-line summary and sets a `SameSite=Strict` CSRF cookie. It does not change `status`. The page shows that one line (document, recipients, agent or key) and two buttons, Approve and Deny. There is no login step and no session. The emailed token is the second factor.
+The page is the public route `/approve/:token`, outside `AppShell` and outside `RequireAuth`, the same idea as `/oauth/`. Add `/approve/` to `SPA_PREFIXES` in `apps/landing/_worker.js` and to the worker contract test. It does not redirect to `/m/send`. There is no login. The page is a logo and one card. The card’s one line is the document title, up to three recipient names then “+N”, and the agent and key name. It does not show document contents or recipient email addresses. While the row is open the card has Approve and Deny.
 
-The decision is `POST /approvals/from-email` with the approval token, the decision, and the CSRF value in a hidden field. A POST missing the cookie or the field is `csrf_invalid` and does not decide.
+GET never acts. Mail prefetch must not approve. `GET /approvals/from-email/:token` returns the one-line summary and sets a `SameSite=Strict` CSRF cookie. It does not write `approved_at` or `denied_at`.
 
-After the POST the same page shows one word: Done, Denied, or Expired. Done means the action ran. Denied means the row is `rejected` and nothing was sent. Expired means the token is past 24 hours, already used, or `subject_hash` no longer matches.
+Approve and Deny are separate POSTs, `POST /approvals/from-email`, with the token, the decision, and the CSRF value in a hidden field. A POST missing the cookie or the field is `csrf_invalid` and does not decide. There is no session on this route. The emailed token is the second factor. On Approve the server sets `approved_at` and runs the action in that request (send, remind, cancel, or the recipe enable). The agent is not called back to finish it. On Deny the server sets `denied_at` and does not run the action.
 
-Rate limit GET and POST per IP and per token (10 per minute). Record the decision on the approval row (`decided_at`, `decided_via: email|app`) and in the envelope audit metadata. Do not write the raw token into the event or the mail payload. `EmailDispatcherService` rebuilds the link at send time from the hash lookup the same way Insert A rebuilds signer links, except this token is the approval token, not a signer token.
+Responses for the page and both API routes send `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Frame-Options: DENY`, and `Content-Security-Policy: frame-ancestors 'none'`. The HTML is `noindex`. GET and POST are rate limited per IP and per token (10 per minute).
 
-The in-app queue stays available at `/settings/approvals` and `/m/settings/approvals`. `status` is `pending`, `approved`, `rejected`, or `expired`. The UI word for `expired` is Expired. A read that sees `expires_at` in the past stamps `expired`.
+After a decision, or when the link is opened again, the card shows one state:
+
+| State | When |
+| --- | --- |
+| pending | The row is open and the token still matches. |
+| done | `approved_at` is set. A repeat visit that was already approved shows done, not an error. |
+| denied | `denied_at` is set. A repeat visit that was already denied shows denied. |
+| expired | Past 24 hours, or `subject_hash` no longer matches because the envelope was edited. |
+
+Deny also emails the owner, kind `approval_denied`, deduped on `approval_denied:<approval_id>`. That follow-up says the request was denied and offers one tap to Revoke the key. Revoke opens the signed-in Developers page (`/settings/developers` or `/m/settings/developers`) and still requires the Supabase session. The public page does not revoke.
+
+The decision is written on the approval row and into the envelope audit metadata (`via: email|app`, action, key id). The raw token is not in the event.
+
+The in-app queue stays at `/settings/approvals` and `/m/settings/approvals` for someone already signed in. Same four states. The bell badge counts `pending` rows. A toast names the document and opens the in-app card. In-app Approve and Deny are session POSTs and use the same server-side action.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/approvals?status=` | In-app list. Each item includes `status`. Session required. |
+| `GET` | `/approvals?status=` | In-app list. Session required. |
 | `GET` | `/approvals/:id` | In-app detail. Session required. |
-| `POST` | `/approvals/:id/approve` | In-app one tap. Session required. Calls `send` when `pending`. |
-| `POST` | `/approvals/:id/decline` | In-app one tap. Session required. Stamps `rejected`. |
-| `GET` | `/approve/:token` | Public page on the product host. Renders only. No shell. |
+| `POST` | `/approvals/:id/approve` | In-app Approve. Session required. Server runs the action when `pending`. |
+| `POST` | `/approvals/:id/deny` | In-app Deny. Session required. Sets `denied_at`. |
+| `GET` | `/approve/:token` | Public page. Logo and one card. Renders only. |
 | `GET` | `/approvals/from-email/:token` | Summary plus CSRF cookie. Does not decide. |
-| `POST` | `/approvals/from-email` | Decision. CSRF required. No session. |
+| `POST` | `/approvals/from-email` | Approve or Deny. CSRF required. No session. |
 
-The header bell is the in-app alternative. Its badge is the count of `pending` rows. A new row while the app is open shows a toast with the document title. The toast opens the in-app detail. Someone who only has the email never sees the shell.
+#### Security trade-offs
+
+The owner’s mailbox is the approval factor. Anyone who can read that mailbox can approve until the token expires. The mitigations in this design are the 24 hour expiry, the single-use binding to one action and one owner, the daily caps (20 sends, 25 new recipients, 50 email copies), the first-document-per-recipient rule (a new address falls back to approval even when the key is unattended), and the audit trail. Optional hardening is a later phase: require a signed-in session before an external-destination recipe or another high-risk approval can complete. That phase is not in step 7.
 
 ## Test plan
 
@@ -851,9 +866,12 @@ Web, Vitest, `renderWithProviders`, queries by role:
 
 - Developers page: one tap on “New key” creates `Key 1` with a 90-day expiry and no Never choice. The show-once sheet has Copy and no checkbox. ChatGPT tile is “Later”.
 - `/m/settings` index renders one list. The mobile drawer test expects a single “Settings” row.
-- Approval email renders the document, the recipients, and the key name, and contains no signer `?t=`.
-- `GET /approvals/from-email/:token` does not change status. A POST without the CSRF cookie returns `csrf_invalid`. A valid POST shows Done, Denied, or Expired and does not require a session.
-- In-app queue: Approve calls send, Decline does not, a row older than 24 hours shows Expired. The bell count matches pending rows.
+- The `approval_request` template is the 560px shell, with a large Approve, a small Deny, and “Expires in 24h”. It has no recipient emails and no signer `?t=`.
+- `GET /approvals/from-email/:token` does not set `approved_at` or `denied_at`. A POST without the CSRF cookie returns `csrf_invalid`. The page response includes `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `noindex`, and `X-Frame-Options: DENY`.
+- A repeat visit after Approve shows done. A repeat visit after Deny shows denied. An edited envelope shows expired.
+- The public card shows at most three recipient names and “+N”, and no email addresses.
+- Deny sends `approval_denied` with a signed-in Revoke link. The public page does not revoke.
+- In-app queue uses Deny. The bell count matches pending rows.
 
 `migrations-convention.spec.ts` already fails a top-level `*_down.sql` and a missing down pair.
 
@@ -870,7 +888,7 @@ One feature per pull request. The product review’s 14 steps are the base. Rows
 | 4 | Transport plus `me_get`. `initialize` and `tools/list`. 404 when the flag is off, 401 for a bad key. Structured error envelope. `seald://guide`. Credential boundary. `MCP_DISABLED`. Parity test for the routes that exist. |
 | 5 | `envelopes_search` and `envelopes_get`. Title, short code, signer name or email, status, dates. Cursor. No tokens in the output. |
 | 6 | `envelopes_status`, `envelopes_download_url`, and `envelopes_list_pending`. Per-signer state, `next_action`, `can_remind_at`. Short-lived download URLs. |
-| 7 | Owner approvals. Default on for every key. Primary path: `owner_approval` email (existing layout and footer) and a public `/approve/:token` page with no login and no app shell. The token is the second factor. GET renders; POST decides, with CSRF. Page is `noindex` and cannot be framed. Result words are Done, Denied, or Expired. Secondary path: bell, toast, and the in-app queue. `status` column. 24 hour expiry. Hashed token bound to the approval, the preview hash, and the owner. Rate limit and audit. `approvals_get`, `approvals_list`, and `seald://approvals/pending`. No tool can approve or change the mode. |
+| 7 | Owner approvals. `approval_request` email in the 560px shell (large Approve, small Deny, “Expires in 24h”), deduped. Public `/approve/:token` outside `AppShell`: logo, one card, no login, no document contents, no recipient emails. States pending, done, denied, expired. `link_token_hash`, `approved_at`, `denied_at`. GET never acts. Approve and Deny are CSRF POSTs. `no-store`, `no-referrer`, `noindex`, `frame-ancestors 'none'`, `X-Frame-Options: DENY`, rate limit. The server runs the action. The tool returns `approval_pending` (“pending owner approval”) and the agent polls. Deny emails a signed-in Revoke. In-app queue stays secondary. |
 | 8 | Draft, upload, and signers. `idempotency_key` and `dry_run`. Staging upload up to 25 MB. `signer_email_taken` on a duplicate. |
 | 9 | Suggest and place fields. Suggestions never write. Placing fields checks that the signers belong to the draft. Drafts only. |
 | Insert A | Remove the plaintext `?t=` token from `outbound_emails.payload`. Store `token_hash`. Rebuild the link at dispatch. This merges before step 10. |
