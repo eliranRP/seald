@@ -206,6 +206,11 @@ const SaveSlot = styled.div`
   width: 100%;
   min-height: ${({ theme }) => theme.space[12]};
 
+  & > button {
+    min-height: ${({ theme }) => theme.space[12]};
+    overflow-wrap: anywhere;
+  }
+
   @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
     width: auto;
     flex: 0 0 auto;
@@ -214,15 +219,7 @@ const SaveSlot = styled.div`
     & > button {
       width: auto;
       max-width: 100%;
-      padding-inline: ${({ theme }) => theme.space[5]};
     }
-  }
-
-  & > button {
-    min-height: ${({ theme }) => theme.space[12]};
-    overflow-wrap: anywhere;
-    /* lg padding leaves a 65-character label on a third line at phone width. */
-    padding-inline: ${({ theme }) => theme.space[2]};
   }
 
   /* The shared halo is ~1.14:1 on this ink card. Use the focus stroke instead. */
