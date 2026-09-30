@@ -11,10 +11,11 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { AppEnv } from '../../config/env.schema';
-import type {
-  InsertOutboundEmailInput,
-  OutboundEmailRow,
-  OutboundEmailsRepository,
+import {
+  DuplicateOutboundEmailError,
+  type InsertOutboundEmailInput,
+  type OutboundEmailRow,
+  type OutboundEmailsRepository,
 } from '../../email/outbound-emails.repository';
 import type {
   Envelope,
@@ -96,6 +97,7 @@ interface BuildOptions {
   readonly setSignerSignature?: EnvelopesRepository['setSignerSignature'];
   readonly env?: Partial<AppEnv>;
   readonly sessionSecret?: string | null;
+  readonly insertOutbound?: (input: InsertOutboundEmailInput) => Promise<void>;
 }
 
 function buildService(spy: RepoSpy, opts: BuildOptions = {}): SigningService {
@@ -173,6 +175,7 @@ function buildService(spy: RepoSpy, opts: BuildOptions = {}): SigningService {
   };
   const outbound: Pick<OutboundEmailsRepository, 'insert'> = {
     async insert(input) {
+      if (opts.insertOutbound) await opts.insertOutbound(input);
       spy.outboundInserts.push(input);
       return {
         id: `email-${spy.outboundInserts.length}`,
@@ -190,6 +193,7 @@ function buildService(spy: RepoSpy, opts: BuildOptions = {}): SigningService {
         last_error: null,
         provider_id: null,
         source_event_id: input.source_event_id ?? null,
+        dedupe_key: input.dedupe_key ?? `email-${spy.outboundInserts.length}`,
         created_at: new Date().toISOString(),
       } as OutboundEmailRow;
     },
@@ -651,6 +655,109 @@ describe('SigningService.submit', () => {
     await svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null);
     expect(spy.events.map((e) => e.event_type)).toEqual(['signed']);
     expect(spy.jobs).toHaveLength(0);
+  });
+
+  it('emails the sender when another signer finishes, with progress and no signing token', async () => {
+    const otherId = '00000000-0000-0000-0000-0000000000ee';
+    const waitingId = '00000000-0000-0000-0000-0000000000ff';
+    const env = envelopeAwaitingOthers({
+      title: 'NDA v1',
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+      signers: [
+        freshSigner({ signed_at: null }),
+        makeSigner({
+          id: otherId,
+          name: 'Bea',
+          email: 'bea@example.com',
+          signed_at: '2026-04-25T12:00:00.000Z',
+        }),
+        makeSigner({ id: waitingId, name: 'Cam', email: 'cam@example.com', signed_at: null }),
+      ],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({ name: 'Ada', signed_at: '2026-04-26T10:00:00.000Z' }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+        };
+      },
+    });
+    await svc.submit(
+      env,
+      freshSigner({ name: 'Ada', tc_accepted_at: '2026-04-25T10:00:00.000Z' }),
+      null,
+      null,
+    );
+    const notice = spy.outboundInserts.find((row) => row.kind === 'signed_to_sender');
+    expect(notice).toMatchObject({
+      to_email: 'sender@example.com',
+      to_name: 'Sender',
+      signer_id: null,
+      dedupe_key: `signed_to_sender:${ENV_ID}:${SIGNER_ID}`,
+      payload: {
+        signer_name: 'Ada',
+        envelope_title: 'NDA v1',
+        signed_count: 2,
+        total_signers: 3,
+        dashboard_url: `https://app.example.com/document/${ENV_ID}`,
+        short_code: env.short_code,
+      },
+    });
+    expect(JSON.stringify(notice?.payload)).not.toMatch(/\?t=/);
+    expect(JSON.stringify(notice?.payload)).not.toContain('access_token');
+  });
+
+  it('does not email the sender about their own signature', async () => {
+    const env = envelopeAwaitingOthers({
+      sender_email: 'Sender@Example.com',
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+      signers: [freshSigner({ email: 'sender@example.com' })],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({
+            email: 'sender@example.com',
+            signed_at: '2026-04-26T10:00:00.000Z',
+          }),
+          all_signed: true,
+          envelope_status: 'sealing',
+        };
+      },
+    });
+    await svc.submit(
+      env,
+      freshSigner({ email: 'sender@example.com', tc_accepted_at: '2026-04-25T10:00:00.000Z' }),
+      null,
+      null,
+    );
+    expect(spy.outboundInserts.find((row) => row.kind === 'signed_to_sender')).toBeUndefined();
+  });
+
+  it('treats a duplicate sender notice as success so a retry does not fail the signature', async () => {
+    const env = envelopeAwaitingOthers({
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+        };
+      },
+      async insertOutbound() {
+        throw new DuplicateOutboundEmailError();
+      },
+    });
+    await expect(
+      svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null),
+    ).resolves.toEqual({ status: 'submitted', envelope_status: 'awaiting_others' });
+    expect(spy.outboundInserts).toHaveLength(0);
   });
 
   it('410 envelope_terminal when repo race-loses and re-read shows non-awaiting state', async () => {

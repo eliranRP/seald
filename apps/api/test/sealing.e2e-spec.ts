@@ -241,16 +241,47 @@ describe('Sealing pipeline (e2e)', () => {
     expect(sealedEvents[0]!.actor_kind).toBe('system');
     expect(sealedEvents[0]!.metadata).toMatchObject({ sealed_sha256: after.sealed_sha256 });
 
-    // `completed` email queued for the signer.
+    // Progress mail went out at submit time: the sender is not the signer.
+    const progress = outbound.rows.filter(
+      (r) => r.envelope_id === envId && r.kind === 'signed_to_sender',
+    );
+    expect(progress).toHaveLength(1);
+    expect(progress[0]!.to_email).toBe('sender@example.com');
+    expect(progress[0]!.payload).toMatchObject({
+      signer_name: 'Ada',
+      signed_count: 1,
+      total_signers: 1,
+      dashboard_url: `http://localhost:5173/document/${envId}`,
+    });
+    expect(JSON.stringify(progress[0]!.payload)).not.toMatch(/\?t=/);
+
+    // `completed` email queued for the signer and the sender.
     const completedEmails = outbound.rows.filter(
       (r) => r.envelope_id === envId && r.kind === 'completed',
     );
-    expect(completedEmails).toHaveLength(1);
-    expect(completedEmails[0]!.signer_id).toBe(signerId);
-    expect(completedEmails[0]!.payload).toMatchObject({
+    expect(completedEmails.map((r) => r.to_email).sort()).toEqual([
+      'ada@example.com',
+      'sender@example.com',
+    ]);
+    const signerMail = completedEmails.find((r) => r.signer_id === signerId);
+    expect(signerMail?.payload).toMatchObject({
       short_code: after.short_code,
       verify_url: expect.stringContaining('/verify/'),
     });
+    for (const row of completedEmails) {
+      expect(JSON.stringify(row.payload)).not.toMatch(/\?t=/);
+      expect(row.dedupe_key).toBe(`completed:${envId}:${row.to_email}`);
+      expect(row.payload.sealed_url).toEqual(
+        expect.stringContaining(`/verify/${after.short_code}`),
+      );
+    }
+
+    const beforeRetry = outbound.rows.length;
+    await sealing.processSealJob(envId);
+    expect(outbound.rows).toHaveLength(beforeRetry);
+    expect(
+      envelopesRepo.events.filter((e) => e.envelope_id === envId && e.event_type === 'sealed'),
+    ).toHaveLength(1);
   });
 
   it('seal job is a no-op if envelope raced out of sealing', async () => {

@@ -291,7 +291,8 @@ export type EmailKindDb =
   | 'withdrawn_to_signer'
   | 'withdrawn_after_sign'
   | 'expired_to_sender'
-  | 'expired_to_signer';
+  | 'expired_to_signer'
+  | 'signed_to_sender';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {
@@ -310,6 +311,13 @@ export interface OutboundEmailsTable {
   last_error: string | null;
   provider_id: string | null;
   source_event_id: string | null;
+  /**
+   * Stable idempotency key. Callers set this for notices that must be
+   * sent once (per signature, per completion party). Omitted inserts
+   * receive a random default so legacy rows stay unique without deduping
+   * each other. Migration 0019.
+   */
+  dedupe_key: ColumnType<string, string | undefined, string | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 

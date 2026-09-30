@@ -30,6 +30,7 @@ function toDomain(row: Record<string, unknown>): OutboundEmailRow {
     last_error: (row['last_error'] as string | null) ?? null,
     provider_id: (row['provider_id'] as string | null) ?? null,
     source_event_id: (row['source_event_id'] as string | null) ?? null,
+    dedupe_key: typeof row['dedupe_key'] === 'string' ? row['dedupe_key'] : '',
     created_at: new Date(row['created_at'] as string | Date).toISOString(),
   };
 }
@@ -46,6 +47,7 @@ function isOutboundUniqueViolation(err: unknown): boolean {
   if (e.constraint && /outbound_emails/.test(e.constraint)) return true;
   if (typeof e.message === 'string' && /envelope_id.*signer_id.*kind/.test(e.message)) return true;
   if (typeof e.message === 'string' && e.message.includes('outbound_emails')) return true;
+  if (typeof e.message === 'string' && e.message.includes('dedupe_key')) return true;
   return false;
 }
 
@@ -67,6 +69,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
           to_name: input.to_name,
           payload: JSON.stringify(input.payload),
           source_event_id: input.source_event_id ?? null,
+          ...(input.dedupe_key ? { dedupe_key: input.dedupe_key } : {}),
           ...(input.scheduled_for ? { scheduled_for: input.scheduled_for } : {}),
           ...(input.max_attempts !== undefined ? { max_attempts: input.max_attempts } : {}),
         })
@@ -95,6 +98,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
             to_name: input.to_name,
             payload: JSON.stringify(input.payload),
             source_event_id: input.source_event_id ?? null,
+            ...(input.dedupe_key ? { dedupe_key: input.dedupe_key } : {}),
             ...(input.scheduled_for ? { scheduled_for: input.scheduled_for } : {}),
             ...(input.max_attempts !== undefined ? { max_attempts: input.max_attempts } : {}),
           })),

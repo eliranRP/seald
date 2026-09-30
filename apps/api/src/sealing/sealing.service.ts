@@ -4,6 +4,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { APP_ENV } from '../config/config.module';
 import { burnInField } from './burn-in-fields';
 import type { AppEnv } from '../config/env.schema';
+import { insertOutboundEmailIdempotent } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import {
   buildSignerListHtmlFromSigners,
@@ -30,8 +31,10 @@ import { PadesSigner } from './pades-signer';
  *   4. Upload sealed.pdf
  *   5. Generate audit.pdf (events timeline + QR to /verify/{short_code})
  *   6. Upload audit.pdf
- *   7. repo.transitionToSealed → appendEvent('sealed')
- *   8. Enqueue `completed` email to every signer
+ *   7. repo.transitionToSealed (status → completed; no event row)
+ *   8. Enqueue `completed` email to the sender and every signer
+ *      and append `sealed` if that event is not already recorded
+ *      (one row per mailbox; deduped on retry)
  *
  * audit_only:
  *   1. Envelope is already terminal (declined/expired). Generate audit.pdf.
@@ -56,6 +59,13 @@ export class SealingService {
   async processSealJob(envelope_id: string): Promise<void> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status === 'completed') {
+      // A previous attempt sealed the PDF and then died before every
+      // completion row was queued. Re-enter only the fan-out; dedupe
+      // keys keep it to one mail per party.
+      await this.enqueueCompletionEmails(envelope);
+      return;
+    }
     if (envelope.status !== 'sealing') {
       // Envelope raced into a non-sealing state (declined, expired). Bail
       // quietly — the worker will mark the job done and no harm done.
@@ -114,31 +124,43 @@ export class SealingService {
       audit_file_path: auditPath,
     });
     if (!updated) {
-      // Race with a cancel/expire. Uploaded artifacts become orphaned — cheap
-      // enough not to worry about cleanup for MVP.
+      // The status flip lost. If the winner already marked the envelope
+      // completed, still try the fan-out — they may have crashed before
+      // it. A cancel/expire leaves the artifacts orphaned.
+      const fresh = await this.repo.findByIdWithAll(envelope_id);
+      if (fresh?.status === 'completed') {
+        await this.enqueueCompletionEmails(fresh);
+        return;
+      }
       this.logger.warn(
         `seal job for ${envelope_id}: transitionToSealed lost the race, artifacts orphaned`,
       );
       return;
     }
 
-    await this.repo.appendEvent({
-      envelope_id,
-      actor_kind: 'system',
-      event_type: 'sealed',
-      metadata: { sealed_sha256: sealedSha },
-    });
+    await this.enqueueCompletionEmails(updated);
+  }
 
-    // Per-signer completed email. Source event is the `sealed` event we just
-    // appended — but we have the envelope-level payload now, so we can fan
-    // out without another read.
+  /**
+   * One `completed` row per mailbox: every signer who has signed, plus
+   * the sender when their address is not already in that set. Links are
+   * the public verify URLs (short code). Signer access tokens are not
+   * stored. A second call with the same envelope is a no-op per party.
+   */
+  private async enqueueCompletionEmails(envelope: Envelope): Promise<void> {
+    const events = await this.repo.listEventsForEnvelope(envelope.id);
+    const existingSealed = events.find((event) => event.event_type === 'sealed');
+    const sealedEvent =
+      existingSealed ??
+      (await this.repo.appendEvent({
+        envelope_id: envelope.id,
+        actor_kind: 'system',
+        event_type: 'sealed',
+        metadata: envelope.sealed_sha256 ? { sealed_sha256: envelope.sealed_sha256 } : {},
+      }));
+
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-
-    // Pre-render the signer roster + event timeline fragments once per
-    // envelope — loop-free template engine means iteration has to happen
-    // here. The timeline is derived from the signers (sent → each signed
-    // → sealed) without another event-log query.
-    const signerListHtml = buildSignerListHtmlFromSigners(updated.signers);
+    const signerListHtml = buildSignerListHtmlFromSigners(envelope.signers);
     const timelineEvents: TimelineEventFragment[] = [];
     if (envelope.sent_at !== null) {
       timelineEvents.push({
@@ -146,11 +168,11 @@ export class SealingService {
         at: formatIsoForTimeline(envelope.sent_at),
       });
     }
-    for (const s of updated.signers) {
-      if (s.signed_at !== null) {
+    for (const signer of envelope.signers) {
+      if (signer.signed_at !== null) {
         timelineEvents.push({
-          label: `${s.name} signed`,
-          at: formatIsoForTimeline(s.signed_at),
+          label: `${signer.name} signed`,
+          at: formatIsoForTimeline(signer.signed_at),
         });
       }
     }
@@ -159,22 +181,33 @@ export class SealingService {
       at: formatIsoForTimeline(new Date().toISOString()),
     });
     const timelineHtml = buildTimelineHtml(timelineEvents);
+    const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
 
-    for (const signer of updated.signers) {
-      if (signer.signed_at === null) continue; // defensive — all should be signed
-      await this.outboundEmails.insert({
-        envelope_id,
-        signer_id: signer.id,
+    const prior = await this.outboundEmails.listByEnvelope(envelope.id);
+    const already = new Set(
+      prior
+        .filter((row) => row.kind === 'completed')
+        .map((row) => row.to_email.trim().toLowerCase()),
+    );
+
+    for (const party of completionParties(envelope)) {
+      const mailbox = party.email.trim().toLowerCase();
+      if (already.has(mailbox)) continue;
+      already.add(mailbox);
+      await insertOutboundEmailIdempotent(this.outboundEmails, {
+        envelope_id: envelope.id,
+        signer_id: party.signerId,
         kind: 'completed',
-        to_email: signer.email,
-        to_name: signer.name,
-        source_event_id: null,
+        to_email: party.email,
+        to_name: party.name,
+        source_event_id: sealedEvent.id,
+        dedupe_key: `completed:${envelope.id}:${mailbox}`,
         payload: {
           envelope_title: envelope.title,
           short_code: envelope.short_code,
-          sealed_url: `${publicUrl}/verify/${envelope.short_code}#sealed`,
-          audit_url: `${publicUrl}/verify/${envelope.short_code}#audit`,
-          verify_url: `${publicUrl}/verify/${envelope.short_code}`,
+          sealed_url: `${verifyUrl}#sealed`,
+          audit_url: `${verifyUrl}#audit`,
+          verify_url: verifyUrl,
           public_url: publicUrl,
           signer_list_html: signerListHtml,
           timeline_html: timelineHtml,
@@ -279,6 +312,32 @@ export class SealingService {
     const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
+}
+
+interface CompletionParty {
+  readonly email: string;
+  readonly name: string;
+  readonly signerId: string | null;
+}
+
+/** Signers who finished, then the sender if that mailbox is not already included. */
+function completionParties(envelope: Envelope): readonly CompletionParty[] {
+  const parties: CompletionParty[] = [];
+  const seen = new Set<string>();
+  const add = (email: string, name: string, signerId: string | null): void => {
+    const key = email.trim().toLowerCase();
+    if (key.length === 0 || seen.has(key)) return;
+    seen.add(key);
+    parties.push({ email: email.trim(), name, signerId });
+  };
+  for (const signer of envelope.signers) {
+    if (signer.signed_at === null) continue;
+    add(signer.email, signer.name, signer.id);
+  }
+  if (envelope.sender_email) {
+    add(envelope.sender_email, envelope.sender_name ?? envelope.sender_email, null);
+  }
+  return parties;
 }
 
 function sha256Hex(buf: Buffer): string {

@@ -140,6 +140,39 @@ describe('OutboundEmailsPgRepository', () => {
         }),
       ).rejects.toBeInstanceOf(DuplicateOutboundEmailError);
     });
+
+    it('raises DuplicateOutboundEmailError when dedupe_key repeats for a sender row', async () => {
+      const { envelopeId, eventId } = await seedEnvelopeAndSigner(handle, ownerId);
+      const other = await handle.db
+        .insertInto('envelope_events')
+        .values({ envelope_id: envelopeId, actor_kind: 'system', event_type: 'sealed' })
+        .returning(['id'])
+        .executeTakeFirstOrThrow();
+      await repo.insert({
+        envelope_id: envelopeId,
+        signer_id: null,
+        kind: 'signed_to_sender',
+        to_email: 'sender@example.com',
+        to_name: 'Sender',
+        payload: { dashboard_url: 'https://seald.example/document/x' },
+        source_event_id: eventId,
+        dedupe_key: 'signed_to_sender:envelope:signer',
+      });
+      await expect(
+        repo.insert({
+          envelope_id: envelopeId,
+          signer_id: null,
+          kind: 'signed_to_sender',
+          to_email: 'sender@example.com',
+          to_name: 'Sender',
+          payload: { dashboard_url: 'https://seald.example/document/x' },
+          source_event_id: other.id,
+          dedupe_key: 'signed_to_sender:envelope:signer',
+        }),
+      ).rejects.toBeInstanceOf(DuplicateOutboundEmailError);
+      const rows = await repo.listByEnvelope(envelopeId);
+      expect(rows.filter((row) => row.kind === 'signed_to_sender')).toHaveLength(1);
+    });
   });
 
   describe('insertMany', () => {

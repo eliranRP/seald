@@ -259,6 +259,24 @@ export function createPgMemDb(): PgMemHandle {
     );
   `);
 
+  // 0019 — signed_to_sender kind + dedupe_key. pg-mem rejects
+  // ALTER TYPE ADD VALUE, and unlike event_type its enum check is real.
+  // Fall back to text so the new label inserts; production stays an enum.
+  let emailKindExtended = true;
+  try {
+    mem.public.none(`alter type email_kind add value if not exists 'signed_to_sender'`);
+  } catch {
+    emailKindExtended = false;
+  }
+  if (!emailKindExtended) {
+    mem.public.none(`alter table public.outbound_emails alter column kind type text`);
+  }
+  mem.public.none(`
+    alter table public.outbound_emails add column dedupe_key text;
+    create unique index outbound_emails_dedupe_key_key
+      on public.outbound_emails (dedupe_key);
+  `);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8

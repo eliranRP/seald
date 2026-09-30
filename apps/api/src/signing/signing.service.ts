@@ -16,6 +16,7 @@ import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { Inject } from '@nestjs/common';
+import { insertOutboundEmailIdempotent, sameMailbox } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { buildTimelineHtml, type TimelineEventFragment } from '../email/template-fragments';
 import type {
@@ -432,7 +433,7 @@ export class SigningService {
       throw new PreconditionFailedException('signature_required');
     }
 
-    await this.repo.appendEvent({
+    const signedEvent = await this.repo.appendEvent({
       envelope_id: envelope.id,
       signer_id: signer.id,
       actor_kind: 'signer',
@@ -441,6 +442,36 @@ export class SigningService {
       user_agent: userAgent,
       metadata: {},
     });
+
+    // The sender hears about every other party's signature. When the
+    // sender is also a signer, skip this notice — they get the completion
+    // mail only. The row sits in the outbox until EmailWorkerService
+    // drains it (WORKER_ENABLED), same as invites.
+    const senderEmail = envelope.sender_email;
+    if (senderEmail && !sameMailbox(senderEmail, signer.email)) {
+      const fresh = await this.repo.findByIdWithAll(envelope.id);
+      const roster = fresh?.signers ?? envelope.signers;
+      const progress = countSigned(roster, signer.id, submitted.signer.signed_at);
+      const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+      await insertOutboundEmailIdempotent(this.outboundEmails, {
+        envelope_id: envelope.id,
+        signer_id: null,
+        kind: 'signed_to_sender',
+        to_email: senderEmail,
+        to_name: envelope.sender_name ?? senderEmail,
+        source_event_id: signedEvent.id,
+        dedupe_key: `signed_to_sender:${envelope.id}:${signer.id}`,
+        payload: {
+          signer_name: signer.name,
+          envelope_title: envelope.title,
+          signed_count: progress.signed,
+          total_signers: progress.total,
+          dashboard_url: `${publicUrl}/document/${envelope.id}`,
+          short_code: envelope.short_code,
+          public_url: publicUrl,
+        },
+      });
+    }
 
     if (submitted.all_signed) {
       await this.repo.appendEvent({
@@ -677,6 +708,32 @@ function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
 }
 
 /** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
+function countSigned(
+  signers: ReadonlyArray<{ readonly id: string; readonly signed_at: string | null }>,
+  signerId: string,
+  signedAt: string | null,
+): { readonly signed: number; readonly total: number } {
+  let signed = 0;
+  let sawSelf = false;
+  for (const row of signers) {
+    if (row.id === signerId) sawSelf = true;
+    if (rowHasSigned(row, signerId, signedAt)) signed += 1;
+  }
+  const total = sawSelf ? signers.length : signers.length + 1;
+  if (!sawSelf && signedAt !== null) signed += 1;
+  return { signed, total };
+}
+
+function rowHasSigned(
+  row: { readonly id: string; readonly signed_at: string | null },
+  signerId: string,
+  signedAt: string | null,
+): boolean {
+  if (row.id !== signerId) return row.signed_at !== null;
+  if (row.signed_at !== null) return true;
+  return signedAt !== null;
+}
+
 function formatUtc(iso: string): string {
   const date = new Date(iso);
   const year = date.getUTCFullYear();

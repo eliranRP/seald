@@ -7,7 +7,10 @@ import {
 } from '../src/email/outbound-emails.repository';
 
 /** Hermetic in-memory email outbox for e2e tests. Mirrors the PG adapter's
- * unique-key contract: `(envelope_id, signer_id, kind, source_event_id)`.
+ * unique-key contract: `(envelope_id, signer_id, kind, source_event_id)`
+ * and `dedupe_key` when the caller sets one. Null `signer_id` values are
+ * treated as equal here; production Postgres does not, which is why
+ * sender notices also pass `dedupe_key`.
  */
 export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   readonly rows: OutboundEmailRow[] = [];
@@ -17,14 +20,18 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   }
 
   async insert(input: InsertOutboundEmailInput): Promise<OutboundEmailRow> {
-    const dup = this.rows.find(
+    const dedupeKey = input.dedupe_key ?? randomUUID();
+    const dupByKey = input.dedupe_key
+      ? this.rows.find((r) => r.dedupe_key === input.dedupe_key)
+      : undefined;
+    const dupByTuple = this.rows.find(
       (r) =>
         r.envelope_id === (input.envelope_id ?? null) &&
         r.signer_id === (input.signer_id ?? null) &&
         r.kind === input.kind &&
         r.source_event_id === (input.source_event_id ?? null),
     );
-    if (dup) throw new DuplicateOutboundEmailError();
+    if (dupByKey || dupByTuple) throw new DuplicateOutboundEmailError();
     const now = new Date().toISOString();
     const row: OutboundEmailRow = {
       id: randomUUID(),
@@ -42,6 +49,7 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       last_error: null,
       provider_id: null,
       source_event_id: input.source_event_id ?? null,
+      dedupe_key: dedupeKey,
       created_at: now,
     };
     this.rows.push(row);

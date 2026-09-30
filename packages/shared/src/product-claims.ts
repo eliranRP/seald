@@ -50,14 +50,13 @@ export const RETENTION_NOTE =
 /**
  * Sender-facing progress copy, shown after an envelope is sent.
  *
- * Update this string when per-signature and seal emails to the sender
- * ship. Today the sender is emailed only on decline (`declined_to_sender`)
- * and expiry (`expired_to_sender`). The `completed` mail goes to signers
- * who have `signed_at` set (`sealing.service.ts`). There is no
- * `signed_to_sender` template.
+ * Matches the outbox: `signed_to_sender` on each other party's signature,
+ * `completed` to the sender and every signer once the envelope is sealed,
+ * plus decline and expiry. A sender who is also a signer does not get a
+ * separate mail about their own signature.
  */
 export const SENDER_PROGRESS_NOTE =
-  "Each signer gets their own link. You can watch progress on the envelope. We'll email you if someone declines or if the request expires. Signers receive the sealed-file email when everyone has signed.";
+  "Each signer gets their own link. We'll email you when someone else signs, and we'll email you and every signer when the document is complete. If you are also a signer, we skip the email about your own signature. We'll also email you if someone declines or the request expires.";
 
 /**
  * Short auth-panel trust line. A noop signer applies no seal, and a

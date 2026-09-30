@@ -149,6 +149,7 @@ class FakeOutbound extends OutboundEmailsRepository {
       last_error: null,
       provider_id: null,
       source_event_id: input.source_event_id ?? null,
+      dedupe_key: input.dedupe_key ?? `em_${this.rows.length + 1}`,
       created_at: new Date().toISOString(),
     };
     this.rows.push(row);
