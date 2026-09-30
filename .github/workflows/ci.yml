@@ -373,6 +373,7 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 12
+      # cspell:ignore isready
       postgres:
         image: postgres:17
         ports:
@@ -406,7 +407,7 @@ jobs:
       - name: Build shared
         run: pnpm --filter shared build
 
-      - name: Install psql for the real-Postgres concurrency test
+      - name: Install the Postgres client for the concurrency test
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
 
       - name: E2E tests
