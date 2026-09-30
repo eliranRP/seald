@@ -15,7 +15,7 @@ Seald records a simple electronic signature with ESIGN and UETA consent, keeps a
 Verify this document with reference code {{short_code}}:
   {{verify_url}}
 
-You received this because {{sender_name}} ({{sender_email}}) asked you to sign a document. Unless the sender turns them off, Seald sends automatic daily reminders; they stop once you sign or decline, or when the request expires or is cancelled.
+You received this because {{sender_name}} ({{sender_email}}) asked you to sign a document. Unless the sender turns them off, Seald sends up to 7 automatic daily reminders; they stop sooner if you sign or decline, or when the request expires or is cancelled.
 
 {{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

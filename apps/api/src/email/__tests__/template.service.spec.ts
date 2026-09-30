@@ -158,28 +158,35 @@ describe('TemplateService', () => {
       expect(flatText).toContain('This request expires on 2026-05-24 00:00 UTC');
       expect(flatHtml).not.toContain('Reminder sent by');
       expect(flatText).not.toContain('Reminder sent by');
-      expect(flatHtml).toContain(
-        'Unless the sender turns them off, Seald sends automatic daily reminders',
-      );
-      expect(flatText).toContain(
-        'Unless the sender turns them off, Seald sends automatic daily reminders',
-      );
+      const footer =
+        'Unless the sender turns them off, Seald sends up to 7 automatic daily reminders; they stop sooner if you sign or decline, or when the request expires or is cancelled.';
+      expect(flatHtml).toContain(footer);
+      expect(flatText).toContain(footer);
       expect(out.text).toContain('Review and sign:');
       expect(out.text).toContain('Seald · Chlenov 24');
       expect(out.text).toContain('MSA');
     });
 
     it('uses the same e-signature notice text as the invite', () => {
-      const notice = (html: string): string => {
-        const match = html.match(
+      const notice = (source: string): string => {
+        const match = source.match(
           /Seald records a simple electronic signature[\s\S]*?where it will be enforced\./,
         );
         return (match?.[0] ?? '').replace(/\s+/g, ' ').trim();
       };
       const invite = readFileSync(resolve(__dirname, '../templates/invite/body.html'), 'utf8');
-      const reminder = readFileSync(resolve(__dirname, '../templates/reminder/body.html'), 'utf8');
+      const reminderHtml = readFileSync(
+        resolve(__dirname, '../templates/reminder/body.html'),
+        'utf8',
+      );
+      const reminderTxt = readFileSync(
+        resolve(__dirname, '../templates/reminder/body.txt'),
+        'utf8',
+      );
       expect(notice(invite).length).toBeGreaterThan(0);
-      expect(notice(reminder)).toBe(notice(invite));
+      expect(notice(reminderHtml)).toBe(notice(invite));
+      expect(notice(reminderTxt)).toBe(notice(invite));
+      expect(reminderTxt).not.toMatch(/electronic signature\.[ \t]+$/m);
     });
   });
 

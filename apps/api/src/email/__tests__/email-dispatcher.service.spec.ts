@@ -43,12 +43,15 @@ function awaitingEnvelope(overrides: Partial<Envelope> = {}): Envelope {
 
 const appendedEvents: Array<{ event_type: string; metadata: Readonly<Record<string, unknown>> }> =
   [];
+let appendEventError: Error | null = null;
 
 function envelopeRepo(current: () => Envelope | null): EnvelopesRepository {
   appendedEvents.length = 0;
+  appendEventError = null;
   return {
     findByIdWithAll: async () => current(),
     appendEvent: async (input: { event_type: string; metadata?: Record<string, unknown> }) => {
+      if (appendEventError) throw appendEventError;
       appendedEvents.push({
         event_type: input.event_type,
         metadata: input.metadata ?? {},
@@ -337,6 +340,26 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
     expect(appendedEvents).toEqual([
       { event_type: 'reminder_sent', metadata: { automated: true } },
     ]);
+  });
+
+  it('stays sent and does not resend when the reminder_sent event write throws', async () => {
+    await queueReminder(true);
+    appendEventError = new Error('audit_chain_broken');
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    const outcome = await dispatcher.dispatchOne();
+
+    expect(outcome?.status).toBe('sent');
+    expect(sender.calls).toHaveLength(1);
+    expect(repo.rows.find((row) => row.kind === 'reminder')?.status).toBe('sent');
+    expect(appendedEvents).toHaveLength(0);
+    expect(error.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      'reminder_sent event failed after send',
+    );
+
+    const again = await dispatcher.dispatchOne();
+    expect(again).toBeNull();
+    expect(sender.calls).toHaveLength(1);
   });
 
   it('sends nothing after automated reminders are turned off', async () => {

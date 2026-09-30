@@ -151,13 +151,23 @@ export class EmailDispatcherService {
         claimed.payload['automated'] === true &&
         claimed.envelope_id
       ) {
-        await this.envelopes.appendEvent({
-          envelope_id: claimed.envelope_id,
-          signer_id: claimed.signer_id,
-          actor_kind: 'system',
-          event_type: 'reminder_sent',
-          metadata: { automated: true },
-        });
+        try {
+          await this.envelopes.appendEvent({
+            envelope_id: claimed.envelope_id,
+            signer_id: claimed.signer_id,
+            actor_kind: 'system',
+            event_type: 'reminder_sent',
+            metadata: { automated: true },
+          });
+        } catch (err) {
+          // The mail is already sent. A failed audit write must not mark
+          // the row pending again, or the next flush would send it twice.
+          this.log.error(
+            `reminder_sent event failed after send outbound=${claimed.id}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        }
       }
       return { id: claimed.id, status: 'sent', provider_id: result.providerId };
     } catch (err) {
