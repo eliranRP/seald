@@ -209,3 +209,37 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.PDF_SIGNING_PROVIDER).toBe('sslcom');
   });
 });
+
+describe('env.schema — WORKER_ENABLED', () => {
+  const base = {
+    NODE_ENV: 'test',
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_JWT_AUDIENCE: 'authenticated',
+    CORS_ORIGIN: 'http://localhost:5173',
+    APP_PUBLIC_URL: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://u:p@host:5432/db',
+  };
+
+  it('parses "false" as false', () => {
+    expect(parseEnv({ ...base, WORKER_ENABLED: 'false' }).WORKER_ENABLED).toBe(false);
+  });
+
+  it('parses "true" as true', () => {
+    expect(parseEnv({ ...base, WORKER_ENABLED: 'true' }).WORKER_ENABLED).toBe(true);
+  });
+
+  it('parses "0" as false and "1" as true', () => {
+    expect(parseEnv({ ...base, WORKER_ENABLED: '0' }).WORKER_ENABLED).toBe(false);
+    expect(parseEnv({ ...base, WORKER_ENABLED: '1' }).WORKER_ENABLED).toBe(true);
+  });
+
+  it('defaults to false when unset', () => {
+    expect(parseEnv(base).WORKER_ENABLED).toBe(false);
+  });
+
+  it('rejects garbage with a clear message', () => {
+    expect(() => parseEnv({ ...base, WORKER_ENABLED: 'yes' })).toThrow(
+      /WORKER_ENABLED: must be a boolean string: "true", "false", "1", or "0"/,
+    );
+  });
+});
