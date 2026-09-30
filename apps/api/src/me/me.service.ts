@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
+import { ApiKeysRepository } from '../api-keys/api-keys.repository';
 import type { AuthUser } from '../auth/auth-user';
 import { ContactsRepository } from '../contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
@@ -143,6 +144,7 @@ export class MeService {
     // Supabase admin actually observe.
     @Inject(GDRIVE_REPOSITORY) private readonly gdriveRepo: GDriveRepository,
     private readonly gdrive: GDriveService,
+    private readonly apiKeysRepo: ApiKeysRepository,
   ) {}
 
   /**
@@ -430,31 +432,34 @@ export class MeService {
    * delete their auth records.
    *
    * Execution order is intentional:
-   *   1. Wipe `idempotency_records` (FK does NOT cascade — left over,
+   *   1. Hard-delete `api_keys`. The FK cascades on auth.users delete,
+   *      but that never runs when the Supabase call fails or is delayed.
+   *   2. Wipe `idempotency_records` (FK does NOT cascade — left over,
    *      these would be orphans the user could never reach again).
-   *   2. Hard-delete contacts (working state, no statutory retention).
-   *   3. Hard-delete templates (working state).
-   *   4. Ask Google to revoke each Drive refresh token (best effort,
+   *   3. Hard-delete contacts (working state, no statutory retention).
+   *   4. Hard-delete templates (working state).
+   *   5. Ask Google to revoke each Drive refresh token (best effort,
    *      5s timeout, failures logged without the token), then hard-delete
    *      every Google Drive connection. The token is gone locally even
    *      if Supabase later fails or Google never answers.
-   *   5. Atomic envelopes purge:
+   *   6. Atomic envelopes purge:
    *        a. Hard-delete drafts.
    *        b. For every non-draft (sealed/awaiting/declined/expired/
    *           canceled) envelope: anonymize signer rows that match
    *           the deleted user's email, append a `retention_deleted`
    *           audit event (chain stays intact), and NULL `owner_id`
    *           so the row survives Supabase's auth.users delete.
-   *   6. Record a tombstone `(user_id, sha256(lowercase(email)))`
+   *   7. Record a tombstone `(user_id, sha256(lowercase(email)))`
    *      BEFORE asking Supabase to delete the auth row. If Supabase
    *      then fails we still have a forensic breadcrumb of who used
    *      to own the preserved envelopes, and the tombstone upsert is
    *      idempotent so a retry won't duplicate.
-   *   7. Ask Supabase to delete the `auth.users` row. The FK on
+   *   8. Ask Supabase to delete the `auth.users` row. The FK on
    *      envelopes is `ON DELETE SET NULL` (migration 0012) so a
    *      bypass still keeps sealed envelopes. The Drive FK is
-   *      `ON DELETE CASCADE` (migration 0021); step 4 already
-   *      removed those rows when this service ran.
+   *      `ON DELETE CASCADE` (migration 0021); step 5 already
+   *      removed those rows when this service ran. api_keys also
+   *      cascades (migration 0022); step 1 already removed them.
    *
    * If the Supabase call fails we map to 503 — the user can retry; all
    * preceding steps are idempotent.
@@ -463,6 +468,9 @@ export class MeService {
     const emailHash = createHash('sha256')
       .update((user.email ?? '').toLowerCase())
       .digest('hex');
+
+    const keysDeleted = await this.apiKeysRepo.deleteAllByOwner(user.id);
+    this.logger.log(`account-delete: api_keys deleted=${keysDeleted} user=${user.id}`);
 
     const wiped = await this.idempotencyRepo.deleteByUser(user.id);
     this.logger.log(`account-delete: idempotency_records wiped=${wiped} user=${user.id}`);
@@ -486,7 +494,7 @@ export class MeService {
       `account-delete: envelopes drafts_deleted=${purge.drafts_deleted} preserved=${purge.envelopes_preserved} signers_anonymized=${purge.signers_anonymized} retention_events=${purge.retention_events_appended} user=${user.id}`,
     );
 
-    // Tombstone BEFORE the admin call — see method docstring step 5.
+    // Tombstone BEFORE the admin call — see method docstring step 7.
     await this.tombstonesRepo.recordDeletion({
       user_id: user.id,
       email_hash: emailHash,

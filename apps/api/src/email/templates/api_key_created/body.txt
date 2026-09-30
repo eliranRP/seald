@@ -1,0 +1,8 @@
+A key named {{key_name}} was created on your account.
+
+Prefix: {{key_prefix}}
+
+If you did not create it, revoke it in Settings:
+{{settings_url}}
+
+{{legal_entity}} · {{legal_postal}}

@@ -18,6 +18,8 @@ export interface Database {
   gdrive_accounts: GDriveAccountsTable;
   // Migration 0017 — "Save envelope artifacts to Google Drive" bookkeeping.
   gdrive_envelope_exports: GDriveEnvelopeExportsTable;
+  // Migration 0022 — agent access keys. The secret is not a column.
+  api_keys: ApiKeysTable;
 }
 
 export interface GDriveEnvelopeExportsTable {
@@ -300,7 +302,24 @@ export type EmailKindDb =
   | 'withdrawn_after_sign'
   | 'expired_to_sender'
   | 'expired_to_signer'
-  | 'signed_to_sender';
+  | 'signed_to_sender'
+  | 'api_key_created';
+
+export interface ApiKeysTable {
+  id: Generated<string>;
+  owner_id: string;
+  name: string;
+  prefix: string;
+  key_hash: string;
+  scopes: ColumnType<string[], readonly string[], readonly string[]>;
+  require_owner_approval: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  allow_new_recipients: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  always_require_signin: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  expires_at: ColumnType<Date, string, string>;
+  revoked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+}
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

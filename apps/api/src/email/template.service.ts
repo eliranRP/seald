@@ -32,7 +32,8 @@ export type EmailTemplateKind =
   | 'withdrawn_after_sign'
   | 'expired_to_sender'
   | 'expired_to_signer'
-  | 'signed_to_sender';
+  | 'signed_to_sender'
+  | 'api_key_created';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -171,6 +172,7 @@ const TITLES: Record<string, string> = {
   expired_to_sender: 'Seald — Envelope expired',
   expired_to_signer: 'Seald — Signing window closed',
   signed_to_sender: 'Seald — Signature recorded',
+  api_key_created: 'Seald — New key',
 };
 
 function prettyTitle(kind: string): string {

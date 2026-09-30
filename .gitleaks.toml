@@ -19,6 +19,13 @@ paths = [
   '''\.storybook/''',
 ]
 
+# Live agent keys. 32 bytes of base64url plus an 8-hex checksum.
+# This does not register the prefix with GitHub secret scanning.
+[[rules]]
+id = "seald-live-api-key"
+description = "Seald live API key"
+regex = '''seald_live_[A-Za-z0-9_-]{43}[0-9a-f]{8}'''
+
 # Known test/placeholder values that are not real secrets
 [[rules]]
 id = "placeholder-supabase-key"

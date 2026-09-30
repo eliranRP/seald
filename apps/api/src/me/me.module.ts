@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
@@ -20,7 +21,14 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
  * don't need to import it explicitly to inject `OutboundEmailsRepository`.
  */
 @Module({
-  imports: [AuthModule, ContactsModule, EnvelopesModule, TemplatesModule, GDriveModule],
+  imports: [
+    AuthModule,
+    ContactsModule,
+    EnvelopesModule,
+    TemplatesModule,
+    GDriveModule,
+    ApiKeysModule,
+  ],
   controllers: [MeController],
   providers: [
     MeService,
