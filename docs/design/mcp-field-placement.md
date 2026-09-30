@@ -165,7 +165,9 @@ pdf.js multiplies the displayed page by the page's UserUnit. A UserUnit of 2 on 
 
 ## Limits
 
-`inspectPdfBytes` is the only pdf-lib parse. It checks the 25 MB cap and the `%PDF-` magic, and reads each page's MediaBox, CropBox, and rotation. An encrypted or corrupt file is `file_unreadable`, not a raw parser error. The 100-page cap is optional. Upload does not pass it, so a web upload over 100 pages behaves as on main. Field placement's `loadPdf` passes `maxPages: 100` and rejects the rest with `file_too_many_pages`. Field placement calls that helper before pdf.js.
+`inspectPdfBytes` is the only pdf-lib parse. It checks the 25 MB cap and the `%PDF-` magic, and reads each page's MediaBox, CropBox, and rotation. An encrypted or corrupt file is `file_unreadable`, not a raw parser error. A missing or unusable MediaBox falls back to US Letter (612×792 at the origin), the same default pdf.js uses. A missing, empty, or malformed CropBox falls back to that MediaBox. Reversed corners are normalized so width and height are positive, and the CropBox is clipped to the MediaBox. That clipped box is the page view. At the default user unit of 1, its width and height, swapped when `/Rotate` is 90 or 270, equal pdf.js's scale-1 viewport. The 100-page cap is optional. Upload does not pass it, so a web upload over 100 pages behaves as on main. Field placement's `loadPdf` passes `maxPages: 100` and rejects the rest with `file_too_many_pages`. Field placement calls that helper before pdf.js.
+
+PR #375 (`cursor/mcp-step-0bc-drive-templates-2261`, agent bc-00a40106) adds displayed page sizes to this same `inspectPdfBytes`. Whichever of #374 and #375 merges second rebases and keeps one implementation: the optional page cap, these geometry fallbacks, and the page-size fields. Displayed width and height come from the clipped view above.
 
 pdf.js runs in one worker. Each call destroys the loading task in a `finally`. A call that exceeds 20 seconds terminates the worker and the next call starts a new one (`inspect_timeout`). The worker has a memory cap. There is no document cache. The worker keeps the pdf.js module, not PDF bytes.
 
