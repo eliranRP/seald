@@ -113,12 +113,17 @@ export class FetchGoogleOAuthClient implements GoogleOAuthClient {
     return { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
   }
 
-  async revokeToken(refreshToken: string): Promise<void> {
+  async revokeToken(refreshToken: string, signal?: AbortSignal): Promise<void> {
     const body = new URLSearchParams({ token: refreshToken });
+    // The service aborts its own controller at 5s. This fallback covers a
+    // direct call that did not pass a signal.
+    const timeout = AbortSignal.timeout(5_000);
+    const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
     await this.fetchImpl('https://oauth2.googleapis.com/revoke', {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       body,
+      signal: combined,
     });
   }
 }

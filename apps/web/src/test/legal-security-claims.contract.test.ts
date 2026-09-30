@@ -82,7 +82,13 @@ describe('legal page security claims', () => {
       'Data is encrypted with TLS in transit between your device and our services, and between our servers and our database, file-storage and email providers. Documents, signatures and audit records are stored with our database and file-storage provider, which encrypts them at rest.',
     );
     expect(source).toContain(
-      "Until you delete your account. Deletion takes effect immediately and can't be undone. Your login, contacts, templates and drafts are deleted. Envelopes you've sent, and their audit records, are kept without a link to your account, and your email address is removed from the signer records where it appears.",
+      "Until you delete your account. Deletion takes effect immediately and can't be undone. Your login, contacts, templates, drafts and Google Drive connection data, including saved tokens, are deleted. Envelopes you've sent, and their audit records, are kept without a link to your account, and your email address is removed from the signer records where it appears.",
+    );
+    expect(source).toContain(
+      'Google Drive connection</strong> — if you connect Google Drive: your Google email address and account identifier, the access scope you granted, when you connected, last used and disconnected it, and a saved token that lets Seald reach the files you allow until you disconnect.',
+    );
+    expect(source).toContain(
+      'Until you disconnect it or delete your account. When you disconnect, we ask Google to revoke our access and delete the saved token straight away. We keep the connected Google email address and the connection dates until you delete your account.',
     );
     expect(source).toContain(
       "We don't currently delete support correspondence on a schedule, and we don't promise to keep it for any particular period.",

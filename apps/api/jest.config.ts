@@ -63,9 +63,13 @@ const config: Config = {
   // Rule 12.4 — randomize test order inside a file to surface hidden
   // ordering dependencies before they bite in CI.
   randomize: true,
-  // Real-Postgres lock test. The unit runner has no database; the e2e
-  // config picks this file up and CI provides Postgres.
-  testPathIgnorePatterns: ['/node_modules/', 'submit-signer.concurrency.e2e-spec.ts'],
+  // Real-Postgres tests. The unit runner has no database; the e2e
+  // config picks these files up and CI provides Postgres.
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    'submit-signer.concurrency.e2e-spec.ts',
+    'gdrive-token-erasure.pg.e2e-spec.ts',
+  ],
 };
 
 export default config;

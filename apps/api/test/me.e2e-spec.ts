@@ -13,6 +13,11 @@ import { OutboundEmailsRepository } from '../src/email/outbound-emails.repositor
 import { IdempotencyRepository } from '../src/me/idempotency.repository';
 import { SupabaseAdminClient } from '../src/me/supabase-admin.client';
 import { TombstonesRepository } from '../src/me/tombstones.repository';
+import {
+  GDRIVE_REPOSITORY,
+  type GDriveAccount,
+  type GDriveRepository,
+} from '../src/integrations/gdrive/gdrive.repository';
 import { buildTestJwks } from './test-jwks';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
@@ -27,6 +32,68 @@ import { StubSupabaseAdminClient } from './stub-supabase-admin';
  * `(user_id, sha256(lowercase(email)))` shape and the strict
  * "tombstone-before-supabase" ordering invariant.
  */
+class InMemoryGDriveRepository implements GDriveRepository {
+  readonly rows = new Map<string, GDriveAccount>();
+  callLog: string[] = [];
+
+  async findByIdForUser(): Promise<GDriveAccount | null> {
+    return null;
+  }
+  async findByIdForUserIncludingDeleted(): Promise<GDriveAccount | null> {
+    return null;
+  }
+  async listForUser(): Promise<ReadonlyArray<GDriveAccount>> {
+    return [];
+  }
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    return [...this.rows.values()].filter((row) => row.userId === userId);
+  }
+  async insert(row: GDriveAccount): Promise<GDriveAccount> {
+    this.rows.set(row.id, row);
+    return row;
+  }
+  async findActiveByUserAndGoogleUser(): Promise<GDriveAccount | null> {
+    return null;
+  }
+  async replaceToken(): Promise<GDriveAccount> {
+    throw new Error('replaceToken is not used by DELETE /me');
+  }
+  async disconnect(): Promise<boolean> {
+    return false;
+  }
+  async deleteAllByUser(userId: string): Promise<number> {
+    this.callLog.push('gdrive.deleteAllByUser');
+    let removed = 0;
+    for (const [id, row] of this.rows) {
+      if (row.userId !== userId) continue;
+      this.rows.delete(id);
+      removed += 1;
+    }
+    return removed;
+  }
+  async touchLastUsed(): Promise<void> {
+    /* DELETE /me does not touch last_used_at */
+  }
+  reset(): void {
+    this.rows.clear();
+  }
+}
+
+function driveRow(id: string, userId: string): GDriveAccount {
+  return {
+    id,
+    userId,
+    googleUserId: `google-${id}`,
+    googleEmail: `${id}@gmail.example`,
+    refreshTokenCiphertext: Buffer.from(`cipher-${id}`),
+    refreshTokenKmsKeyArn: `arn:aws:kms:us-east-1:0:key/${id}`,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    connectedAt: '2026-05-01T00:00:00.000Z',
+    lastUsedAt: null,
+    deletedAt: null,
+  };
+}
+
 class InMemoryTombstonesRepository extends TombstonesRepository {
   readonly recorded: Array<{ readonly user_id: string; readonly email_hash: string }> = [];
   callLog: string[] = [];
@@ -80,6 +147,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
   let idempotencyRepo: InMemoryIdempotencyRepository;
   let supabaseAdmin: StubSupabaseAdminClient;
   let tombstonesRepo: InMemoryTombstonesRepository;
+  let gdriveRepo: InMemoryGDriveRepository;
   let callLog: string[];
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
@@ -94,11 +162,12 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     idempotencyRepo = new InMemoryIdempotencyRepository();
     supabaseAdmin = new StubSupabaseAdminClient();
     tombstonesRepo = new InMemoryTombstonesRepository();
+    gdriveRepo = new InMemoryGDriveRepository();
 
     callLog = [];
     // Wire ordering tracking across repos so we can assert the strict
     // delete-pipeline order: idempotency → contacts → templates →
-    // envelopes purge → tombstone → supabase admin.
+    // gdrive → envelopes purge → tombstone → supabase admin.
     const origDelete = idempotencyRepo.deleteByUser.bind(idempotencyRepo);
     idempotencyRepo.deleteByUser = async (id: string): Promise<number> => {
       callLog.push('idempotency.deleteByUser');
@@ -121,6 +190,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     };
     supabaseAdmin.callLog = callLog;
     tombstonesRepo.callLog = callLog;
+    gdriveRepo.callLog = callLog;
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -141,6 +211,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(supabaseAdmin)
       .overrideProvider(TombstonesRepository)
       .useValue(tombstonesRepo)
+      .overrideProvider(GDRIVE_REPOSITORY)
+      .useValue(gdriveRepo)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -166,6 +238,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     idempotencyRepo.reset();
     supabaseAdmin.reset();
     tombstonesRepo.reset();
+    gdriveRepo.reset();
     callLog.length = 0;
   });
 
@@ -323,6 +396,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
         'idempotency.deleteByUser',
         'contacts.deleteAllByOwner',
         'templates.deleteAllByOwner',
+        'gdrive.deleteAllByUser',
         'envelopes.purgeOwnedDataForAccountDeletion',
         'tombstones.recordDeletion',
         'supabaseAdmin.deleteUser',
@@ -334,8 +408,32 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(tombstonesRepo.recorded[0]?.email_hash).toMatch(/^[0-9a-f]{64}$/);
     });
 
+    it('DELETE /me leaves no gdrive rows for the deleted user', async () => {
+      const activeId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const disconnectedId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+      const otherId = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+      gdriveRepo.rows.set(activeId, driveRow(activeId, USER_A));
+      gdriveRepo.rows.set(disconnectedId, {
+        ...driveRow(disconnectedId, USER_A),
+        deletedAt: '2026-04-01T00:00:00.000Z',
+      });
+      gdriveRepo.rows.set(otherId, driveRow(otherId, USER_B));
+
+      const res = await request(app.getHttpServer())
+        .delete('/me')
+        .set(auth(tokenA))
+        .send({ confirm: 'DELETE_MY_ACCOUNT' });
+
+      expect(res.status).toBe(204);
+      const remaining = [...gdriveRepo.rows.values()];
+      expect(remaining.filter((row) => row.userId === USER_A)).toEqual([]);
+      expect(remaining.map((row) => row.id)).toEqual([otherId]);
+    });
+
     it('admin failure → 503 admin_api_unavailable, prior steps + tombstone all ran', async () => {
       idempotencyRepo.seed(USER_A, 2);
+      const driveId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+      gdriveRepo.rows.set(driveId, driveRow(driveId, USER_A));
       supabaseAdmin.failNextWithAdminError('SUPABASE_SERVICE_ROLE_KEY missing');
 
       const res = await request(app.getHttpServer())
@@ -351,6 +449,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       expect(supabaseAdmin.deletedUserIds).toEqual([]);
       expect(tombstonesRepo.recorded).toHaveLength(1);
       expect(tombstonesRepo.recorded[0]?.user_id).toBe(USER_A);
+      expect(gdriveRepo.rows.has(driveId)).toBe(false);
     });
 
     it('non-admin error from the admin client surfaces as a 500', async () => {

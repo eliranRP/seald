@@ -523,7 +523,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
 
 const TEST_ENV = {
   TC_VERSION: '2026-09-30.2',
-  PRIVACY_VERSION: '2026-09-30.2',
+  PRIVACY_VERSION: '2026-09-30.3',
   APP_PUBLIC_URL: 'http://localhost:5173',
 } as unknown as AppEnv;
 
@@ -649,7 +649,7 @@ describe('EnvelopesService', () => {
       const e = await svc.createDraft(OWNER, { title: 'NDA' });
       expect(e.status).toBe('draft');
       expect(e.tc_version).toBe('2026-09-30.2');
-      expect(e.privacy_version).toBe('2026-09-30.2');
+      expect(e.privacy_version).toBe('2026-09-30.3');
       expect(new Date(e.expires_at).getTime()).toBeGreaterThan(Date.now());
     });
 

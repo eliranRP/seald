@@ -1,4 +1,5 @@
-import { GDriveService, type GoogleOAuthClient } from '../gdrive.service';
+import { Logger } from '@nestjs/common';
+import { GDriveService, GDRIVE_REVOKE_TIMEOUT_MS, type GoogleOAuthClient } from '../gdrive.service';
 import type { GDriveAccount, GDriveRepository } from '../gdrive.repository';
 import { GDriveKmsService, type KmsClientPort } from '../gdrive-kms.service';
 import { TokenExpiredError } from '../dto/error-codes';
@@ -9,8 +10,15 @@ class FakeRepo implements GDriveRepository {
     const r = this.rows.get(id);
     return r && r.userId === userId && !r.deletedAt ? r : null;
   }
+  async findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null> {
+    const r = this.rows.get(id);
+    return r && r.userId === userId ? r : null;
+  }
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     return [...this.rows.values()].filter((r) => r.userId === userId && !r.deletedAt);
+  }
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    return [...this.rows.values()].filter((r) => r.userId === userId);
   }
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
     // Enforce the partial UNIQUE index from migration 0013_gdrive_accounts.sql:
@@ -63,11 +71,25 @@ class FakeRepo implements GDriveRepository {
     this.rows.set(args.id, next);
     return next;
   }
-  async softDelete(id: string, _userId: string): Promise<boolean> {
+  async disconnect(id: string, userId: string): Promise<boolean> {
     const r = this.rows.get(id);
-    if (!r) return false;
-    this.rows.set(id, { ...r, deletedAt: new Date().toISOString() });
+    if (!r || r.userId !== userId) return false;
+    this.rows.set(id, {
+      ...r,
+      deletedAt: r.deletedAt ?? new Date().toISOString(),
+      refreshTokenCiphertext: null,
+      refreshTokenKmsKeyArn: null,
+    });
     return true;
+  }
+  async deleteAllByUser(userId: string): Promise<number> {
+    let removed = 0;
+    for (const [id, row] of this.rows) {
+      if (row.userId !== userId) continue;
+      this.rows.delete(id);
+      removed += 1;
+    }
+    return removed;
   }
   async touchLastUsed(id: string): Promise<void> {
     const r = this.rows.get(id);
@@ -127,8 +149,30 @@ class StubGoogleClient implements GoogleOAuthClient {
     }
     return { accessToken: `at-${this.refreshCalls}`, expiresAt: Date.now() + 3600_000 };
   }
-  async revokeToken(): Promise<void> {
-    /* no-op */
+  revokeCalls = 0;
+  lastRevoked: string | null = null;
+  revokeError: Error | null = null;
+  revokeHangs = false;
+  onRevoke: (() => void) | null = null;
+  async revokeToken(refreshToken: string, signal?: AbortSignal): Promise<void> {
+    this.revokeCalls += 1;
+    this.lastRevoked = refreshToken;
+    this.onRevoke?.();
+    if (this.revokeHangs) {
+      await new Promise<void>((_resolve, reject) => {
+        const abort = () => {
+          this.abortObserved = true;
+          reject(Object.assign(new Error('The operation was aborted'), { name: 'AbortError' }));
+        };
+        if (signal?.aborted) {
+          abort();
+          return;
+        }
+        signal?.addEventListener('abort', abort, { once: true });
+      });
+      return;
+    }
+    if (this.revokeError) throw this.revokeError;
   }
 }
 
@@ -258,7 +302,10 @@ describe('GDriveService', () => {
 
       const [acc] = await repo.listForUser('u-1');
       if (!acc) throw new Error('expected one account');
-      const decrypted = await kms.decrypt(acc.refreshTokenCiphertext, acc.refreshTokenKmsKeyArn);
+      const ciphertext = acc.refreshTokenCiphertext;
+      const arn = acc.refreshTokenKmsKeyArn;
+      if (!ciphertext || !arn) throw new Error('expected stored token');
+      const decrypted = await kms.decrypt(ciphertext, arn);
       expect(decrypted).toBe('rt-new');
     });
 
@@ -276,6 +323,139 @@ describe('GDriveService', () => {
         codeVerifier: 'v-B',
       });
       expect(idA).not.toBe(idB);
+    });
+  });
+
+  describe('revokeAccount', () => {
+    it('asks Google to revoke and clears the stored token while keeping the row', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      google.onRevoke = () => {
+        expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).toBeNull();
+        expect(repo.rows.get('acc-1')?.refreshTokenKmsKeyArn).toBeNull();
+      };
+      await svc.revokeAccount('acc-1', 'user-1');
+
+      expect(google.revokeCalls).toBe(1);
+      expect(google.lastRevoked).toBe('rt-secret-1');
+      const row = repo.rows.get('acc-1');
+      expect(row?.deletedAt).toBeTruthy();
+      expect(row?.refreshTokenCiphertext).toBeNull();
+      expect(row?.refreshTokenKmsKeyArn).toBeNull();
+      expect(row?.googleEmail).toBe('a@example.com');
+      expect(row?.googleUserId).toBe('g-1');
+      expect(await repo.listForUser('user-1')).toHaveLength(0);
+    });
+
+    it('still clears the token when the Google revoke call fails', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      google.revokeError = new Error('google down');
+
+      await svc.revokeAccount('acc-1', 'user-1');
+
+      expect(google.revokeCalls).toBe(1);
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).toBeNull();
+      expect(repo.rows.get('acc-1')?.refreshTokenKmsKeyArn).toBeNull();
+      expect(repo.rows.get('acc-1')?.deletedAt).toBeTruthy();
+    });
+
+    it('is idempotent after the token is cleared and does not revoke again', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      await svc.revokeAccount('acc-1', 'user-1');
+      await svc.revokeAccount('acc-1', 'user-1');
+
+      expect(google.revokeCalls).toBe(1);
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).toBeNull();
+    });
+
+    it('clears a legacy soft-deleted row that still holds a token', async () => {
+      const seeded = await seedAccount(repo, kms, 'rt-legacy');
+      const existing = repo.rows.get(seeded.id);
+      if (!existing) throw new Error('expected seeded row');
+      repo.rows.set(seeded.id, { ...existing, deletedAt: '2026-01-01T00:00:00.000Z' });
+
+      await svc.revokeAccount(seeded.id, 'user-1');
+
+      expect(google.revokeCalls).toBe(1);
+      expect(google.lastRevoked).toBe('rt-legacy');
+      expect(repo.rows.get(seeded.id)?.refreshTokenCiphertext).toBeNull();
+      expect(repo.rows.get(seeded.id)?.deletedAt).toBe('2026-01-01T00:00:00.000Z');
+    });
+
+    it('erases the token locally when the Google revoke hangs and returns within the timeout', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      google.revokeHangs = true;
+      const started = Date.now();
+      await svc.revokeAccount('acc-1', 'user-1');
+      const elapsed = Date.now() - started;
+
+      expect(elapsed).toBeLessThan(GDRIVE_REVOKE_TIMEOUT_MS + 1_500);
+      expect(google.abortObserved).toBe(true);
+      expect(google.revokeCalls).toBe(1);
+      expect(google.lastRevoked).toBe('rt-secret-1');
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).toBeNull();
+      expect(repo.rows.get('acc-1')?.refreshTokenKmsKeyArn).toBeNull();
+      expect(repo.rows.get('acc-1')?.deletedAt).toBeTruthy();
+    }, 15_000);
+
+    it('logs a revoke failure without the token value', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      google.revokeError = new Error('token=rt-secret-1');
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await svc.revokeAccount('acc-1', 'user-1');
+
+      const lines = warn.mock.calls.map((call) => String(call[0]));
+      expect(lines.some((line) => line.includes('gdrive_revoke_failed account=acc-1'))).toBe(true);
+      expect(lines.join('\n')).not.toContain('rt-secret-1');
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).toBeNull();
+      warn.mockRestore();
+    });
+
+    it('does not revoke or erase a row owned by someone else', async () => {
+      await seedAccount(repo, kms, 'rt-secret-1');
+      await expect(svc.revokeAccount('acc-1', 'user-2')).rejects.toThrow(
+        'gdrive_account_not_found',
+      );
+      await expect(svc.revokeAccount('missing', 'user-1')).rejects.toThrow(
+        'gdrive_account_not_found',
+      );
+      expect(google.revokeCalls).toBe(0);
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).not.toBeNull();
+      expect(repo.rows.get('acc-1')?.deletedAt).toBeNull();
+    });
+  });
+
+  describe('revokeAllBeforeAccountDeletion', () => {
+    it('revokes each stored token and still finishes when one revoke fails', async () => {
+      await seedAccount(repo, kms, 'rt-live');
+      const second = await kms.encrypt('rt-legacy');
+      await repo.insert({
+        id: 'acc-2',
+        userId: 'user-1',
+        googleUserId: 'g-2',
+        googleEmail: 'b@example.com',
+        refreshTokenCiphertext: second.ciphertext,
+        refreshTokenKmsKeyArn: second.kmsKeyArn,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        connectedAt: new Date().toISOString(),
+        lastUsedAt: null,
+        deletedAt: '2026-01-01T00:00:00.000Z',
+      });
+      google.onRevoke = () => {
+        google.revokeError = google.revokeCalls === 1 ? new Error('token=rt-live') : null;
+      };
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+      await expect(svc.revokeAllBeforeAccountDeletion('user-1')).resolves.toBeUndefined();
+
+      expect(google.revokeCalls).toBe(2);
+      expect(repo.rows.get('acc-1')?.refreshTokenCiphertext).not.toBeNull();
+      expect(repo.rows.get('acc-2')?.refreshTokenCiphertext).not.toBeNull();
+      const lines = warn.mock.calls.map((call) => String(call[0])).join('\n');
+      expect(lines).toContain('gdrive_revoke_failed account=acc-1');
+      expect(lines).not.toContain('rt-live');
+      expect(lines).not.toContain('rt-legacy');
+      warn.mockRestore();
     });
   });
 });

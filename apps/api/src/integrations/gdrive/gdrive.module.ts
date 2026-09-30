@@ -129,6 +129,7 @@ const DriveUploaderProvider: Provider = {
     GDriveRateLimiter,
     GdriveExportService,
     GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
+    GDRIVE_REPOSITORY,
   ],
 })
 export class GDriveModule {}

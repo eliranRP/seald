@@ -222,9 +222,9 @@ export function useGDriveOAuthMessageListener(): void {
 }
 
 /**
- * Soft-deletes a connected account at the API. The backend revokes the
- * refresh token at Google before flipping the row's `deleted_at` so a
- * compromised token can't outlive the disconnect click.
+ * Disconnects a connected account. The API asks Google to revoke the
+ * refresh token, then clears the stored ciphertext and key material and
+ * sets `deleted_at`. Repeating the request is safe.
  */
 export function useDisconnectGDrive() {
   const qc = useQueryClient();

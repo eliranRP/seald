@@ -75,8 +75,14 @@ class InMemoryGDriveRepo implements GDriveRepository {
     const r = this.rows.get(id);
     return r && r.userId === userId ? r : null;
   }
+  async findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null> {
+    return this.findByIdForUser(id, userId);
+  }
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     return [...this.rows.values()].filter((r) => r.userId === userId && !r.deletedAt);
+  }
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    return [...this.rows.values()].filter((r) => r.userId === userId);
   }
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
     this.rows.set(row.id, row);
@@ -112,11 +118,25 @@ class InMemoryGDriveRepo implements GDriveRepository {
     this.rows.set(args.id, next);
     return next;
   }
-  async softDelete(id: string, userId: string): Promise<boolean> {
+  async disconnect(id: string, userId: string): Promise<boolean> {
     const r = this.rows.get(id);
     if (!r || r.userId !== userId) return false;
-    this.rows.set(id, { ...r, deletedAt: new Date().toISOString() });
+    this.rows.set(id, {
+      ...r,
+      deletedAt: r.deletedAt ?? new Date().toISOString(),
+      refreshTokenCiphertext: null,
+      refreshTokenKmsKeyArn: null,
+    });
     return true;
+  }
+  async deleteAllByUser(userId: string): Promise<number> {
+    let removed = 0;
+    for (const [id, row] of this.rows) {
+      if (row.userId !== userId) continue;
+      this.rows.delete(id);
+      removed += 1;
+    }
+    return removed;
   }
   async touchLastUsed(): Promise<void> {
     /* noop */

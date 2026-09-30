@@ -1,10 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import type { Database, GDriveAccountsTable } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
 import type { GDriveAccount, GDriveRepository } from './gdrive.repository';
 
 type Row = Selectable<GDriveAccountsTable>;
+
+function toCiphertext(value: Buffer | string | null): Buffer | null {
+  if (value == null) return null;
+  return Buffer.isBuffer(value) ? value : Buffer.from(value);
+}
 
 function toDomain(r: Row): GDriveAccount {
   return {
@@ -12,9 +17,7 @@ function toDomain(r: Row): GDriveAccount {
     userId: r.user_id,
     googleUserId: r.google_user_id,
     googleEmail: r.google_email,
-    refreshTokenCiphertext: Buffer.isBuffer(r.refresh_token_ciphertext)
-      ? r.refresh_token_ciphertext
-      : Buffer.from(r.refresh_token_ciphertext),
+    refreshTokenCiphertext: toCiphertext(r.refresh_token_ciphertext),
     refreshTokenKmsKeyArn: r.refresh_token_kms_key_arn,
     scope: r.scope,
     connectedAt: new Date(r.connected_at).toISOString(),
@@ -38,12 +41,32 @@ export class GDrivePgRepository implements GDriveRepository {
     return r ? toDomain(r) : null;
   }
 
+  async findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null> {
+    const r = await this.db
+      .selectFrom('gdrive_accounts')
+      .selectAll()
+      .where('id', '=', id)
+      .where('user_id', '=', userId)
+      .executeTakeFirst();
+    return r ? toDomain(r) : null;
+  }
+
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     const rows = await this.db
       .selectFrom('gdrive_accounts')
       .selectAll()
       .where('user_id', '=', userId)
       .where('deleted_at', 'is', null)
+      .orderBy('connected_at', 'desc')
+      .execute();
+    return rows.map(toDomain);
+  }
+
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    const rows = await this.db
+      .selectFrom('gdrive_accounts')
+      .selectAll()
+      .where('user_id', '=', userId)
       .orderBy('connected_at', 'desc')
       .execute();
     return rows.map(toDomain);
@@ -105,15 +128,30 @@ export class GDrivePgRepository implements GDriveRepository {
     return toDomain(updated);
   }
 
-  async softDelete(id: string, userId: string): Promise<boolean> {
+  async disconnect(id: string, userId: string): Promise<boolean> {
+    // Token wipe and deleted_at land in one transaction. A second call
+    // leaves the original deleted_at (coalesce) and the null token columns.
+    return this.db.transaction().execute(async (trx) => {
+      const r = await trx
+        .updateTable('gdrive_accounts')
+        .set({
+          deleted_at: sql<string>`coalesce(deleted_at, now())`,
+          refresh_token_ciphertext: null,
+          refresh_token_kms_key_arn: null,
+        })
+        .where('id', '=', id)
+        .where('user_id', '=', userId)
+        .executeTakeFirst();
+      return (r.numUpdatedRows ?? 0n) > 0n;
+    });
+  }
+
+  async deleteAllByUser(userId: string): Promise<number> {
     const r = await this.db
-      .updateTable('gdrive_accounts')
-      .set({ deleted_at: new Date().toISOString() })
-      .where('id', '=', id)
+      .deleteFrom('gdrive_accounts')
       .where('user_id', '=', userId)
-      .where('deleted_at', 'is', null)
       .executeTakeFirst();
-    return (r?.numUpdatedRows ?? 0n) > 0n;
+    return Number(r.numDeletedRows ?? 0n);
   }
 
   async touchLastUsed(id: string): Promise<void> {
