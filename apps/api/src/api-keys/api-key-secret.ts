@@ -33,7 +33,8 @@ function checksumOf(body: string): string {
  * SHA-256 is a false positive.
  */
 function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  // cspell:disable-next-line
+  return createHash('sha256').update(token).digest('hex'); // codeql[js/insufficient-password-hash]
 }
 
 function checksumMatches(body: string, checksum: string): boolean {

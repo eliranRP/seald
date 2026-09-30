@@ -10,6 +10,7 @@ describe('api key secret', () => {
       `${API_KEY_TOKEN_PREFIX}${key.token.slice(API_KEY_TOKEN_PREFIX.length, API_KEY_TOKEN_PREFIX.length + 8)}`,
     );
     expect(key.keyHash).toHaveLength(64);
+    // codeql[js/insufficient-password-hash] same digest as hashToken; the value is not a password
     expect(key.keyHash).toBe(createHash('sha256').update(key.token).digest('hex'));
     expect(key.keyHash).not.toBe(key.token);
     const parsed = parseApiKeyToken(key.token);
