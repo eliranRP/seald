@@ -1,9 +1,15 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { DEFAULT_FIELD_SIZE_PT, type PlacementKind } from 'shared';
 import type { CreateFieldInput, FieldUpdateById } from '../../envelopes/envelopes.repository';
 import {
   ANCHOR_TEXT,
   buildAcroForm,
+  buildDuplicateWidgets,
   buildLetter,
   buildMixed,
   buildPrompt,
@@ -352,6 +358,27 @@ describe('FieldPlacementService', () => {
     });
     expect(slugs(form.report.errors)).toContain('form_field_not_found');
     expect(store.writes).toBe(writesBeforeMiss);
+
+    store.bytes = Buffer.from((await buildDuplicateWidgets()).bytes);
+    const ambiguous = await service.placeFields({
+      owner_id: OWNER,
+      envelope_id: ENVELOPE,
+      fields: [{ signer_id: SIGNER, form_field: { name: 'Twice' } }],
+    });
+    const ambiguousIssue = ambiguous.report.errors.find(
+      (issue) => issue.slug === 'form_field_ambiguous',
+    );
+    expect(ambiguousIssue?.match_count).toBe(2);
+    expect(ambiguousIssue?.message).toBe(
+      'Form field matches more than one widget (match_count 2).',
+    );
+    const chosen = await service.placeFields({
+      owner_id: OWNER,
+      envelope_id: ENVELOPE,
+      fields: [signatureAt(72, 40), { signer_id: SIGNER, form_field: { name: 'Twice', page: 2 } }],
+    });
+    expect(slugs(chosen.report.errors)).not.toContain('form_field_ambiguous');
+    expect(chosen.fields.find((field) => field.source === 'form_field:Twice')?.page).toBe(2);
   });
 
   it('persists warnings, skips errors and dry runs, and keeps update ids', async () => {
@@ -566,6 +593,13 @@ describe('FieldPlacementService', () => {
       () => service.inspectDocument({ owner_id: OWNER, envelope_id: ENVELOPE }),
       BadRequestException,
       'file_not_ready',
+    );
+    store.path = 'original.pdf';
+    store.bytes = Buffer.from('not a pdf');
+    await expectHttp(
+      () => service.inspectDocument({ owner_id: OWNER, envelope_id: ENVELOPE }),
+      UnsupportedMediaTypeException,
+      'file_not_pdf',
     );
   });
 

@@ -5,15 +5,10 @@
  * interpolated here. Put it on structured fields such as nearest_text.
  */
 
-export const PLACEMENT_KINDS = [
-  'signature',
-  'initials',
-  'date',
-  'text',
-  'checkbox',
-  'email',
-  'name',
-] as const;
+import { FIELD_KINDS, signerIdsWithRequiredSignature } from './signer';
+
+/** Stored kinds, plus the `name` alias (`text` + `link_id: 'name'`). */
+export const PLACEMENT_KINDS = [...FIELD_KINDS, 'name'] as const;
 
 export type PlacementKind = (typeof PLACEMENT_KINDS)[number];
 
@@ -29,6 +24,7 @@ export const PLACEMENT_ISSUE_SLUGS = [
   'anchor_not_found',
   'anchor_occurrence_out_of_range',
   'form_field_not_found',
+  'form_field_ambiguous',
 ] as const;
 
 export type PlacementIssueSlug = (typeof PLACEMENT_ISSUE_SLUGS)[number];
@@ -199,6 +195,8 @@ function messageFor(slug: PlacementIssueSlug, details: PlacementIssueDetails | u
       return `Anchor occurrence is outside the matches (match_count ${details?.match_count ?? 0}).`;
     case 'form_field_not_found':
       return 'Form field was not found.';
+    case 'form_field_ambiguous':
+      return `Form field matches more than one widget (match_count ${details?.match_count ?? 0}).`;
     default: {
       const neverSlug: never = slug;
       return neverSlug;
@@ -211,6 +209,7 @@ function nextStepsFor(slug: PlacementIssueSlug): readonly PlacementNextStep[] {
     case 'anchor_not_found':
     case 'anchor_occurrence_out_of_range':
     case 'form_field_not_found':
+    case 'form_field_ambiguous':
     case 'field_page_out_of_range':
       return [
         {
@@ -444,11 +443,7 @@ export function validateFieldPlacement(input: PlacementValidationInput): Placeme
     }
   }
 
-  const signed = new Set<string>();
-  for (const field of input.fields) {
-    if (!field.required) continue;
-    if (field.kind === 'signature' || field.kind === 'initials') signed.add(field.signer_id);
-  }
+  const signed = signerIdsWithRequiredSignature(input.fields);
   for (const signer of input.signers) {
     if (signed.has(signer.id)) continue;
     const issue = placementIssue('signer_without_signature_field', { signer_id: signer.id });

@@ -38,13 +38,6 @@ export interface PdfjsInspection {
   readonly widgets: readonly PdfjsWidgetSnapshot[];
 }
 
-export interface PdfPathBound {
-  readonly x: number;
-  readonly y: number;
-  readonly width: number;
-  readonly height: number;
-}
-
 interface Pending {
   resolve: (value: unknown) => void;
   reject: (err: Error) => void;
@@ -56,6 +49,9 @@ const pending = new Map<number, Pending>();
 let queue: Promise<void> = Promise.resolve();
 
 const PDFJS_HREF = pathToFileURL(nodeRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs')).href;
+
+/** One inspect call. A hang terminates the worker so the next call starts clean. */
+export const PDF_INSPECT_TIMEOUT_MS = 20_000;
 
 /**
  * pdf.js is ESM and uses `import.meta`. Jest evaluates tests inside a
@@ -84,36 +80,31 @@ function numbers(value, count) {
   return out;
 }
 
-function pathBounds(args) {
-  if (!args || typeof args.length !== 'number' || args.length < 3) return null;
-  const box = args[2];
-  const raw = numbers(box, 4);
-  if (!raw) return null;
-  const x0 = raw[0];
-  const y0 = raw[1];
-  const x1 = raw[2];
-  const y1 = raw[3];
-  return {
-    x: Math.min(x0, x1),
-    y: Math.min(y0, y1),
-    width: Math.abs(x1 - x0),
-    height: Math.abs(y1 - y0),
-  };
-}
-
 async function open(msg) {
   const lib = await pdfjs(msg.pdfjsHref);
-  const pdf = await lib.getDocument({
+  const loadingTask = lib.getDocument({
     data: new Uint8Array(msg.bytes),
     verbosity: 0,
     isEvalSupported: false,
-  }).promise;
-  return { lib, pdf };
+  });
+  const pdf = await loadingTask.promise;
+  return { pdf, loadingTask };
+}
+
+async function close(opened) {
+  try {
+    if (opened.pdf && typeof opened.pdf.cleanup === 'function') await opened.pdf.cleanup();
+  } finally {
+    const task = opened.loadingTask;
+    if (task && typeof task.destroy === 'function') await task.destroy();
+  }
 }
 
 async function handle(msg) {
-  if (msg.op === 'inspect') {
-    const { pdf } = await open(msg);
+  if (msg.op !== 'inspect') throw new Error('unknown pdf worker op');
+  const opened = await open(msg);
+  try {
+    const pdf = opened.pdf;
     const pages = [];
     const textItems = [];
     const widgets = [];
@@ -160,31 +151,10 @@ async function handle(msg) {
         });
       }
     }
-    if (typeof pdf.cleanup === 'function') pdf.cleanup();
     return { pages, textItems, widgets };
+  } finally {
+    await close(opened);
   }
-
-  if (msg.op === 'paths') {
-    const { lib, pdf } = await open(msg);
-    const bounds = [];
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      const page = await pdf.getPage(pageNumber);
-      if (typeof page.getOperatorList !== 'function') continue;
-      const list = await page.getOperatorList();
-      const fns = list && list.fnArray;
-      const args = list && list.argsArray;
-      if (!fns || !args || typeof fns.length !== 'number') continue;
-      for (let i = 0; i < fns.length; i += 1) {
-        if (fns[i] !== lib.OPS.constructPath) continue;
-        const rect = pathBounds(args[i]);
-        if (rect) bounds.push(rect);
-      }
-    }
-    if (typeof pdf.cleanup === 'function') pdf.cleanup();
-    return { bounds };
-  }
-
-  throw new Error('unknown pdf worker op');
 }
 
 parentPort.on('message', (msg) => {
@@ -218,7 +188,15 @@ export async function stopPdfWorker(): Promise<void> {
 
 function ensureWorker(): Worker {
   if (worker) return worker;
-  const child = new Worker(WORKER_SOURCE, { eval: true });
+  const child = new Worker(WORKER_SOURCE, {
+    eval: true,
+    resourceLimits: {
+      maxOldGenerationSizeMb: 256,
+      maxYoungGenerationSizeMb: 48,
+      codeRangeSizeMb: 16,
+      stackSizeMb: 4,
+    },
+  });
   child.unref();
   child.on('message', (message: unknown) => {
     if (!isRecord(message) || typeof message.id !== 'number') return;
@@ -250,8 +228,38 @@ function ensureWorker(): Worker {
   return child;
 }
 
+export function rejectIfSlow<T>(work: Promise<T>, ms: number, onTimeout: () => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      onTimeout();
+      reject(new FieldPlacementError('inspect_timeout', 'pdf inspection timed out'));
+    }, ms);
+    work.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error('pdf worker failed'));
+      },
+    );
+  });
+}
+
 function call(op: string, extra: Record<string, unknown>): Promise<unknown> {
-  const run = queue.then(() => dispatch(op, extra));
+  const run = queue.then(() =>
+    rejectIfSlow(dispatch(op, extra), PDF_INSPECT_TIMEOUT_MS, () => {
+      void stopPdfWorker();
+    }),
+  );
   queue = run.then(
     () => undefined,
     () => undefined,
@@ -358,19 +366,4 @@ function readInspection(value: unknown): PdfjsInspection {
 
 export async function inspectWithPdfjs(bytes: Uint8Array): Promise<PdfjsInspection> {
   return readInspection(await call('inspect', { bytes }));
-}
-
-export async function listPdfPathBounds(bytes: Uint8Array): Promise<PdfPathBound[]> {
-  const value = await call('paths', { bytes });
-  if (!isRecord(value) || !Array.isArray(value.bounds)) {
-    throw new FieldPlacementError('invalid_pdf', 'pdf.js did not return path bounds');
-  }
-  const bounds: PdfPathBound[] = [];
-  for (const bound of value.bounds) {
-    if (!isRecord(bound)) continue;
-    if (typeof bound.x !== 'number' || typeof bound.y !== 'number') continue;
-    if (typeof bound.width !== 'number' || typeof bound.height !== 'number') continue;
-    bounds.push({ x: bound.x, y: bound.y, width: bound.width, height: bound.height });
-  }
-  return bounds;
 }

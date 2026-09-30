@@ -1,5 +1,6 @@
+import { HttpException } from '@nestjs/common';
 import type { PlacementBox, PlacementKind } from 'shared';
-import { PDFDocument } from 'pdf-lib';
+import { inspectPdfBytes, normalizePdfRotation } from '../envelopes/pdf-inspection';
 import {
   displayedBoxFromPdfRect,
   pdfPointToDisplayed,
@@ -8,14 +9,8 @@ import {
 } from './displayed-page';
 import { FieldPlacementError } from './field-placement.errors';
 import type { DisplayedBox, FormWidgetType, PageSize } from './field-placement.types';
-import {
-  inspectWithPdfjs,
-  listPdfPathBounds,
-  type PdfjsTextSnapshot,
-  type PdfjsWidgetSnapshot,
-  type PdfPathBound,
-} from './pdfjs-host';
-import { groupTextLines, type TextLine, type TextPiece } from './text-index';
+import { inspectWithPdfjs, type PdfjsTextSnapshot, type PdfjsWidgetSnapshot } from './pdfjs-host';
+import { groupTextLines, type TextLine, type TextPiece, type TextRun } from './text-index';
 
 export interface PageGeometry {
   readonly info: PageSize;
@@ -39,41 +34,66 @@ export interface LoadedDocument {
   readonly formFields: readonly LoadedFormField[];
 }
 
-export function normalizeRotation(angle: number): 0 | 90 | 180 | 270 {
-  const turns = ((Math.round(angle) % 360) + 360) % 360;
-  if (turns === 90 || turns === 180 || turns === 270) return turns;
-  return 0;
-}
-
 function asPlacement(box: DisplayedBox): PlacementBox {
   return { x: box.x, y: box.y, width: box.w, height: box.h };
 }
 
-function textPieceBox(item: PdfjsTextSnapshot, viewport: PdfViewport): DisplayedBox {
+function displayedDelta(
+  viewport: PdfViewport,
+  from: { readonly x: number; readonly y: number },
+  to: { readonly x: number; readonly y: number },
+): { readonly x: number; readonly y: number } {
+  const start = pdfPointToDisplayed(viewport, from);
+  const end = pdfPointToDisplayed(viewport, to);
+  return { x: end.x - start.x, y: end.y - start.y };
+}
+
+function textPieceGeometry(
+  item: PdfjsTextSnapshot,
+  viewport: PdfViewport,
+): { readonly box: DisplayedBox; readonly run: TextRun } {
   const a = item.transform[0] ?? 0;
   const b = item.transform[1] ?? 0;
   const c = item.transform[2] ?? 0;
   const d = item.transform[3] ?? 0;
   const e = item.transform[4] ?? 0;
   const f = item.transform[5] ?? 0;
-  const along = Math.hypot(a, b) || 1;
-  const up = Math.hypot(c, d) || 1;
-  const height = item.height > 0 ? item.height : up;
+  const alongScale = Math.hypot(a, b) || 1;
+  const upScale = Math.hypot(c, d) || 1;
+  const height = item.height > 0 ? item.height : upScale;
+  const advance: readonly [number, number] = [
+    e + (a / alongScale) * item.width,
+    f + (b / alongScale) * item.width,
+  ];
+  const raised: readonly [number, number] = [
+    e + (c / upScale) * height,
+    f + (d / upScale) * height,
+  ];
   const corners: ReadonlyArray<readonly [number, number]> = [
     [e, f],
-    [e + (a / along) * item.width, f + (b / along) * item.width],
-    [e + (c / up) * height, f + (d / up) * height],
-    [
-      e + (a / along) * item.width + (c / up) * height,
-      f + (b / along) * item.width + (d / up) * height,
-    ],
+    advance,
+    raised,
+    [advance[0] + (c / upScale) * height, advance[1] + (d / upScale) * height],
   ];
+  const origin = pdfPointToDisplayed(viewport, { x: e, y: f });
+  const along = displayedDelta(viewport, { x: e, y: f }, { x: advance[0], y: advance[1] });
+  const up = displayedDelta(viewport, { x: e, y: f }, { x: raised[0], y: raised[1] });
   const displayed = corners.map(([x, y]) => pdfPointToDisplayed(viewport, { x, y }));
   const xs = displayed.map((point) => point.x);
   const ys = displayed.map((point) => point.y);
   const minX = Math.min(...xs);
   const minY = Math.min(...ys);
-  return { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY };
+  return {
+    box: { x: minX, y: minY, w: Math.max(...xs) - minX, h: Math.max(...ys) - minY },
+    run: {
+      originX: origin.x,
+      originY: origin.y,
+      alongX: along.x,
+      alongY: along.y,
+      upX: up.x,
+      upY: up.y,
+    },
+  };
 }
 
 function widgetDisplayed(rect: readonly number[], viewport: PdfViewport): DisplayedBox | null {
@@ -117,34 +137,40 @@ export function suggestedKind(type: FormWidgetType, name: string): PlacementKind
 }
 
 export async function loadPdf(bytes: Uint8Array): Promise<LoadedDocument> {
+  let inspected;
+  try {
+    inspected = await inspectPdfBytes(Buffer.from(bytes));
+  } catch (err) {
+    if (err instanceof HttpException) throw err;
+    throw new FieldPlacementError('invalid_pdf', 'unreadable PDF');
+  }
+
   let snapshot;
   try {
     snapshot = await inspectWithPdfjs(bytes);
   } catch (err) {
+    if (err instanceof HttpException) throw err;
     if (err instanceof FieldPlacementError) throw err;
     const message = err instanceof Error ? err.message : 'unreadable PDF';
     throw new FieldPlacementError('invalid_pdf', message);
   }
 
-  const lib = await PDFDocument.load(bytes);
-  const libPages = lib.getPages();
+  const boxes = new Map(inspected.pageBoxes.map((page) => [page.page, page]));
   const pages: PageGeometry[] = [];
   const viewports = new Map<number, PdfViewport>();
 
   for (const raw of snapshot.pages) {
-    const libPage = libPages[raw.page - 1];
-    if (!libPage) throw new FieldPlacementError('invalid_pdf', `page ${raw.page} is missing`);
+    const pageBox = boxes.get(raw.page);
+    if (!pageBox) throw new FieldPlacementError('invalid_pdf', `page ${raw.page} is missing`);
     const viewport = viewportFromTransform(raw.width, raw.height, raw.transform);
     viewports.set(raw.page, viewport);
-    const media = libPage.getMediaBox();
-    const crop = libPage.getCropBox();
     const info: PageSize = {
       page: raw.page,
       width: viewport.width,
       height: viewport.height,
-      rotation: normalizeRotation(raw.rotate),
-      mediaBox: { x: media.x, y: media.y, width: media.width, height: media.height },
-      cropBox: { x: crop.x, y: crop.y, width: crop.width, height: crop.height },
+      rotation: normalizePdfRotation(raw.rotate),
+      mediaBox: pageBox.mediaBox,
+      cropBox: pageBox.cropBox,
     };
     pages.push({ info, viewport });
   }
@@ -153,10 +179,12 @@ export async function loadPdf(bytes: Uint8Array): Promise<LoadedDocument> {
   for (const item of snapshot.textItems) {
     const viewport = viewports.get(item.page);
     if (!viewport) continue;
+    const geometry = textPieceGeometry(item, viewport);
     words.push({
       page: item.page,
       text: item.str,
-      box: asPlacement(textPieceBox(item, viewport)),
+      box: asPlacement(geometry.box),
+      run: geometry.run,
     });
   }
 
@@ -185,8 +213,4 @@ export async function loadPdf(bytes: Uint8Array): Promise<LoadedDocument> {
     lines: groupTextLines(words),
     formFields,
   };
-}
-
-export async function listPathBounds(bytes: Uint8Array): Promise<PdfPathBound[]> {
-  return listPdfPathBounds(bytes);
 }

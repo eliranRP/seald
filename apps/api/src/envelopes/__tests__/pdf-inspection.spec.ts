@@ -4,7 +4,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
-import { inspectPdfBytes, MAX_PDF_BYTES } from '../pdf-inspection';
+import { inspectPdfBytes, MAX_PDF_BYTES, MAX_PDF_PAGES } from '../pdf-inspection';
 
 describe('inspectPdfBytes', () => {
   it('returns the page count and sha256 of a PDF', async () => {
@@ -17,6 +17,15 @@ describe('inspectPdfBytes', () => {
 
     expect(inspected.pages).toBe(2);
     expect(inspected.sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(inspected.pageBoxes[0]?.mediaBox).toEqual({ x: 0, y: 0, width: 200, height: 100 });
+    expect(inspected.pageBoxes[0]?.rotation).toBe(0);
+  });
+
+  it('rejects a PDF with more pages than the cap', async () => {
+    const doc = await PDFDocument.create();
+    for (let i = 0; i < MAX_PDF_PAGES + 1; i += 1) doc.addPage([20, 20]);
+    const body = Buffer.from(await doc.save());
+    await expect(inspectPdfBytes(body)).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a buffer that is not a PDF', async () => {

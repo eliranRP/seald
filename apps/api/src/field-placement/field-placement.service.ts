@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -19,6 +20,7 @@ import {
 } from 'shared';
 import type { FieldKind } from 'shared';
 import type { CreateFieldInput, FieldUpdateById } from '../envelopes/envelopes.repository';
+import { normalizeFieldPlacements } from '../envelopes/field-placement.service';
 import { storedBoxToDisplayed } from './displayed-page';
 import { FieldPlacementError } from './field-placement.errors';
 import type { LoadedDocument, PageGeometry } from './pdf-document';
@@ -292,10 +294,11 @@ export class FieldPlacementService {
       };
     }
     const prefix = mode === 'append' ? opened.envelope.fields.map(storedToCreate) : [];
-    const written = await this.store.replaceFields(input.owner_id, input.envelope_id, [
-      ...prefix,
-      ...resolved.map(resolvedToCreate),
-    ]);
+    const written = await this.store.replaceFields(
+      input.owner_id,
+      input.envelope_id,
+      normalizeFieldPlacements([...prefix, ...resolved.map(resolvedToCreate)]),
+    );
     const fields = written.map((row, index) => {
       const created = index >= prefix.length ? resolved[index - prefix.length] : undefined;
       if (created) {
@@ -475,7 +478,11 @@ export class FieldPlacementService {
     try {
       return { envelope, doc: await loadPdf(bytes) };
     } catch (err) {
+      if (err instanceof FieldPlacementError && err.code === 'inspect_timeout') {
+        throw new BadRequestException('inspect_timeout');
+      }
       if (err instanceof FieldPlacementError) throw err;
+      if (err instanceof HttpException) throw err;
       throw new BadRequestException('file_not_ready');
     }
   }

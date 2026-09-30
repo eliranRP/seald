@@ -274,3 +274,46 @@ export async function buildWidgetCatalog(): Promise<{ readonly bytes: Uint8Array
   });
   return { bytes: await doc.save() };
 }
+
+export async function buildCropRotated(rotation: 90 | 180 | 270): Promise<BuiltFixture> {
+  const { doc, font } = await document();
+  const page = doc.addPage([LETTER.width, LETTER.height]);
+  page.setCropBox(CROP.x, CROP.y, CROP.width, CROP.height);
+  page.setRotation(degrees(rotation));
+  page.drawText(ANCHOR_TEXT, { ...CROP_ANCHOR, size: ANCHOR_FONT_SIZE, font });
+  const swapped = rotation === 90 || rotation === 270;
+  return {
+    bytes: await doc.save(),
+    anchor: CROP_ANCHOR,
+    crop: CROP,
+    rotation,
+    displayed: swapped
+      ? { width: CROP.height, height: CROP.width }
+      : { width: CROP.width, height: CROP.height },
+  };
+}
+
+/** "Signature" drawn up the page, so the advance is not the page's +x. */
+export async function buildVerticalText(): Promise<{ readonly bytes: Uint8Array }> {
+  const { doc, font } = await document();
+  const page = doc.addPage([LETTER.width, LETTER.height]);
+  page.drawText('Signature', {
+    x: 200,
+    y: 400,
+    size: ANCHOR_FONT_SIZE,
+    font,
+    rotate: degrees(90),
+  });
+  return { bytes: await doc.save() };
+}
+
+export async function buildDuplicateWidgets(): Promise<{ readonly bytes: Uint8Array }> {
+  const { doc } = await document();
+  const first = doc.addPage([LETTER.width, LETTER.height]);
+  const second = doc.addPage([LETTER.width, LETTER.height]);
+  const form = doc.getForm();
+  const field = form.createTextField('Twice');
+  field.addToPage(first, { x: 72, y: 500, width: 180, height: 24, borderWidth: 0 });
+  field.addToPage(second, { x: 90, y: 420, width: 180, height: 24, borderWidth: 0 });
+  return { bytes: await doc.save() };
+}

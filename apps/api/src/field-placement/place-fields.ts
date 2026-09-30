@@ -146,7 +146,7 @@ function resolveAnchor(
     return { placement: null, issue: placementIssue('anchor_occurrence_out_of_range', details) };
   }
   const size = fieldSize(kind, anchor.width, anchor.height);
-  const box = anchorFieldBox(match.box, size, anchor);
+  const box = anchorFieldBox(match.run, size, anchor);
   return {
     placement: resolvedFrom(
       field,
@@ -161,17 +161,16 @@ function resolveAnchor(
   };
 }
 
-function matchingFormField(
+function matchingFormFields(
   doc: LoadedDocument,
   name: string,
   page: number | undefined,
-): LoadedFormField | null {
-  const matches = doc.formFields.filter((widget) => {
+): readonly LoadedFormField[] {
+  return doc.formFields.filter((widget) => {
     if (widget.name !== name) return false;
     if (page !== undefined && widget.page !== page) return false;
     return true;
   });
-  return matches[0] ?? null;
 }
 
 function resolveFormField(
@@ -181,16 +180,21 @@ function resolveFormField(
 ): { readonly placement: ResolvedPlacement | null; readonly issue: PlacementIssue | null } {
   const locator = field.form_field;
   if (!locator) return { placement: null, issue: invalid(field, index) };
-  const widget = matchingFormField(doc, locator.name, locator.page);
+  const matches = matchingFormFields(doc, locator.name, locator.page);
   const details = {
     field_id:
       field.client_ref !== undefined && field.client_ref.length > 0
         ? field.client_ref
         : `field:${index}`,
     signer_id: field.signer_id,
+    match_count: matches.length,
     ...(field.client_ref !== undefined ? { client_ref: field.client_ref } : {}),
   };
+  const widget = matches[0];
   if (!widget) return { placement: null, issue: placementIssue('form_field_not_found', details) };
+  if (matches.length > 1) {
+    return { placement: null, issue: placementIssue('form_field_ambiguous', details) };
+  }
   let kind: PlacementKind;
   if (field.kind === undefined) kind = widget.suggested_kind;
   else if (isPlacementKind(field.kind)) kind = field.kind;

@@ -9,18 +9,45 @@ import { PDFDocument } from 'pdf-lib';
 /** 25 MB. Matches the upload route and `GDRIVE_CONVERSION_MAX_BYTES`. */
 export const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
+/** Hard cap for upload and field placement. A larger file is rejected. */
+export const MAX_PDF_PAGES = 100;
+
 const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
+
+export interface PdfPageBox {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/** One page from the single pdf-lib parse. Boxes are raw PDF user space. */
+export interface InspectedPdfPage {
+  readonly page: number;
+  readonly rotation: 0 | 90 | 180 | 270;
+  readonly mediaBox: PdfPageBox;
+  readonly cropBox: PdfPageBox;
+}
 
 export interface InspectedPdf {
   readonly pages: number;
   readonly sha256: string;
+  readonly pageBoxes: readonly InspectedPdfPage[];
+}
+
+export function normalizePdfRotation(angle: number): 0 | 90 | 180 | 270 {
+  const turns = ((Math.round(angle) % 360) + 360) % 360;
+  if (turns === 90 || turns === 180 || turns === 270) return turns;
+  return 0;
 }
 
 /**
- * Size, `%PDF-` magic, page count, and SHA-256 for a PDF buffer.
- * `uploadOriginal` calls this and throws the same exceptions it always
- * has. Page images, anchor search, and AcroForm reuse belong here so
- * the inspect and preview tools can share them with upload.
+ * Size, `%PDF-` magic, page count, page boxes, and SHA-256 for a PDF
+ * buffer. This is the only pdf-lib parse. `uploadOriginal` and field
+ * placement both call it, so an encrypted file throws
+ * `file_unreadable` instead of a raw pdf-lib error. Page images, anchor
+ * search, and AcroForm reuse belong here so inspect can share them
+ * with upload.
  */
 export async function inspectPdfBytes(body: Buffer): Promise<InspectedPdf> {
   if (body.length > MAX_PDF_BYTES) throw new PayloadTooLargeException('file_too_large');
@@ -28,19 +55,29 @@ export async function inspectPdfBytes(body: Buffer): Promise<InspectedPdf> {
     throw new UnsupportedMediaTypeException('file_not_pdf');
   }
 
-  let pages: number;
+  let pageBoxes: InspectedPdfPage[];
   try {
     const doc = await PDFDocument.load(body, {
       updateMetadata: false,
       ignoreEncryption: false,
       throwOnInvalidObject: true,
     });
-    pages = doc.getPageCount();
+    pageBoxes = doc.getPages().map((page, index) => {
+      const media = page.getMediaBox();
+      const crop = page.getCropBox();
+      return {
+        page: index + 1,
+        rotation: normalizePdfRotation(page.getRotation().angle),
+        mediaBox: { x: media.x, y: media.y, width: media.width, height: media.height },
+        cropBox: { x: crop.x, y: crop.y, width: crop.width, height: crop.height },
+      };
+    });
   } catch {
     throw new BadRequestException('file_unreadable');
   }
-  if (pages <= 0) throw new BadRequestException('file_unreadable');
+  if (pageBoxes.length <= 0) throw new BadRequestException('file_unreadable');
+  if (pageBoxes.length > MAX_PDF_PAGES) throw new BadRequestException('file_too_many_pages');
 
   const sha256 = createHash('sha256').update(body).digest('hex');
-  return { pages, sha256 };
+  return { pages: pageBoxes.length, sha256, pageBoxes };
 }

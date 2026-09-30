@@ -101,7 +101,9 @@ Plus `report` and `persisted`.
 
 `occurrence` is 1-based into that list. `0` matches is `anchor_not_found`. An occurrence below 1 or above the match count is `anchor_occurrence_out_of_range`. Both include `match_count`.
 
-`right` (the default): `box.x = anchor.x + anchor.width + gap`, and the field's bottom edge is the anchor's bottom edge plus 3pt. `left` mirrors x and uses that same vertical rule. `above` and `below` share the anchor's x and sit `gap` away. `over` centers on the anchor and ignores `gap`. `dx` and `dy` are applied after that (`dy` positive is down).
+`right` (the default) follows the text run's advance, not the page's +x. On horizontal left-to-right text that is `box.x = anchor.x + anchor.width + gap`, and the field's bottom edge is the anchor's baseline plus 3pt. The same rule on rotated text uses the run: the field sits `gap` past the end of the advance, overlaps the baseline by 3pt, and extends along the glyph up-vector. `left` is the opposite direction along the advance and uses that same 3pt baseline nudge. `above` and `below` follow the glyph up-vector. `over` centers on the matched run and ignores `gap`. `dx` and `dy` are applied after that (`dy` positive is down).
+
+A match stays inside one line. Text split across a line break is not one anchor. The default match is case-sensitive.
 
 ## AcroForm
 
@@ -111,7 +113,7 @@ Inspect returns `form_fields`: `{ page, name, type, box, suggested_kind }`.
 
 `suggested_kind` uses the widget name first (lowercased): prefix `sig` → signature, `init` → initials, `date` → date, `email` → email, `name` → name, substring `checkbox` → checkbox. Otherwise `Signature` → signature, `CheckBox` → checkbox, and every other type → text.
 
-`form_field: { name, page? }` uses the widget of that name. With `page`, only that page. Without it, the first match in reading order (page, y, x). The field's displayed box is the widget's box. Omitted `kind` becomes `suggested_kind`.
+`form_field: { name, page? }` uses the widget of that name. With `page`, only that page. Exactly one widget must match. Zero widgets is `form_field_not_found`. More than one is `form_field_ambiguous` (both include `match_count`). The field's displayed box is the widget's box. Omitted `kind` becomes `suggested_kind`.
 
 ## Update
 
@@ -141,7 +143,8 @@ An issue is `{ slug, message, retryable: false, next_steps: [{ tool, hint }] }` 
 | `invalid_field_locator`          | unknown kind, or not exactly one locator                                                                                                  | error                                       |
 | `anchor_not_found`               | no matches. Includes `match_count`.                                                                                                       | error                                       |
 | `anchor_occurrence_out_of_range` | occurrence outside the matches. Includes `match_count`.                                                                                   | error                                       |
-| `form_field_not_found`           | no widget with that name                                                                                                                  | error                                       |
+| `form_field_not_found`           | no widget with that name. Includes `match_count`.                                                                                         | error                                       |
+| `form_field_ambiguous`           | more than one widget matches the name (and page, when set). Includes `match_count`.                                                       | error                                       |
 
 `report.ready` is `errors.length === 0`. `report.envelope_errors` is the subset whose slug is `signer_without_signature_field` or `signer_not_in_envelope`.
 
@@ -153,10 +156,22 @@ Tool hints: `envelopes_inspect_document`, `envelopes_place_fields`, `envelopes_u
 
 Round-trip tolerance against a stamped PDF path is 0.5pt.
 
+## User unit
+
+pdf.js multiplies the displayed page by the page's UserUnit. A UserUnit of 2 on a 612×792 MediaBox is a 1224×1584 displayed page, and every displayed point (including default sizes and `field_too_small`) is in that scaled space. pdf-lib's MediaBox and CropBox stay in raw PDF user space and are not multiplied. Stored fractions are of the displayed page, and the viewport inverse includes the UserUnit, so a placed box round-trips. Callers that want paper points must divide by the UserUnit themselves. This engine does not.
+
+## Limits
+
+`inspectPdfBytes` is the only pdf-lib parse. It checks the 25 MB cap and the `%PDF-` magic, reads each page's MediaBox, CropBox, and rotation, and rejects more than 100 pages with `file_too_many_pages`. An encrypted or corrupt file is `file_unreadable`, not a raw parser error. Field placement calls that helper before pdf.js.
+
+pdf.js runs in one worker. Each call destroys the loading task in a `finally`. A call that exceeds 20 seconds terminates the worker and the next call starts a new one (`inspect_timeout`). The worker has a memory cap. There is no document cache. The worker keeps the pdf.js module, not PDF bytes.
+
+`signer_without_signature_field` uses `signerIdsWithRequiredSignature` in `packages/shared`, the same helper `EnvelopesService.send` uses.
+
 ## Preview (step 9b)
 
-Not part of the inspect/place pull request. That change adds `renderPreview` and is the one that carries the `canvas` runtime dependency, the Dockerfile `pnpm rebuild canvas` step, and a CI job that builds the API image and runs `node -e "require('canvas')"` inside it.
+Not part of the inspect/place pull request. Preview renders with `@napi-rs/canvas` (pdf.js 6 vector paths are blank on node-canvas). It does not add a `pnpm rebuild canvas` image step. pdf.js is pointed at its bundled `standard_fonts`, and labels use a font from that folder, because the slim image has no system fonts. Pixel count and scale are clamped so one page cannot allocate gigabytes. Signer colour is `envelope_signers.color`. There is no placement colour palette.
 
-Preview renders one PNG per page. Fields are filled and stroked in `envelope_signers.color`. The label is `<short id> <kind> (<signer name>)`. Fields that have an error are red and dashed. `pages` defaults to the pages that contain fields, at most 5. `dpi` is 72–150, default 96. The PNG is drawn with the same displayed-page mapping the seal will use, and a pixel test checks that the drawn box equals that geometry.
+Preview renders one PNG per page. Fields are filled and stroked in that signer colour. The label is `<short id> <kind> (<signer name>)`. Fields that have an error are red and dashed. `pages` defaults to the pages that contain fields, at most 5. `dpi` is 72–150, default 96. The PNG is drawn with the same displayed-page mapping the seal will use, and a pixel test checks that the drawn box equals that geometry. The PR CI builds the API image for arm64.
 
 The preview report repeats `box`, `pdf_box`, `normalized`, `nearest_text`, `errors`, `warnings`, `envelope_errors`, and `ready`.

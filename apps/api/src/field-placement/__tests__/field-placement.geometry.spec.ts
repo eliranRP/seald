@@ -7,8 +7,10 @@ import {
   buildA4,
   buildAcroFormRotated,
   buildCropBox,
+  buildCropRotated,
   buildDoubleAnchor,
   buildLetter,
+  buildVerticalText,
   buildMediaOrigin,
   buildMixed,
   buildRotated,
@@ -26,11 +28,17 @@ import {
   type BuiltFixture,
 } from '../__fixtures__/build-fixtures';
 import { displayedBoxToStored, storedBoxToDisplayed } from '../displayed-page';
-import { loadPdf, listPathBounds } from '../pdf-document';
-import { stopPdfWorker, type PdfPathBound } from '../pdfjs-host';
+import { loadPdf } from '../pdf-document';
+import { stopPdfWorker } from '../pdfjs-host';
 import { resolvePlacementFields } from '../place-fields';
-import { stampDisplayedBoxes } from '../stamp-box';
-import { findAnchorMatches, groupTextLines, paginatePlacementText } from '../text-index';
+import { listPathBounds, stopPathWorker, type PdfPathBound } from './pdf-path-bounds';
+import { stampDisplayedBoxes } from './stamp-box';
+import {
+  findAnchorMatches,
+  groupTextLines,
+  horizontalRun,
+  paginatePlacementText,
+} from '../text-index';
 import type { DisplayedBox } from '../field-placement.types';
 
 const SLOP_PT = 0.5;
@@ -45,6 +53,9 @@ const CASES: readonly {
   { name: 'rotated-180', build: buildRotated180 },
   { name: 'rotated-270', build: buildRotated270 },
   { name: 'cropbox', build: buildCropBox },
+  { name: 'crop-rotated-90', build: () => buildCropRotated(90) },
+  { name: 'crop-rotated-180', build: () => buildCropRotated(180) },
+  { name: 'crop-rotated-270', build: () => buildCropRotated(270) },
   { name: 'media-origin', build: buildMediaOrigin },
 ];
 
@@ -93,6 +104,47 @@ function formulaTextBox(
     displayedPoint(crop, rotation, anchor.x, anchor.y + ANCHOR_FONT_SIZE),
     displayedPoint(crop, rotation, anchor.x + textWidth, anchor.y + ANCHOR_FONT_SIZE),
   ]);
+}
+
+/**
+ * Signature to the right of a PDF-horizontal run, in displayed space.
+ * Independent of `anchorFieldBox`: the corner is `gap` past the advance
+ * and 3pt opposite the glyphs, then the box grows along the advance and
+ * through the glyphs.
+ */
+function rightOfRun(
+  crop: BuiltFixture['crop'],
+  rotation: BuiltFixture['rotation'],
+  anchor: { readonly x: number; readonly y: number },
+  width: number,
+  height: number,
+): DisplayedBox {
+  const origin = displayedPoint(crop, rotation, anchor.x, anchor.y);
+  const end = displayedPoint(crop, rotation, anchor.x + ANCHOR_TEXT_WIDTH, anchor.y);
+  const raised = displayedPoint(crop, rotation, anchor.x, anchor.y + ANCHOR_FONT_SIZE);
+  const alongX = end.x - origin.x;
+  const alongY = end.y - origin.y;
+  const upX = raised.x - origin.x;
+  const upY = raised.y - origin.y;
+  const alongLen = Math.hypot(alongX, alongY) || 1;
+  const upLen = Math.hypot(upX, upY) || 1;
+  const ax = alongX / alongLen;
+  const ay = alongY / alongLen;
+  const ux = upX / upLen;
+  const uy = upY / upLen;
+  const qx = end.x + ax * 6 - ux * 3;
+  const qy = end.y + ay * 6 - uy * 3;
+  const horizontal = Math.abs(ax) >= Math.abs(ay);
+  let x = qx;
+  let y = qy;
+  if (horizontal) {
+    x = ax >= 0 ? qx : qx - width;
+    y = uy > 0 ? qy : qy - height;
+  } else {
+    y = ay > 0 ? qy : qy - height;
+    x = ux > 0 ? qx : qx - width;
+  }
+  return { x, y, w: width, h: height };
 }
 
 /** Displayed box → PDF user-space rect, independent of displayed-page.ts. */
@@ -161,6 +213,7 @@ function countNear(bounds: readonly PdfPathBound[], expected: PdfPathBound): num
 
 afterAll(async () => {
   await stopPdfWorker();
+  await stopPathWorker();
 });
 
 describe('field placement geometry', () => {
@@ -307,7 +360,7 @@ describe('field placement geometry', () => {
     expect(second.y).toBeGreaterThan(text.y);
   });
 
-  it('anchors on /Rotate 180 and 270 use the same right-hand rule', async () => {
+  it('anchors on /Rotate 180 and 270 follow the text direction', async () => {
     const cases = [
       {
         build: buildRotated180,
@@ -323,7 +376,6 @@ describe('field placement geometry', () => {
     for (const item of cases) {
       const fixture = await item.build();
       const doc = await loadPdf(fixture.bytes);
-      const text = formulaTextBox(fixture.crop, item.rotation, item.anchor, ANCHOR_TEXT_WIDTH);
       const placed = resolvePlacementFields(
         [{ signer_id: 'signer-1', kind: 'signature', anchor: { text: ANCHOR_TEXT } }],
         doc,
@@ -332,12 +384,10 @@ describe('field placement geometry', () => {
       const field = placed.resolved[0];
       expect(field).toBeDefined();
       if (!field) return;
-      expectDisplayed(field.box, {
-        x: text.x + text.w + 6,
-        y: text.y + text.h + 3 - 50,
-        w: 180,
-        h: 50,
-      });
+      const expected = rightOfRun(fixture.crop, item.rotation, item.anchor, 180, 50);
+      expectDisplayed(field.box, expected);
+      const pageAxis = formulaTextBox(fixture.crop, item.rotation, item.anchor, ANCHOR_TEXT_WIDTH);
+      expect(Math.abs(field.box.x - (pageAxis.x + pageAxis.w + 6))).toBeGreaterThan(20);
       const page = doc.pages[0];
       expect(page).toBeDefined();
       if (!page) return;
@@ -406,11 +456,13 @@ describe('field placement geometry', () => {
     );
     expect(page.slice).toHaveLength(2000);
     expect(page.nextIndex).toBe(2000);
+    const repeated = { x: 10, y: 20, width: 200, height: 12 };
     const line = groupTextLines([
       {
         page: 1,
         text: 'AnchorTarget AnchorTarget',
-        box: { x: 10, y: 20, width: 200, height: 12 },
+        box: repeated,
+        run: horizontalRun(repeated),
       },
     ])[0];
     expect(line).toBeDefined();
@@ -467,5 +519,48 @@ describe('field placement geometry', () => {
     expect(rotated.pages[0]?.info.rotation).toBe(90);
     expect(rotated.pages[0]?.info.width).toBeCloseTo(LETTER.height, 2);
     expect(rotated.pages[0]?.info.height).toBeCloseTo(LETTER.width, 2);
+  });
+
+  it('slices a 90-degree run along the text direction, not the page x axis', async () => {
+    const doc = await loadPdf((await buildVerticalText()).bytes);
+    const line = doc.lines.find((item) => item.text.includes('Signature'));
+    expect(line).toBeDefined();
+    if (!line) return;
+    const segment = line.segments[0];
+    expect(segment).toBeDefined();
+    if (!segment) return;
+    expect(Math.abs(segment.run.alongY)).toBeGreaterThan(Math.abs(segment.run.alongX));
+    const match = findAnchorMatches(doc.lines, { text: 'Sig' })[0];
+    expect(match).toBeDefined();
+    if (!match) return;
+    const alongLen = Math.hypot(segment.run.alongX, segment.run.alongY) || 1;
+    const cx = match.box.x + match.box.width / 2;
+    const cy = match.box.y + match.box.height / 2;
+    const fraction =
+      ((cx - segment.run.originX) * segment.run.alongX +
+        (cy - segment.run.originY) * segment.run.alongY) /
+      (alongLen * alongLen);
+    expect(fraction).toBeGreaterThan(0);
+    expect(fraction).toBeLessThan(0.45);
+    const placed = resolvePlacementFields(
+      [
+        {
+          signer_id: 'signer-1',
+          kind: 'signature',
+          anchor: { text: 'Sig', width: 60, height: 20 },
+        },
+      ],
+      doc,
+    );
+    const field = placed.resolved[0];
+    expect(field).toBeDefined();
+    if (!field) return;
+    const fieldCx = field.box.x + field.box.width / 2;
+    const fieldCy = field.box.y + field.box.height / 2;
+    const fieldFraction =
+      ((fieldCx - segment.run.originX) * segment.run.alongX +
+        (fieldCy - segment.run.originY) * segment.run.alongY) /
+      (alongLen * alongLen);
+    expect(fieldFraction).toBeGreaterThan(fraction);
   });
 });

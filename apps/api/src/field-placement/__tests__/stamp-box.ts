@@ -7,8 +7,8 @@ import {
   setStrokingRgbColor,
   stroke,
 } from 'pdf-lib';
-import { displayedBoxToPdfRect, type PdfViewport } from './displayed-page';
-import type { DisplayedBox } from './field-placement.types';
+import { displayedBoxToPdfRect, type PdfViewport } from '../displayed-page';
+import type { DisplayedBox } from '../field-placement.types';
 
 export interface StampTarget {
   readonly page: number;
@@ -17,9 +17,8 @@ export interface StampTarget {
 }
 
 /**
- * Stroke each box in raw PDF user space. This is the placement proof,
- * not the sealer: it uses `displayedBoxToPdfRect` and does not call
- * `burnInField`. Insert C will make the seal use that same helper.
+ * Test-only proof that a displayed box becomes the expected PDF rect.
+ * It is not the sealer and it does not call `burnInField`.
  */
 export async function stampDisplayedBoxes(
   pdfBytes: Uint8Array,
