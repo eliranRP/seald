@@ -2259,10 +2259,6 @@ footer {
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
 }
-.footer-availability {
-  white-space: nowrap;
-}
-
 /* ===== MINIMAL FOOTER (BaseLayout, every page except /) =====
    Issue #39 — the manage-cookies button MUST be reachable from every
    marketing/legal/contact/dsar surface. Kept visually quiet so it does
@@ -2570,6 +2566,10 @@ footer {
   max-width: 100%;
   margin: 12px 0 16px;
   overflow-x: auto;
+}
+.legal-table-scroll:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
 }
 .legal article table {
   width: 100%;

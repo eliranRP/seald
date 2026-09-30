@@ -42,12 +42,36 @@ const VERIFY = {
 };
 
 /**
- * The page loads Inter with font-display: swap. Measuring before the
- * face arrives can wrap the save button under the email.
+ * The page loads Inter from Google Fonts with font-display: swap.
+ * document.fonts.ready can settle before that stylesheet is applied,
+ * and the fallback face is wide enough to wrap the save button onto
+ * the next line. Wait until Inter is the face in use, then one frame.
+ * If the face never arrives, the layout assertion still runs unchanged.
  */
 async function waitForFonts(page: Page): Promise<void> {
   await page.evaluate(async () => {
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[rel="stylesheet"][href*="fonts.googleapis.com"]',
+    );
+    if (link && link.sheet === null) {
+      await new Promise<void>((resolve) => {
+        link.addEventListener('load', () => resolve(), { once: true });
+        link.addEventListener('error', () => resolve(), { once: true });
+      });
+    }
     await document.fonts.ready;
+    const spec = '600 16px Inter';
+    try {
+      await document.fonts.load(spec);
+    } catch {
+      // A blocked font request must not skip the layout check.
+    }
+    const deadline = performance.now() + 5000;
+    while (!document.fonts.check(spec) && performance.now() < deadline) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+    }
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => resolve());
     });
