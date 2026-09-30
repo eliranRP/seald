@@ -172,11 +172,10 @@ fix migration.
    - rsync the SPA **except** its `index.html` (that file would replace
      the marketing home page)
    - copy the SPA shell to `app.html`
-   - copy `apps/landing/_worker.js` to `dist/_worker.js`
-   - copy `apps/landing/indexing.config.js` beside it (the worker
-     imports the indexing flag; Wrangler bundles that import).
-     Indexing is off while the Seald trademark is unresolved. See
-     `docs/seo-indexing.md`.
+   - bundle `apps/landing/_worker.js` into `dist/_worker.js` so
+     `indexing.config.js` is inlined, then delete that config file
+     from `dist` if it is present. It must not be a public asset.
+     See `docs/seo-indexing.md`.
 5. Ensure the Pages project `seald-landing` exists (create needs the
    token's Pages Edit scope; a deploy-only token fails this step).
 6. `npx wrangler pages deploy apps/landing/dist --project-name=seald-landing --branch=main`

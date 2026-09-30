@@ -1,8 +1,7 @@
-// Cloudflare Pages worker. Copied to the deploy root, with
-// indexing.config.js beside it, by .github/workflows/deploy-cloudflare.yml.
-// Wrangler bundles the import. Takes precedence over static asset
-// serving; we explicitly fall through to env.ASSETS for anything that
-// isn't a SPA route.
+// Cloudflare Pages worker. The deploy bundles this file so
+// indexing.config.js is inlined and is not uploaded as a static asset.
+// Takes precedence over static asset serving; we explicitly fall
+// through to env.ASSETS for anything that isn't a SPA route.
 //
 // Why this exists: CF Pages does NOT support 200-status rewrites in
 // `_redirects` (they get coerced to 308 redirects). The email CTA
@@ -279,6 +278,11 @@ async function route(request, env) {
 
   if (pathname === '/robots.txt') {
     return robotsResponse();
+  }
+
+  // Source module. Never a public URL, including after indexing is on.
+  if (pathname === '/indexing.config.js') {
+    return notFound(request, env);
   }
 
   if (

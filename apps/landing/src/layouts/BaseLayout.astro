@@ -50,7 +50,7 @@ const {
   minimalFooter = true,
 } = Astro.props;
 
-// False while the Seald trademark is unresolved. See docs/seo-indexing.md.
+// Indexing temporarily disabled. See docs/seo-indexing.md.
 const indexable = SEO_INDEXING_ENABLED && !noindex;
 
 // Resolve canonical against the configured site so relative paths work.

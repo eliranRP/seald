@@ -197,6 +197,8 @@ describe('landing SEO contract (S1a)', () => {
     expect(robots).not.toMatch(/^Disallow:/m);
     expect(robots).not.toMatch(/^Sitemap:/m);
     expect(robots).not.toContain('Disallow: /');
+    expect(robots).not.toMatch(/trademark/i);
+    expect(read('indexing.config.js')).not.toMatch(/trademark/i);
   });
 
   it('keeps the previous robots.txt for when indexing is turned on', () => {
@@ -246,7 +248,9 @@ describe('landing SEO contract (S1a)', () => {
       resolve(__dirname, '../../../../.github/workflows/deploy-cloudflare.yml'),
       'utf8',
     );
-    expect(workflow).toContain('cp apps/landing/indexing.config.js "$DEST/indexing.config.js"');
+    expect(workflow).toContain('rm -f "$DEST/indexing.config.js"');
+    expect(workflow).toContain('test ! -e "$DEST/indexing.config.js"');
+    expect(workflow).not.toContain('cp apps/landing/indexing.config.js');
     const sitemap = renderSitemap(MARKETING_PATHS, '2026-01-02');
     const locs = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1] ?? '');
     const lastmods = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map(

@@ -28,24 +28,24 @@ While it is `false`:
   the React app. `public/_headers` does not set this header: a static
   rule would stay on after the flag is turned back on. The worker is
   what actually serves the response, and it can see the flag.
-- `/robots.txt` is `User-agent: *` followed by `Allow: /`. There is no
-  `Disallow: /` and no `Sitemap:` line. Crawling stays allowed so Google
-  and Bing can fetch pages, read `noindex`, and drop URLs that are
-  already indexed. `Disallow: /` would block that fetch and leave those
-  URLs in the index. The worker generates this body from the flag.
-  `apps/landing/public/robots.txt` is the same quiet text, so a static
-  fallback cannot advertise a sitemap. There is no second `robots.txt`
-  under `apps/web`: the deploy copies the SPA onto the landing output,
-  and a web copy would overwrite this file.
+- `/robots.txt` is `User-agent: *` followed by `Allow: /` for the whole
+  quiet period. There is no `Disallow: /` and no `Sitemap:` line.
+  Crawling stays allowed so Google and Bing can fetch pages, read
+  `noindex`, and drop URLs that are already indexed. Blocking the crawl
+  would hide `noindex` and can bring back URL-only results. The worker
+  generates this body from the flag. `apps/landing/public/robots.txt` is
+  the same text, so a static fallback cannot advertise a sitemap. There
+  is no second `robots.txt` under `apps/web`: the deploy copies the SPA
+  onto the landing output, and a web copy would overwrite this file.
 - The Astro build does not write `sitemap.xml`. The worker answers
   `/sitemap.xml` and `/sitemap-index.xml` with 404.
 - `llms.txt` is not in `public/`. The build copies `apps/landing/llms.txt`
   into the output only when the flag is true. While the flag is false
   the worker answers `/llms.txt` with 404.
 - The Google Search Console meta tag and
-  `apps/landing/public/google9a27f9c75cdae2dc.html` stay in place. There
-  is no Bing verification file in the repo today. If one is added, keep
-  it too. Both are needed to request URL removal.
+  `apps/landing/public/google9a27f9c75cdae2dc.html` stay for the whole
+  quiet period, with `Allow: /` and `noindex`. There is no Bing
+  verification file in the repo today. If one is added, keep it too.
 
 There is no IndexNow client and no Microsoft Clarity script in this
 repo. Nothing of that kind was removed.
@@ -56,28 +56,11 @@ not an HTML page. The public verify page is the SPA at
 `/verify/:id` on `seald.nromomentum.com`, and the worker already marks
 that response `noindex, nofollow`.
 
-## After Search Console shows the pages are gone
-
-Leave `Allow: /` in place until Google Search Console (and Bing, if the
-property is verified there) shows the URLs have been removed.
-
-Then:
-
-1. Change the quiet `robots.txt` to `User-agent: *` and `Disallow: /`.
-   Update both `apps/landing/public/robots.txt` and `QUIET_ROBOTS_TXT`
-   in `apps/landing/indexing.config.js`. Crawling was allowed only so
-   bots could see `noindex`. Once the URLs are gone, `Disallow: /` keeps
-   them from being fetched again.
-2. Remove the Search Console verification file and the
-   `google-site-verification` meta tag. Remove any Bing verification
-   file and `msvalidate` meta tag as well. Do this only after removal
-   has completed. The verified property is what lets us file the removal
-   requests.
-
 ## Re-enable
 
 Do this only after the trademark question is resolved and indexing
-should come back. It is separate from the `Disallow: /` step above.
+should come back. Until then, keep `Allow: /`, `noindex`, and the
+verification files.
 
 1. In `apps/landing/indexing.config.js`, set `SEO_INDEXING_ENABLED` to
    `true`.
@@ -94,5 +77,6 @@ should come back. It is separate from the `Disallow: /` step above.
    `https://seald.nromomentum.com/sitemap.xml`.
 5. In Bing Webmaster Tools, resubmit that same sitemap.
 
-The deploy copies `indexing.config.js` next to `_worker.js` so Wrangler
-can bundle the import. Do not drop that copy when editing the workflow.
+The deploy bundles `_worker.js` and does not upload `indexing.config.js`.
+That file is not a public asset. The reason indexing is off stays in
+this doc.

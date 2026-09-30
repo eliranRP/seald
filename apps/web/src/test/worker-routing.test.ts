@@ -337,6 +337,29 @@ describe('apps/landing/_worker.js routing', () => {
     expect(fetched).toEqual([]);
   });
 
+  it('does not serve indexing.config.js', async () => {
+    const { env, fetched } = assetsFrom({
+      '/': { body: HOME, contentType: 'text/html; charset=utf-8', etag: '"home"' },
+      '/404': { body: MISSING, contentType: 'text/html; charset=utf-8', etag: '"missing"' },
+      '/indexing.config.js': {
+        body: 'export const SEO_INDEXING_ENABLED = false;\n// trademark unresolved\n',
+        contentType: 'text/javascript; charset=utf-8',
+        etag: '"cfg"',
+      },
+    });
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/indexing.config.js'),
+      env,
+    );
+    expect(response.status).toBe(404);
+    expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
+    const body = await response.text();
+    expect(body).toContain('Page not found');
+    expect(body).not.toMatch(/trademark/i);
+    expect(body).not.toContain('SEO_INDEXING_ENABLED');
+    expect(fetched).not.toContain('/indexing.config.js');
+  });
+
   it('does not serve sitemap.xml or llms.txt', async () => {
     for (const path of ['/sitemap.xml', '/sitemap-index.xml', '/llms.txt']) {
       const { env, fetched } = site();

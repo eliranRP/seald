@@ -1,8 +1,5 @@
-# Quiet use while the Seald trademark is unresolved.
-# SEO_INDEXING_ENABLED is false in apps/landing/indexing.config.js.
+# Indexing temporarily disabled.
 # Crawling stays allowed so crawlers can fetch each page, see the
 # noindex directive, and drop URLs that are already indexed.
-# A Disallow rule for / would block that fetch and leave those URLs
-# in the index. There is no Sitemap line while indexing is off.
 User-agent: *
 Allow: /

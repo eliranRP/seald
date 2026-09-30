@@ -1,5 +1,5 @@
 /**
- * Quiet use while the Seald trademark is unresolved.
+ * Indexing temporarily disabled.
  *
  * Set this to true to index the marketing site again. That one edit
  * restores index,follow on marketing pages, the sitemap, llms.txt,
@@ -9,17 +9,10 @@
  */
 export const SEO_INDEXING_ENABLED = false;
 
-/**
- * Crawling stays allowed. A Disallow rule for / would stop crawlers
- * from fetching pages, so they would never see noindex and would leave
- * already-indexed URLs in the index. No Sitemap line while indexing is off.
- */
-export const QUIET_ROBOTS_TXT = `# Quiet use while the Seald trademark is unresolved.
-# SEO_INDEXING_ENABLED is false in apps/landing/indexing.config.js.
+/** Served at /robots.txt while SEO_INDEXING_ENABLED is false. */
+export const QUIET_ROBOTS_TXT = `# Indexing temporarily disabled.
 # Crawling stays allowed so crawlers can fetch each page, see the
 # noindex directive, and drop URLs that are already indexed.
-# A Disallow rule for / would block that fetch and leave those URLs
-# in the index. There is no Sitemap line while indexing is off.
 User-agent: *
 Allow: /
 `;

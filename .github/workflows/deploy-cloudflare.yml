@@ -116,12 +116,18 @@ jobs:
           # this file via the ASSETS binding for any SPA route.
           cp "$SPA/index.html" "$DEST/app.html"
 
-          # Copy the Pages worker (server-side SPA rewriter). See
-          # apps/landing/_worker.js for the implementation.
-          # The worker imports indexing.config.js. Copy it beside the
-          # worker so the deploy bundle can resolve the import.
-          cp apps/landing/_worker.js "$DEST/_worker.js"
-          cp apps/landing/indexing.config.js "$DEST/indexing.config.js"
+          # Bundle the Pages worker so the indexing config is inlined.
+          # Do not leave indexing.config.js in the upload. Wrangler
+          # would publish that file as a public asset.
+          ESBUILD="$(find node_modules/.pnpm -type f -path '*/esbuild/bin/esbuild' | head -1)"
+          test -n "$ESBUILD"
+          "$ESBUILD" apps/landing/_worker.js \
+            --bundle \
+            --format=esm \
+            --platform=neutral \
+            --outfile="$DEST/_worker.js"
+          rm -f "$DEST/indexing.config.js"
+          test ! -e "$DEST/indexing.config.js"
 
           echo "----- merged dist -----"
           ls -la "$DEST/"
