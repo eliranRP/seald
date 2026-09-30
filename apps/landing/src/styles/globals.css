@@ -2525,6 +2525,14 @@ footer {
 .legal article section {
   margin-top: 16px;
 }
+/* Wide tables (cookies, sub-processors) scroll inside the article.
+   The page sets overflow-x: hidden, so a table wider than the
+   viewport would otherwise be clipped with no way to reach the
+   last column. */
+.legal article {
+  max-width: 100%;
+  overflow-x: auto;
+}
 
 /* Definition lists — used heavily by contact / sub-processors /
    imprint. Two-column grid so the term + definition align without
