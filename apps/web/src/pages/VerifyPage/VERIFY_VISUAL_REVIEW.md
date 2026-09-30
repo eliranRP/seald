@@ -72,14 +72,14 @@ in `theme.space`:
 
 ## Typography crosswalk
 
-| Design                                    | React style                                  |
-| ----------------------------------------- | -------------------------------------------- |
-| Verdict h1: `serif 44/1.05 / -0.02em`     | `VerdictHeading` — serif 44 / 1.05 / -0.02em |
-| Verdict eyebrow: `12 / 0.14em / 600`      | `VerdictEyebrow`                             |
-| Doc title h2: `serif 19 / 1.2 / -0.005em` | `DocTitle`                                   |
-| Body: `sans 16 / 1.55`                    | `VerdictBody` (theme.font.size.body)         |
-| Caption: `sans 13 / 1.5`                  | `theme.font.size.caption`                    |
-| Mono hash: `mono 12 / 1.5`                | `FactVal` with `$hash` prop                  |
+| Design                                    | React style                                                                                   |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Verdict h1: `serif 44/1.05 / -0.02em`     | `VerdictHeading` — serif, h3 (28px) on the phone, h1 (48px) from 641px, 1.05 / tracking.tight |
+| Verdict eyebrow: `12 / 0.14em / 600`      | `VerdictEyebrow`                                                                              |
+| Doc title h2: `serif 19 / 1.2 / -0.005em` | `DocTitle` — serif h5 (18px)                                                                  |
+| Body: `sans 16 / 1.55`                    | `VerdictBody` (theme.font.size.body)                                                          |
+| Caption: `sans 13 / 1.5`                  | `theme.font.size.caption`                                                                     |
+| Mono hash: `mono 12 / 1.5`                | `FactVal` with `$hash` prop                                                                   |
 
 ## Section parity checklist
 

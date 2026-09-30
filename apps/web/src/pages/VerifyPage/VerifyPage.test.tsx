@@ -19,6 +19,76 @@ import type { VerifyResponse } from '../../features/verify';
 
 const get = verifyApiClient.get as unknown as ReturnType<typeof vi.fn>;
 
+/**
+ * styled-components writes the token into a stylesheet. jsdom does not
+ * apply `@media` to `getComputedStyle`, so this walks the CSSOM and
+ * keeps the font-size that would win at `width`.
+ */
+function fontSizeAt(el: Element, width: number): string {
+  const classes = new Set(el.classList);
+  let size = '';
+  for (const sheet of Array.from(document.styleSheets)) {
+    let rules: CSSRuleList;
+    try {
+      rules = sheet.cssRules;
+    } catch {
+      continue;
+    }
+    size = fontSizeFromRules(rules, classes, width, size);
+  }
+  return size;
+}
+
+function fontSizeFromRules(
+  rules: CSSRuleList,
+  classes: Set<string>,
+  width: number,
+  size: string,
+): string {
+  for (const rule of Array.from(rules)) {
+    if (rule instanceof CSSStyleRule) {
+      const fontSize = rule.style.getPropertyValue('font-size');
+      if (
+        typeof fontSize === 'string' &&
+        fontSize.length > 0 &&
+        selectorMatches(rule.selectorText, classes)
+      ) {
+        size = fontSize;
+      }
+      continue;
+    }
+    if (rule instanceof CSSMediaRule && mediaMatchesWidth(rule.conditionText, width)) {
+      size = fontSizeFromRules(rule.cssRules, classes, width, size);
+    }
+  }
+  return size;
+}
+
+function selectorMatches(selector: string, classes: Set<string>): boolean {
+  return selector.split(',').some((part) => {
+    const head = part.trim().split(/[\s>+~]/)[0] ?? '';
+    if (!head.startsWith('.')) return false;
+    const names = head
+      .slice(1)
+      .split('.')
+      .map((token) => token.split(/[:#[]/)[0] ?? '')
+      .filter((name) => name.length > 0);
+    return names.length > 0 && names.every((name) => classes.has(name));
+  });
+}
+
+function mediaMatchesWidth(condition: string, width: number): boolean {
+  if (/prefers-|hover|pointer|orientation|resolution/.test(condition)) return false;
+  const mins = [...condition.matchAll(/min-width:\s*(\d+(?:\.\d+)?)px/g)].map((match) =>
+    Number(match[1]),
+  );
+  const maxes = [...condition.matchAll(/max-width:\s*(\d+(?:\.\d+)?)px/g)].map((match) =>
+    Number(match[1]),
+  );
+  if (mins.length === 0 && maxes.length === 0) return false;
+  return mins.every((min) => width >= min) && maxes.every((max) => width <= max);
+}
+
 function wrap(initialEntry: string) {
   const qc = new QueryClient({
     defaultOptions: {
@@ -1010,6 +1080,31 @@ describe('VerifyPage', () => {
     // A `min-height: 44px` rule must live inside a `(max-width: 640px)`
     // media query (Btn styled-component override).
     expect(collected).toMatch(/@media[^{]*max-width:\s*640px[^{]*{[^}]*min-height:\s*44px/i);
+  });
+
+  // Verdict and document headings use theme.font.size. The phone verdict
+  // is h3, the desktop verdict (min-width 641px, the complement of the
+  // page's 640px breakpoint) is h1, and the card title is h5 at both widths.
+  it('uses type-scale tokens for the verdict and document headings at 390 and 1440', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
+    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
+    render(<VerifyPage />, { wrapper: Wrapper });
+    const verdict = await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
+    const title = screen.getByRole('heading', {
+      level: 2,
+      name: SIGNED_PAYLOAD.envelope.title,
+    });
+
+    expect(fontSizeAt(verdict, 390)).toBe(seald.font.size.h3);
+    expect(fontSizeAt(verdict, 1440)).toBe(seald.font.size.h1);
+    expect(fontSizeAt(title, 390)).toBe(seald.font.size.h5);
+    expect(fontSizeAt(title, 1440)).toBe(seald.font.size.h5);
+
+    const verdictMobile = Number.parseFloat(fontSizeAt(verdict, 390));
+    const verdictDesktop = Number.parseFloat(fontSizeAt(verdict, 1440));
+    const titleSize = Number.parseFloat(fontSizeAt(title, 390));
+    expect(verdictDesktop).toBeGreaterThan(verdictMobile);
+    expect(verdictMobile).toBeGreaterThan(titleSize);
   });
 
   // ---- Verification URL "Copy share link" affordance (PR-5 item #11) -----

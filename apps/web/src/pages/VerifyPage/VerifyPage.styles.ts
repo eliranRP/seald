@@ -46,10 +46,11 @@ function dotBorderFor(theme: DefaultTheme, tone: 'success' | 'indigo' | 'warn'):
  *  - All colors come from theme tokens; literal hex banned by lint.
  *  - Spacing uses theme.space (4px increments).
  *  - Border-radii use theme.radius; pill where present in the design.
- *  - Typography (font-family, sizes) uses theme.font.* — the design's
- *    "44px serif" hero maps to font.size.h1 with explicit override since
- *    the design specs 44px exactly (h1 is 48px); both the test and the
- *    visual review confirm 44px is the matched size.
+ *  - Typography (font-family, sizes) uses theme.font.*. The verify
+ *    headings sit on that scale: the verdict is h3 on the phone and
+ *    h1 from 641px, and the document title is h5. Those are the nearest
+ *    steps to the old 30 / 44 / 19 sizes that keep the hero above the
+ *    card title (design review on PR #353).
  */
 
 const pulse = keyframes`
@@ -175,10 +176,14 @@ export const VerdictEyebrow = styled.span<{ readonly $variant: 'success' | 'fail
 export const VerdictHeading = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  /* design spec calls for 44 px exactly; theme.font.size.h1 is 48 px */
-  font-size: 44px;
+  /*
+   * Mobile-first. The phone size is h3 (28px), the nearest scale step
+   * to the old 30px. Desktop (the complement of the page's 640px
+   * breakpoint) is h1 (48px), the nearest step to the old 44px.
+   */
+  font-size: ${({ theme }) => theme.font.size.h3};
   line-height: 1.05;
-  letter-spacing: -0.02em;
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
   margin: 0 0 ${({ theme }) => theme.space[3]};
   text-wrap: balance;
@@ -193,8 +198,8 @@ export const VerdictHeading = styled.h1`
     color: ${({ theme }) => theme.color.danger[700]};
   }
 
-  @media (max-width: 640px) {
-    font-size: 30px;
+  @media (min-width: 641px) {
+    font-size: ${({ theme }) => theme.font.size.h1};
   }
 `;
 
@@ -248,7 +253,8 @@ export const DocMeta = styled.div`
 export const DocTitle = styled.h2`
   font-family: ${({ theme }) => theme.font.serif};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  font-size: 19px;
+  /* h5 (18px) is the nearest scale step to the old 19px, and stays under the verdict. */
+  font-size: ${({ theme }) => theme.font.size.h5};
   color: ${({ theme }) => theme.color.fg[1]};
   letter-spacing: -0.005em;
   line-height: 1.2;

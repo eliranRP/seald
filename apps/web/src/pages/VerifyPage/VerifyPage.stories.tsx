@@ -15,11 +15,33 @@ import { VERIFY_KEY } from '../../features/verify';
  * a fresh QueryClient so cache state does not leak between cases.
  */
 
+/**
+ * Storybook has no global viewport presets. These two options are the
+ * widths the design review measures: 390 and 1440. Chromatic modes use
+ * the same pair.
+ */
+const verifyViewports = {
+  mobile: {
+    name: 'Mobile',
+    styles: { width: '390px', height: '844px' },
+    type: 'mobile' as const,
+  },
+  desktop: {
+    name: 'Desktop',
+    styles: { width: '1440px', height: '900px' },
+    type: 'desktop' as const,
+  },
+};
+
 const meta: Meta<typeof VerifyPage> = {
   title: 'Pages/VerifyPage',
   component: VerifyPage,
   tags: ['autodocs', 'page'],
-  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
+  parameters: {
+    layout: 'fullscreen',
+    chromatic: { modes: chromaticViewportModes },
+    viewport: { options: verifyViewports },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof VerifyPage>;
@@ -251,6 +273,20 @@ function StoryHarness({ data, forcedState }: WithDataProps) {
 
 export const Completed: Story = {
   render: () => <StoryHarness data={COMPLETED} />,
+};
+
+/** Completed seal at the 390×844 phone viewport. The verdict uses h3. */
+export const Mobile: Story = {
+  render: () => <StoryHarness data={COMPLETED} />,
+  globals: { viewport: { value: 'mobile', isRotated: false } },
+  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
+};
+
+/** Completed seal at the 1440×900 desktop viewport. The verdict uses h1. */
+export const Desktop: Story = {
+  render: () => <StoryHarness data={COMPLETED} />,
+  globals: { viewport: { value: 'desktop', isRotated: false } },
+  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
 };
 
 export const Declined: Story = {
