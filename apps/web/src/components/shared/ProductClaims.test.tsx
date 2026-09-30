@@ -9,7 +9,7 @@ describe('shared product claims', () => {
 
   it('describes a leftover Drive token without an encryption claim', () => {
     expect(DRIVE_DISCONNECT_NOTE).toBe(
-      'Disconnect any time. We revoke access at Google where we can and stop using the token. A copy stays in our database for now.',
+      "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.",
     );
     expect(DRIVE_DISCONNECT_NOTE).not.toMatch(/encrypt/i);
   });

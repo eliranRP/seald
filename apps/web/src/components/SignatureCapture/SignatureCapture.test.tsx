@@ -13,7 +13,7 @@ beforeEach(() => {
 });
 
 describe('SignatureCapture', () => {
-  it('labels the footer as audit-logged without an encryption claim', () => {
+  it('says the signature is recorded in the audit trail when you sign', () => {
     const { getByText, queryByText } = renderWithTheme(
       <SignatureCapture
         open
@@ -23,8 +23,9 @@ describe('SignatureCapture', () => {
         onApply={() => {}}
       />,
     );
-    expect(getByText('Audit-logged')).toBeInTheDocument();
+    expect(getByText('Recorded in the audit trail when you sign')).toBeInTheDocument();
     expect(queryByText(/encrypt/i)).toBeNull();
+    expect(queryByText(/audit-logged/i)).toBeNull();
   });
 
   it('renders nothing when closed', () => {

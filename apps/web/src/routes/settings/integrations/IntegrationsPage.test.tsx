@@ -53,11 +53,11 @@ describe('IntegrationsPage', () => {
     mockedGet.mockResolvedValueOnce({ data: [], status: 200 });
     renderPage();
     expect(
-      await screen.findByText('Access is restricted and every action is logged.'),
+      await screen.findByText('Used only for actions you start from your signed-in Seald account.'),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Disconnect any time. We revoke access at Google where we can and stop using the token. A copy stays in our database for now.',
+        "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/encrypt/i)).toBeNull();
