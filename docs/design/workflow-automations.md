@@ -205,12 +205,14 @@ create table public.automation_runs (
 
 | Action | `config` |
 | --- | --- |
-| `webhook` | `{ "url": "https://…", "payload_detail": "ids" }` `payload_detail` is `ids` (default) or `with_signer`. The signing secret is not in `config`. |
+| `webhook` | `{ "payload_detail": "ids", "url_host": "hooks.example.com" }` `payload_detail` is `ids` (default) or `with_signer`. `url_host` is the hostname only. The URL and the signing secret are not in `config`. |
 | `gdrive_upload` | `{ "folder_id": "string", "folder_name": "string|null", "account_id": "uuid|null" }` `account_id` null means the same most-recently-used account `GdriveExportService` already picks. |
 | `email_copy` | `{ "to": ["email", …] }` Max 10 addresses. |
 | `slack` | Unused. |
 
 Webhook secrets are recoverable, because the worker has to compute HMAC. API keys in the MCP design are the opposite: those are stored as a SHA-256 hash and cannot be read back. Automation secrets are encrypted in the application with a 32-byte key from `AUTOMATION_SECRETS_KEY`. The row stores a nonce and the ciphertext. There is no call to a remote key service and no per-request charge. If the env var is unset, creating a webhook recipe returns 503 `automation_secrets_not_configured`. Do not store the secret in plaintext `config`, and do not reuse the Drive token path. Document bytes stay on the storage path they use today.
+
+The webhook URL is secret configuration. It may contain credentials in the path or the query. Create and update accept the URL, encrypt it with the same `AUTOMATION_SECRETS_KEY` on the secret row, and do not write it to `config`, logs, run history, or a later GET. Responses show `url_host` only. Do not echo the URL. Do not log it.
 
 Screens, emails, and toasts say “Secret set” and the rotation date. They do not mention keys, algorithms, or ciphertext.
 
@@ -256,7 +258,7 @@ Worker, `apps/api/src/automations/automation-worker.service.ts`, copied in struc
 - Claim batch of 1, so a stuck action cannot pile up inside one tick. In-flight cap is 2 for the process.
 - Claim SQL mirrors `claimNext` on `outbound_emails`: pick a job in `pending` with `scheduled_for <= now()` and `attempts < max_attempts`, `for update skip locked`, set status `running`, set `locked_at = now()`, increment `attempts`. A job left `running` with `locked_at` older than 15 minutes is claimed again. The run status `retrying` is what the history UI shows between attempts.
 - On success: set the run to `done` and delete the job. The run remains.
-- On a transient failure: set the run to `retrying`, set `last_error` (truncated to 500 chars), set the job back to `pending`, and set `scheduled_for`. Backoff matches email: `backoffMs` (2, 4, 8, … minutes, cap 6 hours). `max_attempts` 8.
+- On a transient failure: set the run to `retrying`, set `last_error` to the slug or status code only, set the job back to `pending`, and set `scheduled_for`. Backoff matches email: `backoffMs` (2, 4, 8, … minutes, cap 6 hours). `max_attempts` 8. `last_error` never stores an upstream body, a signer name, an email address, or the webhook URL.
 - On a permanent failure (4xx other than 408 and 429, SSRF rejection, missing Drive connection, bad config): set the run to `failed`, set `retryable` false, delete the job. The UI shows Fix, which opens the recipe. There is no Retry button.
 - After `max_attempts` on a temporary failure (timeout, DNS, 408, 429, 5xx): set the run to `failed`, set `retryable` true, delete the job. The UI shows one-tap Retry. The failed run stays until Retry succeeds, the owner edits the recipe, or the owner deletes it. It is not deleted at 30 days.
 - `POST /automations/:id/runs/:runId/retry` inserts a new job for that same run id. The unique `run_id` on `automation_jobs` makes a second tap a no-op while a job exists. A permanent failure returns `retry_not_allowed` and does not insert a job. The MCP tool `automations_retry_run` calls this same method.
@@ -295,7 +297,7 @@ The secret is shown once, the same interaction as an MCP API key. The list view 
 Before every attempt, including retries:
 
 - Scheme `https` only. Reject userinfo. Port 443 only.
-- Resolve the hostname. Fail `failed` / `webhook_url_blocked` if any address is loopback, unspecified, link-local (`169.254.0.0/16`, `fe80::/10`), private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), CGNAT (`100.64/10`), multicast, benchmarking (`198.18/15`), IPv6 documentation (`2001:db8::/32`), or NAT64 (`64:ff9b::/96`). Also block the instance metadata hostnames and the IPv6 metadata address.
+- Resolve the hostname. Fail `failed` / `webhook_url_blocked` if any address is loopback, unspecified (`0.0.0.0/8`), link-local (`169.254.0.0/16`, `fe80::/10`), private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), `192.0.0.0/24`, CGNAT (`100.64/10`), multicast (`224.0.0.0/4`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), IPv6 documentation (`2001:db8::/32`), or NAT64 (`64:ff9b::/96`). Check IPv4-mapped IPv6 (`::ffff:0:0/96`) against the embedded IPv4 address. Block 6to4 `2002::/16` when the embedded address is private or otherwise on this list. Also block the instance metadata hostnames, the IPv6 metadata address, and Seald’s own API, app, and Supabase hostnames.
 - Connect with an undici agent pinned to the resolved address that passed the check. SNI and `Host` stay the original hostname. `redirect: 'manual'`. A 3xx is `failed` / `webhook_redirect_blocked`. There is no redirect follow.
 - Timeout 10 seconds. Read at most 64 KB, then discard. Store only the status code.
 - DNS failure and connection timeout are transient. A blocklist hit is permanent.
@@ -330,6 +332,8 @@ Default `config.payload_detail` is `ids`. The `data` object is then `envelope_id
 
 The example JSON above is the `with_signer` shape. Tests cover both shapes.
 
+The webhook URL is not in the payload, the run row, or the logs. See the secret-configuration rule above.
+
 Left out on purpose:
 
 - Signing tokens, `sign_url`, `access_token_hash`, the `seald_sign` cookie, and anything from `outbound_emails.payload`.
@@ -353,7 +357,7 @@ Execution calls `GdriveExportService.exportEnvelope` with the envelope’s seale
 - No connected account → `failed`, `retryable` false, slug `gdrive_not_connected`.
 - `RateLimitedError` → transient, honor `retryAfterMs` as `scheduled_for` if it is later than the normal backoff.
 - Updates files in place when `gdrive_envelope_exports` already has ids for that envelope, account, and folder (`0017`). A retry after a partial upload continues from those ids.
-- Partial success (sealed stored, audit failed) → run `retrying` if attempts remain, `last_error` naming the artifact. The export row already keeps the successful file id.
+- Partial success (sealed stored, audit failed) → run `retrying` if attempts remain, `last_error` set to the artifact slug. The export row already keeps the successful file id.
 - Both files stored → run `done`.
 
 The worker uses the recipe’s `account_id` when set. Otherwise it uses the export service’s current rule (most recently used non-deleted account). `gdriveMultiAccount` stays off; the form does not ask the user to pick an account until that flag is on.
@@ -366,9 +370,19 @@ Action `email_copy` inserts `outbound_emails` through `insertOutboundEmailIdempo
 
 New `email_kind` value `automation_copy`, added with `alter type … add value` in this feature’s migration (same pattern as `0019`). A new value cannot run inside a transaction in older Postgres; follow whatever `0019` did (`add value if not exists` outside an explicit transaction block). Down migrations cannot remove an enum value safely; the down script documents that the value remains, matching the caution needed for `signed_to_sender`.
 
-Template files under `apps/api/src/email/templates/automation_copy/`, registered in `TemplateService` and in `TEMPLATE_KINDS` inside `email-dispatcher.service.ts`. Subject and body state that the sender asked Seald to forward a notice. Include title, status, signer name when present, verify URL, and a link to the envelope in the app (`/document/<id>`). Do not include a signing link.
+Template files under `apps/api/src/email/templates/automation_copy/`, registered in `TemplateService` and in `TEMPLATE_KINDS` inside `email-dispatcher.service.ts`. Subject and body state that the sender asked Seald to forward a notice. Include title, status, signer name when present, and a verify URL. Include a link to the envelope in the app (`/document/<id>`) only when the recipient is the owner’s own mailbox. Do not include a signing link, an attachment, or a download URL.
 
-`TEMPLATE_KINDS` also gains `approval_request` and `approval_denied` in the approvals pull request (see the MCP doc). Those templates use the same 560px shell. They are the owner’s second factor, not an `automation_copy`. Recipe mail does not reuse them. The stop link on `automation_copy` is a separate single-use hash and is not an approval token.
+The footer is:
+
+```
+You're receiving this because {{sender_email}} added you to a Seald automation.
+Stop these notices → {{stop_url}}
+{{legal_entity}} · {{legal_postal}}
+```
+
+Add `automation_copy` to `legal-footer.contract.spec.ts`. The stop link removes only that address from that owner’s recipes. It does not turn the whole recipe off. It is a single-use token stored as a hash, and it does not carry a signing token.
+
+`TEMPLATE_KINDS` also gains `approval_request` and `approval_denied` in the approvals pull request (see the MCP doc). Those templates use the same 560px shell. The approval mail shows that the decision came from the owner’s verified mailbox. It is not an `automation_copy`. Recipe mail does not reuse them. The stop link on `automation_copy` is not an approval token.
 
 `dedupe_key`: `automation_copy:<run_id>:<email>`. A worker retry that inserts again hits the unique index and `insertOutboundEmailIdempotent` treats that as success.
 
@@ -380,7 +394,7 @@ Cap 10 recipients on one recipe. Validate emails the same way `CreateContactDto`
 
 This mail is separate from `signed_to_sender` and `completed`. Turning on `signed_notify_list` does not suppress those.
 
-An MCP recipe that emails any address other than the owner’s mailbox stays disabled until the owner approves, as described above. A signed-in Save turns that recipe on immediately and sends a short notification email. The message footer states that the account owner asked Seald to send it, and includes a stop link that disables that recipe. The stop link is a single-use token stored as a hash, same family as the approval link, and it does not carry a signing token.
+An MCP recipe that emails any address other than the owner’s mailbox stays disabled until the owner approves, as described above. A signed-in Save turns that recipe on immediately and sends a short notification email. Addresses other than the account’s own mailbox confirm before first use: Seald sends one “Confirm you want notices from <sender name> about documents they send” mail, and the address is active only after they click. The footer is the `{{legal_entity}} · {{legal_postal}}` block above, and the stop link removes only that address.
 
 ## Free-plan limits
 
@@ -447,11 +461,11 @@ Unit, Jest:
 
 - Matcher: `sealed` enqueues `sealed_save_drive` and ignores a `declined` recipe. The event transaction writes a pending trigger and does not insert the job. A crash after commit leaves that trigger. Matching after commit, or the startup rescan, inserts the job. A thrown match does not roll the event back. Two signers produce two runs. A duplicate of the same signer and trigger inserts one.
 - Webhook signer: known body and secret produce the expected hex. During rotation both headers are present. `timingSafeEqual` rejects a different length. Timestamp outside 300 seconds fails.
-- SSRF: `http://`, `https://127.0.0.1`, `https://169.254.169.254`, `https://10.0.0.1`, `https://100.64.0.1`, a NAT64 address, a hostname that resolves to `192.168.0.5`, and any 3xx are blocked and do not open a socket. Use a stub resolver.
+- SSRF: `http://`, `https://127.0.0.1`, `https://169.254.169.254`, `https://10.0.0.1`, `https://100.64.0.1`, a NAT64 address, a hostname that resolves to `192.168.0.5`, `::ffff:127.0.0.1`, `0.0.0.0`, `64:ff9b::a00:1`, `2002:0a00:0001::`, Seald’s own API, app, and Supabase hostnames, and any 3xx are blocked and do not open a socket. Use a stub resolver.
 - Payload fixture for each `type` has no key matching `/token|sign_url|access_token/i`.
 - Backoff schedule matches `backoffMs` for attempts 1 through 8, then `failed` with `retryable` true. A 404 is `failed` with `retryable` false. A second retry while a job exists for that run id inserts nothing. A `running` job with `locked_at` older than 15 minutes is claimed again. Twenty consecutive failures disable the recipe.
 - Drive action: mock `GdriveExportService` to throw `TokenExpiredError` and expect `failed` / `reconnect_required`. A partial error with attempts remaining expects `retrying`.
-- Email action: one `automation_copy` row per address, stable `dedupe_key`, second insert does not throw out of `insertOutboundEmailIdempotent`.
+- Email action: one `automation_copy` row per address, stable `dedupe_key`, second insert does not throw out of `insertOutboundEmailIdempotent`. `legal-footer.contract.spec.ts` covers `automation_copy`, including `{{legal_entity}} · {{legal_postal}}` and the line “You're receiving this because {{sender_email}} added you to a Seald automation”. The stop link removes that address only. `last_error` is a slug or a status code and contains no email address and no response body. A webhook URL is not present in `config`, logs, or GET responses.
 
 Repository test against the pg-mem harness used by `outbound-emails.repository.pg.spec.ts`: claim skips a row locked by another claim, and a future `scheduled_for` is not claimed. Skip raw `for update` if pg-mem cannot parse it, and cover that statement in the e2e the same way `claimNext` is covered today.
 
@@ -480,7 +494,7 @@ One feature per pull request, in the order the product review listed for this tr
 | A4 | Shared UI if the MCP track has not landed it: `SecretOnceSheet`, `RunList`, `Checkbox`, `CodeSnippet`, the header bell, `MWBottomSheet`, switch from `ReminderToggle`. |
 | A5 | Settings index row if missing, then the automations page: gallery, one-tap create, list with switches, secret shown once with Copy only, run history with Retry or Fix. Save turns the recipe on. Webhook card, and the Drive card only after A6. Nothing says “coming soon”. |
 | A6 | Drive-save recipe `sealed_save_drive`. Still `drive.file`. Default folder “My Drive / Seald”. Picker only under Advanced. A signed-in Save turns it on and sends a short notification email. An MCP enable still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
-| A7 | `email_copy`, footer, stop link, the 50-a-day cap, and the email recipes. A signed-in Save turns on a recipe whose recipient is not the owner, and sends a short notification email. An MCP enable still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
+| A7 | `email_copy`, the footer (`{{legal_entity}} · {{legal_postal}}` and the “added you to a Seald automation” line), the stop link that removes only that address, `legal-footer.contract.spec.ts`, the 50-a-day cap, and the email recipes. A signed-in Save turns on a recipe whose recipient is not the owner, and sends a short notification email. An MCP enable still needs approval. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. |
 | A8 | Twenty-failure auto-disable, and the owner email that goes with it. |
 
 `workflowAutomations` flips on in its own change after A2b has posted a test event to a staging URL.
@@ -500,9 +514,9 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 | Risk | What we do |
 | --- | --- |
 | A recipe POSTs a signing link or a signer’s email by default | Default payload is ids only. `with_signer` is opt-in. Tests reject token-shaped keys. |
-| SSRF against cloud metadata or the database host | HTTPS only, undici pin, private, CGNAT, NAT64, and metadata ranges blocked, redirects rejected, hop limit 1. |
+| SSRF against cloud metadata, Seald’s own hosts, or the database host | HTTPS only, undici pin, private, unspecified, `192.0.0.0/24`, `240.0.0.0/4`, CGNAT, NAT64, IPv4-mapped, and 6to4-with-private ranges blocked, plus Seald’s API, app, and Supabase hostnames. Redirects rejected, hop limit 1. |
 | Replay of a captured webhook | Timestamp window plus receiver-side dedupe on run id. |
-| Secret in `config` jsonb or in logs | Secret only in the encrypted columns, with the key in the environment. Logs store slugs and status codes. The product copy says “Secret set”. |
+| Secret or webhook URL in `config` jsonb or in logs | The signing secret and the URL are only in the encrypted columns, with the key in the environment. `config` keeps `url_host` and `payload_detail`. Logs store slugs and status codes. The product copy says “Secret set”. |
 | Customer URL hangs the API process | 10 second abort, in-flight cap 2, separate from the seal claim loop. |
 | Drive token revoked and the user is not told | Run `failed` with `retryable` false and slug `reconnect_required`. History screen uses that sentence. |
 | `sealed` runs before files exist | Trigger on `sealed`, which `SealingService` appends after the objects are stored. Do not trigger Drive on `all_signed`. |
@@ -515,14 +529,26 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 | A recipe starts posting to a URL the owner did not check | An MCP external destination stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. A signed-in Save turns the recipe on and sends a short notification email. A test POST to an unapproved MCP recipe is refused with `recipe_not_approved`. A test is not stored as a run. |
 | Job stuck in `running` after a crash | Reclaim when `locked_at` is older than 15 minutes. |
 
+## Data-subject requests
+
+Seald cannot recall data already delivered to a webhook, a Drive folder, an email recipient, or an MCP client. Deleting a Seald account or envelope does not delete those copies. A signer’s request that Seald receives is forwarded to the owner (Privacy §7, §13A). The owner handles the external copies.
+
+`automation_runs.last_error` stores a slug or a status code only. It never stores an upstream body, a signer name, an email address, or the webhook URL. A test asserts that. Completed runs are kept for 30 days. Failed runs stay until Retry, Fix, or delete.
+
 ## Legal text
 
-Drafts for counsel, shipped in the compliance PR before the flag defaults to on. Version bumps: `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
+Drafts for counsel. Not licensed counsel, and not legal advice. Publish them only in the pull request that turns `workflowAutomations` or `mcpServer` on. That compliance PR uses the drafts in PR #368 comment 5907683343 (T1–T4, P1–P5, D-1–D-5, S1, A1–A2), plus T1a and the corrections below. Version bumps stay `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
+
+**T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
+
+**D-5 correction (DPA Annex II).** Webhook signing secrets are encrypted by the application with a key held outside the database. The draft must not say AWS KMS.
+
+**P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
 **Terms (automations).** You can ask Seald to call a URL, save files to a Drive folder you picked, or email a notice when something happens to a document you sent. You are responsible for the address, the folder, and the people you add. Seald sends those messages for you. They are not a signature.
 
-**Privacy (webhooks and copies).** A webhook receives the ids you configured, and signer details only if you turn that on. An email copy goes to the addresses you listed. The stop link in that mail turns the recipe off.
+**Privacy (webhooks and copies).** A webhook receives the ids you configured, and signer details only if you turn that on. An email copy goes to the addresses you listed. The stop link removes only that address. The footer is `{{legal_entity}} · {{legal_postal}}`.
 
 **Acceptable use.** Do not use a recipe to mail people who did not ask for the message, or to hide who asked for it.
 
-**Deletion.** Deleting the account deletes recipes, jobs, runs, and secrets, in the same `deleteAccountData` path as envelopes. A webhook already delivered is on the receiver’s system; the privacy notice says that.
+**Deletion.** Deleting the account deletes recipes, jobs, runs, and secrets, in the same `deleteAccountData` path as envelopes. A webhook, Drive file, email, or MCP client that already received a copy keeps it. The privacy notice says that. A signer’s request is forwarded to the owner.
