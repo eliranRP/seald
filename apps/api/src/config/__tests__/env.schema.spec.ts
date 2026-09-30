@@ -91,6 +91,8 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
     expect(env.EMAIL_LEGAL_ENTITY).toBe('Seald');
+    expect(env.EMAIL_LEGAL_ENTITY).not.toMatch(/Azulay|Eliran/);
+    expect(env.EMAIL_LEGAL_POSTAL).toBe('Chlenov 24, Tel Aviv-Yafo 6604806, Israel');
   });
 
   // Regression for the 2026-05-07 prod incident where stale containers

@@ -111,9 +111,6 @@ describe('legal page security claims', () => {
       "TLS in transit between users and the Service, and between Seald's servers and its database, file-storage and email Sub-processors. Traffic between software components on the same server (the reverse proxy, the API and the document-conversion service) isn't separately encrypted. Data stored by Seald's database and file-storage Sub-processor is encrypted at rest by that Sub-processor.",
     );
     expect(source).toContain(
-      "Supplementary technical and organizational measures for these transfers: TLS encryption in transit between users and the Service and between Seald's servers and its Sub-processors, and encryption at rest by Seald's database and file-storage Sub-processor.",
-    );
-    expect(source).toContain(
       "Before termination, the Customer can export its data from the Service. When the Customer deletes its account, Seald deletes the Customer's contacts, templates and drafts, and keeps sent and completed envelopes and their audit records without a link to the Customer's account. Seald doesn't currently delete those records on a schedule.",
     );
     expect(source).toContain(

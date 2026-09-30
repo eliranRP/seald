@@ -53,14 +53,11 @@ const envSchema = z
      * values render inside the `<div class="foot">` block of each
      * `apps/api/src/email/templates/*\/body.html`. The default is the brand
      * name. There is no incorporated entity to print here; override this
-     * when a legal name is chosen. CAN-SPAM § 5(a)(5) requires a valid
-     * postal address; CASL § 6(2)(c) and EU consumer-protection law similarly.
+     * when a legal name is chosen. CAN-SPAM 15 U.S.C. §7704(a)(5)(A)(iii)
+     * requires a valid physical postal address.
      */
     EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald'),
-    EMAIL_LEGAL_POSTAL: z
-      .string()
-      .min(1)
-      .default('Postal address available on request — write to legal@seald.nromomentum.com.'),
+    EMAIL_LEGAL_POSTAL: z.string().min(1).default('Chlenov 24, Tel Aviv-Yafo 6604806, Israel'),
     EMAIL_PRIVACY_URL: z.string().url().default('https://seald.nromomentum.com/legal/privacy'),
     EMAIL_PREFERENCES_URL: z
       .string()
