@@ -271,6 +271,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'expired_to_sender',
   'expired_to_signer',
   'signed_to_sender',
+  'api_key_created',
 ]);
 
 /**

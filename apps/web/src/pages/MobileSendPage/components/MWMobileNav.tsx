@@ -287,12 +287,18 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     onDownloadOriginalPdf();
   }, [onDownloadOriginalPdf]);
 
+  const handleOpenSettings = useCallback((): void => {
+    setOpen(false);
+    navigate('/m/settings');
+  }, [navigate]);
+
   const handleOpenIntegrations = useCallback((): void => {
     setOpen(false);
     navigate('/m/send/settings');
   }, [navigate]);
 
   const gdriveOn = isFeatureEnabled('gdriveIntegration');
+  const mcpOn = isFeatureEnabled('mcpServer');
   const activeId = matchNavId(location.pathname);
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'You';
   const displayEmail = user?.email ?? '';
@@ -361,6 +367,11 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
               Download original PDF
             </SheetItem>
           ) : null}
+          {mcpOn && (
+            <SheetItem type="button" onClick={handleOpenSettings}>
+              Settings
+            </SheetItem>
+          )}
           {gdriveOn && (
             <SheetItem type="button" onClick={handleOpenIntegrations}>
               <Cloud size={20} aria-hidden />

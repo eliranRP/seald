@@ -131,4 +131,15 @@ describe('UserMenu', () => {
     await userEvent.click(getByRole('button', { name: /open menu for/i }));
     expect(queryByRole('menuitem', { name: /integrations/i })).toBeNull();
   });
+
+  it('renders Settings when onOpenSettings is provided', async () => {
+    const onOpenSettings = vi.fn();
+    const { getByRole, queryByRole } = renderWithTheme(
+      <UserMenu user={user} onSignOut={() => {}} onOpenSettings={onOpenSettings} />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    await userEvent.click(getByRole('menuitem', { name: /^settings$/i }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(queryByRole('menu')).toBeNull();
+  });
 });

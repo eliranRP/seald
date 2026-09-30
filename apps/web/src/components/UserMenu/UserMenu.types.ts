@@ -30,6 +30,11 @@ export interface UserMenuProps extends HTMLAttributes<HTMLDivElement> {
    * the avatar dropdown is the canonical entry point.
    */
   readonly onOpenIntegrations?: (() => void) | undefined;
+  /**
+   * Optional — when provided, renders a "Settings" item. AppShell passes
+   * it only when `mcpServer` is on.
+   */
+  readonly onOpenSettings?: (() => void) | undefined;
   /** Disables the export item while a request is in flight. */
   readonly isExporting?: boolean | undefined;
   /** Disables the delete item while a request is in flight. */

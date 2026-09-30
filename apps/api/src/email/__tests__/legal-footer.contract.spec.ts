@@ -14,6 +14,7 @@ const TEMPLATES = [
   'invite',
   'reminder',
   'signed_to_sender',
+  'api_key_created',
   'withdrawn_after_sign',
   'withdrawn_to_signer',
 ] as const;

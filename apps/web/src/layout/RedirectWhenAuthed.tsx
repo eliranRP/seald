@@ -2,6 +2,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { AuthLoadingScreen } from './AuthLoadingScreen';
+import { consumePostSignInPath } from '../routes/settings/developers/postSignInPath';
 
 /**
  * Inverse guard for the auth pages. Signed-in visitors are bounced off
@@ -21,6 +22,8 @@ export function RedirectWhenAuthed() {
     return <AuthLoadingScreen />;
   }
   if (user) {
+    const next = consumePostSignInPath();
+    if (next) return <Navigate to={next} replace />;
     return <Navigate to={isMobile ? '/m/send' : '/documents'} replace />;
   }
   return <Outlet />;

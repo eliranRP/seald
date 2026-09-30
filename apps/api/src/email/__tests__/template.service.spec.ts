@@ -24,10 +24,11 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'api_key_created',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(9);
+    expect(kinds).toHaveLength(10);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -59,6 +60,9 @@ describe('TemplateService', () => {
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
       preferences_url: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',
+      key_name: 'Key 1',
+      key_prefix: 'seald_live_abcdefgh',
+      settings_url: 'https://seald.nromomentum.com/settings/developers',
     };
 
     it.each([
@@ -71,6 +75,7 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'api_key_created',
     ] as const)('%s renders to valid HTML + non-empty text + subject', (kind) => {
       const out = svc.render(kind, commonVars);
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
@@ -259,6 +264,9 @@ describe('TemplateService', () => {
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
       preferences_url: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',
+      key_name: 'Key 1',
+      key_prefix: 'seald_live_abcdefgh',
+      settings_url: 'https://seald.nromomentum.com/settings/developers',
     };
 
     it.each([
@@ -271,6 +279,7 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'api_key_created',
     ] as const)('%s renders the "Seald" brand wordmark in body and subject', (kind) => {
       const out = svc.render(kind, vars);
       // Body must contain the brand wordmark wrapped in the footer <strong>.

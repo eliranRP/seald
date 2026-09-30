@@ -22,6 +22,7 @@ import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { isFeatureEnabled } from 'shared';
 
 // Code-split the authoring routes — they pull in pdfjs-dist via usePdfDocument
 // + the editor canvas, which dwarfs every other chunk. Pushing them behind
@@ -90,6 +91,29 @@ const MobileIntegrationsPage = lazy(() =>
     default: m.MWIntegrations,
   })),
 );
+
+const SettingsIndexPage = lazy(() =>
+  import('./routes/settings/SettingsIndexPage').then((m) => ({
+    default: m.SettingsIndexPage,
+  })),
+);
+
+const DevelopersPage = lazy(() =>
+  import('./routes/settings/developers/DevelopersPage').then((m) => ({
+    default: m.DevelopersPage,
+  })),
+);
+
+function SettingsGate() {
+  if (!isFeatureEnabled('mcpServer')) {
+    return <Navigate to="/settings/integrations" replace />;
+  }
+  return (
+    <Suspense fallback={<AuthLoadingScreen />}>
+      <SettingsIndexPage />
+    </Suspense>
+  );
+}
 
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
@@ -219,6 +243,22 @@ export function AppRoutes() {
       </Route>
 
       <Route element={<RequireAuth />}>
+        <Route
+          path="/m/settings"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <SettingsIndexPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/m/settings/developers"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <DevelopersPage />
+            </Suspense>
+          }
+        />
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
           <Route path="/signers" element={<ContactsPage />} />
@@ -242,7 +282,15 @@ export function AppRoutes() {
               (MEDIUM): the Integrations breadcrumb now points back to
               `/settings`, so this route MUST exist for the link to
               navigate anywhere useful. */}
-          <Route path="/settings" element={<Navigate to="/settings/integrations" replace />} />
+          <Route path="/settings" element={<SettingsGate />} />
+          <Route
+            path="/settings/developers"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <DevelopersPage />
+              </Suspense>
+            }
+          />
           <Route
             path="/settings/integrations"
             element={
