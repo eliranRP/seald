@@ -63,7 +63,7 @@ Last migration on `main` is `0019_email_signed_to_sender.sql`. Open PR #367 alre
 
 Matching runs after that transaction commits. The worker claims pending triggers, loads the envelope, selects enabled recipes, and inserts the run and the job. It then sets the trigger to `matched`. A matcher exception is logged. The trigger stays `pending`. The signer’s submit and the sealing step have already committed, so a matcher bug does not fail either one.
 
-A checkpoint row stores the last `envelope_events.id` the rescan finished. On startup the worker inserts a pending trigger for any event after that id that has none, then matches every pending trigger. The unique run key makes a second match a no-op. That rescan is the fallback when the after-commit match did not finish.
+A checkpoint row stores `(created_at, id)`, not the uuid alone. `envelope_events.id` is a random uuid, so “after that id” is not an order. On startup the worker rescans from five minutes before the checkpoint. The overlap is safe because the unique run key makes a second match a no-op. Matching runs after commit. It does not run inside the signer’s transaction, so a matcher bug cannot fail submit or sealing. A SAVEPOINT inside `appendEvent` is the other acceptable shape. This design uses after-commit. There is no path where a matcher error rolls the event back.
 
 The match only inserts rows. It does not call the network. Keep that function small and covered by the repository test.
 
@@ -210,7 +210,7 @@ create table public.automation_runs (
 | `email_copy` | `{ "to": ["email", …] }` Max 10 addresses. |
 | `slack` | Unused. |
 
-Webhook secrets are recoverable, because the worker has to compute HMAC. API keys in the MCP design are the opposite: those are stored as a SHA-256 hash and cannot be read back. Automation secrets are encrypted in the application with a 32-byte key from `AUTOMATION_SECRETS_KEY`. The row stores a nonce and the ciphertext. There is no call to a remote key service and no per-request charge. If the env var is unset, creating a webhook recipe returns 503 `automation_secrets_not_configured`. Do not store the secret in plaintext `config`, and do not reuse the Drive token path. Document bytes stay on the storage path they use today.
+Webhook secrets are recoverable, because the worker has to compute HMAC. API keys in the MCP design are the opposite: those are stored as a SHA-256 hash and cannot be read back. Automation secrets are encrypted in the application with a 32-byte key from `AUTOMATION_SECRETS_KEY`, AES-GCM, with AAD set to `automation_id`. The row stores a nonce and the ciphertext. There is no call to a remote key service and no per-request charge. If the env var is unset, creating a webhook recipe returns 503 `automation_secrets_not_configured`. Do not store the secret in plaintext `config`, and do not reuse the Drive token path. Document bytes stay on the storage path they use today.
 
 The webhook URL is secret configuration. It may contain credentials in the path or the query. Create and update accept the URL, encrypt it with the same `AUTOMATION_SECRETS_KEY` on the secret row, and do not write it to `config`, logs, run history, or a later GET. Responses show `url_host` only. Do not echo the URL. Do not log it.
 
@@ -282,7 +282,10 @@ Headers on every attempt. During the 24 hour rotation window the worker sends bo
 ```
 Seald-Signature: t=<unix seconds>,v1=<hex hmac of the current secret>
 Seald-Signature-Previous: t=<unix seconds>,v1=<hex hmac of the previous secret>
+Seald-Event-Id: <automation_runs.id>
 ```
+
+`Seald-Event-Id` is stable across a reclaim, so a receiver can dedupe if the first attempt is still in flight.
 
 After `previous_retired_at`, only `Seald-Signature` is sent. String to sign: `` `${t}.${rawBody}` ``, HMAC-SHA256, hex. The verify snippet accepts `t` within 300 seconds and compares with `crypto.timingSafeEqual` over equal-length buffers. A length mismatch fails closed before the compare.
 
@@ -297,7 +300,7 @@ The secret is shown once, the same interaction as an MCP API key. The list view 
 Before every attempt, including retries:
 
 - Scheme `https` only. Reject userinfo. Port 443 only.
-- Resolve the hostname. Fail `failed` / `webhook_url_blocked` if any address is loopback, unspecified (`0.0.0.0/8`), link-local (`169.254.0.0/16`, `fe80::/10`), private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), `192.0.0.0/24`, CGNAT (`100.64/10`), multicast (`224.0.0.0/4`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), IPv6 documentation (`2001:db8::/32`), or NAT64 (`64:ff9b::/96`). Check IPv4-mapped IPv6 (`::ffff:0:0/96`) against the embedded IPv4 address. Block 6to4 `2002::/16` when the embedded address is private or otherwise on this list. Also block the instance metadata hostnames, the IPv6 metadata address, and Seald’s own API, app, and Supabase hostnames.
+- Resolve the hostname. Fail `failed` / `webhook_url_blocked` if any address is loopback, unspecified (`0.0.0.0/8`), link-local (`169.254.0.0/16`, `fe80::/10`), private (`10/8`, `172.16/12`, `192.168/16`, `fc00::/7`), `192.0.0.0/24`, CGNAT (`100.64/10`), multicast (`224.0.0.0/4`), benchmarking (`198.18.0.0/15`), reserved (`240.0.0.0/4`), IPv6 documentation (`2001:db8::/32`), or NAT64 (`64:ff9b::/96`), the broadcast address `255.255.255.255`, or Teredo `2001::/32`. Check IPv4-mapped IPv6 (`::ffff:0:0/96`) against the embedded IPv4 address. Block 6to4 `2002::/16` when the embedded address is private or otherwise on this list. Also block the instance metadata hostnames, the IPv6 metadata address, and Seald’s own API, app, and Supabase hostnames.
 - Connect with an undici agent pinned to the resolved address that passed the check. SNI and `Host` stay the original hostname. `redirect: 'manual'`. A 3xx is `failed` / `webhook_redirect_blocked`. There is no redirect follow.
 - Timeout 10 seconds. Read at most 64 KB, then discard. Store only the status code.
 - DNS failure and connection timeout are transient. A blocklist hit is permanent.
@@ -328,7 +331,7 @@ Do not send the request through a customer-supplied proxy.
 
 `type` is `envelope.sealed`, `envelope.sent`, `signer.signed`, `signer.declined`, `envelope.expired`, or `envelope.viewed`.
 
-Default `config.payload_detail` is `ids`. The `data` object is then `envelope_id`, `status`, and `verify_url` only. `with_signer` adds `title`, `short_code`, and `signer` (`id`, `name`, `email`) and is an explicit choice behind Advanced. The line that those fields leave Seald sits behind Advanced too. The main form does not show it. `signer` is omitted when the event has no `signer_id`.
+Default `config.payload_detail` is `ids`. The `data` object is then `envelope_id`, `status`, and `verify_url` only. `with_signer` adds `title`, `short_code`, and `signer` (`id`, `name`, `email`) and is an explicit choice behind Advanced. The line that those fields leave Seald sits behind Advanced too. The main form does not show it. `signer` is omitted when the event has no `signer_id`. Switching `payload_detail` from `ids` to `with_signer` through MCP returns `approval_pending` and stays off until the owner approves. A signed-in Save in the app still turns the recipe on and sends the short notification email.
 
 The example JSON above is the `with_signer` shape. Tests cover both shapes.
 
@@ -541,7 +544,7 @@ Drafts for counsel. Not licensed counsel, and not legal advice. Publish them onl
 
 **T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
 
-**D-5 correction (DPA Annex II).** Webhook signing secrets are encrypted by the application with a key held outside the database. The draft must not say AWS KMS.
+**D-5 correction (DPA Annex II).** Webhook signing secrets are encrypted by the application with a key held outside the database (AES-GCM, AAD is the automation id). The draft must not say AWS KMS.
 
 **P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
