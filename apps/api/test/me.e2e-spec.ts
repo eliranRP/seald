@@ -45,6 +45,9 @@ class InMemoryGDriveRepository implements GDriveRepository {
   async listForUser(): Promise<ReadonlyArray<GDriveAccount>> {
     return [];
   }
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    return [...this.rows.values()].filter((row) => row.userId === userId);
+  }
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
     this.rows.set(row.id, row);
     return row;

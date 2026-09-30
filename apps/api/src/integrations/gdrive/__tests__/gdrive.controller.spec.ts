@@ -22,6 +22,9 @@ class FakeRepo implements GDriveRepository {
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     return [...this.rows.values()].filter((r) => r.userId === userId && !r.deletedAt);
   }
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    return [...this.rows.values()].filter((r) => r.userId === userId);
+  }
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
     // Mirrors the prod partial UNIQUE index from migration 0013 — see
     // gdrive.service.spec.ts FakeRepo for the rationale.

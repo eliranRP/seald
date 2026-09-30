@@ -34,6 +34,12 @@ export interface GDriveRepository {
    */
   findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null>;
   listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>>;
+  /**
+   * Every connection for this user, including soft-deleted rows that
+   * may still hold a refresh token. Account deletion revokes those
+   * before the hard delete.
+   */
+  listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>>;
   insert(row: GDriveAccount): Promise<GDriveAccount>;
   /**
    * Look up an active (non-soft-deleted) row by (userId, googleUserId).

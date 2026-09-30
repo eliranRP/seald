@@ -30,6 +30,15 @@
 -- DROP NOT NULL is a no-op when the column is already nullable, and
 -- SET NOT NULL is a no-op when it is already required (after the
 -- orphan delete).
+--
+-- lock_timeout: DROP CONSTRAINT takes ACCESS EXCLUSIVE on
+-- gdrive_accounts and on auth.users. If another session already holds
+-- a lock on auth.users, fail in 5 seconds instead of queueing every
+-- auth read and write behind this migration. migrate.sh applies the
+-- file in one transaction (psql -1), so SET LOCAL covers every
+-- statement below.
+
+set local lock_timeout = '5s';
 
 delete from public.gdrive_accounts
   where user_id is null;

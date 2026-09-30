@@ -27,6 +27,10 @@ describe('0021_gdrive_token_erasure', () => {
   const sqlText = readFileSync(join(migrationsDir, '0021_gdrive_token_erasure.sql'), 'utf8');
   const parts = statements(sqlText);
 
+  it('fails fast if auth.users is locked, instead of queueing auth traffic', () => {
+    expect(sqlText).toMatch(/set local lock_timeout = '5s'/i);
+  });
+
   it('switches the auth.users foreign key to ON DELETE CASCADE and allows null token columns', () => {
     const addFk = parts.find((part) => /add constraint gdrive_accounts_user_id_fkey/i.test(part));
     expect(addFk).toMatch(/references auth\.users\(id\)/i);
@@ -136,5 +140,16 @@ describe('0021_gdrive_token_erasure', () => {
     } finally {
       await handle.close();
     }
+  });
+
+  it('records that the token-erasure backfill is irreversible and drops its ledger row', () => {
+    const down = readFileSync(
+      join(migrationsDir, 'down', '0021_gdrive_token_erasure_down.sql'),
+      'utf8',
+    );
+    expect(down).toMatch(/token-erasure backfill is irreversible/i);
+    expect(down).toMatch(
+      /delete from public\.schema_migrations\s+where filename = '0021_gdrive_token_erasure\.sql'/i,
+    );
   });
 });

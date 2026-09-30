@@ -10,6 +10,7 @@ import { MeService } from '../me.service';
 import type { SupabaseAdminClient } from '../supabase-admin.client';
 import type { TombstonesRepository } from '../tombstones.repository';
 import type { GDriveRepository } from '../../integrations/gdrive/gdrive.repository';
+import type { GDriveService } from '../../integrations/gdrive/gdrive.service';
 
 /**
  * Extra coverage for MeService that the original spec didn't reach:
@@ -83,6 +84,9 @@ function makeMocks(envelopesRepoOverrides: Partial<EnvelopesRepository> = {}) {
   const gdriveRepo = {
     deleteAllByUser: jest.fn(async () => 0),
   } as unknown as GDriveRepository;
+  const gdrive = {
+    revokeAllBeforeAccountDeletion: jest.fn(async () => undefined),
+  } as unknown as GDriveService;
   const storage = {
     createSignedUrl: jest.fn(async (path: string) => `https://signed.test/${path}`),
   } as unknown as StorageService;
@@ -96,6 +100,7 @@ function makeMocks(envelopesRepoOverrides: Partial<EnvelopesRepository> = {}) {
     storage,
     tombstonesRepo,
     gdriveRepo,
+    gdrive,
   };
 }
 
@@ -110,6 +115,7 @@ function build(m: ReturnType<typeof makeMocks>): MeService {
     m.storage,
     m.tombstonesRepo,
     m.gdriveRepo,
+    m.gdrive,
   );
 }
 

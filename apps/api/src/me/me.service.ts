@@ -12,6 +12,7 @@ import { IdempotencyRepository } from './idempotency.repository';
 import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client';
 import { TombstonesRepository } from './tombstones.repository';
 import { GDRIVE_REPOSITORY, type GDriveRepository } from '../integrations/gdrive/gdrive.repository';
+import { GDriveService } from '../integrations/gdrive/gdrive.service';
 
 /**
  * Hard cap on how many envelopes the inline streaming export will emit.
@@ -141,6 +142,7 @@ export class MeService {
     // (migration 0021); this call is what the tests and a stubbed
     // Supabase admin actually observe.
     @Inject(GDRIVE_REPOSITORY) private readonly gdriveRepo: GDriveRepository,
+    private readonly gdrive: GDriveService,
   ) {}
 
   /**
@@ -432,8 +434,10 @@ export class MeService {
    *      these would be orphans the user could never reach again).
    *   2. Hard-delete contacts (working state, no statutory retention).
    *   3. Hard-delete templates (working state).
-   *   4. Hard-delete every Google Drive connection (working state).
-   *      The refresh token is erased here even if Supabase later fails.
+   *   4. Ask Google to revoke each Drive refresh token (best effort,
+   *      5s timeout, failures logged without the token), then hard-delete
+   *      every Google Drive connection. The token is gone locally even
+   *      if Supabase later fails or Google never answers.
    *   5. Atomic envelopes purge:
    *        a. Hard-delete drafts.
    *        b. For every non-draft (sealed/awaiting/declined/expired/
@@ -469,6 +473,7 @@ export class MeService {
     const templatesDeleted = await this.templatesRepo.deleteAllByOwner(user.id);
     this.logger.log(`account-delete: templates deleted=${templatesDeleted} user=${user.id}`);
 
+    await this.gdrive.revokeAllBeforeAccountDeletion(user.id);
     const gdriveDeleted = await this.gdriveRepo.deleteAllByUser(user.id);
     this.logger.log(`account-delete: gdrive_accounts deleted=${gdriveDeleted} user=${user.id}`);
 

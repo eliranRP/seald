@@ -12,6 +12,7 @@ import { MeService } from '../me.service';
 import { SupabaseAdminClient, SupabaseAdminError } from '../supabase-admin.client';
 import type { TombstonesRepository } from '../tombstones.repository';
 import type { GDriveRepository } from '../../integrations/gdrive/gdrive.repository';
+import type { GDriveService } from '../../integrations/gdrive/gdrive.service';
 
 const USER: AuthUser = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -102,6 +103,11 @@ function makeMocks() {
       return 1;
     }),
   } as unknown as GDriveRepository;
+  const gdrive = {
+    revokeAllBeforeAccountDeletion: jest.fn(async () => {
+      calls.push('gdrive.revokeAllBeforeAccountDeletion');
+    }),
+  } as unknown as GDriveService;
   // Default storage stub returns a deterministic signed URL per path so
   // tests can assert wiring; failure mode is opt-in via mockRejectedValueOnce.
   const storage = {
@@ -120,6 +126,7 @@ function makeMocks() {
     storage,
     tombstonesRepo,
     gdriveRepo,
+    gdrive,
   };
 }
 
@@ -134,6 +141,7 @@ function build(mocks: ReturnType<typeof makeMocks>): MeService {
     mocks.storage,
     mocks.tombstonesRepo,
     mocks.gdriveRepo,
+    mocks.gdrive,
   );
 }
 
@@ -257,7 +265,7 @@ describe('MeService.deleteAccount', () => {
     //   1. idempotency wipe (FK doesn't cascade)
     //   2. contacts hard-delete (working state)
     //   3. templates hard-delete (working state)
-    //   4. gdrive hard-delete (refresh token must not survive)
+    //   4. gdrive revoke (best effort), then hard-delete
     //   5. envelopes purge (drafts deleted, sealed preserved + anonymized)
     //   6. tombstone recorded BEFORE supabase admin so a partial
     //      failure still leaves a forensic breadcrumb
@@ -266,12 +274,18 @@ describe('MeService.deleteAccount', () => {
       'idempotency.deleteByUser',
       'contacts.deleteAllByOwner',
       'templates.deleteAllByOwner',
+      'gdrive.revokeAllBeforeAccountDeletion',
       'gdrive.deleteAllByUser',
       'envelopes.purgeOwnedDataForAccountDeletion',
       'tombstones.recordDeletion',
       'supabaseAdmin.deleteUser',
     ]);
+    expect(mocks.gdrive.revokeAllBeforeAccountDeletion).toHaveBeenCalledWith(USER.id);
     expect(mocks.gdriveRepo.deleteAllByUser).toHaveBeenCalledWith(USER.id);
+    const revokeIdx = mocks.calls.indexOf('gdrive.revokeAllBeforeAccountDeletion');
+    const deleteIdx = mocks.calls.indexOf('gdrive.deleteAllByUser');
+    expect(revokeIdx).toBeGreaterThan(-1);
+    expect(deleteIdx).toBeGreaterThan(revokeIdx);
     expect(mocks.idempotencyRepo.deleteByUser).toHaveBeenCalledWith(USER.id);
     expect(mocks.contactsRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
     expect(mocks.templatesRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
@@ -345,6 +359,7 @@ describe('MeService.deleteAccount', () => {
     expect(mocks.idempotencyRepo.deleteByUser).toHaveBeenCalledWith(USER.id);
     expect(mocks.contactsRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
     expect(mocks.templatesRepo.deleteAllByOwner).toHaveBeenCalledWith(USER.id);
+    expect(mocks.gdrive.revokeAllBeforeAccountDeletion).toHaveBeenCalledWith(USER.id);
     expect(mocks.gdriveRepo.deleteAllByUser).toHaveBeenCalledWith(USER.id);
     expect(mocks.envelopesRepo.purgeOwnedDataForAccountDeletion).toHaveBeenCalled();
     expect(mocks.tombstonesRepo.recordDeletion).toHaveBeenCalled();

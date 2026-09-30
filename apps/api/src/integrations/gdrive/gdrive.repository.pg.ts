@@ -62,6 +62,16 @@ export class GDrivePgRepository implements GDriveRepository {
     return rows.map(toDomain);
   }
 
+  async listAllForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
+    const rows = await this.db
+      .selectFrom('gdrive_accounts')
+      .selectAll()
+      .where('user_id', '=', userId)
+      .orderBy('connected_at', 'desc')
+      .execute();
+    return rows.map(toDomain);
+  }
+
   async insert(row: GDriveAccount): Promise<GDriveAccount> {
     const inserted = await this.db
       .insertInto('gdrive_accounts')
