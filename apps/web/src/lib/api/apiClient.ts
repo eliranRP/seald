@@ -37,10 +37,13 @@ apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) =>
 
 function messageFromAxiosError(err: AxiosError): string {
   const body = err.response?.data as
-    | { readonly message?: string | ReadonlyArray<string> }
+    | { readonly message?: string | ReadonlyArray<string>; readonly error?: unknown }
     | undefined;
   if (body?.message) {
     return Array.isArray(body.message) ? body.message.join(', ') : String(body.message);
+  }
+  if (typeof body?.error === 'string' && body.error.length > 0) {
+    return body.error;
   }
   if (err.response?.statusText) {
     return err.response.statusText;
@@ -81,10 +84,12 @@ apiClient.interceptors.response.use(
         wrapped.status = error.response.status;
       }
       const body = error.response?.data as
-        | { readonly code?: unknown; readonly retryAfter?: unknown }
+        | { readonly code?: unknown; readonly error?: unknown; readonly retryAfter?: unknown }
         | undefined;
       if (typeof body?.code === 'string') {
         wrapped.code = body.code;
+      } else if (typeof body?.error === 'string') {
+        wrapped.code = body.error;
       }
       if (typeof body?.retryAfter === 'number') {
         wrapped.retryAfter = body.retryAfter;
