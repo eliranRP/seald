@@ -9,8 +9,10 @@ export interface GDriveAccount {
   readonly userId: string;
   readonly googleUserId: string;
   readonly googleEmail: string;
-  readonly refreshTokenCiphertext: Buffer;
-  readonly refreshTokenKmsKeyArn: string;
+  /** NULL after disconnect. The wrapped data key lives inside this blob. */
+  readonly refreshTokenCiphertext: Buffer | null;
+  /** NULL after disconnect, together with the ciphertext. */
+  readonly refreshTokenKmsKeyArn: string | null;
   readonly scope: string;
   readonly connectedAt: string;
   readonly lastUsedAt: string | null;
@@ -20,11 +22,17 @@ export interface GDriveAccount {
 /**
  * Port for `gdrive_accounts` access. The Postgres adapter
  * (`gdrive.repository.pg.ts`) is the only place that touches Kysely.
- * Soft-deletes are the rule — we keep history for audit + GDPR
- * subject-access requests.
+ * Disconnect keeps the row (Google email, connected_at, deleted_at)
+ * and erases the token. Account deletion hard-deletes every row.
  */
 export interface GDriveRepository {
   findByIdForUser(id: string, userId: string): Promise<GDriveAccount | null>;
+  /**
+   * Same ownership check as `findByIdForUser`, including soft-deleted
+   * rows. Disconnect uses this so a retry can finish erasing a token
+   * that an older soft-delete left behind.
+   */
+  findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null>;
   listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>>;
   insert(row: GDriveAccount): Promise<GDriveAccount>;
   /**
@@ -49,7 +57,17 @@ export interface GDriveRepository {
     scope: string;
     googleEmail: string;
   }): Promise<GDriveAccount>;
-  softDelete(id: string, userId: string): Promise<boolean>;
+  /**
+   * One update: set `deleted_at` if it is still null, and set both
+   * token columns to NULL. Keeps Google email and `connected_at`.
+   * Safe to run again.
+   */
+  disconnect(id: string, userId: string): Promise<boolean>;
+  /**
+   * Hard-delete every connection for this user, including rows that
+   * were already soft-deleted. `gdrive_envelope_exports` cascades.
+   */
+  deleteAllByUser(userId: string): Promise<number>;
   touchLastUsed(id: string): Promise<void>;
 }
 

@@ -90,6 +90,10 @@ export class GDriveService {
   }
 
   private async refreshToken(account: GDriveAccount, signal?: AbortSignal): Promise<CachedToken> {
+    if (!account.refreshTokenCiphertext || !account.refreshTokenKmsKeyArn) {
+      this.revoked.add(account.id);
+      throw new TokenExpiredError('refresh_token_invalid_or_revoked');
+    }
     const refreshToken = await this.kms.decrypt(
       account.refreshTokenCiphertext,
       account.refreshTokenKmsKeyArn,
@@ -203,19 +207,35 @@ export class GDriveService {
     return id;
   }
 
+  /**
+   * Disconnect. Asks Google to revoke the refresh token (best effort),
+   * then erases the ciphertext and key ARN and sets `deleted_at` in one
+   * update. The row stays so the connection's email and timestamps remain.
+   * A repeat call on an already-erased row returns without calling Google.
+   */
   async revokeAccount(accountId: string, userId: string): Promise<void> {
-    const account = await this.requireOwnedAccount(accountId, userId);
-    const refreshToken = await this.kms.decrypt(
-      account.refreshTokenCiphertext,
-      account.refreshTokenKmsKeyArn,
-    );
-    // Best-effort revoke at Google. If it fails, still soft-delete locally
-    // so the user isn't stuck — the row carries `deleted_at` for audit and
-    // future GDPR requests.
-    await this.google.revokeToken(refreshToken).catch(() => undefined);
-    await this.repo.softDelete(accountId, userId);
+    const account = await this.repo.findByIdForUserIncludingDeleted(accountId, userId);
+    if (!account) throw new NotFoundException('gdrive_account_not_found');
+    if (account.deletedAt && !hasStoredTokenMaterial(account)) return;
+
+    await this.revokeStoredTokenBestEffort(account);
+    await this.repo.disconnect(accountId, userId);
     this.cache.delete(accountId);
     this.revoked.delete(accountId);
+  }
+
+  private async revokeStoredTokenBestEffort(account: GDriveAccount): Promise<void> {
+    if (!account.refreshTokenCiphertext || account.refreshTokenCiphertext.length === 0) return;
+    try {
+      const refreshToken = await this.kms.decrypt(
+        account.refreshTokenCiphertext,
+        account.refreshTokenKmsKeyArn ?? '',
+      );
+      await this.google.revokeToken(refreshToken);
+    } catch {
+      // Decrypt and Google revoke are both best-effort. The caller still
+      // erases the stored bytes so a failed revoke cannot keep the token.
+    }
   }
 
   private async requireOwnedAccount(id: string, userId: string): Promise<GDriveAccount> {
@@ -227,6 +247,13 @@ export class GDriveService {
 
 function newUuid(): string {
   return randomUUID();
+}
+
+function hasStoredTokenMaterial(account: GDriveAccount): boolean {
+  const hasBytes =
+    account.refreshTokenCiphertext != null && account.refreshTokenCiphertext.length > 0;
+  const hasArn = account.refreshTokenKmsKeyArn != null && account.refreshTokenKmsKeyArn.length > 0;
+  return hasBytes || hasArn;
 }
 
 function isInvalidGrant(err: unknown): boolean {

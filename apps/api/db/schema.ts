@@ -38,8 +38,10 @@ export interface GDriveAccountsTable {
   user_id: string;
   google_user_id: string;
   google_email: string;
-  refresh_token_ciphertext: Buffer;
-  refresh_token_kms_key_arn: string;
+  // NULL after disconnect. The connection row stays for the audit trail
+  // (Google email, connected_at, deleted_at); the token does not.
+  refresh_token_ciphertext: Buffer | null;
+  refresh_token_kms_key_arn: string | null;
   scope: string;
   connected_at: ColumnType<Date, string | undefined, never>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;

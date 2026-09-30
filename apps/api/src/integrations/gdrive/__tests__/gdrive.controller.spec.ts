@@ -15,6 +15,10 @@ class FakeRepo implements GDriveRepository {
     const r = this.rows.get(id);
     return r && r.userId === userId && !r.deletedAt ? r : null;
   }
+  async findByIdForUserIncludingDeleted(id: string, userId: string): Promise<GDriveAccount | null> {
+    const r = this.rows.get(id);
+    return r && r.userId === userId ? r : null;
+  }
   async listForUser(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     return [...this.rows.values()].filter((r) => r.userId === userId && !r.deletedAt);
   }
@@ -63,11 +67,25 @@ class FakeRepo implements GDriveRepository {
     this.rows.set(args.id, next);
     return next;
   }
-  async softDelete(id: string, userId: string): Promise<boolean> {
+  async disconnect(id: string, userId: string): Promise<boolean> {
     const r = this.rows.get(id);
     if (!r || r.userId !== userId) return false;
-    this.rows.set(id, { ...r, deletedAt: new Date().toISOString() });
+    this.rows.set(id, {
+      ...r,
+      deletedAt: r.deletedAt ?? new Date().toISOString(),
+      refreshTokenCiphertext: null,
+      refreshTokenKmsKeyArn: null,
+    });
     return true;
+  }
+  async deleteAllByUser(userId: string): Promise<number> {
+    let removed = 0;
+    for (const [id, row] of this.rows) {
+      if (row.userId !== userId) continue;
+      this.rows.delete(id);
+      removed += 1;
+    }
+    return removed;
   }
   async touchLastUsed(id: string): Promise<void> {
     const r = this.rows.get(id);
@@ -106,8 +124,9 @@ class StubGoogleClient implements GoogleOAuthClient {
   async refreshAccessToken(): Promise<{ accessToken: string; expiresAt: number }> {
     return { accessToken: 'at-refreshed', expiresAt: Date.now() + 3600_000 };
   }
+  revokeCalls = 0;
   async revokeToken(): Promise<void> {
-    /* noop */
+    this.revokeCalls += 1;
   }
 }
 
@@ -269,7 +288,9 @@ describe('GDriveController', () => {
     expect(accounts[0]?.googleEmail).toBe('user@example.com');
     // The plaintext refresh token must NOT appear inside the persisted
     // ciphertext column. This is the row-level expression of red-flag #3.
-    expect(accounts[0]?.refreshTokenCiphertext.toString('utf8')).not.toContain('rt-from-google');
+    const ciphertext = accounts[0]?.refreshTokenCiphertext;
+    if (!ciphertext) throw new Error('expected ciphertext');
+    expect(ciphertext.toString('utf8')).not.toContain('rt-from-google');
   });
 
   it('GET /accounts lists only the caller user accounts (sanitized view)', async () => {
@@ -339,15 +360,21 @@ describe('GDriveController', () => {
     expect((await ctrl.listAccounts(USER_1))[0]?.tokenStatus).toBe('live');
   });
 
-  it('DELETE /accounts/:id soft-deletes the row', async () => {
-    const { ctrl, state, repo } = makeController();
+  it('DELETE /accounts/:id revokes at Google and clears the stored token', async () => {
+    const { ctrl, state, repo, google } = makeController();
     const started = state.start('user-1');
     await ctrl.oauthCallback('the-code', started.state, undefined, fakeRes());
     const [acc] = await repo.listForUser('user-1');
     if (!acc) throw new Error('no acc');
     await ctrl.deleteAccount(acc.id, USER_1);
-    // The row remains but `deleted_at` is set; listForUser filters it out.
-    expect(repo.rows.get(acc.id)?.deletedAt).toBeTruthy();
+    // The row remains for the audit trail. The token columns are empty
+    // and listForUser filters the disconnected row out.
+    const row = repo.rows.get(acc.id);
+    expect(row?.deletedAt).toBeTruthy();
+    expect(row?.refreshTokenCiphertext).toBeNull();
+    expect(row?.refreshTokenKmsKeyArn).toBeNull();
+    expect(row?.googleEmail).toBe('user@example.com');
+    expect(google.revokeCalls).toBe(1);
     expect(await repo.listForUser('user-1')).toHaveLength(0);
   });
 

@@ -219,19 +219,20 @@ export function createPgMemDb(): PgMemHandle {
     `alter table public.envelopes add column if not exists tags jsonb not null default '[]'::jsonb;`,
   );
 
-  // 0013 — gdrive_accounts. The migrate.sh runner applies this in
-  // production; the loader above stops at 0012, so we add the table by
-  // hand here (RLS stripped, citext → text, gen_random_uuid shimmed
-  // above). Needed for the gdrive_envelope_exports FK below + the
+  // 0013 + 0021 — gdrive_accounts. The migrate.sh runner applies these
+  // in production; the loader above stops at 0012, so we add the table
+  // by hand here (RLS stripped, citext → text, gen_random_uuid shimmed
+  // above). Token columns are nullable and user delete cascades, matching
+  // 0021. Needed for the gdrive_envelope_exports FK below + the
   // GdriveEnvelopeExportsPgRepository specs.
   mem.public.none(`
     create table if not exists public.gdrive_accounts (
       id                          uuid        primary key default gen_random_uuid(),
-      user_id                     uuid        not null references auth.users(id) on delete set null,
+      user_id                     uuid        not null references auth.users(id) on delete cascade,
       google_user_id              text        not null,
       google_email                text        not null,
-      refresh_token_ciphertext    bytea       not null,
-      refresh_token_kms_key_arn   text        not null,
+      refresh_token_ciphertext    bytea,
+      refresh_token_kms_key_arn   text,
       scope                       text        not null,
       connected_at                timestamptz not null default now(),
       last_used_at                timestamptz,

@@ -57,7 +57,7 @@ describe('IntegrationsPage', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.",
+        'Disconnect any time. We ask Google to revoke our access and delete the saved token.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/encrypt|KMS|every action is logged/i)).toBeNull();

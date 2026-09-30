@@ -85,7 +85,7 @@ export const DOWNLOAD_MENU_NOTE =
   'Look up the envelope reference code on the verify page to see the SHA-256 and the audit trail.';
 
 export const DRIVE_DISCONNECT_NOTE =
-  "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.";
+  'Disconnect any time. We ask Google to revoke our access and delete the saved token.';
 
 export const SEAL_DOWNLOAD_ERROR =
   "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page.";

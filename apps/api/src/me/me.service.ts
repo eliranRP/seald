@@ -1,4 +1,4 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Inject, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import type { AuthUser } from '../auth/auth-user';
@@ -11,6 +11,7 @@ import { TemplatesRepository } from '../templates/templates.repository';
 import { IdempotencyRepository } from './idempotency.repository';
 import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client';
 import { TombstonesRepository } from './tombstones.repository';
+import { GDRIVE_REPOSITORY, type GDriveRepository } from '../integrations/gdrive/gdrive.repository';
 
 /**
  * Hard cap on how many envelopes the inline streaming export will emit.
@@ -134,6 +135,12 @@ export class MeService {
     // to delete the auth row so a partial failure still leaves us with a
     // record of who used to own the preserved sealed envelopes.
     private readonly tombstonesRepo: TombstonesRepository,
+    // Drive connections are working state. The encrypted refresh token
+    // must not survive account deletion, including rows already
+    // soft-deleted on disconnect. The auth.users FK also cascades
+    // (migration 0021); this call is what the tests and a stubbed
+    // Supabase admin actually observe.
+    @Inject(GDRIVE_REPOSITORY) private readonly gdriveRepo: GDriveRepository,
   ) {}
 
   /**
@@ -425,22 +432,25 @@ export class MeService {
    *      these would be orphans the user could never reach again).
    *   2. Hard-delete contacts (working state, no statutory retention).
    *   3. Hard-delete templates (working state).
-   *   4. Atomic envelopes purge:
+   *   4. Hard-delete every Google Drive connection (working state).
+   *      The refresh token is erased here even if Supabase later fails.
+   *   5. Atomic envelopes purge:
    *        a. Hard-delete drafts.
    *        b. For every non-draft (sealed/awaiting/declined/expired/
    *           canceled) envelope: anonymize signer rows that match
    *           the deleted user's email, append a `retention_deleted`
    *           audit event (chain stays intact), and NULL `owner_id`
    *           so the row survives Supabase's auth.users delete.
-   *   5. Record a tombstone `(user_id, sha256(lowercase(email)))`
+   *   6. Record a tombstone `(user_id, sha256(lowercase(email)))`
    *      BEFORE asking Supabase to delete the auth row. If Supabase
    *      then fails we still have a forensic breadcrumb of who used
    *      to own the preserved envelopes, and the tombstone upsert is
    *      idempotent so a retry won't duplicate.
-   *   6. Ask Supabase to delete the `auth.users` row. The FK on
-   *      envelopes is now `ON DELETE SET NULL` (migration 0012) as a
-   *      belt-and-braces — if anyone bypasses this service path the
-   *      sealed envelopes still survive.
+   *   7. Ask Supabase to delete the `auth.users` row. The FK on
+   *      envelopes is `ON DELETE SET NULL` (migration 0012) so a
+   *      bypass still keeps sealed envelopes. The Drive FK is
+   *      `ON DELETE CASCADE` (migration 0021); step 4 already
+   *      removed those rows when this service ran.
    *
    * If the Supabase call fails we map to 503 — the user can retry; all
    * preceding steps are idempotent.
@@ -458,6 +468,9 @@ export class MeService {
 
     const templatesDeleted = await this.templatesRepo.deleteAllByOwner(user.id);
     this.logger.log(`account-delete: templates deleted=${templatesDeleted} user=${user.id}`);
+
+    const gdriveDeleted = await this.gdriveRepo.deleteAllByUser(user.id);
+    this.logger.log(`account-delete: gdrive_accounts deleted=${gdriveDeleted} user=${user.id}`);
 
     const purge = await this.envelopesRepo.purgeOwnedDataForAccountDeletion({
       owner_id: user.id,
