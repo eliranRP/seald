@@ -11,7 +11,7 @@ export interface UserMenuProps extends HTMLAttributes<HTMLDivElement> {
   readonly onSignOut: () => void;
   /**
    * Optional — when provided, renders a "Download my data" item that
-   * fires the GDPR/CCPA DSAR export. Hidden when omitted so Storybook
+   * fires the privacy-rights data export. Hidden when omitted so Storybook
    * and unauthenticated mocks render the lean menu.
    */
   readonly onExportData?: (() => void) | undefined;

@@ -130,17 +130,18 @@ describe('operator identity on public pages', () => {
 
   it('bumps the version and last-updated date on every page whose operator text changed', () => {
     const expected: Record<string, string> = {
-      'src/pages/legal/terms.astro': 'terms_v0.2',
-      'src/pages/legal/privacy.astro': 'privacy_v0.2',
-      'src/pages/legal/dpa.astro': 'dpa_v0.2',
+      'src/pages/legal/terms.astro': 'terms_v0.3',
+      'src/pages/legal/privacy.astro': 'privacy_v0.3',
+      'src/pages/legal/dpa.astro': 'dpa_v0.3',
       'src/pages/legal/imprint.astro': 'imprint_v0.2',
       'src/pages/legal/esign-disclosure.astro': 'esign_v0.3',
       'src/pages/legal/aup.astro': 'aup_v0.2',
-      'src/pages/legal/cookies.astro': 'cookies_v0.3',
-      'src/pages/legal/accessibility.astro': 'accessibility_v0.2',
+      'src/pages/legal/cookies.astro': 'cookies_v0.4',
+      'src/pages/legal/accessibility.astro': 'accessibility_v0.3',
       'src/pages/legal/responsible-disclosure.astro': 'responsible_disclosure_v0.2',
-      'src/pages/legal/sub-processors.astro': 'sub_processors_v0.2',
-      'src/pages/contact.astro': 'contact_v0.2',
+      'src/pages/legal/sub-processors.astro': 'sub_processors_v0.3',
+      'src/pages/contact.astro': 'contact_v0.3',
+      'src/pages/dsar.astro': 'dsar_v0.2',
     };
     for (const [rel, version] of Object.entries(expected)) {
       const source = read(resolve(LANDING, rel));
@@ -180,6 +181,47 @@ describe('operator identity on public pages', () => {
     expect(imprint).not.toContain('ec.europa.eu/consumers/odr');
     expect(privacy).not.toContain('EU representative');
     expect(privacy).not.toContain('UK representative');
+    expect(privacy).toContain('Your rights — Israel');
+    expect(privacy).not.toMatch(/GDPR|Standard Contractual|\bEEA\b/);
+  });
+
+  it('states one privacy-request deadline rule (21 days access, 30 days other)', () => {
+    for (const rel of [
+      'src/pages/legal/privacy.astro',
+      'src/pages/dsar.astro',
+      'src/pages/contact.astro',
+    ]) {
+      const source = read(resolve(LANDING, rel));
+      expect(source, rel).not.toMatch(
+        /fulfill within forty-five|respond substantively within forty-five|resolution within 30 days/,
+      );
+      expect(source, rel).toMatch(/twenty-one \(21\) days|21 (calendar )?days/);
+    }
+  });
+
+  it('stamps a terms and privacy version that belongs to the published page text', () => {
+    const terms = read(resolve(LANDING, 'src/pages/legal/terms.astro'));
+    const privacy = read(resolve(LANDING, 'src/pages/legal/privacy.astro'));
+    const schema = read(resolve(REPO, 'apps/api/src/config/env.schema.ts'));
+    const example = read(resolve(REPO, 'apps/api/.env.example'));
+    const termsVersion = /const VERSION = '([^']+)';/.exec(terms)?.[1] ?? '';
+    const privacyVersion = /const VERSION = '([^']+)';/.exec(privacy)?.[1] ?? '';
+    // 2026-09-30 (no suffix) is the v0.2 text already live from #363.
+    const stampForPage: Record<string, string> = {
+      'terms_v0.3': '2026-09-30.2',
+      'privacy_v0.3': '2026-09-30.2',
+    };
+    const tc = stampForPage[termsVersion];
+    const privacyStamp = stampForPage[privacyVersion];
+    expect(tc, `no stamp mapped for ${termsVersion}`).toBeTruthy();
+    expect(privacyStamp, `no stamp mapped for ${privacyVersion}`).toBeTruthy();
+    if (tc === undefined || privacyStamp === undefined) {
+      throw new Error('missing version stamp');
+    }
+    expect(schema).toContain(`TC_VERSION: z.string().min(1).default('${tc}')`);
+    expect(schema).toContain(`PRIVACY_VERSION: z.string().min(1).default('${privacyStamp}')`);
+    expect(example).toContain(`TC_VERSION=${tc}`);
+    expect(example).toContain(`PRIVACY_VERSION=${privacyStamp}`);
   });
 
   it('agrees that post is service and email to privacy@ is only a copy', () => {
