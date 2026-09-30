@@ -1,7 +1,8 @@
-// Cloudflare Pages worker — single-file form. Copied to the deploy
-// root by .github/workflows/deploy-cloudflare.yml. Takes precedence
-// over static asset serving; we explicitly fall through to env.ASSETS
-// for anything that isn't a SPA route.
+// Cloudflare Pages worker. Copied to the deploy root, with
+// indexing.config.js beside it, by .github/workflows/deploy-cloudflare.yml.
+// Wrangler bundles the import. Takes precedence over static asset
+// serving; we explicitly fall through to env.ASSETS for anything that
+// isn't a SPA route.
 //
 // Why this exists: CF Pages does NOT support 200-status rewrites in
 // `_redirects` (they get coerced to 308 redirects). The email CTA
@@ -9,14 +10,19 @@
 // in the address bar while serving the SPA's HTML shell. A worker
 // is the documented escape hatch.
 //
-// SEO (cycle S1a):
+// SEO (cycle S1a, quiet use):
 //   - Marketing pages are extensionless (`/contact`, not `/contact/`).
 //     Trailing-slash and `.html` aliases 308 to that canonical.
 //   - Unknown paths return `/404` with HTTP 404. They must not fall
 //     through to the homepage (CF's SPA-style 200 fallback).
 //   - SPA shells get `X-Robots-Tag: noindex, nofollow`.
+//   - While SEO_INDEXING_ENABLED is false, every response gets that
+//     header, /robots.txt allows crawling and names no sitemap, and
+//     /sitemap.xml and /llms.txt are 404. See docs/seo-indexing.md.
 //
 // See https://developers.cloudflare.com/pages/configuration/_routes/
+
+import { SEO_INDEXING_ENABLED, robotsTxt } from './indexing.config.js';
 
 const SPA_EXACT = new Set([
   '/app',
@@ -59,7 +65,8 @@ const SPA_PREFIXES = [
 
 /**
  * Public marketing URLs. Canonical form has no trailing slash and no
- * `.html`. The build writes `dist/sitemap.xml` from this list.
+ * `.html`. When SEO_INDEXING_ENABLED is true, the build writes
+ * `dist/sitemap.xml` from this list.
  */
 export const MARKETING_PATHS = [
   '/',
@@ -97,6 +104,8 @@ export function isSpaRoute(pathname) {
 // Cloudflare applies public/_headers to asset responses. Worker-built
 // redirects never pass through that file, so the same `/*` directives
 // are set here. Keep the two lists identical.
+// X-Robots-Tag is applied in applyIndexingPolicy, not in this list:
+// a static copy would stay on after SEO_INDEXING_ENABLED is turned on.
 const SECURITY_HEADERS = {
   'X-Frame-Options': 'SAMEORIGIN',
   'X-Content-Type-Options': 'nosniff',
@@ -247,50 +256,79 @@ async function marketingPage(request, env) {
   return asset;
 }
 
+function applyIndexingPolicy(response) {
+  if (SEO_INDEXING_ENABLED) return response;
+  const headers = new Headers(response.headers);
+  headers.set('X-Robots-Tag', 'noindex, nofollow');
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function robotsResponse() {
+  const headers = new Headers(SECURITY_HEADERS);
+  headers.set('content-type', 'text/plain; charset=utf-8');
+  return new Response(robotsTxt(), { status: 200, headers });
+}
+
+async function route(request, env) {
+  const url = new URL(request.url);
+  const { pathname } = url;
+
+  if (pathname === '/robots.txt') {
+    return robotsResponse();
+  }
+
+  if (
+    !SEO_INDEXING_ENABLED &&
+    (pathname === '/sitemap.xml' || pathname === '/sitemap-index.xml' || pathname === '/llms.txt')
+  ) {
+    return notFound(request, env);
+  }
+
+  if (pathname === '/404' || pathname === '/404.html' || pathname === '/404/') {
+    return notFound(request, env);
+  }
+
+  if (isSpaRoute(pathname)) {
+    return spaShell(request, env);
+  }
+
+  if (pathname === GSC_VERIFICATION_FILE || pathname === '/google9a27f9c75cdae2dc') {
+    return verificationFile(request, env);
+  }
+
+  if (pathname === '/index.html') {
+    return redirect(request, '/');
+  }
+
+  const htmlAlias = extensionlessHtml(pathname);
+  if (htmlAlias && MARKETING.has(htmlAlias)) {
+    return redirect(request, htmlAlias);
+  }
+
+  if (pathname.length > 1 && pathname.endsWith('/')) {
+    const stripped = pathname.replace(/\/+$/, '');
+    if (MARKETING.has(stripped)) {
+      return redirect(request, stripped);
+    }
+  }
+
+  if (MARKETING.has(pathname)) {
+    return marketingPage(request, env);
+  }
+
+  const asset = await env.ASSETS.fetch(request);
+  if (asset.status === 404 || (await isHomepageFallback(request, asset, env))) {
+    return notFound(request, env);
+  }
+  return asset;
+}
+
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-    const { pathname } = url;
-
-    if (pathname === '/404' || pathname === '/404.html' || pathname === '/404/') {
-      return notFound(request, env);
-    }
-
-    if (isSpaRoute(pathname)) {
-      return spaShell(request, env);
-    }
-
-    if (
-      pathname === GSC_VERIFICATION_FILE ||
-      pathname === '/google9a27f9c75cdae2dc'
-    ) {
-      return verificationFile(request, env);
-    }
-
-    if (pathname === '/index.html') {
-      return redirect(request, '/');
-    }
-
-    const htmlAlias = extensionlessHtml(pathname);
-    if (htmlAlias && MARKETING.has(htmlAlias)) {
-      return redirect(request, htmlAlias);
-    }
-
-    if (pathname.length > 1 && pathname.endsWith('/')) {
-      const stripped = pathname.replace(/\/+$/, '');
-      if (MARKETING.has(stripped)) {
-        return redirect(request, stripped);
-      }
-    }
-
-    if (MARKETING.has(pathname)) {
-      return marketingPage(request, env);
-    }
-
-    const asset = await env.ASSETS.fetch(request);
-    if (asset.status === 404 || (await isHomepageFallback(request, asset, env))) {
-      return notFound(request, env);
-    }
-    return asset;
+    return applyIndexingPolicy(await route(request, env));
   },
 };

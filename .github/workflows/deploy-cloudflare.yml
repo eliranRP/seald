@@ -118,7 +118,10 @@ jobs:
 
           # Copy the Pages worker (server-side SPA rewriter). See
           # apps/landing/_worker.js for the implementation.
+          # The worker imports indexing.config.js. Copy it beside the
+          # worker so the deploy bundle can resolve the import.
           cp apps/landing/_worker.js "$DEST/_worker.js"
+          cp apps/landing/indexing.config.js "$DEST/indexing.config.js"
 
           echo "----- merged dist -----"
           ls -la "$DEST/"

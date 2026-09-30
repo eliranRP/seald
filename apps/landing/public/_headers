@@ -1,5 +1,10 @@
 # Cloudflare Pages — custom HTTP headers.
 # Reference: https://developers.cloudflare.com/pages/configuration/headers/
+#
+# X-Robots-Tag is not set here. apps/landing/_worker.js adds
+# noindex, nofollow on every response while indexing is off, and
+# leaves that blanket header off when indexing is turned back on.
+# A rule in this file would stay on after that switch.
 
 /*
   X-Frame-Options: SAMEORIGIN

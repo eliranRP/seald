@@ -6,11 +6,12 @@
 // here, builds the SPA, then merges them under apps/landing/dist/
 // before pushing to CF Pages.
 
-import { writeFileSync } from 'node:fs';
+import { copyFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import { MARKETING_PATHS } from './_worker.js';
+import { SEO_INDEXING_ENABLED } from './indexing.config.js';
 import { buildLastmod, renderSitemap } from './sitemap.js';
 
 // `build.format: 'file'` emits `contact.html` rather than
@@ -20,19 +21,23 @@ import { buildLastmod, renderSitemap } from './sitemap.js';
 // Pair `format: 'file'` with `trailingSlash: 'never'` — Astro's
 // documented combination for extensionless URLs.
 //
-// sitemap.xml is written in astro:build:done so lastmod is the build
-// date, not a date checked into the repo.
+// sitemap.xml and llms.txt are written in astro:build:done. Quiet use
+// (SEO_INDEXING_ENABLED === false) skips both. lastmod is the build
+// date, not a date checked into the repo. llms.txt is not in public/,
+// so the static copy step cannot publish it on its own.
 
 function sitemapLastmod() {
   return {
     name: 'sitemap-lastmod',
     hooks: {
       'astro:build:done': ({ dir }) => {
+        if (!SEO_INDEXING_ENABLED) return;
         const dist = fileURLToPath(dir);
         writeFileSync(
           path.join(dist, 'sitemap.xml'),
           renderSitemap(MARKETING_PATHS, buildLastmod()),
         );
+        copyFileSync(fileURLToPath(new URL('./llms.txt', import.meta.url)), path.join(dist, 'llms.txt'));
       },
     },
   };
@@ -40,7 +45,7 @@ function sitemapLastmod() {
 
 export default defineConfig({
   site: 'https://seald.nromomentum.com',
-  integrations: [sitemapLastmod()],
+  integrations: SEO_INDEXING_ENABLED ? [sitemapLastmod()] : [],
   output: 'static',
   trailingSlash: 'never',
   build: {
