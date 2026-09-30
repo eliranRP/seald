@@ -63,7 +63,17 @@ function Wrap({ children }: { readonly children: ReactNode }) {
   const [qc] = useState(() => {
     const client = new QueryClient({
       defaultOptions: {
-        queries: { retry: false, gcTime: 0, staleTime: Infinity },
+        queries: {
+          retry: false,
+          gcTime: 0,
+          staleTime: Infinity,
+          // The hook sets its own staleTime: 0. Without this, Storybook
+          // refetches on mount and a non-JSON body replaces the seed,
+          // which blanks the story.
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+          refetchOnWindowFocus: false,
+        },
         mutations: { retry: false },
       },
     });
@@ -99,4 +109,20 @@ type Story = StoryObj<typeof SigningDonePage>;
 
 export const Default: Story = {
   name: 'Sealed terminal screen',
+};
+
+/** Phone width. Chromatic captures this story at 390px. */
+export const Mobile: Story = {
+  name: 'Signing done (mobile 390)',
+  parameters: {
+    chromatic: { modes: { mobile: chromaticViewportModes.mobile } },
+  },
+};
+
+/** Desktop width. Chromatic captures this story at 1440px. */
+export const Desktop: Story = {
+  name: 'Signing done (desktop 1440)',
+  parameters: {
+    chromatic: { modes: { desktop: chromaticViewportModes.desktop } },
+  },
 };

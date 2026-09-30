@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import styled from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
+import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
@@ -124,7 +125,7 @@ const DownloadError = styled.p`
   line-height: 1.4;
 `;
 
-const Upsell = styled.div`
+const Upsell = styled.section`
   margin-top: ${({ theme }) => theme.space[10]};
   padding: 28px 24px;
   background: ${({ theme }) => theme.color.ink[900]};
@@ -132,7 +133,8 @@ const Upsell = styled.div`
   border-radius: ${({ theme }) => theme.radius.lg};
   text-align: left;
   position: relative;
-  overflow: hidden;
+  container-type: inline-size;
+  container-name: upsell;
 `;
 
 const UpsellChip = styled.div`
@@ -162,14 +164,74 @@ const UpsellBody = styled.div`
   line-height: 1.55;
 `;
 
+/**
+ * Card content width where the email field and the save action can share
+ * a row. Narrower than this, the action stacks so a long label wraps
+ * inside the card instead of spilling past its edge. The length is four
+ * space.24 steps plus space.16.
+ */
+const upsellRowMin = (theme: DefaultTheme): string =>
+  `calc(${theme.space[24]} * 4 + ${theme.space[16]})`;
+
+/** Floor for the email field so a long save label cannot collapse it. Five space.10 steps. */
+const upsellFieldMin = (theme: DefaultTheme): string => `calc(${theme.space[10]} * 5)`;
+
 const UpsellForm = styled.form`
-  margin-top: 18px;
+  margin-top: ${({ theme }) => theme.space[4]};
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: ${({ theme }) => theme.space[2]};
+
+  @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+
+    & > input {
+      width: auto;
+      flex: 1 1 ${({ theme }) => upsellFieldMin(theme)};
+      /* The 200px floor only applies in the row. In the stack it overflows below ~296px. */
+      min-width: ${({ theme }) => upsellFieldMin(theme)};
+    }
+  }
+`;
+
+/**
+ * Beside the field the slot can grow. If the label no longer fits on that
+ * row, flex-wrap drops the slot onto the next line and it fills that line.
+ */
+const SaveSlot = styled.div`
+  width: 100%;
+  min-height: ${({ theme }) => theme.space[12]};
+
+  & > button {
+    min-height: ${({ theme }) => theme.space[12]};
+    overflow-wrap: anywhere;
+  }
+
+  @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
+    width: auto;
+    flex: 1 0 auto;
+    max-width: 100%;
+
+    & > button {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+
+  /* The shared halo is ~1.14:1 on this ink card. Use the focus stroke instead. */
+  & > button:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.border.focus};
+    outline-offset: 2px;
+  }
 `;
 
 const UpsellInput = styled.input`
-  flex: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: ${({ theme }) => theme.space[12]};
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: ${({ theme }) => theme.radius.md};
@@ -177,17 +239,6 @@ const UpsellInput = styled.input`
   color: ${({ theme }) => theme.color.paper};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   outline: none;
-`;
-
-const UpsellBtn = styled.button`
-  padding: 0 18px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  color: ${({ theme }) => theme.color.ink[900]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  cursor: pointer;
 `;
 
 const UpsellError = styled.div`
@@ -338,7 +389,7 @@ export function SigningDonePage() {
 
         <SignatureLevelNote />
 
-        <Upsell>
+        <Upsell aria-label="Create your free Seald account">
           <UpsellChip>
             <Icon icon={Sparkles} size={11} />
             Free during beta
@@ -358,7 +409,11 @@ export function SigningDonePage() {
               type="email"
               aria-label="Your email"
             />
-            <UpsellBtn type="submit">Save to my Seald account</UpsellBtn>
+            <SaveSlot>
+              <Button fullWidth type="submit" variant="secondary" size="lg">
+                Save to my Seald account
+              </Button>
+            </SaveSlot>
           </UpsellForm>
           {saveError ? <UpsellError role="alert">{saveError}</UpsellError> : null}
         </Upsell>
