@@ -13,7 +13,7 @@
 
 ## 1. Goal
 
-Let a Seald user upload a PDF, choose 1–10 recipients from their contacts, place signature / initials / date / text / checkbox / email fields per recipient, and send. Each recipient receives an email with a unique link, opens a browser-based signing surface (no Seald account required), accepts terms, signs, and submits. When all recipients have submitted, Seald seals the PDF with a cryptographic signature (PAdES-B-LT, RFC 3161 timestamp) and a burned-in visual signature for each signer, generates an audit-trail PDF, and emails both artifacts to everyone involved.
+Let a Seald user upload a PDF, choose 1–10 recipients from their contacts, place signature / initials / date / text / checkbox / email fields per recipient, and send. Each recipient receives an email with a unique link, opens a browser-based signing surface (no Seald account required), accepts terms, signs, and submits. When all recipients have submitted, Seald seals the PDF with a cryptographic signature (a PAdES seal when applied, an RFC 3161 timestamp when available) and a burned-in visual signature for each signer, generates an audit-trail PDF, and emails both artifacts to everyone involved.
 
 Declined and expired envelopes produce an audit PDF too (not a sealed PDF) and follow the same notification discipline.
 
@@ -44,7 +44,7 @@ The following are explicitly out of scope. Schema accommodates them where noted;
 | Topic | Choice | Rationale |
 |---|---|---|
 | Legal level | Simple Electronic Signature (SES) under ESIGN / UETA / eIDAS Art. 3(10) | Valid for US + most EU commercial e-signing; infrastructure footprint manageable. |
-| Crypto | PAdES-B-LT with RFC 3161 timestamp | Industry standard; app-wide Seald seal (not per-signer). Tamper-evident; Acrobat shows ✅ when trust anchor is AATL. |
+| Crypto | PAdES seal when applied, RFC 3161 timestamp when available | App-wide Seald seal (not per-signer). A noop signer applies no CMS seal, and a timestamp is added only when a timestamp authority responds. |
 | CA (production) | SSL.com eSigner (cloud HSM) | AATL-listed; cheapest AATL path; no key material on Seald infrastructure. Port isolates choice; `GlobalSignDssSigner` and `LocalP12Signer` are alternative adapters. |
 | TSA | FreeTSA (dev), DigiCert TSA (prod) | FreeTSA works for dev + CI; DigiCert is free and reliable for prod volume. |
 | Storage | Supabase Storage (private bucket `envelopes`) | Already in the stack; signed URLs for transient downloads. |
@@ -714,7 +714,7 @@ envelope_jobs row claimed (status=running) ─▶ [1] load context from Postgres
                                                    • each field at denormalized (x,y,w,h)
                                                    • signature PNGs at signature fields
                                                    • ⎯ SIGNED VIA SEALD + signer_id ⎯ under each
-                                              [5] @signpdf/signpdf PAdES-B-LT sign:
+                                              [5] @signpdf/signpdf PAdES seal when a signer is configured:
                                                    • reserve placeholder
                                                    • SHA-256 bytes to sign
                                                    • PdfSigner.sign(hash) → CMS blob

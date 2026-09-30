@@ -69,7 +69,8 @@ export class SealingService {
     const originalBytes = await this.storage.download(originalPath);
 
     const sealedBytes = await this.burnIn(envelope, originalBytes);
-    const btSignedBytes = await this.pades.sign(sealedBytes);
+    const signed = await this.pades.sign(sealedBytes);
+    const btSignedBytes = signed.pdf;
     // PAdES B-T → B-LT upgrade. The DssInjector pipeline (cert-chain
     // extraction + OCSP/CRL fetch + /DSS dictionary build) is wired here;
     // the injector itself returns the B-T bytes unchanged today because a
@@ -101,7 +102,8 @@ export class SealingService {
       sealedSha256: sealedSha,
       sealedPages,
       publicUrl: this.env.APP_PUBLIC_URL,
-      retentionYears: this.env.ENVELOPE_RETENTION_YEARS,
+      cmsSealApplied: this.pades.appliesCmsSeal,
+      timestampApplied: signed.timestampApplied,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
@@ -196,7 +198,8 @@ export class SealingService {
       sealedSha256: null,
       sealedPages: null,
       publicUrl: this.env.APP_PUBLIC_URL,
-      retentionYears: this.env.ENVELOPE_RETENTION_YEARS,
+      cmsSealApplied: false,
+      timestampApplied: false,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');

@@ -42,6 +42,8 @@ import { TsaClient } from './tsa-client';
  */
 export class KmsCmsSigner extends Signer {
   private readonly logger = new Logger(KmsCmsSigner.name);
+  /** Set by `sign()`. True only when an RFC 3161 token was embedded. */
+  timestampApplied = false;
 
   constructor(
     private readonly kmsClient: KMSClient,
@@ -53,6 +55,7 @@ export class KmsCmsSigner extends Signer {
   }
 
   override async sign(pdfBuffer: Buffer, signingTime?: Date): Promise<Buffer> {
+    this.timestampApplied = false;
     // ---- 1. messageDigest = SHA-256(detached content). For PAdES
     //         this content is the bytes covered by /ByteRange minus
     //         the placeholder /Contents — @signpdf has already
@@ -110,6 +113,7 @@ export class KmsCmsSigner extends Signer {
         );
       }
     }
+    this.timestampApplied = tsaTokenDer !== null;
 
     // ---- 6. Hand-build the full ContentInfo → SignedData tree.
     const cms = buildContentInfoSignedData(

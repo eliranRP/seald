@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship the "send PDF for signature" feature end-to-end: a sender uploads a PDF, chooses contacts as signers, places fields, sends invites; each signer opens a token-gated browser surface, accepts T&C, signs, submits; when the last signer finishes, a background worker burns-in signatures, applies a PAdES-B-LT seal with RFC 3161 timestamp, generates an audit PDF, and emails both artifacts to everyone.
+**Goal:** Ship the "send PDF for signature" feature end-to-end: a sender uploads a PDF, chooses contacts as signers, places fields, sends invites; each signer opens a token-gated browser surface, accepts T&C, signs, submits; when the last signer finishes, a background worker burns-in signatures, applies a PAdES seal when a signer is configured, with an RFC 3161 timestamp when a timestamp authority responds, generates an audit PDF, and emails both artifacts to everyone.
 
 **Architecture:** Two Nest processes from one codebase (HTTP + worker) share DI via `AppModule`. Five new tables (envelopes, signers, fields, events, jobs) plus email queue. Supabase Storage for artifacts. Ports for `PdfSigner` (dev `LocalP12`, prod `SslComEsigner`) and `EmailSender` (dev `Logging`, prod `Resend`). Row-conditional `UPDATE ... WHERE status = X` for every terminal transition. `FOR UPDATE SKIP LOCKED` for queue workers. Design matches `docs/superpowers/specs/2026-04-24-envelopes-design.md`.
 

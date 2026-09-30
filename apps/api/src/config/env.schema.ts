@@ -51,12 +51,12 @@ export const envSchema = z
     /**
      * Legal-footer fields injected into every outbound email template. The
      * values render inside the `<div class="foot">` block of each
-     * `apps/api/src/email/templates/*\/body.html`. Defaults reflect Seald's
-     * pre-incorporation posture; override in production once the entity
-     * filing is complete (CAN-SPAM § 5(a)(5) requires a valid postal
-     * address; CASL § 6(2)(c) and EU consumer-protection law similarly).
+     * `apps/api/src/email/templates/*\/body.html`. The default is the brand
+     * name. There is no incorporated entity to print here; override this
+     * when a legal name is chosen. CAN-SPAM § 5(a)(5) requires a valid
+     * postal address; CASL § 6(2)(c) and EU consumer-protection law similarly.
      */
-    EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald, Inc.'),
+    EMAIL_LEGAL_ENTITY: z.string().min(1).default('Seald'),
     EMAIL_LEGAL_POSTAL: z
       .string()
       .min(1)
@@ -95,8 +95,6 @@ export const envSchema = z
      * (cryptography-expert §11.3, esignature-standards-expert §3.3.)
      */
     PDF_SIGNING_TSA_URLS: z.string().optional(),
-
-    ENVELOPE_RETENTION_YEARS: z.coerce.number().int().positive().default(7),
 
     /**
      * Enables the in-process background worker (poll envelope_jobs, seal

@@ -225,9 +225,10 @@ async function main(): Promise<void> {
     events: completed.events,
     signerDetails: completed.signerDetails,
     sealedSha256: completed.sealedSha256,
+    cmsSealApplied: true,
+    timestampApplied: true,
     sealedPages: 9,
     publicUrl,
-    retentionYears: 7,
   });
   writeFileSync(`${OUT_DIR}/completed.pdf`, completedPdf);
 
@@ -236,9 +237,10 @@ async function main(): Promise<void> {
     events: declined.events,
     signerDetails: declined.signerDetails,
     sealedSha256: declined.sealedSha256,
+    cmsSealApplied: false,
+    timestampApplied: false,
     sealedPages: null,
     publicUrl,
-    retentionYears: 7,
   });
   writeFileSync(`${OUT_DIR}/declined.pdf`, declinedPdf);
 

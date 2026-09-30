@@ -274,7 +274,6 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
       PDF_SIGNING_LOCAL_P12_PATH: p12!.path,
       PDF_SIGNING_LOCAL_P12_PASS: p12!.password,
       PDF_SIGNING_TSA_URL: tsa.url,
-      ENVELOPE_RETENTION_YEARS: 7,
       WORKER_ENABLED: false,
       GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
       GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,
@@ -314,7 +313,7 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     const plain = Buffer.from(await doc.save({ useObjectStreams: false }));
 
     expect(tsa.hits.length).toBe(0);
-    const signed = await pades.sign(plain);
+    const signed = (await pades.sign(plain)).pdf;
     expect(tsa.hits.length).toBe(1); // TSA was hit exactly once
 
     // PAdES signature markers.
@@ -386,7 +385,7 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     doc.addPage([100, 100]);
     const plain = Buffer.from(await doc.save({ useObjectStreams: false }));
     const before = tsa.hits.length;
-    const signed = await pades.sign(plain);
+    const signed = (await pades.sign(plain)).pdf;
     expect(tsa.hits.length).toBe(before + 1);
     // Confirm the signed bytes parse as a PDF.
     expect(signed.subarray(0, 5).toString('ascii')).toBe('%PDF-');

@@ -33,8 +33,9 @@ import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
  *     titles, big signer rosters, and overflow no longer require ad-hoc
  *     truncation logic.
  *
- * Public surface is unchanged: `buildAuditPdf(input): Promise<Buffer>`.
- * The sealing service calls this for both `seal` and `audit_only` jobs.
+ * `buildAuditPdf(input): Promise<Buffer>`. The sealing service calls this
+ * for both `seal` and `audit_only` jobs. `cmsSealApplied` is false for the
+ * noop signer, so a recorded hash is not described as a digital seal.
  */
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,13 @@ export interface AuditPdfInput {
   /** SHA-256 hex of the sealed PDF; null for audit_only jobs (declined,
    *  expired). */
   readonly sealedSha256: string | null;
+  /** True only when the signer wrote a CMS seal. NoopPadesSigner returns
+   *  the PDF unchanged, so a completed file can still have a SHA-256 with
+   *  no digital seal. */
+  readonly cmsSealApplied: boolean;
+  /** True only when this seal embedded an RFC 3161 timestamp. A CMS seal
+   *  can exist without one (TSA failure degrades to PAdES B-B). */
+  readonly timestampApplied: boolean;
   /** Page count of the sealed PDF (after burn-in + PAdES). The sealed file
    *  has its own page count distinct from `envelope.original_pages`. Null
    *  for audit_only jobs where there is no sealed file. */
@@ -59,11 +67,6 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
-  /** T-22 — retention window (years). Mirrors `ENVELOPE_RETENTION_YEARS`
-   *  from `apps/api/src/config/env.schema.ts`. Surfaced on the
-   *  Certificate of Completion cover so the printed PDF is the legal
-   *  authoritative record of what we committed to retain. */
-  readonly retentionYears: number;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -83,10 +86,11 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       events={input.events}
       signerDetails={input.signerDetails}
       sealedSha256={input.sealedSha256}
+      cmsSealApplied={input.cmsSealApplied}
+      timestampApplied={input.timestampApplied}
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
-      retentionYears={input.retentionYears}
     />,
   );
   // renderToBuffer returns Buffer in Node; widen the type for the call
@@ -369,9 +373,8 @@ const styles = StyleSheet.create({
     maxWidth: '72%',
     marginTop: 8,
   },
-  // T-22 — operator + retention banner just below the hero subtitle.
-  // Tight 7.5pt caption so it doesn't compete with the hero text but
-  // the legal authoritative retention commitment is on the printed PDF.
+  // Operator line under the hero subtitle. Tight 7.5pt caption so it
+  // doesn't compete with the hero text.
   heroOperator: {
     fontFamily: 'Inter',
     fontSize: 7.5,
@@ -953,10 +956,11 @@ interface DocumentRenderProps {
   events: ReadonlyArray<EnvelopeEvent>;
   signerDetails: ReadonlyArray<SignerAuditDetail>;
   sealedSha256: string | null;
+  cmsSealApplied: boolean;
+  timestampApplied: boolean;
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
-  retentionYears: number;
 }
 
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
@@ -971,7 +975,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
     >
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
-        <Hero envelope={props.envelope} retentionYears={props.retentionYears} />
+        <Hero envelope={props.envelope} mark={sealMark(props)} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -980,6 +984,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
           verifyUrl={props.verifyUrl}
           qrDataUrl={props.qrDataUrl}
           shortCode={props.envelope.short_code}
+          mark={sealMark(props)}
         />
         <PageFooter ctx={ctx} />
       </Page>
@@ -1008,7 +1013,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
           glossary is provided so the document can stand alone as a record of legal evidence in any
           subsequent proceeding.
         </Text>
-        <TermsGrid terms={TERMS_PAGE_3} />
+        <TermsGrid terms={termsPage3(sealMark(props))} />
         <PageFooter ctx={ctx} />
       </Page>
 
@@ -1018,7 +1023,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>
-          This audit trail was issued by Seald, Inc. For questions, contact
+          This audit trail was issued by Seald. For questions, contact
           support@seald.nromomentum.com. The document on file is authoritative — this attestation
           describes what we observed during signing and the cryptographic evidence we retained.
         </Text>
@@ -1030,6 +1035,45 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
 interface RenderCtx extends DocumentRenderProps {
   detailsBySigner: ReadonlyMap<string, SignerAuditDetail>;
+}
+
+/** `cms` is a CMS seal. `hash-only` is a completed file with a recorded
+ *  SHA-256 and no CMS seal (NoopPadesSigner). `none` is audit-only. */
+type SealMark = 'cms' | 'hash-only' | 'none';
+
+function sealMark(input: { sealedSha256: string | null; cmsSealApplied: boolean }): SealMark {
+  const sealed = input.sealedSha256 !== null && input.cmsSealApplied;
+  if (sealed) return 'cms';
+  if (input.sealedSha256 !== null && !input.cmsSealApplied) return 'hash-only';
+  return 'none';
+}
+
+function verifyCopy(mark: SealMark): string {
+  if (mark === 'cms') {
+    return 'If this audit trail is printed, scan the code or type the URL below to confirm the signature is valid and the file has not been altered since it was sealed.';
+  }
+  if (mark === 'hash-only') {
+    return 'If this audit trail is printed, scan the code or type the URL below to compare the file with its recorded SHA-256 hash. This file has no digital seal.';
+  }
+  return 'If this audit trail is printed, scan the code or type the URL below to read this record. There is no sealed document for this request.';
+}
+
+function digitalSignatureCell(
+  mark: SealMark,
+  timestampApplied: boolean,
+): { value: string; check: boolean } {
+  if (mark === 'cms') {
+    return {
+      value: timestampApplied
+        ? 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available'
+        : 'Sealed · no timestamp',
+      check: true,
+    };
+  }
+  if (mark === 'hash-only') {
+    return { value: 'Not applied (no digital seal)', check: false };
+  }
+  return { value: 'Not applicable (unsealed)', check: false };
 }
 
 /**
@@ -1099,7 +1143,7 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
             <SealdMark size={10} />
           </View>
           <Text style={styles.footerBrandWord}>Seald</Text>
-          <Text style={styles.footerCaption}>· Audit trail issued by Seald, Inc.</Text>
+          <Text style={styles.footerCaption}>· Audit trail issued by Seald</Text>
         </View>
         {/* react-pdf 4.5 has a known issue where a Text with a `render`
             callback collapses its parent row when paired with `fixed`.
@@ -1113,24 +1157,19 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({
-  envelope,
-  retentionYears,
-}: {
-  envelope: Envelope;
-  retentionYears: number;
-}): React.ReactElement {
-  const completed = envelope.completed_at
-    ? formatDateShort(envelope.completed_at)
-    : formatDateShort(envelope.created_at);
+function Hero({ envelope, mark }: { envelope: Envelope; mark: SealMark }): React.ReactElement {
+  const completed = mark !== 'none';
+  const statusLabel = completed ? 'Completed' : humanEnvelopeStatus(envelope.status);
+  const statusAt =
+    completed && envelope.completed_at !== null ? envelope.completed_at : envelope.updated_at;
   return (
     <View style={styles.hero}>
       <Text style={styles.heroKicker}>
-        Request {envelope.short_code.toUpperCase()} · Completed {completed}
+        Request {envelope.short_code.toUpperCase()} · {statusLabel} {formatDateShort(statusAt)}
       </Text>
       <View style={styles.heroTitleRow}>
         <Text style={styles.heroTitle}>This document is</Text>
-        <Text style={styles.heroScript}>sealed</Text>
+        <Text style={styles.heroScript}>{mark === 'cms' ? 'sealed' : 'not sealed'}</Text>
         <Text style={styles.heroTitle}>.</Text>
       </View>
       <Text style={styles.heroSubtitle}>
@@ -1139,18 +1178,27 @@ function Hero({
         fingerprint of the file before and after signing. Definitions for every field are on the
         last page.
       </Text>
-      {/* T-22 — operator attribution + retention commitment. Printed
-          alongside the audit trail so the certificate is self-describing
-          if it surfaces later as legal evidence detached from the live
-          service. */}
+      {/* A timestamp is still best-effort after a CMS seal. A completed
+          file with no CMS seal (NoopPadesSigner) has a recorded hash
+          and is not sealed. A null hash means there is no completed file. */}
       <Text style={styles.heroOperator}>
-        Issued by Seald, Inc. · Retained for {retentionYears} years from sealing · PAdES-LT Advanced
-        Electronic Signature
+        Seald · PAdES seal when applied · RFC 3161 timestamp when available
       </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
-        <Text style={styles.sealScript}>Sealed</Text>
-        <Text style={styles.sealLabel}>Verified</Text>
+        {mark === 'cms' ? (
+          <>
+            <Text style={styles.sealScript}>Sealed</Text>
+            <Text style={styles.sealLabel}>Verified</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.sealLabel}>Not sealed</Text>
+            <Text style={styles.sealLabel}>
+              {mark === 'hash-only' ? 'Completed' : humanEnvelopeStatus(envelope.status)}
+            </Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -1245,10 +1293,12 @@ function VerifyCard({
   verifyUrl,
   qrDataUrl,
   shortCode,
+  mark,
 }: {
   verifyUrl: string;
   qrDataUrl: string;
   shortCode: string;
+  mark: SealMark;
 }): React.ReactElement {
   return (
     // wrap={false} so the QR + URL + CODE never split mid-card when
@@ -1257,10 +1307,7 @@ function VerifyCard({
       <View style={styles.verifyBody}>
         <Text style={styles.verifyEyebrow}>Verify this document</Text>
         <Text style={styles.verifyTitle}>Scan or visit to confirm authenticity</Text>
-        <Text style={styles.verifyCopy}>
-          If this audit trail is printed, scan the code or type the URL below to confirm the
-          signature is valid and the file has not been altered since it was sealed.
-        </Text>
+        <Text style={styles.verifyCopy}>{verifyCopy(mark)}</Text>
         <View style={styles.verifyFieldRow}>
           <Text style={styles.verifyKey}>URL</Text>
           <Text style={styles.verifyVal}>{verifyUrl.replace(/^https?:\/\//, '')}</Text>
@@ -1410,30 +1457,77 @@ function EventIcon({ kind }: { kind: ParticipantEvent['kind'] }): React.ReactEle
   );
 }
 
-function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
-  const cells = [
-    {
+function integrityCell(mark: SealMark): {
+  label: string;
+  value: string;
+  sub: string;
+  icon: readonly string[];
+} {
+  if (mark === 'cms') {
+    return {
       label: 'Integrity',
       value: 'Verified',
       sub: 'SHA-256 hash matches the sealed document.',
       icon: ICONS.shieldCheck,
-    },
-    {
+    };
+  }
+  if (mark === 'hash-only') {
+    return {
+      label: 'Integrity',
+      value: 'Hash recorded',
+      sub: 'SHA-256 of the completed file is recorded. The file has no digital seal.',
+      icon: ICONS.shieldCheck,
+    };
+  }
+  return {
+    label: 'Integrity',
+    value: 'Audit chain',
+    sub: 'SHA-256 links each audit event to the one before it.',
+    icon: ICONS.shieldCheck,
+  };
+}
+
+function timestampCell(
+  mark: SealMark,
+  timestampApplied: boolean,
+): { label: string; value: string; sub: string; icon: readonly string[] } {
+  if (mark === 'cms' && !timestampApplied) {
+    return {
       label: 'Timestamp',
-      value: 'RFC 3161 trusted',
-      sub: 'Issued by an external timestamp authority.',
+      value: 'No timestamp',
+      sub: 'The seal was applied without an RFC 3161 timestamp.',
       icon: ICONS.clockCircle,
-    },
+    };
+  }
+  return {
+    label: 'Timestamp',
+    value: 'RFC 3161 when available',
+    sub: 'Added by an external timestamp authority when it responds.',
+    icon: ICONS.clockCircle,
+  };
+}
+
+function completionSub(mark: SealMark): string {
+  if (mark === 'cms') return 'From created to sealed.';
+  if (mark === 'hash-only') return 'From created to completed.';
+  return 'From created to the last event.';
+}
+
+function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
+  const mark = sealMark(ctx);
+  const cells = [
+    integrityCell(mark),
+    timestampCell(mark, ctx.timestampApplied),
     {
       label: 'Storage',
-      value: 'Encrypted at rest',
-      sub: 'AES-256. Retrieved on verification only.',
+      value: 'Access-controlled',
+      sub: 'Stored with our file-storage provider, which encrypts it at rest.',
       icon: ICONS.lock,
     },
     {
       label: 'Completion',
       value: computeDurationText(ctx),
-      sub: 'From created to sealed.',
+      sub: completionSub(mark),
       icon: ICONS.check,
     },
   ];
@@ -1465,55 +1559,69 @@ interface TermDef {
   subItems?: ReadonlyArray<{ k: string; v: string }>;
 }
 
-const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
-  {
-    num: '01',
-    name: 'Audit trail',
-    body: 'Also referred to as an attestation. A document that details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.',
-  },
-  {
-    num: '02',
-    name: 'Request',
-    body: 'The process of preparing a document to be signed by one or more people.',
-  },
-  {
-    num: '03',
-    name: 'Proposer',
-    body: 'The person — name and email address — who prepared the document and initiated the signature request.',
-  },
-  {
-    num: '04',
-    name: 'IP address',
-    body: 'A unique address that identifies a device on the internet or a local network and can provide context as to the whereabouts of the signer.',
-  },
-  {
-    num: '05',
-    name: 'Request identifier',
-    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the original file.',
-  },
-  {
-    num: '06',
-    name: 'Signatory identifier',
-    body: 'The unique identifier of the individual who signed the document. The UUID is linked only to the signature in the document referenced by the request ID on this audit trail.',
-  },
-  {
-    num: '07',
-    name: 'Digital signature',
-    body: 'An additional layer of authenticity which adds a certificate to the signed document. A certificate indicates an embedded RFC 3161 trusted timestamp. Validity is revoked if the document is tampered with after signing.',
-  },
-  {
-    num: '08',
-    name: 'Verification check',
-    body: 'Additional guarantees of identity the requester may enable for each signer:',
-    subItems: [
-      { k: 'Email', v: "The recipient's email is validated via a unique link." },
-      { k: 'Access code', v: 'The signer is given a distinct code to open the document.' },
-      { k: 'SMS', v: 'A code is sent via text message prior to signing.' },
-      { k: 'ID verification', v: 'The signer presents a government-issued ID.' },
-      { k: 'Account', v: 'The signer is authenticated against a Seald account.' },
-    ],
-  },
-];
+const AUDIT_TRAIL_TERM =
+  'Also referred to as an attestation. A document that details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.';
+
+const SEALED_REQUEST_ID_TERM =
+  'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.';
+
+const UNSEALED_REQUEST_ID_TERM =
+  'The unique reference number of this request. With this ID, anyone can look up the request on seald.nromomentum.com/verify, check the audit chain, and obtain this audit trail.';
+
+const SEALED_DIGITAL_SIGNATURE_TERM =
+  'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. It shows whether the file has changed since sealing, and it includes an RFC 3161 timestamp when a timestamp authority responds. The seal identifies Seald as the sealer, not the signer.';
+
+const UNSEALED_DIGITAL_SIGNATURE_TERM =
+  'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. This file has no digital seal. The seal identifies Seald as the sealer, not the signer.';
+
+function termsPage3(mark: SealMark): ReadonlyArray<TermDef> {
+  const cms = mark === 'cms';
+  return [
+    {
+      num: '01',
+      name: 'Audit trail',
+      body: cms
+        ? AUDIT_TRAIL_TERM
+        : 'Also referred to as an attestation. This audit trail details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.',
+    },
+    {
+      num: '02',
+      name: 'Request',
+      body: 'The process of preparing a document to be signed by one or more people.',
+    },
+    {
+      num: '03',
+      name: 'Proposer',
+      body: 'The person — name and email address — who prepared the document and initiated the signature request.',
+    },
+    {
+      num: '04',
+      name: 'IP address',
+      body: 'A unique address that identifies a device on the internet or a local network and can provide context as to the whereabouts of the signer.',
+    },
+    {
+      num: '05',
+      name: 'Request identifier',
+      body: cms ? SEALED_REQUEST_ID_TERM : UNSEALED_REQUEST_ID_TERM,
+    },
+    {
+      num: '06',
+      name: 'Signatory identifier',
+      body: 'The unique identifier of the individual who signed the document. The UUID is linked only to the signature in the document referenced by the request ID on this audit trail.',
+    },
+    {
+      num: '07',
+      name: 'Digital signature',
+      body: cms ? SEALED_DIGITAL_SIGNATURE_TERM : UNSEALED_DIGITAL_SIGNATURE_TERM,
+    },
+    {
+      num: '08',
+      name: 'Verification check',
+      body: 'How the signer was identified:',
+      subItems: [{ k: 'Email', v: 'The signer opened a unique link sent to their email address.' }],
+    },
+  ];
+}
 
 const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   {
@@ -1566,7 +1674,7 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   {
     num: '12',
     name: 'Trusted timestamp (RFC 3161)',
-    body: 'A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
+    body: 'When present, a technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
   },
   {
     num: '13',
@@ -1659,6 +1767,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
     terminalValue = deriveDeclinedAt(ctx) ?? formatDateTimeFull(env.updated_at);
   }
 
+  const mark = sealMark(ctx);
   return [
     { label: 'Proposer', value: proposer.name },
     { label: 'Proposer email', value: proposer.email, mono: true },
@@ -1671,11 +1780,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
     { label: 'Request identifier', value: env.id.toUpperCase(), mono: true },
     {
       label: 'Digital signature',
-      value:
-        ctx.sealedSha256 !== null
-          ? 'Enabled · RFC 3161 trusted timestamp'
-          : 'Not applicable (unsealed)',
-      check: ctx.sealedSha256 !== null,
+      ...digitalSignatureCell(mark, ctx.timestampApplied),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
     {
@@ -1712,9 +1817,9 @@ function buildProposerParticipant(ctx: RenderCtx): ParticipantData {
     name: proposer.name,
     email: proposer.email,
     signatureText: null,
-    signatureMeta: 'Verified via account authentication',
+    signatureMeta: proposerIdentity(ctx.envelope).meta,
     isProposer: true,
-    verificationChecks: ['Email', 'Account'],
+    verificationChecks: proposerIdentity(ctx.envelope).checks,
     formatLabel: 'Proposer',
     // Per the design HTML, the proposer card always renders "—" in the
     // Identifier slot — owner_id is an internal foreign key that has
@@ -1910,10 +2015,25 @@ function deriveVerificationChecks(raw: ReadonlyArray<string>): ReadonlyArray<str
   const out: string[] = [];
   if (seen.has('email') || seen.size === 0) out.push('Email');
   if (seen.has('account')) out.push('Account');
-  if (seen.has('access_code')) out.push('Access code');
-  if (seen.has('sms')) out.push('SMS');
-  if (seen.has('id')) out.push('ID');
   return out;
+}
+
+/**
+ * Guest senders use an anonymous session. The send controller stores
+ * `sender_name` only when the JWT has no email, so a stored name means
+ * the sender typed it and was not signed in. A null name is an account
+ * sender or a guest who skipped the optional name, so it is not proof
+ * of account authentication.
+ */
+function proposerIdentity(envelope: Envelope): { meta: string; checks: ReadonlyArray<string> } {
+  const guestName = envelope.sender_name?.trim() ?? '';
+  if (guestName.length > 0) {
+    return { meta: 'Email address entered by the sender', checks: ['Email'] };
+  }
+  return {
+    meta: 'Account authentication when the sender was signed in',
+    checks: ['Email'],
+  };
 }
 
 function computeDurationText(ctx: RenderCtx): string {

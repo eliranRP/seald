@@ -87,10 +87,10 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.TC_VERSION).toBeDefined();
     expect(env.PRIVACY_VERSION).toBeDefined();
     expect(env.APP_PUBLIC_URL).toBe('http://localhost:5173');
-    expect(env.ENVELOPE_RETENTION_YEARS).toBe(7);
     expect(env.PDF_SIGNING_TSA_URL).toBe('https://freetsa.org/tsr');
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
     expect(env.EMAIL_FROM_NAME).toBe('Seald');
+    expect(env.EMAIL_LEGAL_ENTITY).toBe('Seald');
   });
 
   // Regression for the 2026-05-07 prod incident where stale containers
