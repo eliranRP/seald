@@ -7,7 +7,7 @@ priority interrupt.
 
 ## How to report
 
-- **Email:** [security@seald.nromomentum.com](mailto:security@seald.nromomentum.com)
+- **Email:** [privacy@seald.nromomentum.com](mailto:privacy@seald.nromomentum.com)
 - **Subject line:** `Security report — <short title>`
 - **Machine-readable contact:** [`/.well-known/security.txt`](https://seald.nromomentum.com/.well-known/security.txt) per RFC 9116
 - **Full policy:** <https://seald.nromomentum.com/legal/responsible-disclosure>

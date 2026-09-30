@@ -84,7 +84,7 @@ describe('SigningPrepPage', () => {
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(
         '/sign/esign-disclosure',
-        { disclosure_version: 'esign_v0.2' },
+        { disclosure_version: 'esign_v0.3' },
         expect.any(Object),
       );
     });
@@ -125,7 +125,7 @@ describe('SigningPrepPage', () => {
     );
     expect(post).toHaveBeenCalledWith(
       '/sign/esign-disclosure',
-      { disclosure_version: 'esign_v0.2' },
+      { disclosure_version: 'esign_v0.3' },
       expect.any(Object),
     );
   });
