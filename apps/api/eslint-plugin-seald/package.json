@@ -1,0 +1,10 @@
+{
+  "name": "eslint-plugin-seald",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Local ESLint rules for the Seald API.",
+  "main": "index.js",
+  "peerDependencies": {
+    "eslint": ">=8"
+  }
+}
