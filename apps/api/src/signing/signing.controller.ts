@@ -22,7 +22,7 @@ import { Public } from '../auth/public.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
-import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelope.entity';
+import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
 import { DeclineDto } from './dto/decline.dto';
 import { EsignDisclosureDto } from './dto/esign-disclosure.dto';
 import { FillFieldDto } from './dto/fill-field.dto';

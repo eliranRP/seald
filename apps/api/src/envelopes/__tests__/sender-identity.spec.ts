@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { resolveSenderIdentity } from '../sender-identity.service';
+import { resolveSenderIdentity } from '../sender-identity';
 
 describe('resolveSenderIdentity', () => {
   it('uses the JWT email and ignores the body (anti-spoof)', () => {

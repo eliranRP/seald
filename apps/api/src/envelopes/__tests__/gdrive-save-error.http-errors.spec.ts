@@ -7,7 +7,7 @@ import {
   TokenExpiredError,
 } from '../../integrations/gdrive/dto/error-codes';
 import { RateLimitedError } from '../../integrations/gdrive/rate-limiter';
-import { mapGdriveSaveError } from '../gdrive-save-error.service';
+import { mapGdriveSaveError } from '../gdrive-save-error.http-errors';
 
 describe('mapGdriveSaveError', () => {
   it('returns HttpExceptions unchanged', () => {

@@ -4,7 +4,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
-import { inspectPdfBytes, MAX_PDF_BYTES } from '../pdf-inspection.service';
+import { inspectPdfBytes, MAX_PDF_BYTES } from '../pdf-inspection';
 
 describe('inspectPdfBytes', () => {
   it('returns the page count and sha256 of a PDF', async () => {

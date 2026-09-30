@@ -52,7 +52,7 @@ import {
   ShortCodeCollisionError,
 } from './envelopes.repository';
 import { generateShortCode } from './short-code';
-import { inspectPdfBytes } from './pdf-inspection.service';
+import { inspectPdfBytes } from './pdf-inspection';
 
 export type { ListResult };
 
