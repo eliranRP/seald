@@ -9,6 +9,104 @@ const asUnknownAsBan = {
 };
 const syntaxBans = [asUnknownAsBan];
 
+// Rule S.5. An override replaces the whole `no-restricted-imports`
+// config, so the MCP allowlist repeats this ban.
+const signpdfExtractSignatureBan = {
+  name: '@signpdf/utils',
+  importNames: ['extractSignature'],
+  message:
+    'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
+};
+
+// Step 0d. `src/mcp` may import application `*.service.ts` modules and
+// the `shared` package. npm packages stay available so the transport
+// can use Nest and the MCP SDK. Signing and sealing stay banned even
+// when the file is named `*.service.ts`. HTTP mappers, repositories,
+// and `pdf-inspection` / `sender-identity` are not services, so they
+// stay out.
+const mcpAllowlistMessage =
+  'The MCP module may import application *.service.ts files and the shared package. It does not import controllers, repositories, HTTP mappers, or other API modules.';
+const mcpSigningMessage =
+  'The MCP module does not import signing or sealing, including their *.service.ts files.';
+const mcpDbMessage = 'The MCP module calls application services. It does not import the database.';
+
+const mcpAppDirs = [
+  'auth',
+  'common',
+  'config',
+  'contacts',
+  'cron',
+  'db',
+  'email',
+  'envelopes',
+  'health',
+  'integrations',
+  'me',
+  'reminders',
+  'storage',
+  'templates',
+  'verify',
+];
+const mcpRelativePrefixes = ['../', '../../', '../../../'];
+const mcpRootFiles = ['app.module', 'main', 'security-headers'];
+
+function mcpImportPatterns(dirs, { allowServices }) {
+  const group = [];
+  for (const dir of dirs) {
+    for (const prefix of mcpRelativePrefixes) {
+      group.push(`${prefix}${dir}/**`);
+    }
+    group.push(`src/${dir}/**`);
+  }
+  if (!allowServices) return group;
+  for (const dir of dirs) {
+    for (const prefix of mcpRelativePrefixes) {
+      group.push(
+        `!${prefix}${dir}/**/`,
+        `!${prefix}${dir}/*.service`,
+        `!${prefix}${dir}/*.service.ts`,
+        `!${prefix}${dir}/**/*.service`,
+        `!${prefix}${dir}/**/*.service.ts`,
+      );
+    }
+    group.push(
+      `!src/${dir}/**/`,
+      `!src/${dir}/*.service`,
+      `!src/${dir}/*.service.ts`,
+      `!src/${dir}/**/*.service`,
+      `!src/${dir}/**/*.service.ts`,
+    );
+  }
+  return group;
+}
+
+const mcpRootFilePatterns = mcpRootFiles.flatMap((file) => [
+  ...mcpRelativePrefixes.flatMap((prefix) => [`${prefix}${file}`, `${prefix}${file}.ts`]),
+  `src/${file}`,
+  `src/${file}.ts`,
+]);
+
+const mcpAllowlist = [
+  'error',
+  {
+    paths: [
+      signpdfExtractSignatureBan,
+      { name: 'pg', message: mcpDbMessage },
+      { name: 'kysely', message: mcpDbMessage },
+    ],
+    patterns: [
+      {
+        group: [...mcpImportPatterns(mcpAppDirs, { allowServices: true }), ...mcpRootFilePatterns],
+        message: mcpAllowlistMessage,
+      },
+      {
+        group: mcpImportPatterns(['signing', 'sealing'], { allowServices: false }),
+        message: mcpSigningMessage,
+      },
+    ],
+  },
+];
+
 // A severity-only override inherits the parent selectors. When sealing
 // has no bans of its own, a selector that matches nothing is what
 // drops the cast without turning the whole rule off.
@@ -55,14 +153,7 @@ module.exports = {
     'no-restricted-imports': [
       'error',
       {
-        paths: [
-          {
-            name: '@signpdf/utils',
-            importNames: ['extractSignature'],
-            message:
-              'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
-          },
-        ],
+        paths: [signpdfExtractSignatureBan],
       },
     ],
   },
@@ -92,6 +183,15 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-non-null-assertion': 'off',
         'no-restricted-syntax': syntaxRule(syntaxBans.filter((ban) => ban !== asUnknownAsBan)),
+      },
+    },
+    {
+      // Production MCP files only. Tool specs mock collaborators and
+      // stay on the normal test override.
+      files: ['src/mcp/**/*.ts'],
+      excludedFiles: ['src/mcp/**/*.spec.ts', 'src/mcp/**/__tests__/**'],
+      rules: {
+        'no-restricted-imports': mcpAllowlist,
       },
     },
   ],
