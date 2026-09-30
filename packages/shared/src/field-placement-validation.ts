@@ -32,7 +32,7 @@ export type PlacementIssueSlug = (typeof PLACEMENT_ISSUE_SLUGS)[number];
 export type PlacementStage = 'place' | 'preview' | 'send';
 
 export const PLACEMENT_TOOLS = [
-  'envelopes_inspect_document',
+  'documents_inspect',
   'envelopes_place_fields',
   'envelopes_update_fields',
 ] as const;
@@ -213,7 +213,7 @@ function nextStepsFor(slug: PlacementIssueSlug): readonly PlacementNextStep[] {
     case 'field_page_out_of_range':
       return [
         {
-          tool: 'envelopes_inspect_document',
+          tool: 'documents_inspect',
           hint: 'Inspect the document, then place the field again.',
         },
       ];

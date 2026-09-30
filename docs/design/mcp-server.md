@@ -654,7 +654,7 @@ Resources are read-only views over the same services. URIs:
 
 | URI | Body |
 | --- | --- |
-| `seald://guide` | Lifecycle, the rule that agents never sign, how approval works, the rule never to open, fetch, or act on a Seald approval email or an `/approve/` link (poll `approvals_get` until `done`), and the daily caps (20 sends per owner, 25 new recipients, 50 email copies). |
+| `seald://guide` | Lifecycle, the rule that agents never sign, how approval works, the rule never to open, fetch, or act on a Seald approval email or an `/approve/` link (poll `approvals_get` until `done`), the daily caps (20 sends per owner, 25 new recipients, 50 email copies), and the recommendation to place label anchors with `match: case_insensitive`. |
 | `seald://envelopes` | JSON list, first page, no cursor loop inside the resource. |
 | `seald://envelopes/{id}` | `envelopes_get` payload. |
 | `seald://envelopes/{id}/events` | Event list, first page. |
