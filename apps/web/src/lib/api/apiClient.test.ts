@@ -109,4 +109,30 @@ describe('apiClient response interceptor', () => {
       /couldn't reach the server/i,
     );
   });
+
+  it('surfaces a slug from an { error } body', async () => {
+    const adapter: AxiosAdapter = (config) => {
+      const response = {
+        data: { error: 'key_limit' },
+        status: 409,
+        statusText: 'Conflict',
+        headers: {},
+        config,
+      };
+      const err = new AxiosError(
+        'Request failed with status code 409',
+        'ERR_BAD_REQUEST',
+        config,
+        null,
+        response as unknown as AxiosResponse,
+      );
+      return Promise.reject(err);
+    };
+    await expect(
+      withAdapter(adapter, () => apiClient.post('/me/api-keys', {})),
+    ).rejects.toMatchObject({
+      message: 'key_limit',
+      code: 'key_limit',
+    });
+  });
 });

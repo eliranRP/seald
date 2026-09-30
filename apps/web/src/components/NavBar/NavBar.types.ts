@@ -39,6 +39,11 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
    * mode).
    */
   readonly onOpenIntegrations?: (() => void) | undefined;
+  /**
+   * Optional — wires the UserMenu "Settings" item. Pass `undefined` when
+   * `mcpServer` is off.
+   */
+  readonly onOpenSettings?: (() => void) | undefined;
   /** Mirrors UserMenu.isExporting; disables the item while in flight. */
   readonly isExporting?: boolean | undefined;
   /** Mirrors UserMenu.isDeleting; disables the item while in flight. */

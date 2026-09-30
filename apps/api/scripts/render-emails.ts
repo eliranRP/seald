@@ -45,6 +45,9 @@ const vars = {
   total_signers: 3,
   signed_count: 2,
   signer_name: 'Maya Raskin',
+  key_name: 'Key 1',
+  key_prefix: 'seald_live_abcdefgh',
+  settings_url: 'https://seald.nromomentum.com/settings/developers',
   signer_list_html: signerListHtml,
   timeline_html: timelineHtml,
 };
@@ -59,6 +62,7 @@ const kinds = [
   'expired_to_sender',
   'expired_to_signer',
   'signed_to_sender',
+  'api_key_created',
 ] as const;
 
 for (const k of kinds) {

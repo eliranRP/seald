@@ -3,6 +3,21 @@ export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
 export { MAX_AUTOMATED_REMINDERS } from './reminders';
 export type { FeatureFlag } from './feature-flags';
 export {
+  API_KEY_APPROVAL_NOTIFY,
+  API_KEY_EXPIRY_DAY_CHOICES,
+  API_KEY_SCOPES,
+  API_KEY_SEND_FRESH_LOGIN_MS,
+  API_KEY_TOKEN_PREFIX,
+  DEFAULT_API_KEY_EXPIRY_DAYS,
+  DEFAULT_API_KEY_SCOPES,
+  MAX_API_KEY_EXPIRY_DAYS,
+  MAX_LIVE_API_KEYS,
+  MCP_SERVER_URL,
+  isApiKeyScope,
+  normalizeApiKeyScopes,
+} from './api-keys';
+export type { ApiKeyApprovalNotify, ApiKeyExpiryDays, ApiKeyScope } from './api-keys';
+export {
   ESIGN_DISCLOSURE_VERSION,
   LEGAL_CONTACT_EMAIL_DEFAULT,
   ESIGN_EXCLUDED_CATEGORIES,

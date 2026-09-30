@@ -16,6 +16,7 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
     onExportData,
     onDeleteAccount,
     onOpenIntegrations,
+    onOpenSettings,
     isExporting = false,
     isDeleting = false,
     ...rest
@@ -56,6 +57,12 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
     setOpen(false);
     onDeleteAccount();
   }, [onDeleteAccount]);
+
+  const handleOpenSettings = useCallback((): void => {
+    if (!onOpenSettings) return;
+    setOpen(false);
+    onOpenSettings();
+  }, [onOpenSettings]);
 
   const handleOpenIntegrations = useCallback((): void => {
     if (!onOpenIntegrations) return;
@@ -102,6 +109,11 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
               aria-busy={isExporting || undefined}
             >
               {isExporting ? 'Preparing download…' : 'Download my data'}
+            </Item>
+          ) : null}
+          {onOpenSettings ? (
+            <Item type="button" role="menuitem" onClick={handleOpenSettings}>
+              Settings
             </Item>
           ) : null}
           {onOpenIntegrations ? (

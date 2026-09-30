@@ -1,9 +1,9 @@
 import { forwardRef, useId, useRef } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { AlertTriangle, Unlink } from 'lucide-react';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export interface DisconnectModalProps {
   readonly open: boolean;
@@ -20,9 +20,6 @@ export interface DisconnectModalProps {
   readonly onClose: () => void;
   readonly onConfirm: () => void;
 }
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const Backdrop = styled.div`
   position: fixed;
@@ -137,34 +134,12 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
   const titleId = useId();
   const descId = useId();
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const confirmRef = useRef<HTMLButtonElement | null>(null);
+  const { onKeyDown } = useFocusTrap(cardRef, { enabled: open, initialFocusRef: confirmRef });
 
   useEscapeKey(onClose, open);
 
   if (!open) return null;
-
-  // Trap Tab inside the alertdialog (rule 4.6 / WCAG 2.1.2).
-  // Pre-fix Tab from any focusable inside the modal escaped to the
-  // underlying IntegrationsPage Connect button + header links;
-  // disorienting and a documented a11y antipattern for destructive
-  // confirms.
-  const onKeyDownInside = (e: ReactKeyboardEvent<HTMLDivElement>): void => {
-    if (e.key !== 'Tab') return;
-    const card = cardRef.current;
-    if (!card) return;
-    const focusables = Array.from(card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
-    if (focusables.length === 0) return;
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (first === undefined || last === undefined) return;
-    const active = document.activeElement as HTMLElement | null;
-    if (e.shiftKey && active === first) {
-      e.preventDefault();
-      last.focus();
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault();
-      first.focus();
-    }
-  };
 
   // Combine the forwarded ref with the local cardRef so both the
   // caller and our focus-trap query target the same node.
@@ -189,7 +164,7 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
         aria-labelledby={titleId}
         aria-describedby={descId}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={onKeyDownInside}
+        onKeyDown={onKeyDown}
       >
         <Header>
           <IconBubble aria-hidden>
@@ -221,9 +196,9 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
             variant="danger"
             iconLeft={Unlink}
             onClick={onConfirm}
+            ref={confirmRef}
             disabled={buttonsDisabled}
             loading={pending && !error}
-            autoFocus
           >
             Disconnect
           </Button>

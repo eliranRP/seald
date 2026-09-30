@@ -178,6 +178,12 @@ export function AppShell() {
   const onOpenIntegrations =
     mode === 'authed' && isFeatureEnabled('gdriveIntegration') ? handleOpenIntegrations : undefined;
 
+  const handleOpenSettings = useCallback((): void => {
+    navigate('/settings');
+  }, [navigate]);
+  const onOpenSettings =
+    mode === 'authed' && isFeatureEnabled('mcpServer') ? handleOpenSettings : undefined;
+
   // 2026-05-03 (refined a second time per user) — the desktop AppShell
   // pages (/documents, /templates, /signers, /document/<id>,
   // /document/new, /templates/:id/use, /templates/:id/edit) were not
@@ -207,6 +213,7 @@ export function AppShell() {
         onExportData={mode === 'authed' ? account.exportData : undefined}
         onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
         onOpenIntegrations={onOpenIntegrations}
+        onOpenSettings={onOpenSettings}
         isExporting={account.isExporting}
         isDeleting={account.isDeleting}
       />

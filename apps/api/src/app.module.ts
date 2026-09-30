@@ -12,6 +12,7 @@ import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 import { MeModule } from './me/me.module';
 import { SealingModule } from './sealing/sealing.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -49,6 +50,7 @@ import { StorageModule } from './storage/storage.module';
     EnvelopesModule,
     TemplatesModule,
     MeModule,
+    ApiKeysModule,
     SealingModule,
     VerifyModule,
     CronModule,

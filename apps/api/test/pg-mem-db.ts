@@ -279,6 +279,35 @@ export function createPgMemDb(): PgMemHandle {
       on public.outbound_emails (dedupe_key);
   `);
 
+  try {
+    mem.public.none(`alter type email_kind add value if not exists 'api_key_created'`);
+  } catch {
+    mem.public.none(`alter table public.outbound_emails alter column kind type text`);
+  }
+
+  // 0022 — api_keys. RLS stripped. Partial unique index kept so the
+  // live-name backstop matches production. 0021 is reserved by #370.
+  mem.public.none(`
+    create table if not exists public.api_keys (
+      id                       uuid primary key default gen_random_uuid(),
+      owner_id                 uuid not null references auth.users(id) on delete cascade,
+      name                     text not null check (char_length(name) between 1 and 80),
+      prefix                   text not null,
+      key_hash                 text not null check (char_length(key_hash) = 64),
+      scopes                   text[] not null,
+      require_owner_approval   boolean not null default true,
+      allow_new_recipients     boolean not null default false,
+      always_require_signin    boolean not null default false,
+      created_at               timestamptz not null default now(),
+      last_used_at             timestamptz,
+      expires_at               timestamptz,
+      revoked_at               timestamptz
+    );
+    create unique index if not exists api_keys_prefix_key on public.api_keys (prefix);
+    create unique index if not exists api_keys_owner_name_live_idx
+      on public.api_keys (owner_id, lower(name)) where revoked_at is null;
+  `);
+
   // 0020 — reminders_enabled + last_reminded_at.
   mem.public.none(`
     alter table public.envelopes
