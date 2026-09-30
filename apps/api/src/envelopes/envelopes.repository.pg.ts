@@ -1336,6 +1336,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
   async listReminderCandidates(
     now: Date,
     limit: number,
+    offset = 0,
   ): Promise<ReadonlyArray<ReminderCandidate>> {
     const cutoff = new Date(now.getTime() - REMINDER_INTERVAL_MS);
     const rows = await this.db
@@ -1355,6 +1356,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       )
       .orderBy('s.access_token_sent_at', 'asc')
       .limit(limit)
+      .offset(offset)
       .execute();
     const out: ReminderCandidate[] = [];
     for (const row of rows) {

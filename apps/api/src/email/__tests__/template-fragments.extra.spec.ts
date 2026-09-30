@@ -109,6 +109,20 @@ describe('buildSignerListHtmlFromSigners', () => {
     expect(html).toContain('status-declined');
   });
 
+  it('omits email addresses when showEmails is false', () => {
+    const html = buildSignerListHtmlFromSigners(
+      [
+        { ...AWAITING, email: 'ada@example.com', name: 'Ada' },
+        { ...AWAITING, email: 'bea@example.com', name: 'Bea Bee', status: 'awaiting' },
+      ],
+      { highlightEmail: 'ada@example.com', showEmails: false },
+    );
+    expect(html).toContain('Bea Bee');
+    expect(html).toContain('Ada');
+    expect(html).not.toContain('bea@example.com');
+    expect(html).not.toContain('signer-email');
+  });
+
   it('forwards highlightEmail to the inner builder ("(that\'s you)" suffix)', () => {
     const html = buildSignerListHtmlFromSigners([COMPLETED, VIEWING], {
       highlightEmail: 'bea@example.com',

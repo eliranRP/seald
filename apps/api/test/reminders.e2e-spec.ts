@@ -170,6 +170,27 @@ describe('Automated reminders (e2e)', () => {
       .set('x-cron-secret', CRON_SECRET);
   }
 
+  it('rejects a sweep with no cron secret', async () => {
+    const res = await request(app.getHttpServer()).post('/internal/cron/reminders');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'invalid_cron_secret' });
+  });
+
+  it('rejects a sweep with the wrong cron secret', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/internal/cron/reminders')
+      .set('x-cron-secret', 'w'.repeat(40));
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'invalid_cron_secret' });
+  });
+
+  it('accepts a sweep with the right cron secret', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/internal/cron/reminders')
+      .set('x-cron-secret', CRON_SECRET);
+    expect(res.status).toBe(200);
+  });
+
   it('queues one token-free reminder per unsigned signer and does not repeat inside 24h', async () => {
     const { envId, signerId } = await buildSentEnvelope();
     ageInvite(envId, signerId);

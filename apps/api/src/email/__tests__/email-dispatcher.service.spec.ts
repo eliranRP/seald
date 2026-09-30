@@ -1,6 +1,9 @@
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { APP_ENV } from '../../config/config.module';
 import type { AppEnv } from '../../config/env.schema';
+import type { Envelope } from '../../envelopes/envelope.entity';
+import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { EmailDispatcherService, backoffMs } from '../email-dispatcher.service';
 import {
   EmailSendError,
@@ -25,6 +28,34 @@ class FakeSender extends EmailSender {
     if (this.error) throw this.error;
     return this.result;
   }
+}
+
+function awaitingEnvelope(overrides: Partial<Envelope> = {}): Envelope {
+  return {
+    id: 'env-1',
+    status: 'awaiting_others',
+    reminders_enabled: true,
+    expires_at: '2099-01-01T00:00:00.000Z',
+    signers: [{ id: 's-1', signed_at: null, declined_at: null }],
+    ...overrides,
+  } as Envelope;
+}
+
+const appendedEvents: Array<{ event_type: string; metadata: Readonly<Record<string, unknown>> }> =
+  [];
+
+function envelopeRepo(current: () => Envelope | null): EnvelopesRepository {
+  appendedEvents.length = 0;
+  return {
+    findByIdWithAll: async () => current(),
+    appendEvent: async (input: { event_type: string; metadata?: Record<string, unknown> }) => {
+      appendedEvents.push({
+        event_type: input.event_type,
+        metadata: input.metadata ?? {},
+      });
+      return { id: 'evt-reminder' };
+    },
+  } as unknown as EnvelopesRepository;
 }
 
 const env: AppEnv = {
@@ -70,6 +101,7 @@ describe('EmailDispatcherService', () => {
         TemplateService,
         { provide: OutboundEmailsRepository, useValue: repo },
         { provide: EmailSender, useValue: sender },
+        { provide: EnvelopesRepository, useValue: envelopeRepo(() => awaitingEnvelope()) },
         { provide: APP_ENV, useValue: env },
       ],
     }).compile();
@@ -188,16 +220,19 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
   let repo: InMemoryOutboundEmailsRepository;
   let sender: FakeSender;
   let dispatcher: EmailDispatcherService;
+  let current: Envelope;
 
   beforeEach(async () => {
     repo = new InMemoryOutboundEmailsRepository();
     sender = new FakeSender();
+    current = awaitingEnvelope();
     const moduleRef = await Test.createTestingModule({
       providers: [
         EmailDispatcherService,
         TemplateService,
         { provide: OutboundEmailsRepository, useValue: repo },
         { provide: EmailSender, useValue: sender },
+        { provide: EnvelopesRepository, useValue: envelopeRepo(() => current) },
         { provide: APP_ENV, useValue: env },
       ],
     }).compile();
@@ -232,6 +267,7 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
     const stored = repo.rows.find((row) => row.id === reminder.id);
     expect(stored?.payload).not.toHaveProperty('sign_url');
     expect(JSON.stringify(stored?.payload)).not.toContain('?t=');
+    expect(appendedEvents).toHaveLength(0);
   });
 
   it('fails a reminder that has no prior signing link instead of sending a dead CTA', async () => {
@@ -247,9 +283,75 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
         },
       }),
     );
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
     const outcome = await dispatcher.dispatchOne();
     expect(outcome?.status).toBe('failed');
     expect(outcome?.error).toBe('missing_sign_url');
+    expect(sender.calls).toHaveLength(0);
+    expect(appendedEvents).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain('missing_sign_url');
+  });
+
+  async function queueReminder(automated = true): Promise<void> {
+    const invite = await repo.insert(inviteRow());
+    const inviteIdx = repo.rows.findIndex((row) => row.id === invite.id);
+    repo.rows[inviteIdx] = { ...repo.rows[inviteIdx]!, status: 'sent' };
+    await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        source_event_id: '00000000-0000-0000-0000-0000000000e1',
+        payload: {
+          sender_name: 'Eliran Azulay',
+          sender_email: 'eliran@seald.app',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          public_url: 'http://localhost:5173',
+          ...(automated ? { automated: true } : {}),
+        },
+      }),
+    );
+  }
+
+  it('sends nothing after the signer signs', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({
+      signers: [
+        { id: 's-1', signed_at: '2026-05-02T01:00:00.000Z', declined_at: null },
+      ] as Envelope['signers'],
+    });
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+    expect(appendedEvents).toHaveLength(0);
+    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain(
+      'reminder_no_longer_due',
+    );
+  });
+
+  it('records reminder_sent only after an automated reminder is sent', async () => {
+    await queueReminder(true);
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('sent');
+    expect(appendedEvents).toEqual([
+      { event_type: 'reminder_sent', metadata: { automated: true } },
+    ]);
+  });
+
+  it('sends nothing after automated reminders are turned off', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({ reminders_enabled: false });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+  });
+
+  it('sends nothing after the envelope is canceled', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({ status: 'canceled' });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
     expect(sender.calls).toHaveLength(0);
   });
 });

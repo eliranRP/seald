@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
 import {
   OutboundEmailsRepository,
@@ -55,6 +56,7 @@ export class EmailDispatcherService {
     private readonly repo: OutboundEmailsRepository,
     private readonly sender: EmailSender,
     private readonly templates: TemplateService,
+    private readonly envelopes: EnvelopesRepository,
     @Inject(APP_ENV) env: AppEnv,
   ) {
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
@@ -107,7 +109,17 @@ export class EmailDispatcherService {
 
     try {
       const payload = await this.resolvePayload(claimed);
+      if (claimed.kind === 'reminder' && !(await this.reminderStillDue(claimed))) {
+        this.log.warn(
+          `reminder skipped reminder_no_longer_due envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+        );
+        await this.repo.markSkipped(claimed.id, 'reminder_no_longer_due');
+        return { id: claimed.id, status: 'skipped', error: 'reminder_no_longer_due' };
+      }
       if (claimed.kind === 'reminder' && !signUrlFromPayload(payload)) {
+        this.log.warn(
+          `reminder skipped missing_sign_url envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+        );
         await this.repo.markFailed(claimed.id, {
           error: 'missing_sign_url',
           final: true,
@@ -134,10 +146,41 @@ export class EmailDispatcherService {
 
       const result = await this.sender.send(message);
       await this.repo.markSent(claimed.id, result.providerId, new Date());
+      if (
+        claimed.kind === 'reminder' &&
+        claimed.payload['automated'] === true &&
+        claimed.envelope_id
+      ) {
+        await this.envelopes.appendEvent({
+          envelope_id: claimed.envelope_id,
+          signer_id: claimed.signer_id,
+          actor_kind: 'system',
+          event_type: 'reminder_sent',
+          metadata: { automated: true },
+        });
+      }
       return { id: claimed.id, status: 'sent', provider_id: result.providerId };
     } catch (err) {
       return this.handleSendError(claimed, err);
     }
+  }
+
+  /**
+   * Re-check a queued reminder at send time. Enqueue can be hours ahead of
+   * the drain when the worker is off and cron flushes later.
+   * Manual reminders still go out when the sender has turned the daily
+   * switch off; automated ones do not.
+   */
+  private async reminderStillDue(row: OutboundEmailRow): Promise<boolean> {
+    if (!row.envelope_id || !row.signer_id) return false;
+    const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
+    const signer = envelope?.signers.find((item) => item.id === row.signer_id) ?? null;
+    if (!envelope || !signer) return false;
+    if (envelope.status !== 'awaiting_others') return false;
+    if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
+    if (signer.signed_at !== null || signer.declined_at !== null) return false;
+    if (row.payload['automated'] === true && !envelope.reminders_enabled) return false;
+    return true;
   }
 
   /**

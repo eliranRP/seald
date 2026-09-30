@@ -10,7 +10,6 @@ import { GDriveModule } from './integrations/gdrive/gdrive.module';
 import { ConversionModule } from './integrations/gdrive/conversion/conversion.module';
 import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
-import { ReminderModule } from './reminders/reminder.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
 import { MeModule } from './me/me.module';
@@ -53,7 +52,6 @@ import { StorageModule } from './storage/storage.module';
     SealingModule,
     VerifyModule,
     CronModule,
-    ReminderModule,
     GDriveModule,
     ConversionModule,
   ],

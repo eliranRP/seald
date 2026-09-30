@@ -8,7 +8,14 @@ Review and sign:
 This request expires on {{expires_at_readable}}. If you've already
 signed, please ignore this email.
 
+Don't want to sign? Open the link and choose Decline — reminders will stop.
+
+Seald records a simple electronic signature with ESIGN and UETA consent, keeps a tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF when a seal is applied. It is not an advanced or qualified electronic signature. Whether that is enough depends on the document and where it will be enforced.
+
 Verify this document with reference code {{short_code}}:
   {{verify_url}}
 
+You received this because {{sender_name}} ({{sender_email}}) asked you to sign a document. Unless the sender turns them off, Seald sends automatic daily reminders; they stop once you sign or decline, or when the request expires or is cancelled.
+
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

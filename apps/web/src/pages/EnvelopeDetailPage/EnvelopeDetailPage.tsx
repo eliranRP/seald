@@ -32,6 +32,7 @@ import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import { Skeleton } from '@/components/Skeleton';
 import { TagEditor } from '@/components/TagEditor';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { patchEnvelope } from '@/features/envelopes/envelopesApi';
 import {
   envelopeKeys,
@@ -358,25 +359,32 @@ export function EnvelopeDetailPage() {
 
   const handleBack = useCallback(() => navigate('/documents'), [navigate]);
 
+  const reminders = useReminderToggle({
+    sourceKey: envelope?.id,
+    enabled: envelope ? envelope.reminders_enabled !== false : false,
+    onChange: (enabled) => {
+      if (!envelope) return undefined;
+      return (async () => {
+        try {
+          await patchEnvelope(envelope.id, { reminders_enabled: enabled });
+          await qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) });
+          setToast({ kind: 'success', text: enabled ? 'Reminders on' : 'Reminders off' });
+        } catch {
+          setToast({
+            kind: 'danger',
+            text: 'Could not update reminders. Please try again.',
+          });
+          throw new Error('reminders_update_failed');
+        }
+      })();
+    },
+  });
+
   // Tag edits are best-effort — the editor optimistically reflects
   // the new chip set; we PATCH in the background and invalidate the
   // detail + list queries on success so other surfaces (dashboard
   // chips, filter chip suggestions) refresh. Failures revert via the
   // re-fetched server value.
-  const handleRemindersChange = useCallback(
-    async (enabled: boolean) => {
-      if (!envelope) return;
-      try {
-        await patchEnvelope(envelope.id, { reminders_enabled: enabled });
-        await qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Failed to update reminders.';
-        setToast({ kind: 'danger', text: msg });
-      }
-    },
-    [envelope, qc],
-  );
-
   const handleTagsChange = useCallback(
     async (next: ReadonlyArray<string>) => {
       if (!envelope) return;
@@ -932,12 +940,7 @@ export function EnvelopeDetailPage() {
                 </SignerList>
               )}
               {envelope.status === 'draft' || envelope.status === 'awaiting_others' ? (
-                <ReminderToggle
-                  enabled={envelope.reminders_enabled !== false}
-                  onChange={(next) => {
-                    void handleRemindersChange(next);
-                  }}
-                />
+                <ReminderToggle enabled={reminders.enabled} onChange={reminders.onChange} />
               ) : null}
             </SignersCard>
 

@@ -930,8 +930,11 @@ export class EnvelopesService {
     if (signer.signed_at !== null) throw new ConflictException('already_signed');
     if (signer.declined_at !== null) throw new ConflictException('already_declined');
 
-    // Throttle: 1 invite/reminder per hour per (envelope, signer).
-    const recent = await this.outboundEmails.findLastInviteOrReminder(envelope_id, signer_id);
+    // Throttle: 1 manual invite or reminder per hour. Automated daily
+    // reminders do not consume this limit.
+    const recent = await this.outboundEmails.findLastInviteOrReminder(envelope_id, signer_id, {
+      excludeAutomated: true,
+    });
     if (recent) {
       const ageMs = Date.now() - new Date(recent.created_at).getTime();
       if (ageMs < 60 * 60 * 1000) {
@@ -973,6 +976,7 @@ export class EnvelopesService {
     // this reminder's recipient with "(that's you)".
     const signerListHtml = buildSignerListHtmlFromSigners(envelope.signers, {
       highlightEmail: signer.email,
+      showEmails: false,
     });
 
     await this.outboundEmails.insert({
@@ -1024,7 +1028,7 @@ function formatUtc(iso: string): string {
   return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
 }
 
-function formatExpiresAt(iso: string): string {
+export function formatExpiresAt(iso: string): string {
   // e.g., "2026-05-24 14:30 UTC" — deliberate over-simplification; templates
   // render this verbatim so consistency matters more than i18n for MVP.
   const date = new Date(iso);

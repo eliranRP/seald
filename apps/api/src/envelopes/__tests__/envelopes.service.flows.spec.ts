@@ -163,13 +163,18 @@ class FakeOutbound extends OutboundEmailsRepository {
   async listByEnvelope(envelope_id: string) {
     return this.rows.filter((r) => r.envelope_id === envelope_id);
   }
-  async findLastInviteOrReminder(envelope_id: string, signer_id: string) {
+  async findLastInviteOrReminder(
+    envelope_id: string,
+    signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
+  ) {
     const match = this.rows
       .filter(
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder'),
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
@@ -181,6 +186,9 @@ class FakeOutbound extends OutboundEmailsRepository {
     /* unused */
   }
   async markFailed() {
+    /* unused */
+  }
+  async markSkipped() {
     /* unused */
   }
   async findLatestSignUrl(): Promise<string | null> {
@@ -860,6 +868,29 @@ describe('EnvelopesService — flow coverage', () => {
       return ready;
     }
 
+    it('allows a manual reminder an hour after the invite even if an automated one just went out', async () => {
+      const { envId, signerId } = await setupSentEnvelope();
+      for (const row of outbound.rows) {
+        (row as { created_at: string }).created_at = new Date(
+          Date.now() - 2 * 60 * 60 * 1000,
+        ).toISOString();
+      }
+      await outbound.insert({
+        envelope_id: envId,
+        signer_id: signerId,
+        kind: 'reminder',
+        to_email: 'ada@example.com',
+        to_name: 'Ada',
+        payload: { automated: true },
+        dedupe_key: 'automated-recent',
+      });
+      await svc.remindSigner(OWNER, envId, signerId, { email: 'sender@example.com' });
+      const manual = outbound.rows.filter(
+        (row) => row.kind === 'reminder' && row.payload['automated'] !== true,
+      );
+      expect(manual).toHaveLength(1);
+    });
+
     it('429 remind_throttled within an hour of the original invite', async () => {
       const { envId, signerId } = await setupSentEnvelope();
       await expect(
@@ -894,6 +925,7 @@ describe('EnvelopesService — flow coverage', () => {
         /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
       );
       expect(String(reminders[0]!.payload.sender_name)).toBe('Sender Name');
+      expect(reminders[0]!.payload.automated).toBeUndefined();
 
       // Token rotation actually persisted a fresh hash.
       expect(repo.rotateLog).toHaveLength(1);
@@ -902,6 +934,30 @@ describe('EnvelopesService — flow coverage', () => {
       expect(remindEvents).toHaveLength(1);
       expect(remindEvents[0]!.signer_id).toBe(signerId);
       expect(reminders[0]!.source_event_id).toBe(remindEvents[0]!.id);
+    });
+
+    it('includes a co-signer name and omits their email', async () => {
+      const { envId, signerId } = await setupSentEnvelope();
+      const env = repo.envelopes.get(envId)!;
+      const ada = env.signers[0]!;
+      repo.envelopes.set(envId, {
+        ...env,
+        signers: [ada, { ...ada, id: 'sig-bea', email: 'bea@example.com', name: 'Bea Bee' }],
+      });
+      for (const row of outbound.rows) {
+        (row as { created_at: string }).created_at = new Date(
+          Date.now() - 2 * 60 * 60 * 1000,
+        ).toISOString();
+      }
+      await svc.remindSigner(OWNER, envId, signerId, {
+        email: 'sender@example.com',
+        name: 'Sender Name',
+      });
+      const html = String(
+        outbound.rows.find((row) => row.kind === 'reminder')?.payload.signer_list_html,
+      );
+      expect(html).toContain('Bea Bee');
+      expect(html).not.toContain('bea@example.com');
     });
 
     it('reminder sender_name falls back to email when name omitted', async () => {

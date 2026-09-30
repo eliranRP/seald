@@ -1,6 +1,7 @@
-import { Global, Module } from '@nestjs/common';
+import { forwardRef, Global, Module } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { EmailDispatcherService } from './email-dispatcher.service';
 import { EmailSender } from './email-sender';
 import { EmailWorkerService } from './email-worker.service';
@@ -21,6 +22,7 @@ import { TemplateService } from './template.service';
  */
 @Global()
 @Module({
+  imports: [forwardRef(() => EnvelopesModule)],
   providers: [
     TemplateService,
     EmailDispatcherService,

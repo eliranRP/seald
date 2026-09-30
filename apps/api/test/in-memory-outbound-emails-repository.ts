@@ -74,13 +74,15 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null> {
     const match = this.rows
       .filter(
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder'),
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
@@ -137,6 +139,18 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       provider_id,
       sent_at: sent_at.toISOString(),
       last_error: null,
+    };
+  }
+
+  async markSkipped(id: string, reason: string): Promise<void> {
+    const idx = this.rows.findIndex((r) => r.id === id);
+    if (idx === -1) return;
+    const row = this.rows[idx]!;
+    this.rows[idx] = {
+      ...row,
+      status: 'failed',
+      last_error: reason,
+      attempts: row.max_attempts,
     };
   }
 

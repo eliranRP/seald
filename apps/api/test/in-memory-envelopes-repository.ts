@@ -662,15 +662,14 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   async listReminderCandidates(
     now: Date,
     limit: number,
+    offset = 0,
   ): Promise<ReadonlyArray<ReminderCandidate>> {
     const cutoff = now.getTime() - REMINDER_INTERVAL_MS;
     const out: ReminderCandidate[] = [];
     for (const env of this.envelopes.values()) {
-      if (out.length >= limit) break;
       if (env.status !== 'awaiting_others' || env.reminders_enabled === false) continue;
       if (Date.parse(env.expires_at) <= now.getTime()) continue;
       for (const signer of env.signers) {
-        if (out.length >= limit) break;
         if (signer.signed_at !== null || signer.declined_at !== null) continue;
         const clock = this.reminderClock.get(signer.id);
         if (!clock) continue;
@@ -684,7 +683,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
         });
       }
     }
-    return out;
+    return out.slice(offset, offset + limit);
   }
 
   async tryClaimReminder(signerId: string, now: Date): Promise<boolean> {

@@ -159,6 +159,11 @@ export const RightRailFooter = styled.div`
   border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;
 
+/** The toggle itself has no padding; the rail supplies the inset. */
+export const ReminderSlot = styled.div`
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]} 0;
+`;
+
 /**
  * Slot above the canvas reserved for contextual banners — used by
  * the templates flow's `TemplateModeBanner`. Padded so it never abuts

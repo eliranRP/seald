@@ -150,8 +150,26 @@ describe('TemplateService', () => {
       });
       expect(out.subject).toBe('Reminder: please sign "MSA"');
       expect(out.html).toContain('Seald</strong> · Chlenov 24');
-      expect(out.html).toContain('Review and sign now');
+      expect(out.html).toContain('Review and sign');
+      expect(out.html).not.toContain('Review and sign now');
+      expect(out.html).toContain(
+        'Unless the sender turns them off, Seald sends automatic daily reminders',
+      );
+      expect(out.text).toContain('Seald · Chlenov 24');
       expect(out.text).toContain('MSA');
+    });
+
+    it('uses the same e-signature notice text as the invite', () => {
+      const notice = (html: string): string => {
+        const match = html.match(
+          /Seald records a simple electronic signature[\s\S]*?where it will be enforced\./,
+        );
+        return (match?.[0] ?? '').replace(/\s+/g, ' ').trim();
+      };
+      const invite = readFileSync(resolve(__dirname, '../templates/invite/body.html'), 'utf8');
+      const reminder = readFileSync(resolve(__dirname, '../templates/reminder/body.html'), 'utf8');
+      expect(notice(invite).length).toBeGreaterThan(0);
+      expect(notice(reminder)).toBe(notice(invite));
     });
   });
 

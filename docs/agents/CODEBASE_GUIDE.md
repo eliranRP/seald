@@ -282,7 +282,7 @@ schema in `apps/api/db/schema.ts`). Repositories are a port
 | Signing | `/sign` | Class is `@Public()`. Most methods use `SignerSessionGuard`. |
 | Verify | `/verify/:short_code` | Public. |
 | Me | `/me/export`, `DELETE /me` | DSAR export and account deletion. Idempotent. |
-| Cron | `/internal/cron` | `POST /expire`, `POST /flush-emails`. Header `X-Cron-Secret`. |
+| Cron | `/internal/cron` | `POST /expire`, `POST /flush-emails`, `POST /reminders`. Header `X-Cron-Secret`. |
 | Drive | `/integrations/gdrive` | OAuth, accounts, file proxy, picker credentials. 404 when the flag is off. 503 when OAuth env is missing. |
 | Conversion | `/integrations/gdrive/conversion` | Create, poll, cancel a Gotenberg job. |
 | Sealing | no HTTP | Worker only. |

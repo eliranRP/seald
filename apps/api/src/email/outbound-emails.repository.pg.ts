@@ -36,11 +36,6 @@ function toDomain(row: Record<string, unknown>): OutboundEmailRow {
   };
 }
 
-/**
- * Detect 23505 unique violation on outbound_emails's (envelope_id, signer_id,
- * kind, source_event_id) index. Real Postgres exposes `constraint` with the
- * name; pg-mem embeds the column tuple in the message. Match both.
- */
 function parsePayload(value: unknown): Record<string, unknown> {
   if (typeof value === 'string') {
     try {
@@ -59,6 +54,11 @@ function parsePayload(value: unknown): Record<string, unknown> {
   return {};
 }
 
+/**
+ * Detect 23505 unique violation on outbound_emails's (envelope_id, signer_id,
+ * kind, source_event_id) index. Real Postgres exposes `constraint` with the
+ * name; pg-mem embeds the column tuple in the message. Match both.
+ */
 function isOutboundUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; constraint?: string; message?: string };
@@ -150,16 +150,18 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null> {
-    const row = await this.db
+    let query = this.db
       .selectFrom('outbound_emails')
       .selectAll()
       .where('envelope_id', '=', envelope_id)
       .where('signer_id', '=', signer_id)
-      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
-      .orderBy('created_at', 'desc')
-      .limit(1)
-      .executeTakeFirst();
+      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]));
+    if (options?.excludeAutomated) {
+      query = query.where(sql<boolean>`coalesce(payload->>'automated', 'false') <> 'true'`);
+    }
+    const row = await query.orderBy('created_at', 'desc').limit(1).executeTakeFirst();
     return row ? toDomain(rowRecord(row)) : null;
   }
 
@@ -168,22 +170,19 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     signer_id: string,
     excludeId?: string,
   ): Promise<string | null> {
-    const rows = await this.db
+    let query = this.db
       .selectFrom('outbound_emails')
-      .select(['id', 'payload'])
+      .select(['payload'])
       .where('envelope_id', '=', envelope_id)
       .where('signer_id', '=', signer_id)
       .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
+      .where(sql<boolean>`nullif(payload->>'sign_url', '') is not null`)
       .orderBy('created_at', 'desc')
-      .limit(20)
-      .execute();
-    for (const row of rows) {
-      if (excludeId && row.id === excludeId) continue;
-      const payload = parsePayload(row.payload);
-      const url = signUrlFromPayload(payload);
-      if (url) return url;
-    }
-    return null;
+      .limit(1);
+    if (excludeId) query = query.where('id', '!=', excludeId);
+    const row = await query.executeTakeFirst();
+    if (!row) return null;
+    return signUrlFromPayload(parsePayload(row.payload));
   }
 
   async claimNext(now: Date): Promise<OutboundEmailRow | null> {
@@ -220,6 +219,17 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       })
       .where('id', '=', id)
       .execute();
+  }
+
+  async markSkipped(id: string, reason: string): Promise<void> {
+    const safeError = reason.length > 500 ? `${reason.slice(0, 497)}…` : reason;
+    await sql`
+      update public.outbound_emails
+      set status = 'failed',
+          last_error = ${safeError},
+          attempts = max_attempts
+      where id = ${id}
+    `.execute(this.db);
   }
 
   async markFailed(

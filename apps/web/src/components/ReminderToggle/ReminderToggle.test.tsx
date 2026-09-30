@@ -20,7 +20,7 @@ describe('ReminderToggle', () => {
     render(<Harness />);
     const toggle = screen.getByRole('switch', { name: /email reminders/i });
     expect(toggle).toBeChecked();
-    expect(screen.getByText(/about once a day/i)).toBeInTheDocument();
+    expect(screen.getByText(/until they sign or the request expires/i)).toBeInTheDocument();
     await user.click(toggle);
     expect(toggle).not.toBeChecked();
   });

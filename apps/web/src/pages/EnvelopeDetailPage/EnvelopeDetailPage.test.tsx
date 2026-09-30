@@ -336,6 +336,25 @@ describe('EnvelopeDetailPage', () => {
     await user.click(toggle);
 
     expect(patch).toHaveBeenCalledWith('/envelopes/env-1', { reminders_enabled: false }, {});
+    expect(await screen.findByText('Reminders off')).toBeInTheDocument();
+    expect(toggle).not.toBeChecked();
+  });
+
+  it('rolls the reminder switch back and shows a friendly error when the save fails', async () => {
+    mockEnvelope();
+    patch.mockRejectedValue(new Error('envelope_terminal'));
+
+    renderAt('env-1');
+
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(
+      await screen.findByText('Could not update reminders. Please try again.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('envelope_terminal')).toBeNull();
+    expect(toggle).toBeChecked();
   });
 
   it('Send reminder fires once per pending signer and surfaces the success toast', async () => {

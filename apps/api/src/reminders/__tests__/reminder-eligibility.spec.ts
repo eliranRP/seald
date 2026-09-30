@@ -22,6 +22,18 @@ function clock(overrides: Partial<ReminderClock> = {}): ReminderClock {
 }
 
 describe('isAutomatedReminderDue', () => {
+  it('pins the interval at 24 hours, so 23 hours is not due', () => {
+    expect(REMINDER_INTERVAL_MS).toBe(86_400_000);
+    const invited = Date.parse('2026-05-01T12:00:00.000Z');
+    const base = clock({
+      invitedAtMs: invited,
+      lastMailAtMs: invited,
+      lastRemindedAtMs: null,
+    });
+    expect(isAutomatedReminderDue(base, invited + 23 * 60 * 60 * 1000)).toBe(false);
+    expect(isAutomatedReminderDue(base, invited + 86_400_000)).toBe(true);
+  });
+
   it('is due 24h after the invite when nothing newer exists', () => {
     expect(isAutomatedReminderDue(clock(), NOW)).toBe(true);
   });

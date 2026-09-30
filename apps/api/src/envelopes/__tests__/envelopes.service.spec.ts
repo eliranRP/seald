@@ -563,13 +563,18 @@ class FakeOutbound extends OutboundEmailsRepository {
   async listByEnvelope(envelope_id: string): Promise<readonly OutboundEmailRow[]> {
     return this.rows.filter((r) => r.envelope_id === envelope_id);
   }
-  async findLastInviteOrReminder(envelope_id: string, signer_id: string) {
+  async findLastInviteOrReminder(
+    envelope_id: string,
+    signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
+  ) {
     const match = this.rows
       .filter(
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder'),
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
@@ -581,6 +586,9 @@ class FakeOutbound extends OutboundEmailsRepository {
     /* unused by service-level tests */
   }
   async markFailed(): Promise<void> {
+    /* unused by service-level tests */
+  }
+  async markSkipped(): Promise<void> {
     /* unused by service-level tests */
   }
   async findLatestSignUrl(): Promise<string | null> {

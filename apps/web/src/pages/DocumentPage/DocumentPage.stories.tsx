@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { useState } from 'react';
 import { DocumentPage } from './DocumentPage';
 import type { DocumentPageSigner } from './DocumentPage.types';
@@ -97,6 +98,16 @@ export const SingleSigner: Story = {
       initialPage={1}
     />
   ),
+};
+
+export const Desktop: Story = {
+  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
+  render: () => <InteractiveDemo />,
+};
+
+export const Mobile: Story = {
+  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
+  render: () => <InteractiveDemo />,
 };
 
 export const WithSaveAsTemplate: Story = {

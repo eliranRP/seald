@@ -400,12 +400,14 @@ export abstract class EnvelopesRepository {
   /**
    * Unsigned signers on awaiting envelopes with reminders on, whose
    * invite (`access_token_sent_at`) and `last_reminded_at` are both at
-   * least 24 hours old. The caller still checks the outbox timestamp
-   * before queueing mail.
+   * least 24 hours old. The caller applies the outbox anchor and passes
+   * `offset` to walk past signers it skips, so a block of ineligible
+   * rows cannot fill the batch.
    */
   abstract listReminderCandidates(
     now: Date,
     limit: number,
+    offset?: number,
   ): Promise<ReadonlyArray<ReminderCandidate>>;
 
   /**
