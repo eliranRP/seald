@@ -31,8 +31,8 @@ const envSchema = z
 
     STORAGE_BUCKET: z.string().min(1).default('envelopes'),
 
-    TC_VERSION: z.string().min(1).default('2026-04-24'),
-    PRIVACY_VERSION: z.string().min(1).default('2026-04-24'),
+    TC_VERSION: z.string().min(1).default('2026-09-30'),
+    PRIVACY_VERSION: z.string().min(1).default('2026-09-30'),
 
     SIGNER_SESSION_SECRET: z.string().optional(),
     CRON_SECRET: z.string().optional(),

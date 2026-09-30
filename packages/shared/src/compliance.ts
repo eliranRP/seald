@@ -27,13 +27,14 @@
  *     so the SPA must import THIS same constant — see
  *     SigningPrepPage.tsx)
  *
- * `esign_v0.2` records the in-flow attestation ("I can open and
- * download a PDF on this device") and is the version string on
- * `/legal/esign-disclosure`. Don't repurpose old version strings;
- * bump to a fresh value when the in-flow disclosure copy changes so
- * historical audit events remain unambiguous.
+ * `esign_v0.2` recorded the in-flow attestation ("I can open and
+ * download a PDF on this device"). `esign_v0.3` records the individual
+ * operator as the counterparty and is the version string on
+ * `/legal/esign-disclosure`. Don't repurpose old version strings; bump
+ * to a fresh value when the disclosure copy changes so historical audit
+ * events remain unambiguous.
  */
-export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.2';
+export const ESIGN_DISCLOSURE_VERSION = 'esign_v0.3';
 
 /**
  * Mailto target for "Stop signing electronically and request paper

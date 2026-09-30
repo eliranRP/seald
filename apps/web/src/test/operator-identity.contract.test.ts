@@ -128,6 +128,26 @@ describe('operator identity on public pages', () => {
     expect(stripped).not.toContain('Delaware');
   });
 
+  it('bumps the version and last-updated date on every page whose operator text changed', () => {
+    const expected: Record<string, string> = {
+      'src/pages/legal/terms.astro': 'terms_v0.2',
+      'src/pages/legal/privacy.astro': 'privacy_v0.2',
+      'src/pages/legal/dpa.astro': 'dpa_v0.2',
+      'src/pages/legal/imprint.astro': 'imprint_v0.2',
+      'src/pages/legal/esign-disclosure.astro': 'esign_v0.3',
+      'src/pages/legal/aup.astro': 'aup_v0.2',
+      'src/pages/legal/cookies.astro': 'cookies_v0.3',
+      'src/pages/legal/accessibility.astro': 'accessibility_v0.2',
+      'src/pages/legal/responsible-disclosure.astro': 'responsible_disclosure_v0.2',
+      'src/pages/contact.astro': 'contact_v0.2',
+    };
+    for (const [rel, version] of Object.entries(expected)) {
+      const source = read(resolve(LANDING, rel));
+      expect(source, rel).toContain(`const VERSION = '${version}';`);
+      expect(source, rel).toContain('Last updated: <code>2026-09-30</code>');
+    }
+  });
+
   it('names the individual operator, the postal address, the liability cap, and the CCPA threshold note', () => {
     const terms = read(resolve(LANDING, 'src/pages/legal/terms.astro'));
     const privacy = read(resolve(LANDING, 'src/pages/legal/privacy.astro'));
@@ -159,5 +179,18 @@ describe('operator identity on public pages', () => {
     expect(imprint).not.toContain('ec.europa.eu/consumers/odr');
     expect(privacy).not.toContain('EU representative');
     expect(privacy).not.toContain('UK representative');
+  });
+
+  it('agrees that post is service and email to privacy@ is only a copy', () => {
+    const contact = read(resolve(LANDING, 'src/pages/contact.astro'));
+    const imprint = read(resolve(LANDING, 'src/pages/legal/imprint.astro'));
+    const notice =
+      'with a copy by email to <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. Emailing alone does not constitute service unless we confirm receipt in writing.';
+    expect(contact).toContain(notice);
+    expect(imprint).toContain(notice);
+    expect(contact).toContain('sent by post to the address in section 7');
+    expect(imprint).toContain(
+      'sent by post to Seald (Eliran Azulay), Chlenov 24, Tel Aviv-Yafo 6604806, Israel',
+    );
   });
 });

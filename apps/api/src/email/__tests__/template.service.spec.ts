@@ -50,7 +50,7 @@ describe('TemplateService', () => {
       // Globally-injected legal-footer vars in production come from
       // EmailDispatcherService; we set them inline here so the brand
       // wordmark assertion below has a stable value to match against.
-      legal_entity: 'Seald, Inc.',
+      legal_entity: 'Seald',
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
       preferences_url: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',
@@ -174,7 +174,7 @@ describe('TemplateService', () => {
       expires_at_readable: 'x',
       total_signers: 1,
       signed_count: 0,
-      legal_entity: 'Seald, Inc.',
+      legal_entity: 'Seald',
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
       preferences_url: 'mailto:privacy@seald.nromomentum.com?subject=Email%20preferences',
@@ -192,10 +192,10 @@ describe('TemplateService', () => {
     ] as const)('%s renders the "Seald" brand wordmark in body and subject', (kind) => {
       const out = svc.render(kind, vars);
       // Body must contain the brand wordmark wrapped in the footer <strong>.
-      // The legal_entity var ("Seald, Inc." in tests, configurable in prod)
+      // The legal_entity var ("Seald" in tests, configurable in prod)
       // renders inside that <strong>; assert the brand prefix and that the
       // legacy misspelling "<strong …>Sealed</strong>" never appears.
-      expect(out.html).toContain('>Seald, Inc.</strong>');
+      expect(out.html).toContain('>Seald</strong>');
       expect(out.html).not.toContain('>Sealed</strong>');
       expect(out.html).not.toContain('>Sealed, Inc.</strong>');
       // Brand+company misspelling and subject-prefix misspelling must not appear.

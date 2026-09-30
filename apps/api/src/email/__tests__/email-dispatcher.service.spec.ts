@@ -30,7 +30,7 @@ class FakeSender extends EmailSender {
 const env: AppEnv = {
   EMAIL_FROM_ADDRESS: 'no-reply@test.seald',
   EMAIL_FROM_NAME: 'Seald Test',
-  EMAIL_LEGAL_ENTITY: 'Seald, Inc.',
+  EMAIL_LEGAL_ENTITY: 'Seald',
   EMAIL_LEGAL_POSTAL: 'Postal address available on request — write to legal@seald.test.',
   EMAIL_PRIVACY_URL: 'https://seald.test/legal/privacy',
   EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.test?subject=Email%20preferences',
@@ -106,7 +106,7 @@ describe('EmailDispatcherService', () => {
     await dispatcher.dispatchOne();
 
     const html = sender.calls[0]!.html;
-    expect(html).toContain('>Seald, Inc.</strong>');
+    expect(html).toContain('>Seald</strong>');
     expect(html).toContain('Postal address available on request');
     expect(html).toContain('https://seald.test/legal/privacy');
     expect(html).toContain('mailto:privacy@seald.test?subject=Email%20preferences');

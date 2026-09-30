@@ -84,8 +84,8 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     expect(env.EMAIL_PROVIDER).toBe('logging');
     expect(env.PDF_SIGNING_PROVIDER).toBe('local');
     expect(env.STORAGE_BUCKET).toBe('envelopes');
-    expect(env.TC_VERSION).toBeDefined();
-    expect(env.PRIVACY_VERSION).toBeDefined();
+    expect(env.TC_VERSION).toBe('2026-09-30');
+    expect(env.PRIVACY_VERSION).toBe('2026-09-30');
     expect(env.APP_PUBLIC_URL).toBe('http://localhost:5173');
     expect(env.PDF_SIGNING_TSA_URL).toBe('https://freetsa.org/tsr');
     expect(env.EMAIL_FROM_ADDRESS).toBe('onboarding@resend.dev');
