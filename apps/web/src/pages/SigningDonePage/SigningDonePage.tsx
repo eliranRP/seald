@@ -268,7 +268,7 @@ export function SigningDonePage() {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
 
-  const sealedUrl = verify.data?.envelope.status === 'completed' ? verify.data.sealed_url : null;
+  const sealedUrl = verify.data?.envelope?.status === 'completed' ? verify.data.sealed_url : null;
   const isSealing = !sealedUrl && !verify.isError;
   const downloadName = safeDownloadName(snap.title, '-signed');
 

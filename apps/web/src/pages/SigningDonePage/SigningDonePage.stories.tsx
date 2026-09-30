@@ -63,7 +63,17 @@ function Wrap({ children }: { readonly children: ReactNode }) {
   const [qc] = useState(() => {
     const client = new QueryClient({
       defaultOptions: {
-        queries: { retry: false, gcTime: 0, staleTime: Infinity },
+        queries: {
+          retry: false,
+          gcTime: 0,
+          staleTime: Infinity,
+          // The hook sets its own staleTime: 0. Without this, Storybook
+          // refetches on mount and a non-JSON body replaces the seed,
+          // which blanks the story.
+          refetchOnMount: false,
+          refetchOnReconnect: false,
+          refetchOnWindowFocus: false,
+        },
         mutations: { retry: false },
       },
     });
