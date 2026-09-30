@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
+import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
@@ -124,7 +125,7 @@ const DownloadError = styled.p`
   line-height: 1.4;
 `;
 
-const Upsell = styled.div`
+const Upsell = styled.section`
   margin-top: ${({ theme }) => theme.space[10]};
   padding: 28px 24px;
   background: ${({ theme }) => theme.color.ink[900]};
@@ -132,7 +133,8 @@ const Upsell = styled.div`
   border-radius: ${({ theme }) => theme.radius.lg};
   text-align: left;
   position: relative;
-  overflow: hidden;
+  container-type: inline-size;
+  container-name: upsell;
 `;
 
 const UpsellChip = styled.div`
@@ -163,13 +165,35 @@ const UpsellBody = styled.div`
 `;
 
 const UpsellForm = styled.form`
-  margin-top: 18px;
+  margin-top: ${({ theme }) => theme.space[4]};
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: ${({ theme }) => theme.space[2]};
+
+  & > button {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Wide card: field and action share a row (space.24 * 4 + space.16). */
+  @container upsell (min-width: calc(${({ theme }) => theme.space[24]} * 4 + ${({ theme }) =>
+    theme.space[16]})) {
+    flex-direction: row;
+    align-items: center;
+
+    & > button {
+      width: auto;
+      flex: 0 0 auto;
+    }
+  }
 `;
 
 const UpsellInput = styled.input`
-  flex: 1;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: ${({ theme }) => theme.radius.md};
@@ -177,17 +201,6 @@ const UpsellInput = styled.input`
   color: ${({ theme }) => theme.color.paper};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   outline: none;
-`;
-
-const UpsellBtn = styled.button`
-  padding: 0 18px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  color: ${({ theme }) => theme.color.ink[900]};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  cursor: pointer;
 `;
 
 const UpsellError = styled.div`
@@ -338,7 +351,7 @@ export function SigningDonePage() {
 
         <SignatureLevelNote />
 
-        <Upsell>
+        <Upsell aria-label="Create your free Seald account">
           <UpsellChip>
             <Icon icon={Sparkles} size={11} />
             Free during beta
@@ -358,7 +371,9 @@ export function SigningDonePage() {
               type="email"
               aria-label="Your email"
             />
-            <UpsellBtn type="submit">Save to my Seald account</UpsellBtn>
+            <Button type="submit" variant="secondary" size="lg">
+              Save to my Seald account
+            </Button>
           </UpsellForm>
           {saveError ? <UpsellError role="alert">{saveError}</UpsellError> : null}
         </Upsell>
