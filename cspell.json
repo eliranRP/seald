@@ -412,6 +412,8 @@
     "dotenv",
     "Dotenv",
     "Acro",
+    "acroform",
+    "retarget",
     "Buildx",
     "buildx",
     "Kysely",

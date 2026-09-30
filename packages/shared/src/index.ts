@@ -3,6 +3,35 @@ export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
 export { MAX_AUTOMATED_REMINDERS } from './reminders';
 export type { FeatureFlag } from './feature-flags';
 export {
+  PLACEMENT_KINDS,
+  PLACEMENT_ISSUE_SLUGS,
+  PLACEMENT_TOOLS,
+  DEFAULT_FIELD_SIZE_PT,
+  MIN_FIELD_SIZE_PT,
+  isPlacementKind,
+  placementIssue,
+  nearestTextForBox,
+  validateFieldPlacement,
+} from './field-placement-validation';
+export type {
+  PlacementKind,
+  PlacementIssueSlug,
+  PlacementStage,
+  PlacementTool,
+  PlacementNextStep,
+  PlacementBox,
+  PlacementOverflowPt,
+  PlacementTextSide,
+  PlacementNearestText,
+  PlacementIssue,
+  PlacementIssueDetails,
+  ResolvedPlacementField,
+  PlacementTextLine,
+  PlacementPageView,
+  PlacementValidationInput,
+  PlacementValidation,
+} from './field-placement-validation';
+export {
   ESIGN_DISCLOSURE_VERSION,
   LEGAL_CONTACT_EMAIL_DEFAULT,
   ESIGN_EXCLUDED_CATEGORIES,

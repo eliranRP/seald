@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
+import { ENVELOPE_STATUSES, isFeatureEnabled, signerIdsWithRequiredSignature } from 'shared';
 import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -649,12 +649,7 @@ export class EnvelopesService {
     if (envelope.fields.length === 0) {
       throw new BadRequestException('no_fields');
     }
-    const signersWithSigField = new Set<string>();
-    for (const f of envelope.fields) {
-      if ((f.kind === 'signature' || f.kind === 'initials') && f.required) {
-        signersWithSigField.add(f.signer_id);
-      }
-    }
+    const signersWithSigField = signerIdsWithRequiredSignature(envelope.fields);
     for (const s of envelope.signers) {
       if (!signersWithSigField.has(s.id)) {
         throw new BadRequestException('signer_without_signature_field');
