@@ -139,6 +139,7 @@ describe('operator identity on public pages', () => {
       'src/pages/legal/cookies.astro': 'cookies_v0.3',
       'src/pages/legal/accessibility.astro': 'accessibility_v0.2',
       'src/pages/legal/responsible-disclosure.astro': 'responsible_disclosure_v0.2',
+      'src/pages/legal/sub-processors.astro': 'sub_processors_v0.2',
       'src/pages/contact.astro': 'contact_v0.2',
     };
     for (const [rel, version] of Object.entries(expected)) {
