@@ -145,30 +145,33 @@ describe('burnInField', () => {
 
   // ---- checkbox rendering --------------------------------------------------
   describe('checkbox rendering', () => {
-    it('draws a rectangle for any checkbox', () => {
+    it('draws a rectangle filling the field box', () => {
       const drawRectSpy = jest.spyOn(page, 'drawRectangle');
       burnInField(page, { kind: 'checkbox', x: 0.1, y: 0.1, value_boolean: false }, assets);
 
+      const w = defaultWidth('checkbox') * PW;
+      const h = defaultHeight('checkbox') * PH;
       expect(drawRectSpy).toHaveBeenCalledTimes(1);
       expect(drawRectSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          width: 10,
-          height: 10,
-          borderWidth: 0.5,
+          width: expect.closeTo(w, 5),
+          height: expect.closeTo(h, 5),
         }),
       );
     });
 
-    it('draws rectangle at left-aligned position with 22pt padding', () => {
+    it('draws the checkbox centered on the field box, not beside it', () => {
       const drawRectSpy = jest.spyOn(page, 'drawRectangle');
       const f: BurnInField = { kind: 'checkbox', x: 0.1, y: 0.2, width: 0.03, height: 0.03 };
       burnInField(page, f, assets);
 
       const w = 0.03 * PW;
-      const cx = 0.1 * PW + w / 2;
-      const expectedCbX = cx - w / 2 + 22;
+      const h = 0.03 * PH;
       const opts = drawRectSpy.mock.calls[0]![0]!;
-      expect(opts.x).toBeCloseTo(expectedCbX, 5);
+      expect(opts.x).toBeCloseTo(0.1 * PW, 5);
+      expect(opts.y).toBeCloseTo(PH - 0.2 * PH - h, 5);
+      expect(opts.width).toBeCloseTo(w, 5);
+      expect(opts.height).toBeCloseTo(h, 5);
     });
 
     it('draws checkmark lines when value_boolean is true', () => {
@@ -189,16 +192,40 @@ describe('burnInField', () => {
       expect(drawLineSpy).not.toHaveBeenCalled();
     });
 
-    it('vertically centers the checkbox in the field box', () => {
-      const drawRectSpy = jest.spyOn(page, 'drawRectangle');
-      const f: BurnInField = { kind: 'checkbox', x: 0.2, y: 0.3, width: 0.03, height: 0.03 };
+    it('scales the checkmark to the field box', () => {
+      const drawLineSpy = jest.spyOn(page, 'drawLine');
+      const f: BurnInField = {
+        kind: 'checkbox',
+        x: 0.2,
+        y: 0.3,
+        width: 0.08,
+        height: 0.06,
+        value_boolean: true,
+      };
       burnInField(page, f, assets);
 
-      const h = 0.03 * PH;
-      const cy = PH - 0.3 * PH - h / 2;
-      const expectedCbY = cy - 10 / 2; // cbSize / 2
-      const opts = drawRectSpy.mock.calls[0]![0]!;
-      expect(opts.y).toBeCloseTo(expectedCbY, 5);
+      const fw = 0.08 * PW;
+      const fh = 0.06 * PH;
+      const left = 0.2 * PW;
+      const bottom = PH - 0.3 * PH - fh;
+      const xs: number[] = [];
+      const ys: number[] = [];
+      for (const call of drawLineSpy.mock.calls) {
+        const opts = call[0]!;
+        xs.push(opts.start.x, opts.end.x);
+        ys.push(opts.start.y, opts.end.y);
+      }
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      expect(minX).toBeGreaterThan(left);
+      expect(maxX).toBeLessThan(left + fw);
+      expect(minY).toBeGreaterThan(bottom);
+      expect(maxY).toBeLessThan(bottom + fh);
+      // The mark spans most of the box, not a fixed 10pt glyph.
+      expect(maxX - minX).toBeGreaterThan(fw * 0.5);
+      expect(maxY - minY).toBeGreaterThan(fh * 0.5);
     });
   });
 
@@ -296,13 +323,36 @@ describe('burnInField', () => {
       const drawRectSpy = jest.spyOn(page, 'drawRectangle');
       burnInField(page, { kind: 'checkbox', x: 0.1, y: 0.1, value_boolean: false }, assets);
 
-      // Checkbox always draws a 10pt square, but the field box uses defaults
-      // Verify the positioning derives from default dimensions
       const w = 0.03 * PW;
-      const cx = 0.1 * PW + w / 2;
-      const expectedCbX = cx - w / 2 + 22;
+      const h = 0.03 * PH;
       const opts = drawRectSpy.mock.calls[0]![0]!;
-      expect(opts.x).toBeCloseTo(expectedCbX, 5);
+      expect(opts.width).toBeCloseTo(w, 5);
+      expect(opts.height).toBeCloseTo(h, 5);
+      expect(opts.x).toBeCloseTo(0.1 * PW, 5);
+    });
+
+    it('version 1 keeps the 10pt checkbox 22pt to the right of the box', () => {
+      const drawRectSpy = jest.spyOn(page, 'drawRectangle');
+      const f: BurnInField = {
+        kind: 'checkbox',
+        x: 0.1,
+        y: 0.2,
+        width: 0.2,
+        height: 0.04,
+        value_boolean: false,
+      };
+      burnInField(page, f, assets, 1);
+
+      const w = 0.2 * PW;
+      const h = 0.04 * PH;
+      const cx = 0.1 * PW + w / 2;
+      const cy = PH - 0.2 * PH - h / 2;
+      const opts = drawRectSpy.mock.calls[0]![0]!;
+      expect(opts.width).toBe(10);
+      expect(opts.height).toBe(10);
+      expect(opts.x).toBeCloseTo(cx - w / 2 + 22, 5);
+      expect(opts.y).toBeCloseTo(cy - 5, 5);
+      expect(opts.rotate).toBeUndefined();
     });
 
     it('handles null width/height same as undefined', () => {

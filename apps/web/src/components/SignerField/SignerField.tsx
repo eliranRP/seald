@@ -151,6 +151,7 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
       aria-label={accessibleLabel}
       aria-pressed={kind === 'checkbox' ? value === true : undefined}
       data-kind={kind}
+      data-field-kind={kind}
       data-tone={tone}
       data-filled={filled ? 'true' : 'false'}
       data-active={active ? 'true' : 'false'}

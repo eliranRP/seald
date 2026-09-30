@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { sql, type Kysely, type RawBuilder, type Selectable, type Transaction } from 'kysely';
+import type { StoredPageGeometry } from 'shared';
 import { eventHash } from './event-hash';
 import type {
   Database,
@@ -154,6 +155,20 @@ function toFieldDomain(row: FieldRow): EnvelopeField {
   };
 }
 
+function readPageGeometry(value: unknown): StoredPageGeometry[] | null {
+  if (value == null) return null;
+  let parsed: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value) as unknown;
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed)) return null;
+  return parsed as StoredPageGeometry[];
+}
+
 function toEnvelopeDomain(
   envelope: EnvelopeRow,
   signers: ReadonlyArray<SignerRow>,
@@ -167,6 +182,8 @@ function toEnvelopeDomain(
     status: envelope.status,
     delivery_mode: envelope.delivery_mode,
     original_pages: envelope.original_pages,
+    placement_version: Number(envelope.placement_version) === 2 ? 2 : 1,
+    original_page_geometry: readPageGeometry(envelope.original_page_geometry),
     original_sha256: envelope.original_sha256,
     sealed_sha256: envelope.sealed_sha256,
     sender_email: envelope.sender_email,
@@ -254,6 +271,9 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           tc_version: input.tc_version,
           privacy_version: input.privacy_version,
           expires_at: input.expires_at,
+          // Existing rows stay on 1 via the column default. Drafts created
+          // by this build use displayed-page placement.
+          placement_version: 2,
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -867,6 +887,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         original_file_path: input.file_path,
         original_sha256: input.sha256,
         original_pages: input.pages,
+        original_page_geometry:
+          input.page_geometry == null ? null : JSON.stringify(input.page_geometry),
         updated_at: new Date().toISOString(),
       })
       .where('id', '=', envelope_id)

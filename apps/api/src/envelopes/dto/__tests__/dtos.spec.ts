@@ -195,6 +195,38 @@ describe('FieldPlacementDto', () => {
     const errors = validateSync(dto);
     expect(pathsOf(errors)).toEqual(['width']);
   });
+
+  it('rejects a box whose right edge passes the page', () => {
+    const dto = plainToInstance(FieldPlacementDto, { ...valid, x: 0.8, width: 0.3 });
+    const errors = validateSync(dto);
+    const messages = Object.values(errors.find((e) => e.property === 'x')?.constraints ?? {});
+    expect(messages).toContain('field_exceeds_page');
+  });
+
+  it('rejects a box whose bottom edge passes the page', () => {
+    const dto = plainToInstance(FieldPlacementDto, { ...valid, y: 0.9, height: 0.2 });
+    const errors = validateSync(dto);
+    const messages = Object.values(errors.find((e) => e.property === 'x')?.constraints ?? {});
+    expect(messages).toContain('field_exceeds_page');
+  });
+
+  it('accepts a box that ends exactly on the page edge', () => {
+    const dto = plainToInstance(FieldPlacementDto, {
+      ...valid,
+      x: 0.5,
+      y: 0.5,
+      width: 0.5,
+      height: 0.5,
+    });
+    expect(validateSync(dto)).toEqual([]);
+  });
+
+  it('reports field_x_out_of_range for x above 1', () => {
+    const dto = plainToInstance(FieldPlacementDto, { ...valid, x: 1.5 });
+    const errors = validateSync(dto);
+    const messages = Object.values(errors.find((e) => e.property === 'x')?.constraints ?? {});
+    expect(messages).toContain('field_x_out_of_range');
+  });
 });
 
 describe('SendEnvelopeDto', () => {

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { seald } from '@/styles/theme';
 import { MWPlace } from './MWPlace';
-import type { MobileFieldType } from '../types';
+import { MOBILE_FIELD_DEFS, type MobileFieldType } from '../types';
 
 /**
  * PR #108 PM-P0-3: the design's "armed chip" visual state could not be
@@ -51,7 +51,8 @@ describe('MWPlace — field-types toolbar (chip armed state)', () => {
     renderPlace();
     const toolbar = screen.getByRole('toolbar', { name: /field types/i });
     const chips = within(toolbar).getAllByRole('button');
-    expect(chips).toHaveLength(5);
+    expect(chips).toHaveLength(MOBILE_FIELD_DEFS.length);
+    expect(within(toolbar).getByRole('button', { name: /^Email$/ })).toBeInTheDocument();
     chips.forEach((chip) => {
       expect(chip).toHaveAttribute('aria-pressed', 'false');
     });

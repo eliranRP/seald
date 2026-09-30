@@ -26,7 +26,12 @@ import {
 } from '../features/templates';
 import { createTemplate, updateTemplate } from '../features/templates/templatesApi';
 
-import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
+import {
+  CANVAS_HEIGHT_FALLBACK,
+  CANVAS_WIDTH,
+  usePageCanvasHeights,
+  normalizeCoord,
+} from '../lib/canvas-coords';
 const TOAST_AUTO_DISMISS_MS = 4000;
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
@@ -276,7 +281,7 @@ export function DocumentRoute() {
    * sender identity captured by `GuestSenderEmailDialog`; for authed
    * users both args are `undefined` and the server uses the JWT email.
    */
-  const canvasHeight = useCanvasHeight(pdfDoc);
+  const pageHeights = usePageCanvasHeights(pdfDoc, CANVAS_WIDTH);
 
   const runSend = useCallback(
     async (senderEmail?: string, senderName?: string) => {
@@ -306,7 +311,10 @@ export function DocumentRoute() {
           buildFields: (contactIdToSignerId) => {
             const out: FieldPlacement[] = [];
             for (const f of doc.fields) {
-              const normalized = toNormalized(f, canvasHeight);
+              const measured = pageHeights.get(f.page) ?? pageHeights.get(1);
+              const pageHeight =
+                measured === undefined ? CANVAS_HEIGHT_FALLBACK : Math.round(measured);
+              const normalized = toNormalized(f, pageHeight);
               for (const localSignerId of f.signerIds) {
                 const serverSignerId = contactIdToSignerId.get(localSignerId);
                 if (serverSignerId) {
@@ -344,7 +352,7 @@ export function DocumentRoute() {
         setSendError(friendlySendError(err));
       }
     },
-    [doc, navigate, remindersEnabled, sendDocument, sendEnvelope, canvasHeight],
+    [doc, navigate, remindersEnabled, sendDocument, sendEnvelope, pageHeights],
   );
 
   /**

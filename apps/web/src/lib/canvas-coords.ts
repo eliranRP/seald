@@ -68,21 +68,82 @@ export function useCanvasWidth(): number {
 }
 
 /**
+ * CSS height for one page rendered at `canvasWidth`, from that page's own
+ * displayed viewport (CropBox and /Rotate already applied by pdf.js).
+ */
+export function pageCanvasHeight(
+  viewportWidth: number,
+  viewportHeight: number,
+  canvasWidth: number,
+): number {
+  if (!(viewportWidth > 0) || !(canvasWidth > 0)) return CANVAS_HEIGHT_FALLBACK;
+  return (canvasWidth * viewportHeight) / viewportWidth;
+}
+
+/**
+ * Per-page canvas heights. Page 1's aspect ratio must not be reused for
+ * later pages — a Legal page after Letter is ~200px taller at 560px wide.
+ * Returns an empty map until the document's viewports have loaded.
+ */
+export function usePageCanvasHeights(
+  pdfDoc: PDFDocumentProxy | null | undefined,
+  canvasWidth: number,
+): ReadonlyMap<number, number> {
+  const [heights, setHeights] = useState<ReadonlyMap<number, number>>(() => new Map());
+
+  useEffect(() => {
+    if (!pdfDoc) {
+      setHeights(new Map());
+      return undefined;
+    }
+    let cancelled = false;
+    const count = pdfDoc.numPages;
+    void Promise.all(
+      Array.from({ length: count }, (_, index) => {
+        const pageNumber = index + 1;
+        return pdfDoc.getPage(pageNumber).then((page) => {
+          const viewport = page.getViewport({ scale: 1 });
+          return [
+            pageNumber,
+            pageCanvasHeight(viewport.width, viewport.height, canvasWidth),
+          ] as const;
+        });
+      }),
+    ).then((entries) => {
+      if (!cancelled) setHeights(new Map(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pdfDoc, canvasWidth]);
+
+  return heights;
+}
+
+/**
+ * Height of the field coordinate box for one page.
+ *
+ * Version 1 envelopes were placed against page 1's aspect on every page.
+ * Using each page's own viewport would move those fields on a mixed-size
+ * document. Version 2 (and any caller that already knows it is placing a
+ * new draft) uses the page's own viewport.
+ */
+export function canvasHeightForPage(
+  heights: ReadonlyMap<number, number>,
+  page: number,
+  placementVersion: number | null | undefined,
+): number | undefined {
+  if (placementVersion === 1) return heights.get(1);
+  return heights.get(page);
+}
+
+/**
  * Compute the actual canvas height from the PDF's first page.
  * Returns CANVAS_HEIGHT_FALLBACK until the PDF is loaded.
  */
 export function useCanvasHeight(pdfDoc: PDFDocumentProxy | null | undefined): number {
-  const [height, setHeight] = useState(CANVAS_HEIGHT_FALLBACK);
-
-  useEffect(() => {
-    if (!pdfDoc) return;
-    void pdfDoc.getPage(1).then((page) => {
-      const vp = page.getViewport({ scale: 1 });
-      setHeight(CANVAS_WIDTH * (vp.height / vp.width));
-    });
-  }, [pdfDoc]);
-
-  return height;
+  const heights = usePageCanvasHeights(pdfDoc, CANVAS_WIDTH);
+  return heights.get(1) ?? CANVAS_HEIGHT_FALLBACK;
 }
 
 /**
@@ -97,7 +158,42 @@ export function normalizeCoord(px: number, canvasPx: number): number {
  * Convert a normalized 0-1 fraction back to pixel coords.
  * Used when rendering fields on the signing surface.
  * Handles legacy fields that may already be in pixel coords (> 1).
+ *
+ * `round: false` keeps the fraction exact (signing screen). The default
+ * still snaps to whole pixels for callers that stored integer CSS coords.
  */
-export function denormalizeCoord(norm: number, canvasPx: number): number {
-  return norm > 1 ? norm : Math.round(norm * canvasPx);
+export function denormalizeCoord(
+  norm: number,
+  canvasPx: number,
+  options?: { readonly round?: boolean },
+): number {
+  if (norm > 1) return norm;
+  const px = norm * canvasPx;
+  if (options?.round === false) return px;
+  return Math.round(px);
+}
+
+/**
+ * Pixel box for a stored field on one page's canvas. Width and height fall
+ * back to the caller's pixel defaults when the field has no explicit size.
+ * Positions are not rounded — a fraction of a tall page must not snap to a
+ * whole pixel of page 1's aspect ratio.
+ */
+export function placeSignerField(
+  field: {
+    readonly x: number;
+    readonly y: number;
+    readonly width?: number | null;
+    readonly height?: number | null;
+  },
+  defaults: { readonly w: number; readonly h: number },
+  pageWidth: number,
+  pageHeight: number,
+): { readonly x: number; readonly y: number; readonly w: number; readonly h: number } {
+  return {
+    x: denormalizeCoord(field.x, pageWidth, { round: false }),
+    y: denormalizeCoord(field.y, pageHeight, { round: false }),
+    w: field.width ? denormalizeCoord(field.width, pageWidth, { round: false }) : defaults.w,
+    h: field.height ? denormalizeCoord(field.height, pageHeight, { round: false }) : defaults.h,
+  };
 }

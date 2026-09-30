@@ -1,12 +1,14 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { PdfPageView } from '@/components/PdfPageView/PdfPageView';
+import { usePageCanvasHeights } from '@/lib/canvas-coords';
 import type { PDFDocumentProxy } from '@/lib/pdf';
 import {
   Calendar,
   CheckSquare,
   Copy,
   Link2,
+  Mail,
   Move,
   PenTool,
   Square,
@@ -322,6 +324,15 @@ const TOOLBAR_WIDTH_ESTIMATE = 250;
 const TOOLBAR_TOP_THRESHOLD_PX = 50;
 const TOOLBAR_GAP_PX = 8;
 
+const SURFACE_KIND: Record<MobileFieldType, string> = {
+  sig: 'signature',
+  ini: 'initials',
+  dat: 'date',
+  txt: 'text',
+  chk: 'checkbox',
+  eml: 'email',
+};
+
 function chipIcon(k: MobileFieldType, size = 14) {
   switch (k) {
     case 'sig':
@@ -334,6 +345,8 @@ function chipIcon(k: MobileFieldType, size = 14) {
       return <Square size={size} aria-hidden />;
     case 'chk':
       return <CheckSquare size={size} aria-hidden />;
+    case 'eml':
+      return <Mail size={size} aria-hidden />;
     default:
       return null;
   }
@@ -410,6 +423,9 @@ export function MWPlace(props: MWPlaceProps) {
   // for below-positioning clamping when the field sits near the top.
   const [canvasWidth, setCanvasWidth] = useState<number>(0);
   const [canvasHeight, setCanvasHeight] = useState<number>(0);
+  const [layoutWidth, setLayoutWidth] = useState(0);
+  const pageHeights = usePageCanvasHeights(doc ?? null, layoutWidth);
+  const pageHeight = pageHeights.get(page);
 
   // Notify the parent of the rendered canvas size so it can clamp drags,
   // and capture the width locally for the in-canvas toolbar clamp.
@@ -418,10 +434,8 @@ export function MWPlace(props: MWPlaceProps) {
     if (!el) return undefined;
     const apply = (): void => {
       const measuredWidth = el.clientWidth;
-      const measuredHeight = el.clientHeight;
+      setLayoutWidth(measuredWidth);
       setCanvasWidth(measuredWidth);
-      setCanvasHeight(measuredHeight);
-      onCanvasMeasured?.({ width: measuredWidth, height: measuredHeight });
     };
     apply();
     if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
@@ -430,7 +444,13 @@ export function MWPlace(props: MWPlaceProps) {
       return () => ro.disconnect();
     }
     return undefined;
-  }, [onCanvasMeasured]);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!(layoutWidth > 0) || pageHeight === undefined) return;
+    setCanvasHeight(pageHeight);
+    onCanvasMeasured?.({ width: layoutWidth, height: pageHeight });
+  }, [layoutWidth, pageHeight, onCanvasMeasured]);
 
   const onFieldPointerDown = (e: React.PointerEvent<HTMLDivElement>, fieldId: string): void => {
     if (armedTool) return;
@@ -516,6 +536,13 @@ export function MWPlace(props: MWPlaceProps) {
           $armed={Boolean(armedTool)}
           $hasDoc={Boolean(doc)}
           data-testid="mw-canvas"
+          data-surface="editor"
+          data-page-box={page}
+          style={
+            pageHeight !== undefined
+              ? { width: layoutWidth > 0 ? layoutWidth : undefined, height: pageHeight }
+              : undefined
+          }
           onClick={(e) => {
             if (armedTool) {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -528,9 +555,9 @@ export function MWPlace(props: MWPlaceProps) {
             }
           }}
         >
-          {doc && canvasWidth > 0 ? (
+          {doc && layoutWidth > 0 ? (
             <PdfBackdrop data-testid="mw-pdf-backdrop">
-              <PdfPageView doc={doc} pageNumber={page} width={canvasWidth} />
+              <PdfPageView doc={doc} pageNumber={page} width={layoutWidth} />
             </PdfBackdrop>
           ) : (
             <>
@@ -556,6 +583,10 @@ export function MWPlace(props: MWPlaceProps) {
                 $selected={sel}
                 $dragging={dragging}
                 role="button"
+                data-surface="editor"
+                data-field-kind={SURFACE_KIND[f.type]}
+                data-field-page={page}
+                data-field-id={f.id}
                 aria-pressed={sel}
                 aria-label={`${def.label} field${signer ? ` for ${signer.name}` : ''}`}
                 tabIndex={0}

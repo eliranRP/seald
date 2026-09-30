@@ -4,11 +4,14 @@ import styled, { type DefaultTheme } from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
 import { Button } from '@/components/Button';
+import { FieldPlacementStage } from '@/components/FieldPlacementStage';
 import { Icon } from '@/components/Icon';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
+import { useCanvasWidth } from '@/lib/canvas-coords';
+import { usePdfDocument } from '@/lib/pdf';
 
 const Page = styled.div`
   min-height: 100vh;
@@ -267,6 +270,12 @@ const ExitLink = styled.button`
   cursor: pointer;
 `;
 
+const SignedPreview = styled.div`
+  margin-top: ${({ theme }) => theme.space[8]};
+  width: 100%;
+  text-align: left;
+`;
+
 const RetentionCard = styled.div`
   margin-top: ${({ theme }) => theme.space[8]};
   padding: 14px 16px;
@@ -301,12 +310,14 @@ export function SigningDonePage() {
   // query is gated by `enabled: shortCode.length > 0` inside the hook,
   // so this is safe even when the snapshot is missing on the next line.
   const verify = useSealedDownload(snap?.short_code ?? '');
+  const sealedUrl = verify.data?.envelope.status === 'completed' ? verify.data.sealed_url : null;
+  const { doc: sealedDoc } = usePdfDocument(sealedUrl);
+  const canvasWidth = useCanvasWidth();
 
   if (!snap || snap.kind !== 'submitted') {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
 
-  const sealedUrl = verify.data?.envelope.status === 'completed' ? verify.data.sealed_url : null;
   const isSealing = !sealedUrl && !verify.isError;
   const downloadName = safeDownloadName(snap.title, '-signed');
 
@@ -381,6 +392,18 @@ export function SigningDonePage() {
             <DownloadError role="alert">{SEAL_DOWNLOAD_ERROR}</DownloadError>
           ) : null}
         </Actions>
+
+        {sealedDoc && snap.placement && snap.placement.length > 0 ? (
+          <SignedPreview>
+            <FieldPlacementStage
+              pdfDoc={sealedDoc}
+              canvasWidth={canvasWidth}
+              fields={snap.placement}
+              surface="signed"
+              placementVersion={snap.placement_version === 2 ? 2 : 1}
+            />
+          </SignedPreview>
+        ) : null}
 
         <RetentionCard>
           <Icon icon={ShieldCheck} size={16} />

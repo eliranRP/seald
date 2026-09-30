@@ -169,6 +169,14 @@ export interface EnvelopesTable {
   original_file_path: string | null;
   original_sha256: string | null;
   original_pages: number | null;
+  // Migration 0023 — 1 keeps the MediaBox seal for envelopes already
+  // in flight. New drafts are inserted as 2 (displayed-page math).
+  // Default 1 so a row written without the column stays on the old seal.
+  placement_version: ColumnType<number, number | undefined, number | undefined>;
+  // Migration 0023 — per-page displayed geometry captured at upload.
+  // Null until a PDF is stored. jsonb array of
+  // {page, view_width, view_height, rotation, mediabox, cropbox}.
+  original_page_geometry: ColumnType<unknown, string | null | undefined, string | null | undefined>;
   sealed_file_path: string | null;
   sealed_sha256: string | null;
   audit_file_path: string | null;

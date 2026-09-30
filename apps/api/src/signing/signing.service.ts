@@ -54,6 +54,8 @@ export interface SignMeResponse {
     readonly short_code: string;
     readonly status: Envelope['status'];
     readonly original_pages: number | null;
+    /** 1 keeps page-1 sizing. 2 sizes each page by its own viewport. */
+    readonly placement_version: 1 | 2;
     readonly expires_at: string;
     readonly tc_version: string;
     readonly privacy_version: string;
@@ -154,6 +156,7 @@ export class SigningService {
         short_code: envelope.short_code,
         status: envelope.status,
         original_pages: envelope.original_pages,
+        placement_version: envelope.placement_version === 2 ? 2 : 1,
         expires_at: envelope.expires_at,
         tc_version: envelope.tc_version,
         privacy_version: envelope.privacy_version,

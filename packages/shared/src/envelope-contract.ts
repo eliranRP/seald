@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { FIELD_PLACEMENT_ERRORS, fieldPlacementError } from './placementGeometry';
 
 export const ENVELOPE_STATUSES = [
   'draft',
@@ -17,14 +18,7 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 export const SIGNER_ROLES = ['proposer', 'signatory', 'validator', 'witness'] as const;
 export type SignerRole = (typeof SIGNER_ROLES)[number];
 
-const FIELD_KINDS = [
-  'signature',
-  'initials',
-  'date',
-  'text',
-  'checkbox',
-  'email',
-] as const;
+const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox', 'email'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
 export const SIGNATURE_FORMATS = ['drawn', 'typed', 'upload'] as const;
@@ -122,9 +116,7 @@ export const EnvelopeGdriveSaveResultSchema = z.object({
       webViewLink: z.string(),
     }),
   ),
-  error: z
-    .object({ kind: z.enum(['sealed', 'audit']), code: z.string() })
-    .optional(),
+  error: z.object({ kind: z.enum(['sealed', 'audit']), code: z.string() }).optional(),
   pushedAt: iso,
 });
 export type EnvelopeGdriveSaveResult = z.infer<typeof EnvelopeGdriveSaveResultSchema>;
@@ -164,6 +156,36 @@ export const EnvelopeSchema = z.object({
   status: z.enum(ENVELOPE_STATUSES),
   delivery_mode: z.enum(DELIVERY_MODES),
   original_pages: z.number().int().positive().nullable(),
+  /**
+   * 1 = MediaBox seal used before displayed-page placement. Existing rows
+   * stay on 1. 2 = CropBox + /Rotate fractions. New drafts are inserted as 2.
+   * Absent payloads are treated as 1 by the seal.
+   */
+  placement_version: z.union([z.literal(1), z.literal(2)]).optional(),
+  /** Per-page geometry captured at upload. Null until a PDF is stored. */
+  original_page_geometry: z
+    .array(
+      z.object({
+        page: z.number().int().positive(),
+        view_width: z.number().positive(),
+        view_height: z.number().positive(),
+        rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+        mediabox: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().positive(),
+          height: z.number().positive(),
+        }),
+        cropbox: z.object({
+          x: z.number(),
+          y: z.number(),
+          width: z.number().positive(),
+          height: z.number().positive(),
+        }),
+      }),
+    )
+    .nullable()
+    .optional(),
   original_sha256: sha256.nullable(),
   sealed_sha256: sha256.nullable(),
   sender_email: z.string().email().nullable(),
@@ -248,17 +270,33 @@ export const AddSignerRequestSchema = z.union([
 ]);
 export type AddSignerRequest = z.infer<typeof AddSignerRequestSchema>;
 
-const FieldPlacementInputSchema = z.object({
-  signer_id: uuid,
-  kind: z.enum(FIELD_KINDS),
-  page: z.number().int().min(1),
-  x: z.number().min(0).max(1),
-  y: z.number().min(0).max(1),
-  width: z.number().min(0).max(1).nullable().optional(),
-  height: z.number().min(0).max(1).nullable().optional(),
-  required: z.boolean().default(true),
-  link_id: z.string().max(100).nullable().optional(),
-});
+const FieldPlacementInputSchema = z
+  .object({
+    signer_id: uuid,
+    kind: z.enum(FIELD_KINDS),
+    page: z.number().int().min(1),
+    x: z.number().min(0).max(1),
+    y: z.number().min(0).max(1),
+    width: z.number().min(0).max(1).nullable().optional(),
+    height: z.number().min(0).max(1).nullable().optional(),
+    required: z.boolean().default(true),
+    link_id: z.string().max(100).nullable().optional(),
+  })
+  .superRefine((field, ctx) => {
+    const code = fieldPlacementError(
+      {
+        x: field.x,
+        y: field.y,
+        page: field.page,
+        width: field.width ?? null,
+        height: field.height ?? null,
+      },
+      null,
+    );
+    if (code === FIELD_PLACEMENT_ERRORS.exceedsPage) {
+      ctx.addIssue({ code: 'custom', message: code });
+    }
+  });
 export const PlaceFieldsRequestSchema = z.object({
   fields: z.array(FieldPlacementInputSchema),
 });
@@ -381,5 +419,11 @@ export const ErrorSlugs = [
   'validation_error',
   'invalid_cursor',
   'field_not_found',
+  'field_x_out_of_range',
+  'field_y_out_of_range',
+  'field_width_out_of_range',
+  'field_height_out_of_range',
+  'field_exceeds_page',
+  'field_page_out_of_range',
 ] as const;
 export type ErrorSlug = (typeof ErrorSlugs)[number];

@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
 import { DocumentPage } from './DocumentPage';
 import type { DocumentPageProps, DocumentPageSigner } from './DocumentPage.types';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
 import { seald } from '../../styles/theme';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { pageCanvasHeight } from '@/lib/canvas-coords';
 
 const DEFAULT_SIGNERS: ReadonlyArray<DocumentPageSigner> = [
   { id: 'a', name: 'Ada Byron', email: 'ada@analytical.co', color: '#F472B6' },
@@ -924,5 +926,44 @@ describe('DocumentPage — persistent group / ungroup', () => {
     // Ungroup is the only group/ungroup affordance shown.
     expect(screen.getByRole('button', { name: /ungroup selected fields/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^group selected fields$/i })).toBeNull();
+  });
+
+  it('sizes each page from its own viewport, not page 1', async () => {
+    const viewports = [
+      { width: 612, height: 792 },
+      { width: 612, height: 1008 },
+    ];
+    const pdfDoc = {
+      numPages: viewports.length,
+      getPage: vi.fn(async (pageNumber: number) => {
+        const viewport = viewports[pageNumber - 1];
+        if (!viewport) throw new Error('missing page');
+        return {
+          getViewport: ({ scale }: { scale: number }) => ({
+            width: viewport.width * scale,
+            height: viewport.height * scale,
+          }),
+          render: () => ({ promise: Promise.resolve(), cancel: () => undefined }),
+        };
+      }),
+    } as unknown as PDFDocumentProxy;
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = vi.fn(
+      () => ({}),
+    ) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+    try {
+      renderPage({ totalPages: 2, pdfDoc });
+      const letter = Math.round(pageCanvasHeight(612, 792, 560));
+      const legal = Math.round(pageCanvasHeight(612, 1008, 560));
+      await waitFor(() => {
+        const page1 = document.querySelector('[data-page="1"]')?.firstElementChild as HTMLElement;
+        const page2 = document.querySelector('[data-page="2"]')?.firstElementChild as HTMLElement;
+        expect(parseFloat(page1.style.height)).toBe(letter);
+        expect(parseFloat(page2.style.height)).toBe(legal);
+      });
+      expect(legal - letter).toBeGreaterThan(100);
+    } finally {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
   });
 });

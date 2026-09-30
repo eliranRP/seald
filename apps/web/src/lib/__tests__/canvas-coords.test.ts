@@ -5,7 +5,11 @@ import {
   CANVAS_HEIGHT_FALLBACK,
   normalizeCoord,
   denormalizeCoord,
+  canvasHeightForPage,
+  pageCanvasHeight,
+  placeSignerField,
   useCanvasHeight,
+  usePageCanvasHeights,
 } from '@/lib/canvas-coords';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
@@ -72,11 +76,101 @@ describe('canvas-coords', () => {
     it('passes through legacy fractional pixel values greater than 1', () => {
       expect(denormalizeCoord(1.5, 560)).toBe(1.5);
     });
+
+    it('can skip whole-pixel rounding', () => {
+      expect(denormalizeCoord(0.333, 740, { round: false })).toBe(0.333 * 740);
+    });
+  });
+
+  describe('pageCanvasHeight', () => {
+    it('sizes each page from its own viewport', () => {
+      const letter = pageCanvasHeight(612, 792, CANVAS_WIDTH);
+      const legal = pageCanvasHeight(612, 1008, CANVAS_WIDTH);
+      expect(letter).toBeCloseTo(CANVAS_WIDTH * (792 / 612), 5);
+      expect(legal - letter).toBeCloseTo(CANVAS_WIDTH * ((1008 - 792) / 612), 5);
+    });
+  });
+
+  describe('placeSignerField', () => {
+    const defaults = { w: 200, h: 54 };
+
+    it('places the same fraction at different pixel rows on Letter and Legal', () => {
+      const letterH = pageCanvasHeight(612, 792, CANVAS_WIDTH);
+      const legalH = pageCanvasHeight(612, 1008, CANVAS_WIDTH);
+      const onLetter = placeSignerField(
+        { x: 0.25, y: 0.5, width: 0.2, height: 0.04 },
+        defaults,
+        CANVAS_WIDTH,
+        letterH,
+      );
+      const onLegal = placeSignerField(
+        { x: 0.25, y: 0.5, width: 0.2, height: 0.04 },
+        defaults,
+        CANVAS_WIDTH,
+        legalH,
+      );
+      expect(onLetter.y).toBeCloseTo(0.5 * letterH, 5);
+      expect(onLegal.y).toBeCloseTo(0.5 * legalH, 5);
+      expect(onLegal.y - onLetter.y).toBeGreaterThan(90);
+      expect(onLegal.y).not.toBe(Math.round(onLegal.y));
+    });
+  });
+
+  describe('canvasHeightForPage', () => {
+    const heights = new Map<number, number>([
+      [1, 725],
+      [2, 922],
+    ]);
+
+    it('uses page 1 for every page on version 1', () => {
+      expect(canvasHeightForPage(heights, 2, 1)).toBe(725);
+      expect(canvasHeightForPage(heights, 1, 1)).toBe(725);
+    });
+
+    it('uses that page on version 2', () => {
+      expect(canvasHeightForPage(heights, 2, 2)).toBe(922);
+    });
+  });
+
+  describe('usePageCanvasHeights', () => {
+    function makeMixedDoc() {
+      const pages = [
+        { width: 612, height: 792 },
+        { width: 595.28, height: 841.89 },
+        { width: 612, height: 1008 },
+      ];
+      return {
+        numPages: pages.length,
+        getPage: vi.fn(async (pageNumber: number) => ({
+          getViewport: ({ scale }: { scale: number }) => {
+            const page = pages[pageNumber - 1];
+            if (!page) throw new Error('missing page');
+            return { width: page.width * scale, height: page.height * scale };
+          },
+        })),
+      } as unknown as PDFDocumentProxy;
+    }
+
+    it('returns a distinct height for each page', async () => {
+      const pdfDoc = makeMixedDoc();
+      const { result } = renderHook(() => usePageCanvasHeights(pdfDoc, CANVAS_WIDTH));
+      await waitFor(() => {
+        expect(result.current.size).toBe(3);
+      });
+      const letter = pageCanvasHeight(612, 792, CANVAS_WIDTH);
+      const a4 = pageCanvasHeight(595.28, 841.89, CANVAS_WIDTH);
+      const legal = pageCanvasHeight(612, 1008, CANVAS_WIDTH);
+      expect(result.current.get(1)).toBeCloseTo(letter, 5);
+      expect(result.current.get(2)).toBeCloseTo(a4, 5);
+      expect(result.current.get(3)).toBeCloseTo(legal, 5);
+      expect(result.current.get(3)).not.toBeCloseTo(letter, 0);
+    });
   });
 
   describe('useCanvasHeight', () => {
     function makePdfDoc(pageWidth: number, pageHeight: number) {
       return {
+        numPages: 1,
         getPage: vi.fn().mockResolvedValue({
           getViewport: ({ scale }: { scale: number }) => ({
             width: pageWidth * scale,

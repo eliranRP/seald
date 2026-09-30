@@ -151,6 +151,7 @@ describe('SigningController.me', () => {
               short_code: env.short_code,
               status: env.status,
               original_pages: env.original_pages,
+              placement_version: env.placement_version === 2 ? 2 : 1,
               expires_at: env.expires_at,
               tc_version: env.tc_version,
               privacy_version: env.privacy_version,

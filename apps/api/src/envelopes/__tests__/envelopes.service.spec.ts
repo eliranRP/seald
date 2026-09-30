@@ -140,6 +140,8 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       short_code: input.short_code,
       status: 'draft',
       original_pages: null,
+      placement_version: 2,
+      original_page_geometry: null,
       sender_email: null,
       sender_name: null,
       sent_at: null,
@@ -303,6 +305,7 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       ...e,
       original_pages: input.pages,
       original_sha256: input.sha256,
+      original_page_geometry: input.page_geometry ? [...input.page_geometry] : null,
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);
@@ -1092,6 +1095,108 @@ describe('EnvelopesService', () => {
       const e = await svc.createDraft(OWNER, { title: 'X' });
       repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, status: 'completed' });
       await expect(svc.replaceFields(OWNER, e.id, [])).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('rejects a field that extends past the displayed page', async () => {
+      const c = await contacts.create({
+        owner_id: OWNER,
+        name: 'Ada',
+        email: 'ada@x.com',
+        color: '#112233',
+      });
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const s = await svc.addSigner(OWNER, e.id, { contact_id: c.id });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'signature', page: 1, x: 0.9, y: 0.1, width: 0.2, height: 0.05 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_exceeds_page' });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'text', page: 1, x: 0.1, y: 0.95, width: 0.2, height: 0.1 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_exceeds_page' });
+    });
+
+    it('rejects coordinates outside 0–1', async () => {
+      const c = await contacts.create({
+        owner_id: OWNER,
+        name: 'Ada',
+        email: 'ada@x.com',
+        color: '#112233',
+      });
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const s = await svc.addSigner(OWNER, e.id, { contact_id: c.id });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'text', page: 1, x: 1.2, y: 0.1, width: 0.1, height: 0.1 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_x_out_of_range' });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'text', page: 1, x: 0.1, y: -0.01, width: 0.1, height: 0.1 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_y_out_of_range' });
+    });
+
+    it('rejects a page past the document page count', async () => {
+      const c = await contacts.create({
+        owner_id: OWNER,
+        name: 'Ada',
+        email: 'ada@x.com',
+        color: '#112233',
+      });
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, original_pages: 2 });
+      const s = await svc.addSigner(OWNER, e.id, { contact_id: c.id });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'signature', page: 3, x: 0.1, y: 0.1, width: 0.2, height: 0.05 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_page_out_of_range' });
+      const kept = await svc.replaceFields(OWNER, e.id, [
+        { signer_id: s.id, kind: 'signature', page: 2, x: 0.1, y: 0.1, width: 0.2, height: 0.05 },
+      ]);
+      expect(kept).toHaveLength(1);
+    });
+
+    it('bounds the page against stored geometry when the page count is stale', async () => {
+      const c = await contacts.create({
+        owner_id: OWNER,
+        name: 'Ada',
+        email: 'ada@x.com',
+        color: '#112233',
+      });
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      const box = { x: 0, y: 0, width: 612, height: 792 };
+      repo.envelopes.set(e.id, {
+        ...repo.envelopes.get(e.id)!,
+        original_pages: 5,
+        original_page_geometry: [
+          {
+            page: 1,
+            view_width: 612,
+            view_height: 792,
+            rotation: 0,
+            mediabox: box,
+            cropbox: box,
+          },
+          {
+            page: 2,
+            view_width: 612,
+            view_height: 792,
+            rotation: 0,
+            mediabox: box,
+            cropbox: box,
+          },
+        ],
+      });
+      const s = await svc.addSigner(OWNER, e.id, { contact_id: c.id });
+      await expect(
+        svc.replaceFields(OWNER, e.id, [
+          { signer_id: s.id, kind: 'signature', page: 3, x: 0.1, y: 0.1, width: 0.2, height: 0.05 },
+        ]),
+      ).rejects.toMatchObject({ message: 'field_page_out_of_range' });
     });
   });
 

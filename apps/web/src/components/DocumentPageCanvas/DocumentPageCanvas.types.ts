@@ -6,6 +6,12 @@ export interface DocumentPageCanvasProps extends HTMLAttributes<HTMLDivElement> 
   readonly title?: string | undefined;
   /** Fixed render width in px. Defaults to 560. */
   readonly width?: number | undefined;
+  /**
+   * Displayed-page height in CSS pixels (the same value field fractions
+   * are multiplied by). When set in PDF mode, the page box uses this
+   * height instead of the 740px placeholder minimum.
+   */
+  readonly pageHeight?: number | undefined;
   /** Render children absolute-positioned inside the page area. */
   readonly children?: ReactNode | undefined;
   /**

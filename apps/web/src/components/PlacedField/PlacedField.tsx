@@ -477,6 +477,10 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
       {...rest}
       ref={ref}
       role="group"
+      data-surface="editor"
+      data-field-kind={field.type}
+      data-field-page={field.page}
+      data-field-id={field.id}
       aria-label={ariaLabel}
       title={hoverTitle}
       $x={field.x}

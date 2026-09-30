@@ -27,6 +27,29 @@ export {
   SEAL_DOWNLOAD_ERROR,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
+export {
+  FIELD_PLACEMENT_ERRORS,
+  displayedBoxToPdfDraw,
+  displayedPageSize,
+  displayedPointToPdf,
+  fieldPlacementError,
+  normalizePageRotation,
+  pdfPointToDisplayed,
+  storedPageGeometry,
+} from './placementGeometry';
+export type {
+  DisplayedFractionBox,
+  DisplayedPoint,
+  FieldPlacementCheck,
+  FieldPlacementErrorCode,
+  PageGeometry,
+  PageRotation,
+  PdfAxisBox,
+  PdfDrawPlacement,
+  PdfUserPoint,
+  PdfUserRect,
+  StoredPageGeometry,
+} from './placementGeometry';
 export { TEMPLATE_FIELD_TYPES } from './templates';
 export type {
   Template,

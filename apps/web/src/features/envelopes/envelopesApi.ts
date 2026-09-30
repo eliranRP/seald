@@ -63,6 +63,8 @@ export interface Envelope {
   readonly short_code: string;
   readonly status: EnvelopeStatus;
   readonly original_pages: number | null;
+  /** 1 = page-1 aspect on every page. 2 = each page's own viewport. */
+  readonly placement_version?: 1 | 2;
   readonly expires_at: string;
   readonly tc_version: string;
   readonly privacy_version: string;

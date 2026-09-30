@@ -26,11 +26,27 @@ const CONTACTS: ReadonlyArray<AddSignerContact> = [
 
 const PALETTE = ['#F472B6', '#7DD3FC', '#10B981', '#F59E0B', '#818CF8'] as const;
 
+const editorViewports = {
+  mobile: {
+    name: 'Mobile',
+    styles: { width: '390px', height: '844px' },
+    type: 'mobile' as const,
+  },
+  desktop: {
+    name: 'Desktop',
+    styles: { width: '1440px', height: '900px' },
+    type: 'desktop' as const,
+  },
+};
+
 const meta: Meta<typeof DocumentPage> = {
   title: 'L4/DocumentPage',
   component: DocumentPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen' },
+  parameters: {
+    layout: 'fullscreen',
+    viewport: { options: editorViewports },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof DocumentPage>;
@@ -102,11 +118,13 @@ export const SingleSigner: Story = {
 
 export const Desktop: Story = {
   parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
+  globals: { viewport: { value: 'desktop', isRotated: false } },
   render: () => <InteractiveDemo />,
 };
 
 export const Mobile: Story = {
   parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
+  globals: { viewport: { value: 'mobile', isRotated: false } },
   render: () => <InteractiveDemo />,
 };
 

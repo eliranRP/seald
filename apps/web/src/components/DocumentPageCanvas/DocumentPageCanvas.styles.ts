@@ -14,10 +14,14 @@ import styled from 'styled-components';
 export const Page = styled.div<{
   readonly $width: number;
   readonly $pdfMode: boolean;
+  readonly $pageHeight?: number | undefined;
 }>`
   position: relative;
   width: ${({ $width }) => `${$width}px`};
-  min-height: 740px;
+  min-height: ${({ $pdfMode, $pageHeight }) =>
+    $pdfMode && $pageHeight !== undefined ? '0' : '740px'};
+  height: ${({ $pdfMode, $pageHeight }) =>
+    $pdfMode && $pageHeight !== undefined ? `${$pageHeight}px` : 'auto'};
   background: ${({ theme }) => theme.color.paper};
   border-radius: ${({ theme }) => theme.radius.xs};
   box-shadow: ${({ theme }) => theme.shadow.paper};
