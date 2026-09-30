@@ -9,8 +9,16 @@ import { PDFDocument } from 'pdf-lib';
 /** 25 MB. Matches the upload route and `GDRIVE_CONVERSION_MAX_BYTES`. */
 export const MAX_PDF_BYTES = 25 * 1024 * 1024;
 
-/** Hard cap for upload and field placement. A larger file is rejected. */
+/**
+ * Placement refuses a PDF above this page count. Upload does not pass
+ * the option, so a web upload over this size still succeeds.
+ */
 export const MAX_PDF_PAGES = 100;
+
+export interface InspectPdfOptions {
+  /** When set, more pages than this is `file_too_many_pages`. */
+  readonly maxPages?: number;
+}
 
 const PDF_MAGIC = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
 
@@ -45,11 +53,13 @@ export function normalizePdfRotation(angle: number): 0 | 90 | 180 | 270 {
  * Size, `%PDF-` magic, page count, page boxes, and SHA-256 for a PDF
  * buffer. This is the only pdf-lib parse. `uploadOriginal` and field
  * placement both call it, so an encrypted file throws
- * `file_unreadable` instead of a raw pdf-lib error. Page images, anchor
- * search, and AcroForm reuse belong here so inspect can share them
- * with upload.
+ * `file_unreadable` instead of a raw pdf-lib error. The page cap is
+ * optional: upload omits it, and placement passes `MAX_PDF_PAGES`.
  */
-export async function inspectPdfBytes(body: Buffer): Promise<InspectedPdf> {
+export async function inspectPdfBytes(
+  body: Buffer,
+  options?: InspectPdfOptions,
+): Promise<InspectedPdf> {
   if (body.length > MAX_PDF_BYTES) throw new PayloadTooLargeException('file_too_large');
   if (body.length < PDF_MAGIC.length || !body.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
     throw new UnsupportedMediaTypeException('file_not_pdf');
@@ -76,7 +86,9 @@ export async function inspectPdfBytes(body: Buffer): Promise<InspectedPdf> {
     throw new BadRequestException('file_unreadable');
   }
   if (pageBoxes.length <= 0) throw new BadRequestException('file_unreadable');
-  if (pageBoxes.length > MAX_PDF_PAGES) throw new BadRequestException('file_too_many_pages');
+  if (options?.maxPages !== undefined && pageBoxes.length > options.maxPages) {
+    throw new BadRequestException('file_too_many_pages');
+  }
 
   const sha256 = createHash('sha256').update(body).digest('hex');
   return { pages: pageBoxes.length, sha256, pageBoxes };

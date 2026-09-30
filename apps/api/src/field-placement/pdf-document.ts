@@ -1,6 +1,6 @@
 import { HttpException } from '@nestjs/common';
 import type { PlacementBox, PlacementKind } from 'shared';
-import { inspectPdfBytes, normalizePdfRotation } from '../envelopes/pdf-inspection';
+import { inspectPdfBytes, MAX_PDF_PAGES, normalizePdfRotation } from '../envelopes/pdf-inspection';
 import {
   displayedBoxFromPdfRect,
   pdfPointToDisplayed,
@@ -139,7 +139,7 @@ export function suggestedKind(type: FormWidgetType, name: string): PlacementKind
 export async function loadPdf(bytes: Uint8Array): Promise<LoadedDocument> {
   let inspected;
   try {
-    inspected = await inspectPdfBytes(Buffer.from(bytes));
+    inspected = await inspectPdfBytes(Buffer.from(bytes), { maxPages: MAX_PDF_PAGES });
   } catch (err) {
     if (err instanceof HttpException) throw err;
     throw new FieldPlacementError('invalid_pdf', 'unreadable PDF');

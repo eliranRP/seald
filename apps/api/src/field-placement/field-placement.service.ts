@@ -450,7 +450,7 @@ export class FieldPlacementService {
     doc: LoadedDocument,
     requested: readonly number[] | undefined,
   ): PageGeometry[] {
-    if (requested === undefined) return [...doc.pages];
+    if (requested === undefined) return doc.pages.slice(0, INSPECT_PAGE_LIMIT);
     if (requested.length > INSPECT_PAGE_LIMIT) throw new BadRequestException('inspect_pages_limit');
     const selected: PageGeometry[] = [];
     const seen = new Set<number>();

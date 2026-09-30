@@ -21,11 +21,21 @@ describe('inspectPdfBytes', () => {
     expect(inspected.pageBoxes[0]?.rotation).toBe(0);
   });
 
-  it('rejects a PDF with more pages than the cap', async () => {
+  it('accepts a PDF over the placement page cap when the caller does not set one', async () => {
     const doc = await PDFDocument.create();
     for (let i = 0; i < MAX_PDF_PAGES + 1; i += 1) doc.addPage([20, 20]);
     const body = Buffer.from(await doc.save());
-    await expect(inspectPdfBytes(body)).rejects.toBeInstanceOf(BadRequestException);
+    const inspected = await inspectPdfBytes(body);
+    expect(inspected.pages).toBe(MAX_PDF_PAGES + 1);
+  });
+
+  it('rejects a PDF with more pages than the cap when the caller sets one', async () => {
+    const doc = await PDFDocument.create();
+    for (let i = 0; i < MAX_PDF_PAGES + 1; i += 1) doc.addPage([20, 20]);
+    const body = Buffer.from(await doc.save());
+    await expect(inspectPdfBytes(body, { maxPages: MAX_PDF_PAGES })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('rejects a buffer that is not a PDF', async () => {

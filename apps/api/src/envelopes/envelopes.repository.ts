@@ -86,6 +86,20 @@ export interface FieldUpdateById {
   readonly link_id: string | null;
 }
 
+export type DraftFieldWrite =
+  | { readonly mode: 'replace'; readonly fields: readonly CreateFieldInput[] }
+  | {
+      readonly mode: 'update';
+      readonly updates: readonly FieldUpdateById[];
+      readonly remove: readonly string[];
+    };
+
+export type DraftFieldWriteResult =
+  | { readonly status: 'ok'; readonly fields: readonly EnvelopeField[] }
+  | { readonly status: 'not_found' }
+  | { readonly status: 'not_draft' }
+  | { readonly status: 'signer_not_in_envelope' };
+
 export interface SendDraftInput {
   readonly envelope_id: string;
   readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
@@ -344,6 +358,22 @@ export abstract class EnvelopesRepository {
     envelope_id: string,
     fields: ReadonlyArray<CreateFieldInput>,
   ): Promise<ReadonlyArray<EnvelopeField>>;
+
+  /**
+   * Lock the envelope row, require `status = draft` and this owner, then
+   * replace or patch fields in that same transaction. A send that commits
+   * first makes this return `not_draft` and write nothing.
+   */
+  commitDraftFieldWrite(
+    owner_id: string,
+    envelope_id: string,
+    change: DraftFieldWrite,
+  ): Promise<DraftFieldWriteResult> {
+    void owner_id;
+    void envelope_id;
+    void change;
+    return Promise.reject(new Error('commitDraftFieldWrite is not implemented'));
+  }
 
   /**
    * Patch fields by id and delete others in one transaction. Concrete
