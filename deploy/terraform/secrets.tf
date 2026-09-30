@@ -30,9 +30,9 @@
 # for the canonical key list.)
 #
 # Region: us-east-1 (same region as the EC2 instance that fetches it).
-# The KMS sealing key intentionally stays in us-east-2; that's a
-# separate, lower-frequency call path and does not benefit from
-# co-locating with this secret.
+# The sealing KMS key uses that same default provider region
+# (us-east-1). See deploy/terraform/SEALING_KMS_RUNBOOK.md
+# (PDF_SIGNING_KMS_REGION=us-east-1).
 # --------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "api" {

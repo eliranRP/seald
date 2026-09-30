@@ -180,6 +180,7 @@ async function main(): Promise<void> {
     signerDetails,
     sealedSha256: baseEnvelope.sealed_sha256!,
     cmsSealApplied: true,
+    timestampApplied: true,
     sealedPages: 9,
     publicUrl: PUBLIC,
   });
@@ -201,6 +202,7 @@ async function main(): Promise<void> {
     signerDetails: [signerDetails[0]!],
     sealedSha256: baseEnvelope.sealed_sha256!,
     cmsSealApplied: true,
+    timestampApplied: true,
     sealedPages: 9,
     publicUrl: PUBLIC,
   });
@@ -243,6 +245,7 @@ async function main(): Promise<void> {
     signerDetails,
     sealedSha256: null,
     cmsSealApplied: false,
+    timestampApplied: false,
     sealedPages: null,
     publicUrl: PUBLIC,
   });
@@ -262,6 +265,7 @@ async function main(): Promise<void> {
     signerDetails,
     sealedSha256: baseEnvelope.sealed_sha256!,
     cmsSealApplied: true,
+    timestampApplied: true,
     sealedPages: 9,
     publicUrl: PUBLIC,
   });

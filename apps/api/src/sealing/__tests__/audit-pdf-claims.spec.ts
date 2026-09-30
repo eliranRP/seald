@@ -51,6 +51,7 @@ describe('audit PDF rendered claims', () => {
   let sealedText = '';
   let unsealedText = '';
   let noopText = '';
+  let noTimestampText = '';
 
   beforeAll(async () => {
     const sealed = await buildAuditPdf(makeInput({ sealed: true, senderName: null }));
@@ -58,10 +59,14 @@ describe('audit PDF rendered claims', () => {
     const noop = await buildAuditPdf(
       makeInput({ sealed: true, senderName: null, cmsSealApplied: false }),
     );
+    const noTimestamp = await buildAuditPdf(
+      makeInput({ sealed: true, senderName: null, timestampApplied: false }),
+    );
     sealedText = normalizePdfText(extractPdfText(sealed));
     unsealedText = normalizePdfText(extractPdfText(unsealed));
     noopText = normalizePdfText(extractPdfText(noop));
-  }, 90_000);
+    noTimestampText = normalizePdfText(extractPdfText(noTimestamp));
+  }, 120_000);
 
   it('states Legal’s conditional seal, timestamp, and storage wording', () => {
     for (const text of [sealedText, unsealedText]) {
@@ -77,7 +82,6 @@ describe('audit PDF rendered claims', () => {
       expect(text).toContain('How the signer was identified:');
       expect(text).toContain('The signer opened a unique link sent to their email address.');
       expect(text).toContain('When present, a technological instrument');
-      expect(text).toContain('the sealed file');
       for (const claim of RETIRED_RENDERED_CLAIMS) {
         expect(text).not.toContain(claim);
       }
@@ -106,6 +110,13 @@ describe('audit PDF rendered claims', () => {
     expect(unsealedText).toContain('Email address entered by the sender');
     expect(sealedText).toContain('Account authentication when the sender was signed in');
     expect(sealedText).not.toContain('Verified via account authentication');
+    expect(sealedText).toContain('From created to sealed.');
+    expect(sealedText).toContain('the sealed file');
+    expect(unsealedText).toContain('From created to the last event.');
+    expect(unsealedText).not.toContain('the sealed file');
+    expect(unsealedText).not.toContain('reference number of the sealed document');
+    expect(unsealedText).toContain('This audit trail details specific information');
+    expect(unsealedText).toContain('This file has no digital seal.');
   });
 
   it('does not call a completed noop-signer file sealed or verified', () => {
@@ -123,6 +134,21 @@ describe('audit PDF rendered claims', () => {
     expect(noopText).toContain('Not applied');
     expect(noopText).not.toContain('This document is sealed');
     expect(noopText).not.toContain('SHA-256 hash matches the sealed document.');
+    expect(noopText).toContain('From created to completed.');
+    expect(noopText).not.toContain('created to sealed');
+    expect(noopText).not.toContain('the sealed file');
+    expect(noopText).not.toContain('reference number of the sealed document');
+    expect(noopText).toContain('This file has no digital seal.');
+  });
+
+  it('says a real seal has no timestamp when the TSA did not embed one', () => {
+    expect(noTimestampText).toContain('This document is sealed');
+    expect(noTimestampText).toContain('Sealed · no timestamp');
+    expect(noTimestampText).toContain('No timestamp');
+    expect(noTimestampText).toContain('The seal was applied without an RFC 3161 timestamp.');
+    expect(noTimestampText).not.toContain(SEALED_SIGNATURE_ROW);
+    expect(noTimestampText).not.toContain('RFC 3161 when available');
+    expect(noTimestampText).toContain('From created to sealed.');
   });
 });
 
@@ -145,6 +171,7 @@ function makeInput(opts: {
   sealed: boolean;
   senderName: string | null;
   cmsSealApplied?: boolean;
+  timestampApplied?: boolean;
 }): {
   envelope: Envelope;
   events: ReadonlyArray<EnvelopeEvent>;
@@ -152,6 +179,7 @@ function makeInput(opts: {
   sealedSha256: string | null;
   sealedPages: number | null;
   cmsSealApplied: boolean;
+  timestampApplied: boolean;
   publicUrl: string;
 } {
   const envelopeId = '11111111-1111-4111-8111-111111111111';
@@ -247,6 +275,7 @@ function makeInput(opts: {
     sealedSha256,
     sealedPages: opts.sealed ? 2 : null,
     cmsSealApplied: opts.cmsSealApplied ?? opts.sealed,
+    timestampApplied: opts.timestampApplied ?? opts.cmsSealApplied ?? opts.sealed,
     publicUrl: 'https://seald.example',
   };
 }

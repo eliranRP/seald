@@ -123,6 +123,7 @@ describe('KmsCmsSigner', () => {
     const signer = new KmsCmsSigner(kms, 'arn:aws:kms:us-east-1:1:key/test', cert, null);
 
     const out = await signer.sign(Buffer.from('hello PDF bytes'));
+    expect(signer.timestampApplied).toBe(false);
     const decoded = decodeCms(out);
     expect(decoded.contentTypeOid).toBe(OID_SIGNED_DATA);
 
@@ -307,6 +308,7 @@ describe('KmsCmsSigner', () => {
     const tsaOid = forge.asn1.derToOid(tsaAttrKids[0]!.value as unknown as string);
     expect(tsaOid).toBe('1.2.840.113549.1.9.16.2.14');
     expect(fakeTsa.timestamp).toHaveBeenCalledTimes(1);
+    expect(signer.timestampApplied).toBe(true);
   });
 
   it('falls back to PAdES B-B (no unsignedAttrs) when TSA round-trip fails', async () => {
@@ -326,6 +328,7 @@ describe('KmsCmsSigner', () => {
       (child) => child.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && child.type === 1,
     );
     expect(hasUnsignedAttrs).toBe(false);
+    expect(signer.timestampApplied).toBe(false);
   });
 });
 

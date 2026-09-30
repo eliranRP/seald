@@ -313,7 +313,7 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     const plain = Buffer.from(await doc.save({ useObjectStreams: false }));
 
     expect(tsa.hits.length).toBe(0);
-    const signed = await pades.sign(plain);
+    const signed = (await pades.sign(plain)).pdf;
     expect(tsa.hits.length).toBe(1); // TSA was hit exactly once
 
     // PAdES signature markers.
@@ -385,7 +385,7 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     doc.addPage([100, 100]);
     const plain = Buffer.from(await doc.save({ useObjectStreams: false }));
     const before = tsa.hits.length;
-    const signed = await pades.sign(plain);
+    const signed = (await pades.sign(plain)).pdf;
     expect(tsa.hits.length).toBe(before + 1);
     // Confirm the signed bytes parse as a PDF.
     expect(signed.subarray(0, 5).toString('ascii')).toBe('%PDF-');

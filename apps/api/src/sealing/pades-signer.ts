@@ -34,16 +34,31 @@ import type { TsaClient } from './tsa-client';
  * Selection happens in SealingModule via the PadesSigner factory provider
  * — at runtime it picks based on PDF_SIGNING_PROVIDER + env presence.
  */
+
+/** Bytes from one `sign()` call, plus whether that call embedded a TST. */
+export interface PadesSignResult {
+  readonly pdf: Buffer;
+  /** True only when this call embedded an RFC 3161 timestamp token. */
+  readonly timestampApplied: boolean;
+}
+
 @Injectable()
 export abstract class PadesSigner {
-  abstract sign(pdf: Buffer): Promise<Buffer>;
+  /**
+   * Whether `sign()` writes a CMS / PAdES seal. Noop is false. P12 and
+   * KMS are true even when the timestamp authority does not respond.
+   */
+  abstract readonly appliesCmsSeal: boolean;
+  abstract sign(pdf: Buffer): Promise<PadesSignResult>;
 }
 
 @Injectable()
 export class NoopPadesSigner extends PadesSigner {
-  async sign(pdf: Buffer): Promise<Buffer> {
+  readonly appliesCmsSeal = false;
+
+  async sign(pdf: Buffer): Promise<PadesSignResult> {
     // Intentional passthrough. See class comment on PadesSigner for why.
-    return pdf;
+    return { pdf, timestampApplied: false };
   }
 }
 
@@ -62,6 +77,7 @@ export class NoopPadesSigner extends PadesSigner {
  */
 @Injectable()
 export class P12PadesSigner extends PadesSigner {
+  readonly appliesCmsSeal = true;
   private readonly logger = new Logger(P12PadesSigner.name);
   private readonly p12Bytes: Buffer;
   private readonly passphrase: string;
@@ -92,7 +108,7 @@ export class P12PadesSigner extends PadesSigner {
     );
   }
 
-  async sign(pdf: Buffer): Promise<Buffer> {
+  async sign(pdf: Buffer): Promise<PadesSignResult> {
     // SECURITY NOTE — visible signature appearances:
     // The signatures we currently produce are INVISIBLE (no widget rendered
     // on the page; only a /Sig dictionary). The `name: 'Seald'` below feeds
@@ -132,8 +148,11 @@ export class P12PadesSigner extends PadesSigner {
     const signer = this.tsa
       ? new P12TsaSigner(this.p12Bytes, this.passphrase, this.tsa)
       : new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
-    const signed = await new SignPdf().sign(withPlaceholder, signer);
-    return signed;
+    const pdfOut = await new SignPdf().sign(withPlaceholder, signer);
+    // P12TsaSigner throws if the TSA round-trip fails, so a returned
+    // buffer from that path includes the timestamp. No TSA client means
+    // PAdES B-B: a CMS seal and no timestamp.
+    return { pdf: pdfOut, timestampApplied: this.tsa !== null };
   }
 }
 
@@ -154,6 +173,7 @@ export class P12PadesSigner extends PadesSigner {
  */
 @Injectable()
 export class KmsPadesSigner extends PadesSigner {
+  readonly appliesCmsSeal = true;
   private readonly logger = new Logger(KmsPadesSigner.name);
   private readonly kmsClient: KMSClient;
   private readonly keyId: string;
@@ -181,7 +201,7 @@ export class KmsPadesSigner extends PadesSigner {
     );
   }
 
-  async sign(pdf: Buffer): Promise<Buffer> {
+  async sign(pdf: Buffer): Promise<PadesSignResult> {
     const withPlaceholder = plainAddPlaceholder({
       pdfBuffer: pdf,
       reason: 'Signed and sealed by Seald',
@@ -195,7 +215,8 @@ export class KmsPadesSigner extends PadesSigner {
     });
 
     const cmsSigner = new KmsCmsSigner(this.kmsClient, this.keyId, this.certificate, this.tsa);
-    return await new SignPdf().sign(withPlaceholder, cmsSigner);
+    const pdfOut = await new SignPdf().sign(withPlaceholder, cmsSigner);
+    return { pdf: pdfOut, timestampApplied: cmsSigner.timestampApplied };
   }
 }
 

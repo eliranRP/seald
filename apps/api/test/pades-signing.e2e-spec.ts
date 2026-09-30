@@ -217,7 +217,7 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
     // object streams (SealingService.burnIn does the same).
     const plain = Buffer.from(await doc.save({ useObjectStreams: false }));
 
-    const signed = await pades.sign(plain);
+    const signed = (await pades.sign(plain)).pdf;
 
     const head = signed.subarray(0, 5).toString('ascii');
     expect(head).toBe('%PDF-');

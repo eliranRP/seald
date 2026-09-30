@@ -29,6 +29,7 @@ jest.mock('@aws-sdk/client-kms', () => ({
 }));
 
 import { KmsPadesSigner } from '../pades-signer';
+import type { TsaClient } from '../tsa-client';
 
 /** Build a self-signed cert + matching private key (forge). */
 function makeCertAndKey(): {
@@ -91,10 +92,12 @@ describe('KmsPadesSigner', () => {
     const pdf = await buildSamplePdf();
     const signed = await signer.sign(pdf);
 
-    expect(signed).toBeInstanceOf(Buffer);
-    expect(signed.length).toBeGreaterThan(pdf.length);
+    expect(signer.appliesCmsSeal).toBe(true);
+    expect(signed.timestampApplied).toBe(false);
+    expect(signed.pdf).toBeInstanceOf(Buffer);
+    expect(signed.pdf.length).toBeGreaterThan(pdf.length);
 
-    const text = signed.toString('latin1');
+    const text = signed.pdf.toString('latin1');
     // The placeholder writes /SubFilter /ETSI.CAdES.detached — this is
     // the marker EU DSS / Adobe Reader use to attempt PAdES validation.
     expect(text).toMatch(/\/SubFilter\s*\/ETSI\.CAdES\.detached/);
@@ -106,6 +109,52 @@ describe('KmsPadesSigner', () => {
     void writeFileSync;
     void tmpdir;
     void join;
+  });
+
+  it('reports timestampApplied from the TSA outcome, not a hard-coded flag', async () => {
+    const { key, pem } = makeCertAndKey();
+    sendMock.mockImplementation(async (cmd: { input: { Message: Uint8Array } }) => {
+      const md = nodeForge.md.sha256.create();
+      md.digest = () =>
+        nodeForge.util.createBuffer(Buffer.from(cmd.input.Message).toString('binary'));
+      const signature = key.sign(md);
+      return { Signature: Buffer.from(signature, 'binary') };
+    });
+    const env = envWith({
+      PDF_SIGNING_KMS_KEY_ID: 'arn:aws:kms:us-east-1:1:key/abc',
+      PDF_SIGNING_KMS_REGION: 'us-east-1',
+      PDF_SIGNING_KMS_CERT_PEM: pem,
+    });
+    const tokenAsn1 = nodeForge.asn1.create(
+      nodeForge.asn1.Class.UNIVERSAL,
+      nodeForge.asn1.Type.SEQUENCE,
+      true,
+      [],
+    );
+    const tokenDer = Buffer.from(nodeForge.asn1.toDer(tokenAsn1).getBytes(), 'binary');
+    const granted = {
+      configured: true,
+      timestamp: jest.fn(async () => ({
+        tokenDer,
+        genTime: '2026-04-29T12:00:00Z',
+        tsaUrl: 'https://tsa.example/tsr',
+        messageImprintSha256Hex: 'ab',
+      })),
+    } as unknown as TsaClient;
+    const failed = {
+      configured: true,
+      timestamp: jest.fn(async () => {
+        throw new Error('tsa_all_failed');
+      }),
+    } as unknown as TsaClient;
+    const pdf = await buildSamplePdf();
+
+    const withTimestamp = await new KmsPadesSigner(env, granted).sign(pdf);
+    const withoutTimestamp = await new KmsPadesSigner(env, failed).sign(pdf);
+
+    expect(withTimestamp.timestampApplied).toBe(true);
+    expect(withoutTimestamp.timestampApplied).toBe(false);
+    expect(withoutTimestamp.pdf.length).toBeGreaterThan(pdf.length);
   });
 
   it('throws when KMS env vars are missing', () => {

@@ -345,7 +345,7 @@ describeOrSkip('PAdES signing — KmsPadesSigner against LocalStack KMS (e2e)', 
   });
 
   it('signs a PDF — output carries /SubFilter /ETSI.CAdES.detached and /ByteRange', async () => {
-    const signed = await pades.sign(tinyPdf);
+    const signed = (await pades.sign(tinyPdf)).pdf;
     expect(signed.length).toBeGreaterThan(tinyPdf.length);
     const text = signed.toString('latin1');
     expect(text).toMatch(/\/SubFilter\s*\/ETSI\.CAdES\.detached/);

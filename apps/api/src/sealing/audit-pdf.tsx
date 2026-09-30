@@ -57,6 +57,9 @@ export interface AuditPdfInput {
    *  the PDF unchanged, so a completed file can still have a SHA-256 with
    *  no digital seal. */
   readonly cmsSealApplied: boolean;
+  /** True only when this seal embedded an RFC 3161 timestamp. A CMS seal
+   *  can exist without one (TSA failure degrades to PAdES B-B). */
+  readonly timestampApplied: boolean;
   /** Page count of the sealed PDF (after burn-in + PAdES). The sealed file
    *  has its own page count distinct from `envelope.original_pages`. Null
    *  for audit_only jobs where there is no sealed file. */
@@ -84,6 +87,7 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       signerDetails={input.signerDetails}
       sealedSha256={input.sealedSha256}
       cmsSealApplied={input.cmsSealApplied}
+      timestampApplied={input.timestampApplied}
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
@@ -953,6 +957,7 @@ interface DocumentRenderProps {
   signerDetails: ReadonlyArray<SignerAuditDetail>;
   sealedSha256: string | null;
   cmsSealApplied: boolean;
+  timestampApplied: boolean;
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
@@ -1008,7 +1013,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
           glossary is provided so the document can stand alone as a record of legal evidence in any
           subsequent proceeding.
         </Text>
-        <TermsGrid terms={TERMS_PAGE_3} />
+        <TermsGrid terms={termsPage3(sealMark(props))} />
         <PageFooter ctx={ctx} />
       </Page>
 
@@ -1053,10 +1058,15 @@ function verifyCopy(mark: SealMark): string {
   return 'If this audit trail is printed, scan the code or type the URL below to read this record. There is no sealed document for this request.';
 }
 
-function digitalSignatureCell(mark: SealMark): { value: string; check: boolean } {
+function digitalSignatureCell(
+  mark: SealMark,
+  timestampApplied: boolean,
+): { value: string; check: boolean } {
   if (mark === 'cms') {
     return {
-      value: 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available',
+      value: timestampApplied
+        ? 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available'
+        : 'Sealed · no timestamp',
       check: true,
     };
   }
@@ -1477,16 +1487,37 @@ function integrityCell(mark: SealMark): {
   };
 }
 
+function timestampCell(
+  mark: SealMark,
+  timestampApplied: boolean,
+): { label: string; value: string; sub: string; icon: readonly string[] } {
+  if (mark === 'cms' && !timestampApplied) {
+    return {
+      label: 'Timestamp',
+      value: 'No timestamp',
+      sub: 'The seal was applied without an RFC 3161 timestamp.',
+      icon: ICONS.clockCircle,
+    };
+  }
+  return {
+    label: 'Timestamp',
+    value: 'RFC 3161 when available',
+    sub: 'Added by an external timestamp authority when it responds.',
+    icon: ICONS.clockCircle,
+  };
+}
+
+function completionSub(mark: SealMark): string {
+  if (mark === 'cms') return 'From created to sealed.';
+  if (mark === 'hash-only') return 'From created to completed.';
+  return 'From created to the last event.';
+}
+
 function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   const mark = sealMark(ctx);
   const cells = [
     integrityCell(mark),
-    {
-      label: 'Timestamp',
-      value: 'RFC 3161 when available',
-      sub: 'Added by an external timestamp authority when it responds.',
-      icon: ICONS.clockCircle,
-    },
+    timestampCell(mark, ctx.timestampApplied),
     {
       label: 'Storage',
       value: 'Access-controlled',
@@ -1496,8 +1527,7 @@ function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
     {
       label: 'Completion',
       value: computeDurationText(ctx),
-      sub:
-        ctx.sealedSha256 !== null ? 'From created to sealed.' : 'From created to the last event.',
+      sub: completionSub(mark),
       icon: ICONS.check,
     },
   ];
@@ -1529,49 +1559,69 @@ interface TermDef {
   subItems?: ReadonlyArray<{ k: string; v: string }>;
 }
 
-const TERMS_PAGE_3: ReadonlyArray<TermDef> = [
-  {
-    num: '01',
-    name: 'Audit trail',
-    body: 'Also referred to as an attestation. A document that details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.',
-  },
-  {
-    num: '02',
-    name: 'Request',
-    body: 'The process of preparing a document to be signed by one or more people.',
-  },
-  {
-    num: '03',
-    name: 'Proposer',
-    body: 'The person — name and email address — who prepared the document and initiated the signature request.',
-  },
-  {
-    num: '04',
-    name: 'IP address',
-    body: 'A unique address that identifies a device on the internet or a local network and can provide context as to the whereabouts of the signer.',
-  },
-  {
-    num: '05',
-    name: 'Request identifier',
-    body: 'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.',
-  },
-  {
-    num: '06',
-    name: 'Signatory identifier',
-    body: 'The unique identifier of the individual who signed the document. The UUID is linked only to the signature in the document referenced by the request ID on this audit trail.',
-  },
-  {
-    num: '07',
-    name: 'Digital signature',
-    body: 'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. It shows whether the file has changed since sealing, and it includes an RFC 3161 timestamp when a timestamp authority responds. The seal identifies Seald as the sealer, not the signer.',
-  },
-  {
-    num: '08',
-    name: 'Verification check',
-    body: 'How the signer was identified:',
-    subItems: [{ k: 'Email', v: 'The signer opened a unique link sent to their email address.' }],
-  },
-];
+const AUDIT_TRAIL_TERM =
+  'Also referred to as an attestation. A document that details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.';
+
+const SEALED_REQUEST_ID_TERM =
+  'The unique reference number of the sealed document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain the audit trail and the sealed file.';
+
+const UNSEALED_REQUEST_ID_TERM =
+  'The unique reference number of the document. With this ID, anyone can look up the document on seald.nromomentum.com/verify, validate its authenticity, and obtain this audit trail.';
+
+const SEALED_DIGITAL_SIGNATURE_TERM =
+  'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. It shows whether the file has changed since sealing, and it includes an RFC 3161 timestamp when a timestamp authority responds. The seal identifies Seald as the sealer, not the signer.';
+
+const UNSEALED_DIGITAL_SIGNATURE_TERM =
+  'A PAdES digital seal that Seald adds to the completed PDF when a seal is applied. This file has no digital seal. The seal identifies Seald as the sealer, not the signer.';
+
+function termsPage3(mark: SealMark): ReadonlyArray<TermDef> {
+  const cms = mark === 'cms';
+  return [
+    {
+      num: '01',
+      name: 'Audit trail',
+      body: cms
+        ? AUDIT_TRAIL_TERM
+        : 'Also referred to as an attestation. This audit trail details specific information relating to each individual involved in the signing process, used as a record of legal evidence if required.',
+    },
+    {
+      num: '02',
+      name: 'Request',
+      body: 'The process of preparing a document to be signed by one or more people.',
+    },
+    {
+      num: '03',
+      name: 'Proposer',
+      body: 'The person — name and email address — who prepared the document and initiated the signature request.',
+    },
+    {
+      num: '04',
+      name: 'IP address',
+      body: 'A unique address that identifies a device on the internet or a local network and can provide context as to the whereabouts of the signer.',
+    },
+    {
+      num: '05',
+      name: 'Request identifier',
+      body: cms ? SEALED_REQUEST_ID_TERM : UNSEALED_REQUEST_ID_TERM,
+    },
+    {
+      num: '06',
+      name: 'Signatory identifier',
+      body: 'The unique identifier of the individual who signed the document. The UUID is linked only to the signature in the document referenced by the request ID on this audit trail.',
+    },
+    {
+      num: '07',
+      name: 'Digital signature',
+      body: cms ? SEALED_DIGITAL_SIGNATURE_TERM : UNSEALED_DIGITAL_SIGNATURE_TERM,
+    },
+    {
+      num: '08',
+      name: 'Verification check',
+      body: 'How the signer was identified:',
+      subItems: [{ k: 'Email', v: 'The signer opened a unique link sent to their email address.' }],
+    },
+  ];
+}
 
 const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   {
@@ -1730,7 +1780,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
     { label: 'Request identifier', value: env.id.toUpperCase(), mono: true },
     {
       label: 'Digital signature',
-      ...digitalSignatureCell(mark),
+      ...digitalSignatureCell(mark, ctx.timestampApplied),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
     {

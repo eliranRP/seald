@@ -16,7 +16,7 @@ import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
 import { buildAuditPdf } from './audit-pdf';
 import { DssInjector } from './dss-injector';
-import { NoopPadesSigner, PadesSigner } from './pades-signer';
+import { PadesSigner } from './pades-signer';
 
 /**
  * Sealing pipeline for terminal envelopes. Invoked by the worker when a
@@ -69,7 +69,8 @@ export class SealingService {
     const originalBytes = await this.storage.download(originalPath);
 
     const sealedBytes = await this.burnIn(envelope, originalBytes);
-    const btSignedBytes = await this.pades.sign(sealedBytes);
+    const signed = await this.pades.sign(sealedBytes);
+    const btSignedBytes = signed.pdf;
     // PAdES B-T → B-LT upgrade. The DssInjector pipeline (cert-chain
     // extraction + OCSP/CRL fetch + /DSS dictionary build) is wired here;
     // the injector itself returns the B-T bytes unchanged today because a
@@ -101,7 +102,8 @@ export class SealingService {
       sealedSha256: sealedSha,
       sealedPages,
       publicUrl: this.env.APP_PUBLIC_URL,
-      cmsSealApplied: !(this.pades instanceof NoopPadesSigner),
+      cmsSealApplied: this.pades.appliesCmsSeal,
+      timestampApplied: signed.timestampApplied,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
@@ -197,6 +199,7 @@ export class SealingService {
       sealedPages: null,
       publicUrl: this.env.APP_PUBLIC_URL,
       cmsSealApplied: false,
+      timestampApplied: false,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
