@@ -21,6 +21,7 @@ import { makeDriveUploader } from './drive-uploader.adapters';
 import { OAuthStateStore } from './oauth-pkce';
 import { FetchGoogleOAuthClient } from './google-oauth.client';
 import { GDriveRateLimiter } from './rate-limiter';
+import { DriveFilesService } from './drive-files.service';
 import { makeFilesProxy } from './files-proxy';
 
 export { GDRIVE_FILES_PROXY };
@@ -123,9 +124,11 @@ const DriveUploaderProvider: Provider = {
       }),
     },
     GDriveFilesProxyProvider,
+    DriveFilesService,
   ],
   exports: [
     GDriveService,
+    DriveFilesService,
     GDriveRateLimiter,
     GdriveExportService,
     GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,

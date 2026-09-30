@@ -3,7 +3,7 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY, type GDriveAccount, type GDriveRepository } from './gdrive.repository';
 import { TokenExpiredError } from './dto/error-codes';
-import type { GDriveTokenStatus } from './dto/account.dto';
+import type { GDriveAccountView, GDriveTokenStatus } from './dto/account.dto';
 
 /**
  * Adapter over the Google OAuth + token-refresh endpoints. Kept behind a
@@ -153,6 +153,22 @@ export class GDriveService {
 
   async listAccounts(userId: string): Promise<ReadonlyArray<GDriveAccount>> {
     return this.repo.listForUser(userId);
+  }
+
+  /**
+   * Public connection list for `GET /integrations/gdrive/accounts`.
+   * Soft-deleted rows are omitted. `tokenStatus` is the in-memory
+   * refresh flag — no extra Google call.
+   */
+  async listConnections(userId: string): Promise<ReadonlyArray<GDriveAccountView>> {
+    const rows = (await this.listAccounts(userId)).filter((row) => !row.deletedAt);
+    return rows.map((row) => ({
+      id: row.id,
+      email: row.googleEmail,
+      connectedAt: row.connectedAt,
+      lastUsedAt: row.lastUsedAt,
+      tokenStatus: this.getTokenStatus(row.id),
+    }));
   }
 
   /**

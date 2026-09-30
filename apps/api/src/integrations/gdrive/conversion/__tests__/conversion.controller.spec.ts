@@ -1,6 +1,7 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import { FEATURE_FLAGS } from 'shared';
 import type { AuthUser } from '../../../../auth/auth-user';
+import { DriveImportService } from '../../drive-import.service';
 import { ConversionController } from '../conversion.controller';
 import { ConversionGateway } from '../conversion.gateway';
 import { ConversionService } from '../conversion.service';
@@ -42,7 +43,8 @@ function makeCtrl(opts?: { capacity?: number; windowMs?: number }): {
     capacity: opts?.capacity ?? 30,
     windowMs: opts?.windowMs ?? 60_000,
   });
-  const ctrl = new ConversionController(svc as unknown as ConversionService, gateway, limiter);
+  const imports = new DriveImportService(svc as unknown as ConversionService, limiter, gateway);
+  const ctrl = new ConversionController(imports, gateway);
   return { ctrl, svc, gateway, limiter };
 }
 

@@ -37,6 +37,15 @@ export type {
   CreateTemplateInput,
   UpdateTemplateInput,
 } from './templates';
+export { expandTemplateLayout } from './template-layout';
+export type { ExpandedTemplateField } from './template-layout';
+export {
+  DRIVE_IMPORT_ERROR_CODES,
+  driveImportErrorCode,
+  driveImportStep,
+  pdfFileNameForDriveImport,
+} from './drive-import';
+export type { DriveImportErrorCode, DriveImportStep } from './drive-import';
 export {
   ENVELOPE_STATUSES,
   DELIVERY_MODES,
