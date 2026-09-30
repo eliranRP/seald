@@ -78,7 +78,7 @@ const VERSION = 'privacy_v0.1';
 
       <section id="transfers">
         <h2>5. International transfers</h2>
-        <p>Our database, object storage, and authentication services run on Supabase in the AWS eu-central-1 (Frankfurt) region. Our content delivery and DNS run on Cloudflare's global network. The API and PDF conversion servers run on AWS us-east-1, the sealing key (where KMS is used) is in us-east-2, and email is sent via Resend in the US.</p>
+        <p>Our database, object storage, and authentication services run on Supabase in the AWS eu-central-1 (Frankfurt) region. Our content delivery and DNS run on Cloudflare's global network. Our API and PDF conversion servers run on Amazon Web Services in the United States. Where we use AWS Key Management Service for document-sealing or token-wrapping keys, those keys are also held by AWS in the United States. Transactional email is sent through Resend, Inc., a U.S. company (see our Sub-processors list).</p>
         <p>For personal information originating in the EEA, the UK, or Switzerland and transferred to the United States, we rely on the following transfer mechanisms (in priority order):</p>
         <ul>
           <li><strong>EU-U.S. Data Privacy Framework ("DPF")</strong> and the UK Extension and Swiss-U.S. Framework, where the recipient is certified.</li>

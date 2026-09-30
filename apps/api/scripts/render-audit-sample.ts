@@ -225,6 +225,7 @@ async function main(): Promise<void> {
     events: completed.events,
     signerDetails: completed.signerDetails,
     sealedSha256: completed.sealedSha256,
+    cmsSealApplied: true,
     sealedPages: 9,
     publicUrl,
   });
@@ -235,6 +236,7 @@ async function main(): Promise<void> {
     events: declined.events,
     signerDetails: declined.signerDetails,
     sealedSha256: declined.sealedSha256,
+    cmsSealApplied: false,
     sealedPages: null,
     publicUrl,
   });

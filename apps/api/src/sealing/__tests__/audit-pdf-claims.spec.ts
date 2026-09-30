@@ -13,8 +13,8 @@ const GDRIVE_KMS_SERVICE = resolve(__dirname, '../../integrations/gdrive/gdrive-
 /**
  * Claims the certificate used to print as facts. A noop signer applies
  * no CMS seal, a timestamp is best-effort, and nothing deletes sealed
- * files on a timer. The renderer is not told which of those happened,
- * so the PDF states them as conditional.
+ * files on a timer. `cmsSealApplied` distinguishes a recorded hash from
+ * a CMS seal so a completed noop envelope is not described as sealed.
  */
 const RETIRED_RENDERED_CLAIMS = [
   'Seald, Inc.',
@@ -50,13 +50,18 @@ const SEALED_SIGNATURE_ROW = 'Sealed · PAdES seal when applied · RFC 3161 time
 describe('audit PDF rendered claims', () => {
   let sealedText = '';
   let unsealedText = '';
+  let noopText = '';
 
   beforeAll(async () => {
     const sealed = await buildAuditPdf(makeInput({ sealed: true, senderName: null }));
     const unsealed = await buildAuditPdf(makeInput({ sealed: false, senderName: 'Sam Guest' }));
+    const noop = await buildAuditPdf(
+      makeInput({ sealed: true, senderName: null, cmsSealApplied: false }),
+    );
     sealedText = normalizePdfText(extractPdfText(sealed));
     unsealedText = normalizePdfText(extractPdfText(unsealed));
-  }, 60_000);
+    noopText = normalizePdfText(extractPdfText(noop));
+  }, 90_000);
 
   it('states Legal’s conditional seal, timestamp, and storage wording', () => {
     for (const text of [sealedText, unsealedText]) {
@@ -102,6 +107,23 @@ describe('audit PDF rendered claims', () => {
     expect(sealedText).toContain('Account authentication when the sender was signed in');
     expect(sealedText).not.toContain('Verified via account authentication');
   });
+
+  it('does not call a completed noop-signer file sealed or verified', () => {
+    expect(noopText).toContain('not sealed');
+    expect(noopText).not.toContain('Verified');
+    expect(noopText).not.toContain('VERIFIED');
+    expect(noopText).toContain('Hash recorded');
+    expect(noopText).toContain(
+      'SHA-256 of the completed file is recorded. The file has no digital seal.',
+    );
+    expect(noopText).toContain(
+      'If this audit trail is printed, scan the code or type the URL below to compare the file with its recorded SHA-256 hash. This file has no digital seal.',
+    );
+    // JetBrains Mono extracts "g" as ")" ("di)ital"), so match the g-free prefix.
+    expect(noopText).toContain('Not applied');
+    expect(noopText).not.toContain('This document is sealed');
+    expect(noopText).not.toContain('SHA-256 hash matches the sealed document.');
+  });
 });
 
 describe('API source and email templates', () => {
@@ -119,12 +141,17 @@ describe('API source and email templates', () => {
   });
 });
 
-function makeInput(opts: { sealed: boolean; senderName: string | null }): {
+function makeInput(opts: {
+  sealed: boolean;
+  senderName: string | null;
+  cmsSealApplied?: boolean;
+}): {
   envelope: Envelope;
   events: ReadonlyArray<EnvelopeEvent>;
   signerDetails: ReadonlyArray<SignerAuditDetail>;
   sealedSha256: string | null;
   sealedPages: number | null;
+  cmsSealApplied: boolean;
   publicUrl: string;
 } {
   const envelopeId = '11111111-1111-4111-8111-111111111111';
@@ -219,6 +246,7 @@ function makeInput(opts: { sealed: boolean; senderName: string | null }): {
     signerDetails,
     sealedSha256,
     sealedPages: opts.sealed ? 2 : null,
+    cmsSealApplied: opts.cmsSealApplied ?? opts.sealed,
     publicUrl: 'https://seald.example',
   };
 }

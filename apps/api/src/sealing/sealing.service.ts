@@ -16,7 +16,7 @@ import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
 import { buildAuditPdf } from './audit-pdf';
 import { DssInjector } from './dss-injector';
-import { PadesSigner } from './pades-signer';
+import { NoopPadesSigner, PadesSigner } from './pades-signer';
 
 /**
  * Sealing pipeline for terminal envelopes. Invoked by the worker when a
@@ -101,6 +101,7 @@ export class SealingService {
       sealedSha256: sealedSha,
       sealedPages,
       publicUrl: this.env.APP_PUBLIC_URL,
+      cmsSealApplied: !(this.pades instanceof NoopPadesSigner),
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
@@ -195,6 +196,7 @@ export class SealingService {
       sealedSha256: null,
       sealedPages: null,
       publicUrl: this.env.APP_PUBLIC_URL,
+      cmsSealApplied: false,
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');

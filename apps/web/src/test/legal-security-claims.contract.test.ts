@@ -39,6 +39,10 @@ const RETIRED_CLAIMS = [
   'deletes or returns all Personal Data',
   'family-law instruments (ESIGN § 7003(a)(1))',
   'utility services (ESIGN § 7003(b)(2)(B)(i))',
+  'ESIGN § 7003(b)(2)(B)(ii)',
+  'ESIGN § 7003(b)(2)(B)(iii)',
+  'ESIGN § 7003(b)(2)(B)(iv)',
+  'ESIGN § 7003(b)(2)(B)(v)',
 ] as const;
 
 describe('legal page security claims', () => {
@@ -85,8 +89,10 @@ describe('legal page security claims', () => {
     );
     expect(source).toContain('(e.g. responding to lawful requests from authorities)');
     expect(source).toContain(
-      'The API and PDF conversion servers run on AWS us-east-1, the sealing key (where KMS is used) is in us-east-2, and email is sent via Resend in the US.',
+      'Our API and PDF conversion servers run on Amazon Web Services in the United States. Where we use AWS Key Management Service for document-sealing or token-wrapping keys, those keys are also held by AWS in the United States. Transactional email is sent through Resend, Inc., a U.S. company (see our Sub-processors list).',
     );
+    expect(source).not.toContain('us-east-1');
+    expect(source).not.toContain('us-east-2');
   });
 
   it('terms describe only verifiable controls', () => {
@@ -125,6 +131,10 @@ describe('legal page security claims', () => {
     );
     expect(source).toContain('family-law instruments (ESIGN § 7003(a)(2))');
     expect(source).toContain('utility services (ESIGN § 7003(b)(2)(A))');
+    expect(source).toContain('foreclosure, or eviction (ESIGN § 7003(b)(2)(B))');
+    expect(source).toContain('life-insurance benefits (ESIGN § 7003(b)(2)(C))');
+    expect(source).toContain('health or safety (ESIGN § 7003(b)(2)(D))');
+    expect(source).toContain('similar substances (ESIGN § 7003(b)(3))');
   });
 
   it('responsible disclosure scopes seal review to seals that were applied', () => {

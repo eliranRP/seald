@@ -33,8 +33,9 @@ import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
  *     titles, big signer rosters, and overflow no longer require ad-hoc
  *     truncation logic.
  *
- * Public surface is unchanged: `buildAuditPdf(input): Promise<Buffer>`.
- * The sealing service calls this for both `seal` and `audit_only` jobs.
+ * `buildAuditPdf(input): Promise<Buffer>`. The sealing service calls this
+ * for both `seal` and `audit_only` jobs. `cmsSealApplied` is false for the
+ * noop signer, so a recorded hash is not described as a digital seal.
  */
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,10 @@ export interface AuditPdfInput {
   /** SHA-256 hex of the sealed PDF; null for audit_only jobs (declined,
    *  expired). */
   readonly sealedSha256: string | null;
+  /** True only when the signer wrote a CMS seal. NoopPadesSigner returns
+   *  the PDF unchanged, so a completed file can still have a SHA-256 with
+   *  no digital seal. */
+  readonly cmsSealApplied: boolean;
   /** Page count of the sealed PDF (after burn-in + PAdES). The sealed file
    *  has its own page count distinct from `envelope.original_pages`. Null
    *  for audit_only jobs where there is no sealed file. */
@@ -78,6 +83,7 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       events={input.events}
       signerDetails={input.signerDetails}
       sealedSha256={input.sealedSha256}
+      cmsSealApplied={input.cmsSealApplied}
       sealedPages={input.sealedPages}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
@@ -946,6 +952,7 @@ interface DocumentRenderProps {
   events: ReadonlyArray<EnvelopeEvent>;
   signerDetails: ReadonlyArray<SignerAuditDetail>;
   sealedSha256: string | null;
+  cmsSealApplied: boolean;
   sealedPages: number | null;
   verifyUrl: string;
   qrDataUrl: string;
@@ -963,7 +970,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
     >
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
-        <Hero envelope={props.envelope} sealed={props.sealedSha256 !== null} />
+        <Hero envelope={props.envelope} mark={sealMark(props)} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -972,7 +979,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
           verifyUrl={props.verifyUrl}
           qrDataUrl={props.qrDataUrl}
           shortCode={props.envelope.short_code}
-          sealed={props.sealedSha256 !== null}
+          mark={sealMark(props)}
         />
         <PageFooter ctx={ctx} />
       </Page>
@@ -1023,6 +1030,40 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
 interface RenderCtx extends DocumentRenderProps {
   detailsBySigner: ReadonlyMap<string, SignerAuditDetail>;
+}
+
+/** `cms` is a CMS seal. `hash-only` is a completed file with a recorded
+ *  SHA-256 and no CMS seal (NoopPadesSigner). `none` is audit-only. */
+type SealMark = 'cms' | 'hash-only' | 'none';
+
+function sealMark(input: { sealedSha256: string | null; cmsSealApplied: boolean }): SealMark {
+  const sealed = input.sealedSha256 !== null && input.cmsSealApplied;
+  if (sealed) return 'cms';
+  if (input.sealedSha256 !== null && !input.cmsSealApplied) return 'hash-only';
+  return 'none';
+}
+
+function verifyCopy(mark: SealMark): string {
+  if (mark === 'cms') {
+    return 'If this audit trail is printed, scan the code or type the URL below to confirm the signature is valid and the file has not been altered since it was sealed.';
+  }
+  if (mark === 'hash-only') {
+    return 'If this audit trail is printed, scan the code or type the URL below to compare the file with its recorded SHA-256 hash. This file has no digital seal.';
+  }
+  return 'If this audit trail is printed, scan the code or type the URL below to read this record. There is no sealed document for this request.';
+}
+
+function digitalSignatureCell(mark: SealMark): { value: string; check: boolean } {
+  if (mark === 'cms') {
+    return {
+      value: 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available',
+      check: true,
+    };
+  }
+  if (mark === 'hash-only') {
+    return { value: 'Not applied (no digital seal)', check: false };
+  }
+  return { value: 'Not applicable (unsealed)', check: false };
 }
 
 /**
@@ -1106,10 +1147,11 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({ envelope, sealed }: { envelope: Envelope; sealed: boolean }): React.ReactElement {
-  const statusLabel = sealed ? 'Completed' : humanEnvelopeStatus(envelope.status);
+function Hero({ envelope, mark }: { envelope: Envelope; mark: SealMark }): React.ReactElement {
+  const completed = mark !== 'none';
+  const statusLabel = completed ? 'Completed' : humanEnvelopeStatus(envelope.status);
   const statusAt =
-    sealed && envelope.completed_at !== null ? envelope.completed_at : envelope.updated_at;
+    completed && envelope.completed_at !== null ? envelope.completed_at : envelope.updated_at;
   return (
     <View style={styles.hero}>
       <Text style={styles.heroKicker}>
@@ -1117,7 +1159,7 @@ function Hero({ envelope, sealed }: { envelope: Envelope; sealed: boolean }): Re
       </Text>
       <View style={styles.heroTitleRow}>
         <Text style={styles.heroTitle}>This document is</Text>
-        <Text style={styles.heroScript}>{sealed ? 'sealed' : 'not sealed'}</Text>
+        <Text style={styles.heroScript}>{mark === 'cms' ? 'sealed' : 'not sealed'}</Text>
         <Text style={styles.heroTitle}>.</Text>
       </View>
       <Text style={styles.heroSubtitle}>
@@ -1126,16 +1168,15 @@ function Hero({ envelope, sealed }: { envelope: Envelope; sealed: boolean }): Re
         fingerprint of the file before and after signing. Definitions for every field are on the
         last page.
       </Text>
-      {/* The renderer is not told whether this file got a CMS seal or
-          a timestamp. NoopPadesSigner returns the PDF unchanged, and a
-          TSA failure leaves a seal with no timestamp. A null sealed
-          hash means there is no sealed document at all. */}
+      {/* A timestamp is still best-effort after a CMS seal. A completed
+          file with no CMS seal (NoopPadesSigner) has a recorded hash
+          and is not sealed. A null hash means there is no completed file. */}
       <Text style={styles.heroOperator}>
         Seald · PAdES seal when applied · RFC 3161 timestamp when available
       </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
-        {sealed ? (
+        {mark === 'cms' ? (
           <>
             <Text style={styles.sealScript}>Sealed</Text>
             <Text style={styles.sealLabel}>Verified</Text>
@@ -1143,7 +1184,9 @@ function Hero({ envelope, sealed }: { envelope: Envelope; sealed: boolean }): Re
         ) : (
           <>
             <Text style={styles.sealLabel}>Not sealed</Text>
-            <Text style={styles.sealLabel}>{humanEnvelopeStatus(envelope.status)}</Text>
+            <Text style={styles.sealLabel}>
+              {mark === 'hash-only' ? 'Completed' : humanEnvelopeStatus(envelope.status)}
+            </Text>
           </>
         )}
       </View>
@@ -1240,12 +1283,12 @@ function VerifyCard({
   verifyUrl,
   qrDataUrl,
   shortCode,
-  sealed,
+  mark,
 }: {
   verifyUrl: string;
   qrDataUrl: string;
   shortCode: string;
-  sealed: boolean;
+  mark: SealMark;
 }): React.ReactElement {
   return (
     // wrap={false} so the QR + URL + CODE never split mid-card when
@@ -1254,11 +1297,7 @@ function VerifyCard({
       <View style={styles.verifyBody}>
         <Text style={styles.verifyEyebrow}>Verify this document</Text>
         <Text style={styles.verifyTitle}>Scan or visit to confirm authenticity</Text>
-        <Text style={styles.verifyCopy}>
-          {sealed
-            ? 'If this audit trail is printed, scan the code or type the URL below to confirm the signature is valid and the file has not been altered since it was sealed.'
-            : 'If this audit trail is printed, scan the code or type the URL below to read this record. There is no sealed document for this request.'}
-        </Text>
+        <Text style={styles.verifyCopy}>{verifyCopy(mark)}</Text>
         <View style={styles.verifyFieldRow}>
           <Text style={styles.verifyKey}>URL</Text>
           <Text style={styles.verifyVal}>{verifyUrl.replace(/^https?:\/\//, '')}</Text>
@@ -1408,21 +1447,40 @@ function EventIcon({ kind }: { kind: ParticipantEvent['kind'] }): React.ReactEle
   );
 }
 
+function integrityCell(mark: SealMark): {
+  label: string;
+  value: string;
+  sub: string;
+  icon: readonly string[];
+} {
+  if (mark === 'cms') {
+    return {
+      label: 'Integrity',
+      value: 'Verified',
+      sub: 'SHA-256 hash matches the sealed document.',
+      icon: ICONS.shieldCheck,
+    };
+  }
+  if (mark === 'hash-only') {
+    return {
+      label: 'Integrity',
+      value: 'Hash recorded',
+      sub: 'SHA-256 of the completed file is recorded. The file has no digital seal.',
+      icon: ICONS.shieldCheck,
+    };
+  }
+  return {
+    label: 'Integrity',
+    value: 'Audit chain',
+    sub: 'SHA-256 links each audit event to the one before it.',
+    icon: ICONS.shieldCheck,
+  };
+}
+
 function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
+  const mark = sealMark(ctx);
   const cells = [
-    ctx.sealedSha256 !== null
-      ? {
-          label: 'Integrity',
-          value: 'Verified',
-          sub: 'SHA-256 hash matches the sealed document.',
-          icon: ICONS.shieldCheck,
-        }
-      : {
-          label: 'Integrity',
-          value: 'Audit chain',
-          sub: 'SHA-256 links each audit event to the one before it.',
-          icon: ICONS.shieldCheck,
-        },
+    integrityCell(mark),
     {
       label: 'Timestamp',
       value: 'RFC 3161 when available',
@@ -1659,6 +1717,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
     terminalValue = deriveDeclinedAt(ctx) ?? formatDateTimeFull(env.updated_at);
   }
 
+  const mark = sealMark(ctx);
   return [
     { label: 'Proposer', value: proposer.name },
     { label: 'Proposer email', value: proposer.email, mono: true },
@@ -1671,11 +1730,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
     { label: 'Request identifier', value: env.id.toUpperCase(), mono: true },
     {
       label: 'Digital signature',
-      value:
-        ctx.sealedSha256 !== null
-          ? 'Sealed · PAdES seal when applied · RFC 3161 timestamp when available'
-          : 'Not applicable (unsealed)',
-      check: ctx.sealedSha256 !== null,
+      ...digitalSignatureCell(mark),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
     {
