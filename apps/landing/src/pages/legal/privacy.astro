@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'privacy_v0.2';
+const VERSION = 'privacy_v0.3';
 ---
 <BaseLayout
   title="Privacy Policy — Seald"
@@ -14,7 +14,7 @@ const VERSION = 'privacy_v0.2';
           <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-30</code></p>
         </section>
         <h1>Privacy Policy</h1>
-        <p>This Privacy Policy explains how Eliran Azulay, an individual resident in Israel who operates the Seald service under the name "Seald" ("<strong>Seald</strong>", "we", "us"), collects, uses, discloses, and protects personal information when you visit <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> or use the Seald e-signature service (the "<strong>Service</strong>"). It covers visitors and users in the United States, the European Economic Area ("<strong>EEA</strong>"), and the United Kingdom ("<strong>UK</strong>").</p>
+        <p>This Privacy Policy explains how Eliran Azulay, an individual resident in Israel who operates the Seald service under the name "Seald" ("<strong>Seald</strong>", "we", "us"), collects, uses, discloses, and protects personal information when you visit <a href="https://seald.nromomentum.com">seald.nromomentum.com</a> or use the Seald e-signature service (the "<strong>Service</strong>"). Seald is offered only to users in the United States and Israel. This Policy is written for them and is not directed to people in the European Economic Area, the United Kingdom, or Switzerland.</p>
       </header>
 
       <section id="controller">
@@ -23,7 +23,7 @@ const VERSION = 'privacy_v0.2';
         <dl>
           <dt>Privacy contact</dt><dd><a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a></dd>
           <dt>Postal address</dt><dd>Seald (Eliran Azulay), Chlenov 24, Tel Aviv-Yafo 6604806, Israel</dd>
-          <dt>Data Protection Officer</dt><dd>Seald has not appointed a DPO. Our processing does not meet the GDPR Article 37(1) thresholds (no large-scale processing of special categories, no large-scale systematic monitoring of public areas). All privacy enquiries are handled by the address above.</dd>
+          <dt>Privacy protection officer</dt><dd>Seald has not appointed a privacy protection officer. Seald is not one of the bodies required to appoint one under section 17B1 of the Protection of Privacy Law (as amended by Amendment 13). All privacy enquiries are handled by the operator at the address above.</dd>
         </dl>
       </section>
 
@@ -53,41 +53,39 @@ const VERSION = 'privacy_v0.2';
       </section>
 
       <section id="purposes">
-        <h2>3. Purposes and lawful bases</h2>
-        <p>Under the EU and UK General Data Protection Regulations ("<strong>GDPR</strong>" and "<strong>UK GDPR</strong>") we rely on the following lawful bases (Art. 6(1) GDPR):</p>
+        <h2>3. Why we use your information</h2>
+        <div class="legal-table-scroll" tabindex="0" role="region" aria-label="Why we use your information table">
         <table>
-          <thead><tr><th>Purpose</th><th>Lawful basis</th></tr></thead>
+          <thead><tr><th>Purpose</th><th>Why</th></tr></thead>
           <tbody>
-            <tr><td>Provide the Service (account creation, document handling, signing, sealing, audit trail)</td><td>Contract — Art. 6(1)(b)</td></tr>
-            <tr><td>Send transactional emails (signing invitations, completion notices, account notifications)</td><td>Contract — Art. 6(1)(b)</td></tr>
-            <tr><td>Maintain security, prevent fraud and abuse, debug</td><td>Legitimate interests — Art. 6(1)(f)</td></tr>
-            <tr><td>Comply with legal obligations (e.g. responding to lawful requests from authorities)</td><td>Legal obligation — Art. 6(1)(c)</td></tr>
-            <tr><td>Improve the Service through aggregated, non-identifying analytics</td><td>Legitimate interests — Art. 6(1)(f)</td></tr>
-            <tr><td>Send optional product or marketing email</td><td>Consent — Art. 6(1)(a)</td></tr>
+            <tr><td>Provide the Service (account creation, document handling, signing, sealing, audit trail)</td><td>To perform our agreement with you, or with the sender who invited you to sign</td></tr>
+            <tr><td>Send transactional emails (signing invitations, completion notices, account notifications)</td><td>To perform that agreement</td></tr>
+            <tr><td>Maintain security, prevent fraud and abuse, debug</td><td>To keep the Service and its users safe</td></tr>
+            <tr><td>Comply with legal obligations (e.g. responding to lawful requests from authorities)</td><td>Because the law requires it</td></tr>
+            <tr><td>Improve the Service through aggregated, non-identifying analytics</td><td>To improve the Service; the analytics beacon runs only if you accept it (see our <a href="/legal/cookies">Cookie Policy</a>)</td></tr>
+            <tr><td>Send optional product or marketing email</td><td>Only with your prior consent. We do not currently send marketing email.</td></tr>
           </tbody>
         </table>
-        <p>You can object to processing based on legitimate interests at any time (see Section 8).</p>
+        </div>
+        <p>You are not legally required to give us your information. Without it we cannot create an account for you or let you sign or send documents.</p>
       </section>
 
       <section id="recipients">
         <h2>4. Recipients and sub-processors</h2>
-        <p>We share personal information with service providers ("processors" / "service providers") who help us operate the Service. The current list, including transfer mechanisms, is available at <a href="/legal/sub-processors">/legal/sub-processors</a>. We do not sell personal information and we do not share it for cross-context behavioral advertising as those terms are defined under California's CPRA (Cal. Civ. Code § 1798.140(ad), (ah)).</p>
-        <p>We may disclose personal information to comply with a legally binding request from a public authority, to enforce our Terms, or to protect the rights, safety, or property of Seald or others. In a corporate transaction (merger, acquisition, financing, or sale of assets) personal information may be transferred to the successor entity subject to this Privacy Policy.</p>
+        <p>We share personal information with service providers ("processors" / "service providers") who help us operate the Service. The current list, including where each provider processes data, is available at <a href="/legal/sub-processors">/legal/sub-processors</a>. We do not sell personal information and we do not share it for cross-context behavioral advertising as those terms are defined under California's CPRA (Cal. Civ. Code § 1798.140(ad), (ah)).</p>
+        <p>We may disclose personal information to comply with a legally binding request from a public authority, to enforce our Terms, or to protect the rights, safety, or property of Seald or others. If the Service is transferred to a company formed to operate it, or to a buyer, personal information may be transferred to that successor, which will be bound by this Privacy Policy. We will notify you before such a transfer.</p>
       </section>
 
       <section id="transfers">
         <h2>5. International transfers</h2>
         <p>Our database, object storage, and authentication services run on Supabase in the AWS eu-central-1 (Frankfurt) region. Our content delivery and DNS run on Cloudflare's global network. Our API and PDF conversion servers run on Amazon Web Services in the United States. Where we use AWS Key Management Service for document-sealing or token-wrapping keys, those keys are also held by AWS in the United States. Transactional email is sent through Resend, Inc., a U.S. company (see our Sub-processors list).</p>
-        <p>For personal information originating in the EEA, the UK, or Switzerland and transferred to the United States, we rely on the following transfer mechanisms (in priority order):</p>
-        <ul>
-          <li><strong>EU-U.S. Data Privacy Framework ("DPF")</strong> and the UK Extension and Swiss-U.S. Framework, where the recipient is certified.</li>
-          <li><strong>Standard Contractual Clauses</strong> ("SCCs", Commission Implementing Decision (EU) 2021/914), Module 2 (controller-to-processor) or Module 3 (processor-to-processor), with the UK International Data Transfer Addendum or the UK International Data Transfer Agreement ("IDTA") for UK-origin data.</li>
-        </ul>
+        <p>This means your information is stored in Germany (an EU member state) and processed in the United States. If you are in Israel, we transfer your information abroad in accordance with Israel's Privacy Protection (Transfer of Data to Databases Abroad) Regulations, 5761-2001, and each provider has agreed in writing to protect it and not to pass it on except as we instruct. If you are in the United States, your information is stored outside the United States, in Germany.</p>
         <p>Questions about international transfers can be sent to <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>.</p>
       </section>
 
       <section id="retention">
         <h2>6. Retention</h2>
+        <div class="legal-table-scroll" tabindex="0" role="region" aria-label="Retention table">
         <table>
           <thead><tr><th>Category</th><th>Retention period</th></tr></thead>
           <tbody>
@@ -97,24 +95,20 @@ const VERSION = 'privacy_v0.2';
             <tr><td>Support correspondence</td><td>We don't currently delete support correspondence on a schedule, and we don't promise to keep it for any particular period.</td></tr>
           </tbody>
         </table>
+        </div>
       </section>
 
-      <section id="rights-eu-uk">
-        <h2>7. Your rights — EEA and UK</h2>
-        <p>If the GDPR or the UK GDPR applies to our processing of your personal information, you have the following rights:</p>
+      <section id="rights-israel">
+        <h2>7. Your rights — Israel</h2>
+        <p>Under Israel's Protection of Privacy Law, 5741-1981, as amended by Amendment 13 (the "<strong>Privacy Law</strong>"), you have the following rights with respect to information about you held by Seald:</p>
         <ul>
-          <li><strong>Access</strong> — Art. 15</li>
-          <li><strong>Rectification</strong> — Art. 16</li>
-          <li><strong>Erasure ("right to be forgotten")</strong> — Art. 17</li>
-          <li><strong>Restriction of processing</strong> — Art. 18</li>
-          <li><strong>Notification of recipients</strong> — Art. 19</li>
-          <li><strong>Data portability</strong> — Art. 20</li>
-          <li><strong>Objection</strong> — Art. 21, including an absolute right to object to direct marketing</li>
-          <li><strong>No solely-automated decisions with legal or similarly significant effect</strong> — Art. 22 (Seald does not currently make such decisions about you)</li>
-          <li><strong>Withdraw consent</strong> at any time where consent is the lawful basis</li>
-          <li><strong>Lodge a complaint</strong> with a supervisory authority — for example the Irish Data Protection Commission, the UK Information Commissioner's Office (ICO), or your local member-state authority</li>
+          <li><strong>Access</strong> (section 13) — to inspect the information about you that we hold, yourself or through a representative authorised in writing.</li>
+          <li><strong>Correction or deletion</strong> (section 14) — if the information is not correct, complete, clear or up to date, to ask us to correct or delete it. If we agree, we will make the change and notify anyone who received the information from us, as the regulations require. If we refuse, we will tell you.</li>
+          <li><strong>Removal from direct mailing</strong> (section 17F) — to ask in writing that your information be removed from any direct-mailing database. Seald does not currently use your information for direct mailing or sell it to others who do.</li>
         </ul>
-        <p>To exercise any of these rights, use our <a href="/dsar">privacy choices form</a> or email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. We will acknowledge within ten (10) business days and respond within one month, extendable by up to two further months for complex requests with notice. Service is free of charge unless your request is manifestly unfounded or excessive.</p>
+        <p>Where Seald holds information only on behalf of a customer (for example, a document a sender uploaded), we will tell you who the customer is and forward your request to them (section 13A).</p>
+        <p>To exercise these rights, email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a> or use our <a href="/dsar">privacy choices form</a>. You may also write to Seald (Eliran Azulay), Chlenov 24, Tel Aviv-Yafo 6604806, Israel. We may need to verify your identity. We will let you inspect your information, or tell you why we refuse, within twenty-one (21) days of receiving your request. We will act on a request to correct or delete information, or tell you why we refuse, within thirty (30) days. These periods are no longer than those in the Privacy Protection (Conditions for Inspection of Data and Procedures for Appeal) Regulations, 5741-1981, and we do not extend them. Requests are free of charge.</p>
+        <p>If we refuse your request, you may appeal to the competent Magistrates' Court within thirty (30) days of our refusal. You may also complain to Israel's Privacy Protection Authority (הרשות להגנת הפרטיות) at <a href="mailto:ppa@justice.gov.il">ppa@justice.gov.il</a> or through <a href="https://www.gov.il/en/departments/the_privacy_protection_authority" rel="noopener noreferrer" target="_blank">gov.il</a>.</p>
       </section>
 
       <section id="rights-us">
@@ -132,9 +126,9 @@ const VERSION = 'privacy_v0.2';
           <li><strong>Right of appeal</strong> if we deny a request (CO/CT/VA and others).</li>
           <li><strong>Right to non-retaliation</strong> for exercising any of these rights.</li>
         </ul>
-        <p>To exercise these rights, use our <a href="/dsar">privacy choices form</a> or email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. We will acknowledge within ten (10) business days and fulfill within forty-five (45) calendar days, extendable by up to forty-five (45) days with notice for complex requests. We may verify your identity by matching the information in your request against the information in your account. An authorized agent must provide written permission from the consumer.</p>
+        <p>To exercise these rights, use our <a href="/dsar">privacy choices form</a> or email <a href="mailto:privacy@seald.nromomentum.com">privacy@seald.nromomentum.com</a>. We will acknowledge within ten (10) business days and respond within twenty-one (21) days to a request to know or access your information and within thirty (30) days to any other request. If a request is genuinely complex, we may extend that period once, by up to forty-five (45) days, and will tell you why before the original period ends. Where Israeli law also applies, we follow its shorter deadlines without extension. We may verify your identity by matching the information in your request against the information in your account. An authorized agent must provide written permission from the consumer.</p>
         <h3>8.1 Global Privacy Control</h3>
-        <p>Seald honors the Global Privacy Control ("GPC") browser signal as a valid opt-out of "sale" and "sharing" under California's CCPA Regulations § 7025 and the equivalent universal-opt-out mechanisms required by Colorado and Connecticut. When we detect a GPC signal we treat it as an opt-out for the visiting browser; signed-in users can also record the choice on their account.</p>
+        <p>Seald does not sell personal information or share it for cross-context behavioral advertising. We still honor the Global Privacy Control ("GPC") browser signal: if your browser sends GPC and you have not made a choice, we treat it as a rejection of our optional analytics beacon (see our <a href="/legal/cookies">Cookie Policy</a>). A choice you make yourself through <strong>Manage cookie preferences</strong> stays in place until you change it.</p>
         <h3>8.2 12-month look-back</h3>
         <p>For California right-to-know requests we will report on the prior twelve (12) months of personal-information practices.</p>
       </section>

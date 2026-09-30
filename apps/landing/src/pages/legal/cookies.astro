@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'cookies_v0.3';
+const VERSION = 'cookies_v0.4';
 ---
 <BaseLayout
   title="Cookie Policy — Seald"
@@ -26,7 +26,7 @@ const VERSION = 'cookies_v0.3';
         <h2>2. Categories of cookies we use</h2>
         <p>Today the Service uses only two categories: strictly necessary cookies that always run, and a single optional analytics beacon that you can accept or reject. We do not currently operate any marketing, advertising, social-media, or personalization cookies — so the choice we ask you to make is binary, not per-category. If we ever add another non-essential cookie or beacon we will update this Policy and re-prompt for consent.</p>
         <h3>2.1 Strictly necessary</h3>
-        <p>These cookies are required for the Service to work. We do not ask for your consent to set them, because the law (ePrivacy Directive 2002/58/EC, Article 5(3)) treats them as strictly necessary for the service you have requested.</p>
+        <p>These cookies are required for the Service to work. We do not ask for your consent to set them, because they are strictly necessary for the service you have requested.</p>
         <h3>2.2 Analytics (privacy-friendly, consent-gated)</h3>
         <p>We use Cloudflare Web Analytics to count visits and understand which pages are popular. The Cloudflare beacon is designed to be cookieless and to use sampled, hashed visit signals rather than persistent identifiers. We still treat it as non-essential and gate it behind your consent.</p>
         <h3>2.3 Marketing</h3>
@@ -35,6 +35,7 @@ const VERSION = 'cookies_v0.3';
 
       <section id="list">
         <h2>3. Specific cookies and beacons</h2>
+        <div class="legal-table-scroll" tabindex="0" role="region" aria-label="Cookies and beacons table">
         <table>
           <thead>
             <tr>
@@ -51,13 +52,13 @@ const VERSION = 'cookies_v0.3';
               <td>Counts page views in aggregate. Cookieless by design; transmits a sampled visit signal to Cloudflare.</td>
               <td>Third party (Cloudflare, Inc.)</td>
               <td>Per page view; no persistent storage</td>
-              <td>Analytics — consent required in EEA / UK / Switzerland</td>
+              <td>Analytics — runs only if you accept</td>
             </tr>
             <tr>
               <th scope="row"><code>seald_consent_v1</code></th>
               <td>Records your cookie-banner choice so we do not ask again on every page.</td>
               <td>First party</td>
-              <td>Up to 12 months (EDPB 03/2022 maximum)</td>
+              <td>Up to 12 months</td>
               <td>Strictly necessary</td>
             </tr>
             <tr>
@@ -76,12 +77,13 @@ const VERSION = 'cookies_v0.3';
             </tr>
           </tbody>
         </table>
+        </div>
         <p>If we add another cookie or beacon we will update this table and re-prompt for consent if it falls into the analytics or marketing category.</p>
       </section>
 
       <section id="banner">
         <h2>4. Our consent banner — Reject as easy as Accept</h2>
-        <p>If you visit the Site from the EEA, the UK, or Switzerland, we show a consent banner before any non-essential cookie or beacon fires. Following the European Data Protection Board's Guidelines 03/2022 on dark patterns:</p>
+        <p>Before any non-essential cookie or beacon fires, we show a consent banner. If your browser sends Global Privacy Control and you have not already chosen, we record a rejection and do not show the banner. When we do show the banner:</p>
         <ul>
           <li>The "Reject" button is shown with the same prominence as the "Accept" button.</li>
           <li>No option is pre-ticked.</li>
@@ -89,7 +91,7 @@ const VERSION = 'cookies_v0.3';
           <li>You can withdraw your consent at any time, with the same ease as giving it, by clicking <strong>Manage cookie preferences</strong> in the footer of every page.</li>
           <li>Continued browsing is never treated as consent.</li>
         </ul>
-        <p>We honor the Global Privacy Control browser signal as an opt-out for the analytics category, in line with California CCPA Regulations § 7025 and the universal-opt-out mechanisms required by Colorado and Connecticut.</p>
+        <p>If your browser sends the Global Privacy Control ("GPC") signal and you have not made a choice, we treat it as a rejection of the analytics beacon and nothing non-essential fires. We record that rejection in the strictly necessary <code>seald_consent_v1</code> cookie so we don't ask again. If you accepted analytics before turning GPC on, or accept later through <strong>Manage cookie preferences</strong>, that choice stays in place until you change it.</p>
       </section>
 
       <section id="control">

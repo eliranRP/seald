@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * The save action on the signing-done card must stay inside the card on a
@@ -41,6 +41,43 @@ const VERIFY = {
   audit_url: 'https://signed.example/audit.pdf?sig=layout',
 };
 
+/**
+ * The page loads Inter from Google Fonts with font-display: swap.
+ * document.fonts.ready can settle before that stylesheet is applied,
+ * and the fallback face is wide enough to wrap the save button onto
+ * the next line. Wait until Inter is the face in use, then one frame.
+ * If the face never arrives, the layout assertion still runs unchanged.
+ */
+async function waitForFonts(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[rel="stylesheet"][href*="fonts.googleapis.com"]',
+    );
+    if (link && link.sheet === null) {
+      await new Promise<void>((resolve) => {
+        link.addEventListener('load', () => resolve(), { once: true });
+        link.addEventListener('error', () => resolve(), { once: true });
+      });
+    }
+    await document.fonts.ready;
+    const spec = '600 16px Inter';
+    try {
+      await document.fonts.load(spec);
+    } catch {
+      // A blocked font request must not skip the layout check.
+    }
+    const deadline = performance.now() + 5000;
+    while (!document.fonts.check(spec) && performance.now() < deadline) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 50);
+      });
+    }
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}
+
 /** Large button horizontal padding is theme.space[5]. */
 async function expectSharedLgPadding(button: Locator) {
   const padding = await button.evaluate((el) => {
@@ -73,6 +110,7 @@ test.describe('signing-done save button layout', () => {
     test(`save button stays inside the card at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await page.goto(`/sign/${ENVELOPE_ID}/done`);
+      await waitForFonts(page);
 
       const button = page.getByRole('button', { name: /save to my seald account/i });
       const card = page.getByRole('region', { name: /create your free seald account/i });
@@ -132,6 +170,7 @@ test.describe('signing-done save button layout', () => {
 
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await page.goto(`/sign/${ENVELOPE_ID}/done`);
+      await waitForFonts(page);
 
       const button = page.getByRole('button', { name: /save to my seald account/i });
       const card = page.getByRole('region', { name: /create your free seald account/i });
@@ -186,6 +225,7 @@ test.describe('signing-done save button layout', () => {
   test('shipped save label at 544px stays in the row or fills the next line', async ({ page }) => {
     await page.setViewportSize({ width: 544, height: 900 });
     await page.goto(`/sign/${ENVELOPE_ID}/done`);
+    await waitForFonts(page);
 
     const button = page.getByRole('button', { name: /save to my seald account/i });
     const email = page.getByRole('textbox', { name: /your email/i });
@@ -220,6 +260,7 @@ test.describe('signing-done save button layout', () => {
 
     await page.setViewportSize({ width: 544, height: 900 });
     await page.goto(`/sign/${ENVELOPE_ID}/done`);
+    await waitForFonts(page);
 
     const button = page.getByRole('button', { name: /save to my seald account/i });
     await expect(button).toBeVisible();

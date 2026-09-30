@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '@/layouts/BaseLayout.astro';
-const VERSION = 'sub_processors_v0.2';
+const VERSION = 'sub_processors_v0.3';
 ---
 <BaseLayout
   title="Sub-processors — Seald"
@@ -14,7 +14,7 @@ const VERSION = 'sub_processors_v0.2';
           <p class="meta">Version: <code>{VERSION}</code> · Last updated: <code>2026-09-30</code></p>
         </section>
         <h1>Sub-processors</h1>
-        <p>Seald engages a small number of trusted Sub-processors to operate the Service. This page lists each Sub-processor, the processing role, the location of the processing, and the international-transfer mechanism used for personal data originating in the EEA, UK, or Switzerland. The list is maintained under our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
+        <p>Seald engages a small number of trusted Sub-processors to operate the Service. This page lists each Sub-processor, the processing role, where the processing takes place, and the basis on which we transfer personal information to it. The list is maintained under our <a href="/legal/dpa">Data Processing Agreement</a>.</p>
       </header>
 
       <section id="subscribe">
@@ -25,13 +25,14 @@ const VERSION = 'sub_processors_v0.2';
 
       <section id="list">
         <h2>2. Current Sub-processors</h2>
+        <div class="legal-table-scroll" tabindex="0" role="region" aria-label="Sub-processors table">
         <table>
           <thead>
             <tr>
               <th scope="col">Legal name</th>
               <th scope="col">Processing role</th>
               <th scope="col">Location</th>
-              <th scope="col">Transfer mechanism</th>
+              <th scope="col">Transfer basis</th>
             </tr>
           </thead>
           <tbody>
@@ -39,34 +40,35 @@ const VERSION = 'sub_processors_v0.2';
               <th scope="row">Supabase Inc.</th>
               <td>Managed PostgreSQL database, object storage, and authentication. Processes envelope metadata, audit events, account profiles, document files.</td>
               <td>EU (AWS eu-central-1, Frankfurt)</td>
-              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+              <td>EU member state (Germany); written data-processing terms (Israel Transfer Regulations, 5761-2001)</td>
             </tr>
             <tr>
               <th scope="row">Amazon Web Services, Inc.</th>
               <td>Cryptographic key service (KMS) when used for document-sealing or token-wrapping keys, plus Secrets Manager and compute (EC2).</td>
               <td>United States</td>
-              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+              <td>Written data-processing terms (Israel Transfer Regulations, 5761-2001)</td>
             </tr>
             <tr>
               <th scope="row">Resend, Inc.</th>
               <td>Transactional email delivery (signing invitations, completion notices, account notifications).</td>
               <td>United States</td>
-              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+              <td>Written data-processing terms (Israel Transfer Regulations, 5761-2001)</td>
             </tr>
             <tr>
               <th scope="row">Cloudflare, Inc.</th>
               <td>DNS, content delivery network, Cloudflare Pages hosting for the marketing site, and the Cloudflare Web Analytics insights beacon.</td>
               <td>Global edge, United States headquarters</td>
-              <td>EU-U.S. Data Privacy Framework certification; SCCs Module 2 with UK Addendum where applicable</td>
+              <td>Written data-processing terms (Israel Transfer Regulations, 5761-2001)</td>
             </tr>
             <tr>
               <th scope="row">GitHub, Inc.</th>
               <td>Source-code hosting and CI/CD. Processes commit metadata and authorized contributor identifiers; does not process Customer Content.</td>
               <td>United States</td>
-              <td>EU-U.S. Data Privacy Framework certification (via parent Microsoft Corporation); SCCs Module 2 with UK Addendum where applicable</td>
+              <td>No Customer Content; GitHub data-protection terms</td>
             </tr>
           </tbody>
         </table>
+        </div>
         <p>Seald has not obtained SOC 2 Type II, ISO 27001, or any qualified-trust-service-provider recognition; the certifications listed above belong to the named Sub-processors.</p>
       </section>
 

@@ -2252,12 +2252,13 @@ footer {
   padding-top: 28px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 8px 24px;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
 }
-
 /* ===== MINIMAL FOOTER (BaseLayout, every page except /) =====
    Issue #39 — the manage-cookies button MUST be reachable from every
    marketing/legal/contact/dsar surface. Kept visually quiet so it does
@@ -2309,6 +2310,9 @@ footer {
   margin: 16px 0 0 0;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.5);
+}
+.minimal-footer-copy.footer-availability {
+  margin-top: 4px;
 }
 
 .reveal {
@@ -2558,10 +2562,19 @@ footer {
 /* Tables — used by cookies, sub-processors, privacy, terms, DPA.
    The wrapper handles mobile overflow without forcing the whole page
    to horizontally scroll. */
+.legal-table-scroll {
+  max-width: 100%;
+  margin: 12px 0 16px;
+  overflow-x: auto;
+}
+.legal-table-scroll:focus-visible {
+  outline: 2px solid var(--indigo-500);
+  outline-offset: 2px;
+}
 .legal article table {
   width: 100%;
   border-collapse: collapse;
-  margin: 12px 0 16px;
+  margin: 0;
   font-size: var(--fs-body-sm);
 }
 .legal article th,

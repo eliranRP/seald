@@ -4,7 +4,8 @@
 // Responsibilities:
 //   - SEO meta (title, description, canonical, robots)
 //   - Open Graph + Twitter Card
-//   - JSON-LD (Organization + WebSite + SoftwareApplication)
+//   - JSON-LD (Organization + WebSite + SoftwareApplication), only
+//     while SEO_INDEXING_ENABLED is true
 //   - Favicon + apple-touch-icon + webmanifest
 //   - Cloudflare Web Analytics beacon (token left empty — see CLAUDE.md)
 //   - Global stylesheet
@@ -13,6 +14,7 @@
 // via props, then drop their content in the <slot/>.
 
 import '@/styles/globals.css';
+import { SEO_INDEXING_ENABLED } from '../../indexing.config.js';
 import { toPublicPath } from '@/public-path.js';
 
 export interface Props {
@@ -47,6 +49,9 @@ const {
   noindex = false,
   minimalFooter = true,
 } = Astro.props;
+
+// Indexing temporarily disabled. See docs/seo-indexing.md.
+const indexable = SEO_INDEXING_ENABLED && !noindex;
 
 // Resolve canonical against the configured site so relative paths work.
 // Fallback explicitly to the production canonical hostname per CLAUDE.md
@@ -154,10 +159,13 @@ const jsonLd = JSON.stringify({
 
     <title>{title}</title>
     <meta name="description" content={description} />
-    {!noindex && <link rel="canonical" href={canonicalUrl} />}
-    {noindex
-      ? <meta name="robots" content="noindex, nofollow" />
-      : <meta name="robots" content="index, follow, max-image-preview:large" />}
+    {indexable && <link rel="canonical" href={canonicalUrl} />}
+    <meta
+      name="robots"
+      content={
+        indexable ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'
+      }
+    />
     <meta name="google-site-verification" content="H_Xstu_43x0SSxeQggMkWFsRP9NaQEWEYwXau19TwaA" />
 
     <!-- Theme -->
@@ -191,11 +199,8 @@ const jsonLd = JSON.stringify({
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Sitemap discovery. The index lives at /sitemap.xml (see robots.txt). -->
-    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
-
-    <!-- JSON-LD: one @graph. Organization is stable across pages. -->
-    <script type="application/ld+json" set:html={jsonLd} />
+    {indexable && <link rel="sitemap" type="application/xml" href="/sitemap.xml" />}
+    {SEO_INDEXING_ENABLED && <script type="application/ld+json" set:html={jsonLd} />}
 
     <!--
       Cookie consent (T-30, /legal/cookies §4).
@@ -249,6 +254,7 @@ const jsonLd = JSON.stringify({
             </button>
           </nav>
           <p class="minimal-footer-copy">© 2026 Seald — Put your name to it.</p>
+          <p class="minimal-footer-copy footer-availability">Available in the United&nbsp;States and Israel.</p>
         </div>
       </footer>
     ) : null}
