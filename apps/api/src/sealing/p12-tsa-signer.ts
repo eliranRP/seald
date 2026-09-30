@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Signer } from '@signpdf/utils';
 import forge from 'node-forge';
-import type { AppEnv } from '../config/env.schema';
 import { TsaClient } from './tsa-client';
 
 /**
@@ -163,17 +162,6 @@ export class P12TsaSigner extends Signer {
     const der = forge.asn1.toDer(pkcs7Asn1).getBytes();
     return Buffer.from(der, 'binary');
   }
-}
-
-/**
- * Factory helper kept outside the class so SealingModule can `new` it
- * when both the P12 env vars and a TSA URL are present.
- */
-export function createP12TsaSigner(env: AppEnv, tsa: TsaClient, p12Bytes: Buffer): P12TsaSigner {
-  if (!env.PDF_SIGNING_LOCAL_P12_PASS) {
-    throw new Error('P12TsaSigner requires PDF_SIGNING_LOCAL_P12_PASS');
-  }
-  return new P12TsaSigner(p12Bytes, env.PDF_SIGNING_LOCAL_P12_PASS, tsa);
 }
 
 // --------------------------------------------------------------------

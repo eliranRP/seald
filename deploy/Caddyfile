@@ -47,7 +47,7 @@
 #   - apps/web/      ← React SPA source
 #   - .github/workflows/deploy-cloudflare.yml  ← merged-build deploy
 #
-# This Caddy stack is now API-only. WEB_DOMAIN is no longer used by
-# this config; it's kept as an env var for backwards compatibility
-# with docker-compose until the next compose refresh.
+# This Caddy stack is API-only. Compose still passes WEB_DOMAIN so
+# host env files that prod-restore requires stay valid; this file
+# does not read it, and it does not serve /srv/web.
 # ---------------------------------------------------------------------

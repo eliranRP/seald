@@ -409,8 +409,8 @@ enabled on that Supabase project. Without it, "Skip — try it without an
 account" stays on `/signin` and shows an error.
 
 Full stack in Docker: root `docker-compose.yml` runs `api` (migrations on
-boot), `gotenberg` (no public port), and `caddy`. `deploy/docker-compose.yml`
-is a leftover Gotenberg-only file.
+boot), `gotenberg` (no public port), and `caddy`. Deploy SSH uses that
+file only.
 
 ## How to test and build
 

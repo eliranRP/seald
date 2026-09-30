@@ -54,14 +54,14 @@ Triggers:
   - `deploy/terraform/**`
   - `.github/workflows/terraform.yml`
   - `apps/web/**`
-  - `.github/workflows/deploy-web.yml`
 - `workflow_dispatch` with input `ref` (branch, tag, or SHA; default
   `main`)
 
 A web-only push does not rebuild the API. A push that touches
 `packages/shared/**` or `apps/api/**` does. Docs-only pushes do not.
 
-There is no `deploy-web.yml` in the repo. The ignore entry is leftover.
+The site deploy is `deploy-cloudflare.yml`. There is no
+`deploy-web.yml`.
 
 Concurrency group `deploy`, `cancel-in-progress: false`.
 

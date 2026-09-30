@@ -505,13 +505,3 @@ function hexToBinary(hex: string): string {
   }
   return out;
 }
-
-/**
- * Load an X.509 certificate from PEM bytes (string or Buffer).
- * Surfaced as a top-level helper so the module factory can resolve
- * `PDF_SIGNING_KMS_CERT_PEM` / `PDF_SIGNING_KMS_CERT_PEM_PATH` once
- * at boot and pass the parsed cert into the signer constructor.
- */
-export function loadCertificateFromPem(pem: string): forge.pki.Certificate {
-  return forge.pki.certificateFromPem(pem);
-}
