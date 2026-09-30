@@ -1,14 +1,16 @@
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
-import type { TemplateFieldType } from 'shared';
+import {
+  TEMPLATE_GRID_HEIGHT_FALLBACK,
+  templateFieldToEditorPixels,
+  type TemplateFieldType,
+} from 'shared';
 import type { ResolvedField } from './templates';
 
 /**
- * Editor field kinds use the singular/plural variants the design guide
- * picked (`initials`, `email` exist on the editor side; `initial` /
- * no-`email` on the template side). Centralized here so both reuse
- * paths (TemplateEditorRoute, UploadRoute) share the mapping without
- * duplicating it across routes.
+ * Editor field kinds use `initials` where the template stores `initial`.
+ * `email` is the same spelling on both sides. Centralized here so both
+ * reuse paths (TemplateEditorRoute, UploadRoute) share the mapping.
  */
 const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
   signature: 'signature',
@@ -16,6 +18,7 @@ const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
   date: 'date',
   text: 'text',
   checkbox: 'checkbox',
+  email: 'email',
 };
 
 /**
@@ -62,6 +65,7 @@ export interface RebindSigner {
 export function rebindFieldsToSigners(
   resolved: ReadonlyArray<ResolvedField>,
   signers: ReadonlyArray<RebindSigner>,
+  gridHeight: number = TEMPLATE_GRID_HEIGHT_FALLBACK,
 ): ReadonlyArray<PlacedFieldValue> {
   const signerById = new Map(signers.map((s) => [s.id, s]));
   const out: PlacedFieldValue[] = [];
@@ -83,13 +87,16 @@ export function rebindFieldsToSigners(
       // Pre-signerIndex legacy: best-effort fallback to signers[0].
       targetSignerId = signers[0]?.id;
     }
+    const pixels = templateFieldToEditorPixels(rf, gridHeight);
     out.push({
       id: rf.id,
       page: rf.page,
       type: TEMPLATE_TO_FIELD_KIND[rf.type],
-      x: rf.x,
-      y: rf.y,
+      x: pixels.x,
+      y: pixels.y,
       signerIds: targetSignerId !== undefined ? [targetSignerId] : [],
+      ...(pixels.width !== undefined ? { width: pixels.width } : {}),
+      ...(pixels.height !== undefined ? { height: pixels.height } : {}),
       // Carry the linked-copy id through to the editor so the
       // "delete from all pages or just this one?" dialog fires when
       // the user removes one peer of a multi-page rule.

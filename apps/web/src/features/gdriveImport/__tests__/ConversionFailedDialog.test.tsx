@@ -45,6 +45,7 @@ describe('ConversionFailedDialog', () => {
     'oauth-declined',
     'conversion-failed',
     'rate-limited',
+    'import-failed',
   ] as const)('has a copy entry for %s', (code) => {
     expect(MESSAGES[code as keyof typeof MESSAGES]).toBeTruthy();
   });

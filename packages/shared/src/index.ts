@@ -37,6 +37,21 @@ export type {
   CreateTemplateInput,
   UpdateTemplateInput,
 } from './templates';
+export { expandTemplateLayout } from './template-layout';
+export type { ExpandedTemplateField } from './template-layout';
+export {
+  TEMPLATE_COORD_VERSION,
+  TEMPLATE_FIELD_DEFAULT_PX,
+  TEMPLATE_GRID_HEIGHT_FALLBACK,
+  TEMPLATE_GRID_WIDTH,
+  normalizeTemplateFieldBox,
+  templateFieldToEditorPixels,
+  templateGridHeight,
+  toTemplateCoordV2,
+} from './template-coords';
+export type { NormalizedTemplateBox, TemplatePageAspect } from './template-coords';
+export { driveImportErrorCode, driveImportStep, pdfFileNameForDriveImport } from './drive-import';
+export type { DriveImportErrorCode } from './drive-import';
 export {
   ENVELOPE_STATUSES,
   DELIVERY_MODES,

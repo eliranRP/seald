@@ -3,8 +3,6 @@ import { Throttle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator';
 import { VerifyService, type VerifyResponse } from './verify.service';
 
-export type { VerifyResponse };
-
 /**
  * Public, unauthenticated verification surface. Anyone with the envelope's
  * 13-char short_code can pull the metadata + event timeline + pre-signed

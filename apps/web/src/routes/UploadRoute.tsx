@@ -11,6 +11,7 @@ import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
 import { pickAvailableColor } from '../features/signers/pickAvailableColor';
+import { CANVAS_HEIGHT_FALLBACK, CANVAS_WIDTH } from '../lib/canvas-coords';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
 import type { ImportPhase } from '../features/gdriveImport';
@@ -97,7 +98,7 @@ export function UploadRoute() {
   const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>(
     () => initialHandoff?.templateSigners ?? [],
   );
-  const { numPages } = usePdfDocument(pdfFile);
+  const { doc: pdfDoc, numPages } = usePdfDocument(pdfFile);
 
   /**
    * Live-subscribed list of templates. Drives the "Start from a
@@ -297,55 +298,74 @@ export function UploadRoute() {
 
   const handleConfirm = useCallback(() => {
     if (!pdfFile || selectedSigners.length === 0) return;
-    const resolvedPages = Math.max(1, numPages);
-    const id = createDocument(pdfFile, resolvedPages);
-
-    // Pre-populate fields when the sender came from a template. Pages
-    // that don't exist on the new PDF (e.g. layout asks for `page: 5`
-    // on a 3-page upload) are filtered out by `resolveTemplateFields`;
-    // we surface a console warning so the dropoff is observable.
-    let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
-    if (template) {
-      // Pass `lastSigners` so the resolver backfills `signerRoleId`
-      // for legacy templates — keeps the rebind stable when the user
-      // mid-list-removes a signer in the wizard.
-      const resolved = resolveTemplateFields(template.fields, resolvedPages, template.lastSigners);
-      pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
-      if (resolvedPages < template.pages) {
-        // Use console.warn so the SPA's debug build flags the gap. The
-        // banner already informs the user; this is for engineering.
-        console.warn(
-          `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
-        );
+    const run = async (): Promise<void> => {
+      const resolvedPages = Math.max(1, numPages);
+      const hasV2 = template?.fields.some((field) => field.coordVersion === 2) ?? false;
+      let gridH = CANVAS_HEIGHT_FALLBACK;
+      if (hasV2 && pdfDoc) {
+        try {
+          const page = await pdfDoc.getPage(1);
+          const vp = page.getViewport({ scale: 1 });
+          if (vp.width > 0) gridH = CANVAS_WIDTH * (vp.height / vp.width);
+        } catch {
+          gridH = CANVAS_HEIGHT_FALLBACK;
+        }
       }
-      // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
-      // once the templates service lands. Today we just log; the local
-      // `TEMPLATES` array is read-only seed data.
-      console.info(`[templates] uses_count++ for ${template.id}`);
-    }
+      const id = createDocument(pdfFile, resolvedPages);
 
-    // `fromTemplateId` lets the editor render the contextual banner
-    // and trigger the SendConfirmDialog when the user later sends.
-    // `fromTemplateFreshUpload` flips when the user came in via the
-    // wizard's "Upload a new one" branch (the saved layout adapted
-    // to a different doc, vs. landing on the saved example).
-    const cameFromUpload = initialHandoff?.pendingFile != null;
-    updateDocument(id, {
-      signers: selectedSigners.map((s) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email,
-        color: s.color,
-      })),
-      ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
-      ...(template ? { fromTemplateId: template.id } : {}),
-      ...(template && cameFromUpload ? { fromTemplateFreshUpload: true } : {}),
-    });
-    setPdfFile(null);
-    setSelectedSigners([]);
-    navigate(`/document/${id}`);
+      // Pre-populate fields when the sender came from a template. Pages
+      // that don't exist on the new PDF (e.g. layout asks for `page: 5`
+      // on a 3-page upload) are filtered out by `resolveTemplateFields`;
+      // we surface a console warning so the dropoff is observable.
+      let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
+      if (template) {
+        // Pass `lastSigners` so the resolver backfills `signerRoleId`
+        // for legacy templates — keeps the rebind stable when the user
+        // mid-list-removes a signer in the wizard.
+        const resolved = resolveTemplateFields(
+          template.fields,
+          resolvedPages,
+          template.lastSigners,
+        );
+        pendingFields = rebindFieldsToSigners(resolved, selectedSigners, gridH);
+        if (resolvedPages < template.pages) {
+          // Use console.warn so the SPA's debug build flags the gap. The
+          // banner already informs the user; this is for engineering.
+          console.warn(
+            `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
+          );
+        }
+        // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
+        // once the templates service lands. Today we just log; the local
+        // `TEMPLATES` array is read-only seed data.
+        console.info(`[templates] uses_count++ for ${template.id}`);
+      }
+
+      // `fromTemplateId` lets the editor render the contextual banner
+      // and trigger the SendConfirmDialog when the user later sends.
+      // `fromTemplateFreshUpload` flips when the user came in via the
+      // wizard's "Upload a new one" branch (the saved layout adapted
+      // to a different doc, vs. landing on the saved example).
+      const cameFromUpload = initialHandoff?.pendingFile != null;
+      updateDocument(id, {
+        signers: selectedSigners.map((s) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          color: s.color,
+        })),
+        ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
+        ...(template ? { fromTemplateId: template.id } : {}),
+        ...(template && cameFromUpload ? { fromTemplateFreshUpload: true } : {}),
+      });
+      setPdfFile(null);
+      setSelectedSigners([]);
+      navigate(`/document/${id}`);
+    };
+    void run();
   }, [
     pdfFile,
+    pdfDoc,
     selectedSigners,
     createDocument,
     updateDocument,

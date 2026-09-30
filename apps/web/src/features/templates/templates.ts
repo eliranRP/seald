@@ -14,7 +14,7 @@
  * backend (`feat/templates-api` PR) will replace it with a real query.
  */
 
-import type { TemplateField, TemplateFieldType } from 'shared';
+import { expandTemplateLayout, type TemplateField, type TemplateFieldType } from 'shared';
 
 export type { TemplateFieldType, TemplatePageRule } from 'shared';
 /** Local alias kept for back-compat — same shape as the shared `TemplateField`. */
@@ -161,6 +161,9 @@ export interface ResolvedField {
   readonly type: TemplateFieldType;
   readonly x: number;
   readonly y: number;
+  readonly width?: number;
+  readonly height?: number;
+  readonly coordVersion?: 2;
   readonly label?: string;
   /**
    * Mirrors `TemplateField.signerIndex`. Kept for legacy fallback;
@@ -193,57 +196,15 @@ export interface ResolvedField {
  * different page count. Used when the user picks "upload a new PDF" and we
  * need to resolve `pageRule: 'last'` etc against the new total page count.
  *
+ * The expansion lives in `packages/shared` (`expandTemplateLayout`) so the
+ * API's `TemplateApplyService` and this hook share one implementation.
  * Multi-page rules (`'all'`, `'allButLast'`) emit N copies that share a
- * fresh `linkId`. Without it the editor's `useLinkedRemove` hook would
- * see N standalone records and skip the "all pages vs. this page only"
- * confirmation dialog — the very behavior the templates flow regressed.
+ * fresh `linkId`.
  */
 export function resolveTemplateFields(
   fields: ReadonlyArray<TemplateFieldLayout>,
   totalPages: number,
   lastSigners?: ReadonlyArray<{ readonly id: string }>,
 ): ReadonlyArray<ResolvedField> {
-  const out: ResolvedField[] = [];
-  let id = 1;
-  let linkSeq = 1;
-  for (const tf of fields) {
-    let pages: number[] = [];
-    if (tf.pageRule === 'all') {
-      pages = Array.from({ length: totalPages }, (_, i) => i + 1);
-    } else if (tf.pageRule === 'allButLast') {
-      pages = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 1);
-    } else if (tf.pageRule === 'last') {
-      pages = totalPages > 0 ? [totalPages] : [];
-    } else if (tf.pageRule === 'first') {
-      pages = totalPages > 0 ? [1] : [];
-    } else if (typeof tf.pageRule === 'number') {
-      pages = tf.pageRule >= 1 && tf.pageRule <= totalPages ? [tf.pageRule] : [];
-    }
-    // Only mint a linkId when the source rule expanded into more than
-    // one peer — single-page rules don't need linking.
-    const linkId = pages.length > 1 ? `tpl-link-${linkSeq++}` : undefined;
-    // Backfill `signerRoleId` from the original `last_signers` roster
-    // when the stored field only has `signerIndex`. Legacy templates
-    // (saved before stable-id binding shipped) pick up the new
-    // mid-list-removal-safe behavior at first reuse without a save.
-    let signerRoleId: string | undefined = tf.signerRoleId;
-    if (signerRoleId === undefined && tf.signerIndex !== undefined && lastSigners) {
-      signerRoleId = lastSigners[tf.signerIndex]?.id;
-    }
-    for (const p of pages) {
-      const resolved: ResolvedField = {
-        id: `tpl-f${id++}`,
-        page: p,
-        type: tf.type,
-        x: tf.x,
-        y: tf.y,
-        ...(tf.label !== undefined ? { label: tf.label } : {}),
-        ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
-        ...(signerRoleId !== undefined ? { signerRoleId } : {}),
-        ...(linkId !== undefined ? { linkId } : {}),
-      };
-      out.push(resolved);
-    }
-  }
-  return out;
+  return expandTemplateLayout(fields, totalPages, lastSigners);
 }

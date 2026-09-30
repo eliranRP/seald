@@ -22,6 +22,7 @@ import {
   EnvelopeTerminalError,
   ShortCodeCollisionError,
   type AddSignerInput,
+  type ApplySignerRef,
   type CreateDraftInput,
   type CreateFieldInput,
   type EventInput,
@@ -906,6 +907,17 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     return (res?.numDeletedRows ?? 0n) > 0n;
   }
 
+  async listApplySigners(envelope_id: string): Promise<ReadonlyArray<ApplySignerRef>> {
+    const rows = await this.db
+      .selectFrom('envelope_signers')
+      .select(['id', 'contact_id'])
+      .where('envelope_id', '=', envelope_id)
+      .orderBy('signing_order', 'asc')
+      .orderBy('created_at', 'asc')
+      .execute();
+    return rows.map((row) => ({ id: row.id, contact_id: row.contact_id }));
+  }
+
   async replaceFields(
     envelope_id: string,
     fields: ReadonlyArray<CreateFieldInput>,
@@ -925,7 +937,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             y: f.y,
             width: f.width ?? null,
             height: f.height ?? null,
-            required: f.required,
+            required: f.required ?? true,
             link_id: f.link_id ?? null,
           })),
         )

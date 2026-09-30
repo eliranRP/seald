@@ -2,7 +2,7 @@
  * Templates — shared domain types between the API and the SPA.
  *
  * A template captures a saved field layout (signature/initial/date/text/
- * checkbox positions, addressed by a `pageRule` like `'all' | 'first' |
+ * checkbox/email positions, addressed by a `pageRule` like `'all' | 'first' |
  * 'last' | <page-num>`) so the sender can apply it to a new PDF and have
  * the same fields snap onto every signing flow that reuses this layout.
  *
@@ -17,6 +17,7 @@ export const TEMPLATE_FIELD_TYPES = [
   'date',
   'text',
   'checkbox',
+  'email',
 ] as const;
 export type TemplateFieldType = (typeof TEMPLATE_FIELD_TYPES)[number];
 
@@ -29,19 +30,42 @@ export type TemplateFieldType = (typeof TEMPLATE_FIELD_TYPES)[number];
  *   `'last'`       — last page only.
  *   `<page-num>`   — exact 1-indexed page; ignored if the target is shorter.
  */
-export type TemplatePageRule =
-  | 'all'
-  | 'allButLast'
-  | 'first'
-  | 'last'
-  | number;
+export type TemplatePageRule = 'all' | 'allButLast' | 'first' | 'last' | number;
 
 export interface TemplateField {
   readonly type: TemplateFieldType;
   readonly pageRule: TemplatePageRule;
-  /** PDF point coordinate, top-left origin. */
+  /**
+   * Horizontal position, top-left origin. Rows with no `coordVersion`
+   * are 560-grid editor pixels. `coordVersion` 2 is a fraction of the
+   * displayed page width, from 0 to 1.
+   */
   readonly x: number;
+  /**
+   * Vertical position, top-left origin. Rows with no `coordVersion`
+   * are 560-grid editor pixels. The grid height is `560 * pageHeight /
+   * pageWidth`, or 740 when the page size was unknown at save time.
+   * `coordVersion` 2 is a fraction of the displayed page height, from
+   * 0 to 1.
+   */
   readonly y: number;
+  /**
+   * Fraction of the displayed page width, in (0, 1]. Set on
+   * `coordVersion` 2. Omitted on legacy pixel rows; apply fills the
+   * per-kind default.
+   */
+  readonly width?: number;
+  /**
+   * Fraction of the displayed page height, in (0, 1]. Set on
+   * `coordVersion` 2. Omitted on legacy pixel rows; apply fills the
+   * per-kind default.
+   */
+  readonly height?: number;
+  /**
+   * `2` means `x`, `y`, `width`, and `height` are already 0–1 of the
+   * displayed page. Omitted means 560-grid editor pixels.
+   */
+  readonly coordVersion?: 2;
   readonly label?: string;
   /**
    * Zero-based index into the signer roster active when the template was

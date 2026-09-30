@@ -1,7 +1,8 @@
 import { BadRequestException, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
 import type { AuthUser } from '../../../auth/auth-user';
 import { IS_PUBLIC_KEY } from '../../../auth/public.decorator';
-import { GDriveController, type FilesProxy } from '../gdrive.controller';
+import { GDriveController } from '../gdrive.controller';
+import { DriveFilesService, type FilesProxy } from '../drive-files.service';
 import { GDriveService, type GoogleOAuthClient } from '../gdrive.service';
 import { GDriveKmsService, type KmsClientPort } from '../gdrive-kms.service';
 import { type GDriveAccount, type GDriveRepository } from '../gdrive.repository';
@@ -177,7 +178,8 @@ function makeController(opts?: { capacity?: number; windowMs?: number; proxyImpl
     proxyCalls.push(args);
     return proxy(args);
   };
-  const ctrl = new GDriveController(svc, state, CFG, limiter, wrappedProxy);
+  const files = new DriveFilesService(svc, limiter, wrappedProxy);
+  const ctrl = new GDriveController(svc, state, CFG, limiter, files);
   return {
     ctrl,
     repo,
@@ -240,19 +242,20 @@ describe('GDriveController', () => {
     const state = new OAuthStateStore();
     const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
     const proxy: FilesProxy = async () => ({ files: [] });
+    const files = new DriveFilesService(svc, limiter, proxy);
     const ctrlEmptyClient = new GDriveController(
       svc,
       state,
       { ...CFG, clientId: '' },
       limiter,
-      proxy,
+      files,
     );
     const ctrlEmptySecret = new GDriveController(
       svc,
       state,
       { ...CFG, clientSecret: '' },
       limiter,
-      proxy,
+      files,
     );
     await expect(ctrlEmptyClient.consentUrl(USER_1)).rejects.toMatchObject({
       status: HttpStatus.SERVICE_UNAVAILABLE,
@@ -469,7 +472,8 @@ describe('GDriveController', () => {
       const stateStore = new OAuthStateStore();
       const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
       const proxy: FilesProxy = async () => ({ files: [] });
-      const ctrl = new GDriveController(svc, stateStore, { ...CFG, clientId: '' }, limiter, proxy);
+      const files = new DriveFilesService(svc, limiter, proxy);
+      const ctrl = new GDriveController(svc, stateStore, { ...CFG, clientId: '' }, limiter, files);
       await expect(ctrl.oauthStart(USER_1, '/m/send', fakeRes())).rejects.toMatchObject({
         status: HttpStatus.SERVICE_UNAVAILABLE,
       });
@@ -699,12 +703,13 @@ describe('GDriveController', () => {
       const state = new OAuthStateStore();
       const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
       const proxy: FilesProxy = async () => ({ files: [] });
+      const files = new DriveFilesService(svc, limiter, proxy);
       const ctrl = new GDriveController(
         svc,
         state,
         { ...CFG, pickerDeveloperKey: '' },
         limiter,
-        proxy,
+        files,
       );
       await expect(
         ctrl.pickerCredentials(USER_1, '00000000-0000-0000-0000-000000000aaa'),
@@ -722,7 +727,8 @@ describe('GDriveController', () => {
       const state = new OAuthStateStore();
       const limiter = new GDriveRateLimiter({ capacity: 30, windowMs: 60_000 });
       const proxy: FilesProxy = async () => ({ files: [] });
-      const ctrl = new GDriveController(svc, state, { ...CFG, pickerAppId: '' }, limiter, proxy);
+      const files = new DriveFilesService(svc, limiter, proxy);
+      const ctrl = new GDriveController(svc, state, { ...CFG, pickerAppId: '' }, limiter, files);
       await expect(
         ctrl.pickerCredentials(USER_1, '00000000-0000-0000-0000-000000000aaa'),
       ).rejects.toMatchObject({ status: HttpStatus.SERVICE_UNAVAILABLE });

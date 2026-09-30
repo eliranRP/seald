@@ -94,6 +94,34 @@ describe('CreateTemplateDto', () => {
     expect(errs.length).toBeGreaterThan(0);
   });
 
+  it('accepts an email field stored as coordVersion 2', async () => {
+    const dto = plainToInstance(CreateTemplateDto, {
+      title: 't',
+      field_layout: [
+        {
+          type: 'email',
+          pageRule: 'first',
+          x: 0.1,
+          y: 0.2,
+          width: 0.3,
+          height: 0.1,
+          coordVersion: 2,
+        },
+      ],
+    });
+    const errs = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+    expect(errs).toEqual([]);
+  });
+
+  it('rejects a coordinate version other than 2', async () => {
+    const dto = plainToInstance(CreateTemplateDto, {
+      title: 't',
+      field_layout: [{ ...VALID_FIELD, coordVersion: 1 }],
+    });
+    const errs = await validate(dto);
+    expect(errs.length).toBeGreaterThan(0);
+  });
+
   it('rejects empty title (MinLength 1)', async () => {
     const dto = plainToInstance(CreateTemplateDto, {
       title: '',

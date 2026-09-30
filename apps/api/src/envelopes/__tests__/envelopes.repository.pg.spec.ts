@@ -6,6 +6,7 @@ import {
   EnvelopeTerminalError,
   InvalidCursorError,
   type CreateDraftInput,
+  type CreateFieldInput,
 } from '../envelopes.repository';
 
 /**
@@ -22,6 +23,26 @@ function nextShortCode(): string {
   // 13 chars: 'SC' + 11 digits (zero-padded).
   return `SC${String(shortCodeCounter).padStart(11, '0')}`;
 }
+function storedField(
+  signer_id: string,
+  kind: CreateFieldInput['kind'],
+  page: number,
+  x: number,
+  y: number,
+): CreateFieldInput {
+  return {
+    signer_id,
+    kind,
+    page,
+    x,
+    y,
+    width: null,
+    height: null,
+    required: true,
+    link_id: null,
+  };
+}
+
 function draftInput(owner_id: string, overrides: Partial<CreateDraftInput> = {}): CreateDraftInput {
   return {
     owner_id,
@@ -287,9 +308,7 @@ describe('EnvelopesPgRepository — deleteDraft', () => {
       name: 'S',
       color: '#AABBCC',
     });
-    await repo.replaceFields(e.id, [
-      { signer_id: signer.id, kind: 'signature', page: 1, x: 0.1, y: 0.1 },
-    ]);
+    await repo.replaceFields(e.id, [storedField(signer.id, 'signature', 1, 0.1, 0.1)]);
 
     expect(await repo.deleteDraft(ownerId, e.id)).toBe(true);
 
@@ -417,13 +436,11 @@ describe('EnvelopesPgRepository — replaceFields', () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
     await repo.replaceFields(e.id, [
-      { signer_id: s.id, kind: 'signature', page: 1, x: 0.1, y: 0.1 },
-      { signer_id: s.id, kind: 'date', page: 1, x: 0.2, y: 0.2 },
-      { signer_id: s.id, kind: 'text', page: 1, x: 0.3, y: 0.3 },
+      storedField(s.id, 'signature', 1, 0.1, 0.1),
+      storedField(s.id, 'date', 1, 0.2, 0.2),
+      storedField(s.id, 'text', 1, 0.3, 0.3),
     ]);
-    const next = await repo.replaceFields(e.id, [
-      { signer_id: s.id, kind: 'checkbox', page: 2, x: 0.5, y: 0.5 },
-    ]);
+    const next = await repo.replaceFields(e.id, [storedField(s.id, 'checkbox', 2, 0.5, 0.5)]);
     expect(next).toHaveLength(1);
     expect(next[0]!.kind).toBe('checkbox');
 
@@ -438,9 +455,7 @@ describe('EnvelopesPgRepository — replaceFields', () => {
   it('empty array deletes everything', async () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
-    await repo.replaceFields(e.id, [
-      { signer_id: s.id, kind: 'signature', page: 1, x: 0.1, y: 0.1 },
-    ]);
+    await repo.replaceFields(e.id, [storedField(s.id, 'signature', 1, 0.1, 0.1)]);
     const after = await repo.replaceFields(e.id, []);
     expect(after).toEqual([]);
     const all = await handle.db
@@ -449,6 +464,29 @@ describe('EnvelopesPgRepository — replaceFields', () => {
       .where('envelope_id', '=', e.id)
       .execute();
     expect(all).toHaveLength(0);
+  });
+
+  it('stores required=true when the caller omits it', async () => {
+    const e = await repo.createDraft(draftInput(ownerId));
+    const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
+    await repo.replaceFields(e.id, [
+      {
+        signer_id: s.id,
+        kind: 'signature',
+        page: 1,
+        x: 0.2,
+        y: 0.3,
+        width: null,
+        height: null,
+        link_id: null,
+      } as CreateFieldInput,
+    ]);
+    const row = await handle.db
+      .selectFrom('envelope_fields')
+      .select(['required'])
+      .where('envelope_id', '=', e.id)
+      .executeTakeFirstOrThrow();
+    expect(row.required).toBe(true);
   });
 });
 
@@ -612,9 +650,7 @@ describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', 
   it('records view, accepts terms, fills a field, and sets signature', async () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#112233' });
-    const fields = await repo.replaceFields(e.id, [
-      { signer_id: s.id, kind: 'text', page: 1, x: 0.1, y: 0.1 },
-    ]);
+    const fields = await repo.replaceFields(e.id, [storedField(s.id, 'text', 1, 0.1, 0.1)]);
 
     const viewed = await repo.recordSignerViewed(s.id, '10.0.0.1', 'UA/1.0');
     expect(viewed.status).toBe('viewing');
@@ -643,9 +679,7 @@ describe('EnvelopesPgRepository — signer flow: view / tc / fill / signature', 
     const e = await repo.createDraft(draftInput(ownerId));
     const s1 = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#111111' });
     const s2 = await repo.addSigner(e.id, { email: 'b@x.com', name: 'B', color: '#222222' });
-    const [f] = await repo.replaceFields(e.id, [
-      { signer_id: s1.id, kind: 'text', page: 1, x: 0.1, y: 0.1 },
-    ]);
+    const [f] = await repo.replaceFields(e.id, [storedField(s1.id, 'text', 1, 0.1, 0.1)]);
     const got = await repo.fillField(f!.id, s2.id, { value_text: 'spoofed' });
     expect(got).toBeNull();
   });

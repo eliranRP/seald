@@ -8,8 +8,8 @@
 
 /**
  * MIME-filter values understood by both the server proxy
- * (`apps/api/src/integrations/gdrive/gdrive.controller.ts`) and the
- * client picker. Mirrors `SUPPORTED_MIME_FILTERS` on the API side; the
+ * (`apps/api/src/integrations/gdrive/drive-files.service.ts`) and the
+ * client picker. Mirrors the mime allow-list on the API side; the
  * picker also enforces this list client-side as defence in depth.
  */
 export type DriveMimeFilter = 'pdf' | 'doc' | 'docx' | 'all';
@@ -17,7 +17,7 @@ export type DriveMimeFilter = 'pdf' | 'doc' | 'docx' | 'all';
 /**
  * Subset of Drive `files.list` metadata exposed by the API proxy.
  * Mirrors the `DriveFile` shape declared in
- * `apps/api/src/integrations/gdrive/gdrive.controller.ts`.
+ * `apps/api/src/integrations/gdrive/drive-files.service.ts`.
  *
  * `mimeType` always starts with one of the supported MIME prefixes —
  * the picker strips any row outside the allow-list as defence in depth

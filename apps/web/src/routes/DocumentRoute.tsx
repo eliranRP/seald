@@ -356,10 +356,12 @@ export function DocumentRoute() {
    */
   const updateSourceTemplate = useCallback(async () => {
     if (!doc?.fromTemplateId) return;
-    const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers);
+    const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers, [
+      { page: 1, width: CANVAS_WIDTH, height: canvasHeight },
+    ]);
     const updated = await updateTemplate(doc.fromTemplateId, { field_layout: fieldLayout });
     setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
-  }, [doc?.fields, doc?.fromTemplateId, doc?.totalPages, doc?.signers]);
+  }, [canvasHeight, doc?.fields, doc?.fromTemplateId, doc?.totalPages, doc?.signers]);
 
   const handleSend = useCallback(() => {
     // Guest mode: capture sender identity first (the anonymous Supabase
@@ -442,7 +444,9 @@ export function DocumentRoute() {
     async (payload: SaveAsTemplatePayload) => {
       if (!doc) return;
       try {
-        const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers);
+        const fieldLayout = deriveTemplateFieldLayout(doc.fields, doc.totalPages, doc.signers, [
+          { page: 1, width: CANVAS_WIDTH, height: canvasHeight },
+        ]);
         const created = await createTemplate({
           title: payload.title,
           field_layout: fieldLayout,
@@ -465,7 +469,7 @@ export function DocumentRoute() {
         });
       }
     },
-    [doc],
+    [canvasHeight, doc],
   );
 
   const handleCancelSaveTemplate = useCallback(() => {

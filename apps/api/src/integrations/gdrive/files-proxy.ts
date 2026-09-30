@@ -1,4 +1,4 @@
-import type { DriveFile, FilesProxy } from './gdrive.controller';
+import type { DriveFile, FilesProxy } from './drive-files.service';
 
 const MIME_FILTERS: Record<'pdf' | 'doc' | 'docx' | 'all', string> = {
   pdf: "mimeType='application/pdf'",

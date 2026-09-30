@@ -181,4 +181,39 @@ describe('rebindFieldsToSigners', () => {
     const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
     expect(out.map((f) => f.type)).toEqual(['initials', 'signature', 'date', 'text', 'checkbox']);
   });
+
+  it('maps an email template field onto the editor email kind', () => {
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({ id: 'a', page: 1, type: 'email', signerIndex: 0 }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
+    expect(out[0]?.type).toBe('email');
+  });
+
+  it('denormalizes coordVersion 2 back onto the 560-grid', () => {
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({
+        id: 'a',
+        page: 1,
+        type: 'signature',
+        signerIndex: 0,
+        x: 0.5,
+        y: 0.5,
+        width: 200 / 560,
+        height: 54 / 740,
+        coordVersion: 2,
+      }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
+    expect(out[0]).toMatchObject({ x: 280, y: 370, width: 200, height: 54 });
+  });
+
+  it('leaves legacy pixel coordinates unchanged', () => {
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({ id: 'a', page: 1, type: 'signature', signerIndex: 0, x: 110, y: 220 }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
+    expect(out[0]).toMatchObject({ x: 110, y: 220 });
+    expect(out[0]).not.toHaveProperty('width');
+  });
 });

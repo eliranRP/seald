@@ -458,4 +458,43 @@ describe('GDriveService', () => {
       warn.mockRestore();
     });
   });
+
+  describe('listConnections', () => {
+    it('maps live rows to the public account view', async () => {
+      const live = await seedAccount(repo, kms, 'rt-secret-1');
+      const out = await svc.listConnections('user-1');
+      expect(out).toEqual([
+        {
+          id: live.id,
+          email: 'a@example.com',
+          connectedAt: live.connectedAt,
+          lastUsedAt: null,
+          tokenStatus: 'live',
+        },
+      ]);
+    });
+
+    it('omits a soft-deleted row that listAccounts would otherwise return', async () => {
+      const live = await seedAccount(repo, kms, 'rt-secret-1');
+      jest.spyOn(svc, 'listAccounts').mockResolvedValue([
+        live,
+        {
+          ...live,
+          id: 'acc-deleted',
+          googleEmail: 'gone@example.com',
+          deletedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]);
+      const out = await svc.listConnections('user-1');
+      expect(out.map((row) => row.id)).toEqual(['acc-1']);
+    });
+
+    it('reports reconnect_required after invalid_grant', async () => {
+      await seedAccount(repo, kms, 'rt-revoked');
+      google.refreshFailWith = 'invalid_grant';
+      await expect(svc.getAccessToken('acc-1', 'user-1')).rejects.toBeInstanceOf(TokenExpiredError);
+      const out = await svc.listConnections('user-1');
+      expect(out[0]?.tokenStatus).toBe('reconnect_required');
+    });
+  });
 });

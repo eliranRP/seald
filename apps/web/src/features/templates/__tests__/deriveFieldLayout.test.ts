@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { toTemplateCoordV2, type TemplateFieldType } from 'shared';
 import { deriveTemplateFieldLayout, inferPageRule } from '../deriveFieldLayout';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
+
+function v2(type: TemplateFieldType, x: number, y: number) {
+  return toTemplateCoordV2({ type, x, y });
+}
 
 // `inferPageRule` is the heart of the round-trip — every named pageRule
 // (`'all'`, `'allButLast'`, `'first'`, `'last'`) routes through it. We
@@ -76,7 +81,7 @@ describe('deriveTemplateFieldLayout', () => {
       [field({ id: 'f1', page: 3, type: 'text', x: 110, y: 220 })],
       5,
     );
-    expect(out).toEqual([{ type: 'text', pageRule: 3, x: 110, y: 220 }]);
+    expect(out).toEqual([{ type: 'text', pageRule: 3, ...v2('text', 110, 220) }]);
   });
 
   it("collapses a fully-linked group across all pages to 'all'", () => {
@@ -86,7 +91,7 @@ describe('deriveTemplateFieldLayout', () => {
       field({ id: 'f3', page: 3, type: 'signature', x: 50, y: 100, linkId: 'L1' }),
     ];
     expect(deriveTemplateFieldLayout(fields, 3)).toEqual([
-      { type: 'signature', pageRule: 'all', x: 50, y: 100, label: 'L1' },
+      { type: 'signature', pageRule: 'all', ...v2('signature', 50, 100), label: 'L1' },
     ]);
   });
 
@@ -98,7 +103,7 @@ describe('deriveTemplateFieldLayout', () => {
     ];
     expect(deriveTemplateFieldLayout(fields, 4)).toEqual([
       // 'initials' (editor) → 'initial' (template) — singular vs plural.
-      { type: 'initial', pageRule: 'allButLast', x: 80, y: 600, label: 'L2' },
+      { type: 'initial', pageRule: 'allButLast', ...v2('initial', 80, 600), label: 'L2' },
     ]);
   });
 
@@ -108,19 +113,31 @@ describe('deriveTemplateFieldLayout', () => {
       field({ id: 'f3', page: 3, type: 'date', x: 200, y: 50, linkId: 'L3' }),
     ];
     expect(deriveTemplateFieldLayout(fields, 5)).toEqual([
-      { type: 'date', pageRule: 1, x: 200, y: 50, label: 'L3' },
-      { type: 'date', pageRule: 3, x: 200, y: 50, label: 'L3' },
+      { type: 'date', pageRule: 1, ...v2('date', 200, 50), label: 'L3' },
+      { type: 'date', pageRule: 3, ...v2('date', 200, 50), label: 'L3' },
     ]);
   });
 
-  it('skips field kinds that templates do not support yet (e.g. email)', () => {
+  it('saves an email field instead of dropping it', () => {
     const fields: ReadonlyArray<PlacedFieldValue> = [
       field({ id: 'f1', page: 1, type: 'email', x: 0, y: 0 }),
       field({ id: 'f2', page: 1, type: 'text', x: 10, y: 10 }),
     ];
     const out = deriveTemplateFieldLayout(fields, 1);
-    // Only the text survives — email isn't in TEMPLATE_FIELD_TYPES.
-    expect(out).toEqual([{ type: 'text', pageRule: 'last', x: 10, y: 10 }]);
+    expect(out).toEqual([
+      { type: 'email', pageRule: 'last', ...v2('email', 0, 0) },
+      { type: 'text', pageRule: 'last', ...v2('text', 10, 10) },
+    ]);
+  });
+
+  it('normalizes y against the supplied page aspect', () => {
+    const out = deriveTemplateFieldLayout(
+      [field({ id: 'f1', page: 1, type: 'signature', x: 280, y: 140 })],
+      1,
+      undefined,
+      [{ page: 1, width: 200, height: 100 }],
+    );
+    expect(out[0]).toMatchObject({ coordVersion: 2, x: 280 / 560, y: 140 / 280 });
   });
 
   it('uses the source field position when a linked group has shared (x,y)', () => {
@@ -129,7 +146,7 @@ describe('deriveTemplateFieldLayout', () => {
       field({ id: 'f2', page: 2, type: 'signature', x: 42, y: 84, linkId: 'L4' }),
     ];
     const out = deriveTemplateFieldLayout(fields, 2);
-    expect(out[0]).toMatchObject({ x: 42, y: 84 });
+    expect(out[0]).toMatchObject(v2('signature', 42, 84));
   });
 
   // signerIndex round-trip — required to fix the bug where every reused
@@ -142,7 +159,7 @@ describe('deriveTemplateFieldLayout', () => {
       field({ id: 'f1', page: 1, type: 'text', x: 10, y: 10, signerIds: ['s1'] }),
     ];
     const out = deriveTemplateFieldLayout(fields, 1);
-    expect(out).toEqual([{ type: 'text', pageRule: 'last', x: 10, y: 10 }]);
+    expect(out).toEqual([{ type: 'text', pageRule: 'last', ...v2('text', 10, 10) }]);
     expect(out[0]).not.toHaveProperty('signerIndex');
   });
 
@@ -160,8 +177,20 @@ describe('deriveTemplateFieldLayout', () => {
       // signerRoleId is the canonical binding (drives stable rebind
       // when the wizard removes a mid-list signer); signerIndex is
       // kept alongside for legacy rebinder back-compat.
-      { type: 'signature', pageRule: 2, x: 50, y: 100, signerIndex: 1, signerRoleId: 's2' },
-      { type: 'signature', pageRule: 3, x: 60, y: 110, signerIndex: 0, signerRoleId: 's1' },
+      {
+        type: 'signature',
+        pageRule: 2,
+        ...v2('signature', 50, 100),
+        signerIndex: 1,
+        signerRoleId: 's2',
+      },
+      {
+        type: 'signature',
+        pageRule: 3,
+        ...v2('signature', 60, 110),
+        signerIndex: 0,
+        signerRoleId: 's1',
+      },
     ]);
   });
 
@@ -175,8 +204,7 @@ describe('deriveTemplateFieldLayout', () => {
       {
         type: 'date',
         pageRule: 1,
-        x: 200,
-        y: 50,
+        ...v2('date', 200, 50),
         label: 'L3',
         signerIndex: 1,
         signerRoleId: 's2',
@@ -184,8 +212,7 @@ describe('deriveTemplateFieldLayout', () => {
       {
         type: 'date',
         pageRule: 3,
-        x: 200,
-        y: 50,
+        ...v2('date', 200, 50),
         label: 'L3',
         signerIndex: 1,
         signerRoleId: 's2',
@@ -200,8 +227,8 @@ describe('deriveTemplateFieldLayout', () => {
     ];
     const out = deriveTemplateFieldLayout(fields, 1, [{ id: 's1' }]);
     expect(out).toEqual([
-      { type: 'text', pageRule: 'last', x: 10, y: 10 },
-      { type: 'text', pageRule: 'last', x: 20, y: 20 },
+      { type: 'text', pageRule: 'last', ...v2('text', 10, 10) },
+      { type: 'text', pageRule: 'last', ...v2('text', 20, 20) },
     ]);
   });
 });

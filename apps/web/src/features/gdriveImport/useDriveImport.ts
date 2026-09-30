@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { driveImportErrorCode, driveImportStep, pdfFileNameForDriveImport } from 'shared';
 import {
   cancelConversion,
   fetchConvertedPdf,
@@ -51,26 +52,6 @@ export interface UseDriveImportReturn {
   readonly reset: () => void;
 }
 
-function pdfFileName(driveFile: DriveFile): string {
-  if (driveFile.name.toLowerCase().endsWith('.pdf')) return driveFile.name;
-  return `${driveFile.name}.pdf`;
-}
-
-function pickErrorCode(view: ConversionJobView): ConversionErrorCode {
-  return view.errorCode ?? 'conversion-failed';
-}
-
-const KNOWN_ERROR_CODES: ReadonlySet<ConversionErrorCode> = new Set([
-  'token-expired',
-  'oauth-declined',
-  'no-files-match-filter',
-  'conversion-failed',
-  'file-too-large',
-  'unsupported-mime',
-  'rate-limited',
-  'cancelled',
-]);
-
 function extractStartErrorCode(err: unknown): ConversionErrorCode {
   // The shared apiClient surfaces axios errors with `response.data.error`
   // OR `response.data.code`; we accept either to stay tolerant of WT-D
@@ -78,10 +59,7 @@ function extractStartErrorCode(err: unknown): ConversionErrorCode {
   const data = (err as { response?: { data?: { error?: string; code?: string } } } | null)?.response
     ?.data;
   const candidate = data?.error ?? data?.code;
-  if (typeof candidate === 'string' && (KNOWN_ERROR_CODES as ReadonlySet<string>).has(candidate)) {
-    return candidate as ConversionErrorCode;
-  }
-  return 'conversion-failed';
+  return driveImportErrorCode(typeof candidate === 'string' ? candidate : undefined);
 }
 
 export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
@@ -125,11 +103,12 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
           return;
         }
         if (cancelledRef.current) return;
-        if (view.status === 'done' && view.assetUrl) {
+        const step = driveImportStep(view);
+        if (step.kind === 'done') {
           try {
-            const blob = await fetchConvertedPdf(view.assetUrl);
+            const blob = await fetchConvertedPdf(step.assetUrl);
             if (cancelledRef.current) return;
-            const out = new File([blob], pdfFileName(file), {
+            const out = new File([blob], pdfFileNameForDriveImport(file.name), {
               type: 'application/pdf',
             });
             setState({ kind: 'idle' });
@@ -140,11 +119,11 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
           }
           return;
         }
-        if (view.status === 'failed') {
-          setState({ kind: 'failed', file, error: pickErrorCode(view) });
+        if (step.kind === 'failed') {
+          setState({ kind: 'failed', file, error: step.errorCode });
           return;
         }
-        if (view.status === 'cancelled') {
+        if (step.kind === 'cancelled') {
           setState({ kind: 'idle' });
           return;
         }
@@ -170,8 +149,9 @@ export function useDriveImport(args: UseDriveImportArgs): UseDriveImportReturn {
           await runPollLoop(start.jobId, file);
         } catch (err) {
           if (cancelledRef.current) return;
-          // Map the API's `{ error: '<code>' }` body onto our enum;
-          // anything we can't recognise becomes 'conversion-failed'.
+          // Map the API's `{ error: '<code>' }` body onto our enum.
+          // A missing code is `conversion-failed`. Any other unknown
+          // string is `import-failed`.
           setState({ kind: 'failed', file, error: extractStartErrorCode(err) });
         }
       })();

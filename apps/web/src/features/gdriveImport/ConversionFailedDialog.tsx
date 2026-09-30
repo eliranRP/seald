@@ -25,6 +25,7 @@ export const MESSAGES = {
   'rate-limited': "You're going a little fast for Drive. Wait a moment and try again.",
   'no-files-match-filter':
     "We couldn't find a matching file in your Drive. Pick a different one and try again.",
+  'import-failed': 'Something went wrong. Try again, or upload a PDF instead.',
 } as const satisfies Record<Exclude<ConversionErrorCode, 'cancelled'>, string>;
 
 export interface ConversionFailedDialogProps {

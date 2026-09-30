@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
   Min,
   MinLength,
@@ -69,6 +70,33 @@ export class TemplateFieldDto {
 
   @IsNumber()
   readonly y!: number;
+
+  /**
+   * `coordVersion` 2 width, a fraction of the displayed page in (0, 1].
+   * Legacy pixel layouts omit it.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  @Max(1)
+  readonly width?: number;
+
+  /** `coordVersion` 2 height, a fraction of the displayed page in (0, 1]. */
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0001)
+  @Max(1)
+  readonly height?: number;
+
+  /**
+   * `2` means x/y/width/height are already 0–1. Omitted means 560-grid
+   * editor pixels. Any other version is rejected so a client cannot
+   * invent a third coordinate space.
+   */
+  @IsOptional()
+  @IsInt()
+  @IsIn([2])
+  readonly coordVersion?: 2;
 
   @IsOptional()
   @IsString()
