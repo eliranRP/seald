@@ -6,6 +6,7 @@ import {
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
+  signUrlFromPayload,
   type OutboundEmailRow,
 } from './outbound-emails.repository';
 
@@ -40,6 +41,24 @@ function toDomain(row: Record<string, unknown>): OutboundEmailRow {
  * kind, source_event_id) index. Real Postgres exposes `constraint` with the
  * name; pg-mem embeds the column tuple in the message. Match both.
  */
+function parsePayload(value: unknown): Record<string, unknown> {
+  if (typeof value === 'string') {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return {};
+    }
+    return {};
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
 function isOutboundUniqueViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; constraint?: string; message?: string };
@@ -142,6 +161,29 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .limit(1)
       .executeTakeFirst();
     return row ? toDomain(rowRecord(row)) : null;
+  }
+
+  async findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null> {
+    const rows = await this.db
+      .selectFrom('outbound_emails')
+      .select(['id', 'payload'])
+      .where('envelope_id', '=', envelope_id)
+      .where('signer_id', '=', signer_id)
+      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
+      .orderBy('created_at', 'desc')
+      .limit(20)
+      .execute();
+    for (const row of rows) {
+      if (excludeId && row.id === excludeId) continue;
+      const payload = parsePayload(row.payload);
+      const url = signUrlFromPayload(payload);
+      if (url) return url;
+    }
+    return null;
   }
 
   async claimNext(now: Date): Promise<OutboundEmailRow | null> {

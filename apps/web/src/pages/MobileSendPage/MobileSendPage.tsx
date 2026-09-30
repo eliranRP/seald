@@ -113,6 +113,7 @@ export function MobileSendPage() {
   const { user, session, signOut } = useAuth();
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
 
   // Slice-D §2 MEDIUM (audit fix): pull the most recent envelopes from
   // the API so MWStart can surface a "Recent" list. Gated on the user
@@ -578,6 +579,7 @@ export function MobileSendPage() {
         // exactOptionalPropertyTypes — only set sender* keys when present.
         ...(user?.email ? { senderEmail: user.email } : {}),
         ...(user?.name ? { senderName: user.name } : {}),
+        remindersEnabled,
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
@@ -614,7 +616,7 @@ export function MobileSendPage() {
     } finally {
       sendingRef.current = false;
     }
-  }, [pdfFile, signers, contacts, runSend, title, user, fields, canvasBounds]);
+  }, [pdfFile, signers, contacts, remindersEnabled, runSend, title, user, fields, canvasBounds]);
 
   // ---- per-step CTA ----
   const stepNum = MOBILE_STEP_ORDER.indexOf(step) + 1;
@@ -777,6 +779,8 @@ export function MobileSendPage() {
               fields={fields}
               fileName={pdfFile.name}
               totalPages={totalPages}
+              remindersEnabled={remindersEnabled}
+              onRemindersEnabledChange={setRemindersEnabled}
             />
             {sendPhase === 'error' && sendError && (
               <div

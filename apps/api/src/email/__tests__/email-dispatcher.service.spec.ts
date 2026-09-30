@@ -184,6 +184,76 @@ describe('EmailDispatcherService', () => {
   });
 });
 
+describe('EmailDispatcherService — automated reminder sign link', () => {
+  let repo: InMemoryOutboundEmailsRepository;
+  let sender: FakeSender;
+  let dispatcher: EmailDispatcherService;
+
+  beforeEach(async () => {
+    repo = new InMemoryOutboundEmailsRepository();
+    sender = new FakeSender();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        EmailDispatcherService,
+        TemplateService,
+        { provide: OutboundEmailsRepository, useValue: repo },
+        { provide: EmailSender, useValue: sender },
+        { provide: APP_ENV, useValue: env },
+      ],
+    }).compile();
+    await moduleRef.init();
+    dispatcher = moduleRef.get(EmailDispatcherService);
+  });
+
+  it('renders the prior invite link without writing the token back onto the reminder row', async () => {
+    const invite = await repo.insert(inviteRow());
+    const inviteIdx = repo.rows.findIndex((row) => row.id === invite.id);
+    repo.rows[inviteIdx] = { ...repo.rows[inviteIdx]!, status: 'sent' };
+
+    const reminder = await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        source_event_id: '00000000-0000-0000-0000-0000000000e1',
+        payload: {
+          sender_name: 'Eliran Azulay',
+          sender_email: 'eliran@seald.app',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          expires_at_readable: '2026-05-24 00:00 UTC',
+          public_url: 'http://localhost:5173',
+        },
+      }),
+    );
+
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('sent');
+    expect(sender.calls[0]?.html).toContain('http://localhost:5173/sign/env-1?t=abc');
+    const stored = repo.rows.find((row) => row.id === reminder.id);
+    expect(stored?.payload).not.toHaveProperty('sign_url');
+    expect(JSON.stringify(stored?.payload)).not.toContain('?t=');
+  });
+
+  it('fails a reminder that has no prior signing link instead of sending a dead CTA', async () => {
+    await repo.insert(
+      inviteRow({
+        kind: 'reminder',
+        payload: {
+          sender_name: 'Ada',
+          envelope_title: 'MSA',
+          verify_url: 'http://localhost:5173/verify/ABC123',
+          short_code: 'ABC123',
+          public_url: 'http://localhost:5173',
+        },
+      }),
+    );
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome?.status).toBe('failed');
+    expect(outcome?.error).toBe('missing_sign_url');
+    expect(sender.calls).toHaveLength(0);
+  });
+});
+
 describe('backoffMs', () => {
   it('is 2 minutes on first attempt, doubles each time, caps at 6h', () => {
     expect(backoffMs(1)).toBe(2 * 60 * 1000);

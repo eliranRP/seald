@@ -355,6 +355,14 @@ export class EnvelopesService {
     if (updated) return updated;
     const existing = await this.repo.findByIdForOwner(owner_id, id);
     if (!existing) throw new NotFoundException('envelope_not_found');
+    if (
+      existing.status !== 'draft' &&
+      existing.status !== 'awaiting_others' &&
+      sanitized.title === undefined &&
+      sanitized.expires_at === undefined
+    ) {
+      throw new ConflictException('envelope_terminal');
+    }
     throw new ConflictException('envelope_not_draft');
   }
 

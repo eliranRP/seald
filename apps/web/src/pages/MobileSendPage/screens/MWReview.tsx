@@ -1,4 +1,5 @@
 import { FileText, Pencil } from 'lucide-react';
+import { ReminderToggle } from '@/components/ReminderToggle';
 import styled from 'styled-components';
 import type { MobilePlacedField, MobileSigner } from '../types';
 
@@ -157,10 +158,21 @@ export interface MWReviewProps {
   readonly fields: ReadonlyArray<MobilePlacedField>;
   readonly fileName: string;
   readonly totalPages: number;
+  readonly remindersEnabled: boolean;
+  readonly onRemindersEnabledChange: (enabled: boolean) => void;
 }
 
 export function MWReview(props: MWReviewProps) {
-  const { title, onTitle, signers, fields, fileName, totalPages } = props;
+  const {
+    title,
+    onTitle,
+    signers,
+    fields,
+    fileName,
+    totalPages,
+    remindersEnabled,
+    onRemindersEnabledChange,
+  } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
   fields.forEach((f) => {
@@ -217,6 +229,9 @@ export function MWReview(props: MWReviewProps) {
             </Pill>
           </SignerRow>
         ))}
+      </Card>
+      <Card>
+        <ReminderToggle enabled={remindersEnabled} onChange={onRemindersEnabledChange} />
       </Card>
     </Wrap>
   );

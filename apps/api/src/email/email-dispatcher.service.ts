@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
-import { OutboundEmailsRepository, type OutboundEmailRow } from './outbound-emails.repository';
+import {
+  OutboundEmailsRepository,
+  signUrlFromPayload,
+  type OutboundEmailRow,
+} from './outbound-emails.repository';
 import { TemplateService, type EmailTemplateKind } from './template.service';
 
 export interface DispatchOutcome {
@@ -102,7 +106,15 @@ export class EmailDispatcherService {
     if (!claimed) return null;
 
     try {
-      const rendered = this.render(claimed);
+      const payload = await this.resolvePayload(claimed);
+      if (claimed.kind === 'reminder' && !signUrlFromPayload(payload)) {
+        await this.repo.markFailed(claimed.id, {
+          error: 'missing_sign_url',
+          final: true,
+        });
+        return { id: claimed.id, status: 'failed', error: 'missing_sign_url' };
+      }
+      const rendered = this.render(claimed, payload);
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
@@ -128,7 +140,24 @@ export class EmailDispatcherService {
     }
   }
 
-  private render(row: OutboundEmailRow): ReturnType<TemplateService['render']> | null {
+  /**
+   * Automated reminders persist no signing token. Copy the link from the
+   * newest prior invite/reminder into the render vars only — the outbox
+   * row is left unchanged.
+   */
+  private async resolvePayload(row: OutboundEmailRow): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = { ...row.payload };
+    if (row.kind !== 'reminder' || signUrlFromPayload(payload)) return payload;
+    if (!row.envelope_id || !row.signer_id) return payload;
+    const signUrl = await this.repo.findLatestSignUrl(row.envelope_id, row.signer_id, row.id);
+    if (!signUrl) return payload;
+    return { ...payload, sign_url: signUrl };
+  }
+
+  private render(
+    row: OutboundEmailRow,
+    payload: Readonly<Record<string, unknown>> = row.payload,
+  ): ReturnType<TemplateService['render']> | null {
     if (!TEMPLATE_KINDS.has(row.kind)) return null;
     // The payload is a JSON blob; TemplateService expects a flat map of
     // string|number values. Coerce unknown values defensively — missing
@@ -137,7 +166,7 @@ export class EmailDispatcherService {
     // sender (e.g. an enterprise tenant) can override the postal block
     // without redeploying.
     const vars: Record<string, string | number> = { ...this.legalFooterVars };
-    for (const [k, v] of Object.entries(row.payload)) {
+    for (const [k, v] of Object.entries(payload)) {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);
     }

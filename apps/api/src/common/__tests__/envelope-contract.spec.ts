@@ -44,6 +44,13 @@ describe('envelope-contract', () => {
       expect(EnvelopeSchema.parse(validEnvelope).title).toBe('NDA');
     });
 
+    it('defaults reminders_enabled to true and accepts an explicit false', () => {
+      expect(EnvelopeSchema.parse(validEnvelope).reminders_enabled).toBe(true);
+      expect(
+        EnvelopeSchema.parse({ ...validEnvelope, reminders_enabled: false }).reminders_enabled,
+      ).toBe(false);
+    });
+
     it('rejects unknown status', () => {
       expect(() => EnvelopeSchema.parse({ ...validEnvelope, status: 'nope' })).toThrow();
     });

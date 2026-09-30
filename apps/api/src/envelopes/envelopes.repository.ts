@@ -30,6 +30,20 @@ export interface UpdateDraftMetadataPatch {
    * trusts the caller to have normalized the array.
    */
   readonly tags?: ReadonlyArray<string>;
+  /**
+   * Daily reminders for unsigned signers. Editable on `draft` and
+   * `awaiting_others`. Omitted means "leave the column alone".
+   */
+  readonly reminders_enabled?: boolean;
+}
+
+/** One unsigned signer the reminder sweep may queue mail for. */
+export interface ReminderCandidate {
+  readonly envelopeId: string;
+  readonly signerId: string;
+  /** ISO time the current signing link was issued. */
+  readonly invitedAt: string;
+  readonly lastRemindedAt: string | null;
 }
 
 export interface SetOriginalFileInput {
@@ -382,6 +396,24 @@ export abstract class EnvelopesRepository {
   } | null>;
 
   abstract expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>>;
+
+  /**
+   * Unsigned signers on awaiting envelopes with reminders on, whose
+   * invite (`access_token_sent_at`) and `last_reminded_at` are both at
+   * least 24 hours old. The caller still checks the outbox timestamp
+   * before queueing mail.
+   */
+  abstract listReminderCandidates(
+    now: Date,
+    limit: number,
+  ): Promise<ReadonlyArray<ReminderCandidate>>;
+
+  /**
+   * Stamp `last_reminded_at` if the signer is still eligible. Returns
+   * false when a concurrent sweep, a signature, or a status change won
+   * the race. The UPDATE predicate is the dedupe lock.
+   */
+  abstract tryClaimReminder(signerId: string, now: Date): Promise<boolean>;
 
   // Audit
   abstract appendEvent(input: EventInput): Promise<EnvelopeEvent>;

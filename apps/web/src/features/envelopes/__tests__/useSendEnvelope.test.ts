@@ -7,6 +7,7 @@ vi.mock('../envelopesApi', () => ({
   addEnvelopeSigner: vi.fn(),
   placeEnvelopeFields: vi.fn(),
   sendEnvelope: vi.fn(),
+  patchEnvelope: vi.fn(),
 }));
 
 import * as api from '../envelopesApi';
@@ -18,6 +19,7 @@ const uploadEnvelopeFile = api.uploadEnvelopeFile as unknown as ReturnType<typeo
 const addEnvelopeSigner = api.addEnvelopeSigner as unknown as ReturnType<typeof vi.fn>;
 const placeEnvelopeFields = api.placeEnvelopeFields as unknown as ReturnType<typeof vi.fn>;
 const sendEnvelope = api.sendEnvelope as unknown as ReturnType<typeof vi.fn>;
+const patchEnvelope = api.patchEnvelope as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   createEnvelope.mockReset();
@@ -25,6 +27,8 @@ beforeEach(() => {
   addEnvelopeSigner.mockReset();
   placeEnvelopeFields.mockReset();
   sendEnvelope.mockReset();
+  patchEnvelope.mockReset();
+  patchEnvelope.mockResolvedValue({ id: 'env-1' });
 });
 
 const FILE = new File(['%PDF-1.4'], 'contract.pdf', { type: 'application/pdf' });
@@ -214,5 +218,25 @@ describe('useSendEnvelope', () => {
     });
     expect(result.current.phase).toBe('idle');
     expect(result.current.error).toBeNull();
+  });
+
+  it('patches reminders off before upload when the sender disabled them', async () => {
+    createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+    uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+    sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+    const { result } = renderHook(() => useSendEnvelope());
+    await act(async () => {
+      await result.current.run({
+        title: 'x',
+        file: FILE,
+        signers: [],
+        buildFields: () => [],
+        remindersEnabled: false,
+      });
+    });
+    expect(patchEnvelope).toHaveBeenCalledWith('env-1', { reminders_enabled: false });
+    expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
+      uploadEnvelopeFile.mock.invocationCallOrder[0]!,
+    );
   });
 });

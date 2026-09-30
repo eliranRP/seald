@@ -30,6 +30,7 @@ import { EnvelopeDetailPage } from './EnvelopeDetailPage';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;
 const post = apiClient.post as unknown as ReturnType<typeof vi.fn>;
+const patch = apiClient.patch as unknown as ReturnType<typeof vi.fn>;
 
 function renderAt(id: string): RenderResult {
   const qc = new QueryClient({
@@ -55,6 +56,7 @@ function renderAt(id: string): RenderResult {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  patch.mockReset();
   saveMock.mockReset();
 });
 
@@ -314,7 +316,26 @@ describe('EnvelopeDetailPage', () => {
       await screen.findByRole('heading', { name: /master services agreement/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /send reminder/i })).toBeNull();
+    expect(screen.queryByRole('switch', { name: /email reminders/i })).toBeNull();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it('turns daily reminders off for an awaiting envelope', async () => {
+    mockEnvelope();
+    patch.mockResolvedValue({
+      data: { id: 'env-1', reminders_enabled: false },
+      status: 200,
+    });
+
+    renderAt('env-1');
+
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    expect(toggle).toBeChecked();
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(patch).toHaveBeenCalledWith('/envelopes/env-1', { reminders_enabled: false }, {});
   });
 
   it('Send reminder fires once per pending signer and surfaces the success toast', async () => {

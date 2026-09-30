@@ -183,6 +183,9 @@ class FakeOutbound extends OutboundEmailsRepository {
   async markFailed() {
     /* unused */
   }
+  async findLatestSignUrl(): Promise<string | null> {
+    return null;
+  }
 }
 
 class FakeStorage extends StorageService {
@@ -476,6 +479,12 @@ class FakeRepo extends EnvelopesRepository {
     } as Envelope;
     this.envelopes.set(envelope_id, next);
     return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
+  async listReminderCandidates(): Promise<readonly []> {
+    return [];
+  }
+  async tryClaimReminder(): Promise<boolean> {
+    return false;
   }
   async expireEnvelopes(): Promise<readonly string[]> {
     return [];

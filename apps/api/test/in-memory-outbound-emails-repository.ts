@@ -3,6 +3,7 @@ import {
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
+  signUrlFromPayload,
   type OutboundEmailRow,
 } from '../src/email/outbound-emails.repository';
 
@@ -83,6 +84,25 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
+  }
+
+  async findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null> {
+    const match = this.rows
+      .filter(
+        (r) =>
+          r.id !== excludeId &&
+          r.envelope_id === envelope_id &&
+          r.signer_id === signer_id &&
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          signUrlFromPayload(r.payload) !== null,
+      )
+      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+    const row = match[0];
+    return row ? signUrlFromPayload(row.payload) : null;
   }
 
   async claimNext(now: Date): Promise<OutboundEmailRow | null> {

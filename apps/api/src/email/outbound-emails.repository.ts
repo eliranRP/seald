@@ -68,6 +68,18 @@ export abstract class OutboundEmailsRepository {
   ): Promise<OutboundEmailRow | null>;
 
   /**
+   * Newest non-empty `sign_url` on an invite or reminder for this signer.
+   * Automated reminder rows omit the token; the dispatcher reads it from
+   * an earlier row at render time and does not write it back.
+   * `excludeId` skips the row currently being rendered.
+   */
+  abstract findLatestSignUrl(
+    envelope_id: string,
+    signer_id: string,
+    excludeId?: string,
+  ): Promise<string | null>;
+
+  /**
    * Atomically claim one due email (status in pending|failed, scheduled_for
    * <= now, attempts < max_attempts). Flips status to `sending` and bumps
    * `attempts` so concurrent workers never pick the same row.
@@ -102,6 +114,12 @@ export abstract class OutboundEmailsRepository {
  * unique violation. Service translates to an idempotent success (no HTTP
  * error) because a duplicate means the caller already did this work.
  */
+/** Plaintext signing link stored on older invite/reminder payloads, if present. */
+export function signUrlFromPayload(payload: Readonly<Record<string, unknown>>): string | null {
+  const url = payload['sign_url'];
+  return typeof url === 'string' && url.length > 0 ? url : null;
+}
+
 export class DuplicateOutboundEmailError extends Error {
   constructor() {
     super('duplicate_outbound_email');

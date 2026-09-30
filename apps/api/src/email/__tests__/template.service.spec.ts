@@ -132,6 +132,29 @@ describe('TemplateService', () => {
     });
   });
 
+  describe('render — reminder', () => {
+    it('quotes the envelope title and keeps the legal-footer middle dot', () => {
+      const out = svc.render('reminder', {
+        sender_name: 'Ada Lovelace',
+        sender_email: 'ada@example.com',
+        envelope_title: 'MSA',
+        sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+        verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
+        short_code: 'abcde12345xyz',
+        expires_at_readable: '2026-05-24 00:00 UTC',
+        public_url: 'https://seald.nromomentum.com',
+        legal_entity: 'Seald',
+        legal_postal: 'Chlenov 24, Tel Aviv-Yafo 6604806, Israel',
+        privacy_url: 'https://seald.nromomentum.com/legal/privacy',
+        preferences_url: 'mailto:privacy@seald.nromomentum.com',
+      });
+      expect(out.subject).toBe('Reminder: please sign "MSA"');
+      expect(out.html).toContain('Seald</strong> · Chlenov 24');
+      expect(out.html).toContain('Review and sign now');
+      expect(out.text).toContain('MSA');
+    });
+  });
+
   describe('missing variable handling', () => {
     it('renders missing variables as empty string (permissive)', () => {
       const out = svc.render('invite', {

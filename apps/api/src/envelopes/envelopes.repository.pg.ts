@@ -36,8 +36,10 @@ import {
   type SignerAuditDetail,
   type SignerFieldFillInput,
   type SubmitResult,
+  type ReminderCandidate,
   type UpdateDraftMetadataPatch,
 } from './envelopes.repository';
+import { REMINDER_INTERVAL_MS } from '../reminders/reminder-eligibility';
 
 type EnvelopeRow = Selectable<EnvelopesTable>;
 type SignerRow = Selectable<EnvelopeSignersTable>;
@@ -173,6 +175,7 @@ function toEnvelopeDomain(
     completed_at: toIso(envelope.completed_at),
     expires_at: toIsoRequired(envelope.expires_at),
     tags: [...(envelope.tags ?? [])],
+    reminders_enabled: envelope.reminders_enabled !== false,
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
     signers: signers.map(toSignerDomain),
@@ -787,29 +790,58 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     }
     // Tags are user-private metadata that doesn't affect the signed
     // contents of the envelope, so they're editable at any status.
-    // Title / expires_at remain draft-only because they're part of
-    // the envelope's signed representation once it ships.
-    const { tags, ...draftOnly } = patch;
+    // reminders_enabled is editable while the envelope can still collect
+    // signatures (draft or awaiting_others). Title / expires_at remain
+    // draft-only because they're part of the signed representation.
+    const { tags, reminders_enabled, ...draftOnly } = patch;
     const tagsObj = tags !== undefined ? { tags: JSON.stringify(tags) } : {};
+    const remindersObj = reminders_enabled !== undefined ? { reminders_enabled } : {};
     const draftOnlyKeys = Object.keys(draftOnly);
     const updated_at = new Date().toISOString();
-    if (draftOnlyKeys.length === 0) {
-      // Tags-only update — skip the `status='draft'` guard.
+    const existing = await this.db
+      .selectFrom('envelopes')
+      .select(['status'])
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', envelope_id)
+      .executeTakeFirst();
+    if (!existing) return null;
+    if (draftOnlyKeys.length > 0 && existing.status !== 'draft') return null;
+    if (
+      reminders_enabled !== undefined &&
+      existing.status !== 'draft' &&
+      existing.status !== 'awaiting_others'
+    ) {
+      return null;
+    }
+
+    const set = { ...draftOnly, ...tagsObj, ...remindersObj, updated_at };
+    if (draftOnlyKeys.length > 0) {
       const res = await this.db
         .updateTable('envelopes')
-        .set({ ...tagsObj, updated_at })
+        .set(set)
         .where('owner_id', '=', owner_id)
         .where('id', '=', envelope_id)
+        .where('status', '=', 'draft')
+        .executeTakeFirst();
+      if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
+      return this.findByIdForOwner(owner_id, envelope_id);
+    }
+    if (reminders_enabled !== undefined) {
+      const res = await this.db
+        .updateTable('envelopes')
+        .set(set)
+        .where('owner_id', '=', owner_id)
+        .where('id', '=', envelope_id)
+        .where('status', 'in', ['draft', 'awaiting_others'])
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
       return this.findByIdForOwner(owner_id, envelope_id);
     }
     const res = await this.db
       .updateTable('envelopes')
-      .set({ ...draftOnly, ...tagsObj, updated_at })
+      .set(set)
       .where('owner_id', '=', owner_id)
       .where('id', '=', envelope_id)
-      .where('status', '=', 'draft')
       .executeTakeFirst();
     if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
     return this.findByIdForOwner(owner_id, envelope_id);
@@ -1298,6 +1330,95 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
       if (!envelope) return null;
       return { envelope, notifiedSignerIds, alreadySignedSignerIds };
+    });
+  }
+
+  async listReminderCandidates(
+    now: Date,
+    limit: number,
+  ): Promise<ReadonlyArray<ReminderCandidate>> {
+    const cutoff = new Date(now.getTime() - REMINDER_INTERVAL_MS);
+    const rows = await this.db
+      .selectFrom('envelope_signers as s')
+      .innerJoin('envelopes as e', 'e.id', 's.envelope_id')
+      .select(['s.id', 's.envelope_id', 's.access_token_sent_at', 's.last_reminded_at'])
+      .where('e.status', '=', 'awaiting_others')
+      .where('e.reminders_enabled', '=', true)
+      .where('e.expires_at', '>', now)
+      .where('s.signed_at', 'is', null)
+      .where('s.declined_at', 'is', null)
+      .where('s.access_token_hash', 'is not', null)
+      .where('s.access_token_sent_at', 'is not', null)
+      .where('s.access_token_sent_at', '<=', cutoff)
+      .where((eb) =>
+        eb.or([eb('s.last_reminded_at', 'is', null), eb('s.last_reminded_at', '<=', cutoff)]),
+      )
+      .orderBy('s.access_token_sent_at', 'asc')
+      .limit(limit)
+      .execute();
+    const out: ReminderCandidate[] = [];
+    for (const row of rows) {
+      const invitedAt = toIso(row.access_token_sent_at);
+      if (!invitedAt) continue;
+      out.push({
+        envelopeId: row.envelope_id,
+        signerId: row.id,
+        invitedAt,
+        lastRemindedAt: toIso(row.last_reminded_at),
+      });
+    }
+    return out;
+  }
+
+  async tryClaimReminder(signerId: string, now: Date): Promise<boolean> {
+    const cutoff = new Date(now.getTime() - REMINDER_INTERVAL_MS);
+    const nowIso = now.toISOString();
+    return this.db.transaction().execute(async (trx) => {
+      const signer = await trx
+        .selectFrom('envelope_signers')
+        .select([
+          'id',
+          'envelope_id',
+          'signed_at',
+          'declined_at',
+          'access_token_sent_at',
+          'last_reminded_at',
+        ])
+        .where('id', '=', signerId)
+        .executeTakeFirst();
+      if (!signer || signer.signed_at !== null || signer.declined_at !== null) return false;
+      const invitedAt = toIso(signer.access_token_sent_at);
+      if (!invitedAt || Date.parse(invitedAt) > cutoff.getTime()) return false;
+      const lastReminded = toIso(signer.last_reminded_at);
+      if (lastReminded && Date.parse(lastReminded) > cutoff.getTime()) return false;
+
+      const envelope = await trx
+        .selectFrom('envelopes')
+        .select(['status', 'reminders_enabled', 'expires_at'])
+        .where('id', '=', signer.envelope_id)
+        .executeTakeFirst();
+      const expiresAt = envelope ? toIso(envelope.expires_at) : null;
+      if (
+        !envelope ||
+        envelope.status !== 'awaiting_others' ||
+        envelope.reminders_enabled !== true ||
+        !expiresAt ||
+        Date.parse(expiresAt) <= now.getTime()
+      ) {
+        return false;
+      }
+
+      const res = await trx
+        .updateTable('envelope_signers')
+        .set({ last_reminded_at: nowIso })
+        .where('id', '=', signerId)
+        .where('signed_at', 'is', null)
+        .where('declined_at', 'is', null)
+        .where((eb) =>
+          eb.or([eb('last_reminded_at', 'is', null), eb('last_reminded_at', '<=', cutoff)]),
+        )
+        .executeTakeFirst();
+      return (res?.numUpdatedRows ?? 0n) > 0n;
     });
   }
 

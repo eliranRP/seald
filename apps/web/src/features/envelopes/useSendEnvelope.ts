@@ -4,6 +4,7 @@ import {
   createEnvelope,
   placeEnvelopeFields,
   sendEnvelope,
+  patchEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
 import type { FieldPlacement } from './envelopesApi';
@@ -57,6 +58,11 @@ export interface SendEnvelopeInput {
    */
   readonly senderEmail?: string;
   readonly senderName?: string;
+  /**
+   * When false, the draft is patched to turn daily reminders off before
+   * send. Omitted or true keeps the server default (reminders on).
+   */
+  readonly remindersEnabled?: boolean;
 }
 
 export interface SendEnvelopeResult {
@@ -108,6 +114,9 @@ export function useSendEnvelope(): UseSendEnvelope {
     try {
       setPhase('creating');
       const envelope = await createEnvelope({ title: input.title });
+      if (input.remindersEnabled === false) {
+        await patchEnvelope(envelope.id, { reminders_enabled: false });
+      }
 
       setPhase('uploading');
       await uploadEnvelopeFile(envelope.id, input.file);

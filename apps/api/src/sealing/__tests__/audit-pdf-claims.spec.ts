@@ -212,6 +212,7 @@ function makeInput(opts: {
     expires_at: '2026-04-11T20:59:03.000Z',
     tc_version: '2026-04-24',
     privacy_version: '2026-04-24',
+    reminders_enabled: true,
     signers: [
       {
         id: signerId,

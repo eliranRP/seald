@@ -127,6 +127,7 @@ export function DocumentRoute() {
   const [saveTplOpen, setSaveTplOpen] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [guestSenderOpen, setGuestSenderOpen] = useState(false);
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
 
@@ -328,6 +329,7 @@ export function DocumentRoute() {
           },
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
+          remindersEnabled,
         });
 
         // Persist the server envelope id back onto the local draft so the
@@ -342,7 +344,7 @@ export function DocumentRoute() {
         setSendError(friendlySendError(err));
       }
     },
-    [doc, navigate, sendDocument, sendEnvelope, canvasHeight],
+    [doc, navigate, remindersEnabled, sendDocument, sendEnvelope, canvasHeight],
   );
 
   /**
@@ -548,6 +550,8 @@ export function DocumentRoute() {
         onCreateSigner={handleCreateSigner}
         onRemoveSigner={handleRemoveSigner}
         onSend={handleSend}
+        remindersEnabled={remindersEnabled}
+        onRemindersEnabledChange={setRemindersEnabled}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
         onSaveAsTemplate={handleOpenSaveTemplate}

@@ -13,6 +13,10 @@ import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EmailDispatcherService, type FlushResult } from '../email/email-dispatcher.service';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import {
+  ReminderSchedulerService,
+  type ReminderSweepResult,
+} from '../reminders/reminder-scheduler.service';
 
 /**
  * Internal cron endpoints. Locked down with a shared-secret header
@@ -28,6 +32,7 @@ export class CronController {
   constructor(
     private readonly repo: EnvelopesRepository,
     private readonly emailDispatcher: EmailDispatcherService,
+    private readonly reminders: ReminderSchedulerService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -75,6 +80,23 @@ export class CronController {
   async flushEmails(@Headers('x-cron-secret') secret: string | undefined): Promise<FlushResult> {
     this.assertSecret(secret);
     return this.emailDispatcher.flushOnce(50);
+  }
+
+  /**
+   * POST /internal/cron/reminders
+   *
+   * Queues reminder outbox rows for unsigned signers whose last invite or
+   * reminder is at least 24 hours old. Does not send mail itself — the
+   * email worker (or `flush-emails`) drains the outbox. Safe to overlap
+   * with the in-process ReminderWorker: the claim stamps last_reminded_at.
+   */
+  @Post('reminders')
+  @HttpCode(200)
+  async sendReminders(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ): Promise<ReminderSweepResult> {
+    this.assertSecret(secret);
+    return this.reminders.enqueueDue(new Date(), 50);
   }
 
   private assertSecret(provided: string | undefined): void {

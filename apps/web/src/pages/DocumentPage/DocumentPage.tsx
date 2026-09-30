@@ -23,6 +23,7 @@ import { PlaceOnPagesPopover } from '@/components/PlaceOnPagesPopover';
 import { PlacedField } from '@/components/PlacedField';
 import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
+import { ReminderToggle } from '@/components/ReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
 import {
@@ -104,6 +105,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onCreateSigner,
     onRemoveSigner,
     onSend,
+    remindersEnabled,
+    onRemindersEnabledChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
@@ -115,6 +118,15 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   } = props;
 
   const isTemplateAuthoring = templateMode === 'authoring';
+  const [uncontrolledReminders, setUncontrolledReminders] = useState(true);
+  const remindersOn = remindersEnabled ?? uncontrolledReminders;
+  const handleRemindersChange = useCallback(
+    (next: boolean) => {
+      if (remindersEnabled === undefined) setUncontrolledReminders(next);
+      onRemindersEnabledChange?.(next);
+    },
+    [onRemindersEnabledChange, remindersEnabled],
+  );
 
   // -------------------------- chrome state (rail widths + drawer toggles)
   const [leftOpen, setLeftOpen] = useState(true);
@@ -648,6 +660,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 </TemplatePrimaryFooter>
               ) : (
                 <RightRailFooter>
+                  <ReminderToggle enabled={remindersOn} onChange={handleRemindersChange} />
                   <SendPanelFooter
                     fieldCount={fields.length}
                     /* The seald API rejects envelopes without a signature

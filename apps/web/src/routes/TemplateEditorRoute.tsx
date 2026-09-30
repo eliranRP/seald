@@ -150,6 +150,7 @@ export function TemplateEditorRoute() {
     useAppState();
   const { guest } = useAuth();
   const sendEnvelope = useSendEnvelope();
+  const [remindersEnabled, setRemindersEnabled] = useState(true);
 
   const decodedId = decodeURIComponent(params.id ?? '');
   const isNewTemplate = decodedId === 'new';
@@ -646,6 +647,7 @@ export function TemplateEditorRoute() {
           },
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
+          remindersEnabled,
         });
         sendDocument(draft.id);
         navigate(`/document/${result.envelope_id}/sent`);
@@ -653,7 +655,7 @@ export function TemplateEditorRoute() {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
       }
     },
-    [draft, navigate, sendDocument, sendEnvelope, toNormalized],
+    [draft, navigate, remindersEnabled, sendDocument, sendEnvelope, toNormalized],
   );
 
   const handleSend = useCallback(() => {
@@ -857,6 +859,8 @@ export function TemplateEditorRoute() {
             availableFieldKinds={TEMPLATE_FIELD_KINDS}
             {...(banner ? { banner } : {})}
             onSend={mode === 'new' ? () => {} : handleSend}
+            remindersEnabled={remindersEnabled}
+            onRemindersEnabledChange={setRemindersEnabled}
             // Only expose Save-as-template in modes where saving is the
             // user's stated intent: authoring a new template ('new') or
             // explicitly editing an existing one ('editing'). In 'using'

@@ -31,6 +31,7 @@ import type { DownloadMenuItem } from '@/components/DownloadMenu';
 import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import { Skeleton } from '@/components/Skeleton';
 import { TagEditor } from '@/components/TagEditor';
+import { ReminderToggle } from '@/components/ReminderToggle';
 import { patchEnvelope } from '@/features/envelopes/envelopesApi';
 import {
   envelopeKeys,
@@ -362,6 +363,20 @@ export function EnvelopeDetailPage() {
   // detail + list queries on success so other surfaces (dashboard
   // chips, filter chip suggestions) refresh. Failures revert via the
   // re-fetched server value.
+  const handleRemindersChange = useCallback(
+    async (enabled: boolean) => {
+      if (!envelope) return;
+      try {
+        await patchEnvelope(envelope.id, { reminders_enabled: enabled });
+        await qc.invalidateQueries({ queryKey: envelopeKeys.detail(envelope.id) });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to update reminders.';
+        setToast({ kind: 'danger', text: msg });
+      }
+    },
+    [envelope, qc],
+  );
+
   const handleTagsChange = useCallback(
     async (next: ReadonlyArray<string>) => {
       if (!envelope) return;
@@ -916,6 +931,14 @@ export function EnvelopeDetailPage() {
                   ))}
                 </SignerList>
               )}
+              {envelope.status === 'draft' || envelope.status === 'awaiting_others' ? (
+                <ReminderToggle
+                  enabled={envelope.reminders_enabled !== false}
+                  onChange={(next) => {
+                    void handleRemindersChange(next);
+                  }}
+                />
+              ) : null}
             </SignersCard>
 
             <AuditCallout>

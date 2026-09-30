@@ -1,6 +1,7 @@
 import {
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
   IsISO8601,
   IsOptional,
   IsString,
@@ -32,4 +33,12 @@ export class PatchEnvelopeDto {
   @IsString({ each: true })
   @MaxLength(32, { each: true })
   readonly tags?: string[];
+
+  /**
+   * When false, the daily reminder sweep skips this envelope. Editable
+   * while the envelope is a draft or awaiting signatures. Default is on.
+   */
+  @IsOptional()
+  @IsBoolean()
+  readonly reminders_enabled?: boolean;
 }

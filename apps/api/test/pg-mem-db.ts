@@ -278,6 +278,14 @@ export function createPgMemDb(): PgMemHandle {
       on public.outbound_emails (dedupe_key);
   `);
 
+  // 0020 — reminders_enabled + last_reminded_at.
+  mem.public.none(`
+    alter table public.envelopes
+      add column if not exists reminders_enabled boolean not null default true;
+    alter table public.envelope_signers
+      add column if not exists last_reminded_at timestamptz;
+  `);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8
