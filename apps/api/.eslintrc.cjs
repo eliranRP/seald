@@ -1,6 +1,9 @@
 // `as unknown as` is the only syntax ban today. Sealing turns that
 // selector off and keeps every other selector in `syntaxBans`, so a
-// ban added later is still enforced under src/sealing.
+// ban added later is still enforced under src/sealing. The MCP
+// override sets `no-restricted-syntax` itself (import() and
+// createRequire), which replaces this list, so it spreads
+// `syntaxBans` again.
 const asUnknownAsBan = {
   selector:
     "TSAsExpression[expression.type='TSAsExpression'][expression.typeAnnotation.type='TSUnknownKeyword']",
@@ -8,6 +11,47 @@ const asUnknownAsBan = {
     'Do not use `as unknown as`. Narrow the value, or use a single assertion when the types already overlap.',
 };
 const syntaxBans = [asUnknownAsBan];
+
+// Rule S.5. An override replaces the whole `no-restricted-imports`
+// config, so the MCP override repeats this ban. The allowlist's own
+// message does not mention extractSignature; the named-import ban is
+// what a mutation of this entry must fail.
+const signpdfExtractSignatureBan = {
+  name: '@signpdf/utils',
+  importNames: ['extractSignature'],
+  message:
+    'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
+};
+
+// import() is banned outright: a literal path can be a static import,
+// and a template or variable path cannot be checked. createRequire is
+// the same hole. `callee.callee` is `createRequire(id)(specifier)`.
+// `callee.property` is `module.createRequire`. A non-literal require()
+// is banned here too; a string require() goes through the allowlist.
+const mcpSyntaxBans = [
+  ...syntaxBans,
+  {
+    selector: 'ImportExpression',
+    message:
+      'The MCP module does not use import(). Call an application service through a static import.',
+  },
+  {
+    selector: "CallExpression[callee.name='createRequire']",
+    message: 'The MCP module does not use createRequire.',
+  },
+  {
+    selector: "CallExpression[callee.callee.name='createRequire']",
+    message: 'The MCP module does not use createRequire.',
+  },
+  {
+    selector: "CallExpression[callee.property.name='createRequire']",
+    message: 'The MCP module does not use createRequire.',
+  },
+  {
+    selector: "CallExpression[callee.name='require'][arguments.0.type!='Literal']",
+    message: 'The MCP module does not use a dynamic require().',
+  },
+];
 
 // A severity-only override inherits the parent selectors. When sealing
 // has no bans of its own, a selector that matches nothing is what
@@ -29,7 +73,7 @@ module.exports = {
     project: ['./tsconfig.json'],
     tsconfigRootDir: __dirname,
   },
-  plugins: ['@typescript-eslint', '@eslint-community/eslint-comments'],
+  plugins: ['@typescript-eslint', '@eslint-community/eslint-comments', 'seald'],
   extends: [
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
@@ -55,14 +99,7 @@ module.exports = {
     'no-restricted-imports': [
       'error',
       {
-        paths: [
-          {
-            name: '@signpdf/utils',
-            importNames: ['extractSignature'],
-            message:
-              'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
-          },
-        ],
+        paths: [signpdfExtractSignatureBan],
       },
     ],
   },
@@ -92,6 +129,28 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-non-null-assertion': 'off',
         'no-restricted-syntax': syntaxRule(syntaxBans.filter((ban) => ban !== asUnknownAsBan)),
+      },
+    },
+    {
+      // Production MCP files. Specs are the only exemption: a helper
+      // under __tests__ is still production code if a tool imports it.
+      // `no-restricted-syntax` and `no-restricted-imports` replace the
+      // parent rules, so the global bans are repeated here.
+      files: ['src/mcp/**/*.ts'],
+      excludedFiles: ['src/mcp/**/*.spec.ts'],
+      rules: {
+        'seald/mcp-import-allowlist': 'error',
+        'no-restricted-imports': ['error', { paths: [signpdfExtractSignatureBan] }],
+        'no-restricted-syntax': syntaxRule(mcpSyntaxBans),
+      },
+    },
+    {
+      // Repo-wide. Importing a repository from a service is normal.
+      // Re-exporting it would let src/mcp reach the repository through
+      // a *.service.ts name. Wrappers that are not re-exports are review.
+      files: ['src/**/*.service.ts'],
+      rules: {
+        'seald/no-service-repository-reexport': 'error',
       },
     },
   ],

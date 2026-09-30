@@ -72,6 +72,7 @@
     "canvas": "^3.2.3",
     "eslint": "8.57.1",
     "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-seald": "file:./eslint-plugin-seald",
     "jest": "^30.4.2",
     "pdfjs-dist": "6.3.289",
     "pg-mem": "^3.0.14",
