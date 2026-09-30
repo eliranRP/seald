@@ -46,6 +46,7 @@ interface RightClusterArgs {
   readonly onExportData: (() => void) | undefined;
   readonly onDeleteAccount: (() => void) | undefined;
   readonly onOpenIntegrations: (() => void) | undefined;
+  readonly onOpenSettings: (() => void) | undefined;
   readonly isExporting: boolean;
   readonly isDeleting: boolean;
 }
@@ -60,6 +61,7 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
     onExportData,
     onDeleteAccount,
     onOpenIntegrations,
+    onOpenSettings,
     isExporting,
     isDeleting,
   } = args;
@@ -91,6 +93,7 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
         {...(onExportData ? { onExportData } : {})}
         {...(onDeleteAccount ? { onDeleteAccount } : {})}
         {...(onOpenIntegrations ? { onOpenIntegrations } : {})}
+        {...(onOpenSettings ? { onOpenSettings } : {})}
         isExporting={isExporting}
         isDeleting={isDeleting}
       />
@@ -144,6 +147,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     onExportData,
     onDeleteAccount,
     onOpenIntegrations,
+    onOpenSettings,
     isExporting = false,
     isDeleting = false,
     ...rest
@@ -211,6 +215,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
           onExportData,
           onDeleteAccount,
           onOpenIntegrations,
+          onOpenSettings,
           isExporting,
           isDeleting,
         })}

@@ -41,5 +41,17 @@ describe('MWMobileNav — Integrations item', () => {
 
     await user.click(screen.getByRole('button', { name: /open menu/i }));
     expect(screen.queryByRole('button', { name: /integrations/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^settings$/i })).not.toBeInTheDocument();
+  });
+
+  it('shows one Settings row when mcpServer is on', async () => {
+    const user = userEvent.setup();
+    isFeatureEnabledSpy.mockImplementation((flag: string) => flag === 'mcpServer');
+    renderNav();
+
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    expect(screen.getByRole('button', { name: /^settings$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /developers/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /automations/i })).not.toBeInTheDocument();
   });
 });
