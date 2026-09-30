@@ -689,6 +689,8 @@ describe('EnvelopesPgRepository — submitSigner', () => {
     const r = await repo.submitSigner(s1.id, '10.0.0.1', 'UA/1');
     expect(r?.all_signed).toBe(false);
     expect(r?.envelope_status).toBe('awaiting_others');
+    expect(r?.done).toBe(1);
+    expect(r?.total).toBe(2);
   });
 
   it('final submit flips envelope to sealing', async () => {
@@ -705,6 +707,8 @@ describe('EnvelopesPgRepository — submitSigner', () => {
     const r = await repo.submitSigner(s2.id, null, null);
     expect(r?.all_signed).toBe(true);
     expect(r?.envelope_status).toBe('sealing');
+    expect(r?.done).toBe(2);
+    expect(r?.total).toBe(2);
   });
 
   it('already-signed returns null', async () => {

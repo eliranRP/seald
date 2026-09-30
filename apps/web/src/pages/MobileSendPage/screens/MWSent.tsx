@@ -1,6 +1,6 @@
 import { Check, FileText } from 'lucide-react';
 import styled from 'styled-components';
-import { SENDER_PROGRESS_NOTE } from 'shared';
+import { SenderProgressNote } from '@/components/SenderProgressNote';
 import { PrimaryBtn, SecondaryBtn } from '../MobileSendPage.styles';
 import type { MobileSigner } from '../types';
 
@@ -124,7 +124,9 @@ export function MWSent(props: MWSentProps) {
       </SuccessHalo>
       <SentMark aria-hidden>Sent.</SentMark>
       <Headline>Your envelope is on its way.</Headline>
-      <Lead>{SENDER_PROGRESS_NOTE}</Lead>
+      <Lead>
+        <SenderProgressNote />
+      </Lead>
       <Card>
         <Thumb aria-hidden>
           <FileText size={20} />

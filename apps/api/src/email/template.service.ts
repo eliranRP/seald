@@ -19,8 +19,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
  * and cached. Per-send cost is just variable interpolation + string concat.
  *
  * Variable interpolation uses a simple `{{var}}` replacement — no loops,
- * no conditionals. Add a templating engine if the need arises; for eight
- * tiny transactional emails this keeps dependencies narrow.
+ * no conditionals. Add a templating engine if the need arises; for these
+ * transactional emails this keeps dependencies narrow.
  */
 
 export type EmailTemplateKind =
@@ -31,7 +31,8 @@ export type EmailTemplateKind =
   | 'withdrawn_to_signer'
   | 'withdrawn_after_sign'
   | 'expired_to_sender'
-  | 'expired_to_signer';
+  | 'expired_to_signer'
+  | 'signed_to_sender';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -169,6 +170,7 @@ const TITLES: Record<string, string> = {
   withdrawn_after_sign: 'Seald — Envelope withdrawn after signing',
   expired_to_sender: 'Seald — Envelope expired',
   expired_to_signer: 'Seald — Signing window closed',
+  signed_to_sender: 'Seald — Signature recorded',
 };
 
 function prettyTitle(kind: string): string {

@@ -95,6 +95,10 @@ export interface SubmitResult {
   readonly signer: EnvelopeSigner;
   readonly all_signed: boolean;
   readonly envelope_status: EnvelopeStatus;
+  /** Signers with signed_at set, counted inside the submit transaction. */
+  readonly done: number;
+  /** Signers on the envelope, counted inside the submit transaction. */
+  readonly total: number;
 }
 
 export interface ClaimedJob {

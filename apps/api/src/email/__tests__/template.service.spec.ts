@@ -10,7 +10,7 @@ describe('TemplateService', () => {
     svc.onModuleInit();
   });
 
-  it('loads all 8 phase-3c templates at module init', () => {
+  it('loads every transactional template at module init', () => {
     const kinds = svc.kinds();
     for (const expected of [
       'invite',
@@ -21,9 +21,11 @@ describe('TemplateService', () => {
       'withdrawn_after_sign',
       'expired_to_sender',
       'expired_to_signer',
+      'signed_to_sender',
     ]) {
       expect(kinds).toContain(expected);
     }
+    expect(kinds).toHaveLength(9);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -46,7 +48,8 @@ describe('TemplateService', () => {
       expired_at_readable: '2026-05-24 00:00 UTC',
       expires_at_readable: '2026-05-24 00:00 UTC',
       total_signers: 3,
-      signed_count: 1,
+      signed_count: 2,
+      signer_name: 'Maya Raskin',
       // Globally-injected legal-footer vars in production come from
       // EmailDispatcherService; we set them inline here so the brand
       // wordmark assertion below has a stable value to match against.
@@ -65,6 +68,7 @@ describe('TemplateService', () => {
       'withdrawn_after_sign',
       'expired_to_sender',
       'expired_to_signer',
+      'signed_to_sender',
     ] as const)('%s renders to valid HTML + non-empty text + subject', (kind) => {
       const out = svc.render(kind, commonVars);
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
@@ -174,6 +178,7 @@ describe('TemplateService', () => {
       expires_at_readable: 'x',
       total_signers: 1,
       signed_count: 0,
+      signer_name: 'Maya Raskin',
       legal_entity: 'Seald',
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
@@ -189,6 +194,7 @@ describe('TemplateService', () => {
       'withdrawn_after_sign',
       'expired_to_sender',
       'expired_to_signer',
+      'signed_to_sender',
     ] as const)('%s renders the "Seald" brand wordmark in body and subject', (kind) => {
       const out = svc.render(kind, vars);
       // Body must contain the brand wordmark wrapped in the footer <strong>.
@@ -203,6 +209,27 @@ describe('TemplateService', () => {
       expect(out.html).not.toContain('Sealed —'); // subject-prefix misspelling
       // Subject prefix must be "Seald — …", never "Sealed — …".
       expect(out.subject).not.toMatch(/^Sealed —/);
+    });
+
+    it('signed_to_sender names the signer and the progress count, without a signing token', () => {
+      const out = svc.render('signed_to_sender', {
+        ...vars,
+        signer_name: 'Maya Raskin',
+        envelope_title: 'NDA v1',
+        signed_count: 2,
+        total_signers: 3,
+        dashboard_url: 'https://seald.nromomentum.com/document/env-1',
+        short_code: 'abcde12345xyz',
+      });
+      expect(out.subject).toBe('Maya Raskin signed "NDA v1"');
+      expect(out.text).toContain('Maya Raskin signed NDA v1.');
+      expect(out.text).toContain('2 of 3 signed.');
+      expect(out.text).toContain('The finished file is emailed when everyone has signed.');
+      expect(out.text).toContain('Open in Seald:');
+      expect(out.html).toContain('Open in Seald');
+      expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
+      expect(out.html).not.toContain('?t=');
+      expect(out.text).not.toContain('?t=');
     });
 
     it('completed body.txt keeps the verb "Sealed document:" (past-tense action label)', () => {

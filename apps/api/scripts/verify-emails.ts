@@ -1,5 +1,5 @@
 /**
- * Visual regression harness for the 8 transactional email templates.
+ * Visual regression harness for the transactional email templates.
  *
  * Renders every template against a matrix of realistic variable sets
  * (normal, bare-email sender, long title, many signers), writes the
@@ -88,7 +88,8 @@ const baseVars = {
   expired_at_readable: 'Apr 24, 2026',
   expires_at_readable: 'in 4 days',
   total_signers: 3,
-  signed_count: 1,
+  signed_count: 2,
+  signer_name: 'Maya Raskin',
   signer_list_html: signerListEmailName,
   timeline_html: timelineHtml,
 };
@@ -130,6 +131,7 @@ const kinds: ReadonlyArray<EmailTemplateKind> = [
   'withdrawn_after_sign',
   'expired_to_sender',
   'expired_to_signer',
+  'signed_to_sender',
 ];
 
 const BARE_EMAIL = /([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})/gi;

@@ -11,7 +11,7 @@ const meta: Meta<typeof SenderProgressNote> = {
 export default meta;
 type Story = StoryObj<typeof SenderProgressNote>;
 
-/** How the sent-confirmation body renders the note: a paragraph of body copy. */
+/** Lede plus the self-signer line, as the sent-confirmation body renders it. */
 export const InParagraph: Story = {
   render: () => (
     <p style={{ maxWidth: 560, margin: 0, lineHeight: 1.5 }}>
