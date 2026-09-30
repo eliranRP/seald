@@ -53,7 +53,7 @@ Drive save already does the upload half of the Drive recipe: `EnvelopesService.s
 
 RLS is enabled on application tables. Most have no policies; the API role bypasses RLS. `gdrive_envelope_exports` is the exception with an owner policy (`0017`). New automation tables follow the no-policy pattern used by `envelopes` and `outbound_emails`, so the browser cannot read them through PostgREST. The SPA talks to the API.
 
-Last migration on `main` is `0019_email_signed_to_sender.sql`. Open PR #367 already uses `0020_envelope_reminders.sql`. This feature takes the next free id at merge time. Paired down scripts are required. On Postgres 17, `ALTER TYPE … ADD VALUE` is allowed inside the transaction `migrate.sh` opens.
+Last migration on `main` is `0020_envelope_reminders.sql` (#367, `704d6a6`). This feature takes the next free id at merge time. Paired down scripts are required. On Postgres 17, `ALTER TYPE … ADD VALUE` is allowed inside the transaction `migrate.sh` opens.
 
 `AppShell` sends ≤640px viewports to `/m/send`. Phone UI for recipes lives outside the shell. `/settings/` and `/m/` are already SPA prefixes in `apps/landing/_worker.js`.
 
@@ -103,7 +103,7 @@ Slack is not a recipe yet. The action enum includes `slack` so a later migration
 
 ## Data model
 
-Migration: next free id, not `0020` (PR #367). Down script drops the new tables and the new enum types, and drops `envelopes.source_template_id` if this migration added it. The `recipe` column stores the ids below. Do not ship a `signed_` id for a recipe that fires on `sealed`. `signed_notify_list` stays, because it fires on per-signer `signed`.
+Migration: next free id. `0020` shipped in #367. Down script drops the new tables and the new enum types, and drops `envelopes.source_template_id` if this migration added it. The `recipe` column stores the ids below. Do not ship a `signed_` id for a recipe that fires on `sealed`. `signed_notify_list` stays, because it fires on per-signer `signed`.
 
 ```sql
 create type automation_scope as enum ('account', 'template');
