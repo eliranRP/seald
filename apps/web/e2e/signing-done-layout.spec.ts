@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator } from '@playwright/test';
 
 /**
  * The save action on the signing-done card must stay inside the card on a
@@ -40,6 +40,16 @@ const VERIFY = {
   sealed_url: 'https://signed.example/sealed.pdf?sig=layout',
   audit_url: 'https://signed.example/audit.pdf?sig=layout',
 };
+
+/** Large button horizontal padding is theme.space[5]. */
+async function expectSharedLgPadding(button: Locator) {
+  const padding = await button.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { left: style.paddingLeft, right: style.paddingRight };
+  });
+  expect(padding.left).toBe('20px');
+  expect(padding.right).toBe('20px');
+}
 
 test.describe('signing-done save button layout', () => {
   test.beforeEach(async ({ page }) => {
@@ -110,13 +120,7 @@ test.describe('signing-done save button layout', () => {
         expect(Math.round(emailBox.height)).toBe(Math.round(buttonBox.height));
       }
       if (width === 1440 || width === 390) {
-        const padding = await button.evaluate((el) => {
-          const style = getComputedStyle(el);
-          return { left: style.paddingLeft, right: style.paddingRight };
-        });
-        // Button lg horizontal padding is theme.space[5].
-        expect(padding.left).toBe('20px');
-        expect(padding.right).toBe('20px');
+        await expectSharedLgPadding(button);
       }
     });
   }
@@ -175,6 +179,70 @@ test.describe('signing-done save button layout', () => {
 
       const textFits = await labeled.evaluate((el) => el.scrollWidth <= el.clientWidth);
       expect(textFits).toBe(true);
+      await expectSharedLgPadding(labeled);
     });
   }
+
+  test('shipped save label at 544px stays in the row or fills the next line', async ({ page }) => {
+    await page.setViewportSize({ width: 544, height: 900 });
+    await page.goto(`/sign/${ENVELOPE_ID}/done`);
+
+    const button = page.getByRole('button', { name: /save to my seald account/i });
+    const email = page.getByRole('textbox', { name: /your email/i });
+    await expect(button).toBeVisible();
+
+    const buttonBox = await button.boundingBox();
+    const emailBox = await email.boundingBox();
+    const formBox = await button.locator('xpath=ancestor::form').boundingBox();
+    if (!buttonBox || !emailBox || !formBox) {
+      throw new Error('save button, email field, or form has no box');
+    }
+
+    const sharesRow = Math.abs(buttonBox.y - emailBox.y) <= 1;
+    if (sharesRow) {
+      expect(Math.round(buttonBox.height)).toBe(Math.round(emailBox.height));
+    } else {
+      expect(Math.abs(buttonBox.width - formBox.width)).toBeLessThanOrEqual(1);
+    }
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    await expectSharedLgPadding(button);
+  });
+
+  test('a 46-character save label fills the line when it wraps', async ({ page }) => {
+    const label = 'Save to my Seald account and keep this signed.';
+    expect(label.length).toBeGreaterThanOrEqual(46);
+    expect(label.length).toBeLessThanOrEqual(48);
+
+    await page.setViewportSize({ width: 544, height: 900 });
+    await page.goto(`/sign/${ENVELOPE_ID}/done`);
+
+    const button = page.getByRole('button', { name: /save to my seald account/i });
+    await expect(button).toBeVisible();
+    await button.evaluate((el, next) => {
+      el.textContent = next;
+    }, label);
+
+    const labeled = page.getByRole('button', { name: label });
+    const buttonBox = await labeled.boundingBox();
+    const emailBox = await page.getByRole('textbox', { name: /your email/i }).boundingBox();
+    const formBox = await labeled.locator('xpath=ancestor::form').boundingBox();
+    if (!buttonBox || !emailBox || !formBox) {
+      throw new Error('save button, email field, or form has no box');
+    }
+
+    expect(buttonBox.y).toBeGreaterThan(emailBox.y + emailBox.height - 1);
+    expect(Math.abs(buttonBox.width - formBox.width)).toBeLessThanOrEqual(1);
+
+    const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    await expectSharedLgPadding(labeled);
+  });
 });

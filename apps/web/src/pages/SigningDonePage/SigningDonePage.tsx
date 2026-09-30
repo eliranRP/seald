@@ -198,9 +198,8 @@ const UpsellForm = styled.form`
 `;
 
 /**
- * Beside the field the slot keeps its label width. If that no longer fits,
- * flex-wrap drops it onto the next line at the full row width instead of
- * squeezing the label into three or four lines.
+ * Beside the field the slot can grow. If the label no longer fits on that
+ * row, flex-wrap drops the slot onto the next line and it fills that line.
  */
 const SaveSlot = styled.div`
   width: 100%;
@@ -213,11 +212,11 @@ const SaveSlot = styled.div`
 
   @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
     width: auto;
-    flex: 0 0 auto;
+    flex: 1 0 auto;
     max-width: 100%;
 
     & > button {
-      width: auto;
+      width: 100%;
       max-width: 100%;
     }
   }
