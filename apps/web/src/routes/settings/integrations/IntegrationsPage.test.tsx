@@ -60,8 +60,7 @@ describe('IntegrationsPage', () => {
         "Disconnect any time. We ask Google to revoke our access and stop using the saved token. The saved token isn't deleted from our database yet.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/encrypt/i)).toBeNull();
-    expect(screen.queryByText(/\bKMS\b/)).toBeNull();
+    expect(screen.queryByText(/encrypt|KMS|every action is logged/i)).toBeNull();
   });
 
   it('shows a Connect Google Drive CTA when no accounts are connected', async () => {

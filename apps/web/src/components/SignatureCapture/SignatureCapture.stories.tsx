@@ -36,15 +36,3 @@ export const Signature: Story = {
 export const Initials: Story = {
   render: () => <InteractiveDemo kind="initials" />,
 };
-
-/** Open signature sheet at 390×844. Footer says when the audit trail records the signature. */
-export const Mobile: Story = {
-  parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
-  render: () => <InteractiveDemo kind="signature" />,
-};
-
-/** Open signature sheet at 1440×900. Footer says when the audit trail records the signature. */
-export const Desktop: Story = {
-  parameters: { chromatic: { modes: { desktop: chromaticViewportModes.desktop } } },
-  render: () => <InteractiveDemo kind="signature" />,
-};
