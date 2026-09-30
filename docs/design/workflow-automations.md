@@ -269,7 +269,7 @@ Worker, `apps/api/src/automations/automation-worker.service.ts`, copied in struc
 
 Disable and delete: `enabled = false` stops new jobs. Jobs already queued still finish. Deleting a recipe cascades jobs and runs.
 
-`viewed` can fire more than once if the signer reopens the document. Confirm in `SigningService` whether `viewed` is appended once. The unique key includes the envelope, the trigger, and the signer, so two view events for the same signer collapse to one run unless the card says each open is its own run and that PR uses a different key. If the service only writes `viewed` on the first open, the recipe already means “first view”. The implementation PR should assert that against the current `SigningService` and, if views are repeated, document it on the recipe card (“each time they open it”) or dedupe with a partial unique index on `(automation_id, envelope_id, signer_id)` for the `envelope_viewed` trigger. Prefer matching whatever the service already writes, and say so on the card.
+`viewed` is written once, on the first open. `SigningService` appends it only when `viewed_at` is null (`signing.service.ts` around line 223). The recipe card says “When someone first views”. A later open does not append another event.
 
 ## Webhook security
 
@@ -462,7 +462,7 @@ Shared components, each in its own PR before the page that needs it: `SecretOnce
 
 Unit, Jest:
 
-- Matcher: `sealed` enqueues `sealed_save_drive` and ignores a `declined` recipe. The event transaction writes a pending trigger and does not insert the job. A crash after commit leaves that trigger. Matching after commit, or the startup rescan, inserts the job. A thrown match does not roll the event back. Two signers produce two runs. A duplicate of the same signer and trigger inserts one.
+- Matcher: `sealed` enqueues `sealed_save_drive` and ignores a `declined` recipe. The event transaction writes a pending trigger and does not insert the job. A crash after commit leaves that trigger. Matching after commit, or the startup rescan, inserts the job. When the matcher throws, submit still succeeds and the rescan inserts the run. Two signers produce two runs. A duplicate of the same signer and trigger inserts one. `viewed` is asserted as first-open only.
 - Webhook signer: known body and secret produce the expected hex. During rotation both headers are present. `timingSafeEqual` rejects a different length. Timestamp outside 300 seconds fails.
 - SSRF: `http://`, `https://127.0.0.1`, `https://169.254.169.254`, `https://10.0.0.1`, `https://100.64.0.1`, a NAT64 address, a hostname that resolves to `192.168.0.5`, `::ffff:127.0.0.1`, `0.0.0.0`, `64:ff9b::a00:1`, `2002:0a00:0001::`, Seald’s own API, app, and Supabase hostnames, and any 3xx are blocked and do not open a socket. Use a stub resolver.
 - Payload fixture for each `type` has no key matching `/token|sign_url|access_token/i`.
@@ -490,7 +490,7 @@ One feature per pull request, in the order the product review listed for this tr
 
 | PR | Feature |
 | --- | --- |
-| A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan of pending triggers and of events after the checkpoint. A matcher failure does not roll back submit or sealing. |
+| A1 | Tables, the pending trigger row inside `appendEvent`, and matching after commit. Worker off. Next free migration id. Recipe ids `sealed_save_drive` and `sealed_webhook` from the start. Startup rescan from `(created_at, id)` minus five minutes. A matcher failure does not roll back submit or sealing. The test is: the matcher throws, submit succeeds, and the rescan inserts the run. |
 | A2 | Webhook action: worker, `locked_at` reclaim, both signature headers, address checks. Secrets use `AUTOMATION_SECRETS_KEY`. No test endpoint and no `automations_test_webhook`. The e2e fixture inserts an enabled recipe. A signed-in create turns an external destination on and sends a short notification email. An MCP create stays disabled until the owner approves. The screen is not in this PR. |
 | A2b | `POST /automations/:id/test` and `automations_test_webhook`. Both return `recipe_not_approved` and do not call the network while an MCP recipe is waiting on approval. A recipe the owner saved in the app can be tested. Ships after the approval email exists (MCP step 7a). A test is not stored as a run. |
 | A3 | Automation tools. List, upsert, enable, list runs, `automations_get_run`, `automations_retry_run`. Retry refuses a permanent failure (`retryable` false). An MCP external destination stays disabled until the owner approves. Approval is email-first: a link to the standalone Approve/Deny page, with the in-app queue as secondary. The settings Save path is not this approval. `automations:write` is off by default. The test tool is A2b, not this PR. |
@@ -506,11 +506,10 @@ Slack stays out. A later PR would add a Slack app, its own secret, and one card.
 
 ## Open questions
 
-1. `viewed` cardinality. Confirm at implementation whether `SigningService` appends one `viewed` or one per session, and write that sentence on the card.
-2. Should template scope ship with the automations page or wait until `source_template_id` is set by the use-template flow? The column can land in A1 and stay null until that write exists. Until then, template-scoped recipes match nothing, so the UI hides “Only for one template”.
-3. The test-only SSRF allowlist versus a hostname the production denylist does not know. The denylist stays on in e2e.
-4. `AUTOMATION_SECRETS_KEY` unset. Webhook create returns 503. Tests set the env var. This feature does not call a remote key service.
-5. OAuth client registration for ChatGPT and Claude is an MCP question. This feature does not add it.
+1. Should template scope ship with the automations page or wait until `source_template_id` is set by the use-template flow? The column can land in A1 and stay null until that write exists. Until then, template-scoped recipes match nothing, so the UI hides “Only for one template”.
+2. The test-only SSRF allowlist versus a hostname the production denylist does not know. The denylist stays on in e2e.
+3. `AUTOMATION_SECRETS_KEY` unset. Webhook create returns 503. Tests set the env var. This feature does not call a remote key service.
+4. OAuth client registration for ChatGPT and Claude is an MCP question. This feature does not add it.
 
 ## Risks
 
