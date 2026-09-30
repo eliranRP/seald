@@ -100,12 +100,41 @@ test.describe('signing-done save button layout', () => {
       const textFits = await button.evaluate((el) => el.scrollWidth <= el.clientWidth);
       expect(textFits).toBe(true);
 
-      if (width === 320 || width === 390) {
-        const email = page.getByRole('textbox', { name: /your email/i });
-        const emailBox = await email.boundingBox();
-        if (!emailBox) throw new Error('email field has no box');
-        expect(emailBox.height).toBeGreaterThanOrEqual(44);
+      const email = page.getByRole('textbox', { name: /your email/i });
+      const emailBox = await email.boundingBox();
+      if (!emailBox) throw new Error('email field has no box');
+      expect(Math.round(emailBox.height)).toBe(48);
+      if (width === 1440) {
+        expect(Math.round(emailBox.height)).toBe(Math.round(buttonBox.height));
       }
     });
   }
+
+  test('a 65-character save label stays inside the card at 1440px', async ({ page }) => {
+    const label = 'Save to my Seald account and keep this signed document forever now';
+    expect(label.length).toBeGreaterThanOrEqual(65);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/sign/${ENVELOPE_ID}/done`);
+
+    const button = page.getByRole('button', { name: /save to my seald account/i });
+    const card = page.getByRole('region', { name: /create your free seald account/i });
+    await expect(button).toBeVisible();
+    await button.evaluate((el, next) => {
+      el.textContent = next;
+    }, label);
+
+    const buttonBox = await page.getByRole('button', { name: label }).boundingBox();
+    const cardBox = await card.boundingBox();
+    const emailBox = await page.getByRole('textbox', { name: /your email/i }).boundingBox();
+    if (!buttonBox || !cardBox || !emailBox) {
+      throw new Error('save button, email field, or upsell card has no box');
+    }
+
+    expect(buttonBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
+    expect(buttonBox.y).toBeGreaterThanOrEqual(cardBox.y - 1);
+    expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
+    expect(buttonBox.y + buttonBox.height).toBeLessThanOrEqual(cardBox.y + cardBox.height + 1);
+    expect(emailBox.width).toBeGreaterThanOrEqual(200);
+  });
 });

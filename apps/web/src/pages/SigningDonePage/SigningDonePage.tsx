@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import styled from 'styled-components';
+import styled, { type DefaultTheme } from 'styled-components';
 import { CheckCircle2, Download, ShieldCheck, Sparkles } from 'lucide-react';
 import { SEAL_DOWNLOAD_ERROR } from 'shared';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
-import type { SealdTheme } from '@/styles/theme';
 import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
@@ -171,8 +170,11 @@ const UpsellBody = styled.div`
  * inside the card instead of spilling past its edge. The length is four
  * space.24 steps plus space.16.
  */
-const upsellRowMin = (theme: SealdTheme): string =>
+const upsellRowMin = (theme: DefaultTheme): string =>
   `calc(${theme.space[24]} * 4 + ${theme.space[16]})`;
+
+/** Floor for the email field so a long save label cannot collapse it. Five space.10 steps. */
+const upsellFieldMin = (theme: DefaultTheme): string => `calc(${theme.space[10]} * 5)`;
 
 const UpsellForm = styled.form`
   margin-top: ${({ theme }) => theme.space[4]};
@@ -187,31 +189,30 @@ const UpsellForm = styled.form`
 
     & > input {
       width: auto;
+      flex-basis: ${({ theme }) => upsellFieldMin(theme)};
     }
   }
 `;
 
-/** Full-width while stacked. Beside the field, the slot sizes to the label. */
+/**
+ * The slot is the flex item beside the field. The button fills the slot
+ * (fullWidth) instead of sitting in the row itself, so a long label shrinks
+ * the slot and wraps rather than crushing the field or leaving the card.
+ */
 const SaveSlot = styled.div`
-  display: flex;
   width: 100%;
   min-height: ${({ theme }) => theme.space[12]};
 
   @container upsell (min-width: ${({ theme }) => upsellRowMin(theme)}) {
-    /* Keep the label on one line. Shrinking this slot wraps it and the
-       control grows past the 48px field beside it. */
     width: auto;
-    flex: 0 0 auto;
+    flex: 0 1 max-content;
+    min-width: 0;
     max-width: 100%;
-
-    & > button {
-      width: auto;
-      max-width: 100%;
-    }
   }
 
   & > button {
     min-height: ${({ theme }) => theme.space[12]};
+    overflow-wrap: anywhere;
   }
 
   /* The shared halo is ~1.14:1 on this ink card. Use the focus stroke instead. */
@@ -224,7 +225,7 @@ const SaveSlot = styled.div`
 const UpsellInput = styled.input`
   flex: 1 1 auto;
   width: 100%;
-  min-width: 0;
+  min-width: ${({ theme }) => upsellFieldMin(theme)};
   min-height: ${({ theme }) => theme.space[12]};
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.14);
