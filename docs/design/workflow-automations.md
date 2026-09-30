@@ -539,11 +539,11 @@ Seald cannot recall data already delivered to a webhook, a Drive folder, an emai
 
 ## Legal text
 
-Drafts for counsel. Not licensed counsel, and not legal advice. Publish them only in the pull request that turns `workflowAutomations` or `mcpServer` on. That compliance PR uses the drafts in PR #368 comment 5907683343 (T1–T4, P1–P5, D-1–D-5, S1, A1–A2), plus T1a and the corrections below. Version bumps stay `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
+Drafts for counsel. Not licensed counsel, and not legal advice. The v0.4 text ships in each feature’s enabling PR, not in a docs-only change. That PR uses the drafts in PR #368 comment 5907683343 (T1–T4, P1–P5, D-1–D-5, S1, A1–A2), plus T1a and the corrections below. Version bumps stay `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
 
 **T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
 
-**D-5 correction (DPA Annex II).** Webhook signing secrets are encrypted by the application with a key held outside the database (AES-GCM, AAD is the automation id). The draft must not say AWS KMS.
+**D-5 correction (DPA Annex II).** Webhook signing secrets are stored separately from the key needed to read them. The customer-facing draft must not say the application encrypts them, and it must not say AWS KMS. Implementation, not customer copy: the worker uses AES-GCM with `AUTOMATION_SECRETS_KEY` and AAD set to `automation_id`.
 
 **P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
