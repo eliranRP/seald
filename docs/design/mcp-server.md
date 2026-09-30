@@ -439,7 +439,7 @@ create table public.mcp_uploads (
 
 RLS on, no policies. `documents_upload_start` inserts the row before the bytes exist, so `mime`, `sha256`, and `byte_length` are null until complete, and `completed_at` is null. `consumed_at` means the completed upload was attached to a draft or template. It does not mean the bytes were received.
 
-`envelopes_upload_pdf` input is `{ "envelope_id", "document_id", "idempotency_key": "string", "dry_run": "boolean" }`. The handler loads the row for that owner and rejects it when `completed_at` is null, when `consumed_at` is set, or when `expires_at` has passed. It then calls `uploadOriginal`, sets `consumed_at`, and deletes the staging object. A cleanup pass deletes expired rows that were never attached (`consumed_at` is null), including a start that never completed. Output: `{ "pages": number, "sha256": "string" }`. Event `pdf_uploaded` is the one `uploadOriginal` already appends.
+`envelopes_upload_pdf` input is `{ "envelope_id", "document_id", "idempotency_key": "string", "dry_run": "boolean" }`. The handler loads the row for that owner and rejects it when `completed_at` is null, when `consumed_at` is set, or when `expires_at` has passed. It then calls `uploadOriginal`, sets `consumed_at`, and deletes the staging object. A cleanup pass deletes expired rows that were never attached (`consumed_at` is null), including a start that never completed, and deletes their staging objects in the same pass. Output: `{ "pages": number, "sha256": "string" }`. Event `pdf_uploaded` is the one `uploadOriginal` already appends.
 
 **`documents_upload`** → the only local-file upload, scope `documents:write`. `idempotency_key` and `dry_run` are required. Two shapes of this one tool:
 
@@ -989,6 +989,7 @@ Service tests:
 - An unattended send without a confirmation token does not call `send`. The default approval path returns `approval_pending` with no confirmation token, and a later poll does not call `envelopes_send` again.
 - A second use of the token fails, including two concurrent callers.
 - Patching the draft after preview changes `subject_hash` and the token fails.
+- After cleanup, an expired, unattached upload’s staging object is gone.
 - `metadata.mcp` on `created`, on `pdf_uploaded`, and on per-signer `sent` includes `auth`, `key_name`, `key_prefix`, `acting_for_user_id`, and `approval`. It does not include `client_name`. Signer events (`viewed`, `consented`, `signed`) have no `metadata.mcp`. `verifyEventChain` still passes. The certificate names the approval mode and the key (“Sent via Key 2”, or “Sent via API key” when the key has no name). It does not print `client_name`. `approval_decided` records approve and deny, with IP and user agent, and contains no `/approve/` URL.
 - Idempotent replay returns the stored body. A second credential with the same client key does not replay the first credential’s row.
 - Two concurrent sends at the daily cap produce one success and one `send_daily_cap`.
@@ -1101,7 +1102,9 @@ Turning `mcpServer` on is its own change after step 6 has been used with a real 
 
 ## Legal text
 
-Drafts for counsel. Not licensed counsel, and not legal advice. An Israeli lawyer and a US lawyer review them before they bind anyone. The v0.4 text ships in each feature’s enabling PR, so the legal pages never describe a feature that is not live. Terms and Privacy are material changes (Terms §14 and Privacy §12 promise 30 days’ notice). The 30-day Terms and Privacy change notice must be sent at least 30 days before the flag-flip PR is deployed.
+Drafts for counsel. Not licensed counsel, and not legal advice. An Israeli lawyer and a US lawyer review them before they bind anyone. The v0.4 text ships in each feature’s enabling PR, so the legal pages never describe a feature that is not live. Terms and Privacy are material changes (Terms §14 and Privacy §12 promise 30 days’ notice).
+
+Until the PR that sets `mcpServer` to true, no customer account can use the feature (the flag is global and the routes 404; staging hosts are not customers). That same PR ships the Terms, Privacy, DPA, AUP and sub-processor v0.4 text and bumps `TC_VERSION`/`PRIVACY_VERSION` so existing users re-accept before they can create a key, connect a client or approve. If any external user accounts exist at that time, it is merged no earlier than 30 days after the notice of material changes (Terms §14, Privacy §12) has been sent.
 
 That compliance PR uses the drafts in PR #368 comment 5907683343 (T1–T4, P1–P5, D-1–D-5, S1, A1–A2), plus T1a and the corrections below. Version bumps stay `terms_v0.4`, `privacy_v0.4`, `dpa_v0.4`, `aup_v0.3`, `sub_processors_v0.4`.
 
