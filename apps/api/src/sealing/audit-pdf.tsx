@@ -963,7 +963,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
     >
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
-        <Hero envelope={props.envelope} />
+        <Hero envelope={props.envelope} sealed={props.sealedSha256 !== null} />
         <Section num="01" title="Document evidence and access" />
         <Datagrid ctx={ctx} />
         <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
@@ -972,6 +972,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
           verifyUrl={props.verifyUrl}
           qrDataUrl={props.qrDataUrl}
           shortCode={props.envelope.short_code}
+          sealed={props.sealedSha256 !== null}
         />
         <PageFooter ctx={ctx} />
       </Page>
@@ -1105,18 +1106,18 @@ function PageFooter({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   );
 }
 
-function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
-  const completed = envelope.completed_at
-    ? formatDateShort(envelope.completed_at)
-    : formatDateShort(envelope.created_at);
+function Hero({ envelope, sealed }: { envelope: Envelope; sealed: boolean }): React.ReactElement {
+  const statusLabel = sealed ? 'Completed' : humanEnvelopeStatus(envelope.status);
+  const statusAt =
+    sealed && envelope.completed_at !== null ? envelope.completed_at : envelope.updated_at;
   return (
     <View style={styles.hero}>
       <Text style={styles.heroKicker}>
-        Request {envelope.short_code.toUpperCase()} · Completed {completed}
+        Request {envelope.short_code.toUpperCase()} · {statusLabel} {formatDateShort(statusAt)}
       </Text>
       <View style={styles.heroTitleRow}>
         <Text style={styles.heroTitle}>This document is</Text>
-        <Text style={styles.heroScript}>sealed</Text>
+        <Text style={styles.heroScript}>{sealed ? 'sealed' : 'not sealed'}</Text>
         <Text style={styles.heroTitle}>.</Text>
       </View>
       <Text style={styles.heroSubtitle}>
@@ -1127,14 +1128,24 @@ function Hero({ envelope }: { envelope: Envelope }): React.ReactElement {
       </Text>
       {/* The renderer is not told whether this file got a CMS seal or
           a timestamp. NoopPadesSigner returns the PDF unchanged, and a
-          TSA failure leaves a seal with no timestamp. */}
+          TSA failure leaves a seal with no timestamp. A null sealed
+          hash means there is no sealed document at all. */}
       <Text style={styles.heroOperator}>
         Seald · PAdES seal when applied · RFC 3161 timestamp when available
       </Text>
       <View style={styles.seal}>
         <View style={styles.sealInner} />
-        <Text style={styles.sealScript}>Sealed</Text>
-        <Text style={styles.sealLabel}>Verified</Text>
+        {sealed ? (
+          <>
+            <Text style={styles.sealScript}>Sealed</Text>
+            <Text style={styles.sealLabel}>Verified</Text>
+          </>
+        ) : (
+          <>
+            <Text style={styles.sealLabel}>Not sealed</Text>
+            <Text style={styles.sealLabel}>{humanEnvelopeStatus(envelope.status)}</Text>
+          </>
+        )}
       </View>
     </View>
   );
@@ -1229,10 +1240,12 @@ function VerifyCard({
   verifyUrl,
   qrDataUrl,
   shortCode,
+  sealed,
 }: {
   verifyUrl: string;
   qrDataUrl: string;
   shortCode: string;
+  sealed: boolean;
 }): React.ReactElement {
   return (
     // wrap={false} so the QR + URL + CODE never split mid-card when
@@ -1242,8 +1255,9 @@ function VerifyCard({
         <Text style={styles.verifyEyebrow}>Verify this document</Text>
         <Text style={styles.verifyTitle}>Scan or visit to confirm authenticity</Text>
         <Text style={styles.verifyCopy}>
-          If this audit trail is printed, scan the code or type the URL below to confirm the
-          signature is valid and the file has not been altered since it was sealed.
+          {sealed
+            ? 'If this audit trail is printed, scan the code or type the URL below to confirm the signature is valid and the file has not been altered since it was sealed.'
+            : 'If this audit trail is printed, scan the code or type the URL below to read this record. There is no sealed document for this request.'}
         </Text>
         <View style={styles.verifyFieldRow}>
           <Text style={styles.verifyKey}>URL</Text>
@@ -1396,12 +1410,19 @@ function EventIcon({ kind }: { kind: ParticipantEvent['kind'] }): React.ReactEle
 
 function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
   const cells = [
-    {
-      label: 'Integrity',
-      value: 'Verified',
-      sub: 'SHA-256 hash matches the sealed document.',
-      icon: ICONS.shieldCheck,
-    },
+    ctx.sealedSha256 !== null
+      ? {
+          label: 'Integrity',
+          value: 'Verified',
+          sub: 'SHA-256 hash matches the sealed document.',
+          icon: ICONS.shieldCheck,
+        }
+      : {
+          label: 'Integrity',
+          value: 'Audit chain',
+          sub: 'SHA-256 links each audit event to the one before it.',
+          icon: ICONS.shieldCheck,
+        },
     {
       label: 'Timestamp',
       value: 'RFC 3161 when available',
@@ -1417,7 +1438,8 @@ function TrustBar({ ctx }: { ctx: RenderCtx }): React.ReactElement {
     {
       label: 'Completion',
       value: computeDurationText(ctx),
-      sub: 'From created to sealed.',
+      sub:
+        ctx.sealedSha256 !== null ? 'From created to sealed.' : 'From created to the last event.',
       icon: ICONS.check,
     },
   ];
@@ -1544,7 +1566,7 @@ const TERMS_PAGE_4: ReadonlyArray<TermDef> = [
   {
     num: '12',
     name: 'Trusted timestamp (RFC 3161)',
-    body: 'A technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
+    body: 'When present, a technological instrument that validates a document existed before a certain date and has not been modified since. Issued by an external timestamp authority over the RFC 3161 protocol.',
   },
   {
     num: '13',
@@ -1690,9 +1712,9 @@ function buildProposerParticipant(ctx: RenderCtx): ParticipantData {
     name: proposer.name,
     email: proposer.email,
     signatureText: null,
-    signatureMeta: 'Verified via account authentication',
+    signatureMeta: proposerIdentity(ctx.envelope).meta,
     isProposer: true,
-    verificationChecks: ['Email', 'Account'],
+    verificationChecks: proposerIdentity(ctx.envelope).checks,
     formatLabel: 'Proposer',
     // Per the design HTML, the proposer card always renders "—" in the
     // Identifier slot — owner_id is an internal foreign key that has
@@ -1888,10 +1910,25 @@ function deriveVerificationChecks(raw: ReadonlyArray<string>): ReadonlyArray<str
   const out: string[] = [];
   if (seen.has('email') || seen.size === 0) out.push('Email');
   if (seen.has('account')) out.push('Account');
-  if (seen.has('access_code')) out.push('Access code');
-  if (seen.has('sms')) out.push('SMS');
-  if (seen.has('id')) out.push('ID');
   return out;
+}
+
+/**
+ * Guest senders use an anonymous session. The send controller stores
+ * `sender_name` only when the JWT has no email, so a stored name means
+ * the sender typed it and was not signed in. A null name is an account
+ * sender or a guest who skipped the optional name, so it is not proof
+ * of account authentication.
+ */
+function proposerIdentity(envelope: Envelope): { meta: string; checks: ReadonlyArray<string> } {
+  const guestName = envelope.sender_name?.trim() ?? '';
+  if (guestName.length > 0) {
+    return { meta: 'Email address entered by the sender', checks: ['Email'] };
+  }
+  return {
+    meta: 'Account authentication when the sender was signed in',
+    checks: ['Email'],
+  };
 }
 
 function computeDurationText(ctx: RenderCtx): string {

@@ -1,10 +1,14 @@
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Envelope, EnvelopeEvent } from '../../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../../envelopes/envelopes.repository';
 import { buildAuditPdf } from '../audit-pdf';
+
+const nodeRequire = createRequire(__filename);
+const GDRIVE_KMS_SERVICE = resolve(__dirname, '../../integrations/gdrive/gdrive-kms.service.ts');
 
 /**
  * Claims the certificate used to print as facts. A noop signer applies
@@ -48,8 +52,8 @@ describe('audit PDF rendered claims', () => {
   let unsealedText = '';
 
   beforeAll(async () => {
-    const sealed = await buildAuditPdf(makeInput({ sealed: true }));
-    const unsealed = await buildAuditPdf(makeInput({ sealed: false }));
+    const sealed = await buildAuditPdf(makeInput({ sealed: true, senderName: null }));
+    const unsealed = await buildAuditPdf(makeInput({ sealed: false, senderName: 'Sam Guest' }));
     sealedText = normalizePdfText(extractPdfText(sealed));
     unsealedText = normalizePdfText(extractPdfText(unsealed));
   }, 60_000);
@@ -67,6 +71,7 @@ describe('audit PDF rendered claims', () => {
       expect(text).toContain('The seal identifies Seald as the sealer, not the signer.');
       expect(text).toContain('How the signer was identified:');
       expect(text).toContain('The signer opened a unique link sent to their email address.');
+      expect(text).toContain('When present, a technological instrument');
       expect(text).toContain('the sealed file');
       for (const claim of RETIRED_RENDERED_CLAIMS) {
         expect(text).not.toContain(claim);
@@ -80,6 +85,23 @@ describe('audit PDF rendered claims', () => {
     expect(unsealedText).toContain('Not applicable (unsealed)');
     expect(unsealedText).not.toContain(SEALED_SIGNATURE_ROW);
   });
+
+  it('does not describe an unsealed file as sealed or verified', () => {
+    expect(sealedText).toContain('This document is sealed');
+    expect(sealedText).toContain('SHA-256 hash matches the sealed document.');
+    expect(unsealedText).toContain('This document is not sealed');
+    expect(unsealedText).not.toContain('This document is sealed');
+    expect(unsealedText.replace(/\s+/g, '')).toContain('NOTSEALED');
+    expect(unsealedText).toContain('Declined');
+    expect(unsealedText).toContain('There is no sealed document for this request.');
+    expect(unsealedText).not.toContain('since it was sealed');
+    expect(unsealedText).not.toContain('SHA-256 hash matches the sealed document.');
+    expect(unsealedText).toContain('SHA-256 links each audit event to the one before it.');
+    expect(unsealedText).not.toContain('Verified via account authentication');
+    expect(unsealedText).toContain('Email address entered by the sender');
+    expect(sealedText).toContain('Account authentication when the sender was signed in');
+    expect(sealedText).not.toContain('Verified via account authentication');
+  });
 });
 
 describe('API source and email templates', () => {
@@ -89,7 +111,7 @@ describe('API source and email templates', () => {
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       for (const claim of RETIRED_SOURCE_CLAIMS) {
-        if (claim === 'AES-256' && file.endsWith('gdrive-kms.service.ts')) continue;
+        if (claim === 'AES-256' && file === GDRIVE_KMS_SERVICE) continue;
         if (text.includes(claim)) hits.push(`${file}: ${claim}`);
       }
     }
@@ -97,7 +119,7 @@ describe('API source and email templates', () => {
   });
 });
 
-function makeInput(opts: { sealed: boolean }): {
+function makeInput(opts: { sealed: boolean; senderName: string | null }): {
   envelope: Envelope;
   events: ReadonlyArray<EnvelopeEvent>;
   signerDetails: ReadonlyArray<SignerAuditDetail>;
@@ -121,7 +143,7 @@ function makeInput(opts: { sealed: boolean }): {
     original_sha256: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     sealed_sha256: sealedSha256,
     sender_email: 'ada@example.com',
-    sender_name: 'Ada Sender',
+    sender_name: opts.senderName,
     sent_at: '2026-03-11T20:59:04.000Z',
     completed_at: opts.sealed ? '2026-03-11T21:21:25.000Z' : null,
     expires_at: '2026-04-11T20:59:03.000Z',
@@ -205,7 +227,7 @@ function extractPdfText(pdf: Buffer): string {
   const dir = mkdtempSync(join(tmpdir(), 'audit-pdf-claims-'));
   const pdfPath = join(dir, 'audit.pdf');
   const scriptPath = join(dir, 'extract.mjs');
-  const pdfjs = resolve(__dirname, '../../../../web/node_modules/pdfjs-dist/legacy/build/pdf.mjs');
+  const pdfjs = nodeRequire.resolve('pdfjs-dist/legacy/build/pdf.mjs');
   writeFileSync(pdfPath, pdf);
   writeFileSync(
     scriptPath,

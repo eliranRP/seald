@@ -62,6 +62,14 @@ describe('legal page security claims', () => {
     for (const claim of RETIRED_CLAIMS) {
       expect(source).not.toContain(claim);
     }
+    const withoutDenial = source.replace(/not an advanced[^.]*/gi, '');
+    expect(withoutDenial).not.toMatch(/\bAdES\b/);
+  });
+
+  it('SECURITY.md scopes seal review to seals that were applied', () => {
+    const source = readFileSync(resolve(__dirname, '../../../../SECURITY.md'), 'utf8');
+    expect(source).toContain('PAdES seals when applied');
+    expect(source).not.toContain('PAdES-LT');
   });
 
   it('privacy describes transit and provider encryption without a version or cipher', () => {
@@ -76,6 +84,9 @@ describe('legal page security claims', () => {
       "We don't currently delete support correspondence on a schedule, and we don't promise to keep it for any particular period.",
     );
     expect(source).toContain('(e.g. responding to lawful requests from authorities)');
+    expect(source).toContain(
+      'The API and PDF conversion servers run on AWS us-east-1, the sealing key (where KMS is used) is in us-east-2, and email is sent via Resend in the US.',
+    );
   });
 
   it('terms describe only verifiable controls', () => {

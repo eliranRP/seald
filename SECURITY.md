@@ -33,7 +33,7 @@ In scope:
 - `seald.nromomentum.com` (landing + SPA)
 - `api.seald.nromomentum.com` (Seald API)
 - The signing flow, audit trail, and Certificate of Completion
-- Cryptographic correctness of PAdES-LT seals issued by the Service
+- Cryptographic correctness of PAdES seals when applied, issued by the Service
 - Authentication and account surfaces
 
 Out of scope: third-party sub-processors (report upstream),

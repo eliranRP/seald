@@ -12,7 +12,7 @@ const { useState, useEffect, useRef } = React;
 
 const STEPS = [
   { key:'finalize', icon:'file-text',    label:'Finalizing document',        detail:'Flattening fields into the PDF',           dur:1100 },
-  { key:'encrypt',  icon:'lock',          label:'Encrypting envelope',        detail:'Hashing pages and sealing with AES-256',   dur:1400 },
+  { key:'encrypt',  icon:'lock',          label:'Sealing envelope',           detail:'Hashing pages and applying a PAdES seal when configured', dur:1400 },
   { key:'anchor',   icon:'shield-check',  label:'Anchoring audit trail',      detail:'Writing cryptographic proof to the log',   dur:1200 },
   { key:'prepare',  icon:'mail',          label:'Preparing signer invites',   detail:'Generating unique signing links per signer', dur:1100 },
   { key:'deliver',  icon:'send',          label:'Delivering to signers',      detail:'Handing off to the mail pipeline',         dur:1400 },
