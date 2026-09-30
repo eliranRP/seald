@@ -5,7 +5,13 @@ import { promisify } from 'node:util';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool, type QueryResult } from 'pg';
 import type { Database } from '../db/schema';
+import type { AppEnv } from '../src/config/env.schema';
+import { EmailDispatcherService } from '../src/email/email-dispatcher.service';
+import { EmailSender, type EmailSendResult } from '../src/email/email-sender';
+import { OutboundEmailsPgRepository } from '../src/email/outbound-emails.repository.pg';
+import { TemplateService } from '../src/email/template.service';
 import { EnvelopesPgRepository } from '../src/envelopes/envelopes.repository.pg';
+import { ReminderSchedulerService } from '../src/reminders/reminder-scheduler.service';
 
 /**
  * Two final submitSigner calls, overlapping, against real Postgres.
@@ -36,12 +42,13 @@ describePg('submitSigner concurrency (real Postgres)', () => {
   let pool: Pool | undefined;
   let db: Kysely<Database> | undefined;
   let repo: EnvelopesPgRepository | undefined;
+  const ownedEnvelopeIds: string[] = [];
 
   beforeAll(async () => {
     if (!databaseUrl) throw new Error('SUBMIT_SIGNER_DATABASE_URL missing');
     pool = new Pool({
       connectionString: databaseUrl,
-      max: 6,
+      max: 12,
       application_name: 'submit-signer-concurrency',
     });
     await pool.query(`
@@ -58,6 +65,14 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     db = new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
     repo = new EnvelopesPgRepository(db);
   }, 180_000);
+
+  afterEach(async () => {
+    if (!pool || ownedEnvelopeIds.length === 0) return;
+    const ids = ownedEnvelopeIds.splice(0);
+    await pool.query(`delete from public.outbound_emails where envelope_id = any($1::uuid[])`, [
+      ids,
+    ]);
+  });
 
   afterAll(async () => {
     await db?.destroy();
@@ -78,6 +93,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       privacy_version: 'pp-v1',
       expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
+    ownedEnvelopeIds.push(envelope.id);
     const ada = await readySigner(envelopes, envelope.id, 'ada@example.com');
     const bea = await readySigner(envelopes, envelope.id, 'bea@example.com');
     await database
@@ -128,7 +144,219 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       holder.release();
     }
   }, 30_000);
+
+  it('still finds a sign link after more than 20 reminder rows without one', async () => {
+    if (!pool || !db) throw new Error('postgres harness did not start');
+    const pg = pool;
+    const envelopes = new EnvelopesPgRepository(db);
+    const outbound = new OutboundEmailsPgRepository(db);
+    const ownerId = randomUUID();
+    await pg.query('insert into auth.users (id) values ($1)', [ownerId]);
+    const envelope = await envelopes.createDraft({
+      owner_id: ownerId,
+      title: 'Sign link window',
+      short_code: randomBytes(8).toString('hex').slice(0, 13),
+      tc_version: 'tc-v1',
+      privacy_version: 'pp-v1',
+      expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+    });
+    ownedEnvelopeIds.push(envelope.id);
+    const signer = await envelopes.addSigner(envelope.id, {
+      email: `ada-${ownerId.slice(0, 8)}@example.com`,
+      name: 'Ada',
+      color: '#112233',
+    });
+    const inviteUrl = 'https://app.example/sign/original?t=invite-token';
+    const newerUrl = 'https://app.example/sign/original?t=newer-token';
+    const invite = await outbound.insert({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      kind: 'invite',
+      to_email: 'ada@example.com',
+      to_name: 'Ada',
+      dedupe_key: `invite:${signer.id}`,
+      payload: { sign_url: inviteUrl },
+    });
+    const blanks = [];
+    for (let i = 0; i < 21; i += 1) {
+      blanks.push(
+        await outbound.insert({
+          envelope_id: envelope.id,
+          signer_id: signer.id,
+          kind: 'reminder',
+          to_email: 'ada@example.com',
+          to_name: 'Ada',
+          dedupe_key: `blank:${signer.id}:${i}`,
+          payload: { automated: true },
+        }),
+      );
+    }
+    const base = Date.now() - 86_400_000;
+    await pg.query(`update public.outbound_emails set created_at = $1::timestamptz where id = $2`, [
+      new Date(base).toISOString(),
+      invite.id,
+    ]);
+    for (let i = 0; i < blanks.length; i += 1) {
+      const row = blanks[i];
+      if (!row) continue;
+      await pg.query(
+        `update public.outbound_emails set created_at = $1::timestamptz where id = $2`,
+        [new Date(base + (i + 1) * 1000).toISOString(), row.id],
+      );
+    }
+    const latestBlank = blanks[blanks.length - 1];
+    expect(await outbound.findLatestSignUrl(envelope.id, signer.id, latestBlank?.id)).toBe(
+      inviteUrl,
+    );
+
+    const newer = await outbound.insert({
+      envelope_id: envelope.id,
+      signer_id: signer.id,
+      kind: 'reminder',
+      to_email: 'ada@example.com',
+      to_name: 'Ada',
+      dedupe_key: `newer:${signer.id}`,
+      payload: { sign_url: newerUrl },
+    });
+    await pg.query(`update public.outbound_emails set created_at = $1::timestamptz where id = $2`, [
+      new Date(base + 80_000).toISOString(),
+      newer.id,
+    ]);
+    expect(await outbound.findLatestSignUrl(envelope.id, signer.id)).toBe(newerUrl);
+    expect(await outbound.findLatestSignUrl(envelope.id, signer.id, newer.id)).toBe(inviteUrl);
+  }, 60_000);
+
+  it('records one reminder_sent per email when sweeps overlap', async () => {
+    if (!pool || !db) throw new Error('postgres harness did not start');
+    const pg = pool;
+    const database = db;
+    const envelopes = new EnvelopesPgRepository(database);
+    const outbound = new OutboundEmailsPgRepository(database);
+    const ownerId = randomUUID();
+    await pg.query('insert into auth.users (id) values ($1)', [ownerId]);
+
+    const raced = await sentEnvelope(envelopes, ownerId, 1);
+    ownedEnvelopeIds.push(raced.envelope.id);
+    const racedSigner = raced.signers[0];
+    if (!racedSigner) throw new Error('missing signer');
+    const now = new Date();
+    const aged = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+    await pg.query(
+      `update public.envelope_signers set access_token_sent_at = $1 where envelope_id = $2`,
+      [aged, raced.envelope.id],
+    );
+    const claims = await Promise.all(
+      Array.from({ length: 5 }, () => envelopes.tryClaimReminder(racedSigner.id, now)),
+    );
+    expect(claims.filter(Boolean)).toHaveLength(1);
+
+    const sent = await sentEnvelope(envelopes, ownerId, 6);
+    ownedEnvelopeIds.push(sent.envelope.id);
+    await pg.query(
+      `update public.envelope_signers set access_token_sent_at = $1 where envelope_id = $2`,
+      [aged, sent.envelope.id],
+    );
+    for (const signer of sent.signers) {
+      await outbound.insert({
+        envelope_id: sent.envelope.id,
+        signer_id: signer.id,
+        kind: 'invite',
+        to_email: signer.email,
+        to_name: signer.name,
+        dedupe_key: `invite:${signer.id}`,
+        payload: { sign_url: `https://app.example/sign/${sent.envelope.id}?t=${signer.id}` },
+      });
+    }
+    await pg.query(`update public.outbound_emails set created_at = $1 where envelope_id = $2`, [
+      aged,
+      sent.envelope.id,
+    ]);
+
+    const scheduler = new ReminderSchedulerService(envelopes, outbound, {
+      APP_PUBLIC_URL: 'https://seald.example',
+    } as AppEnv);
+    const sweeps = await Promise.all(
+      Array.from({ length: 5 }, () => scheduler.enqueueDue(now, 50)),
+    );
+    expect(sweeps.reduce((sum, sweep) => sum + sweep.queued, 0)).toBe(sent.signers.length);
+
+    const templates = new TemplateService();
+    templates.onModuleInit();
+    const dispatcher = new EmailDispatcherService(
+      outbound,
+      new RecordingSender(),
+      templates,
+      envelopes,
+      {
+        EMAIL_FROM_ADDRESS: 'no-reply@seald.example',
+        EMAIL_FROM_NAME: 'Seald',
+        EMAIL_LEGAL_ENTITY: 'Seald',
+        EMAIL_LEGAL_POSTAL: 'Postal',
+        EMAIL_PRIVACY_URL: 'https://seald.example/legal/privacy',
+        EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.example',
+      } as AppEnv,
+    );
+    await dispatcher.flushOnce(50, { envelopeIds: [sent.envelope.id] });
+
+    const reminderRows = await pg.query<{ n: string }>(
+      `select count(*)::text as n from public.outbound_emails
+        where envelope_id = $1 and kind = 'reminder'`,
+      [sent.envelope.id],
+    );
+    const events = await pg.query<{ n: string }>(
+      `select count(*)::text as n from public.envelope_events
+        where envelope_id = $1 and event_type = 'reminder_sent'`,
+      [sent.envelope.id],
+    );
+    expect(Number(reminderRows.rows[0]?.n)).toBe(sent.signers.length);
+    expect(Number(events.rows[0]?.n)).toBe(sent.signers.length);
+  }, 60_000);
 });
+
+class RecordingSender extends EmailSender {
+  async send(): Promise<EmailSendResult> {
+    return { providerId: 'pg-test' };
+  }
+}
+
+async function sentEnvelope(
+  envelopes: EnvelopesPgRepository,
+  ownerId: string,
+  signerCount: number,
+): Promise<{
+  envelope: { id: string };
+  signers: Array<{ id: string; email: string; name: string }>;
+}> {
+  const envelope = await envelopes.createDraft({
+    owner_id: ownerId,
+    title: 'Concurrent reminders',
+    short_code: randomBytes(8).toString('hex').slice(0, 13),
+    tc_version: 'tc-v1',
+    privacy_version: 'pp-v1',
+    expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
+  });
+  const signers = [];
+  for (let i = 0; i < signerCount; i += 1) {
+    const email = `signer-${envelope.id.slice(0, 8)}-${i}@example.com`;
+    const signer = await envelopes.addSigner(envelope.id, {
+      email,
+      name: `Signer ${i}`,
+      color: '#112233',
+    });
+    signers.push({ id: signer.id, email, name: `Signer ${i}` });
+  }
+  const sent = await envelopes.sendDraft({
+    envelope_id: envelope.id,
+    signer_tokens: signers.map((signer) => ({
+      signer_id: signer.id,
+      access_token_hash: randomBytes(32).toString('hex'),
+    })),
+    sender_email: 'sender@example.com',
+    sender_name: 'Sender',
+  });
+  if (!sent) throw new Error('sendDraft failed');
+  return { envelope, signers };
+}
 
 async function readySigner(
   repo: EnvelopesPgRepository,

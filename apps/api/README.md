@@ -178,10 +178,12 @@ exponential backoff up to `max_attempts` (default 5).
 
 ## Public verify + cron
 
-| Verb | Path                    | Auth                                   | Purpose                                                                                                                            |
-| ---- | ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| GET  | `/verify/:short_code`   | None                                   | Public tamper check: envelope meta, signer list, redacted events, 5-min signed URLs for sealed.pdf/audit.pdf.                      |
-| POST | `/internal/cron/expire` | `X-Cron-Secret` header = `CRON_SECRET` | Flip overdue `awaiting_others` envelopes to `expired`; enqueue audit_only; emit `expired` event. Call every ~15 min via host cron. |
+| Verb | Path                          | Auth                                   | Purpose                                                                                                                                                                                                                                                                                                            |
+| ---- | ----------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GET  | `/verify/:short_code`         | None                                   | Public tamper check: envelope meta, signer list, redacted events, 5-min signed URLs for sealed.pdf/audit.pdf.                                                                                                                                                                                                      |
+| POST | `/internal/cron/expire`       | `X-Cron-Secret` header = `CRON_SECRET` | Flip overdue `awaiting_others` envelopes to `expired`; enqueue audit_only; emit `expired` event. Call every ~15 min via host cron.                                                                                                                                                                                 |
+| POST | `/internal/cron/flush-emails` | `X-Cron-Secret` header = `CRON_SECRET` | Drain the outbound email queue. The in-process worker does this when `WORKER_ENABLED=true`.                                                                                                                                                                                                                        |
+| POST | `/internal/cron/reminders`    | `X-Cron-Secret` header = `CRON_SECRET` | Queue one automated reminder per unsigned signer whose last invite or reminder is at least 24 hours old (cap of 7 per signer). Does not send mail; `flush-emails` or the email worker does. Safe to overlap with the in-process reminder worker. Call about once a day, or let `WORKER_ENABLED` poll every minute. |
 
 ## Deploying (single-node)
 
@@ -218,6 +220,7 @@ Host cron (optional; the worker already drains jobs):
 
 ```cron
 */15 * * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/expire >/dev/null
+0 9 * * * curl -fsS -X POST -H "X-Cron-Secret: $(grep '^CRON_SECRET=' /opt/seald/apps/api/.env | cut -d= -f2)" http://localhost:3000/internal/cron/reminders >/dev/null
 ```
 
 Migrations (`apps/api/db/migrations/*.sql`) apply automatically on every

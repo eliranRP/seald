@@ -14,9 +14,11 @@ import type {
   SetOriginalFileInput,
   SetSignerSignatureInput,
   SignerFieldFillInput,
+  ReminderCandidate,
   SubmitResult,
   UpdateDraftMetadataPatch,
 } from '../src/envelopes/envelopes.repository';
+import { REMINDER_INTERVAL_MS } from '../src/reminders/reminder-eligibility';
 import {
   EnvelopeSignerEmailTakenError,
   EnvelopesRepository,
@@ -41,6 +43,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.events.length = 0;
     this.shortCodes.clear();
     this.signerTokenHashes.clear();
+    this.reminderClock.clear();
     this.signerMeta.clear();
     this.jobs.length = 0;
     this.declineReasons.clear();
@@ -73,6 +76,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       signers: [],
       fields: [],
       tags: [],
+      reminders_enabled: true,
       created_at: now,
       updated_at: now,
     };
@@ -96,6 +100,17 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
   // e2e fixtures persist access_token_hash in a side map since the domain
   // signer shape doesn't expose it.
   private readonly signerTokenHashes = new Map<string, string>(); // signer_id -> hash
+  private readonly reminderClock = new Map<
+    string,
+    { invitedAt: string; lastRemindedAt: string | null }
+  >();
+
+  /** Test hook: move the invite clock so a signer is due for a reminder. */
+  backdateInvite(signerId: string, iso: string): void {
+    const clock = this.reminderClock.get(signerId);
+    if (!clock) return;
+    this.reminderClock.set(signerId, { ...clock, invitedAt: iso });
+  }
 
   async findSignerByAccessTokenHash(
     hash: string,
@@ -260,12 +275,16 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     if (!e) return null;
     // Tags are editable on any status; title / expires_at are
     // draft-only. Mirrors the Pg repo's `updateDraftMetadata` split.
-    const { tags, ...draftOnly } = patch;
+    const { tags, reminders_enabled, ...draftOnly } = patch;
     if (Object.keys(draftOnly).length > 0 && e.status !== 'draft') return null;
+    if (reminders_enabled !== undefined && e.status !== 'draft' && e.status !== 'awaiting_others') {
+      return null;
+    }
     const next: Envelope = {
       ...e,
       ...draftOnly,
       ...(tags !== undefined ? { tags: [...tags] } : {}),
+      ...(reminders_enabled !== undefined ? { reminders_enabled } : {}),
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);
@@ -365,6 +384,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     // Stamp the hashes in our side map so findSignerByAccessTokenHash resolves.
     for (const t of input.signer_tokens) {
       this.signerTokenHashes.set(t.signer_id, t.access_token_hash);
+      this.reminderClock.set(t.signer_id, { invitedAt: now, lastRemindedAt: null });
     }
     const next: Envelope = {
       ...e,
@@ -384,6 +404,11 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       if (env.status !== 'awaiting_others') return false;
       if (signer.signed_at !== null || signer.declined_at !== null) return false;
       this.signerTokenHashes.set(signer_id, new_hash);
+      const clock = this.reminderClock.get(signer_id);
+      this.reminderClock.set(signer_id, {
+        invitedAt: new Date().toISOString(),
+        lastRemindedAt: clock?.lastRemindedAt ?? null,
+      });
       return true;
     }
     return false;
@@ -632,6 +657,54 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const next: Envelope = { ...env, status: 'canceled', updated_at: now };
     this.envelopes.set(envelope_id, next);
     return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
+
+  async listReminderCandidates(
+    now: Date,
+    limit: number,
+    offset = 0,
+  ): Promise<ReadonlyArray<ReminderCandidate>> {
+    const cutoff = now.getTime() - REMINDER_INTERVAL_MS;
+    const out: ReminderCandidate[] = [];
+    for (const env of this.envelopes.values()) {
+      if (env.status !== 'awaiting_others' || env.reminders_enabled === false) continue;
+      if (Date.parse(env.expires_at) <= now.getTime()) continue;
+      for (const signer of env.signers) {
+        if (signer.signed_at !== null || signer.declined_at !== null) continue;
+        const clock = this.reminderClock.get(signer.id);
+        if (!clock) continue;
+        if (Date.parse(clock.invitedAt) > cutoff) continue;
+        if (clock.lastRemindedAt && Date.parse(clock.lastRemindedAt) > cutoff) continue;
+        out.push({
+          envelopeId: env.id,
+          signerId: signer.id,
+          invitedAt: clock.invitedAt,
+          lastRemindedAt: clock.lastRemindedAt,
+        });
+      }
+    }
+    return out.slice(offset, offset + limit);
+  }
+
+  async tryClaimReminder(signerId: string, now: Date): Promise<boolean> {
+    const cutoff = now.getTime() - REMINDER_INTERVAL_MS;
+    for (const env of this.envelopes.values()) {
+      const signer = env.signers.find((s) => s.id === signerId);
+      if (!signer) continue;
+      if (env.status !== 'awaiting_others' || env.reminders_enabled === false) return false;
+      if (Date.parse(env.expires_at) <= now.getTime()) return false;
+      if (signer.signed_at !== null || signer.declined_at !== null) return false;
+      const clock = this.reminderClock.get(signerId);
+      if (!clock) return false;
+      if (Date.parse(clock.invitedAt) > cutoff) return false;
+      if (clock.lastRemindedAt && Date.parse(clock.lastRemindedAt) > cutoff) return false;
+      this.reminderClock.set(signerId, {
+        invitedAt: clock.invitedAt,
+        lastRemindedAt: now.toISOString(),
+      });
+      return true;
+    }
+    return false;
   }
 
   async expireEnvelopes(now: Date, limit: number): Promise<readonly string[]> {

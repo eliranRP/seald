@@ -30,6 +30,7 @@ import { EnvelopeDetailPage } from './EnvelopeDetailPage';
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>;
 const post = apiClient.post as unknown as ReturnType<typeof vi.fn>;
+const patch = apiClient.patch as unknown as ReturnType<typeof vi.fn>;
 
 function renderAt(id: string): RenderResult {
   const qc = new QueryClient({
@@ -55,6 +56,7 @@ function renderAt(id: string): RenderResult {
 beforeEach(() => {
   get.mockReset();
   post.mockReset();
+  patch.mockReset();
   saveMock.mockReset();
 });
 
@@ -314,7 +316,74 @@ describe('EnvelopeDetailPage', () => {
       await screen.findByRole('heading', { name: /master services agreement/i }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /send reminder/i })).toBeNull();
+    expect(screen.queryByRole('switch', { name: /email reminders/i })).toBeNull();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it('turns daily reminders off for an awaiting envelope', async () => {
+    mockEnvelope();
+    patch.mockResolvedValue({
+      data: { id: 'env-1', reminders_enabled: false },
+      status: 200,
+    });
+
+    renderAt('env-1');
+
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    expect(toggle).toBeChecked();
+
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(patch).toHaveBeenCalledWith('/envelopes/env-1', { reminders_enabled: false }, {});
+    expect(await screen.findByText('Reminders off')).toBeInTheDocument();
+    expect(toggle).not.toBeChecked();
+  });
+
+  it('rolls the reminder switch back and shows a friendly error when the save fails', async () => {
+    mockEnvelope();
+    patch.mockRejectedValue(new Error('envelope_terminal'));
+
+    renderAt('env-1');
+
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(
+      await screen.findByText('Could not update reminders. Please try again.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('envelope_terminal')).toBeNull();
+    expect(toggle).toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toHaveAttribute('aria-busy');
+  });
+
+  it('keeps the switch pending until the reminder save finishes', async () => {
+    mockEnvelope();
+    let release: (value: { data: { id: string }; status: number }) => void = () => undefined;
+    patch.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    renderAt('env-1');
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    expect(toggle).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Reminders off')).toBeNull();
+
+    release({ data: { id: 'env-1' }, status: 200 });
+
+    expect(await screen.findByText('Reminders off')).toBeInTheDocument();
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toHaveAttribute('aria-busy');
   });
 
   it('Send reminder fires once per pending signer and surfaces the success toast', async () => {

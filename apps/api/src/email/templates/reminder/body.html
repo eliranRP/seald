@@ -55,7 +55,7 @@
         <b style="display: inline-block; color: #0b1220; font-weight: 600; text-decoration: none"
           >{{sender_name}}</b
         >
-        is waiting on you. It'll take about 2 minutes. The link expires {{expires_at_readable}}.
+        is waiting on you. It'll take about 2 minutes. The link expires on {{expires_at_readable}}.
       </p>
       <table
         role="presentation"
@@ -156,12 +156,35 @@
           letter-spacing: -0.005em;
           margin: 0;
         "
-        >Review and sign now</a
+        >Review and sign</a
       >
       <p class="muted">Already signed from another device? You can safely ignore this email.</p>
+      <p class="muted">
+        Don't want to sign? Open the link and choose <b>Decline</b> — reminders will stop.
+      </p>
       <div class="paste">
         Prefer to paste the link? Copy:<br />
         <a href="{{sign_url}}">{{sign_url}}</a>
+      </div>
+      <div class="callout callout-indigo">
+        <svg
+          class="callout-icon"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke="#4F46E5"
+          stroke-width="1.6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M10 2 L3 5 V10 C3 14 6 17 10 18 C14 17 17 14 17 10 V5 Z" />
+          <path d="M7 10 L9 12 L13 8" />
+        </svg>
+        <div>
+          Seald records a simple electronic signature with ESIGN and UETA consent, keeps a
+          tamper-evident audit trail with a SHA-256 hash chain, and adds a PAdES seal to the PDF
+          when a seal is applied. It is not an advanced or qualified electronic signature. Whether
+          that is enough depends on the document and where it will be enforced.
+        </div>
       </div>
       <div class="verify">
         Verify this document at any time using its reference code: <code>{{short_code}}</code><br />
@@ -171,7 +194,9 @@
     <div class="foot">
       <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
       Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
-      Reminder sent by {{sender_name}} for a pending signature request.<br />
+      You received this because {{sender_name}} (<a href="mailto:{{sender_email}}"
+        >{{sender_email}}</a
+      >) asked you to sign a document.{{reminder_cadence}}<br />
       <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
       <a href="{{preferences_url}}">Questions about these emails</a>
     </div>

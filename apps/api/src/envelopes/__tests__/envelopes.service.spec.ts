@@ -273,12 +273,16 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   ) {
     const e = await this.findByIdForOwner(owner_id, envelope_id);
     if (!e) return null;
-    const { tags, ...draftOnly } = patch;
+    const { tags, reminders_enabled, ...draftOnly } = patch;
     if (Object.keys(draftOnly).length > 0 && e.status !== 'draft') return null;
+    if (reminders_enabled !== undefined && e.status !== 'draft' && e.status !== 'awaiting_others') {
+      return null;
+    }
     const next: Envelope = {
       ...e,
       ...draftOnly,
       ...(tags !== undefined ? { tags: [...tags] } : {}),
+      ...(reminders_enabled !== undefined ? { reminders_enabled } : {}),
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);
@@ -427,6 +431,12 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async expireEnvelopes(): Promise<readonly string[]> {
     throw new Error('not_implemented_in_fake');
   }
+  async listReminderCandidates(): Promise<readonly []> {
+    return [];
+  }
+  async tryClaimReminder(): Promise<boolean> {
+    return false;
+  }
 
   /** Side map mirroring the prev_event_hash column. Tests can corrupt or
    *  inspect it via `getPrevHash` / `setPrevHash`. */
@@ -553,13 +563,18 @@ class FakeOutbound extends OutboundEmailsRepository {
   async listByEnvelope(envelope_id: string): Promise<readonly OutboundEmailRow[]> {
     return this.rows.filter((r) => r.envelope_id === envelope_id);
   }
-  async findLastInviteOrReminder(envelope_id: string, signer_id: string) {
+  async findLastInviteOrReminder(
+    envelope_id: string,
+    signer_id: string,
+    options?: { readonly excludeAutomated?: boolean },
+  ) {
     const match = this.rows
       .filter(
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder'),
+          (r.kind === 'invite' || r.kind === 'reminder') &&
+          !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
@@ -572,6 +587,12 @@ class FakeOutbound extends OutboundEmailsRepository {
   }
   async markFailed(): Promise<void> {
     /* unused by service-level tests */
+  }
+  async markSkipped(): Promise<void> {
+    /* unused by service-level tests */
+  }
+  async findLatestSignUrl(): Promise<string | null> {
+    return null;
   }
 }
 
@@ -827,6 +848,18 @@ describe('EnvelopesService', () => {
       // Force non-draft
       repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, status: 'completed' });
       await expect(svc.patchDraft(OWNER, e.id, { title: 'y' })).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
+
+    it('turns reminders off on an awaiting envelope and rejects it once sealed', async () => {
+      const e = await svc.createDraft(OWNER, { title: 'X' });
+      expect(e.reminders_enabled).toBe(true);
+      repo.envelopes.set(e.id, { ...repo.envelopes.get(e.id)!, status: 'awaiting_others' });
+      const disabled = await svc.patchDraft(OWNER, e.id, { reminders_enabled: false });
+      expect(disabled.reminders_enabled).toBe(false);
+      repo.envelopes.set(e.id, { ...disabled, status: 'completed' });
+      await expect(svc.patchDraft(OWNER, e.id, { reminders_enabled: true })).rejects.toBeInstanceOf(
         ConflictException,
       );
     });
@@ -1172,6 +1205,7 @@ describe('EnvelopesService', () => {
         tc_version: '2026-04-24',
         privacy_version: '2026-04-24',
         tags: [],
+        reminders_enabled: true,
         signers: args.signers.map((s) => ({
           id: s.id,
           email: s.email,

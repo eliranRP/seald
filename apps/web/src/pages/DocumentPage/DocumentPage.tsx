@@ -23,6 +23,8 @@ import { PlaceOnPagesPopover } from '@/components/PlaceOnPagesPopover';
 import { PlacedField } from '@/components/PlacedField';
 import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
+import { ReminderToggle } from '@/components/ReminderToggle';
+import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
 import {
@@ -63,6 +65,7 @@ import {
   BannerSlot,
   PageStack,
   RailSlot,
+  ReminderSlot,
   RightRailFooter,
   RightRailInner,
   RightRailScroll,
@@ -104,6 +107,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onCreateSigner,
     onRemoveSigner,
     onSend,
+    remindersEnabled,
+    onRemindersEnabledChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
@@ -115,6 +120,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
   } = props;
 
   const isTemplateAuthoring = templateMode === 'authoring';
+  const reminders = useReminderToggle({
+    sourceKey: docId,
+    enabled: remindersEnabled,
+    onChange: onRemindersEnabledChange,
+  });
 
   // -------------------------- chrome state (rail widths + drawer toggles)
   const [leftOpen, setLeftOpen] = useState(true);
@@ -648,6 +658,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                 </TemplatePrimaryFooter>
               ) : (
                 <RightRailFooter>
+                  <ReminderSlot>
+                    <ReminderToggle
+                      enabled={reminders.enabled}
+                      pending={reminders.pending}
+                      onChange={reminders.onChange}
+                    />
+                  </ReminderSlot>
                   <SendPanelFooter
                     fieldCount={fields.length}
                     /* The seald API rejects envelopes without a signature
