@@ -664,11 +664,6 @@ export class SigningService {
   }
 }
 
-// Re-exported here so existing callers that imported the helper from this
-// module before the helper moved to ./signature-paths keep working. New
-// imports should target ./signature-paths directly.
-export { signatureStoragePath } from './signature-paths';
-
 function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
   if (envelope.status !== 'awaiting_others') {
     throw new GoneException('envelope_terminal');

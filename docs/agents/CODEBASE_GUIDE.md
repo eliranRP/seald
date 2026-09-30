@@ -37,7 +37,7 @@ Production hosts:
 | Email | HTML templates + Postgres outbox. `logging` or Resend. |
 | Drive | Google OAuth, scope `drive.file` only, optional Gotenberg conversion |
 | Tests | Vitest (web), Jest (api unit + e2e), Playwright + playwright-bdd (web e2e), Storybook + Chromatic |
-| Observability | Sentry on the web (`@sentry/react`). API logs via pino. Prometheus client is a dependency. |
+| Observability | Sentry on the web (`@sentry/react`). API logs via Nest's built-in `Logger`. No metrics endpoint. |
 
 ## Repository map
 
@@ -409,8 +409,8 @@ enabled on that Supabase project. Without it, "Skip — try it without an
 account" stays on `/signin` and shows an error.
 
 Full stack in Docker: root `docker-compose.yml` runs `api` (migrations on
-boot), `gotenberg` (no public port), and `caddy`. `deploy/docker-compose.yml`
-is a leftover Gotenberg-only file.
+boot), `gotenberg` (no public port), and `caddy`. Deploy SSH uses that
+file only.
 
 ## How to test and build
 

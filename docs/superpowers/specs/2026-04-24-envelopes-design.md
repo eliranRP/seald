@@ -569,7 +569,6 @@ Email masking: `a***@example.com`.
 | Verb | Path | Auth | Purpose |
 |---|---|---|---|
 | `POST` | `/internal/expire-envelopes` | `X-Cron-Secret: $CRON_SECRET` | Finds `awaiting_others` envelopes past `expires_at`, transitions to `expired`, enqueues audit_only job + emails. |
-| `GET` | `/internal/metrics` | `X-Metrics-Secret: $METRICS_SECRET` | Prometheus-format metrics. |
 | `POST` | `/internal/resend-webhook` | Resend signature verification | Stores webhook event in `email_webhooks`. Processor deferred to post-MVP. |
 
 ### 6.5 Shared wire types (`packages/shared/envelope-contract.ts`)
@@ -1063,7 +1062,7 @@ Code:
 
 Prerequisites (non-code):
 - [ ] Storage bucket `envelopes` created
-- [ ] `.env.example` lists all new vars: `SIGNER_SESSION_SECRET`, `CRON_SECRET`, `METRICS_SECRET`, `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`, `PDF_SIGNING_PROVIDER`, `PDF_SIGNING_LOCAL_P12_PATH`, `PDF_SIGNING_LOCAL_P12_PASS`, `PDF_SIGNING_TSA_URL`, `STORAGE_BUCKET` (default `envelopes`)
+- [ ] `.env.example` lists all new vars: `SIGNER_SESSION_SECRET`, `CRON_SECRET`, `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM_ADDRESS`, `EMAIL_FROM_NAME`, `PDF_SIGNING_PROVIDER`, `PDF_SIGNING_LOCAL_P12_PATH`, `PDF_SIGNING_LOCAL_P12_PASS`, `PDF_SIGNING_TSA_URL`, `STORAGE_BUCKET` (default `envelopes`)
 - [ ] Manual smoke: send envelope to self from UI, sign as each recipient, inspect sealed.pdf + audit.pdf; record in PR body
 
 Production gates (not MVP task — tracked):
@@ -1118,7 +1117,6 @@ Committed here so the plan moves fast. Speak up if any of these is wrong:
 | `STORAGE_BUCKET` | all | always | `envelopes` |
 | `SIGNER_SESSION_SECRET` | API, worker | always (non-test) | random 32B hex |
 | `CRON_SECRET` | API, cron caller | always (non-test) | random 32B hex |
-| `METRICS_SECRET` | API, scraper | always (non-test) | random 32B hex |
 | `EMAIL_PROVIDER` | API, worker | always | `resend` \| `logging` \| `smtp` |
 | `RESEND_API_KEY` | worker | when `EMAIL_PROVIDER=resend` | `re_...` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | worker | when `EMAIL_PROVIDER=smtp` | — |

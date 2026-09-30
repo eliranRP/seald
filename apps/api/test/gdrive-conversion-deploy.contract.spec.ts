@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -9,12 +9,12 @@ import { join } from 'node:path';
  * deploy pipeline (`.github/workflows/deploy.yml`) only brought up the
  * services declared in the ROOT `docker-compose.yml` — and that file
  * historically defined `api` + `caddy` only. The Gotenberg sidecar
- * lived in `deploy/docker-compose.yml` on a separate docker network
+ * lived in a second compose file on a separate docker network
  * (`gdrive` bridge) that nothing in the pipeline ever started, and
  * even when started manually it was unreachable from the API
- * container's default network. Result: every .docx hit ECONNREFUSED
- * on `http://gotenberg:3000` and the runJob catch surfaced
- * `conversion-failed`.
+ * container's default network. That second file is gone. The old
+ * split made every .docx hit ECONNREFUSED on `http://gotenberg:3000`
+ * and the runJob catch surfaced `conversion-failed`.
  *
  * This contract test asserts that the canonical deploy compose file
  * co-deploys Gotenberg with the API in a way that:
@@ -89,7 +89,7 @@ describe('root docker-compose.yml — Gotenberg co-deploy contract', () => {
     expect(gotBlock).not.toMatch(/^ {4}networks:\s*$/m);
   });
 
-  it('caps gotenberg memory at 1.5 GB and CPU at 1.5 vCPU (mirrors deploy/docker-compose.yml)', () => {
+  it('caps gotenberg memory at 1.5 GB and CPU at 1.5 vCPU', () => {
     const gotMatch = compose.match(
       /^ {2}gotenberg:\s*$([\s\S]*?)(?=^ {2}[a-z0-9_-]+:\s*$|^volumes:|^networks:)/m,
     );
@@ -132,5 +132,12 @@ describe('root docker-compose.yml — Gotenberg co-deploy contract', () => {
     // form (a leading `-`/`'`) so that a comment that explains the
     // historical flag name doesn't trip this guard.
     expect(gotBlock).not.toMatch(/^\s*-\s*'--webhook-disable-routes/m);
+  });
+
+  it('does not keep a second compose file or the retired /srv/web mount', () => {
+    const retiredCompose = join(__dirname, '..', '..', '..', 'deploy', 'docker-compose.yml');
+    expect(existsSync(retiredCompose)).toBe(false);
+    expect(compose).not.toMatch(/\/srv\/web/);
+    expect(compose).not.toMatch(/deploy-web\.yml/);
   });
 });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const envSchema = z
+const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().int().positive().default(3000),
@@ -35,7 +35,6 @@ export const envSchema = z
 
     SIGNER_SESSION_SECRET: z.string().optional(),
     CRON_SECRET: z.string().optional(),
-    METRICS_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
     PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).default('local'),
@@ -183,7 +182,7 @@ export const envSchema = z
     }
 
     if (env.NODE_ENV !== 'test') {
-      for (const key of ['SIGNER_SESSION_SECRET', 'CRON_SECRET', 'METRICS_SECRET'] as const) {
+      for (const key of ['SIGNER_SESSION_SECRET', 'CRON_SECRET'] as const) {
         const value = env[key];
         if (!value || value.length < 32) {
           ctx.addIssue({

@@ -17,7 +17,7 @@
 #        APP_PUBLIC_URL          https://seald.nromomentum.com
 #        CORS_ORIGIN             same as APP_PUBLIC_URL
 #        CADDY_DOMAIN            api.seald.nromomentum.com
-#        WEB_DOMAIN              seald.nromomentum.com  (static SPA)
+#        WEB_DOMAIN              seald.nromomentum.com  (passed through; Caddy does not read it)
 #   2. docker compose up -d
 #   3. Cron: 'curl -fsS -X POST -H "X-Cron-Secret: $CRON_SECRET" \
 #            http://localhost:3000/internal/cron/expire' every 15 min.
@@ -81,10 +81,8 @@ services:
       - no-new-privileges:true
 
   gotenberg:
-    # WT-D Drive doc → PDF conversion sidecar. Definition mirrors
-    # deploy/docker-compose.yml (kept around as historical reference;
-    # the canonical sidecar config now lives here so a single
-    # `docker compose up -d --build` brings the whole stack up).
+    # WT-D Drive doc → PDF conversion sidecar. This is the only compose
+    # definition deploy.yml starts (`docker compose up` from /opt/seald).
     image: gotenberg/gotenberg:8
     restart: unless-stopped
     # CRITICAL: no `ports:` block. Gotenberg listens on :3000 inside
@@ -146,11 +144,9 @@ services:
       WEB_DOMAIN: ${WEB_DOMAIN:-seald.nromomentum.com}
     volumes:
       - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      # Static SPA bundle. CI (`deploy-web.yml`) populates this
-      # directory on the host before restarting the stack; Caddy
-      # file-serves it at {$WEB_DOMAIN}. Read-only to prevent the
-      # server from modifying build artifacts.
-      - ./apps/web/dist:/srv/web:ro
+      # API-only. The marketing site and SPA are served by Cloudflare
+      # Pages (deploy-cloudflare.yml), so this stack does not mount a
+      # web dist directory.
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

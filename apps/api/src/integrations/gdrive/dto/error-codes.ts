@@ -34,12 +34,6 @@ export class TokenExpiredError extends GDriveError {
   }
 }
 
-export class OAuthDeclinedError extends GDriveError {
-  constructor(message?: string) {
-    super('oauth-declined', message);
-  }
-}
-
 /**
  * Thrown by {@link GdriveExportService} when the user has no connected
  * (non-soft-deleted) `gdrive_accounts` row. The envelopes controller

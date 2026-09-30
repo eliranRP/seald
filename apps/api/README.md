@@ -204,7 +204,7 @@ at your API subdomain.
 # On the deploy host (e.g. t4g.small spot + EIP):
 git clone <repo> /opt/seald && cd /opt/seald
 cp apps/api/.env.example apps/api/.env
-# Fill in SUPABASE_*, SIGNER_SESSION_SECRET, CRON_SECRET, METRICS_SECRET,
+# Fill in SUPABASE_*, SIGNER_SESSION_SECRET, CRON_SECRET,
 # RESEND_API_KEY, APP_PUBLIC_URL, CORS_ORIGIN, CADDY_DOMAIN.
 docker compose up -d --build
 ```

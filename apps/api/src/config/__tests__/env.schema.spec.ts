@@ -129,7 +129,7 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     ).toThrow(/CORS_ORIGIN.*must not contain localhost/);
   });
 
-  it('requires signer session + cron + metrics secrets in production', () => {
+  it('requires signer session and cron secrets in production', () => {
     expect(() =>
       parseEnv({
         ...minimalTest,
@@ -149,7 +149,6 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
         CORS_ORIGIN: 'https://seald.app',
         SIGNER_SESSION_SECRET: '0'.repeat(64),
         CRON_SECRET: '1'.repeat(64),
-        METRICS_SECRET: '2'.repeat(64),
       }),
     ).toThrow(/PDF_SIGNING_LOCAL_P12/);
   });
@@ -195,7 +194,6 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
       PRIVACY_VERSION: '2026-04-24',
       SIGNER_SESSION_SECRET: '0'.repeat(64),
       CRON_SECRET: '1'.repeat(64),
-      METRICS_SECRET: '2'.repeat(64),
       EMAIL_PROVIDER: 'resend',
       RESEND_API_KEY: 're_test',
       EMAIL_FROM_ADDRESS: 'noreply@seald.app',

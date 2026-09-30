@@ -279,7 +279,7 @@ export class ConversionService {
  * `GDriveError` so the unit suite can pin codes without dragging the
  * full token-issuer stack.
  */
-export class ConversionError extends Error {
+class ConversionError extends Error {
   constructor(
     public readonly code:
       | 'token-expired'

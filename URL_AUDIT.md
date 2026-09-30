@@ -48,13 +48,13 @@ disagreed with both the SPA and the audit PDF.
 | `apps/api/src/sealing/audit-pdf.tsx:60` | JSDoc — example public URL |
 | `apps/api/src/signing/signing.controller.ts:39-40` | JSDoc — CORS origin |
 | `apps/api/scripts/render-audit-samples.{ts,cjs}`, `render-audit-sample.ts`, `verify-emails.ts` | Sample/script renderers |
-| `docker-compose.yml`, `.github/workflows/deploy-web.yml`, `.github/workflows/terraform.yml` | Deploy/CI defaults |
+| `docker-compose.yml`, `.github/workflows/terraform.yml` | Deploy/CI defaults |
 
 ### `api.seald.nromomentum.com` references (canonical API host)
 
 | File | Purpose |
 |---|---|
-| `docker-compose.yml`, `.github/workflows/deploy-web.yml` | Caddy + deploy defaults |
+| `docker-compose.yml`, `.github/workflows/deploy.yml` | Caddy + deploy defaults |
 | `apps/api/src/signing/signing.controller.ts:40` | JSDoc |
 
 ### Verify URL composition (already correct)

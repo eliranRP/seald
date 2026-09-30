@@ -17,7 +17,7 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 export const SIGNER_ROLES = ['proposer', 'signatory', 'validator', 'witness'] as const;
 export type SignerRole = (typeof SIGNER_ROLES)[number];
 
-export const FIELD_KINDS = [
+const FIELD_KINDS = [
   'signature',
   'initials',
   'date',
@@ -228,11 +228,11 @@ export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
  *   2. Ad-hoc:        `{ email, name, color? }` — guest mode synthesises a signer
  *                                                  locally and never persists a contact row.
  */
-export const AddSignerContactRequestSchema = z.object({
+const AddSignerContactRequestSchema = z.object({
   contact_id: uuid,
 });
 
-export const AddSignerAdhocRequestSchema = z.object({
+const AddSignerAdhocRequestSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(200),
   color: hexColor.optional(),
