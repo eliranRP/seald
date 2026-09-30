@@ -15,13 +15,16 @@ export interface UseReminderToggleOptions {
  */
 export function useReminderToggle(options: UseReminderToggleOptions): {
   readonly enabled: boolean;
+  readonly pending: boolean;
   readonly onChange: (next: boolean) => void;
 } {
   const [override, setOverride] = useState<boolean | null>(null);
+  const [pending, setPending] = useState(false);
   const [seenKey, setSeenKey] = useState(options.sourceKey);
   if (options.sourceKey !== seenKey) {
     setSeenKey(options.sourceKey);
     setOverride(null);
+    setPending(false);
   }
   const enabled = override ?? options.enabled ?? true;
 
@@ -33,12 +36,16 @@ export function useReminderToggle(options: UseReminderToggleOptions): {
     setOverride(next);
     const result = options.onChange?.(next);
     if (result instanceof Promise) {
+      setPending(true);
       void result.then(
-        () => undefined,
-        () => setOverride(null),
+        () => setPending(false),
+        () => {
+          setOverride(null);
+          setPending(false);
+        },
       );
     }
   };
 
-  return { enabled, onChange };
+  return { enabled, pending, onChange };
 }

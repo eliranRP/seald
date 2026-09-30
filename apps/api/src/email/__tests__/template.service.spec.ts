@@ -150,11 +150,21 @@ describe('TemplateService', () => {
       });
       expect(out.subject).toBe('Reminder: please sign "MSA"');
       expect(out.html).toContain('Seald</strong> · Chlenov 24');
+      const flatHtml = out.html.replace(/\s+/g, ' ');
+      const flatText = out.text.replace(/\s+/g, ' ');
       expect(out.html).toContain('Review and sign');
       expect(out.html).not.toContain('Review and sign now');
-      expect(out.html).toContain(
+      expect(flatHtml).toContain('The link expires on 2026-05-24 00:00 UTC');
+      expect(flatText).toContain('This request expires on 2026-05-24 00:00 UTC');
+      expect(flatHtml).not.toContain('Reminder sent by');
+      expect(flatText).not.toContain('Reminder sent by');
+      expect(flatHtml).toContain(
         'Unless the sender turns them off, Seald sends automatic daily reminders',
       );
+      expect(flatText).toContain(
+        'Unless the sender turns them off, Seald sends automatic daily reminders',
+      );
+      expect(out.text).toContain('Review and sign:');
       expect(out.text).toContain('Seald · Chlenov 24');
       expect(out.text).toContain('MSA');
     });

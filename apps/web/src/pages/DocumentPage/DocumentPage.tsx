@@ -659,7 +659,11 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               ) : (
                 <RightRailFooter>
                   <ReminderSlot>
-                    <ReminderToggle enabled={reminders.enabled} onChange={reminders.onChange} />
+                    <ReminderToggle
+                      enabled={reminders.enabled}
+                      pending={reminders.pending}
+                      onChange={reminders.onChange}
+                    />
                   </ReminderSlot>
                   <SendPanelFooter
                     fieldCount={fields.length}

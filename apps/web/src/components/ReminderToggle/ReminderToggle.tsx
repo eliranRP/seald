@@ -8,7 +8,12 @@ import type { ReminderToggleProps } from './ReminderToggle.types';
  * Per-envelope switch for the daily unsigned-signer reminder.
  * Mobile-first: the row is a full-width 44px target.
  */
-export function ReminderToggle({ enabled, onChange, disabled = false }: ReminderToggleProps) {
+export function ReminderToggle({
+  enabled,
+  onChange,
+  disabled = false,
+  pending = false,
+}: ReminderToggleProps) {
   const inputId = useId();
   const hintId = useId();
   return (
@@ -18,7 +23,8 @@ export function ReminderToggle({ enabled, onChange, disabled = false }: Reminder
         type="checkbox"
         role="switch"
         checked={enabled}
-        disabled={disabled}
+        disabled={disabled || pending}
+        aria-busy={pending || undefined}
         aria-describedby={hintId}
         onChange={(event) => onChange(event.target.checked)}
       />

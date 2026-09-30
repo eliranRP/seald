@@ -940,7 +940,11 @@ export function EnvelopeDetailPage() {
                 </SignerList>
               )}
               {envelope.status === 'draft' || envelope.status === 'awaiting_others' ? (
-                <ReminderToggle enabled={reminders.enabled} onChange={reminders.onChange} />
+                <ReminderToggle
+                  enabled={reminders.enabled}
+                  pending={reminders.pending}
+                  onChange={reminders.onChange}
+                />
               ) : null}
             </SignersCard>
 

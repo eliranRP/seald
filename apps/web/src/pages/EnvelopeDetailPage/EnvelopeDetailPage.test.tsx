@@ -355,6 +355,34 @@ describe('EnvelopeDetailPage', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText('envelope_terminal')).toBeNull();
     expect(toggle).toBeChecked();
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toHaveAttribute('aria-busy');
+  });
+
+  it('keeps the switch pending until the reminder save finishes', async () => {
+    mockEnvelope();
+    let release: (value: { data: { id: string }; status: number }) => void = () => undefined;
+    patch.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve;
+      }),
+    );
+
+    renderAt('env-1');
+    const toggle = await screen.findByRole('switch', { name: /email reminders/i });
+    const user = userEvent.setup();
+    await user.click(toggle);
+
+    expect(toggle).not.toBeChecked();
+    expect(toggle).toBeDisabled();
+    expect(toggle).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('Reminders off')).toBeNull();
+
+    release({ data: { id: 'env-1' }, status: 200 });
+
+    expect(await screen.findByText('Reminders off')).toBeInTheDocument();
+    expect(toggle).toBeEnabled();
+    expect(toggle).not.toHaveAttribute('aria-busy');
   });
 
   it('Send reminder fires once per pending signer and surfaces the success toast', async () => {
