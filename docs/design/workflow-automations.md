@@ -546,7 +546,7 @@ Drafts for counsel. Not licensed counsel, and not legal advice. The v0.4 text sh
 
 **T1a (Terms §4.1, after the second paragraph).** When Seald asks you to approve an action by email or in the app, an approval given from your inbox or your account counts as your approval, even if someone or something else with access to your inbox or account gave it. Keep your email account secure, and don't let an agent or other software open or act on Seald approval emails.
 
-**D-5 correction (DPA Annex II).** Webhook signing secrets are stored separately from the key needed to read them. The customer-facing draft must not say the application encrypts them, and it must not say AWS KMS. Implementation, not customer copy: the worker uses AES-GCM with `AUTOMATION_SECRETS_KEY` and AAD set to `automation_id`.
+**D-5 correction (DPA Annex II).** Webhook signing secrets and webhook URLs are stored encrypted at the application level, with the key held outside the database; they are not covered by the AWS KMS bullet. Keep this as a plain Annex II measure. Don't use it in brand or marketing copy. Implementation, not customer copy: the worker uses AES-GCM with `AUTOMATION_SECRETS_KEY` and AAD set to `automation_id`.
 
 **P4 correction (Privacy retention).** Automation run history (time, action, status code, envelope reference): completed runs for 30 days; failed runs until you retry or fix the recipe, or delete it. Copies delivered to a destination a sender chose stay with that destination. Deleting data in Seald does not delete those copies.
 
