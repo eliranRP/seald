@@ -16,7 +16,8 @@ export class HealthController {
   // The redundant @UseGuards keeps the local intent visible for readers.
   @UseGuards(AuthGuard)
   @Get('me')
-  me(@CurrentUser() user: AuthUser): AuthUser {
-    return user;
+  me(@CurrentUser() user: AuthUser): Pick<AuthUser, 'id' | 'email' | 'provider'> {
+    // Shape unchanged by WP-14: the sign-in time stays server-side.
+    return { id: user.id, email: user.email, provider: user.provider };
   }
 }

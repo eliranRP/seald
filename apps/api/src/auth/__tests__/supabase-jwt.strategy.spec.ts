@@ -57,13 +57,44 @@ describe('SupabaseJwtStrategy', () => {
       { issuer: ISSUER, audience: AUDIENCE },
     );
     const user = await strategy.validate(token);
-    expect(user).toEqual({ id: UUID_1, email: 'a@b.com', provider: 'google' });
+    expect(user).toEqual({
+      id: UUID_1,
+      email: 'a@b.com',
+      provider: 'google',
+      lastSignInAt: null,
+    });
   });
 
   it('returns email=null and provider=null when claims are absent', async () => {
     const token = await tk.sign({ sub: UUID_2 }, { issuer: ISSUER, audience: AUDIENCE });
     const user = await strategy.validate(token);
-    expect(user).toEqual({ id: UUID_2, email: null, provider: null });
+    expect(user).toEqual({ id: UUID_2, email: null, provider: null, lastSignInAt: null });
+  });
+
+  it('reads the newest amr timestamp as the last real sign-in (not iat)', async () => {
+    const token = await tk.sign(
+      {
+        sub: UUID_1,
+        email: 'a@b.com',
+        amr: [
+          { method: 'password', timestamp: 1_700_000_000 },
+          { method: 'otp', timestamp: 1_700_000_500 },
+          { method: 'bogus', timestamp: 'later' },
+        ],
+      },
+      { issuer: ISSUER, audience: AUDIENCE },
+    );
+    const user = await strategy.validate(token);
+    expect(user.lastSignInAt).toBe(1_700_000_500);
+  });
+
+  it('treats a malformed amr claim as no sign-in time', async () => {
+    const token = await tk.sign(
+      { sub: UUID_1, amr: 'password' },
+      { issuer: ISSUER, audience: AUDIENCE },
+    );
+    const user = await strategy.validate(token);
+    expect(user.lastSignInAt).toBeNull();
   });
 
   it('rejects wrong issuer', async () => {
