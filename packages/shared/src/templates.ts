@@ -18,7 +18,21 @@ export const TEMPLATE_FIELD_TYPES = [
   'text',
   'checkbox',
 ] as const;
+
+/**
+ * WP-07: kinds a template may also hold while `fieldMetaV2` is on. Kept
+ * out of {@link TEMPLATE_FIELD_TYPES} so the flag-off allow-list (and its
+ * validation message) does not change.
+ */
+export const TEMPLATE_FIELD_TYPES_V2 = [
+  ...TEMPLATE_FIELD_TYPES,
+  'name',
+  'number',
+  'radio',
+  'dropdown',
+] as const;
 export type TemplateFieldType = (typeof TEMPLATE_FIELD_TYPES)[number];
+export type AnyTemplateFieldType = (typeof TEMPLATE_FIELD_TYPES_V2)[number];
 
 /**
  * Where a saved field lands when the template is applied to a target document.
@@ -37,12 +51,17 @@ export type TemplatePageRule =
   | number;
 
 export interface TemplateField {
-  readonly type: TemplateFieldType;
+  readonly type: AnyTemplateFieldType;
   readonly pageRule: TemplatePageRule;
   /** PDF point coordinate, top-left origin. */
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /**
+   * WP-07: per-kind options (see field-meta.ts), same shape as a placed
+   * field's `meta`. Only accepted while `fieldMetaV2` is on.
+   */
+  readonly meta?: Readonly<Record<string, unknown>>;
   /**
    * Zero-based index into the signer roster active when the template was
    * saved. Kept for legacy templates predating `signerRoleId`; new saves
@@ -137,10 +156,12 @@ export interface UpdateTemplateInput {
 export interface ResolvedTemplateField {
   readonly id: string;
   readonly page: number;
-  readonly type: TemplateFieldType;
+  readonly type: AnyTemplateFieldType;
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /** Mirrors `TemplateField.meta`. */
+  readonly meta?: Readonly<Record<string, unknown>>;
   /** Mirrors `TemplateField.signerIndex` (legacy binder). */
   readonly signerIndex?: number;
   /**
@@ -199,6 +220,7 @@ export function expandTemplateFields(
         x: tf.x,
         y: tf.y,
         ...(tf.label !== undefined ? { label: tf.label } : {}),
+        ...(tf.meta !== undefined ? { meta: tf.meta } : {}),
         ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),
         ...(linkId !== undefined ? { linkId } : {}),

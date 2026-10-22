@@ -148,7 +148,18 @@ export type EnvelopeStatusDb =
   | 'canceled';
 export type DeliveryModeDb = 'parallel' | 'sequential';
 export type SignerRoleDb = 'proposer' | 'signatory' | 'validator' | 'witness';
-export type FieldKindDb = 'signature' | 'initials' | 'date' | 'text' | 'checkbox' | 'email';
+export type FieldKindDb =
+  | 'signature'
+  | 'initials'
+  | 'date'
+  | 'text'
+  | 'checkbox'
+  | 'email'
+  // Migration 0024 (WP-07).
+  | 'name'
+  | 'number'
+  | 'radio'
+  | 'dropdown';
 export type SignatureFormatDb = 'drawn' | 'typed' | 'upload';
 export type ActorKindDb = 'sender' | 'signer' | 'system';
 export type EventTypeDb =
@@ -215,6 +226,10 @@ export interface EnvelopesTable {
   reminder_first_after_days: ColumnType<number, number | undefined, number | undefined>;
   reminder_interval_days: ColumnType<number, number | undefined, number | undefined>;
   reminder_max: ColumnType<number, number | undefined, number | undefined>;
+  // Migration 0024 (WP-07) — how date fields render. Null keeps the text
+  // the signer sent. Read and written only while `fieldMetaV2` is on.
+  date_format: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  timezone: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -290,6 +305,11 @@ export interface EnvelopeFieldsTable {
    * writers keep working.
    */
   document_id: ColumnType<string, string | undefined, string>;
+  /**
+   * Migration 0024 (WP-07). jsonb object, default `{}`. Written only while
+   * `fieldMetaV2` is on; validated by the shared `parseFieldMeta`.
+   */
+  meta: ColumnType<Record<string, unknown>, string | undefined, never>;
 }
 
 /**

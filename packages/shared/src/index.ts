@@ -41,12 +41,13 @@ export {
   SEAL_DOWNLOAD_ERROR,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
-export { TEMPLATE_FIELD_TYPES, expandTemplateFields } from './templates';
+export { TEMPLATE_FIELD_TYPES, TEMPLATE_FIELD_TYPES_V2, expandTemplateFields } from './templates';
 export type {
   ResolvedTemplateField,
   Template,
   TemplateField,
   TemplateFieldType,
+  AnyTemplateFieldType,
   TemplatePageRule,
   TemplateLastSigner,
   CreateTemplateInput,
@@ -121,6 +122,44 @@ export type {
   VerifyDocument,
 } from './envelope-contract';
 export * from './locales';
+export {
+  ALL_FIELD_KINDS,
+  NEW_FIELD_KINDS,
+  FIELD_FONT_SIZE,
+  FIELD_OPTIONS_MAX,
+  FIELD_VALUE_MAX_CHARS,
+  NUMBER_FORMATS,
+  FieldMetaSchema,
+  FieldMetaWireSchema,
+  isNewFieldKind,
+  parseFieldMeta,
+  isValidEmailValue,
+  parseNumberValue,
+  formatNumberValue,
+  validateTextValue,
+} from './field-meta';
+export type {
+  AnyFieldKind,
+  NewFieldKind,
+  NumberFormat,
+  FieldOption,
+  FieldMeta,
+  FieldMetaOptions,
+  FieldMetaIssue,
+  ParseFieldMetaResult,
+  FieldValueError,
+} from './field-meta';
+export {
+  DATE_FORMATS,
+  isDateFormat,
+  isValidTimeZone,
+  isRealCalendarDate,
+  calendarDateInZone,
+  formatCalendarDate,
+  parseDateValue,
+  renderDateValue,
+} from './date-format';
+export type { DateFormat, CalendarDate } from './date-format';
 export {
   AUTOMATION_SCOPES,
   AUTOMATION_TRIGGERS,

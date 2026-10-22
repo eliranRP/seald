@@ -17,7 +17,20 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 export const SIGNER_ROLES = ['proposer', 'signatory', 'validator', 'witness'] as const;
 export type SignerRole = (typeof SIGNER_ROLES)[number];
 
-const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox', 'email'] as const;
+// WP-07: name / number / radio / dropdown exist on the wire only while the
+// `fieldMetaV2` flag is on; the API's request DTO rejects them otherwise.
+const FIELD_KINDS = [
+  'signature',
+  'initials',
+  'date',
+  'text',
+  'checkbox',
+  'email',
+  'name',
+  'number',
+  'radio',
+  'dropdown',
+] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
 export const SIGNATURE_FORMATS = ['drawn', 'typed', 'upload'] as const;
@@ -142,6 +155,9 @@ export const FieldSchema = z.object({
   value_text: z.string().nullable().optional(),
   value_boolean: z.boolean().nullable().optional(),
   filled_at: iso.nullable().optional(),
+  // WP-07: per-kind options (see field-meta.ts). Present on responses only
+  // while the `fieldMetaV2` flag is on.
+  meta: z.record(z.string(), z.unknown()).optional(),
   // WP-03: the document this field sits on. Present on responses only
   // while the `multiDocumentEnvelopes` flag is on; `page` is 1-based
   // within that document.
@@ -205,6 +221,10 @@ export const EnvelopeSchema = z.object({
   reminder_first_after_days: z.number().int().optional(),
   reminder_interval_days: z.number().int().optional(),
   reminder_max: z.number().int().optional(),
+  // WP-07 (migration 0024): how date fields render. Present only while the
+  // `fieldMetaV2` flag is on; null means "keep what the signer sent".
+  date_format: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -248,6 +268,8 @@ export const PatchEnvelopeRequestSchema = z
     reminder_first_after_days: z.number().int().optional(),
     reminder_interval_days: z.number().int().optional(),
     reminder_max: z.number().int().optional(),
+    date_format: z.string().min(1).max(40).optional(),
+    timezone: z.string().min(1).max(64).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
@@ -285,6 +307,8 @@ const FieldPlacementInputSchema = z.object({
   height: z.number().min(0).max(1).nullable().optional(),
   required: z.boolean().default(true),
   link_id: z.string().max(100).nullable().optional(),
+  // WP-07: accepted only while `fieldMetaV2` is on.
+  meta: z.record(z.string(), z.unknown()).optional(),
   // WP-03: accepted only while `multiDocumentEnvelopes` is on. Omitted
   // means document 1.
   document_id: uuid.optional(),
