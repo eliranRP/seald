@@ -89,6 +89,8 @@ export {
   ReorderDocumentsRequestSchema,
   EnvelopeDocumentListResponseSchema,
   VerifyDocumentSchema,
+  MAX_SIGNING_ORDER,
+  SetSigningOrderRequestSchema,
 } from './envelope-contract';
 export type {
   EnvelopeStatus,
@@ -120,6 +122,7 @@ export type {
   ReorderDocumentsRequest,
   EnvelopeDocumentListResponse,
   VerifyDocument,
+  SetSigningOrderRequest,
 } from './envelope-contract';
 export * from './locales';
 export {

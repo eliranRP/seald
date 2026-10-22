@@ -62,6 +62,8 @@ export const EVENT_TYPES = [
   'retention_deleted',
   // WP-03 (migration 0022): a document was added to a multi-file draft.
   'document_added',
+  // WP-05 (migration 0023): a signing step was invited (sequential mode).
+  'step_started',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -92,6 +94,12 @@ export const SignerSchema = z.object({
   tc_accepted_at: iso.nullable(),
   signed_at: iso.nullable(),
   declined_at: iso.nullable(),
+  // WP-05: present only while the `signingOrder` flag is on. `invited_at`
+  // is when this signer's step was invited (null until then). `step` is
+  // the 1-based position of the signer's `signing_order` among the
+  // envelope's distinct orders; signers with the same step sign together.
+  invited_at: iso.nullable().optional(),
+  step: z.number().int().min(1).optional(),
 });
 export type Signer = z.infer<typeof SignerSchema>;
 
@@ -318,6 +326,25 @@ export const PlaceFieldsRequestSchema = z.object({
 });
 export type PlaceFieldsRequest = z.infer<typeof PlaceFieldsRequestSchema>;
 
+/**
+ * WP-05: `PUT /envelopes/:id/signing-order` (flag `signingOrder`, draft
+ * only). `signers`, when given, names every signer exactly once; signers
+ * with the same `signing_order` form one step.
+ */
+export const MAX_SIGNING_ORDER = 100;
+export const SetSigningOrderRequestSchema = z.object({
+  delivery_mode: z.enum(DELIVERY_MODES),
+  signers: z
+    .array(
+      z.object({
+        signer_id: uuid,
+        signing_order: z.number().int().min(1).max(MAX_SIGNING_ORDER),
+      }),
+    )
+    .optional(),
+});
+export type SetSigningOrderRequest = z.infer<typeof SetSigningOrderRequestSchema>;
+
 export const SignStartRequestSchema = z.object({
   envelope_id: uuid,
   token: z.string().min(20),
@@ -469,5 +496,8 @@ export const ErrorSlugs = [
   'last_document',
   'document_order_invalid',
   'document_not_in_envelope',
+  // WP-05
+  'not_your_turn',
+  'signing_order_invalid',
 ] as const;
 export type ErrorSlug = (typeof ErrorSlugs)[number];

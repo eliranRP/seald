@@ -187,6 +187,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   job_failed: 'Sealing job failed',
   retention_deleted: 'Document retention expired',
   document_added: 'Document added',
+  step_started: 'Signing step started',
 };
 
 interface DerivedView {
