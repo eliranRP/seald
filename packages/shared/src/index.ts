@@ -1,6 +1,20 @@
 export * from './signer';
 export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
-export { MAX_AUTOMATED_REMINDERS } from './reminders';
+export {
+  DEFAULT_REMINDER_CADENCE,
+  EXPIRY_MAX_DAYS,
+  EXPIRY_MIN_DAYS,
+  EXPIRY_PRESET_DAYS,
+  MAX_AUTOMATED_REMINDERS,
+  REMINDER_CADENCE_BOUNDS,
+  expiryDateBounds,
+  expiryMaxMs,
+  isExpiryWithinBounds,
+  isReminderCadenceValid,
+  reminderCadenceSummary,
+  resolveExpiresAt,
+} from './reminders';
+export type { ExpirySelection, ReminderCadence } from './reminders';
 export type { FeatureFlag } from './feature-flags';
 export {
   ESIGN_DISCLOSURE_VERSION,

@@ -17,14 +17,7 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 export const SIGNER_ROLES = ['proposer', 'signatory', 'validator', 'witness'] as const;
 export type SignerRole = (typeof SIGNER_ROLES)[number];
 
-const FIELD_KINDS = [
-  'signature',
-  'initials',
-  'date',
-  'text',
-  'checkbox',
-  'email',
-] as const;
+const FIELD_KINDS = ['signature', 'initials', 'date', 'text', 'checkbox', 'email'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
 export const SIGNATURE_FORMATS = ['drawn', 'typed', 'upload'] as const;
@@ -124,9 +117,7 @@ export const EnvelopeGdriveSaveResultSchema = z.object({
       webViewLink: z.string(),
     }),
   ),
-  error: z
-    .object({ kind: z.enum(['sealed', 'audit']), code: z.string() })
-    .optional(),
+  error: z.object({ kind: z.enum(['sealed', 'audit']), code: z.string() }).optional(),
   pushedAt: iso,
 });
 export type EnvelopeGdriveSaveResult = z.infer<typeof EnvelopeGdriveSaveResultSchema>;
@@ -208,6 +199,12 @@ export const EnvelopeSchema = z.object({
   // Daily unsigned-signer reminders. Default on; the sender can turn
   // them off per envelope while it is still a draft or awaiting others.
   reminders_enabled: z.boolean().default(true),
+  // Per-envelope reminder cadence (migration 0025). Present only when the
+  // `customReminders` flag is on; absent means today's defaults (first
+  // after 1 day, then every 1 day, at most 7).
+  reminder_first_after_days: z.number().int().optional(),
+  reminder_interval_days: z.number().int().optional(),
+  reminder_max: z.number().int().optional(),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -248,6 +245,9 @@ export const PatchEnvelopeRequestSchema = z
     title: z.string().min(1).max(200).optional(),
     expires_at: iso.optional(),
     reminders_enabled: z.boolean().optional(),
+    reminder_first_after_days: z.number().int().optional(),
+    reminder_interval_days: z.number().int().optional(),
+    reminder_max: z.number().int().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
