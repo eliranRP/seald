@@ -369,4 +369,55 @@ describe('useSendEnvelope', () => {
       expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
     });
   });
+
+  describe('date format and timezone (WP-08)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const runWith = async (dateFormat?: string, timezone?: string) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [],
+          buildFields: () => [],
+          reminderSettings: {
+            expiry: { kind: 'days', days: 30 },
+            cadence: { firstAfterDays: 1, intervalDays: 1, maxReminders: 7 },
+            ...(dateFormat !== undefined ? { dateFormat } : {}),
+            ...(timezone !== undefined ? { timezone } : {}),
+          },
+        });
+      });
+    };
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('patches date_format and timezone before upload while fieldMetaV2 is on', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      await runWith('dd/MM/yyyy', 'Asia/Jerusalem');
+      expect(patchEnvelope).toHaveBeenCalledWith('env-1', {
+        date_format: 'dd/MM/yyyy',
+        timezone: 'Asia/Jerusalem',
+      });
+      expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
+        uploadEnvelopeFile.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('sends nothing when neither is chosen', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      await runWith();
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing while fieldMetaV2 is off', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: false };
+      await runWith('dd/MM/yyyy', 'UTC');
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
+  });
 });

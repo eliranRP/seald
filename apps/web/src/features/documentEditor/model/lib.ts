@@ -15,6 +15,10 @@ export const FIELD_SIZE: Record<string, { readonly w: number; readonly h: number
   text: { w: 240, h: 36 },
   email: { w: 240, h: 36 },
   checkbox: { w: 28, h: 28 },
+  name: { w: 240, h: 36 },
+  number: { w: 140, h: 36 },
+  radio: { w: 200, h: 72 },
+  dropdown: { w: 200, h: 36 },
 };
 // Pixels the pointer must travel before a mousedown on the canvas background
 // is treated as a marquee-select drag rather than a plain click.

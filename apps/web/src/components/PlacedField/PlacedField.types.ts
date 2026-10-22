@@ -1,4 +1,5 @@
 import type { HTMLAttributes, MouseEvent as ReactMouseEvent, RefObject } from 'react';
+import type { FieldMetaOptions } from 'shared';
 import type { FieldKind } from '@/types/sealdTypes';
 
 export interface PlacedFieldSigner {
@@ -44,6 +45,12 @@ export interface PlacedFieldValue {
    * the document list (those belong to the first document).
    */
   readonly documentId?: string | undefined;
+  /**
+   * Per-kind options (WP-08, flag `fieldMetaV2`): label, placeholder,
+   * read-only, font size, limits, choice options. Same shape as the API's
+   * `meta` (see `parseFieldMeta` in `shared`). Undefined means none.
+   */
+  readonly meta?: FieldMetaOptions | undefined;
 }
 
 type RootAttrs = Omit<

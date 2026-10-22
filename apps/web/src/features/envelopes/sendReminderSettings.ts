@@ -8,6 +8,12 @@ import { DEFAULT_REMINDER_CADENCE, type ExpirySelection, type ReminderCadence } 
 export interface SendReminderSettings {
   readonly expiry: ExpirySelection;
   readonly cadence: ReminderCadence;
+  /**
+   * How date fields render (WP-08, flag `fieldMetaV2`): one of `DATE_FORMATS`
+   * and an IANA timezone. Omitted keeps what the signer sent.
+   */
+  readonly dateFormat?: string | undefined;
+  readonly timezone?: string | undefined;
 }
 
 export const DEFAULT_SEND_REMINDER_SETTINGS: SendReminderSettings = {

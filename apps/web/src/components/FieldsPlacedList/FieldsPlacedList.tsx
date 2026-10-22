@@ -1,6 +1,19 @@
 import { forwardRef, useMemo } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
-import { Calendar, CheckSquare, Copy, Mail, PenTool, TextCursorInput, Type, X } from 'lucide-react';
+import {
+  Calendar,
+  CheckSquare,
+  ChevronsUpDown,
+  CircleDot,
+  Copy,
+  Hash,
+  Mail,
+  PenTool,
+  TextCursorInput,
+  Type,
+  User,
+  X,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { seald } from '@/styles/theme';
 import type { FieldKind } from '@/types/sealdTypes';
@@ -31,6 +44,10 @@ const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: Luc
   text: { label: 'Text', icon: TextCursorInput },
   checkbox: { label: 'Checkbox', icon: CheckSquare },
   email: { label: 'Email', icon: Mail },
+  name: { label: 'Name', icon: User },
+  number: { label: 'Number', icon: Hash },
+  radio: { label: 'Radio', icon: CircleDot },
+  dropdown: { label: 'Dropdown', icon: ChevronsUpDown },
 };
 
 const MAX_AVATARS = 3;

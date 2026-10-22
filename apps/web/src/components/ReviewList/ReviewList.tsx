@@ -2,6 +2,9 @@ import { forwardRef } from 'react';
 import {
   Calendar,
   CheckSquare,
+  ChevronsUpDown,
+  CircleDot,
+  Hash,
   Mail,
   PenTool,
   TextCursorInput,
@@ -30,6 +33,9 @@ const KIND_ICON: Record<ReviewFieldKind, LucideIcon> = {
   checkbox: CheckSquare,
   email: Mail,
   name: User,
+  number: Hash,
+  radio: CircleDot,
+  dropdown: ChevronsUpDown,
 };
 
 /**

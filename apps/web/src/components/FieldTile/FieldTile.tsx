@@ -1,5 +1,16 @@
 import type { LucideIcon } from 'lucide-react';
-import { Calendar, CheckSquare, Mail, PenTool, TextCursorInput, Type } from 'lucide-react';
+import {
+  Calendar,
+  CheckSquare,
+  CircleDot,
+  ChevronsUpDown,
+  Hash,
+  Mail,
+  PenTool,
+  TextCursorInput,
+  Type,
+  User,
+} from 'lucide-react';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { FieldTileProps } from './FieldTile.types';
 import { KindLabel, Owner, RequiredMark, Root } from './FieldTile.styles';
@@ -11,6 +22,10 @@ const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: Luc
   text: { label: 'Text', icon: TextCursorInput },
   checkbox: { label: 'Checkbox', icon: CheckSquare },
   email: { label: 'Email', icon: Mail },
+  name: { label: 'Name', icon: User },
+  number: { label: 'Number', icon: Hash },
+  radio: { label: 'Radio', icon: CircleDot },
+  dropdown: { label: 'Dropdown', icon: ChevronsUpDown },
 };
 
 /**

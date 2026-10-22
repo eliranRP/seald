@@ -5,11 +5,15 @@ import {
   Calendar,
   CheckSquare,
   ChevronDown,
+  ChevronsUpDown,
+  CircleDot,
   Copy,
+  Hash,
   Mail,
   PenTool,
   TextCursorInput,
   Type,
+  User,
   Users,
   X,
 } from 'lucide-react';
@@ -55,6 +59,10 @@ const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: Luc
   text: { label: 'Text', icon: TextCursorInput },
   checkbox: { label: 'Checkbox', icon: CheckSquare },
   email: { label: 'Email', icon: Mail },
+  name: { label: 'Name', icon: User },
+  number: { label: 'Number', icon: Hash },
+  radio: { label: 'Radio', icon: CircleDot },
+  dropdown: { label: 'Dropdown', icon: ChevronsUpDown },
 };
 
 function getInitials(name: string): string {
@@ -121,6 +129,9 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
   const required = field.required ?? true;
   const meta = FIELD_META[field.type];
   const FieldIcon = meta.icon;
+  // WP-08: a sender-set label (`meta.label`, flag `fieldMetaV2`) names the tile.
+  const rawLabel = field.meta?.['label'];
+  const customLabel = typeof rawLabel === 'string' && rawLabel !== '' ? rawLabel : undefined;
 
   const ariaLabel =
     assigned.length > 0
@@ -519,7 +530,7 @@ export const PlacedField = forwardRef<HTMLDivElement, PlacedFieldProps>((props, 
             <Tile key={key} $bg={bg} $border={border}>
               <TileHeader>
                 <FieldIcon size={12} strokeWidth={1.75} color={iconColor} aria-hidden />
-                <TileHeaderLabel>{meta.label}</TileHeaderLabel>
+                <TileHeaderLabel>{customLabel ?? meta.label}</TileHeaderLabel>
               </TileHeader>
               <TileSignatureLine />
               <TileEyebrow>SIGN ID (UUID)</TileEyebrow>

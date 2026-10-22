@@ -1,9 +1,21 @@
 import { forwardRef } from 'react';
 import type { DragEvent, KeyboardEvent } from 'react';
-import { Calendar, CheckSquare, Mail, PenTool, Plus, TextCursorInput, Type } from 'lucide-react';
+import {
+  Calendar,
+  CheckSquare,
+  CircleDot,
+  ChevronsUpDown,
+  Hash,
+  Mail,
+  PenTool,
+  Plus,
+  TextCursorInput,
+  Type,
+  User,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { seald } from '@/styles/theme';
-import { FIELD_KINDS } from '@/types/sealdTypes';
+import { paletteFieldKinds } from '@/features/documentEditor/fieldProperties/paletteFieldKinds';
 import type { FieldKind } from '@/types/sealdTypes';
 import { Button } from '../Button';
 import type { FieldsBarProps, FieldsBarSigner } from './FieldsBar.types';
@@ -33,6 +45,10 @@ const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: Luc
   text: { label: 'Text', icon: TextCursorInput },
   checkbox: { label: 'Checkbox', icon: CheckSquare },
   email: { label: 'Email', icon: Mail },
+  name: { label: 'Name', icon: User },
+  number: { label: 'Number', icon: Hash },
+  radio: { label: 'Radio', icon: CircleDot },
+  dropdown: { label: 'Dropdown', icon: ChevronsUpDown },
 };
 
 function resolveTone(signer: FieldsBarSigner, index: number): 'indigo' | 'success' {
@@ -44,7 +60,7 @@ function resolveTone(signer: FieldsBarSigner, index: number): 'indigo' | 'succes
 
 export const FieldsBar = forwardRef<HTMLElement, FieldsBarProps>((props, ref) => {
   const {
-    fieldKinds = FIELD_KINDS,
+    fieldKinds = paletteFieldKinds(),
     onFieldDragStart,
     onFieldDragEnd,
     onFieldActivate,

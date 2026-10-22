@@ -12,6 +12,8 @@ import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
 import { SendingOverlay } from '../components/SendingOverlay';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { isFeatureEnabled, NEW_FIELD_KINDS } from 'shared';
+import { placementMeta } from '@/features/documentEditor/fieldProperties';
 import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
@@ -57,13 +59,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // templates (the saved layout has no signer-specific email plumbing),
 // so we strip it out of the palette here even though the underlying
 // editor surface accepts it for the regular sign flow.
-const TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
+const LEGACY_TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
   'signature',
   'initials',
   'date',
   'text',
   'checkbox',
 ];
+
+/** With `fieldMetaV2` on, templates also hold name, number, radio and dropdown (WP-07). */
+function templateFieldKinds(): ReadonlyArray<FieldKind> {
+  return isFeatureEnabled('fieldMetaV2')
+    ? [...LEGACY_TEMPLATE_FIELD_KINDS, ...NEW_FIELD_KINDS]
+    : LEGACY_TEMPLATE_FIELD_KINDS;
+}
 
 const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> = {
   signature: { w: 200, h: 54 },
@@ -72,6 +81,10 @@ const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> 
   text: { w: 240, h: 36 },
   email: { w: 240, h: 36 },
   checkbox: { w: 24, h: 24 },
+  name: { w: 240, h: 36 },
+  number: { w: 140, h: 36 },
+  radio: { w: 200, h: 72 },
+  dropdown: { w: 200, h: 36 },
 };
 
 interface TemplateEditorHandoffState {
@@ -660,6 +673,7 @@ export function TemplateEditorRoute() {
                     ...(normalized.width !== undefined ? { width: normalized.width } : {}),
                     ...(normalized.height !== undefined ? { height: normalized.height } : {}),
                     ...(f.linkId ? { link_id: f.linkId } : {}),
+                    ...placementMeta(f),
                   };
                   out.push(placement);
                 }
@@ -889,7 +903,7 @@ export function TemplateEditorRoute() {
             onAddSignerFromContact={handleAddSignerFromContact}
             onCreateSigner={handleCreateSigner}
             onRemoveSigner={handleRemoveSigner}
-            availableFieldKinds={TEMPLATE_FIELD_KINDS}
+            availableFieldKinds={templateFieldKinds()}
             {...(banner ? { banner } : {})}
             onSend={mode === 'new' ? () => {} : handleSend}
             remindersEnabled={remindersEnabled}

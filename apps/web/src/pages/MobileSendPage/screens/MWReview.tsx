@@ -3,6 +3,7 @@ import { isFeatureEnabled } from 'shared';
 import { SigningOrderEditor } from '@/features/signers/signingOrder';
 import type { SigningOrderValue } from '@/features/signers/signingOrder';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { DateFormatSettings } from '@/components/DateFormatSettings';
 import { SendSettings } from '@/components/SendSettings';
 import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
 import styled from 'styled-components';
@@ -260,6 +261,9 @@ export function MWReview(props: MWReviewProps) {
       <Card>
         {reminderSettings && onReminderSettingsChange ? (
           <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+        ) : null}
+        {reminderSettings && onReminderSettingsChange ? (
+          <DateFormatSettings value={reminderSettings} onChange={onReminderSettingsChange} />
         ) : null}
         <ReminderToggle
           enabled={remindersEnabled}

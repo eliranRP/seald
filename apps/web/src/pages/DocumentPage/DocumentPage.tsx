@@ -24,6 +24,7 @@ import { PlacedField } from '@/components/PlacedField';
 import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { DateFormatSettings } from '@/components/DateFormatSettings';
 import { SendSettings } from '@/components/SendSettings';
 import { SigningOrderEditor } from '@/features/signers/signingOrder';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
@@ -47,6 +48,11 @@ import {
   usePlacement,
   useUndoStack,
 } from '@/features/documentEditor';
+import {
+  FieldPropertiesPanel,
+  hasSettingsPanel,
+  type FieldPropertiesChange,
+} from '@/features/documentEditor/fieldProperties';
 import type { DocumentPageProps } from './DocumentPage.types';
 import {
   Body,
@@ -307,6 +313,30 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     zoomOut,
     resetZoom,
   });
+
+  // ------------------------------------------------------- field settings (WP-08)
+  // Flag `fieldMetaV2`: the panel shows for one selected field of a kind with
+  // settings. An edit applies to the field and its linked copies, so a
+  // field repeated on every page stays consistent.
+  const settingsField =
+    singleSelectedId !== null ? fields.find((f) => f.id === singleSelectedId) : undefined;
+  const applyFieldProperties = useCallback(
+    (id: string, patch: FieldPropertiesChange): void => {
+      const source = fields.find((f) => f.id === id);
+      if (!source) return;
+      onFieldsChange(
+        fields.map((f) => {
+          if (f.id !== id && (source.linkId === undefined || f.linkId !== source.linkId)) return f;
+          return {
+            ...f,
+            ...(patch.required !== undefined ? { required: patch.required } : {}),
+            ...('meta' in patch ? { meta: patch.meta } : {}),
+          };
+        }),
+      );
+    },
+    [fields, onFieldsChange],
+  );
 
   // ------------------------------------------------------------------ signer
   const handlePickContact = useCallback(
@@ -631,6 +661,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     ) : null}
                   </>
                 )}
+                {settingsField !== undefined && hasSettingsPanel(settingsField.type) ? (
+                  <FieldPropertiesPanel
+                    key={settingsField.id}
+                    field={settingsField}
+                    onChange={(patch) => applyFieldProperties(settingsField.id, patch)}
+                  />
+                ) : null}
                 <FieldsPlacedList
                   fields={fieldsSummary}
                   signers={placedFieldSigners}
@@ -679,6 +716,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                   <ReminderSlot>
                     {reminderSettings && onReminderSettingsChange ? (
                       <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+                    ) : null}
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <DateFormatSettings
+                        value={reminderSettings}
+                        onChange={onReminderSettingsChange}
+                      />
                     ) : null}
                     <ReminderToggle
                       enabled={reminders.enabled}

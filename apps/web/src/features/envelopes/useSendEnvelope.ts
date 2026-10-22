@@ -21,6 +21,8 @@ import type { SendReminderSettings } from './sendReminderSettings';
  */
 function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
   const patch: {
+    date_format?: string;
+    timezone?: string;
     reminders_enabled?: boolean;
     expires_at?: string;
     reminder_first_after_days?: number;
@@ -34,6 +36,14 @@ function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
     patch.reminder_first_after_days = settings.cadence.firstAfterDays;
     patch.reminder_interval_days = settings.cadence.intervalDays;
     patch.reminder_max = settings.cadence.maxReminders;
+  }
+  if (settings !== undefined && isFeatureEnabled('fieldMetaV2')) {
+    if (settings.dateFormat !== undefined && settings.dateFormat !== '') {
+      patch.date_format = settings.dateFormat;
+    }
+    if (settings.timezone !== undefined && settings.timezone !== '') {
+      patch.timezone = settings.timezone;
+    }
   }
   return Object.keys(patch).length > 0 ? patch : null;
 }

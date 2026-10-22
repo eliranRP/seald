@@ -14,6 +14,7 @@ import { TemplateModeBanner } from '../components/TemplateModeBanner';
 import { Toast } from '../components/Toast';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { placementMeta } from '@/features/documentEditor/fieldProperties';
 import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
@@ -65,6 +66,10 @@ const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> 
   text: { w: 240, h: 36 },
   email: { w: 240, h: 36 },
   checkbox: { w: 24, h: 24 },
+  name: { w: 240, h: 36 },
+  number: { w: 140, h: 36 },
+  radio: { w: 200, h: 72 },
+  dropdown: { w: 200, h: 36 },
 };
 
 function toNormalized(
@@ -409,6 +414,7 @@ export function DocumentRoute() {
                     ...(normalized.width !== undefined ? { width: normalized.width } : {}),
                     ...(normalized.height !== undefined ? { height: normalized.height } : {}),
                     ...(f.linkId ? { link_id: f.linkId } : {}),
+                    ...placementMeta(f),
                     ...(serverDocumentId !== undefined ? { document_id: serverDocumentId } : {}),
                   };
                   out.push(placement);

@@ -7,7 +7,10 @@ export type ReviewFieldKind =
   | 'text'
   | 'checkbox'
   | 'email'
-  | 'name';
+  | 'name'
+  | 'number'
+  | 'radio'
+  | 'dropdown';
 
 export interface ReviewItem {
   readonly id: string;

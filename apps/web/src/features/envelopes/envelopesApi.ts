@@ -1,5 +1,11 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { DeliveryMode, EnvelopeDocument, EnvelopeListItem } from 'shared';
+import type {
+  AnyFieldKind,
+  DeliveryMode,
+  EnvelopeDocument,
+  EnvelopeListItem,
+  FieldMetaOptions,
+} from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
@@ -15,7 +21,8 @@ export type EnvelopeStatus =
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
-export type FieldKind = 'signature' | 'initials' | 'date' | 'text' | 'checkbox' | 'email';
+/** Every kind the API knows; name, number, radio and dropdown only while `fieldMetaV2` is on (WP-07). */
+export type FieldKind = AnyFieldKind;
 
 export interface EnvelopeSigner {
   readonly id: string;
@@ -48,6 +55,8 @@ export interface EnvelopeField {
   readonly link_id?: string | null;
   /** Present only while `multiDocumentEnvelopes` is on (WP-03). */
   readonly document_id?: string;
+  /** Per-kind options (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
 }
 
 /**
@@ -87,6 +96,9 @@ export interface Envelope {
   readonly reminder_first_after_days?: number;
   readonly reminder_interval_days?: number;
   readonly reminder_max?: number;
+  /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly date_format?: string | null;
+  readonly timezone?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
   readonly gdriveExport?: EnvelopeGdriveExportState | null;
@@ -150,6 +162,8 @@ export interface FieldPlacement {
   readonly link_id?: string | null;
   /** Multi-document envelopes (WP-03): the document the field sits on. Omitted means document 1. */
   readonly document_id?: string;
+  /** Per-kind options (WP-07); sent only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
 }
 
 /* ---------------- Wire functions ---------------- */
@@ -199,6 +213,9 @@ export interface PatchEnvelopeInput {
   readonly reminder_first_after_days?: number;
   readonly reminder_interval_days?: number;
   readonly reminder_max?: number;
+  /** Date field rendering (WP-07); accepted only while `fieldMetaV2` is on. */
+  readonly date_format?: string;
+  readonly timezone?: string;
 }
 
 export async function patchEnvelope(
