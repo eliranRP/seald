@@ -198,10 +198,22 @@ describe('appendArchiveTimestamp', () => {
         messageImprintSha256Hex: '',
       };
     });
-    await appendArchiveTimestamp({ pdfWithDss: input, tsa });
+    const out = await appendArchiveTimestamp({ pdfWithDss: input, tsa });
     expect(captured.data).not.toBeNull();
-    // SHA-256 digest is 32 bytes.
-    expect(captured.data!.length).toBe(32);
+    // TsaClient.timestamp(data) hashes `data` once to build the imprint,
+    // so the writer must pass the byte-ranged bytes themselves. Passing
+    // the digest would make TSTInfo.messageImprint a double hash.
+    const text = out.toString('latin1');
+    const br = /\/Type \/DocTimeStamp[\s\S]*?\/ByteRange \[(\d+) (\d+) (\d+) (\d+)\]/.exec(text)!;
+    const [a, b, c, d] = [br[1], br[2], br[3], br[4]].map(Number) as [
+      number,
+      number,
+      number,
+      number,
+    ];
+    expect(c + d).toBe(out.length);
+    const covered = Buffer.concat([out.subarray(a, a + b), out.subarray(c, c + d)]);
+    expect(captured.data!.equals(covered)).toBe(true);
   });
 
   it('produces a single trailer dict with /Prev pointing at the prior xref', async () => {
@@ -215,5 +227,96 @@ describe('appendArchiveTimestamp', () => {
     const lastTrailer = text.slice(text.lastIndexOf('trailer'));
     expect(lastTrailer).toMatch(/\/Prev\s+\d+/);
     expect(text.trimEnd().endsWith('%%EOF')).toBe(true);
+  });
+});
+
+/**
+ * WP-01: the B-T signature already put an /AcroForm on the catalog. The
+ * archive timestamp must keep that signature field in the new form, and
+ * the catalog must not carry /AcroForm twice.
+ */
+describe('appendArchiveTimestamp — prior /AcroForm (WP-01)', () => {
+  /** Serialize numbered objects into a single-revision PDF. */
+  function buildPdf(objects: ReadonlyArray<[number, string]>, rootNum: number): Buffer {
+    let body = '%PDF-1.4\n%\xE2\xE3\xCF\xD3\n';
+    const offsets = new Map<number, number>();
+    for (const [num, dict] of objects) {
+      offsets.set(num, Buffer.byteLength(body, 'binary'));
+      body += `${num} 0 obj\n${dict}\nendobj\n`;
+    }
+    const size = Math.max(...objects.map(([n]) => n)) + 1;
+    const xrefOffset = Buffer.byteLength(body, 'binary');
+    let xref = `xref\n0 ${size}\n0000000000 65535 f \n`;
+    for (let n = 1; n < size; n++) {
+      const off = offsets.get(n);
+      xref +=
+        off === undefined
+          ? '0000000000 65535 f \n'
+          : `${off.toString().padStart(10, '0')} 00000 n \n`;
+    }
+    const trailer = `trailer\n<< /Size ${size} /Root ${rootNum} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+    return Buffer.from(body + xref + trailer, 'binary');
+  }
+
+  function lastCatalogBody(text: string, num: number): string {
+    const re = new RegExp(`(?:^|\\s)${num} 0 obj`, 'g');
+    let start = -1;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) start = m.index;
+    return text.slice(start, text.indexOf('endobj', start));
+  }
+
+  it('keeps the prior signature field and writes /AcroForm once', async () => {
+    const input = buildPdf(
+      [
+        [1, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>'],
+        [2, '<< /Type /Catalog /Pages 1 0 R /AcroForm 5 0 R /DSS 6 0 R >>'],
+        [3, '<< /Type /Page /Parent 1 0 R /MediaBox [0 0 612 792] /Annots [4 0 R] >>'],
+        [4, '<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signature1) >>'],
+        [5, '<< /Type /AcroForm /SigFlags 3 /Fields [4 0 R] >>'],
+        [6, '<< /Type /DSS >>'],
+      ],
+      2,
+    );
+    const out = await appendArchiveTimestamp({ pdfWithDss: input, tsa: makeFakeTsa() });
+    const text = out.toString('latin1');
+    const catalog = lastCatalogBody(text, 2);
+    expect(catalog.match(/\/AcroForm/g)).toHaveLength(1);
+    const newFormNum = /\/AcroForm\s+(\d+)\s+0\s+R/.exec(catalog)![1];
+    expect(newFormNum).not.toBe('5');
+    const form = lastCatalogBody(text, Number(newFormNum));
+    // Prior Signature1 widget first, then the doc-timestamp widget.
+    expect(form).toMatch(/\/Fields \[4 0 R \d+ 0 R\]/);
+    expect(catalog).toMatch(/\/DSS\s+6\s+0\s+R/);
+    expect(catalog).toMatch(/\/Pages\s+1\s+0\s+R/);
+  });
+
+  it('reads catalog 2 even when object 12 comes after it', async () => {
+    const input = buildPdf(
+      [
+        [1, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>'],
+        [2, '<< /Type /Catalog /Pages 1 0 R >>'],
+        [3, '<< /Type /Page /Parent 1 0 R /MediaBox [0 0 612 792] >>'],
+        [12, '<< /Type /DSS /Marker (twelve) >>'],
+      ],
+      2,
+    );
+    const out = await appendArchiveTimestamp({ pdfWithDss: input, tsa: makeFakeTsa() });
+    const catalog = lastCatalogBody(out.toString('latin1'), 2);
+    expect(catalog).toMatch(/\/Type \/Catalog/);
+    expect(catalog).not.toMatch(/twelve/);
+  });
+
+  it('throws on an inline /AcroForm dict so the caller keeps B-LT', async () => {
+    const input = buildPdf(
+      [
+        [1, '<< /Type /Pages /Kids [] /Count 0 >>'],
+        [2, '<< /Type /Catalog /Pages 1 0 R /AcroForm << /Fields [] >> >>'],
+      ],
+      2,
+    );
+    await expect(appendArchiveTimestamp({ pdfWithDss: input, tsa: makeFakeTsa() })).rejects.toThrow(
+      /inline \/AcroForm/,
+    );
   });
 });

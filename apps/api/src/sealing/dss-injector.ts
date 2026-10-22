@@ -31,8 +31,9 @@ import { TsaClient } from './tsa-client';
  *   3. For every cert in every chain, ask `RevocationFetcher` for OCSP
  *      and/or CRL. Failures degrade gracefully: missing material is just
  *      omitted from /DSS rather than aborting the seal.
- *   4. Append the /DSS dictionary on the document catalog and return the
- *      resulting PDF bytes.
+ *   4. Append the /DSS dictionary on the document catalog.
+ *   5. When a TSA is configured, append a PAdES-B-LTA document timestamp
+ *      over the post-/DSS bytes (`EMBED_LTA`) and return the result.
  *
  * If anything fails (unparseable signature, broken CMS, etc.) we log and
  * return the input bytes unmodified — the seal stays at B-T level.
@@ -60,7 +61,8 @@ export class DssInjector {
    * append-only and CANNOT invalidate the pre-existing PAdES B-T
    * signature. There is no production reason to set this to false.
    * Kept as a hatch in case a future verifier we don't know about
-   * regresses on the incremental update; can be flipped via env var.
+   * regresses on the incremental update (a code change; there is no
+   * env var for it).
    */
   static EMBED_DSS = true;
 
@@ -70,12 +72,15 @@ export class DssInjector {
    * the post-/DSS state, cryptographically pinning the validation
    * material at a TSA-attested time (ETSI EN 319 142-1 §6.4).
    *
-   * Default false until production CI exercises a real TSA round-trip
-   * against a sealed B-LT artefact. The append-only contract is the
-   * same as the DSS update — original bytes are never touched, so
-   * flipping this on cannot invalidate the prior B-T signature.
+   * On (WP-01). It only runs when a TSA is configured (`tsa.configured`)
+   * and the /DSS embed succeeded; a TSA failure keeps the B-LT bytes
+   * and logs a warning. The append-only contract is the same as the
+   * DSS update — original bytes are never touched, so this cannot
+   * invalidate the prior B-T signature. `scripts/verify-pades.ts`
+   * requires a /DocTimeStamp after every /DSS it finds. Kept as a
+   * static toggle for emergency rollback only.
    */
-  static EMBED_LTA = false;
+  static EMBED_LTA = true;
 
   async upgradeToBLt(signedPdf: Buffer): Promise<Buffer> {
     let cmsAsn1: forge.asn1.Asn1;

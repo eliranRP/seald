@@ -37,12 +37,17 @@
  *      as an info line; only the DSS-injected fixtures are expected to
  *      have it.
  *
+ *   7. (Hard check, WP-01) PAdES-B-LTA: when a /DSS is present, a
+ *      /DocTimeStamp (/SubFilter /ETSI.RFC3161) must follow it. Its
+ *      /ByteRange must cover the whole file except its /Contents, and
+ *      the TST's messageImprint must equal SHA-256 of those bytes.
+ *
  * Usage:
  *
- *   pnpm --filter api ts-node scripts/verify-pades.ts <dir>
+ *   pnpm --filter api exec ts-node scripts/verify-pades.ts <dir>
  *
- * Exits 0 if every PDF in <dir> passes the hard checks (1-4), 1 otherwise.
- * Soft checks (5, 6) only emit log lines.
+ * Exits 0 if every PDF in <dir> passes the hard checks (1-4, 7), 1
+ * otherwise. Soft checks (5, 6) only emit log lines.
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -60,14 +65,14 @@ const OID_SIGNING_CERTIFICATE_V1 = '1.2.840.113549.1.9.16.2.12';
 const OID_SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
 const OID_TIMESTAMP_TOKEN = '1.2.840.113549.1.9.16.2.14';
 
-interface VerifyResult {
+export interface VerifyResult {
   readonly path: string;
   readonly errors: string[];
   readonly warnings: string[];
   readonly info: string[];
 }
 
-function verifyOne(path: string, bytes: Buffer): VerifyResult {
+export function verifyOne(path: string, bytes: Buffer): VerifyResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const info: string[] = [];
@@ -275,11 +280,19 @@ function verifyOne(path: string, bytes: Buffer): VerifyResult {
     info.push('PAdES-B-LT: /DSS dictionary present on catalog');
   }
 
-  // ---- Soft check 7: PAdES-B-LTA (archive timestamp). A second /Sig
-  // field with /SubFilter /ETSI.RFC3161 cryptographically pins the
-  // post-/DSS state to a TSA-attested time (ETSI EN 319 142-1 §6.4).
-  if (/\/SubFilter\s*\/ETSI\.RFC3161/.test(pdfText)) {
-    info.push('PAdES-B-LTA: archive timestamp (/ETSI.RFC3161 doc-timestamp) present');
+  // ---- Hard check 7: PAdES-B-LTA (archive timestamp, WP-01). Every
+  // artefact that carries a /DSS must also carry a /DocTimeStamp
+  // written after it (ETSI EN 319 142-1 §6.4), whose /ByteRange runs to
+  // the end of the file and whose TST messageImprint is the SHA-256 of
+  // those bytes. The seal pipeline turns B-LT into B-LTA whenever a TSA
+  // is configured, and the DSS step only runs after a B-T timestamp.
+  const dssOffset = firstMatchOffset(pdfText, /\/Type\s*\/DSS\b/);
+  if (dssOffset >= 0) {
+    const lta = checkDocTimeStampAfter(bytes, pdfText, dssOffset);
+    errors.push(...lta.errors);
+    info.push(...lta.info);
+  } else if (/\/Type\s*\/DocTimeStamp/.test(pdfText)) {
+    warnings.push('/DocTimeStamp present without a /DSS before it (not PAdES-B-LTA)');
   }
 
   // OID_DATA reference is consulted via SignedAttributes[contentType], but TS
@@ -288,6 +301,114 @@ function verifyOne(path: string, bytes: Buffer): VerifyResult {
   void OID_DATA;
 
   return { path, errors, warnings, info };
+}
+
+function firstMatchOffset(text: string, re: RegExp): number {
+  const m = re.exec(text);
+  return m ? m.index : -1;
+}
+
+const OID_TST_INFO = '1.2.840.113549.1.9.16.1.4';
+const OID_SHA256 = '2.16.840.1.101.3.4.2.1';
+
+/**
+ * Find the first `/Type /DocTimeStamp` signature dict after `afterOffset`
+ * and check it covers the rest of the file and timestamps those bytes.
+ * Reads /ByteRange + /Contents directly (rule S.5: no
+ * `@signpdf/utils.extractSignature`) and slices the TST by its outer DER
+ * length, like the B-T path above.
+ */
+function checkDocTimeStampAfter(
+  bytes: Buffer,
+  pdfText: string,
+  afterOffset: number,
+): { errors: string[]; info: string[] } {
+  const errors: string[] = [];
+  const info: string[] = [];
+  const tail = pdfText.slice(afterOffset);
+  const relType = firstMatchOffset(tail, /\/Type\s*\/DocTimeStamp\b/);
+  if (relType < 0) {
+    errors.push('PAdES-B-LTA: /DSS present but no /DocTimeStamp after it');
+    return { errors, info };
+  }
+  const typeOffset = afterOffset + relType;
+  const dictStart = pdfText.lastIndexOf('<<', typeOffset);
+  const dictEnd = pdfText.indexOf('endobj', typeOffset);
+  const dict = pdfText.slice(dictStart, dictEnd < 0 ? undefined : dictEnd);
+  if (!/\/SubFilter\s*\/ETSI\.RFC3161/.test(dict)) {
+    errors.push('PAdES-B-LTA: /DocTimeStamp dict lacks /SubFilter /ETSI.RFC3161');
+  }
+  const br = /\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/.exec(dict);
+  if (!br) {
+    errors.push('PAdES-B-LTA: /DocTimeStamp has no /ByteRange');
+    return { errors, info };
+  }
+  const [a, b, c, d] = [br[1], br[2], br[3], br[4]].map(Number) as [number, number, number, number];
+  if (a !== 0 || c + d !== bytes.length || bytes[a + b] !== 0x3c /* '<' */) {
+    errors.push(
+      `PAdES-B-LTA: /DocTimeStamp /ByteRange [${a} ${b} ${c} ${d}] does not cover the file (length ${bytes.length}) around its /Contents`,
+    );
+    return { errors, info };
+  }
+  let tokenDer: Buffer;
+  try {
+    const hex = bytes.subarray(a + b + 1, c - 1).toString('latin1');
+    tokenDer = sliceDerSequence(Buffer.from(hex, 'hex'));
+  } catch (err) {
+    errors.push(
+      `PAdES-B-LTA: cannot read the /DocTimeStamp token: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { errors, info };
+  }
+  let imprint: Buffer;
+  try {
+    imprint = readTstMessageImprint(tokenDer);
+  } catch (err) {
+    errors.push(
+      `PAdES-B-LTA: /DocTimeStamp token is not a parseable TimeStampToken: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { errors, info };
+  }
+  const covered = Buffer.concat([bytes.subarray(a, a + b), bytes.subarray(c, c + d)]);
+  const expected = createHash('sha256').update(covered).digest();
+  if (!expected.equals(imprint)) {
+    errors.push(
+      `PAdES-B-LTA: /DocTimeStamp messageImprint mismatch: tst=${imprint.toString('hex').slice(0, 16)}… computed=${expected.toString('hex').slice(0, 16)}…`,
+    );
+    return { errors, info };
+  }
+  info.push('PAdES-B-LTA: /DocTimeStamp after /DSS covers the file; messageImprint matches');
+  return { errors, info };
+}
+
+/**
+ * TimeStampToken (CMS ContentInfo) → SignedData → encapContentInfo
+ * (eContentType id-ct-TSTInfo) → TSTInfo.messageImprint.hashedMessage.
+ * Only SHA-256 imprints are accepted; that is what TsaClient requests.
+ */
+function readTstMessageImprint(tokenDer: Buffer): Buffer {
+  const asn1 = forge.asn1;
+  const ci = asn1.fromDer(tokenDer.toString('binary'));
+  const ciValue = ci.value as forge.asn1.Asn1[];
+  const ciOid = asn1.derToOid(ciValue[0]!.value as unknown as string);
+  if (ciOid !== OID_SIGNED_DATA) throw new Error(`ContentInfo OID ${ciOid} is not signedData`);
+  const sd = (ciValue[1]!.value as forge.asn1.Asn1[])[0]!;
+  const encap = (sd.value as forge.asn1.Asn1[]).find(
+    (n, i) => i > 0 && n.type === asn1.Type.SEQUENCE && n.tagClass === asn1.Class.UNIVERSAL,
+  );
+  if (!encap) throw new Error('encapContentInfo missing');
+  const encapValue = encap.value as forge.asn1.Asn1[];
+  const eType = asn1.derToOid(encapValue[0]!.value as unknown as string);
+  if (eType !== OID_TST_INFO) throw new Error(`eContentType ${eType} is not id-ct-TSTInfo`);
+  const octet = (encapValue[1]!.value as forge.asn1.Asn1[])[0]!;
+  const tstInfo = asn1.fromDer(octet.value as unknown as string);
+  const mi = (tstInfo.value as forge.asn1.Asn1[])[2]!;
+  const miValue = mi.value as forge.asn1.Asn1[];
+  const algOid = asn1.derToOid(
+    (miValue[0]!.value as forge.asn1.Asn1[])[0]!.value as unknown as string,
+  );
+  if (algOid !== OID_SHA256) throw new Error(`messageImprint algorithm ${algOid} is not SHA-256`);
+  return Buffer.from(miValue[1]!.value as unknown as string, 'binary');
 }
 
 function findSignedAttrs(signerInfo: forge.asn1.Asn1): forge.asn1.Asn1 | null {
@@ -340,4 +461,5 @@ function main(): void {
   process.exit(failed > 0 ? 1 : 0);
 }
 
-main();
+// Run as a CLI only; the e2e suite imports `verifyOne` directly.
+if (require.main === module) main();
