@@ -183,7 +183,8 @@ export type EventTypeDb =
   | 'session_invalidated_by_cancel'
   | 'job_failed'
   | 'retention_deleted'
-  | 'document_added';
+  | 'document_added'
+  | 'step_started';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -200,7 +201,9 @@ export interface EnvelopesTable {
   title: string;
   short_code: string;
   status: ColumnType<EnvelopeStatusDb, EnvelopeStatusDb | undefined, EnvelopeStatusDb | undefined>;
-  delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, never>;
+  // Migration 0023 (WP-05): updatable on drafts by the signing-order route,
+  // and stamped at send with the mode in force.
+  delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, DeliveryModeDb | undefined>;
   original_file_path: string | null;
   original_sha256: string | null;
   original_pages: number | null;
@@ -243,6 +246,9 @@ export interface EnvelopeSignersTable {
   color: string;
   role: ColumnType<SignerRoleDb, SignerRoleDb | undefined, SignerRoleDb | undefined>;
   signing_order: ColumnType<number, number | undefined, number | undefined>;
+  // Migration 0023 (WP-05) — when this signer's step was invited. Null on
+  // drafts and for later steps of a sequential envelope until they start.
+  invited_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
 
   // Migration 0027 (MCP Insert A) — both are written by the email
   // dispatcher when it sends an invite or reminder: a fresh token's hash
