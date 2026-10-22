@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
@@ -19,6 +19,7 @@ import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
 import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
+import { DevelopersSettingsPage, SettingsIndexPage } from './pages/SettingsPage';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -236,13 +237,13 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          {/* Stub Settings index — until a real Settings landing
-              page lands, `/settings` redirects to the only settings
-              surface that exists (Integrations). Audit slice C #4
-              (MEDIUM): the Integrations breadcrumb now points back to
-              `/settings`, so this route MUST exist for the link to
-              navigate anywhere useful. */}
-          <Route path="/settings" element={<Navigate to="/settings/integrations" replace />} />
+          {/* Settings index (desktop). Rows show only for features whose flag
+              is on. The Integrations breadcrumb points back here. */}
+          <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+          <Route
+            path="/settings/developers"
+            element={<DevelopersSettingsPage variant="desktop" />}
+          />
           <Route
             path="/settings/integrations"
             element={
@@ -252,6 +253,14 @@ export function AppRoutes() {
             }
           />
         </Route>
+        {/* Mobile settings index + Developers. Outside <AppShell /> for the
+            same reason as /m/send: the phone has its own chrome. Guests are
+            sent away by RequireAuth (keys need an email on the account). */}
+        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        <Route
+          path="/m/settings/developers"
+          element={<DevelopersSettingsPage variant="mobile" />}
+        />
       </Route>
 
       <Route index element={<RootLanding />} />

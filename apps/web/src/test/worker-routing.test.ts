@@ -112,6 +112,15 @@ describe('apps/landing/_worker.js routing', () => {
     expect(isSpaRoute('/app')).toBe(true);
     expect(isSpaRoute('/signin')).toBe(true);
     expect(isSpaRoute('/settings/integrations')).toBe(true);
+    // Settings index + Developers (WP-16), covered by the '/settings/' and '/m/' prefixes.
+    for (const path of [
+      '/settings',
+      '/settings/developers',
+      '/m/settings',
+      '/m/settings/developers',
+    ]) {
+      expect(isSpaRoute(path), path).toBe(true);
+    }
     expect(isSpaRoute('/contact')).toBe(false);
     expect(isSpaRoute('/')).toBe(false);
   });
