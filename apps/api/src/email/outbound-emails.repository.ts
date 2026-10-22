@@ -126,8 +126,46 @@ export const LEGACY_SIGNER_LINK_KEYS: readonly string[] = ['sign_url'];
  * base64url chars>` (real tokens are 43). Scoped to `/sign/` and a long
  * value so user text such as a title "Lease?t=final" never matches. Kept
  * in step with the 0027 check constraint.
+ *
+ * Hand-written single pass instead of a regex: payloads include user text,
+ * and `/\/sign\/[^"\s]*[?&]t=…/` backtracks polynomially on input that
+ * repeats `/sign/` (CodeQL js/polynomial-redos). Each `/sign/` run up to
+ * the next quote or whitespace is scanned once, then skipped.
  */
-const SIGNING_LINK_WITH_TOKEN = /\/sign\/[^"\s]*[?&]t=[A-Za-z0-9_-]{32,}/;
+const SIGN_PATH = '/sign/';
+const MIN_TOKEN_CHARS = 32;
+const BASE64URL_CHAR = /[A-Za-z0-9_-]/;
+
+function isLinkTerminator(ch: string): boolean {
+  return ch === '"' || /\s/.test(ch);
+}
+
+export function containsSigningLinkWithToken(text: string): boolean {
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf(SIGN_PATH, from);
+    if (start === -1) return false;
+    let end = start + SIGN_PATH.length;
+    while (end < text.length && !isLinkTerminator(text.charAt(end))) end += 1;
+    for (let i = start + SIGN_PATH.length; i + 2 < end; i += 1) {
+      const sep = text.charAt(i);
+      if (
+        (sep === '?' || sep === '&') &&
+        text.charAt(i + 1) === 't' &&
+        text.charAt(i + 2) === '='
+      ) {
+        let run = 0;
+        let j = i + 3;
+        while (j < end && BASE64URL_CHAR.test(text.charAt(j))) {
+          run += 1;
+          j += 1;
+        }
+        if (run >= MIN_TOKEN_CHARS) return true;
+      }
+    }
+    from = end;
+  }
+}
 
 /**
  * Insert A: an outbound payload holds ids only, never a signer token or a
@@ -141,7 +179,7 @@ export function findSignerTokenInPayload(
   for (const key of LEGACY_SIGNER_LINK_KEYS) {
     if (key in payload) return `payload_key:${key}`;
   }
-  if (SIGNING_LINK_WITH_TOKEN.test(JSON.stringify(payload))) return 'payload_signing_link';
+  if (containsSigningLinkWithToken(JSON.stringify(payload))) return 'payload_signing_link';
   return null;
 }
 
