@@ -1,5 +1,5 @@
 {
-  "server_version": "0.1.0",
+  "server_version": "0.2.0",
   "variants": {
     "all_flags_on": [
       {
@@ -499,7 +499,18 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": ["signature", "initials", "date", "text", "checkbox", "email"]
+                    "enum": [
+                      "signature",
+                      "initials",
+                      "date",
+                      "text",
+                      "checkbox",
+                      "email",
+                      "name",
+                      "number",
+                      "radio",
+                      "dropdown"
+                    ]
                   },
                   "page": {
                     "type": "integer",
@@ -1170,7 +1181,8 @@
                       "session_invalidated_by_cancel",
                       "job_failed",
                       "retention_deleted",
-                      "document_added"
+                      "document_added",
+                      "step_started"
                     ]
                   },
                   "actor_kind": {
@@ -1737,7 +1749,18 @@
                   },
                   "kind": {
                     "type": "string",
-                    "enum": ["signature", "initials", "date", "text", "checkbox", "email"]
+                    "enum": [
+                      "signature",
+                      "initials",
+                      "date",
+                      "text",
+                      "checkbox",
+                      "email",
+                      "name",
+                      "number",
+                      "radio",
+                      "dropdown"
+                    ]
                   },
                   "page": {
                     "type": "integer",
@@ -2408,7 +2431,8 @@
                       "session_invalidated_by_cancel",
                       "job_failed",
                       "retention_deleted",
-                      "document_added"
+                      "document_added",
+                      "step_started"
                     ]
                   },
                   "actor_kind": {

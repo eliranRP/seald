@@ -22,6 +22,9 @@ import { findTokenShapedStrings } from '../src/mcp/leak-scan';
 import { StorageService } from '../src/storage/storage.service';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
+import type { Kysely } from 'kysely';
+import type { Database } from '../db/schema';
+import { DB_TOKEN } from '../src/db/db.provider';
 
 /**
  * MCP transport and read tools (WP-17, steps 4–6) end to end: the booted
@@ -344,6 +347,9 @@ describePg('MCP server (e2e, real Postgres)', () => {
 
   afterAll(async () => {
     delete host.__SEALD_FEATURE_OVERRIDES__;
+    // The app's Kysely pool is not closed by app.close(); end it before the
+    // forced drop below terminates its idle clients (unhandled 'error').
+    await app?.get<Kysely<Database>>(DB_TOKEN).destroy();
     await app?.close();
     await pool?.end();
     if (admin) {

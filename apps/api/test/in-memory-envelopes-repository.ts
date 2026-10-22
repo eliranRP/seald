@@ -21,7 +21,7 @@ import type {
   SubmitResult,
   UpdateDraftMetadataPatch,
 } from '../src/envelopes/envelopes.repository';
-import { isFeatureEnabled, type DeliveryMode } from 'shared';
+import type { DeliveryMode } from 'shared';
 import { initialInvitees, nextStepInvitees, stepOf } from '../src/signing/signing-order';
 import { REMINDER_INTERVAL_MS } from '../src/reminders/reminder-eligibility';
 import {

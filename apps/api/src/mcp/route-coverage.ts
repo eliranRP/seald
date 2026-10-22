@@ -50,6 +50,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /envelopes': { planned: 'step-8c' },
   'GET /envelopes/:id': { tool: 'envelopes_get' },
   'PATCH /envelopes/:id': { planned: 'step-8c' },
+  'PUT /envelopes/:id/signing-order': { planned: 'step-8c' },
   'DELETE /envelopes/:id': { planned: 'step-8c' },
   'POST /envelopes/:id/upload': { planned: 'step-8b' },
   'POST /envelopes/:id/send': { planned: 'step-10' },
