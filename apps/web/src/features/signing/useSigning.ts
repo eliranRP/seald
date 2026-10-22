@@ -8,7 +8,7 @@ import type {
   SignMeSigner,
   SignatureInput,
   StartSessionInput,
-  StartSessionResponse,
+  StartSessionResult,
   SubmitResponse,
 } from './signingApi';
 import { writeDoneSnapshot } from './doneSnapshot';
@@ -31,7 +31,7 @@ export function useSignMeQuery(envelopeId: string, enabled: boolean) {
 }
 
 export function useStartSessionMutation() {
-  return useMutation<StartSessionResponse, Error, StartSessionInput>({
+  return useMutation<StartSessionResult, Error, StartSessionInput>({
     mutationFn: (input) => api.startSession(input),
     onSuccess: (_, input) => {
       reportSignerEvent({ type: 'sign.session.started', envelope_id: input.envelope_id });
@@ -184,8 +184,8 @@ export interface TerminalMutationOptions {
 
 export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOptions) {
   const qc = useQueryClient();
-  return useMutation<SubmitResponse, Error, void>({
-    mutationFn: () => api.submit(),
+  return useMutation<SubmitResponse, Error, string | undefined>({
+    mutationFn: (accessCode) => api.submit(accessCode),
     onSuccess: () => {
       const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
       writeDoneSnapshot({

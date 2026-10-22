@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
@@ -250,6 +251,7 @@ export function MobileSendPage() {
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
   const signingOrder = useSigningOrder(signers.map((s) => s.id));
+  const accessAuth = useAccessAuth(signers.map((s) => s.id));
   const [meIncluded, setMeIncluded] = useState(false);
 
   // Place-step state
@@ -591,6 +593,7 @@ export function MobileSendPage() {
         remindersEnabled,
         reminderSettings,
         signingOrder: signingOrder.value,
+        accessAuth: accessAuth.value,
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
@@ -634,6 +637,7 @@ export function MobileSendPage() {
     remindersEnabled,
     reminderSettings,
     signingOrder.value,
+    accessAuth.value,
     runSend,
     title,
     user,
@@ -808,6 +812,8 @@ export function MobileSendPage() {
               onReminderSettingsChange={setReminderSettings}
               signingOrder={signingOrder.value}
               onSigningOrderChange={signingOrder.setValue}
+              accessAuth={accessAuth.value}
+              onAccessAuthChange={accessAuth.setValue}
             />
             {sendPhase === 'error' && sendError && (
               <div

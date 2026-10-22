@@ -13,6 +13,9 @@ import { addEnvelopeDocument } from '@/features/documentEditor/documents/documen
 import type { FieldPlacement, PatchEnvelopeInput } from './envelopesApi';
 import { toSigningOrderRequest } from '@/features/signers/signingOrder/model';
 import type { SigningOrderValue } from '@/features/signers/signingOrder/model';
+import { patchEnvelopeAccessAuth } from '@/features/signers/accessAuth/accessAuthApi';
+import { toAccessAuthRequest } from '@/features/signers/accessAuth/model';
+import type { AccessAuthValue } from '@/features/signers/accessAuth/model';
 import type { SendReminderSettings } from './sendReminderSettings';
 
 /**
@@ -141,6 +144,12 @@ export interface SendEnvelopeInput {
    * before send. Rows are keyed by the same local ids as `signers`.
    */
   readonly signingOrder?: SigningOrderValue;
+  /**
+   * Emailed one-time code choice (WP-11). Used only while `signerAccessAuth`
+   * is on: saved through `PATCH /envelopes/:id/access-auth` after the signers
+   * exist and before send. Rows are keyed by the same local ids as `signers`.
+   */
+  readonly accessAuth?: AccessAuthValue;
 }
 
 export interface SendEnvelopeResult {
@@ -174,6 +183,7 @@ export interface UseSendEnvelope {
  *   3. POST /envelopes/:id/signers  (per contact)
  *   4. PUT  /envelopes/:id/fields   (all fields, normalized coords)
  *      PUT  /envelopes/:id/signing-order (only when `signingOrder` is on and ordered)
+ *      PATCH /envelopes/:id/access-auth (only when `signerAccessAuth` is on and a code is asked for)
  *   5. POST /envelopes/:id/send
  *
  * The hook is not a `useMutation` because we want progressive `phase` state
@@ -240,6 +250,11 @@ export function useSendEnvelope(): UseSendEnvelope {
       if (input.signingOrder !== undefined && isFeatureEnabled('signingOrder')) {
         const order = toSigningOrderRequest(input.signingOrder, localSignerIdToServerSignerId);
         if (order !== null) await setEnvelopeSigningOrder(envelope.id, order);
+      }
+
+      if (input.accessAuth !== undefined && isFeatureEnabled('signerAccessAuth')) {
+        const body = toAccessAuthRequest(input.accessAuth, localSignerIdToServerSignerId);
+        if (body !== null) await patchEnvelopeAccessAuth(envelope.id, body);
       }
 
       setPhase('sending');

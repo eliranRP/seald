@@ -4,6 +4,7 @@ import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.type
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
 import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
 import type { SigningOrderValue } from '@/features/signers/signingOrder';
+import type { AccessAuthValue } from '@/features/signers/accessAuth';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { PDFDocumentProxy } from '@/lib/pdf';
 
@@ -73,6 +74,9 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   /** Signing order for this send (WP-06). Omitted, or flag `signingOrder` off, hides the control. */
   readonly signingOrder?: SigningOrderValue | undefined;
   readonly onSigningOrderChange?: ((next: SigningOrderValue) => void) | undefined;
+  /** Emailed one-time code choice (WP-11). Omitted, or flag `signerAccessAuth` off, hides the control. */
+  readonly accessAuth?: AccessAuthValue | undefined;
+  readonly onAccessAuthChange?: ((next: AccessAuthValue) => void) | undefined;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
   /**

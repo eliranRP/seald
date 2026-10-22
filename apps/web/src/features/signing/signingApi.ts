@@ -89,6 +89,23 @@ export interface StartSessionResponse {
   readonly requires_tc_accept: boolean;
 }
 
+/**
+ * `POST /sign/start` when the sender asked for an emailed one-time code
+ * (WP-10, flag `signerAccessAuth`). No session exists yet: the signer asks
+ * for and enters the code first. Never returned while the flag is off.
+ */
+export interface StartSessionAccessCodeRequired {
+  readonly status: 'access_code_required';
+  readonly envelope_id: string;
+  readonly signer_id: string;
+  readonly email_masked: string;
+}
+export type StartSessionResult = StartSessionResponse | StartSessionAccessCodeRequired;
+
+export function isAccessCodeRequired(r: StartSessionResult): r is StartSessionAccessCodeRequired {
+  return 'status' in r && r.status === 'access_code_required';
+}
+
 export type FillValue = { readonly value_text: string } | { readonly value_boolean: boolean };
 
 export type SignatureKind = 'signature' | 'initials';
@@ -126,8 +143,8 @@ function configWithSignal(signal?: AbortSignal): AxiosRequestConfig {
 export async function startSession(
   input: StartSessionInput,
   signal?: AbortSignal,
-): Promise<StartSessionResponse> {
-  const { data } = await signApiClient.post<StartSessionResponse>(
+): Promise<StartSessionResult> {
+  const { data } = await signApiClient.post<StartSessionResult>(
     '/sign/start',
     input,
     configWithSignal(signal),
@@ -221,10 +238,15 @@ export async function uploadSignature(
   return data;
 }
 
-export async function submit(signal?: AbortSignal): Promise<SubmitResponse> {
+/**
+ * `accessCode` is the fresh emailed code when the sender asked for a
+ * re-check before signing (WP-10). Without it the request has no body, as
+ * it always did.
+ */
+export async function submit(accessCode?: string, signal?: AbortSignal): Promise<SubmitResponse> {
   const { data } = await signApiClient.post<SubmitResponse>(
     '/sign/submit',
-    undefined,
+    accessCode !== undefined ? { access_code: accessCode } : undefined,
     configWithSignal(signal),
   );
   return data;

@@ -27,6 +27,10 @@ export const signApiClient: AxiosInstance = axios.create({
 
 export interface ApiError extends Error {
   status?: number;
+  /** The API's `{ error: <slug> }` value, e.g. `access_code_invalid` (WP-11). */
+  code?: string;
+  /** `Retry-After` in whole seconds, when the response carried a usable one. */
+  retryAfterSeconds?: number;
 }
 
 function messageFromAxiosError(err: AxiosError): string {
@@ -47,6 +51,10 @@ signApiClient.interceptors.response.use(
       if (error.response?.status !== undefined) {
         wrapped.status = error.response.status;
       }
+      const slug = (error.response?.data as { readonly error?: unknown } | undefined)?.error;
+      if (typeof slug === 'string') wrapped.code = slug;
+      const retryAfter = Number(error.response?.headers?.['retry-after']);
+      if (Number.isInteger(retryAfter) && retryAfter > 0) wrapped.retryAfterSeconds = retryAfter;
       throw wrapped;
     }
     throw error;

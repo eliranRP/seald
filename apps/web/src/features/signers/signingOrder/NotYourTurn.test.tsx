@@ -44,4 +44,9 @@ describe('isNotYourTurnError', () => {
     );
     expect(isNotYourTurnError(null)).toBe(false);
   });
+
+  it('matches the API body { error: not_your_turn }, which the signer client exposes as code', () => {
+    const err = Object.assign(new Error('Conflict'), { status: 409, code: 'not_your_turn' });
+    expect(isNotYourTurnError(err)).toBe(true);
+  });
 });

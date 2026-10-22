@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reportSignerEvent } from '@/features/signing';
 import { isNotYourTurnError, NotYourTurn } from '@/features/signers/signingOrder';
 import * as api from '@/features/signing/signingApi';
+import { AccessCodeScreen } from '@/features/signing/accessCode';
 import {
   Body,
   Card,
@@ -32,7 +33,7 @@ import {
  * it, which is the desired behaviour (a refresh with the same `?t=` is a
  * legitimate replay attempt that the API will reject with 401).
  */
-const inflight = new Map<string, Promise<api.StartSessionResponse>>();
+const inflight = new Map<string, Promise<api.StartSessionResult>>();
 
 /**
  * Test-only escape hatch to drain the module-level dedupe cache between
@@ -121,6 +122,10 @@ export function SigningEntryPage() {
   const token = search.get('t');
 
   const [state, setState] = useState<EntryState>('loading');
+  // WP-10/11: the sender asked for an emailed one-time code. Set only when
+  // `/sign/start` answers `access_code_required`, which it never does while
+  // the `signerAccessAuth` flag is off.
+  const [accessCodeEmail, setAccessCodeEmail] = useState<string | null>(null);
   // Item 1 — `retryCounter` is appended to the effect dependency array so a
   // user-initiated "Try again" click re-runs the startSession handshake
   // without a full page reload (the module-level `inflight` cache for the
@@ -156,6 +161,13 @@ export function SigningEntryPage() {
     promise.then(
       (result) => {
         if (cancelled) return;
+        if (api.isAccessCodeRequired(result)) {
+          // No session yet. Scrub `?t=` like the error branch does (a bare
+          // replaceState, so the router does not re-run this effect).
+          window.history.replaceState(null, '', `/sign/${envelopeId}`);
+          setAccessCodeEmail(result.email_masked);
+          return;
+        }
         reportSignerEvent({ type: 'sign.session.started', envelope_id: envelopeId });
         const next = result.requires_tc_accept
           ? `/sign/${envelopeId}/prep`
@@ -191,6 +203,21 @@ export function SigningEntryPage() {
   }, []);
 
   if (state === 'not-your-turn') return <NotYourTurn />;
+
+  if (accessCodeEmail !== null) {
+    return (
+      <AccessCodeScreen
+        emailMasked={accessCodeEmail}
+        onVerified={(result) => {
+          reportSignerEvent({ type: 'sign.session.started', envelope_id: envelopeId });
+          navigate(
+            result.requires_tc_accept ? `/sign/${envelopeId}/prep` : `/sign/${envelopeId}/fill`,
+            { replace: true },
+          );
+        }}
+      />
+    );
+  }
 
   const copy = COPY[state];
   // Item 1 — only the two recoverable error states get a retry CTA. The

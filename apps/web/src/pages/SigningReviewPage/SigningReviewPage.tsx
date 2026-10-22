@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
-import { INTENT_TO_SIGN_NOTE, isFeatureEnabled } from 'shared';
+import { INTENT_TO_SIGN_NOTE, isFeatureEnabled, maskEmail } from 'shared';
 import { Info, PenTool } from 'lucide-react';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
@@ -14,6 +14,7 @@ import { SignatureCapture } from '@/components/SignatureCapture';
 import type { SignatureCaptureKind, SignatureCaptureResult } from '@/components/SignatureCapture';
 import { SignatureMark } from '@/components/SignatureMark';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import { AccessCodeForm, isAccessCodeRequiredError } from '@/features/signing/accessCode';
 import {
   displayText,
   isReadOnly,
@@ -101,6 +102,23 @@ const Actions = styled.div`
   margin-top: ${({ theme }) => theme.space[6]};
   display: flex;
   gap: 10px;
+`;
+
+const CodePanel = styled.section`
+  margin-top: ${({ theme }) => theme.space[5]};
+  padding: ${({ theme }) => theme.space[4]};
+  display: grid;
+  gap: ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+`;
+
+const CodePanelTitle = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
 `;
 
 const BackBtn = styled.button`
@@ -280,6 +298,11 @@ function Content() {
   // the user's affirmation is a discrete, dateable act distinct from
   // clicking the Submit button.
   const [intentChecked, setIntentChecked] = useState(false);
+  // WP-11: the sender asked for a fresh emailed code before submit. The
+  // API says so with 428 on the first submit; intent-to-sign is already on
+  // record by then, so the retry skips it.
+  const [needsActionCode, setNeedsActionCode] = useState(false);
+  const intentRecorded = useRef(false);
 
   // Item 11 — inline-edit state. One slot for the FieldInputDrawer and one
   // for SignatureCapture; both reuse the same components the fill page
@@ -332,6 +355,14 @@ function Content() {
     });
   }, [fields, documents, multiDoc, handleEdit]);
 
+  const handleSubmitWithCode = useCallback(
+    async (code: string) => {
+      await submit(code);
+      navigate(`/sign/${envelopeId}/done`, { replace: true });
+    },
+    [envelopeId, navigate, submit],
+  );
+
   const handleBack = useCallback(
     () => navigate(`/sign/${envelopeId}/fill`),
     [envelopeId, navigate],
@@ -370,10 +401,18 @@ function Content() {
       // event in the chain. The audit PDF reads in chain order; the
       // intent affirmation must precede the signature event for the
       // narrative to be correct.
-      await confirmIntentToSign();
+      if (!intentRecorded.current) {
+        await confirmIntentToSign();
+        intentRecorded.current = true;
+      }
       await submit();
       navigate(`/sign/${envelopeId}/done`, { replace: true });
     } catch (err) {
+      if (isAccessCodeRequiredError(err)) {
+        setNeedsActionCode(true);
+        setBusy(false);
+        return;
+      }
       const e = err as ApiErrorLike;
       if (e.status === 401 || e.status === 410) {
         navigate(`/sign/${envelopeId}`, { replace: true });
@@ -492,14 +531,30 @@ function Content() {
 
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
+        {needsActionCode && signer ? (
+          <CodePanel aria-labelledby="action-code-title">
+            <CodePanelTitle id="action-code-title">
+              Enter a new emailed code to finish signing
+            </CodePanelTitle>
+            <AccessCodeForm
+              purpose="action"
+              emailMasked={maskEmail(signer.email)}
+              submitLabel="Sign and submit"
+              onSubmitCode={handleSubmitWithCode}
+            />
+          </CodePanel>
+        ) : null}
+
         <Actions>
           <BackBtn type="button" onClick={handleBack} disabled={busy}>
             Back to fields
           </BackBtn>
-          <SubmitBtn type="button" onClick={handleSubmit} disabled={busy || !intentChecked}>
-            <Icon icon={PenTool} size={16} />
-            {busy ? 'Submitting…' : 'Sign and submit'}
-          </SubmitBtn>
+          {needsActionCode ? null : (
+            <SubmitBtn type="button" onClick={handleSubmit} disabled={busy || !intentChecked}>
+              <Icon icon={PenTool} size={16} />
+              {busy ? 'Submitting…' : 'Sign and submit'}
+            </SubmitBtn>
+          )}
         </Actions>
 
         <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>

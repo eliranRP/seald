@@ -42,7 +42,8 @@ export interface SigningSessionValue {
   readonly acknowledgeEsignDisclosure: (version: string) => Promise<void>;
   /** T-15 — record explicit intent-to-sign before submit. */
   readonly confirmIntentToSign: () => Promise<void>;
-  readonly submit: () => Promise<void>;
+  /** `accessCode`: the fresh emailed code, when the sender asked for a re-check (WP-11). */
+  readonly submit: (accessCode?: string) => Promise<void>;
   readonly decline: (reason?: string) => Promise<void>;
   /** T-16 — withdraw consent for electronic signing. */
   readonly withdrawConsent: (reason?: string) => Promise<void>;
@@ -107,8 +108,8 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
       confirmIntentToSign: async () => {
         await intent.mutateAsync();
       },
-      submit: async () => {
-        await submitMut.mutateAsync();
+      submit: async (accessCode) => {
+        await submitMut.mutateAsync(accessCode);
       },
       decline: async (reason) => {
         await declineMut.mutateAsync(reason);

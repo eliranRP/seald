@@ -11,9 +11,15 @@ vi.mock('../envelopesApi', () => ({
   setEnvelopeSigningOrder: vi.fn(),
 }));
 
+vi.mock('@/features/signers/accessAuth/accessAuthApi', () => ({
+  patchEnvelopeAccessAuth: vi.fn(),
+}));
+
 import * as api from '../envelopesApi';
+import { patchEnvelopeAccessAuth } from '@/features/signers/accessAuth/accessAuthApi';
 import { useSendEnvelope } from '../useSendEnvelope';
 import type { FieldPlacement } from '../envelopesApi';
+import type { AccessAuthValue } from '@/features/signers/accessAuth/model';
 
 const createEnvelope = api.createEnvelope as unknown as ReturnType<typeof vi.fn>;
 const uploadEnvelopeFile = api.uploadEnvelopeFile as unknown as ReturnType<typeof vi.fn>;
@@ -23,7 +29,11 @@ const sendEnvelope = api.sendEnvelope as unknown as ReturnType<typeof vi.fn>;
 const patchEnvelope = api.patchEnvelope as unknown as ReturnType<typeof vi.fn>;
 const setEnvelopeSigningOrder = api.setEnvelopeSigningOrder as unknown as ReturnType<typeof vi.fn>;
 
+const patchAccessAuth = patchEnvelopeAccessAuth as unknown as ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
+  patchAccessAuth.mockReset();
+  patchAccessAuth.mockResolvedValue({});
   createEnvelope.mockReset();
   uploadEnvelopeFile.mockReset();
   addEnvelopeSigner.mockReset();
@@ -367,6 +377,68 @@ describe('useSendEnvelope', () => {
       setFlag(false);
       await runOrdered(true);
       expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('emailed one-time code (WP-11)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { signerAccessAuth: on };
+    };
+    const runWith = async (accessAuth: AccessAuthValue) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      addEnvelopeSigner
+        .mockResolvedValueOnce({ id: 'srv-a' })
+        .mockResolvedValueOnce({ id: 'srv-b' });
+      placeEnvelopeFields.mockResolvedValueOnce([]);
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [
+            { localId: 'a', contactId: 'a' },
+            { localId: 'b', contactId: 'b' },
+          ],
+          buildFields: () => [],
+          accessAuth,
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('saves the choice with server ids after the signers exist and before send', async () => {
+      setFlag(true);
+      await runWith({
+        access: true,
+        action: false,
+        overrides: { b: { access: 'off', action: 'on' } },
+      });
+      expect(patchAccessAuth).toHaveBeenCalledWith('env-1', {
+        access_auth: 'email_otp',
+        action_auth: 'none',
+        signers: [{ signer_id: 'srv-b', access_auth: 'none', action_auth: 'email_otp' }],
+      });
+      const at = patchAccessAuth.mock.invocationCallOrder[0]!;
+      expect(at).toBeGreaterThan(addEnvelopeSigner.mock.invocationCallOrder[1]!);
+      expect(at).toBeLessThan(sendEnvelope.mock.invocationCallOrder[0]!);
+    });
+
+    it('makes no call when the sender asked for nothing', async () => {
+      setFlag(true);
+      await runWith({ access: false, action: false, overrides: {} });
+      expect(patchAccessAuth).not.toHaveBeenCalled();
+    });
+
+    it('makes no call while the flag is off', async () => {
+      setFlag(false);
+      await runWith({ access: true, action: true, overrides: {} });
+      expect(patchAccessAuth).not.toHaveBeenCalled();
     });
   });
 

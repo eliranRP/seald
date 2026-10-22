@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
 import {
   templateDeliveryMode,
   useSeedSigningOrderFromTemplate,
@@ -234,6 +235,7 @@ export function TemplateEditorRoute() {
   const signingOrder = useSigningOrder(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
   // WP-06 gap: an envelope started from this template sends with the order it stores.
   useSeedSigningOrderFromTemplate(sourceTemplate, signingOrder.setValue);
+  const accessAuth = useAccessAuth(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   /**
    * Saved example PDF fetched from the API when the user picks a
@@ -699,6 +701,7 @@ export function TemplateEditorRoute() {
           remindersEnabled,
           reminderSettings,
           signingOrder: signingOrder.value,
+          accessAuth: accessAuth.value,
         });
         sendDocument(draft.id);
         navigate(`/document/${result.envelope_id}/sent`);
@@ -712,6 +715,7 @@ export function TemplateEditorRoute() {
       remindersEnabled,
       reminderSettings,
       signingOrder.value,
+      accessAuth.value,
       sendDocument,
       sendEnvelope,
       toNormalized,
@@ -930,6 +934,8 @@ export function TemplateEditorRoute() {
             onReminderSettingsChange={setReminderSettings}
             signingOrder={signingOrder.value}
             onSigningOrderChange={signingOrder.setValue}
+            accessAuth={accessAuth.value}
+            onAccessAuthChange={accessAuth.setValue}
             // Only expose Save-as-template in modes where saving is the
             // user's stated intent: authoring a new template ('new') or
             // explicitly editing an existing one ('editing'). In 'using'

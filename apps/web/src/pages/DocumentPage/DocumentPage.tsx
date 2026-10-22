@@ -28,6 +28,7 @@ import { DateFormatSettings } from '@/components/DateFormatSettings';
 import { LocaleSettings } from '@/components/LocaleSettings';
 import { SendSettings } from '@/components/SendSettings';
 import { SigningOrderEditor } from '@/features/signers/signingOrder';
+import { AccessAuthEditor } from '@/features/signers/accessAuth';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
@@ -122,6 +123,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onReminderSettingsChange,
     signingOrder,
     onSigningOrderChange,
+    accessAuth,
+    onAccessAuthChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
@@ -658,6 +661,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                         signers={signers}
                         value={signingOrder}
                         onChange={onSigningOrderChange}
+                      />
+                    ) : null}
+                    {accessAuth && onAccessAuthChange ? (
+                      <AccessAuthEditor
+                        signers={signers}
+                        value={accessAuth}
+                        onChange={onAccessAuthChange}
                       />
                     ) : null}
                   </>

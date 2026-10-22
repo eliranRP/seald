@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
 import { useSeedSigningOrderFromTemplate } from '@/features/templates/templateSigningOrder';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isFeatureEnabled } from 'shared';
@@ -176,6 +177,7 @@ export function DocumentRoute() {
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
   const signingOrder = useSigningOrder(doc?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
+  const accessAuth = useAccessAuth(doc?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   // Resolve the source template (if any) so the banner copy can quote
   // the exact name/page count. Re-resolves when the module store
@@ -431,6 +433,7 @@ export function DocumentRoute() {
           remindersEnabled,
           reminderSettings,
           signingOrder: signingOrder.value,
+          accessAuth: accessAuth.value,
         });
 
         // Persist the server envelope id back onto the local draft so the
@@ -452,6 +455,7 @@ export function DocumentRoute() {
       remindersEnabled,
       reminderSettings,
       signingOrder.value,
+      accessAuth.value,
       sendDocument,
       sendEnvelope,
       canvasHeight,
@@ -712,6 +716,8 @@ export function DocumentRoute() {
         onReminderSettingsChange={setReminderSettings}
         signingOrder={signingOrder.value}
         onSigningOrderChange={signingOrder.setValue}
+        accessAuth={accessAuth.value}
+        onAccessAuthChange={accessAuth.setValue}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
         {...(drafts.multi ? {} : { onSaveAsTemplate: handleOpenSaveTemplate })}
