@@ -471,7 +471,7 @@ The **Owns** line lists the files a WP may create or edit freely. Anything else 
 - **Owns:** a key-only edit across `apps/web/src/**` and `email/templates/**`. It runs last, alone, so it collides with nothing.
 - **Acceptance:** `pnpm i18n:check` (a new script) finds no missing keys; tests that query by name still pass in `en`.
 
-### WP-40 — Translations · `haiku` · wave 7
+### WP-40 — Translations · dropped (D2: English only)
 - **Goal:** translate the catalogs for the locales chosen in D2.
 - **Owns:** `packages/shared/locales/<lng>/**` (not `en`).
 
@@ -504,7 +504,7 @@ Each WP lands as its own commit series (`type(scope): … (WP-xx)`), so the one 
 | 4 | WP-06, WP-08, WP-10, WP-19, WP-29 (A2) | 10 → 19 → 29 → 06 → 08 |
 | 5 | WP-11, WP-20, WP-21, WP-30, WP-36, WP-37, WP-38 (locale columns) | 21 → 20 → 36 → 37 → 30 → 38 → 11 |
 | 6 | WP-22, WP-23, WP-24, WP-25, WP-29 (A2b), WP-31, WP-32, WP-33, WP-34, WP-35 | 23 → 24 → 25 → 29b → 35 → 33 → 34 → 32 → 22 → 31 |
-| 7 | WP-26, WP-27 (if D3), WP-41, then WP-39 → WP-40 one after the other | 26 → 27 → 41 → 39 → 40 |
+| 7 | WP-26, WP-27 (if D3), WP-41, then WP-39 | 26 → 27 → 41 → 39 |
 
 Where a wave has more than about 6 parallel WPs, the orchestrator caps concurrency at 5 worktrees and starts the rest as slots free up.
 
@@ -533,13 +533,10 @@ Where a wave has more than about 6 parallel WPs, the orchestrator caps concurren
 7. `workflowAutomations` (after A2b posts to a staging URL)
 8. `publicApi`
 
-## 7. Decisions needed
+## 7. Decisions (resolved 2026-10-22)
 
-- **D1 — public REST API.** The MCP doc limits API keys to `/mcp`. Choose between:
-  - **(a) recommended:** add `/api/v1` with the same keys, scopes and approval path, and amend the doc;
-  - **(b)** treat MCP as the only programmatic API and drop WP-35.
-- **D2 — locales and legal text.**
-  - Which locales? Suggested: `en` and `he` (RTL), with `es` optional.
-  - Are legal and consent strings (`product-claims.ts`, ESIGN disclosure, terms) translated, or shown in English with a "translation for convenience" note until counsel reviews them?
-- **D3 — MCP OAuth 2.1 (WP-27).** Build it dark now, or leave it for later (it needs external client registration anyway).
-- **D4 — the intent-to-sign copy for MCP sends (WP-23)** needs Eliran's approved wording. The slot ships with today's sentence.
+- **D1 — public REST API:** (a). Add `/api/v1` with the same keys, scopes and approval path as `/mcp`; WP-14 amends the MCP doc's "keys only on `/mcp`" line. WP-35 stays.
+- **D2 — locales:** English only for now. WP-38 builds the full infrastructure (catalogs, template loader, certificate strings from catalogs) and WP-39 extracts strings, so a new locale is a catalog drop-in. RTL support and the Hebrew certificate font are not needed yet. **WP-40 is dropped.**
+- **D2b — legal text:** legal and consent strings (`product-claims.ts`, ESIGN disclosure, terms) are never machine-translated. A future non-English locale shows them in English with a "translation for convenience" notice.
+- **D3 — MCP OAuth 2.1:** build it now, dark behind `mcpServer` (WP-27 stays in wave 7).
+- **D4 — intent-to-sign copy for MCP sends (WP-23):** the slot ships with today's sentence; final wording comes with the legal v0.4 flag-flip PR.
