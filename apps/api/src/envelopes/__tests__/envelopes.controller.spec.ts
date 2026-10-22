@@ -472,12 +472,15 @@ describe('EnvelopesController', () => {
       expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', undefined);
     });
 
-    it.each(['sealed', 'original', 'audit'] as const)('forwards kind=%s verbatim', async (kind) => {
-      svc.getDownloadUrl.mockResolvedValue({ ...reply, kind });
-      const out = await controller.download(USER, 'env-1', kind);
-      expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', kind);
-      expect(out.kind).toBe(kind);
-    });
+    it.each(['sealed', 'original', 'audit', 'declined'] as const)(
+      'forwards kind=%s verbatim',
+      async (kind) => {
+        svc.getDownloadUrl.mockResolvedValue({ ...reply, kind });
+        const out = await controller.download(USER, 'env-1', kind);
+        expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', kind);
+        expect(out.kind).toBe(kind);
+      },
+    );
 
     it('400 invalid_kind on unsupported kind', () => {
       expect(() => controller.download(USER, 'env-1', 'evil')).toThrow(BadRequestException);

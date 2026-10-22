@@ -31,7 +31,7 @@ import { PlaceFieldsDto } from './dto/place-fields.dto';
 import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type { EnvelopeEvent, EnvelopeField, EnvelopeSigner } from './envelope.entity';
-import { EnvelopesService, type ListResult } from './envelopes.service';
+import { EnvelopesService, type EnvelopeDownloadKind, type ListResult } from './envelopes.service';
 import { normalizeFieldPlacements } from './field-placement.service';
 import { mapGdriveSaveError } from './gdrive-save-error.http-errors';
 import { resolveSenderIdentity } from './sender-identity';
@@ -215,7 +215,7 @@ export class EnvelopesController {
   /**
    * Short-lived signed URL for downloading an envelope artifact.
    *
-   * `?kind=sealed|original|audit` picks which file. When the query is
+   * `?kind=sealed|original|audit|declined` picks which file. When the query is
    * omitted the service falls back to "sealed if available, else
    * original" — the sensible default for a generic "Download PDF" CTA.
    *
@@ -227,9 +227,9 @@ export class EnvelopesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Query('kind') kind?: string,
-  ): Promise<{ url: string; kind: 'sealed' | 'original' | 'audit' }> {
-    let resolved: 'sealed' | 'original' | 'audit' | undefined;
-    if (kind === 'sealed' || kind === 'original' || kind === 'audit') {
+  ): Promise<{ url: string; kind: EnvelopeDownloadKind }> {
+    let resolved: EnvelopeDownloadKind | undefined;
+    if (kind === 'sealed' || kind === 'original' || kind === 'audit' || kind === 'declined') {
       resolved = kind;
     } else if (kind !== undefined) {
       throw new BadRequestException('invalid_kind');

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { isFeatureEnabled } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import { burnInField } from './burn-in-fields';
@@ -18,6 +18,7 @@ import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
 import { buildAuditPdf } from './audit-pdf';
+import { declinedPdfPath } from './declined-pdf-path';
 import { DssInjector } from './dss-injector';
 import { PadesSigner } from './pades-signer';
 
@@ -45,8 +46,10 @@ import { PadesSigner } from './pades-signer';
  *      (one row per mailbox; deduped on retry)
  *
  * audit_only:
- *   1. Envelope is already terminal (declined/expired/canceled). Generate audit.pdf.
- *   2. Upload + repo.setAuditFile. No seal, no completed emails.
+ *   1. Envelope is already terminal (declined/expired/canceled). Stamp
+ *      every page of original.pdf with a "not signed" banner, seal it the
+ *      same way (sign + B-LT/B-LTA) and upload it as declined.pdf.
+ *   2. Generate audit.pdf. Upload + repo.setAuditFile. No completed emails.
  *
  * Throwing bubbles up to the worker, which records the error via
  * repo.failJob and (if attempts<max) schedules a backoff retry.
@@ -241,6 +244,10 @@ export class SealingService {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
 
+    // Written before audit.pdf + setAuditFile. A retry rewrites the same
+    // path, so the job stays idempotent.
+    await this.writeDeclinedPdf(envelope);
+
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),
       this.repo.listSignerAuditDetails(envelope_id),
@@ -258,6 +265,30 @@ export class SealingService {
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
     await this.repo.setAuditFile(envelope_id, auditPath);
+  }
+
+  /**
+   * declined.pdf: original.pdf with a "not signed" banner on every page,
+   * PAdES-sealed (and upgraded to B-LT/B-LTA) like sealed.pdf so anyone
+   * can check it came from Seald. Burns in no signer data. Skipped for a
+   * non-terminal status, and when original.pdf is missing (logged).
+   */
+  private async writeDeclinedPdf(envelope: Envelope): Promise<void> {
+    const banner = NOT_SIGNED_BANNERS[envelope.status];
+    if (banner === undefined) return;
+    let originalBytes: Buffer;
+    try {
+      originalBytes = await this.storage.download(`${envelope.id}/original.pdf`);
+    } catch (err) {
+      this.logger.warn(
+        `audit_only job for ${envelope.id}: no original.pdf, skipping declined.pdf (${err instanceof Error ? err.message : String(err)})`,
+      );
+      return;
+    }
+    const stamped = await stampNotSignedBanner(originalBytes, banner);
+    const signed = await this.pades.sign(stamped);
+    const sealed = await this.dss.upgradeToBLt(signed.pdf);
+    await this.storage.upload(declinedPdfPath(envelope.id), sealed, 'application/pdf');
   }
 
   /**
@@ -333,6 +364,45 @@ export class SealingService {
     const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
+}
+
+/** Banner per terminal non-completed status. Other statuses get none. */
+const NOT_SIGNED_BANNERS: Partial<Record<Envelope['status'], string>> = {
+  declined: 'Declined — not signed',
+  expired: 'Expired — not signed',
+  canceled: 'Canceled — not signed',
+};
+
+/**
+ * Draw a banner across the top of every page. Coordinates follow the
+ * page's MediaBox origin so offset pages still get it. Saves with a
+ * classic xref (see burnIn) so @signpdf can add its placeholder.
+ */
+async function stampNotSignedBanner(pdfBytes: Buffer, text: string): Promise<Buffer> {
+  const pdf = await PDFDocument.load(pdfBytes);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  for (const page of pdf.getPages()) {
+    const box = page.getMediaBox();
+    const size = Math.max(10, Math.min(18, box.width / 30));
+    const barHeight = size * 2;
+    const top = box.y + box.height;
+    page.drawRectangle({
+      x: box.x,
+      y: top - barHeight,
+      width: box.width,
+      height: barHeight,
+      color: rgb(1, 0.94, 0.94),
+    });
+    const textWidth = bold.widthOfTextAtSize(text, size);
+    page.drawText(text, {
+      x: box.x + (box.width - textWidth) / 2,
+      y: top - barHeight + size * 0.65,
+      size,
+      font: bold,
+      color: rgb(0.73, 0.11, 0.11),
+    });
+  }
+  return Buffer.from(await pdf.save({ useObjectStreams: false }));
 }
 
 /** Append every page of `extra` after the pages of `base`. */

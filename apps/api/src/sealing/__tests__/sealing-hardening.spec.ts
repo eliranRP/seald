@@ -1,3 +1,4 @@
+import { inflateSync } from 'node:zlib';
 import { PDFDocument } from 'pdf-lib';
 import type { FeatureFlag } from 'shared';
 import type { AppEnv } from '../../config/env.schema';
@@ -6,13 +7,15 @@ import type { Envelope, EnvelopeEvent } from '../../envelopes/envelope.entity';
 import type { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import type { StorageService } from '../../storage/storage.service';
 import { makeEnvelope, makeEvent, makeSigner } from '../../../test/factories';
+import { declinedPdfPath } from '../declined-pdf-path';
 import type { DssInjector } from '../dss-injector';
 import { PadesSigner, type PadesSignResult } from '../pades-signer';
 import { SealingService } from '../sealing.service';
 
 /**
- * WP-01 item 3: the optional pre-seal certificate appended inside
- * sealed.pdf (flag `appendCertificate`).
+ * WP-01 items 3 and 4: the optional pre-seal certificate appended inside
+ * sealed.pdf (flag `appendCertificate`) and the stamped, sealed
+ * declined.pdf written by `audit_only` jobs.
  */
 
 const ENV_ID = '00000000-0000-0000-0000-000000000001';
@@ -92,6 +95,30 @@ async function pageCount(b: Buffer): Promise<number> {
   return (await PDFDocument.load(b)).getPageCount();
 }
 
+/**
+ * pdf-lib writes standard-font text as a hex string inside a Flate-encoded
+ * content stream. Inflate every stream and look for the hex.
+ */
+function containsDrawnText(pdf: Buffer, text: string): boolean {
+  const hex = Buffer.from(text, 'latin1').toString('hex').toUpperCase();
+  const raw = pdf.toString('latin1');
+  const re = /stream\r?\n/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    const start = m.index + m[0].length;
+    const end = raw.indexOf('endstream', start);
+    if (end < 0) break;
+    let body = pdf.subarray(start, end);
+    try {
+      body = inflateSync(body);
+    } catch {
+      // not compressed
+    }
+    if (body.toString('latin1').toUpperCase().includes(hex)) return true;
+  }
+  return false;
+}
+
 function withFlag<T>(flag: FeatureFlag, on: boolean, fn: () => Promise<T>): Promise<T> {
   const host = globalThis as unknown as {
     __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>> | undefined;
@@ -111,6 +138,54 @@ const EVENTS: EnvelopeEvent[] = [
     created_at: '2026-04-25T10:05:00.000Z',
   }),
 ];
+
+describe('SealingService — audit_only writes declined.pdf (WP-01 item 4)', () => {
+  it.each([
+    ['declined', 'Declined — not signed'],
+    ['expired', 'Expired — not signed'],
+    ['canceled', 'Canceled — not signed'],
+  ] as const)('stamps and seals the original for a %s envelope', async (status, banner) => {
+    const original = await pdfWithPages(3);
+    const h = makeHarness(
+      makeEnvelope({ id: ENV_ID, status }),
+      EVENTS,
+      new Map([[`${ENV_ID}/original.pdf`, original]]),
+    );
+    await h.svc.processAuditOnlyJob(ENV_ID);
+
+    const declined = h.files.get(declinedPdfPath(ENV_ID));
+    expect(declined).toBeDefined();
+    // Sealed the same way as sealed.pdf: sign() then the DSS/LTA upgrade.
+    expect(h.signer.inputs).toHaveLength(1);
+    expect(h.dssCalls).toHaveLength(1);
+    expect(await pageCount(declined!)).toBe(3);
+    // "—" is 0x97 in WinAnsi, so match the ASCII part of the banner.
+    expect(containsDrawnText(h.signer.inputs[0]!, banner.split(' — ')[0]!)).toBe(true);
+    expect(containsDrawnText(h.signer.inputs[0]!, 'not signed')).toBe(true);
+    // audit.pdf still produced and recorded.
+    expect(h.files.has(`${ENV_ID}/audit.pdf`)).toBe(true);
+    expect(h.auditSet).toEqual([`${ENV_ID}/audit.pdf`]);
+  });
+
+  it('writes no declined.pdf for a non-terminal status', async () => {
+    const h = makeHarness(
+      makeEnvelope({ id: ENV_ID, status: 'awaiting_others' }),
+      EVENTS,
+      new Map([[`${ENV_ID}/original.pdf`, await pdfWithPages(1)]]),
+    );
+    await h.svc.processAuditOnlyJob(ENV_ID);
+    expect(h.files.has(declinedPdfPath(ENV_ID))).toBe(false);
+    expect(h.signer.inputs).toHaveLength(0);
+    expect(h.auditSet).toHaveLength(1);
+  });
+
+  it('still writes audit.pdf when original.pdf is missing', async () => {
+    const h = makeHarness(makeEnvelope({ id: ENV_ID, status: 'declined' }), EVENTS, new Map());
+    await h.svc.processAuditOnlyJob(ENV_ID);
+    expect(h.files.has(declinedPdfPath(ENV_ID))).toBe(false);
+    expect(h.auditSet).toEqual([`${ENV_ID}/audit.pdf`]);
+  });
+});
 
 describe('SealingService — appended pre-seal certificate (WP-01 item 3)', () => {
   function sealingEnvelope(): Envelope {

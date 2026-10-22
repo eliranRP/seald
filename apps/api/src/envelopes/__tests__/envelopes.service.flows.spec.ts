@@ -215,8 +215,9 @@ class FakeStorage extends StorageService {
     }
     return `https://example.invalid/signed/${encodeURIComponent(path)}?ttl=${ttl}`;
   }
-  async exists() {
-    return false;
+  existing = new Set<string>();
+  async exists(path: string) {
+    return this.existing.has(path);
   }
 }
 
@@ -841,6 +842,33 @@ describe('EnvelopesService — flow coverage', () => {
     it('kind=audit throws file_not_ready before audit PDF is produced', async () => {
       const envId = await setupSentEnvelope();
       await expect(svc.getDownloadUrl(OWNER, envId, 'audit')).rejects.toMatchObject({
+        message: 'file_not_ready',
+      });
+    });
+
+    it('kind=declined returns declined.pdf for a terminal unsigned envelope', async () => {
+      const envId = await setupSentEnvelope();
+      for (const status of ['declined', 'expired', 'canceled'] as const) {
+        repo.envelopes.set(envId, { ...repo.envelopes.get(envId)!, status });
+        storage.existing.add(`${envId}/declined.pdf`);
+        const out = await svc.getDownloadUrl(OWNER, envId, 'declined');
+        expect(out.kind).toBe('declined');
+        expect(out.url).toContain(encodeURIComponent(`${envId}/declined.pdf`));
+      }
+    });
+
+    it('kind=declined throws file_not_ready before the audit_only job wrote it', async () => {
+      const envId = await setupSentEnvelope();
+      repo.envelopes.set(envId, { ...repo.envelopes.get(envId)!, status: 'declined' });
+      await expect(svc.getDownloadUrl(OWNER, envId, 'declined')).rejects.toMatchObject({
+        message: 'file_not_ready',
+      });
+    });
+
+    it('kind=declined throws file_not_ready for a non-terminal envelope', async () => {
+      const envId = await setupSentEnvelope();
+      storage.existing.add(`${envId}/declined.pdf`);
+      await expect(svc.getDownloadUrl(OWNER, envId, 'declined')).rejects.toMatchObject({
         message: 'file_not_ready',
       });
     });

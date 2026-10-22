@@ -28,6 +28,7 @@ import {
   type TimelineEventFragment,
 } from '../email/template-fragments';
 import { SigningTokenService } from '../signing/signing-token.service';
+import { declinedPdfPath } from '../sealing/declined-pdf-path';
 import { StorageService } from '../storage/storage.service';
 import type {
   CreateFieldInput,
@@ -72,6 +73,9 @@ const MAX_SHORT_CODE_RETRIES = 5;
  * their own services. This service is exclusively for the authenticated
  * sender surface.
  */
+/** Artifacts `GET /envelopes/:id/download?kind=` can hand out. */
+export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit' | 'declined';
+
 @Injectable()
 export class EnvelopesService {
   constructor(
@@ -370,6 +374,9 @@ export class EnvelopesService {
    *   - `'sealed'`   — the sealed artifact. 404 if the envelope isn't complete.
    *   - `'original'` — the uploaded PDF.
    *   - `'audit'`    — the audit-trail PDF produced by the sealing job.
+   *   - `'declined'` — the stamped, PAdES-sealed copy the `audit_only`
+   *                    job writes for a declined, expired or canceled
+   *                    envelope (WP-01).
    *
    * Throws `file_not_ready` when the requested artifact isn't on the
    * envelope yet (e.g. asking for the audit PDF before sealing ran).
@@ -377,16 +384,26 @@ export class EnvelopesService {
   async getDownloadUrl(
     owner_id: string,
     id: string,
-    kind?: 'sealed' | 'original' | 'audit',
-  ): Promise<{ readonly url: string; readonly kind: 'sealed' | 'original' | 'audit' }> {
+    kind?: EnvelopeDownloadKind,
+  ): Promise<{ readonly url: string; readonly kind: EnvelopeDownloadKind }> {
     const envelope = await this.repo.findByIdForOwner(owner_id, id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     const paths = await this.repo.getFilePaths(id);
     if (!paths) throw new NotFoundException('envelope_not_found');
 
-    let resolvedKind: 'sealed' | 'original' | 'audit';
+    let resolvedKind: EnvelopeDownloadKind;
     let path: string | null;
-    if (kind === 'audit') {
+    if (kind === 'declined') {
+      // No column for it: the path is fixed and only exists once the
+      // audit_only job ran for a terminal, unsigned envelope.
+      resolvedKind = 'declined';
+      const candidate = declinedPdfPath(id);
+      const terminal =
+        envelope.status === 'declined' ||
+        envelope.status === 'expired' ||
+        envelope.status === 'canceled';
+      path = terminal && (await this.storage.exists(candidate)) ? candidate : null;
+    } else if (kind === 'audit') {
       resolvedKind = 'audit';
       path = paths.audit_file_path;
     } else if (kind === 'original') {
