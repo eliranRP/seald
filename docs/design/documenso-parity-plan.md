@@ -504,7 +504,7 @@ Each WP lands as its own commit series (`type(scope): … (WP-xx)`), so the one 
 | 4 | WP-06, WP-08, WP-10, WP-19, WP-29 (A2) | 10 → 19 → 29 → 06 → 08 |
 | 5 | WP-11, WP-20, WP-21, WP-30, WP-36, WP-37, WP-38 (locale columns) | 21 → 20 → 36 → 37 → 30 → 38 → 11 |
 | 6 | WP-22, WP-23, WP-24, WP-25, WP-29 (A2b), WP-31, WP-32, WP-33, WP-34, WP-35 | 23 → 24 → 25 → 29b → 35 → 33 → 34 → 32 → 22 → 31 |
-| 7 | WP-26, WP-27, WP-45, WP-41, then WP-39 | 26 → 27 → 45 → 41 → 39 |
+| 7 | WP-26, WP-27, WP-45, WP-41, then WP-39, then WP-46 last | 26 → 27 → 45 → 41 → 39 → 46 |
 
 Where a wave has more than about 6 parallel WPs, the orchestrator caps concurrency at 5 worktrees and starts the rest as slots free up.
 
@@ -552,4 +552,10 @@ Where a wave has more than about 6 parallel WPs, the orchestrator caps concurren
 - **Depends on:** WP-14, WP-17, WP-21, WP-22, WP-24.
 - **Acceptance:** each tool returns `approval_pending` and performs nothing until Approve; Deny/expiry leaves state unchanged; e2e for each; the parity spec has no `excluded` sender routes left.
 - **Scopes:** new `account:admin`, `keys:admin`, `envelopes:sign`; none pre-checked on the Developers page.
+- **D6 — security vulnerabilities (2026-10-22):** all dependency CVE fixes (Security Scan: Trivy + `pnpm audit`, and CI's audit job) are deferred to the end of the PR as **WP-46**. Until then those checks are expected red; every other check must be green at each wave checkpoint.
+
+### WP-46 — Security sweep · `sonnet` · last, after WP-39
+- **Goal:** make Security Scan (Trivy fs, CRITICAL/HIGH, `.trivyignore`) and every `pnpm audit --prod --audit-level=high` job green against the final lockfile, including deps added by earlier WPs. Patch through root `pnpm.overrides` or direct bumps, lockfile regenerated with `pnpm install`. Packages with no fix (e.g. node-forge, used by sealing) get an ignore entry with a dated justification only after checking the vulnerable API is unreachable from `apps/api/src/sealing`; if it is reachable, escalate to opus and the owner.
+- **Owns:** root `package.json` overrides, `pnpm-lock.yaml`, `.trivyignore`, `apps/landing/package.json` bumps.
+- **Acceptance:** Security Scan and CI audit green; full gate, landing build and `pades-verify` green.
 
