@@ -217,3 +217,4 @@ export type {
 } from './api-keys';
 export * from './mcp';
 export * from './mcp-write';
+export * from './approvals';

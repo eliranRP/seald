@@ -68,6 +68,8 @@ export const EVENT_TYPES = [
   'access_code_sent',
   'access_code_verified',
   'access_code_failed',
+  // WP-21 (migration 0030): the owner approved or denied an agent action.
+  'approval_decided',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

@@ -191,6 +191,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   access_code_sent: 'One-time code emailed',
   access_code_verified: 'Emailed one-time code entered',
   access_code_failed: 'Wrong one-time code entered',
+  approval_decided: 'Owner approval recorded',
 };
 
 interface DerivedView {
