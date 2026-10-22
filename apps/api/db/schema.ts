@@ -25,6 +25,9 @@ export interface Database {
   signer_otp_challenges: SignerOtpChallengesTable;
   // Migration 0029 — MCP staged uploads (WP-19).
   mcp_uploads: McpUploadsTable;
+  // Migration 0030 — owner approvals and send confirmations (WP-21).
+  mcp_approvals: McpApprovalsTable;
+  mcp_confirmations: McpConfirmationsTable;
 }
 
 /** Migration 0026 (WP-10). `none` or the emailed one-time code. */
@@ -92,6 +95,73 @@ export interface ApiKeysTable {
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   expires_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   revoked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  /** Migration 0030 (WP-21). `none` skips the approval email only. */
+  approval_notify: ColumnType<'email' | 'none', 'email' | 'none' | undefined, 'email' | 'none'>;
+}
+
+type NullableTs = ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+
+/**
+ * Migration 0030 (WP-21). One action an agent asked the owner to approve.
+ * Only token hashes are stored; the raw link token exists only in the
+ * email the worker minted it for.
+ */
+export interface McpApprovalsTable {
+  id: Generated<string>;
+  owner_id: string;
+  api_key_id: string | null;
+  oauth_grant_id: ColumnType<string | null, string | null | undefined, string | null>;
+  action: string;
+  tool: ColumnType<string | null, string | null | undefined, string | null>;
+  subject_key: string;
+  envelope_id: ColumnType<string | null, string | null | undefined, string | null>;
+  args: ColumnType<Record<string, unknown>, string, string>;
+  summary: ColumnType<Record<string, unknown>, string, string>;
+  subject_hash: string;
+  link_token_hash: ColumnType<string | null, string | null | undefined, string | null>;
+  previous_token_hash: ColumnType<string | null, string | null | undefined, string | null>;
+  prior_token_hashes: ColumnType<string[], string[] | undefined, string[]>;
+  notify: ColumnType<'email' | 'none', 'email' | 'none' | undefined, 'email' | 'none'>;
+  approve_requires: ColumnType<
+    'link' | 'session',
+    'link' | 'session' | undefined,
+    'link' | 'session'
+  >;
+  owner_edited_at: NullableTs;
+  expires_at: ColumnType<Date, string, string>;
+  approved_at: NullableTs;
+  denied_at: NullableTs;
+  failed_at: NullableTs;
+  expired_at: NullableTs;
+  completed_at: NullableTs;
+  expired_reason: ColumnType<string | null, string | null | undefined, string | null>;
+  decided_via: ColumnType<
+    'email' | 'app' | null,
+    'email' | 'app' | null | undefined,
+    'email' | 'app' | null
+  >;
+  decided_ip: ColumnType<string | null, string | null | undefined, string | null>;
+  decided_ua: ColumnType<string | null, string | null | undefined, string | null>;
+  decided_signed_in: ColumnType<boolean | null, boolean | null | undefined, boolean | null>;
+  result_slug: ColumnType<string | null, string | null | undefined, string | null>;
+  result: ColumnType<Record<string, unknown> | null, string | null | undefined, string | null>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string>;
+}
+
+/** Migration 0030 (WP-21). The unattended send's 10-minute token (hash only). */
+export interface McpConfirmationsTable {
+  id: Generated<string>;
+  owner_id: string;
+  api_key_id: string | null;
+  oauth_grant_id: ColumnType<string | null, string | null | undefined, string | null>;
+  tool: 'envelopes_send';
+  envelope_id: string;
+  subject_hash: string;
+  token_hash: string;
+  expires_at: ColumnType<Date, string, string>;
+  consumed_at: NullableTs;
+  created_at: ColumnType<Date, string | undefined, never>;
 }
 
 export interface GDriveEnvelopeExportsTable {
@@ -238,7 +308,8 @@ export type EventTypeDb =
   | 'step_started'
   | 'access_code_sent'
   | 'access_code_verified'
-  | 'access_code_failed';
+  | 'access_code_failed'
+  | 'approval_decided';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -464,7 +535,9 @@ export type EmailKindDb =
   | 'expired_to_signer'
   | 'signed_to_sender'
   | 'api_key_created'
-  | 'access_code';
+  | 'access_code'
+  | 'approval_request'
+  | 'approval_denied';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {
