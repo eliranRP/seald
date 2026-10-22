@@ -1,0 +1,14 @@
+Your bulk send of {{template_title}} is {{outcome_word}}.
+
+Sent: {{sent_count}}
+Failed: {{failed_count}}
+Canceled: {{canceled_count}}
+Skipped (invalid rows): {{skipped_count}}
+Rows in file: {{total_count}}
+{{failed_rows_text}}
+Each sent envelope went to its signers as a normal request. Track them from your dashboard.
+
+View the batch:
+  {{batch_url}}
+
+Sent via Seald · {{public_url}}

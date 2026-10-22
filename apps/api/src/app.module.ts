@@ -16,6 +16,7 @@ import { HealthModule } from './health/health.module';
 import { McpModule } from './mcp/mcp.module';
 import { MeModule } from './me/me.module';
 import { SealingModule } from './sealing/sealing.module';
+import { BulkModule } from './bulk/bulk.module';
 import { TemplatesModule } from './templates/templates.module';
 import { VerifyModule } from './verify/verify.module';
 import { SigningModule } from './signing/signing.module';
@@ -50,6 +51,8 @@ import { StorageModule } from './storage/storage.module';
     ContactsModule,
     EnvelopesModule,
     TemplatesModule,
+    // WP-36: bulk CSV send from a template, dark behind `bulkSend`.
+    BulkModule,
     MeModule,
     SealingModule,
     VerifyModule,

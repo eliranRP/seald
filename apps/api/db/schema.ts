@@ -28,6 +28,57 @@ export interface Database {
   // Migration 0030 — owner approvals and send confirmations (WP-21).
   mcp_approvals: McpApprovalsTable;
   mcp_confirmations: McpConfirmationsTable;
+  // Migration 0032 — bulk send from a template (WP-36).
+  bulk_batches: BulkBatchesTable;
+  bulk_batch_rows: BulkBatchRowsTable;
+}
+
+/** Migration 0032 (WP-36). */
+export type BulkBatchStatusDb = 'preview' | 'processing' | 'completed' | 'canceled';
+export type BulkRowStatusDb = 'invalid' | 'pending' | 'processing' | 'sent' | 'failed' | 'canceled';
+
+export interface BulkBatchesTable {
+  id: Generated<string>;
+  owner_id: string;
+  template_id: string | null;
+  template_title: string;
+  sender_email: string;
+  sender_name: string | null;
+  status: ColumnType<
+    BulkBatchStatusDb,
+    BulkBatchStatusDb | undefined,
+    BulkBatchStatusDb | undefined
+  >;
+  filename: string | null;
+  csv_sha256: string;
+  slot_count: number;
+  total_rows: number;
+  valid_rows: number;
+  options: ColumnType<Record<string, unknown>, string | undefined, string | undefined>;
+  column_errors: ColumnType<unknown[], string | undefined, string | undefined>;
+  ignored_columns: ColumnType<string[], string | undefined, string | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  confirmed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  completed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  canceled_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  notified_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+}
+
+export interface BulkBatchRowsTable {
+  id: Generated<string>;
+  batch_id: string;
+  row_index: number;
+  status: ColumnType<BulkRowStatusDb, BulkRowStatusDb | undefined, BulkRowStatusDb | undefined>;
+  recipients: ColumnType<unknown[], string | undefined, string | undefined>;
+  title: string | null;
+  errors: ColumnType<unknown[], string | undefined, string | undefined>;
+  envelope_id: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  attempts: ColumnType<number, number | undefined, number | undefined>;
+  locked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  error_code: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  sent_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 /** Migration 0026 (WP-10). `none` or the emailed one-time code. */
@@ -537,7 +588,8 @@ export type EmailKindDb =
   | 'api_key_created'
   | 'access_code'
   | 'approval_request'
-  | 'approval_denied';
+  | 'approval_denied'
+  | 'bulk_complete';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

@@ -218,3 +218,4 @@ export type {
 export * from './mcp';
 export * from './mcp-write';
 export * from './approvals';
+export * from './bulk-send';

@@ -124,6 +124,13 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /templates/:id/apply': { planned: 'step-13' },
   'POST /templates/:id/example': { planned: 'step-13' },
   'GET /templates/:id/example': { planned: 'step-13' },
+  // WP-36 bulk send from a template: MCP "Later" list (WP-26),
+  // `envelopes_bulk_send_from_template` + `batches_get` over the same service.
+  'GET /templates/:id/bulk-schema': { planned: 'step-15' },
+  'POST /templates/:id/bulk-batches': { planned: 'step-15' },
+  'GET /bulk-batches/:id': { planned: 'step-15' },
+  'POST /bulk-batches/:id/confirm': { planned: 'step-15' },
+  'POST /bulk-batches/:id/cancel': { planned: 'step-15' },
 
   // Google Drive
   // A Seald settings link, not a consent URL minted for the key (see the tool).

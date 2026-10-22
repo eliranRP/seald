@@ -343,6 +343,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'access_code',
   'approval_request',
   'approval_denied',
+  'bulk_complete',
 ]);
 
 /**

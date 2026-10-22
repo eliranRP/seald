@@ -11,6 +11,7 @@ const TEMPLATES = [
   'api_key_created',
   'approval_denied',
   'approval_request',
+  'bulk_complete',
   'completed',
   'declined_to_sender',
   'expired_to_sender',

@@ -155,6 +155,14 @@ const envSchema = z
     WORKER_ENABLED: strictBooleanString(false),
 
     /**
+     * Bulk send throttle (WP-36): most envelopes the bulk worker creates and
+     * sends in any rolling minute, across all workers. Unset means 30. Each
+     * envelope queues one invite per signer, so this also bounds the mail a
+     * batch adds per minute against the email provider's quota.
+     */
+    BULK_SEND_ROWS_PER_MINUTE: z.coerce.number().int().positive().max(600).optional(),
+
+    /**
      * Request-time kill switch for workflow automations (WP-28). `true`
      * makes the feature behave as if `workflowAutomations` were off: no
      * trigger rows, no matching, no worker, routes 404. No rebuild needed.

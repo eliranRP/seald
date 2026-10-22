@@ -38,7 +38,8 @@ export type EmailTemplateKind =
   | 'api_key_created'
   | 'access_code'
   | 'approval_request'
-  | 'approval_denied';
+  | 'approval_denied'
+  | 'bulk_complete';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -188,6 +189,7 @@ const TITLES: Record<string, string> = {
   access_code: 'Seald — Your one-time code',
   approval_request: 'Seald — Approval needed',
   approval_denied: 'Seald — Request denied',
+  bulk_complete: 'Seald — Bulk send finished',
 };
 
 function prettyTitle(kind: string): string {
