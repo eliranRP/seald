@@ -51,6 +51,8 @@ import {
   InvalidCursorError,
   ShortCodeCollisionError,
 } from './envelopes.repository';
+import { initialInvitees, isSignersTurn, stepOrders } from '../signing/signing-order';
+import { inviteEmailPayload } from '../signing/signing-order.service';
 import { generateShortCode } from './short-code';
 import { assertNoMetaV2, validatePlacementMeta } from './field-placement.service';
 import { inspectPdfBytes } from './pdf-inspection';
@@ -719,10 +721,16 @@ export class EnvelopesService {
     // Atomic status flip. Sender identity is persisted here so the
     // decline/withdrawal flow can email the sender without a privileged
     // auth.users lookup.
+    // WP-05: sequential order applies only while `signingOrder` is on; with
+    // it off every send is parallel, as before. The mode in force is
+    // stamped on the row, and the same transaction sets invited_at on the
+    // signers invited now.
+    const deliveryMode = isFeatureEnabled('signingOrder') ? envelope.delivery_mode : 'parallel';
     const sent = await this.repo.sendDraft({
       envelope_id,
       sender_email: sender.email,
       sender_name: sender.name ?? null,
+      delivery_mode: deliveryMode,
     });
     if (!sent) {
       // Lost the race — another concurrent call transitioned status.
@@ -730,8 +738,23 @@ export class EnvelopesService {
     }
 
     // Audit events + outbound emails. Best-effort — per-signer independent.
+    // Sequential: only step 1 is invited now; later steps are invited by
+    // the submit that completes the step before them.
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    for (const signer of envelope.signers) {
+    const invitees = initialInvitees(deliveryMode, envelope.signers);
+    if (deliveryMode === 'sequential') {
+      await this.repo.appendEvent({
+        envelope_id,
+        actor_kind: 'system',
+        event_type: 'step_started',
+        metadata: {
+          step: 1,
+          signing_order: stepOrders(envelope.signers)[0] ?? 1,
+          signer_ids: invitees.map((s) => s.id),
+        },
+      });
+    }
+    for (const signer of invitees) {
       // Append the `sent` event first so its id can be the source_event_id.
       const event = await this.repo.appendEvent({
         envelope_id,
@@ -743,8 +766,6 @@ export class EnvelopesService {
         metadata: {},
       });
 
-      // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
-      const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
       try {
         await this.outboundEmails.insert({
           envelope_id,
@@ -753,14 +774,11 @@ export class EnvelopesService {
           to_email: signer.email,
           to_name: signer.name,
           source_event_id: event.id,
-          payload: {
-            sender_name: sender.name ?? sender.email,
-            sender_email: sender.email,
-            envelope_title: envelope.title,
-            verify_url: verifyUrl,
-            short_code: envelope.short_code,
-            public_url: publicUrl,
-          },
+          payload: inviteEmailPayload(
+            envelope,
+            { email: sender.email, name: sender.name ?? null },
+            publicUrl,
+          ),
         });
       } catch (err) {
         if (err instanceof DuplicateOutboundEmailError) {
@@ -947,6 +965,11 @@ export class EnvelopesService {
     if (!signer) throw new NotFoundException('envelope_not_found');
     if (signer.signed_at !== null) throw new ConflictException('already_signed');
     if (signer.declined_at !== null) throw new ConflictException('already_declined');
+    // WP-05: a later sequential step has no link yet; a reminder would
+    // hand it one before its turn.
+    if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
+      throw new ConflictException('not_your_turn');
+    }
 
     // Throttle: 1 manual invite or reminder per hour. Automated daily
     // reminders do not consume this limit.

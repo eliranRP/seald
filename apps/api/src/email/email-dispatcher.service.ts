@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { isSignersTurn } from '../signing/signing-order';
 import { SigningTokenService } from '../signing/signing-token.service';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
 import {
@@ -214,6 +215,8 @@ export class EmailDispatcherService {
     if (envelope.status !== 'awaiting_others') return false;
     if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
     if (signer.signed_at !== null || signer.declined_at !== null) return false;
+    // WP-05: never hand a later sequential step its link early.
+    if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) return false;
     if (row.payload['automated'] === true && !envelope.reminders_enabled) return false;
     return true;
   }

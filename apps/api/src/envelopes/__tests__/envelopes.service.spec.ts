@@ -370,6 +370,9 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async sendDraft(): Promise<Envelope | null> {
     throw new Error('not_implemented_in_fake');
   }
+  async setSigningOrder(): Promise<Envelope | null> {
+    throw new Error('not_implemented_in_fake');
+  }
   async rotateSignerAccessToken(signer_id: string): Promise<boolean> {
     for (const env of this.envelopes.values()) {
       const signer = env.signers.find((s) => s.id === signer_id);

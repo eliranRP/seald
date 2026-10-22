@@ -9,6 +9,7 @@ import { automatedReminderCadence } from '../email/reminder-cadence';
 import { buildSignerListHtmlFromSigners } from '../email/template-fragments';
 import { EnvelopesRepository, type ReminderCandidate } from '../envelopes/envelopes.repository';
 import { formatExpiresAt } from '../envelopes/envelopes.service';
+import { isSignersTurn } from '../signing/signing-order';
 import { isAutomatedReminderDue, reminderCadenceFor } from './reminder-eligibility';
 
 export interface ReminderSweepResult {
@@ -93,6 +94,7 @@ export class ReminderSchedulerService {
         lastMailAtMs: lastMail ? Date.parse(lastMail.created_at) : null,
         cadence,
         automatedSent: automatedCount,
+        stepActive: isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id),
       },
       now.getTime(),
     );

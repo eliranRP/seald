@@ -24,6 +24,12 @@ export interface ReminderClock {
   readonly cadence?: ReminderCadence;
   /** Automated reminders already sent to this signer. Omitted means none. */
   readonly automatedSent?: number;
+  /**
+   * WP-05: whether the signer's signing step is the active one. Always
+   * true in parallel mode. False (a later sequential step) is never due:
+   * that signer has not been invited yet. Omitted means true.
+   */
+  readonly stepActive?: boolean;
 }
 
 /**
@@ -45,8 +51,9 @@ export function reminderCadenceFor(envelope: {
 /**
  * Whether an automated reminder should be queued for one signer at `nowMs`.
  *
- * Terminal envelopes, disabled reminders, signed or declined signers, and
- * anyone who has already received the cap are not due. Otherwise the wait
+ * Terminal envelopes, disabled reminders, signed or declined signers,
+ * signers whose sequential step has not started (WP-05), and anyone who
+ * has already received the cap are not due. Otherwise the wait
  * is measured from the latest of invite, last reminder stamp and last mail:
  * `firstAfterDays` before the first automated reminder, then `intervalDays`
  * between later ones.
@@ -57,6 +64,7 @@ export function isAutomatedReminderDue(clock: ReminderClock, nowMs: number): boo
   if (!(clock.expiresAtMs > nowMs)) return false;
   if (clock.signedAt !== null) return false;
   if (clock.declinedAt !== null) return false;
+  if (clock.stepActive === false) return false;
   if (clock.invitedAtMs === null) return false;
 
   const cadence = clock.cadence ?? DEFAULT_REMINDER_CADENCE;

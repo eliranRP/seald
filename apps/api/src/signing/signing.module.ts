@@ -3,6 +3,8 @@ import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { SignerSessionGuard } from './signer-session.guard';
 import { SignerSessionService } from './signer-session.service';
 import { SigningController } from './signing.controller';
+import { SigningOrderController } from './signing-order.controller';
+import { SigningOrderService } from './signing-order.service';
 import { SigningService } from './signing.service';
 import { SigningTokenService } from './signing-token.service';
 
@@ -19,8 +21,20 @@ import { SigningTokenService } from './signing-token.service';
 @Global()
 @Module({
   imports: [forwardRef(() => EnvelopesModule)],
-  controllers: [SigningController],
-  providers: [SigningTokenService, SignerSessionService, SignerSessionGuard, SigningService],
-  exports: [SigningTokenService, SignerSessionService, SignerSessionGuard, SigningService],
+  controllers: [SigningController, SigningOrderController],
+  providers: [
+    SigningTokenService,
+    SignerSessionService,
+    SignerSessionGuard,
+    SigningService,
+    SigningOrderService,
+  ],
+  exports: [
+    SigningTokenService,
+    SignerSessionService,
+    SignerSessionGuard,
+    SigningService,
+    SigningOrderService,
+  ],
 })
 export class SigningModule {}

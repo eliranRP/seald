@@ -38,8 +38,15 @@ import {
   type SignerFieldFillInput,
   type SubmitResult,
   type ReminderCandidate,
+  type SetSigningOrderInput,
   type UpdateDraftMetadataPatch,
 } from './envelopes.repository';
+import {
+  inviteNextStep,
+  setSigningOrder as setSigningOrderPg,
+  stampInitialInvites,
+} from '../signing/signing-order.repository.pg';
+import { stepOf } from '../signing/signing-order';
 import { REMINDER_INTERVAL_MS } from '../reminders/reminder-eligibility';
 import {
   AUTOMATION_EVENT_HOOK,
@@ -138,6 +145,8 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     tc_accepted_at: toIso(row.tc_accepted_at),
     signed_at: toIso(row.signed_at),
     declined_at: toIso(row.declined_at),
+    // WP-05: reaches the wire only with `signingOrder` on.
+    ...(isFeatureEnabled('signingOrder') ? { invited_at: toIso(row.invited_at) } : {}),
   };
 }
 
@@ -206,7 +215,12 @@ function toEnvelopeDomain(
       : {}),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
-    signers: signers.map(toSignerDomain),
+    signers: isFeatureEnabled('signingOrder')
+      ? signers.map((row) => ({
+          ...toSignerDomain(row),
+          step: stepOf(signers, row.signing_order),
+        }))
+      : signers.map(toSignerDomain),
     fields: fields.map(toFieldDomain),
     created_at: toIsoRequired(envelope.created_at),
     updated_at: toIsoRequired(envelope.updated_at),
@@ -975,6 +989,14 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     });
   }
 
+  async setSigningOrder(
+    envelope_id: string,
+    input: SetSigningOrderInput,
+  ): Promise<Envelope | null> {
+    if (!(await setSigningOrderPg(this.db, envelope_id, input))) return null;
+    return this.findByIdWithAll(envelope_id);
+  }
+
   // ---------- Send + lifecycle ----------
 
   async sendDraft(input: SendDraftInput): Promise<Envelope | null> {
@@ -988,11 +1010,15 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           updated_at: now,
           sender_email: input.sender_email,
           sender_name: input.sender_name,
+          ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
         })
         .where('id', '=', input.envelope_id)
         .where('status', '=', 'draft')
+        .returning(['delivery_mode'])
         .executeTakeFirst();
-      if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
+      if (!res) return null;
+      // WP-05: stamp invited_at on the signers this send invites.
+      await stampInitialInvites(trx, input.envelope_id, res.delivery_mode, now);
       // Signer tokens are minted by the email dispatcher when each invite
       // is sent (MCP Insert A); access_token_hash stays null until then.
       return this.findByIdWithAllTrx(trx, input.envelope_id);
@@ -1206,6 +1232,9 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const total = Number(counts.total);
       const done = Number(counts.done);
       const all_signed = done === total;
+      // WP-05: under the row lock, start the next sequential step if this
+      // signature completed the current one.
+      const next_step = all_signed ? null : await inviteNextStep(trx, existing.envelope_id, now);
 
       let envelope_status: Envelope['status'];
       if (all_signed) {
@@ -1241,6 +1270,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         envelope_status,
         done,
         total,
+        next_step,
       };
     });
   }

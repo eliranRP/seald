@@ -487,6 +487,21 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
     expect(sender.calls).toHaveLength(0);
   });
 
+  it('WP-05: sends nothing, and mints nothing, for a later sequential step', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({
+      delivery_mode: 'sequential',
+      signers: [
+        { id: 's-0', signing_order: 1, signed_at: null, declined_at: null },
+        { id: 's-1', signing_order: 2, signed_at: null, declined_at: null },
+      ] as Envelope['signers'],
+    });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+    expect(mintedHashes).toHaveLength(0);
+  });
+
   it('sends nothing after the envelope is canceled', async () => {
     await queueReminder();
     current = awaitingEnvelope({ status: 'canceled' });

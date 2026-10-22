@@ -32,6 +32,8 @@ import { StorageService } from '../storage/storage.service';
 import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
+import { isSignersTurn } from './signing-order';
+import { SigningOrderService } from './signing-order.service';
 import { SigningTokenService } from './signing-token.service';
 
 const MAX_SIGNATURE_BYTES = 512 * 1024; // 512 KB
@@ -104,6 +106,7 @@ export class SigningService {
     private readonly storage: StorageService,
     private readonly outboundEmails: OutboundEmailsRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly signingOrder: SigningOrderService,
   ) {}
 
   async startSession(envelope_id: string, token: string): Promise<StartSessionResult> {
@@ -122,6 +125,7 @@ export class SigningService {
     }
 
     assertStillSignable(envelope, signer);
+    assertSignersTurn(envelope, signer);
 
     const session_jwt = await this.session.mint({
       envelope_id: envelope.id,
@@ -471,6 +475,21 @@ export class SigningService {
       metadata: {},
     });
 
+    // WP-05: this signature completed a sequential step, and the submit
+    // transaction stamped the next step's invited_at (once, under the
+    // envelope row lock). Record it and queue that step's invites. Like
+    // the mail below, a failure must not fail the committed signature.
+    if (submitted.next_step) {
+      try {
+        await this.signingOrder.startStep(envelope, submitted.next_step);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unknown';
+        this.logger.error(
+          `step_started failed envelope=${envelope.id} step=${submitted.next_step.step}: ${message}`,
+        );
+      }
+    }
+
     // Progress mail is only for a signature that leaves someone still
     // waiting. The completion mail covers the last signature, and a
     // sender who is also this signer does not get a mail about their
@@ -728,6 +747,17 @@ export class SigningService {
       signature_source_filename: meta.source_filename ?? null,
     };
     return this.repo.setSignerSignature(signer.id, input);
+  }
+}
+
+/**
+ * WP-05: in a sequential envelope only the active step may open or sign.
+ * Later steps get no link until their step starts, so this is a guard
+ * against a link reaching them some other way.
+ */
+export function assertSignersTurn(envelope: Envelope, signer: EnvelopeSigner): void {
+  if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
+    throw new ConflictException('not_your_turn');
   }
 }
 

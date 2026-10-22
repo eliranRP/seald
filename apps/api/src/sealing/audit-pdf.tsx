@@ -15,6 +15,7 @@ import * as React from 'react';
 import QRCode from 'qrcode';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
+import { stepOf, stepOrders } from '../signing/signing-order';
 
 /**
  * React-PDF–based audit-trail renderer.
@@ -1963,15 +1964,8 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   const detail = ctx.detailsBySigner.get(signer.id);
   const perEvents = ctx.events.filter((e) => e.signer_id === signer.id);
   const events: ParticipantEvent[] = [];
-  const sentEvent = ctx.events.find((e) => e.event_type === 'sent');
-  if (sentEvent) {
-    events.push({
-      kind: 'envelope',
-      action: 'Sent',
-      ip: sentEvent.ip ?? '—',
-      at: formatDateTimeShort(sentEvent.created_at),
-    });
-  }
+  const invite = signerInviteRow(ctx, signer);
+  if (invite) events.push(invite);
   const viewed = perEvents.find((e) => e.event_type === 'viewed');
   if (viewed) {
     events.push({
@@ -2058,6 +2052,43 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
     // splits the string roughly in half.
     identifier: formatUuidWrap(signer.id),
     events,
+  };
+}
+
+/**
+ * The first row of a signer card: when the request reached this signer.
+ * Parallel envelopes keep the single envelope-wide "Sent" row. Sequential
+ * envelopes (WP-05) show the signer's step and the time that step was
+ * invited: the `step_started` event naming the signer, else (step 1 of an
+ * older chain) the signer's own `sent` event.
+ */
+function signerInviteRow(ctx: RenderCtx, signer: EnvelopeSigner): ParticipantEvent | null {
+  if (ctx.envelope.delivery_mode !== 'sequential') {
+    const sentEvent = ctx.events.find((e) => e.event_type === 'sent');
+    if (!sentEvent) return null;
+    return {
+      kind: 'envelope',
+      action: 'Sent',
+      ip: sentEvent.ip ?? '—',
+      at: formatDateTimeShort(sentEvent.created_at),
+    };
+  }
+  const signers = ctx.envelope.signers;
+  const step = stepOf(signers, signer.signing_order);
+  const total = stepOrders(signers).length;
+  const started = ctx.events.find(
+    (e) =>
+      e.event_type === 'step_started' &&
+      Array.isArray(e.metadata['signer_ids']) &&
+      (e.metadata['signer_ids'] as ReadonlyArray<unknown>).includes(signer.id),
+  );
+  const invitedEvent =
+    started ?? ctx.events.find((e) => e.event_type === 'sent' && e.signer_id === signer.id);
+  return {
+    kind: 'envelope',
+    action: `Invited · step ${step} of ${total}`,
+    ip: '—',
+    at: invitedEvent ? formatDateTimeShort(invitedEvent.created_at) : 'Not invited',
   };
 }
 

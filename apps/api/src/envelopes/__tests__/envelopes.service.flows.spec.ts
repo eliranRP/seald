@@ -410,6 +410,9 @@ class FakeRepo extends EnvelopesRepository {
     this.envelopes.set(envelope_id, { ...e, fields: mapped } as Envelope);
     return mapped;
   }
+  async setSigningOrder(): Promise<Envelope | null> {
+    throw new Error('not_implemented_in_fake');
+  }
   async sendDraft(input: SendDraftInput): Promise<Envelope | null> {
     if (this.failNextSendDraft) {
       this.failNextSendDraft = false;

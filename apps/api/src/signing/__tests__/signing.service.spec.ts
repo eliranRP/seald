@@ -11,6 +11,7 @@ import type { StorageService } from '../../storage/storage.service';
 import { makeEnvelope, makeSigner } from '../../../test/factories';
 import type { SignerSessionService } from '../signer-session.service';
 import type { SigningTokenService } from '../signing-token.service';
+import { SigningOrderService } from '../signing-order.service';
 import { SigningService } from '../signing.service';
 
 /**
@@ -81,6 +82,7 @@ function makeService(captured: Captured): SigningService {
     storage as StorageService,
     {} as OutboundEmailsRepository,
     { APP_PUBLIC_URL: 'http://localhost' } as AppEnv,
+    {} as SigningOrderService,
   );
 }
 

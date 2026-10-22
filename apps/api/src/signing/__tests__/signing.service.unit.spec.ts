@@ -30,6 +30,7 @@ import type { StorageService } from '../../storage/storage.service';
 import { makeEnvelope, makeEvent, makeField, makeSigner } from '../../../test/factories';
 import { SignerSessionService } from '../signer-session.service';
 import { SigningTokenService } from '../signing-token.service';
+import { SigningOrderService } from '../signing-order.service';
 import { SigningService } from '../signing.service';
 
 /**
@@ -214,6 +215,7 @@ function buildService(spy: RepoSpy, opts: BuildOptions = {}): SigningService {
     storage as StorageService,
     outbound as OutboundEmailsRepository,
     env,
+    new SigningOrderService(repo as EnvelopesRepository, outbound as OutboundEmailsRepository, env),
   );
 }
 
@@ -326,6 +328,20 @@ describe('SigningService.startSession', () => {
     await expect(svc.startSession(ENV_ID, 'A'.repeat(43))).rejects.toBeInstanceOf(
       ConflictException,
     );
+  });
+
+  it('WP-05: throws 409 not_your_turn for a signer in a later sequential step', async () => {
+    const signer = freshSigner({ signing_order: 2 });
+    const env = envelopeAwaitingOthers({
+      delivery_mode: 'sequential',
+      signers: [makeSigner({ id: 'step-1', signing_order: 1, signed_at: null }), signer],
+    });
+    const svc = buildService(emptySpy(), {
+      async findSignerByAccessTokenHash() {
+        return { envelope: env, signer };
+      },
+    });
+    await expect(svc.startSession(ENV_ID, 'A'.repeat(43))).rejects.toThrow(/not_your_turn/);
   });
 
   it('throws 409 already_declined when the signer has already declined', async () => {
@@ -659,6 +675,64 @@ describe('SigningService.submit', () => {
     await svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null);
     expect(spy.events.map((e) => e.event_type)).toEqual(['signed']);
     expect(spy.jobs).toHaveLength(0);
+  });
+
+  it('WP-05: a submit that started the next step appends step_started and invites it', async () => {
+    const nextId = '00000000-0000-0000-0000-0000000000dd';
+    const env = envelopeAwaitingOthers({
+      delivery_mode: 'sequential',
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+      signers: [
+        freshSigner({ signing_order: 1 }),
+        makeSigner({ id: nextId, email: 'next@example.com', name: 'Next', signing_order: 2 }),
+      ],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
+          next_step: { step: 2, signing_order: 2, signer_ids: [nextId] },
+        };
+      },
+    });
+    await svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null);
+    expect(spy.events.map((e) => e.event_type)).toEqual(['signed', 'step_started']);
+    expect(spy.events[1]?.metadata).toEqual({ step: 2, signing_order: 2, signer_ids: [nextId] });
+    const invites = spy.outboundInserts.filter((i) => i.kind === 'invite');
+    expect(invites.map((i) => i.to_email)).toEqual(['next@example.com']);
+  });
+
+  it('WP-05: a failed step start does not fail the committed signature', async () => {
+    const env = envelopeAwaitingOthers({
+      delivery_mode: 'sequential',
+      fields: [makeField({ id: FIELD_ID, signer_id: SIGNER_ID, kind: 'signature' })],
+    });
+    const spy = emptySpy();
+    const svc = buildService(spy, {
+      async submitSigner(): Promise<SubmitResult> {
+        return {
+          signer: freshSigner({ signed_at: '2026-04-26T10:00:00.000Z' }),
+          all_signed: false,
+          envelope_status: 'awaiting_others',
+          done: 1,
+          total: 2,
+          next_step: { step: 2, signing_order: 2, signer_ids: ['x'] },
+        };
+      },
+    });
+    const original = spy.events.push.bind(spy.events);
+    spy.events.push = (...items: EventInput[]) => {
+      if (items.some((i) => i.event_type === 'step_started')) throw new Error('db down');
+      return original(...items);
+    };
+    await expect(
+      svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null),
+    ).resolves.toEqual({ status: 'submitted', envelope_status: 'awaiting_others' });
   });
 
   it('emails the sender when another signer finishes, with progress and no signing token', async () => {

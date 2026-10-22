@@ -100,6 +100,27 @@ export interface SendDraftInput {
    *  the withdrawal email to the sender without an auth.users lookup. */
   readonly sender_email: string;
   readonly sender_name: string | null;
+  /**
+   * WP-05: the delivery mode in force for this send, stamped on the row.
+   * The same transaction sets `invited_at` on the signers it invites:
+   * everyone for 'parallel', step 1 for 'sequential'. Omitted keeps the
+   * stored mode.
+   */
+  readonly delivery_mode?: import('shared').DeliveryMode;
+}
+
+/** WP-05: a signing step whose signers were just invited. */
+export interface StepInvite {
+  /** 1-based step number. */
+  readonly step: number;
+  readonly signing_order: number;
+  readonly signer_ids: ReadonlyArray<string>;
+}
+
+/** WP-05: `PUT /envelopes/:id/signing-order` input (draft only). */
+export interface SetSigningOrderInput {
+  readonly delivery_mode: import('shared').DeliveryMode;
+  readonly orders: ReadonlyArray<{ readonly signer_id: string; readonly signing_order: number }>;
 }
 
 export interface SignerFieldFillInput {
@@ -134,6 +155,12 @@ export interface SubmitResult {
   readonly done: number;
   /** Signers on the envelope, counted inside the submit transaction. */
   readonly total: number;
+  /**
+   * WP-05: the sequential step this submit started, if any. Set inside the
+   * submit transaction under the envelope row lock, so concurrent submits
+   * report a step at most once. Absent or null means nobody new to invite.
+   */
+  readonly next_step?: StepInvite | null;
 }
 
 export interface ClaimedJob {
@@ -287,7 +314,8 @@ export interface EventInput {
     | 'session_invalidated_by_cancel'
     | 'job_failed'
     | 'retention_deleted'
-    | 'document_added';
+    | 'document_added'
+    | 'step_started';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -352,6 +380,16 @@ export abstract class EnvelopesRepository {
     envelope_id: string,
     fields: ReadonlyArray<CreateFieldInput>,
   ): Promise<ReadonlyArray<EnvelopeField>>;
+
+  /**
+   * WP-05: set the delivery mode and each signer's `signing_order` on a
+   * draft, in one transaction. Returns null when the envelope is missing
+   * or no longer a draft.
+   */
+  abstract setSigningOrder(
+    envelope_id: string,
+    input: SetSigningOrderInput,
+  ): Promise<Envelope | null>;
 
   // Send + lifecycle
   abstract sendDraft(input: SendDraftInput): Promise<Envelope | null>;
