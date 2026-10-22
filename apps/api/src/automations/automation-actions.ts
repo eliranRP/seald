@@ -24,8 +24,9 @@ export interface AutomationActionExecutor {
 }
 
 /**
- * Executors by action. Empty in A1: the webhook (WP-29), Drive (WP-32) and
- * email (WP-33) actions register here. `slack` never gets one.
+ * Executors by action. The webhook (WP-29) is registered in
+ * `AutomationsModule`; Drive (WP-32) and email (WP-33) register next to it.
+ * `slack` never gets one.
  */
 export type AutomationActionExecutors = Partial<Record<AutomationAction, AutomationActionExecutor>>;
 

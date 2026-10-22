@@ -3,13 +3,16 @@ import {
   AUTOMATION_RECIPES,
   AUTOMATION_TRIGGERS,
   automationTriggerForEvent,
+  type FeatureFlag,
 } from 'shared';
 import type { AppEnv } from '../../config/env.schema';
 import { backoffMs } from '../../email/email-dispatcher.service';
+import type { WebhookSecretsService } from '../actions/webhook/webhook-secrets.service';
 import type { AutomationActionExecutors } from '../automation-actions';
 import {
   AUTOMATION_WORKER_LOOP_ENABLED,
   AutomationWorkerService,
+  MAINTENANCE_INTERVAL_MS,
   STALE_LOCK_MS,
 } from '../automation-worker.service';
 import type { AutomationsPgRepository, ClaimedAutomationJob } from '../automations.repository.pg';
@@ -49,12 +52,56 @@ function worker(repo: ReturnType<typeof mockRepo>, executors?: AutomationActionE
   return new AutomationWorkerService(repo as unknown as AutomationsPgRepository, ENV, executors);
 }
 
-describe('AutomationWorkerService (A1 skeleton)', () => {
-  it('ships with the loop off', () => {
-    expect(AUTOMATION_WORKER_LOOP_ENABLED).toBe(false);
-    const repo = mockRepo();
-    worker(repo).onModuleInit();
-    expect(repo.claimNextJob).not.toHaveBeenCalled();
+describe('AutomationWorkerService', () => {
+  describe('loop gating (WP-29 turns the loop on)', () => {
+    type OverrideHost = { __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>> };
+    const host = globalThis as unknown as OverrideHost;
+    afterEach(() => {
+      delete host.__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    function gated(env: Partial<AppEnv>, flag: boolean): boolean {
+      host.__SEALD_FEATURE_OVERRIDES__ = { workflowAutomations: flag };
+      const w = new AutomationWorkerService(
+        mockRepo() as unknown as AutomationsPgRepository,
+        env as AppEnv,
+      );
+      return w.loopShouldRun();
+    }
+
+    it('the loop constant is on', () => {
+      expect(AUTOMATION_WORKER_LOOP_ENABLED).toBe(true);
+    });
+
+    it('runs only with the flag on, WORKER_ENABLED, and the kill switch off', () => {
+      expect(gated({ WORKER_ENABLED: true, AUTOMATIONS_DISABLED: false }, true)).toBe(true);
+      expect(gated({ WORKER_ENABLED: true }, true)).toBe(true);
+      expect(gated({ WORKER_ENABLED: true, AUTOMATIONS_DISABLED: false }, false)).toBe(false);
+      expect(gated({ WORKER_ENABLED: false, AUTOMATIONS_DISABLED: false }, true)).toBe(false);
+      expect(gated({ WORKER_ENABLED: true, AUTOMATIONS_DISABLED: true }, true)).toBe(false);
+    });
+
+    it('does not start (no claim) while the flag is off', () => {
+      host.__SEALD_FEATURE_OVERRIDES__ = { workflowAutomations: false };
+      const repo = mockRepo();
+      worker(repo).onModuleInit();
+      expect(repo.claimNextJob).not.toHaveBeenCalled();
+    });
+
+    it('the daily maintenance pass clears retired previous secrets at most once a day', async () => {
+      const clear = jest.fn().mockResolvedValue(0);
+      const w = new AutomationWorkerService(
+        mockRepo() as unknown as AutomationsPgRepository,
+        ENV,
+        undefined,
+        { clearRetiredPrevious: clear } as unknown as WebhookSecretsService,
+      );
+      await w.maintenance(NOW);
+      await w.maintenance(new Date(NOW.getTime() + 60_000));
+      expect(clear).toHaveBeenCalledTimes(1);
+      await w.maintenance(new Date(NOW.getTime() + MAINTENANCE_INTERVAL_MS));
+      expect(clear).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('a job whose action has no executor fails permanently with action_not_available', async () => {

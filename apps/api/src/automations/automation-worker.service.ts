@@ -15,16 +15,21 @@ import {
   type AutomationActionExecutors,
   type AutomationActionOutcome,
 } from './automation-actions';
+import { WebhookSecretsService } from './actions/webhook/webhook-secrets.service';
 import { AutomationsPgRepository, type ClaimedAutomationJob } from './automations.repository.pg';
 import { automationsActive } from './matcher';
 
 /**
- * A1 ships the worker off. The loop stays down even with
- * `WORKER_ENABLED=true` and the flag on, until the first real action (the
- * webhook, WP-29) flips this. `flushOnce` works regardless, for tests and
- * a later `POST /internal/cron/flush-automations`.
+ * A1 shipped the worker off; the webhook action (WP-29) turns the loop on.
+ * It still starts only when `WORKER_ENABLED=true`, the
+ * `workflowAutomations` flag is on, and `AUTOMATIONS_DISABLED` is not
+ * `true`. `flushOnce` works regardless, for tests and a later
+ * `POST /internal/cron/flush-automations`.
  */
-export const AUTOMATION_WORKER_LOOP_ENABLED = false;
+export const AUTOMATION_WORKER_LOOP_ENABLED = true;
+
+/** Daily maintenance (retired previous webhook secrets). */
+export const MAINTENANCE_INTERVAL_MS = 24 * 60 * 60_000;
 
 /** A `running` job whose lock is older than this is claimed again. */
 export const STALE_LOCK_MS = 15 * 60_000;
@@ -57,6 +62,7 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
   private stopping = false;
   private loopPromise: Promise<void> | null = null;
   private inFlight = 0;
+  private lastMaintenanceMs = 0;
 
   constructor(
     private readonly repo: AutomationsPgRepository,
@@ -64,13 +70,22 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     @Optional()
     @Inject(AUTOMATION_ACTION_EXECUTORS)
     executors?: AutomationActionExecutors,
+    @Optional() private readonly webhookSecrets?: WebhookSecretsService,
   ) {
     this.executors = executors ?? {};
   }
 
+  /** True when the background loop should run in this process. */
+  loopShouldRun(): boolean {
+    return (
+      AUTOMATION_WORKER_LOOP_ENABLED &&
+      this.env.WORKER_ENABLED === true &&
+      automationsActive(this.env)
+    );
+  }
+
   onModuleInit(): void {
-    if (!AUTOMATION_WORKER_LOOP_ENABLED || this.env.WORKER_ENABLED !== true) return;
-    if (!automationsActive(this.env)) return;
+    if (!this.loopShouldRun()) return;
     this.logger.log('AutomationWorker starting');
     this.loopPromise = this.loop();
   }
@@ -146,9 +161,22 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Daily pass: clear rotated-out webhook secrets past their 24-hour
+   * window (design doc § Signature → Rotation). The executor already stops
+   * sending `Seald-Signature-Previous` once the window ends; this removes
+   * the ciphertext too.
+   */
+  async maintenance(now: Date = new Date()): Promise<void> {
+    if (now.getTime() - this.lastMaintenanceMs < MAINTENANCE_INTERVAL_MS) return;
+    this.lastMaintenanceMs = now.getTime();
+    if (this.webhookSecrets) await this.webhookSecrets.clearRetiredPrevious(now);
+  }
+
   private async loop(): Promise<void> {
     while (!this.stopping) {
       try {
+        await this.maintenance();
         const result = await this.flushOnce(1);
         if (result.claimed === 0) await sleep(this.idleDelayMs);
       } catch (err) {

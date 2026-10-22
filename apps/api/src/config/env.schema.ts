@@ -1,5 +1,6 @@
 import { isFeatureEnabled } from 'shared';
 import { z } from 'zod';
+import { parseAutomationSecretsKey } from '../automations/actions/webhook/secret-box';
 import { STRICT_BOOLEAN_STRING_MESSAGE, strictBooleanString } from './strict-boolean-string';
 
 const envSchema = z
@@ -147,6 +148,17 @@ const envSchema = z
     AUTOMATIONS_DISABLED: strictBooleanString(false).optional(),
 
     /**
+     * 32-byte AES-GCM key (64 hex chars, or base64/base64url) that
+     * encrypts webhook signing secrets and webhook URLs in
+     * `automation_secrets` (WP-29, design doc § Data model). Lives only in
+     * the environment, never in the database. Startup throws when it is
+     * set but malformed, and when `workflowAutomations` is on (and not
+     * killed by AUTOMATIONS_DISABLED) while it is unset. With the flag off
+     * it is unread.
+     */
+    AUTOMATION_SECRETS_KEY: z.string().optional(),
+
+    /**
      * Incident kill switch for the MCP surface (docs/design/mcp-server.md,
      * Transport). `true` makes `/mcp` 404 even while the `mcpServer` flag
      * is on, and turns off the key routes that only MCP keeps alive. It is
@@ -250,6 +262,23 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['SIGNER_OTP_KEY'],
         message: 'SIGNER_OTP_KEY required (>=32 chars) while the signerAccessAuth flag is on',
+      });
+    }
+
+    if (env.AUTOMATION_SECRETS_KEY !== undefined && env.AUTOMATION_SECRETS_KEY !== '') {
+      if (!parseAutomationSecretsKey(env.AUTOMATION_SECRETS_KEY)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['AUTOMATION_SECRETS_KEY'],
+          message:
+            'AUTOMATION_SECRETS_KEY must be 32 bytes: 64 hex characters or base64 of 32 bytes',
+        });
+      }
+    } else if (isFeatureEnabled('workflowAutomations') && env.AUTOMATIONS_DISABLED !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AUTOMATION_SECRETS_KEY'],
+        message: 'AUTOMATION_SECRETS_KEY required (32 bytes) when workflowAutomations is on',
       });
     }
 
