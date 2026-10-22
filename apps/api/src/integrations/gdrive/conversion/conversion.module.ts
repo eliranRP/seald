@@ -4,6 +4,8 @@ import type { AppEnv } from '../../../config/env.schema';
 import { StorageService } from '../../../storage/storage.service';
 import { GDriveModule } from '../gdrive.module';
 import { GDriveService } from '../gdrive.service';
+import { GDriveRateLimiter } from '../rate-limiter';
+import { DriveImportService } from './drive-import.service';
 import { ConversionController } from './conversion.controller';
 import { ConversionGateway } from './conversion.gateway';
 import { makeDriveFetcher, makeGotenbergClient } from './conversion.adapters';
@@ -64,6 +66,7 @@ const ConversionServiceProvider: Provider = {
     GOTENBERG_CLIENT,
     CONVERSION_MAX_BYTES,
     CONVERSION_ASSET_WRITER,
+    GDriveRateLimiter,
   ],
   useFactory: (
     drive: GDriveService,
@@ -72,8 +75,9 @@ const ConversionServiceProvider: Provider = {
     gotenberg: GotenbergClient,
     maxBytes: number,
     writer: ConversionAssetWriter,
+    limiter: GDriveRateLimiter,
   ): ConversionService =>
-    new ConversionService(drive, gateway, fetcher, gotenberg, maxBytes, writer),
+    new ConversionService(drive, gateway, fetcher, gotenberg, maxBytes, writer, limiter),
 };
 
 /**
@@ -96,11 +100,12 @@ const ConversionServiceProvider: Provider = {
     ConversionMaxBytesProvider,
     ConversionAssetWriterProvider,
     ConversionServiceProvider,
+    DriveImportService,
     // GDriveRateLimiter comes from `imports: [GDriveModule]` (re-exported
     // there). Re-binding it here would double it and let a user bypass
     // /files rate limiting by hammering /conversion — DO NOT add a
     // GDriveRateLimiterFactoryProvider line.
   ],
-  exports: [ConversionService, ConversionGateway],
+  exports: [ConversionService, ConversionGateway, DriveImportService],
 })
 export class ConversionModule {}

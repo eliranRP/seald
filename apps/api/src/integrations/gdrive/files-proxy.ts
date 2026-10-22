@@ -1,4 +1,27 @@
-import type { DriveFile, FilesProxy } from './gdrive.controller';
+export interface DriveFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  modifiedTime?: string;
+  size?: string;
+}
+
+export type DriveMimeFilter = 'pdf' | 'doc' | 'docx' | 'all';
+
+export const SUPPORTED_MIME_FILTERS: ReadonlySet<DriveMimeFilter> = new Set([
+  'pdf',
+  'doc',
+  'docx',
+  'all',
+]);
+
+export const GDRIVE_FILES_PROXY = Symbol('GDRIVE_FILES_PROXY');
+
+// Type contract for the files-proxy implementation (Drive `files.list`).
+export type FilesProxy = (args: {
+  accessToken: string;
+  mimeFilter: DriveMimeFilter;
+}) => Promise<{ files: ReadonlyArray<DriveFile> }>;
 
 const MIME_FILTERS: Record<'pdf' | 'doc' | 'docx' | 'all', string> = {
   pdf: "mimeType='application/pdf'",

@@ -21,7 +21,9 @@ import { GDriveService } from './gdrive.service';
 import { OAuthStateStore, buildConsentUrl } from './oauth-pkce';
 import type { GDriveAccountView } from './dto/account.dto';
 import { GDriveRateLimiter, RateLimitedError } from './rate-limiter';
-import { TokenExpiredError } from './dto/error-codes';
+import { GDriveError, TokenExpiredError } from './dto/error-codes';
+import { DriveRequestError, UUID_RE } from './drive-request.errors';
+import { GDRIVE_FILES_PROXY, type DriveFile, type FilesProxy } from './files-proxy';
 
 /**
  * OAuth + Drive proxy routes for the Drive integration.
@@ -56,32 +58,8 @@ export interface GDriveConfig {
 }
 
 export const GDRIVE_CONFIG = Symbol('GDRIVE_CONFIG');
-export const GDRIVE_FILES_PROXY = Symbol('GDRIVE_FILES_PROXY');
-
-const SUPPORTED_MIME_FILTERS: ReadonlySet<'pdf' | 'doc' | 'docx' | 'all'> = new Set([
-  'pdf',
-  'doc',
-  'docx',
-  'all',
-]);
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-export interface DriveFile {
-  id: string;
-  name: string;
-  mimeType: string;
-  modifiedTime?: string;
-  size?: string;
-}
-
-// Type contract for the WT-A-2 files-proxy implementation. Kept in
-// WT-A-1 so the proxy module compiles standalone; the runtime provider
-// + the consuming route are added in WT-A-2.
-export type FilesProxy = (args: {
-  accessToken: string;
-  mimeFilter: 'pdf' | 'doc' | 'docx' | 'all';
-}) => Promise<{ files: ReadonlyArray<DriveFile> }>;
+export { GDRIVE_FILES_PROXY };
+export type { DriveFile, FilesProxy };
 
 @Controller('integrations/gdrive')
 export class GDriveController {
@@ -90,7 +68,6 @@ export class GDriveController {
     @Inject(OAuthStateStore) private readonly stateStore: OAuthStateStore,
     @Inject(GDRIVE_CONFIG) private readonly config: GDriveConfig,
     @Inject(GDriveRateLimiter) private readonly rateLimiter: GDriveRateLimiter,
-    @Inject(GDRIVE_FILES_PROXY) private readonly filesProxy: FilesProxy,
   ) {}
 
   private requireFlag(): void {
@@ -292,40 +269,10 @@ export class GDriveController {
     @Query('mimeFilter') mimeFilter: 'pdf' | 'doc' | 'docx' | 'all' = 'all',
   ): Promise<{ files: ReadonlyArray<DriveFile> }> {
     this.requireFlag();
-    if (!accountId || !UUID_RE.test(accountId)) {
-      throw new BadRequestException({
-        code: 'invalid-account-id',
-        message: 'accountId_must_be_uuid',
-      });
-    }
-    if (!SUPPORTED_MIME_FILTERS.has(mimeFilter)) {
-      throw new HttpException(
-        { code: 'unsupported-mime', message: 'mime_filter_not_in_allow_list' },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
     try {
-      await this.rateLimiter.acquire(user.id);
+      return await this.svc.listFiles(user.id, accountId, mimeFilter);
     } catch (err) {
-      if (err instanceof RateLimitedError) {
-        throw new HttpException(
-          {
-            code: 'rate-limited',
-            message: 'gdrive_rate_limited',
-            retryAfter: Math.ceil(err.retryAfterMs / 1000),
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
-      throw err;
-    }
-    // Resolve account → fresh access token. Throws NotFound when the
-    // account does not belong to the caller (existence leak guard).
-    const { accessToken } = await this.svc.getAccessToken(accountId, user.id);
-    try {
-      return await this.filesProxy({ accessToken, mimeFilter });
-    } catch (err) {
-      throw mapDriveError(err);
+      throw mapListError(err);
     }
   }
 
@@ -369,16 +316,7 @@ export class GDriveController {
     try {
       await this.rateLimiter.acquire(user.id);
     } catch (err) {
-      if (err instanceof RateLimitedError) {
-        throw new HttpException(
-          {
-            code: 'rate-limited',
-            message: 'gdrive_rate_limited',
-            retryAfter: Math.ceil(err.retryAfterMs / 1000),
-          },
-          HttpStatus.TOO_MANY_REQUESTS,
-        );
-      }
+      if (err instanceof RateLimitedError) throw mapRateLimited(err);
       throw err;
     }
     try {
@@ -404,6 +342,12 @@ function mapDriveError(err: unknown): HttpException {
       HttpStatus.UNAUTHORIZED,
     );
   }
+  if (err instanceof GDriveError && err.code === 'oauth-declined') {
+    return new HttpException(
+      { code: 'oauth-declined', message: 'permission_denied_or_consent_revoked' },
+      HttpStatus.FORBIDDEN,
+    );
+  }
   if (err instanceof Error) {
     const m = /drive_files_list_failed:\s*(\d{3})/.exec(err.message);
     if (m && m[1]) {
@@ -427,5 +371,35 @@ function mapDriveError(err: unknown): HttpException {
   return new HttpException(
     { code: 'drive-upstream-error', message: 'drive_request_failed' },
     HttpStatus.BAD_GATEWAY,
+  );
+}
+
+/**
+ * Maps `GDriveService.listFiles` domain errors to HTTP. NotFound (account
+ * not owned) bubbles as-is so there is no existence leak.
+ */
+function mapListError(err: unknown): HttpException {
+  if (err instanceof NotFoundException) return err;
+  if (err instanceof DriveRequestError) {
+    if (err.code === 'unsupported-mime') {
+      return new HttpException(
+        { code: 'unsupported-mime', message: 'mime_filter_not_in_allow_list' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+    return new BadRequestException({ code: err.code, message: err.message });
+  }
+  if (err instanceof RateLimitedError) return mapRateLimited(err);
+  return mapDriveError(err);
+}
+
+function mapRateLimited(err: RateLimitedError): HttpException {
+  return new HttpException(
+    {
+      code: 'rate-limited',
+      message: 'gdrive_rate_limited',
+      retryAfter: Math.ceil(err.retryAfterMs / 1000),
+    },
+    HttpStatus.TOO_MANY_REQUESTS,
   );
 }

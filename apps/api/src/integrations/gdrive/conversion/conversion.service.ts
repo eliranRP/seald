@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { GDriveService } from '../gdrive.service';
 import { GDriveError } from '../dto/error-codes';
+import { DriveRequestError, assertAccountId } from '../drive-request.errors';
+import { GDriveRateLimiter } from '../rate-limiter';
 import { ConversionGateway } from './conversion.gateway';
 import {
   ALLOWED_CONVERSION_MIMES,
@@ -68,6 +70,7 @@ interface ServiceDeps {
   readonly maxBytes: number;
   readonly drive?: GDriveService;
   readonly assetWriter?: ConversionAssetWriter;
+  readonly rateLimiter?: GDriveRateLimiter;
 }
 
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
@@ -99,6 +102,7 @@ export class ConversionService {
   private readonly maxBytes: number;
   private readonly drive: GDriveService | undefined;
   private readonly assetWriter: ConversionAssetWriter | undefined;
+  private readonly rateLimiter: GDriveRateLimiter | undefined;
 
   constructor(deps: ServiceDeps);
   constructor(
@@ -108,6 +112,7 @@ export class ConversionService {
     gotenberg: GotenbergClient,
     maxBytes: number,
     assetWriter?: ConversionAssetWriter,
+    rateLimiter?: GDriveRateLimiter,
   );
   constructor(
     a: ServiceDeps | GDriveService,
@@ -116,6 +121,7 @@ export class ConversionService {
     d?: GotenbergClient,
     e?: number,
     f?: ConversionAssetWriter,
+    g?: GDriveRateLimiter,
   ) {
     if (isServiceDeps(a)) {
       this.fetcher = a.driveFetcher;
@@ -124,6 +130,7 @@ export class ConversionService {
       this.maxBytes = a.maxBytes;
       this.drive = a.drive;
       this.assetWriter = a.assetWriter;
+      this.rateLimiter = a.rateLimiter;
     } else {
       // DI ctor path — Nest passes positional providers.
       this.drive = a;
@@ -133,6 +140,7 @@ export class ConversionService {
       this.gotenberg = d as GotenbergClient;
       this.maxBytes = e as number;
       this.assetWriter = f;
+      this.rateLimiter = g;
     }
   }
 
@@ -198,9 +206,19 @@ export class ConversionService {
    * with a `pending` jobId; the SPA polls GET /:jobId.
    */
   async start(args: StartArgs): Promise<{ jobId: string; status: 'pending' }> {
-    if (!isAllowedMime(args.mimeType)) {
+    // Input validation and the per-user rate limit live here (not in the
+    // controller) so every caller gets the same guards. Domain errors only;
+    // the HTTP controller maps them to status codes.
+    assertAccountId(args.accountId);
+    if (typeof args.fileId !== 'string' || args.fileId.length === 0 || args.fileId.length > 256) {
+      throw new DriveRequestError('invalid-file-id', 'fileId_required');
+    }
+    if (typeof args.mimeType !== 'string' || !isAllowedMime(args.mimeType)) {
       throw new ConversionError('unsupported-mime', 'mime_not_in_allow_list');
     }
+    // Shares the per-user bucket with `listFiles`, so rotating accountIds
+    // cannot bypass the ceiling.
+    if (this.rateLimiter) await this.rateLimiter.acquire(args.userId);
     const drive = this.requireDrive();
     const { jobId, signal } = this.gateway.start(args.userId);
     // Resolve a fresh access token. NotFoundException from getAccessToken
@@ -279,7 +297,7 @@ export class ConversionService {
  * `GDriveError` so the unit suite can pin codes without dragging the
  * full token-issuer stack.
  */
-class ConversionError extends Error {
+export class ConversionError extends Error {
   constructor(
     public readonly code:
       | 'token-expired'
