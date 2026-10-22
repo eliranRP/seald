@@ -177,6 +177,15 @@ export function parseFieldMeta(kind: string, meta: unknown): ParseFieldMetaResul
   }
   const rest: Record<string, unknown> = { ...result.data };
   delete rest['kind'];
+  // A read-only field is filled with its default and can never be typed
+  // into, so read-only without a default (or on a kind that has none)
+  // would leave a field nobody can complete.
+  if (rest['read_only'] === true && rest['default'] === undefined) {
+    return {
+      ok: false,
+      issues: [{ path: 'meta.read_only', message: 'read_only requires a default value' }],
+    };
+  }
   return { ok: true, meta: rest };
 }
 

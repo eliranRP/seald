@@ -59,9 +59,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /envelopes/:id': { tool: 'envelopes_get' },
   'PATCH /envelopes/:id': { tool: 'envelopes_update' },
   'PUT /envelopes/:id/signing-order': { tool: 'envelopes_set_recipient_order' },
-  // WP-10 signer access-code settings: tool lands with the MCP "Later" list (WP-26).
-  'GET /envelopes/:id/access-auth': { planned: 'step-later' },
-  'PATCH /envelopes/:id/access-auth': { planned: 'step-later' },
+  // WP-10 signer access-code settings: step 15 (WP-26, MCP "Later" list).
+  'GET /envelopes/:id/access-auth': { planned: 'step-15' },
+  'PATCH /envelopes/:id/access-auth': { planned: 'step-15' },
   'DELETE /envelopes/:id': { tool: 'envelopes_delete_draft' },
   'POST /envelopes/:id/upload': { tool: 'envelopes_upload_pdf' },
   'POST /envelopes/:id/send': { planned: 'step-10' },

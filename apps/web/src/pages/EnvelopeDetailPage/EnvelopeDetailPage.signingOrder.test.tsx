@@ -47,6 +47,17 @@ function mockEnvelope(): void {
         data: {
           events: [
             {
+              id: 'ev-0',
+              envelope_id: 'env-1',
+              signer_id: null,
+              actor_kind: 'sender',
+              event_type: 'sent',
+              ip: null,
+              user_agent: null,
+              metadata: {},
+              created_at: '2026-04-01T09:00:00Z',
+            },
+            {
               id: 'ev-1',
               envelope_id: 'env-1',
               signer_id: null,
@@ -158,6 +169,17 @@ describe('EnvelopeDetailPage with a signing order', () => {
 
     expect(await screen.findByText('Step 2 started — invited Bo, Cy')).toBeInTheDocument();
     expect(screen.queryByText('step_started')).not.toBeInTheDocument();
+  });
+
+  it('does not claim every signer was emailed when the envelope signs in order', async () => {
+    setFlag(true);
+    mockEnvelope();
+    renderAt('env-1');
+
+    expect(
+      await screen.findByText(/^Sent for signing in order \(\d+ signers\)$/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/^Sent to \d+ signers$/)).not.toBeInTheDocument();
   });
 
   it('renders no step panel while the flag is off', async () => {

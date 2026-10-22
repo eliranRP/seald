@@ -100,6 +100,19 @@ import {
   Wrap,
 } from './EnvelopeDetailPage.styles';
 
+/**
+ * Timeline copy for the `sent` event. A sequential envelope only invites
+ * its first step on send, so it must not claim every signer was emailed.
+ */
+function sentText(envelope: Envelope): string {
+  const n = envelope.signers.length;
+  const people = `${n} signer${n === 1 ? '' : 's'}`;
+  if (isFeatureEnabled('signingOrder') && envelope.delivery_mode === 'sequential') {
+    return `Sent for signing in order (${people})`;
+  }
+  return `Sent to ${people}`;
+}
+
 const STATUS_LABEL: Record<EnvelopeStatus, string> = {
   draft: 'Draft',
   awaiting_others: 'Awaiting others',
@@ -198,7 +211,7 @@ function eventsToTimeline(
           ...base,
           icon: Send,
           tone: 'indigo',
-          text: `Sent to ${envelope.signers.length} signer${envelope.signers.length === 1 ? '' : 's'}`,
+          text: sentText(envelope),
           kind: 'sent',
         });
         break;

@@ -46,11 +46,30 @@ describe('parseFieldMeta (WP-07)', () => {
       label: 'L',
       placeholder: 'p',
       required: false,
-      read_only: true,
+      read_only: false,
       font_size: 14,
     };
     const meta = kind === 'radio' || kind === 'dropdown' ? { ...common, options: OPTIONS } : common;
     expect(parseFieldMeta(kind, meta)).toEqual({ ok: true, meta });
+  });
+
+  it.each(['signature', 'initials', 'date', 'email', 'checkbox', 'name', 'text', 'number'])(
+    '%s: rejects read_only without a default, since nobody could fill it',
+    (kind) => {
+      expect(parseFieldMeta(kind, { read_only: true })).toEqual({
+        ok: false,
+        issues: [{ path: 'meta.read_only', message: 'read_only requires a default value' }],
+      });
+    },
+  );
+
+  it('accepts read_only with a default on kinds that have one', () => {
+    expect(parseFieldMeta('text', { read_only: true, default: 'Acme' }).ok).toBe(true);
+    expect(parseFieldMeta('number', { read_only: true, default: 7 }).ok).toBe(true);
+    expect(
+      parseFieldMeta('radio', { read_only: true, options: OPTIONS, default: OPTIONS[0]!.value }).ok,
+    ).toBe(true);
+    expect(parseFieldMeta('radio', { read_only: true, options: OPTIONS }).ok).toBe(false);
   });
 
   it.each([7, 97, 12.5, '12'])('rejects font_size %p', (font_size) => {

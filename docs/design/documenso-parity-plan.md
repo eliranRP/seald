@@ -360,6 +360,7 @@ The **Owns** line lists the files a WP may create or edit freely. Anything else 
 - **Owns:** `audit-pdf.tsx` (the mcp block only, after WP-01 merges), `product-claims.ts` (append).
 
 ### WP-24 — MCP steps 10 + 11: send, remind and cancel via approval · `opus` · wave 6
+- **Prerequisite (from WP-19 review):** make the MCP idempotency claim and the write commit in one transaction (thread a transaction or an ambient one through the envelope services and `appendEvent`), so a crash mid-send can never cause a second send on retry.
 - **Goal:** as written in the doc, including the caps (20 sends and 25 new recipients) and bounce/complaint suspension. Sends respect signing order (WP-05) and access auth (WP-10).
 - **Owns:** `apps/api/src/mcp/tools/{send,remind,cancel}/**`.
 - **Depends on:** WP-21, WP-20, WP-23, WP-05.
@@ -378,6 +379,8 @@ The **Owns** line lists the files a WP may create or edit freely. Anything else 
   - One-tap Review placement in the app send flow.
 - **Owns:** `apps/api/src/mcp/tools/later/**`, `apps/web/src/features/agentActivity/**`.
 - **Depends on:** WP-24, WP-36.
+
+- **Added 2026-10-22 (merge of wave 4):** MCP step 15, tools `envelopes_get_access_auth` / `envelopes_set_access_auth` for WP-10's `GET`/`PATCH /envelopes/:id/access-auth` (route-coverage `planned: 'step-15'`). Also: idempotency must share the write's transaction before step 10 (send) ships — see WP-24.
 
 ### WP-27 — MCP OAuth 2.1 · `opus` · wave 7 · migration 0036 · **decision D3**
 - **Goal:** pre-registered ChatGPT/Claude clients, or CIMD; no open registration. Connected apps appear on the Developers page.
