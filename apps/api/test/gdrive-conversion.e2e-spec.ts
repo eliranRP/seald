@@ -34,6 +34,8 @@ import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryIdempotencyRepository } from './in-memory-idempotency-repository';
 import { StubSupabaseAdminClient } from './stub-supabase-admin';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 class FakeTombstonesRepository extends TombstonesRepository {
   async recordDeletion(): Promise<void> {
@@ -249,6 +251,8 @@ describe('Drive doc → PDF conversion (WT-D) — e2e', () => {
       .useValue(new InMemoryContactsRepository())
       .overrideProvider(EnvelopesRepository)
       .useValue(new InMemoryEnvelopesRepository())
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository())
       .overrideProvider(TemplatesRepository)
       .useValue(new InMemoryTemplatesRepository())
       .overrideProvider(OutboundEmailsRepository)

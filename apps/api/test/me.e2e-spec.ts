@@ -25,6 +25,8 @@ import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryIdempotencyRepository } from './in-memory-idempotency-repository';
 import { StubSupabaseAdminClient } from './stub-supabase-admin';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * Issues #38/#43 — in-memory tombstones recorder. Captures every
@@ -201,6 +203,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(contactsRepo)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(TemplatesRepository)
       .useValue(templatesRepo)
       .overrideProvider(OutboundEmailsRepository)

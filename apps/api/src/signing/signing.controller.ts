@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -16,12 +17,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
+import { isFeatureEnabled } from 'shared';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-documents.service';
 import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
 import { DeclineDto } from './dto/decline.dto';
 import { EsignDisclosureDto } from './dto/esign-disclosure.dto';
@@ -50,6 +53,7 @@ export class SigningController {
     private readonly svc: SigningService,
     private readonly session: SignerSessionService,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly documents: EnvelopeDocumentsService,
   ) {}
 
   @Post('start')
@@ -89,13 +93,37 @@ export class SigningController {
 
   @Get('me')
   @UseGuards(SignerSessionGuard)
-  me(@SignerSession() session: SignerSessionContext): SignMeResponse {
-    return this.svc.me(session.envelope, session.signer);
+  me(@SignerSession() session: SignerSessionContext): SignMeResponse | Promise<SignMeResponse> {
+    const base = this.svc.me(session.envelope, session.signer);
+    if (!isFeatureEnabled('multiDocumentEnvelopes')) return base;
+    // WP-03: documents in order, and the document each field sits on.
+    return this.withDocuments(session.envelope.id, base);
+  }
+
+  private async withDocuments(envelope_id: string, base: SignMeResponse): Promise<SignMeResponse> {
+    const [fields, documents] = await Promise.all([
+      this.documents.decorateFields(envelope_id, base.fields),
+      this.documents.listForEnvelope(envelope_id),
+    ]);
+    return { ...base, fields, documents };
   }
 
   @Get('pdf')
   @UseGuards(SignerSessionGuard)
-  async pdf(@SignerSession() session: SignerSessionContext): Promise<{ readonly url: string }> {
+  async pdf(
+    @SignerSession() session: SignerSessionContext,
+    @Query('document_id') documentId?: string,
+  ): Promise<{ readonly url: string }> {
+    // WP-03 (flag on): `?document_id=` picks one document of the envelope.
+    // With the flag off the param is ignored, as before.
+    if (isFeatureEnabled('multiDocumentEnvelopes') && documentId !== undefined) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) {
+        throw new BadRequestException('validation_error');
+      }
+      return {
+        url: await this.documents.originalSignedUrl(session.envelope.id, documentId, 90),
+      };
+    }
     // Return the signed URL as JSON rather than 302-redirecting. pdf.js
     // fetches the document with `withCredentials: true` so it can carry
     // the signer-session cookie to /sign/pdf; but Supabase's storage

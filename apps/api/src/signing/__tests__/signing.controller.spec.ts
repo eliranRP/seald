@@ -12,6 +12,7 @@ import { SIGNER_SESSION_COOKIE, type SignerSessionService } from '../signer-sess
 import type { SignerSessionContext } from '../signer-session.guard';
 import { SigningController } from '../signing.controller';
 import type { SigningService } from '../signing.service';
+import type { EnvelopeDocumentsService } from '../../envelopes/documents/envelope-documents.service';
 
 /**
  * Controller-level unit tests. The wired-up HTTP behavior is exhaustively
@@ -73,7 +74,12 @@ function buildController(opts: {
     APP_PUBLIC_URL: 'https://app.example.com',
     ...opts.env,
   } as AppEnv;
-  return new SigningController(svc as SigningService, session as SignerSessionService, env);
+  return new SigningController(
+    svc as SigningService,
+    session as SignerSessionService,
+    env,
+    {} as EnvelopeDocumentsService,
+  );
 }
 
 describe('SigningController.start', () => {
@@ -137,7 +143,7 @@ describe('SigningController.start', () => {
 });
 
 describe('SigningController.me', () => {
-  it('delegates to svc.me with the session envelope + signer', () => {
+  it('delegates to svc.me with the session envelope + signer', async () => {
     const session = envContext();
     const ctrl = buildController({
       svc: {
@@ -173,7 +179,7 @@ describe('SigningController.me', () => {
         },
       },
     });
-    const out = ctrl.me(session);
+    const out = await ctrl.me(session);
     expect(out.envelope.id).toBe(ENV_ID);
   });
 });

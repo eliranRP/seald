@@ -19,6 +19,8 @@ import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-re
 import { InMemoryStorageService } from './in-memory-storage';
 import { dispatchSignLinks, dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -75,6 +77,8 @@ describe('Sealing pipeline (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(ContactsRepository)
       .useValue(contactsRepo)
       .overrideProvider(StorageService)

@@ -50,7 +50,12 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.sealedPaths.clear();
     this.auditPaths.clear();
     this.eventPrevHashes.clear();
+    this.originalPaths.clear();
+    this.fieldDocuments.clear();
   }
+
+  /** WP-03: field id -> document id, for fields placed with `document_id`. */
+  readonly fieldDocuments = new Map<string, string>();
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
     if (this.shortCodes.has(input.short_code)) throw new ShortCodeCollisionError();
@@ -311,6 +316,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);
+    this.originalPaths.set(envelope_id, input.file_path);
     return next;
   }
 
@@ -369,6 +375,12 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       filled_at: null,
     }));
     this.envelopes.set(envelope_id, { ...e, fields: mapped });
+    // WP-03: like the pg column, kept off the field object itself.
+    fields.forEach((f, i) => {
+      const id = mapped[i]?.id;
+      if (id !== undefined && f.document_id !== undefined)
+        this.fieldDocuments.set(id, f.document_id);
+    });
     return mapped;
   }
 

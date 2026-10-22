@@ -69,6 +69,11 @@ export {
   EnvelopeListResponseSchema,
   VerifyResponseSchema,
   ErrorSlugs,
+  MAX_ENVELOPE_DOCUMENTS,
+  EnvelopeDocumentSchema,
+  ReorderDocumentsRequestSchema,
+  EnvelopeDocumentListResponseSchema,
+  VerifyDocumentSchema,
 } from './envelope-contract';
 export type {
   EnvelopeStatus,
@@ -96,5 +101,9 @@ export type {
   EnvelopeListResponse,
   VerifyResponse,
   ErrorSlug,
+  EnvelopeDocument,
+  ReorderDocumentsRequest,
+  EnvelopeDocumentListResponse,
+  VerifyDocument,
 } from './envelope-contract';
 export * from './locales';

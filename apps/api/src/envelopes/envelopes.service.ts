@@ -604,10 +604,16 @@ export class EnvelopesService {
     if (!removed) throw new NotFoundException('envelope_not_found');
   }
 
+  /**
+   * `validate` (WP-03) runs after the owner, draft and signer checks and
+   * before the write; the controller passes the document check while
+   * `multiDocumentEnvelopes` is on.
+   */
   async replaceFields(
     owner_id: string,
     envelope_id: string,
     fields: readonly CreateFieldInput[],
+    validate?: (fields: readonly CreateFieldInput[]) => Promise<void>,
   ): Promise<readonly EnvelopeField[]> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -619,6 +625,7 @@ export class EnvelopesService {
         throw new BadRequestException('signer_not_in_envelope');
       }
     }
+    if (validate) await validate(fields);
 
     return this.repo.replaceFields(envelope_id, fields);
   }

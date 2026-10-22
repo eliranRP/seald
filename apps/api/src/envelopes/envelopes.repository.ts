@@ -70,6 +70,8 @@ export interface CreateFieldInput {
   readonly height?: number | null;
   readonly required?: boolean;
   readonly link_id?: string | null;
+  /** WP-03. Omitted means document 1 (the DB trigger fills it in). */
+  readonly document_id?: string;
 }
 
 /**
@@ -269,7 +271,8 @@ export interface EventInput {
     | 'session_invalidated_by_decline'
     | 'session_invalidated_by_cancel'
     | 'job_failed'
-    | 'retention_deleted';
+    | 'retention_deleted'
+    | 'document_added';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;

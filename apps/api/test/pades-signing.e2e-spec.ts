@@ -24,6 +24,8 @@ import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-re
 import { InMemoryStorageService } from './in-memory-storage';
 import { dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * End-to-end exercise of the P12PadesSigner path.
@@ -162,6 +164,8 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(ContactsRepository)
       .useValue(contactsRepo)
       .overrideProvider(StorageService)

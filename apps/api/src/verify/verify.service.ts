@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { isFeatureEnabled, type VerifyDocument } from 'shared';
+import { EnvelopeDocumentsRepository } from '../envelopes/documents/envelope-documents.repository';
 import type { EnvelopeEvent } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { isValidShortCode } from '../envelopes/short-code';
@@ -15,6 +17,7 @@ export class VerifyService {
   constructor(
     private readonly repo: EnvelopesRepository,
     private readonly storage: StorageService,
+    private readonly documents: EnvelopeDocumentsRepository,
   ) {}
 
   async verify(short_code: string): Promise<VerifyResponse> {
@@ -47,6 +50,12 @@ export class VerifyService {
       }
     }
 
+    // WP-03: per-document hashes while `multiDocumentEnvelopes` is on. The
+    // legacy envelope-level hashes and URLs above keep mirroring document 1.
+    const documents = isFeatureEnabled('multiDocumentEnvelopes')
+      ? await this.listDocuments(envelope.id, envelope.status === 'completed')
+      : null;
+
     return {
       envelope: {
         id: envelope.id,
@@ -75,7 +84,28 @@ export class VerifyService {
       chain_intact,
       sealed_url,
       audit_url,
+      ...(documents !== null ? { documents } : {}),
     };
+  }
+
+  private async listDocuments(envelope_id: string, sealed: boolean): Promise<VerifyDocument[]> {
+    const docs = await this.documents.listByEnvelope(envelope_id);
+    const out: VerifyDocument[] = [];
+    for (const d of docs) {
+      out.push({
+        id: d.id,
+        ord: d.ord,
+        title: d.title,
+        original_pages: d.original_pages,
+        original_sha256: d.original_sha256,
+        sealed_sha256: d.sealed_sha256,
+        sealed_url:
+          sealed && d.sealed_file_path !== null
+            ? await this.storage.createSignedUrl(d.sealed_file_path, 300)
+            : null,
+      });
+    }
+    return out;
   }
 }
 
@@ -137,4 +167,7 @@ export interface VerifyResponse {
   readonly sealed_url: string | null;
   /** 5-min signed URL. Null if no audit.pdf has been produced. */
   readonly audit_url: string | null;
+  /** WP-03: every document with its own hashes. Only while the
+   *  `multiDocumentEnvelopes` flag is on. */
+  readonly documents?: ReadonlyArray<VerifyDocument>;
 }

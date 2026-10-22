@@ -21,6 +21,8 @@ import { InMemorySealSweepRepository } from './in-memory-seal-sweep-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
 import { dispatchSignToken } from './dispatched-sign-links';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 const CRON_SECRET = 's'.repeat(48);
 
@@ -82,6 +84,8 @@ describe('Seal sweep (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(SealSweepRepository)
       .useValue(sweepRepo)
       .overrideProvider(ContactsRepository)

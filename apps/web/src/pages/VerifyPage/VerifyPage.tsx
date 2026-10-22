@@ -185,6 +185,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   session_invalidated_by_cancel: 'Session invalidated (cancel)',
   job_failed: 'Sealing job failed',
   retention_deleted: 'Document retention expired',
+  document_added: 'Document added',
 };
 
 interface DerivedView {

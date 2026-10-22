@@ -16,6 +16,7 @@ import { RateLimitedError } from '../../integrations/gdrive/rate-limiter';
 import { EnvelopesController } from '../envelopes.controller';
 import type { EnvelopesService } from '../envelopes.service';
 import type { Envelope } from '../envelopes.repository';
+import type { EnvelopeDocumentsService } from '../documents/envelope-documents.service';
 
 /**
  * Pure controller-level coverage. Every route is invoked directly with a
@@ -59,7 +60,7 @@ describe('EnvelopesController', () => {
       getDownloadUrl: jest.fn(),
       saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
-    controller = new EnvelopesController(svc);
+    controller = new EnvelopesController(svc, {} as EnvelopeDocumentsService);
   });
 
   function makeRequest(opts?: {

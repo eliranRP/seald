@@ -24,6 +24,8 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * PAdES-B-T (RFC 3161 timestamp embedded in PKCS#7 unsignedAttrs) e2e test.
@@ -286,6 +288,8 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(new InMemoryEnvelopesRepository())
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository())
       .overrideProvider(ContactsRepository)
       .useValue(new InMemoryContactsRepository())
       .overrideProvider(StorageService)

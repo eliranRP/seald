@@ -16,6 +16,8 @@ export interface FieldPlacementInput {
   readonly height?: number | null;
   readonly required?: boolean;
   readonly link_id?: string | null;
+  /** WP-03. Only present while `multiDocumentEnvelopes` is on. */
+  readonly document_id?: string;
 }
 
 /** The row `EnvelopesService.replaceFields` stores. */
@@ -29,6 +31,8 @@ export interface NormalizedFieldPlacement {
   readonly height: number | null;
   readonly required: boolean;
   readonly link_id: string | null;
+  /** WP-03. Omitted means document 1. */
+  readonly document_id?: string;
 }
 
 /**
@@ -48,5 +52,6 @@ export function normalizeFieldPlacements(
     height: f.height ?? null,
     required: f.required ?? true,
     link_id: f.link_id ?? null,
+    ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
   }));
 }

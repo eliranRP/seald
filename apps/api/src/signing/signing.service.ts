@@ -72,6 +72,9 @@ export interface SignMeResponse {
   };
   /** Fields the caller should fill. Only fields belonging to THIS signer. */
   readonly fields: ReadonlyArray<EnvelopeField>;
+  /** WP-03: the envelope's documents, while `multiDocumentEnvelopes` is on.
+   *  Each field then carries `document_id`. */
+  readonly documents?: ReadonlyArray<import('shared').EnvelopeDocument>;
   /** Other signers — status only, emails + names masked. */
   readonly other_signers: ReadonlyArray<{
     readonly id: string;

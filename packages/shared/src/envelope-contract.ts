@@ -54,6 +54,8 @@ export const EVENT_TYPES = [
   'session_invalidated_by_cancel',
   'job_failed',
   'retention_deleted',
+  // WP-03 (migration 0022): a document was added to a multi-file draft.
+  'document_added',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -149,8 +151,30 @@ export const FieldSchema = z.object({
   value_text: z.string().nullable().optional(),
   value_boolean: z.boolean().nullable().optional(),
   filled_at: iso.nullable().optional(),
+  // WP-03: the document this field sits on. Present on responses only
+  // while the `multiDocumentEnvelopes` flag is on; `page` is 1-based
+  // within that document.
+  document_id: uuid.optional(),
 });
 export type Field = z.infer<typeof FieldSchema>;
+
+/** WP-03: most documents one envelope may hold. */
+export const MAX_ENVELOPE_DOCUMENTS = 10;
+
+/**
+ * WP-03: one PDF inside an envelope. `ord` is 1-based and dense; document
+ * 1 is the one the legacy `original_*` / `sealed_*` envelope fields
+ * mirror. Storage paths never leave the server.
+ */
+export const EnvelopeDocumentSchema = z.object({
+  id: uuid,
+  ord: z.number().int().min(1),
+  title: z.string().min(1).max(200),
+  original_pages: z.number().int().positive().nullable(),
+  original_sha256: sha256.nullable(),
+  sealed_sha256: sha256.nullable(),
+});
+export type EnvelopeDocument = z.infer<typeof EnvelopeDocumentSchema>;
 
 export const EnvelopeSchema = z.object({
   id: uuid,
@@ -194,6 +218,9 @@ export const EnvelopeSchema = z.object({
   // uses them to seed the Picker's parent folder and the "Last saved to
   // Drive · …" meta line.
   gdriveExport: GdriveExportStateSchema.nullable().optional(),
+  // WP-03: the envelope's documents in order. Present only while the
+  // `multiDocumentEnvelopes` flag is on; a legacy envelope lists one.
+  documents: z.array(EnvelopeDocumentSchema).optional(),
 });
 export type Envelope = z.infer<typeof EnvelopeSchema>;
 
@@ -258,6 +285,9 @@ const FieldPlacementInputSchema = z.object({
   height: z.number().min(0).max(1).nullable().optional(),
   required: z.boolean().default(true),
   link_id: z.string().max(100).nullable().optional(),
+  // WP-03: accepted only while `multiDocumentEnvelopes` is on. Omitted
+  // means document 1.
+  document_id: uuid.optional(),
 });
 export const PlaceFieldsRequestSchema = z.object({
   fields: z.array(FieldPlacementInputSchema),
@@ -345,6 +375,34 @@ export const VerifyResponseSchema = z.object({
 });
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
+/** WP-03: `PUT /envelopes/:id/documents/order`. Every document id, once. */
+export const ReorderDocumentsRequestSchema = z.object({
+  document_ids: z.array(uuid).min(1).max(MAX_ENVELOPE_DOCUMENTS),
+});
+export type ReorderDocumentsRequest = z.infer<typeof ReorderDocumentsRequestSchema>;
+
+/** WP-03: `GET /envelopes/:id/documents` and the reorder response. */
+export const EnvelopeDocumentListResponseSchema = z.object({
+  documents: z.array(EnvelopeDocumentSchema),
+});
+export type EnvelopeDocumentListResponse = z.infer<typeof EnvelopeDocumentListResponseSchema>;
+
+/**
+ * WP-03: per-document entry on `GET /verify/:short_code`, present while
+ * `multiDocumentEnvelopes` is on. `sealed_url` is a 5-minute signed URL,
+ * null until the envelope is sealed.
+ */
+export const VerifyDocumentSchema = z.object({
+  id: uuid,
+  ord: z.number().int().min(1),
+  title: z.string().min(1).max(200),
+  original_pages: z.number().int().positive().nullable(),
+  original_sha256: sha256.nullable(),
+  sealed_sha256: sha256.nullable(),
+  sealed_url: z.string().nullable(),
+});
+export type VerifyDocument = z.infer<typeof VerifyDocumentSchema>;
+
 export const ErrorSlugs = [
   'envelope_not_found',
   'envelope_not_draft',
@@ -381,5 +439,11 @@ export const ErrorSlugs = [
   'validation_error',
   'invalid_cursor',
   'field_not_found',
+  // WP-03
+  'document_not_found',
+  'too_many_documents',
+  'last_document',
+  'document_order_invalid',
+  'document_not_in_envelope',
 ] as const;
 export type ErrorSlug = (typeof ErrorSlugs)[number];

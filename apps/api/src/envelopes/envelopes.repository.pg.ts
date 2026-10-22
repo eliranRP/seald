@@ -927,6 +927,9 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             height: f.height ?? null,
             required: f.required,
             link_id: f.link_id ?? null,
+            // WP-03: only sent when set, so the 0022 trigger defaults the
+            // rest to document 1 (and pre-0022 schemas never see the key).
+            ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
           })),
         )
         .returningAll()
