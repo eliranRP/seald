@@ -18,6 +18,8 @@ export interface ApiTemplateLastSigner {
   readonly name: string;
   readonly email: string;
   readonly color: string;
+  /** WP-06 gap. Sent and returned only while `signingOrder` is on. */
+  readonly signing_order?: number;
 }
 
 export interface ApiTemplate {
@@ -29,6 +31,8 @@ export interface ApiTemplate {
   readonly field_layout: ReadonlyArray<TemplateField>;
   readonly tags: ReadonlyArray<string>;
   readonly last_signers: ReadonlyArray<ApiTemplateLastSigner>;
+  /** WP-06 gap. Present only while `signingOrder` is on. */
+  readonly delivery_mode?: 'parallel' | 'sequential';
   /**
    * `true` when an example PDF has been uploaded for this template
    * (server-side flag derived from the existence of an
@@ -73,6 +77,7 @@ function toSummary(t: ApiTemplate): TemplateSummary {
     fields: t.field_layout,
     tags: t.tags ?? [],
     lastSigners: t.last_signers ?? [],
+    ...(t.delivery_mode !== undefined ? { deliveryMode: t.delivery_mode } : {}),
     hasExamplePdf: t.has_example_pdf,
   };
 }
@@ -96,6 +101,7 @@ export interface CreateTemplateInput {
   readonly field_layout: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<ApiTemplateLastSigner>;
+  readonly delivery_mode?: 'parallel' | 'sequential';
 }
 
 export async function createTemplate(
@@ -110,6 +116,7 @@ export async function createTemplate(
   if (input.cover_color !== undefined) body['cover_color'] = input.cover_color;
   if (input.tags !== undefined) body['tags'] = input.tags;
   if (input.last_signers !== undefined) body['last_signers'] = input.last_signers;
+  if (input.delivery_mode !== undefined) body['delivery_mode'] = input.delivery_mode;
   const { data } = await apiClient.post<ApiTemplate>('/templates', body, configWithSignal(signal));
   return toSummary(data);
 }
@@ -121,6 +128,7 @@ export interface UpdateTemplateInput {
   readonly field_layout?: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<ApiTemplateLastSigner>;
+  readonly delivery_mode?: 'parallel' | 'sequential';
 }
 
 export async function updateTemplate(

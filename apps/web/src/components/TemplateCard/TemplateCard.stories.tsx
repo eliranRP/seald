@@ -47,6 +47,11 @@ export const ManyTags: Story = {
   },
 };
 
+export const WithDirectLink: Story = {
+  name: 'Direct link action (directLinks on)',
+  args: { onDirectLink: noop },
+};
+
 export const UseOnly: Story = {
   name: 'Use-only (no Edit / Delete)',
   args: { onEdit: undefined, onDelete: undefined, onEditTags: undefined },

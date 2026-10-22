@@ -208,6 +208,31 @@ describe('DocumentRoute multi-document editor', () => {
       return { data: {} };
     });
     put.mockResolvedValue({ data: [] });
+    // After the send the route shows the envelope's detail page for the new id.
+    // Without a real envelope body that page throws if it renders before the
+    // test unmounts, which happens on a slow machine.
+    get.mockImplementation(async (url: string) => {
+      if (url === `/envelopes/${SERVER_ENVELOPE}`) {
+        return {
+          data: {
+            id: SERVER_ENVELOPE,
+            title: 'Master agreement',
+            short_code: 'abc',
+            status: 'awaiting_others',
+            delivery_mode: 'parallel',
+            signers: [],
+            fields: [],
+            tags: [],
+            expires_at: '2099-12-31T00:00:00.000Z',
+          },
+          status: 200,
+        };
+      }
+      if (url === `/envelopes/${SERVER_ENVELOPE}/events`) {
+        return { data: { events: [] }, status: 200 };
+      }
+      return { data: [], status: 200 };
+    });
     renderSeeded();
 
     await userEvent.click(await screen.findByRole('button', { name: /send to sign/i }));

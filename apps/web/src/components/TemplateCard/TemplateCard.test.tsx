@@ -81,6 +81,17 @@ describe('TemplateCard', () => {
     expect(onEditTags).toHaveBeenCalledWith(TEMPLATE);
   });
 
+  it('Link overlay action fires onDirectLink, and is absent without the callback', async () => {
+    const onDirectLink = vi.fn();
+    const { getByRole, queryByRole, rerender } = renderWithTheme(
+      <TemplateCard template={TEMPLATE} onUse={vi.fn()} onDirectLink={onDirectLink} />,
+    );
+    await userEvent.click(getByRole('button', { name: `Direct link for ${TEMPLATE.name}` }));
+    expect(onDirectLink).toHaveBeenCalledWith(TEMPLATE);
+    rerender(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
+    expect(queryByRole('button', { name: `Direct link for ${TEMPLATE.name}` })).toBeNull();
+  });
+
   it('hides Delete + Edit + Tags overlay actions when callbacks are not supplied', () => {
     const { queryByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
     expect(queryByRole('button', { name: new RegExp(`Edit ${TEMPLATE.name}$`, 'i') })).toBeNull();

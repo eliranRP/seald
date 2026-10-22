@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useSeedSigningOrderFromTemplate } from '@/features/templates/templateSigningOrder';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isFeatureEnabled } from 'shared';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -183,6 +184,8 @@ export function DocumentRoute() {
     () => (doc?.fromTemplateId ? findTemplateById(doc.fromTemplateId) : undefined),
     [doc?.fromTemplateId],
   );
+  // WP-06 gap: a draft started from a template sends with the order it stores.
+  useSeedSigningOrderFromTemplate(sourceTemplate, signingOrder.setValue);
 
   const handleFieldsChange = useCallback(
     (next: ReadonlyArray<PlacedFieldValue>) => {

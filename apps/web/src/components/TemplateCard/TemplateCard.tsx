@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from 'react';
-import { Pencil, PenTool, Send, Tag, Trash2, Users } from 'lucide-react';
+import { Link2, Pencil, PenTool, Send, Tag, Trash2, Users } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { tagColorFor } from '@/features/templates';
 import type { TemplateCardAccent, TemplateCardProps } from './TemplateCard.types';
@@ -65,7 +65,17 @@ function pickAccent(seed: string): TemplateCardAccent {
  * card-click never overrides them.
  */
 export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
-  const { template, onUse, onEdit, onDelete, onTagClick, onEditTags, onBulkSend, ...rest } = props;
+  const {
+    template,
+    onUse,
+    onEdit,
+    onDelete,
+    onTagClick,
+    onEditTags,
+    onBulkSend,
+    onDirectLink,
+    ...rest
+  } = props;
   const widths = useMemo(() => computeLineWidths(template.id, THUMB_LINE_COUNT), [template.id]);
   const accent = useMemo(() => pickAccent(template.id), [template.id]);
 
@@ -168,6 +178,17 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
           >
             <Icon icon={Tag} size={12} />
             Tags
+          </ActionButton>
+        ) : null}
+        {onDirectLink ? (
+          <ActionButton
+            type="button"
+            onClick={() => onDirectLink(template)}
+            aria-label={`Direct link for ${template.name}`}
+            title="Direct link"
+          >
+            <Icon icon={Link2} size={12} />
+            Link
           </ActionButton>
         ) : null}
         {onEdit ? (

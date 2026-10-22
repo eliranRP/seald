@@ -78,6 +78,11 @@ const VerifyPage = lazy(() =>
   import('./pages/VerifyPage').then((m) => ({ default: m.VerifyPage })),
 );
 
+// Public template direct link (WP-37). Lazy and unauthenticated, like verify.
+const DirectLinkPage = lazy(() =>
+  import('./pages/DirectLinkPage').then((m) => ({ default: m.DirectLinkPage })),
+);
+
 // Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
 // bundle doesn't pay for the editor canvas + pdfjs weight (rule 2.5). Pulled
 // in for any viewport ≤ 640px when the user lands on the app root.
@@ -152,6 +157,17 @@ export function AppRoutes() {
         element={
           <Suspense fallback={<AuthLoadingScreen />}>
             <VerifyPage />
+          </Suspense>
+        }
+      />
+
+      {/* Public template direct link (WP-37): a name + email form that emails the
+          visitor a normal signing link. The token in the path is the credential. */}
+      <Route
+        path="/d/:token"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <DirectLinkPage />
           </Suspense>
         }
       />

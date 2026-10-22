@@ -45,4 +45,9 @@ export interface TemplateCardProps extends Omit<
    * document; when omitted no Bulk send affordance renders.
    */
   readonly onBulkSend?: ((template: TemplateSummary) => void) | undefined;
+  /**
+   * Open the template's direct-link settings (WP-37). The page passes it
+   * only while `directLinks` is on; without it no Link affordance shows.
+   */
+  readonly onDirectLink?: ((template: TemplateSummary) => void) | undefined;
 }

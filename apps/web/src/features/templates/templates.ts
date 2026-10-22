@@ -52,7 +52,15 @@ export interface TemplateSummary {
     readonly name: string;
     readonly email: string;
     readonly color: string;
+    /** WP-06 gap. 1-based signing step; present only while `signingOrder` is on. */
+    readonly signing_order?: number;
   }>;
+  /**
+   * WP-06 gap. `sequential` means envelopes made from this template sign in
+   * the order each slot's `signing_order` gives. Present only while
+   * `signingOrder` is on; absent means any order.
+   */
+  readonly deliveryMode?: 'parallel' | 'sequential';
   /**
    * `true` when an example PDF has been uploaded for this template
    * (via `POST /templates/:id/example`). Drives the use-template

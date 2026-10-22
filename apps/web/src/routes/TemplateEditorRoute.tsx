@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useSigningOrder } from '@/features/signers/signingOrder';
+import {
+  templateDeliveryMode,
+  useSeedSigningOrderFromTemplate,
+  withTemplateSigningOrder,
+} from '@/features/templates/templateSigningOrder';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -227,6 +232,8 @@ export function TemplateEditorRoute() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const draft = draftId ? getDocument(draftId) : undefined;
   const signingOrder = useSigningOrder(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
+  // WP-06 gap: an envelope started from this template sends with the order it stores.
+  useSeedSigningOrderFromTemplate(sourceTemplate, signingOrder.setValue);
 
   /**
    * Saved example PDF fetched from the API when the user picks a
@@ -562,18 +569,23 @@ export function TemplateEditorRoute() {
       // `handleSendAndUpdate`, so brand-new templates saved without
       // sending lost their roster — see UseTemplatePage's pre-fill
       // effect (reads `template.lastSigners`).
-      const lastSigners = draft.signers.map((s) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email,
-        color: s.color,
-      }));
+      const lastSigners = withTemplateSigningOrder(
+        draft.signers.map((s) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          color: s.color,
+        })),
+        signingOrder.value,
+      );
+      const orderPatch = templateDeliveryMode(signingOrder.value);
       let savedId: string;
       if (sourceTemplate) {
         const updated = await updateTemplate(sourceTemplate.id, {
           title,
           field_layout: fieldLayout,
           last_signers: lastSigners,
+          ...orderPatch,
         });
         setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
         savedId = updated.id;
@@ -583,6 +595,7 @@ export function TemplateEditorRoute() {
           field_layout: fieldLayout,
           cover_color: seald.color.indigo[50],
           last_signers: lastSigners,
+          ...orderPatch,
         });
         setTemplates([created, ...getTemplates()]);
         savedId = created.id;
@@ -614,7 +627,7 @@ export function TemplateEditorRoute() {
         tone: 'error',
       });
     }
-  }, [draft, renamedTitle, sourceTemplate, navigate]);
+  }, [draft, renamedTitle, sourceTemplate, navigate, signingOrder.value]);
 
   // ---- Send-to-sign (using mode primary) -------------------------------
 
@@ -761,9 +774,14 @@ export function TemplateEditorRoute() {
         sourceFields: sourceTemplate.fields,
         sourceLastSigners: sourceTemplate.lastSigners ?? [],
       });
+      // A reduced roster keeps the template's own roster, so it keeps its own order too.
+      const reducedRoster = draftLastSigners.length < (sourceTemplate.lastSigners ?? []).length;
       updateTemplate(sourceTemplate.id, {
         field_layout: merged.fieldLayout,
-        last_signers: merged.lastSigners,
+        last_signers: reducedRoster
+          ? merged.lastSigners
+          : withTemplateSigningOrder(merged.lastSigners, signingOrder.value),
+        ...(reducedRoster ? {} : templateDeliveryMode(signingOrder.value)),
       })
         .then((updated) => {
           setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
@@ -777,7 +795,7 @@ export function TemplateEditorRoute() {
         });
     }
     runSend().catch(() => {});
-  }, [sourceTemplate, draft, runSend]);
+  }, [sourceTemplate, draft, runSend, signingOrder.value]);
 
   // ---- Navigation guards (Back / cancel) -------------------------------
 

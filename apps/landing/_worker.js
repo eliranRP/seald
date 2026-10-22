@@ -60,6 +60,7 @@ const SPA_PREFIXES = [
   '/settings/',
   '/oauth/',
   '/sent/',
+  '/d/',
 ];
 
 /**
