@@ -23,12 +23,14 @@ export interface ReminderSweepResult {
  * or reminder is at least 24 hours old. Delivery stays on
  * `EmailWorkerService` (`WORKER_ENABLED`) and `POST /internal/cron/flush-emails`.
  *
- * The stored payload does not include `sign_url`. Invite and manual-remind
- * rows already persist the plaintext signing token inside that field; this
- * path does not add another copy. `EmailDispatcherService` fills the link
- * at render time from the newest prior invite/reminder that has one, and
- * does not write it back. The audit event is written there too, after the
- * send-time re-check, so a skipped row is not recorded as sent.
+ * The stored payload holds the signer id only, never a signing link (MCP
+ * Insert A). `EmailDispatcherService` mints a new token when the mail goes
+ * out, so the reminder rotates the link and every older one stops
+ * working. The audit event is written there too, after the send-time
+ * re-check, so a skipped row is not recorded as sent.
+ *
+ * Candidates already have a non-null `access_token_hash`, which means their
+ * invite has gone out; a signer whose invite is still queued is not listed.
  */
 @Injectable()
 export class ReminderSchedulerService {
@@ -94,14 +96,6 @@ export class ReminderSchedulerService {
         row.kind === 'reminder' && row.signer_id === signer.id && row.payload['automated'] === true,
     ).length;
     if (automatedCount >= MAX_AUTOMATED_REMINDERS) return false;
-
-    const signUrl = await this.outbound.findLatestSignUrl(envelope.id, signer.id);
-    if (!signUrl) {
-      this.log.warn(
-        `reminder skipped missing_sign_url envelope=${envelope.id} signer=${signer.id}`,
-      );
-      return false;
-    }
 
     const claimed = await this.repo.tryClaimReminder(candidate.signerId, now);
     if (!claimed) return false;

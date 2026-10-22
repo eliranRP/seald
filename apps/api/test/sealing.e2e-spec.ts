@@ -17,6 +17,7 @@ import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
+import { dispatchSignLinks, dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
 
 const TEST_ENV: AppEnv = {
@@ -178,7 +179,7 @@ describe('Sealing pipeline (e2e)', () => {
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
 
     const invite = outbound.rows.find((r) => r.kind === 'invite')!;
-    const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url))![1]!;
+    const token = await dispatchSignToken(app, invite.to_email);
     const started = await request(app.getHttpServer())
       .post('/sign/start')
       .send({ envelope_id: env.body.id, token });
@@ -264,9 +265,9 @@ describe('Sealing pipeline (e2e)', () => {
       'bea@example.com',
     ]);
 
+    const links = await dispatchSignLinks(app, [env.body.id]);
     const sign = async (email: string): Promise<void> => {
-      const invite = invites.find((row) => row.to_email === email);
-      const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite?.payload.sign_url))?.[1];
+      const token = links.find((link) => link.to === email)?.token;
       expect(token).toBeDefined();
       const started = await request(app.getHttpServer())
         .post('/sign/start')
@@ -426,7 +427,7 @@ describe('Sealing pipeline (e2e)', () => {
       });
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
     const invite = outbound.rows.find((r) => r.kind === 'invite')!;
-    const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url))![1]!;
+    const token = await dispatchSignToken(app, invite.to_email);
     const started = await request(app.getHttpServer())
       .post('/sign/start')
       .send({ envelope_id: env.body.id, token });

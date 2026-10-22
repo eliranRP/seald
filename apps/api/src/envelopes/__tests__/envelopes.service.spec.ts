@@ -12,7 +12,6 @@ import {
   type OutboundEmailRow,
 } from '../../email/outbound-emails.repository';
 import { makeEnvelope, makeSigner } from '../../../test/factories';
-import { SigningTokenService } from '../../signing/signing-token.service';
 import { StorageService } from '../../storage/storage.service';
 import type {
   AddSignerInput,
@@ -591,9 +590,6 @@ class FakeOutbound extends OutboundEmailsRepository {
   async markSkipped(): Promise<void> {
     /* unused by service-level tests */
   }
-  async findLatestSignUrl(): Promise<string | null> {
-    return null;
-  }
 }
 
 /** Stub storage — service-level tests don't exercise uploadOriginal. */
@@ -622,7 +618,6 @@ describe('EnvelopesService', () => {
   let contacts: FakeContactsRepo;
   let storage: FakeStorage;
   let outbound: FakeOutbound;
-  let tokens: SigningTokenService;
   let svc: EnvelopesService;
 
   beforeEach(() => {
@@ -630,13 +625,11 @@ describe('EnvelopesService', () => {
     contacts = new FakeContactsRepo();
     storage = new FakeStorage();
     outbound = new FakeOutbound();
-    tokens = new SigningTokenService();
     svc = new EnvelopesService(
       repo,
       contacts,
       storage,
       outbound,
-      tokens,
       TEST_ENV,
       fakeGdriveAccounts,
       fakeGdriveExport,

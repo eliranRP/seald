@@ -15,6 +15,7 @@ import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
+import { dispatchSignLinks } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
 
 const CRON_SECRET = 's'.repeat(48);
@@ -109,7 +110,11 @@ describe('Automated reminders (e2e)', () => {
     await app.close();
   });
 
-  async function buildSentEnvelope(): Promise<{ envId: string; signerId: string }> {
+  async function buildSentEnvelope(): Promise<{
+    envId: string;
+    signerId: string;
+    inviteToken: string;
+  }> {
     const auth = { Authorization: `Bearer ${tokenA}` };
     const existing = (await contactsRepo.findAllByOwner(USER_A)).find(
       (row) => row.email === 'ada@example.com',
@@ -150,7 +155,15 @@ describe('Automated reminders (e2e)', () => {
         ],
       });
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
-    return { envId: env.body.id as string, signerId: signer.body.id as string };
+    // Insert A: the invite token is minted when the invite is dispatched,
+    // which is also what starts the reminder clock.
+    const [invite] = await dispatchSignLinks(app, [env.body.id as string]);
+    if (!invite) throw new Error('invite was not dispatched');
+    return {
+      envId: env.body.id as string,
+      signerId: signer.body.id as string,
+      inviteToken: invite.token,
+    };
   }
 
   function ageInvite(envId: string, signerId: string): void {
@@ -209,6 +222,29 @@ describe('Automated reminders (e2e)', () => {
     expect(second.status).toBe(200);
     expect(second.body.queued).toBe(0);
     expect(outbound.rows.filter((row) => row.kind === 'reminder')).toHaveLength(1);
+  });
+
+  it('rotates the signer link when the automated reminder is sent', async () => {
+    const { envId, signerId, inviteToken } = await buildSentEnvelope();
+    ageInvite(envId, signerId);
+    expect((await sweep()).body.queued).toBe(1);
+
+    const [reminder] = await dispatchSignLinks(app, [envId]);
+    expect(reminder?.to).toBe('ada@example.com');
+    expect(reminder?.token).not.toBe(inviteToken);
+    // Nothing stored carries either token.
+    const stored = JSON.stringify(outbound.rows);
+    expect(stored).not.toContain(inviteToken);
+    expect(stored).not.toContain(reminder?.token);
+
+    const stale = await request(app.getHttpServer())
+      .post('/sign/start')
+      .send({ envelope_id: envId, token: inviteToken });
+    expect(stale.status).toBe(401);
+    const fresh = await request(app.getHttpServer())
+      .post('/sign/start')
+      .send({ envelope_id: envId, token: reminder?.token });
+    expect(fresh.status).toBe(200);
   });
 
   it('skips a fresh invite, a disabled envelope, a signed signer, and a terminal envelope', async () => {

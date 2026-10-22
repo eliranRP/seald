@@ -5,10 +5,13 @@ import { Injectable } from '@nestjs/common';
  * Per-signer access token utilities.
  *
  * Wire shape: a 256-bit opaque token encoded as URL-safe base64 (43 chars).
- * The plaintext is embedded once in the invite email (`?t=...`). On receipt,
- * the backend hashes it with SHA-256 and looks up the signer by hash —
- * `envelope_signers.access_token_hash` is what persists. A DB dump therefore
- * leaks no valid signing links.
+ * `EmailDispatcherService` mints one each time it sends an invite or a
+ * reminder (MCP Insert A) and embeds the plaintext in that one message
+ * (`?t=...`). It is never written to `outbound_emails.payload`. On
+ * receipt, the backend hashes it with SHA-256 and looks up the signer by
+ * hash — `envelope_signers.access_token_hash` is what persists, and a new
+ * send replaces it, so older links stop working. A DB dump therefore leaks
+ * no valid signing links.
  *
  * Rationale:
  *   - 256 bits of entropy: unforgeable (~3e76 combinations).

@@ -10,7 +10,7 @@ export interface ReminderClock {
   readonly expiresAtMs: number;
   readonly signedAt: string | null;
   readonly declinedAt: string | null;
-  /** When the signing link was last issued (invite or manual token rotation). */
+  /** When the signing link was last issued (each dispatched invite or reminder mints one). */
   readonly invitedAtMs: number | null;
   readonly lastRemindedAtMs: number | null;
   /** created_at of the newest invite or reminder outbox row, if any. */

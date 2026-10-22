@@ -953,14 +953,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .where('status', '=', 'draft')
         .executeTakeFirst();
       if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
-      for (const t of input.signer_tokens) {
-        await trx
-          .updateTable('envelope_signers')
-          .set({ access_token_hash: t.access_token_hash, access_token_sent_at: now })
-          .where('id', '=', t.signer_id)
-          .where('envelope_id', '=', input.envelope_id)
-          .execute();
-      }
+      // Signer tokens are minted by the email dispatcher when each invite
+      // is sent (MCP Insert A); access_token_hash stays null until then.
       return this.findByIdWithAllTrx(trx, input.envelope_id);
     });
   }

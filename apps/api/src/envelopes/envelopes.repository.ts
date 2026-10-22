@@ -72,9 +72,13 @@ export interface CreateFieldInput {
   readonly link_id?: string | null;
 }
 
+/**
+ * No signer tokens: since MCP Insert A (0027) the email dispatcher mints
+ * each signer's token when the invite goes out. `access_token_hash` stays
+ * null until then.
+ */
 export interface SendDraftInput {
   readonly envelope_id: string;
-  readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
   /** Persisted on the envelope row so SigningService.decline can enqueue
    *  the withdrawal email to the sender without an auth.users lookup. */
   readonly sender_email: string;
@@ -335,11 +339,13 @@ export abstract class EnvelopesRepository {
   abstract sendDraft(input: SendDraftInput): Promise<Envelope | null>;
 
   /**
-   * Rotate a signer's access_token_hash (reminder path). Guards at the SQL
-   * level: only updates when the parent envelope is `awaiting_others` AND
-   * the signer has neither signed nor declined yet. Returns false when any
-   * of those preconditions are violated — the service maps to an
-   * appropriate 4xx response.
+   * Store a newly minted signer token hash and stamp `access_token_sent_at`.
+   * Called by `EmailDispatcherService` for every invite and reminder it
+   * sends (MCP Insert A), so the previous link stops working. Guards at the
+   * SQL level: only updates when the parent envelope is `awaiting_others`
+   * AND the signer has neither signed nor declined yet. Returns false when
+   * any of those preconditions are violated; the dispatcher then skips the
+   * mail.
    */
   abstract rotateSignerAccessToken(
     signer_id: string,

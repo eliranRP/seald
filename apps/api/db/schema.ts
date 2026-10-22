@@ -201,14 +201,17 @@ export interface EnvelopeSignersTable {
   role: ColumnType<SignerRoleDb, SignerRoleDb | undefined, SignerRoleDb | undefined>;
   signing_order: ColumnType<number, number | undefined, number | undefined>;
 
+  // Migration 0027 (MCP Insert A) — both are written by the email
+  // dispatcher when it sends an invite or reminder: a fresh token's hash
+  // and the send time. Null until the first invite goes out.
   access_token_hash: string | null;
   access_token_sent_at: ColumnType<
     Date | null,
     string | null | undefined,
     string | null | undefined
   >;
-  // Migration 0020 — set when an automated reminder is claimed. Manual
-  // reminds bump access_token_sent_at instead (token rotation).
+  // Migration 0020 — set when an automated reminder is claimed. Every
+  // dispatched invite or reminder bumps access_token_sent_at (rotation).
   last_reminded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   verification_checks: ColumnType<string[], string | undefined, string | undefined>;
 

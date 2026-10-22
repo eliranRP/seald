@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PDFDocument } from 'pdf-lib';
@@ -16,6 +17,7 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
+import { dispatchSignLinks } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
 
 const TEST_ENV: AppEnv = {
@@ -620,8 +622,13 @@ describe('Envelopes — sender draft flow (e2e)', () => {
         envelope_title: 'Ready to send',
         short_code: res.body.short_code,
       });
-      // Token is NOT hashed in the payload — it's embedded in the sign_url.
-      expect(String(queued[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      // Insert A: no token or link is stored; it is minted at dispatch.
+      expect(queued[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(queued[0]!.payload)).not.toMatch(/[?&]t=/);
+      const [link] = await dispatchSignLinks(app);
+      expect(link?.envelopeId).toBe(envId);
+      expect(link?.to).toBe('ada@example.com');
+      expect(JSON.stringify(outbound.rows)).not.toContain(link?.token);
 
       // sent event present per signer.
       const eventsRes = await request(app.getHttpServer())
@@ -813,6 +820,8 @@ describe('Envelopes — sender draft flow (e2e)', () => {
 
     it('succeeds when the last invite/reminder is older than 1 hour — returns 202, enqueues reminder', async () => {
       const { envId, signerId } = await buildSentEnvelope();
+      const [invite] = await dispatchSignLinks(app);
+      expect(invite).toBeDefined();
       // Age the outbound rows by rewriting created_at — simulates "more than 1 hour ago".
       for (const row of outbound.rows) {
         (row as { created_at: string }).created_at = new Date(
@@ -829,8 +838,9 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       const reminders = outbound.rows.filter((r) => r.kind === 'reminder');
       expect(reminders).toHaveLength(1);
       expect(reminders[0]!.to_email).toBe('ada@example.com');
-      // Reminder carries a fresh token — the rotated one
-      expect(String(reminders[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      // Insert A: the stored reminder holds no token; it rotates at send.
+      expect(reminders[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(reminders[0]!.payload)).not.toMatch(/[?&]t=/);
       expect(String(reminders[0]!.payload.envelope_title)).toBe('Remind me');
       expect(String(reminders[0]!.payload.expires_at_readable)).toMatch(
         /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
@@ -843,6 +853,23 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       expect(
         events.body.events.filter((e: { event_type: string }) => e.event_type === 'reminder_sent'),
       ).toHaveLength(1);
+
+      // Sending the reminder mints a new token; the invite link stops working.
+      const [reminder] = await dispatchSignLinks(app);
+      expect(reminder?.token).toBeDefined();
+      expect(reminder?.token).not.toBe(invite?.token);
+      const stale = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: envId, token: invite?.token });
+      expect(stale.status).toBe(401);
+      expect(stale.body).toEqual({ error: 'invalid_token' });
+      // The reminder's token is the one the signer row now holds.
+      const freshHash = createHash('sha256')
+        .update(reminder?.token ?? '', 'utf8')
+        .digest('hex');
+      expect((await envelopesRepo.findSignerByAccessTokenHash(freshHash))?.signer.id).toBe(
+        signerId,
+      );
     });
 
     it('409 envelope_terminal when envelope is still draft (never sent)', async () => {

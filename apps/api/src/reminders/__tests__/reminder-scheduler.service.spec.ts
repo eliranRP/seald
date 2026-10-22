@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import type { AppEnv } from '../../config/env.schema';
 import {
   DuplicateOutboundEmailError,
@@ -46,7 +45,6 @@ describe('ReminderSchedulerService', () => {
   let emails: InsertOutboundEmailInput[];
   let lastMailAt: string | null;
   let mailAtFor: (envelopeId: string) => string | null;
-  let signUrl: string | null;
   let scheduler: ReminderSchedulerService;
 
   beforeEach(() => {
@@ -56,7 +54,6 @@ describe('ReminderSchedulerService', () => {
     emails = [];
     lastMailAt = INVITED;
     mailAtFor = () => lastMailAt;
-    signUrl = 'https://seald.example/sign/x?t=token';
     const repo = {
       listReminderCandidates: async (_now: Date, limit: number, offset = 0) =>
         envelopes.map(candidateFor).slice(offset, offset + limit),
@@ -88,7 +85,6 @@ describe('ReminderSchedulerService', () => {
         const at = mailAtFor(envelopeId);
         return at ? ({ created_at: at, kind: 'invite' } as OutboundEmailRow) : null;
       },
-      findLatestSignUrl: async () => signUrl,
       listByEnvelope: async (envelopeId: string) =>
         emails
           .filter((row) => row.envelope_id === envelopeId)
@@ -166,17 +162,6 @@ describe('ReminderSchedulerService', () => {
     expect(result.queued).toBe(0);
     expect(emails).toHaveLength(MAX_AUTOMATED_REMINDERS);
     expect(claimed).toHaveLength(0);
-  });
-
-  it('does not claim when no signing link can be resolved', async () => {
-    envelopes = [dueEnvelope()];
-    signUrl = null;
-    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
-    const result = await scheduler.enqueueDue(NOW, 50);
-    expect(result.queued).toBe(0);
-    expect(claimed).toHaveLength(0);
-    expect(events).toHaveLength(0);
-    expect(warn.mock.calls.map((call) => String(call[0])).join('\n')).toContain('missing_sign_url');
   });
 
   it('scans past signers who were skipped so they cannot fill the batch', async () => {

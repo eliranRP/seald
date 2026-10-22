@@ -374,18 +374,14 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   async sendDraft(input: {
     readonly envelope_id: string;
-    readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
     readonly sender_email: string;
     readonly sender_name: string | null;
   }): Promise<Envelope | null> {
     const e = this.envelopes.get(input.envelope_id);
     if (!e || e.status !== 'draft') return null;
     const now = new Date().toISOString();
-    // Stamp the hashes in our side map so findSignerByAccessTokenHash resolves.
-    for (const t of input.signer_tokens) {
-      this.signerTokenHashes.set(t.signer_id, t.access_token_hash);
-      this.reminderClock.set(t.signer_id, { invitedAt: now, lastRemindedAt: null });
-    }
+    // No token hashes here: the email dispatcher mints them at send time
+    // through rotateSignerAccessToken (MCP Insert A).
     const next: Envelope = {
       ...e,
       status: 'awaiting_others',

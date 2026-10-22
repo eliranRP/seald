@@ -7,11 +7,12 @@ import { Pool, type QueryResult } from 'pg';
 import type { Database } from '../db/schema';
 import type { AppEnv } from '../src/config/env.schema';
 import { EmailDispatcherService } from '../src/email/email-dispatcher.service';
-import { EmailSender, type EmailSendResult } from '../src/email/email-sender';
+import { EmailSender, type EmailMessage, type EmailSendResult } from '../src/email/email-sender';
 import { OutboundEmailsPgRepository } from '../src/email/outbound-emails.repository.pg';
 import { TemplateService } from '../src/email/template.service';
 import { EnvelopesPgRepository } from '../src/envelopes/envelopes.repository.pg';
 import { ReminderSchedulerService } from '../src/reminders/reminder-scheduler.service';
+import { SigningTokenService } from '../src/signing/signing-token.service';
 
 /**
  * Two final submitSigner calls, overlapping, against real Postgres.
@@ -26,6 +27,10 @@ import { ReminderSchedulerService } from '../src/reminders/reminder-scheduler.se
  * inside submitSigner together. The row lock then lets one count 1/2
  * and the other, after it commits, count 2/2 and flip to sealing.
  * If the FOR UPDATE is removed, nobody waits, and this fails.
+ *
+ * The same harness covers MCP Insert A (migration 0027) against real
+ * Postgres: the outbox check constraint, the legacy `sign_url` scrub, and
+ * the dispatcher minting a signer token per send.
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
@@ -145,85 +150,150 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     }
   }, 30_000);
 
-  it('still finds a sign link after more than 20 reminder rows without one', async () => {
+  it('0027 scrubs legacy sign_url payloads and rejects new ones (idempotent re-run)', async () => {
+    if (!pool || !db || !databaseUrl) throw new Error('postgres harness did not start');
+    const pg = pool;
+    const envelopes = new EnvelopesPgRepository(db);
+    const ownerId = randomUUID();
+    await pg.query('insert into auth.users (id) values ($1)', [ownerId]);
+    const sent = await sentEnvelope(envelopes, ownerId, 1);
+    ownedEnvelopeIds.push(sent.envelope.id);
+    const signer = sent.signers[0];
+    if (!signer) throw new Error('missing signer');
+
+    const insertRaw = (payload: Record<string, unknown>, status = 'pending') =>
+      pg.query(
+        `insert into public.outbound_emails
+           (envelope_id, signer_id, kind, to_email, to_name, payload, status)
+         values ($1, $2, 'invite', $3, $4, $5::jsonb, $6::email_status)
+         returning id`,
+        [sent.envelope.id, signer.id, signer.email, signer.name, JSON.stringify(payload), status],
+      );
+    const legacyLink = `https://app.example/sign/${sent.envelope.id}?t=${'A'.repeat(43)}`;
+
+    // The constraint is live: neither the legacy key nor a ?t= link is accepted.
+    await expect(insertRaw({ sign_url: legacyLink })).rejects.toMatchObject({ code: '23514' });
+    await expect(insertRaw({ cta: legacyLink })).rejects.toMatchObject({ code: '23514' });
+
+    // Simulate rows queued before 0027: drop the constraint, store links,
+    // then re-apply the migration file exactly as migrate.sh does.
+    await pg.query(
+      'alter table public.outbound_emails drop constraint outbound_emails_payload_no_signer_token',
+    );
+    const pending = await insertRaw({ sign_url: legacyLink, envelope_title: 'Legacy' });
+    const delivered = await insertRaw({ sign_url: legacyLink, envelope_title: 'Legacy' }, 'sent');
+    const migration = resolve(__dirname, '../db/migrations/0027_signer_token_dispatch.sql');
+    for (let run = 0; run < 2; run += 1) {
+      await execFileAsync('psql', [
+        databaseUrl,
+        '-v',
+        'ON_ERROR_STOP=1',
+        '-q',
+        '-1',
+        '-f',
+        migration,
+      ]);
+    }
+
+    const rows = await pg.query<{ payload: Record<string, unknown> }>(
+      `select payload from public.outbound_emails where id = any($1::uuid[])`,
+      [[pending.rows[0]?.id, delivered.rows[0]?.id]],
+    );
+    expect(rows.rows).toHaveLength(2);
+    for (const row of rows.rows) {
+      expect(row.payload).toEqual({ envelope_title: 'Legacy' });
+    }
+    const constraint = await pg.query<{ convalidated: boolean }>(
+      `select convalidated from pg_constraint
+        where conname = 'outbound_emails_payload_no_signer_token'`,
+    );
+    expect(constraint.rows).toEqual([{ convalidated: true }]);
+    await expect(insertRaw({ sign_url: legacyLink })).rejects.toMatchObject({ code: '23514' });
+  }, 60_000);
+
+  it('mints the signer token at dispatch, re-mints per send, and kills older links', async () => {
     if (!pool || !db) throw new Error('postgres harness did not start');
     const pg = pool;
     const envelopes = new EnvelopesPgRepository(db);
     const outbound = new OutboundEmailsPgRepository(db);
+    const tokens = new SigningTokenService();
     const ownerId = randomUUID();
     await pg.query('insert into auth.users (id) values ($1)', [ownerId]);
-    const envelope = await envelopes.createDraft({
+    const draft = await envelopes.createDraft({
       owner_id: ownerId,
-      title: 'Sign link window',
+      title: 'Minted at dispatch',
       short_code: randomBytes(8).toString('hex').slice(0, 13),
       tc_version: 'tc-v1',
       privacy_version: 'pp-v1',
       expires_at: new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString(),
     });
-    ownedEnvelopeIds.push(envelope.id);
-    const signer = await envelopes.addSigner(envelope.id, {
-      email: `ada-${ownerId.slice(0, 8)}@example.com`,
-      name: 'Ada',
+    ownedEnvelopeIds.push(draft.id);
+    const signer = await envelopes.addSigner(draft.id, {
+      email: `mint-${draft.id.slice(0, 8)}@example.com`,
+      name: 'Mint',
       color: '#112233',
     });
-    const inviteUrl = 'https://app.example/sign/original?t=invite-token';
-    const newerUrl = 'https://app.example/sign/original?t=newer-token';
-    const invite = await outbound.insert({
-      envelope_id: envelope.id,
+    await envelopes.sendDraft({
+      envelope_id: draft.id,
+      sender_email: 'sender@example.com',
+      sender_name: 'Sender',
+    });
+    const storedHash = async (): Promise<string | null> =>
+      (
+        await pg.query<{ h: string | null }>(
+          'select access_token_hash as h from public.envelope_signers where id = $1',
+          [signer.id],
+        )
+      ).rows[0]?.h ?? null;
+    // A null hash means the link has not been sent yet.
+    expect(await storedHash()).toBeNull();
+
+    const base = { envelope_title: 'Minted at dispatch', public_url: 'https://seald.example' };
+    await outbound.insert({
+      envelope_id: draft.id,
       signer_id: signer.id,
       kind: 'invite',
-      to_email: 'ada@example.com',
-      to_name: 'Ada',
+      to_email: signer.email,
+      to_name: signer.name,
       dedupe_key: `invite:${signer.id}`,
-      payload: { sign_url: inviteUrl },
+      payload: base,
     });
-    const blanks = [];
-    for (let i = 0; i < 21; i += 1) {
-      blanks.push(
-        await outbound.insert({
-          envelope_id: envelope.id,
-          signer_id: signer.id,
-          kind: 'reminder',
-          to_email: 'ada@example.com',
-          to_name: 'Ada',
-          dedupe_key: `blank:${signer.id}:${i}`,
-          payload: { automated: true },
-        }),
-      );
-    }
-    const base = Date.now() - 86_400_000;
-    await pg.query(`update public.outbound_emails set created_at = $1::timestamptz where id = $2`, [
-      new Date(base).toISOString(),
-      invite.id,
-    ]);
-    for (let i = 0; i < blanks.length; i += 1) {
-      const row = blanks[i];
-      if (!row) continue;
-      await pg.query(
-        `update public.outbound_emails set created_at = $1::timestamptz where id = $2`,
-        [new Date(base + (i + 1) * 1000).toISOString(), row.id],
-      );
-    }
-    const latestBlank = blanks[blanks.length - 1];
-    expect(await outbound.findLatestSignUrl(envelope.id, signer.id, latestBlank?.id)).toBe(
-      inviteUrl,
-    );
+    const sender = new RecordingSender();
+    const dispatcher = buildDispatcher(outbound, sender, envelopes, tokens);
+    await dispatcher.flushOnce(50, { envelopeIds: [draft.id] });
+    const inviteToken = sender.tokenAt(0, draft.id);
+    expect(await storedHash()).toBe(tokens.hash(inviteToken));
+    expect(await envelopes.findSignerByAccessTokenHash(tokens.hash(inviteToken))).not.toBeNull();
 
-    const newer = await outbound.insert({
-      envelope_id: envelope.id,
+    await outbound.insert({
+      envelope_id: draft.id,
       signer_id: signer.id,
       kind: 'reminder',
-      to_email: 'ada@example.com',
-      to_name: 'Ada',
-      dedupe_key: `newer:${signer.id}`,
-      payload: { sign_url: newerUrl },
+      to_email: signer.email,
+      to_name: signer.name,
+      dedupe_key: `reminder:${signer.id}`,
+      payload: base,
     });
-    await pg.query(`update public.outbound_emails set created_at = $1::timestamptz where id = $2`, [
-      new Date(base + 80_000).toISOString(),
-      newer.id,
-    ]);
-    expect(await outbound.findLatestSignUrl(envelope.id, signer.id)).toBe(newerUrl);
-    expect(await outbound.findLatestSignUrl(envelope.id, signer.id, newer.id)).toBe(inviteUrl);
+    await dispatcher.flushOnce(50, { envelopeIds: [draft.id] });
+    const reminderToken = sender.tokenAt(1, draft.id);
+    expect(reminderToken).not.toBe(inviteToken);
+    expect(await storedHash()).toBe(tokens.hash(reminderToken));
+    // The invite link stopped working once the reminder went out.
+    expect(await envelopes.findSignerByAccessTokenHash(tokens.hash(inviteToken))).toBeNull();
+
+    // Scanner: no stored payload holds a token, a ?t= link, or sign_url.
+    const stored = await pg.query<{ payload: Record<string, unknown> }>(
+      'select payload from public.outbound_emails where envelope_id = $1',
+      [draft.id],
+    );
+    expect(stored.rows).toHaveLength(2);
+    for (const row of stored.rows) {
+      const text = JSON.stringify(row.payload);
+      expect(text).not.toContain(inviteToken);
+      expect(text).not.toContain(reminderToken);
+      expect(text).not.toMatch(/[?&]t=/);
+      expect(row.payload).not.toHaveProperty('sign_url');
+    }
   }, 60_000);
 
   it('records one reminder_sent per email when sweeps overlap', async () => {
@@ -264,7 +334,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
         to_email: signer.email,
         to_name: signer.name,
         dedupe_key: `invite:${signer.id}`,
-        payload: { sign_url: `https://app.example/sign/${sent.envelope.id}?t=${signer.id}` },
+        payload: { envelope_title: 'Concurrent reminders' },
       });
     }
     await pg.query(`update public.outbound_emails set created_at = $1 where envelope_id = $2`, [
@@ -280,21 +350,11 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     );
     expect(sweeps.reduce((sum, sweep) => sum + sweep.queued, 0)).toBe(sent.signers.length);
 
-    const templates = new TemplateService();
-    templates.onModuleInit();
-    const dispatcher = new EmailDispatcherService(
+    const dispatcher = buildDispatcher(
       outbound,
       new RecordingSender(),
-      templates,
       envelopes,
-      {
-        EMAIL_FROM_ADDRESS: 'no-reply@seald.example',
-        EMAIL_FROM_NAME: 'Seald',
-        EMAIL_LEGAL_ENTITY: 'Seald',
-        EMAIL_LEGAL_POSTAL: 'Postal',
-        EMAIL_PRIVACY_URL: 'https://seald.example/legal/privacy',
-        EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.example',
-      } as AppEnv,
+      new SigningTokenService(),
     );
     await dispatcher.flushOnce(50, { envelopeIds: [sent.envelope.id] });
 
@@ -314,9 +374,40 @@ describePg('submitSigner concurrency (real Postgres)', () => {
 });
 
 class RecordingSender extends EmailSender {
-  async send(): Promise<EmailSendResult> {
+  readonly texts: string[] = [];
+
+  async send(msg: EmailMessage): Promise<EmailSendResult> {
+    this.texts.push(msg.text);
     return { providerId: 'pg-test' };
   }
+
+  /** The signer token in the `index`-th sent message's link. */
+  tokenAt(index: number, envelopeId: string): string {
+    const match = new RegExp(`/sign/${envelopeId}\\?t=([A-Za-z0-9_-]{43})`).exec(
+      this.texts[index] ?? '',
+    );
+    if (!match?.[1]) throw new Error(`no signing link in message ${index}`);
+    return match[1];
+  }
+}
+
+function buildDispatcher(
+  outbound: OutboundEmailsPgRepository,
+  sender: EmailSender,
+  envelopes: EnvelopesPgRepository,
+  tokens: SigningTokenService,
+): EmailDispatcherService {
+  const templates = new TemplateService();
+  templates.onModuleInit();
+  return new EmailDispatcherService(outbound, sender, templates, envelopes, tokens, {
+    APP_PUBLIC_URL: 'https://seald.example',
+    EMAIL_FROM_ADDRESS: 'no-reply@seald.example',
+    EMAIL_FROM_NAME: 'Seald',
+    EMAIL_LEGAL_ENTITY: 'Seald',
+    EMAIL_LEGAL_POSTAL: 'Postal',
+    EMAIL_PRIVACY_URL: 'https://seald.example/legal/privacy',
+    EMAIL_PREFERENCES_URL: 'mailto:privacy@seald.example',
+  } as AppEnv);
 }
 
 async function sentEnvelope(
@@ -347,14 +438,18 @@ async function sentEnvelope(
   }
   const sent = await envelopes.sendDraft({
     envelope_id: envelope.id,
-    signer_tokens: signers.map((signer) => ({
-      signer_id: signer.id,
-      access_token_hash: randomBytes(32).toString('hex'),
-    })),
     sender_email: 'sender@example.com',
     sender_name: 'Sender',
   });
   if (!sent) throw new Error('sendDraft failed');
+  // Stand-in for the invite dispatch, which mints each signer's token.
+  for (const signer of signers) {
+    const minted = await envelopes.rotateSignerAccessToken(
+      signer.id,
+      randomBytes(32).toString('hex'),
+    );
+    if (!minted) throw new Error('token mint failed');
+  }
   return { envelope, signers };
 }
 

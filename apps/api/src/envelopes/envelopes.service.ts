@@ -27,7 +27,6 @@ import {
   buildTimelineHtml,
   type TimelineEventFragment,
 } from '../email/template-fragments';
-import { SigningTokenService } from '../signing/signing-token.service';
 import { declinedPdfPath } from '../sealing/declined-pdf-path';
 import { StorageService } from '../storage/storage.service';
 import type {
@@ -83,7 +82,6 @@ export class EnvelopesService {
     private readonly contactsRepo: ContactsRepository,
     private readonly storage: StorageService,
     private readonly outboundEmails: OutboundEmailsRepository,
-    private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly gdriveAccounts: GDriveService,
     private readonly gdriveExport: GdriveExportService,
@@ -632,8 +630,13 @@ export class EnvelopesService {
   }
 
   /**
-   * Transition an envelope from `draft` to `awaiting_others`, generate +
-   * hash per-signer tokens, write `sent` events, and enqueue `invite` emails.
+   * Transition an envelope from `draft` to `awaiting_others`, write `sent`
+   * events, and enqueue `invite` emails.
+   *
+   * No signer token is minted here (MCP Insert A). Each invite row holds
+   * the signer id only; `EmailDispatcherService` mints the token when it
+   * sends the mail and stores its hash. Until then `access_token_hash` is
+   * null, which means the link has not been sent yet.
    *
    * The four writes are sequenced (not one DB transaction). The
    * `repo.sendDraft` call is atomic and row-conditional, so the status flip
@@ -656,7 +659,7 @@ export class EnvelopesService {
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
-    // Invariants — fail before we generate tokens.
+    // Invariants — fail before the status flip.
     if (!envelope.original_sha256 || !envelope.original_pages) {
       throw new BadRequestException('file_required');
     }
@@ -678,28 +681,11 @@ export class EnvelopesService {
       }
     }
 
-    // Generate one plaintext token per signer + its hash. Plaintext is held
-    // in memory for the email enqueue step; only the hash persists in DB.
-    const signerTokens = envelope.signers.map((s) => {
-      const token = this.tokens.generate();
-      return {
-        signer_id: s.id,
-        signer_email: s.email,
-        signer_name: s.name,
-        plaintext_token: token,
-        access_token_hash: this.tokens.hash(token),
-      };
-    });
-
-    // Atomic status flip + per-signer hash stamping. Sender identity is
-    // persisted here so the decline/withdrawal flow can email the sender
-    // without a privileged auth.users lookup.
+    // Atomic status flip. Sender identity is persisted here so the
+    // decline/withdrawal flow can email the sender without a privileged
+    // auth.users lookup.
     const sent = await this.repo.sendDraft({
       envelope_id,
-      signer_tokens: signerTokens.map((t) => ({
-        signer_id: t.signer_id,
-        access_token_hash: t.access_token_hash,
-      })),
       sender_email: sender.email,
       sender_name: sender.name ?? null,
     });
@@ -710,11 +696,11 @@ export class EnvelopesService {
 
     // Audit events + outbound emails. Best-effort — per-signer independent.
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    for (const t of signerTokens) {
+    for (const signer of envelope.signers) {
       // Append the `sent` event first so its id can be the source_event_id.
       const event = await this.repo.appendEvent({
         envelope_id,
-        signer_id: t.signer_id,
+        signer_id: signer.id,
         actor_kind: 'system',
         event_type: 'sent',
         ip: audit.ip,
@@ -722,22 +708,20 @@ export class EnvelopesService {
         metadata: {},
       });
 
-      const signUrl = `${publicUrl}/sign/${envelope_id}?t=${t.plaintext_token}`;
       // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
       const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
       try {
         await this.outboundEmails.insert({
           envelope_id,
-          signer_id: t.signer_id,
+          signer_id: signer.id,
           kind: 'invite',
-          to_email: t.signer_email,
-          to_name: t.signer_name,
+          to_email: signer.email,
+          to_name: signer.name,
           source_event_id: event.id,
           payload: {
             sender_name: sender.name ?? sender.email,
             sender_email: sender.email,
             envelope_title: envelope.title,
-            sign_url: signUrl,
             verify_url: verifyUrl,
             short_code: envelope.short_code,
             public_url: publicUrl,
@@ -899,10 +883,13 @@ export class EnvelopesService {
   }
 
   /**
-   * Manually re-send the signing invite to a single signer. Rotates the
-   * signer's access_token_hash so the new email carries a fresh token —
-   * any prior link is dead the moment this succeeds. Throttled to at most
-   * 1 reminder per signer per hour via the outbound_emails audit trail.
+   * Manually re-send the signing invite to a single signer. Throttled to
+   * at most 1 reminder per signer per hour via the outbound_emails audit
+   * trail.
+   *
+   * The token rotates at send time (MCP Insert A): the queued row holds
+   * the signer id only, and `EmailDispatcherService` mints a fresh token
+   * when the mail goes out. Every earlier link stops working then.
    *
    * Sender identity (name/email) is pulled from the JWT and threaded into
    * the reminder template, same shape as the original invite. Controller
@@ -938,22 +925,6 @@ export class EnvelopesService {
       }
     }
 
-    // Rotate the token atomically. If rotation fails (e.g., a concurrent
-    // sign/decline landed), map to the right 4xx.
-    const token = this.tokens.generate();
-    const rotated = await this.repo.rotateSignerAccessToken(signer_id, this.tokens.hash(token));
-    if (!rotated) {
-      // Re-read to differentiate what race we lost.
-      const fresh = await this.repo.findByIdForOwner(owner_id, envelope_id);
-      const freshSigner = fresh?.signers.find((s) => s.id === signer_id);
-      if (!fresh || fresh.status !== 'awaiting_others') {
-        throw new ConflictException('envelope_terminal');
-      }
-      if (freshSigner?.signed_at) throw new ConflictException('already_signed');
-      if (freshSigner?.declined_at) throw new ConflictException('already_declined');
-      throw new ConflictException('envelope_terminal');
-    }
-
     // Audit event first so its id anchors the outbound_emails row.
     const event = await this.repo.appendEvent({
       envelope_id,
@@ -964,7 +935,6 @@ export class EnvelopesService {
     });
 
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    const signUrl = `${publicUrl}/sign/${envelope_id}?t=${token}`;
     // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
     const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
     // Pre-render the per-signer roster block — the template engine is
@@ -986,7 +956,6 @@ export class EnvelopesService {
         sender_name: sender.name ?? sender.email,
         sender_email: sender.email,
         envelope_title: envelope.title,
-        sign_url: signUrl,
         verify_url: verifyUrl,
         short_code: envelope.short_code,
         expires_at_readable: formatExpiresAt(envelope.expires_at),

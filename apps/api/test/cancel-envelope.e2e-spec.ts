@@ -16,6 +16,7 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
+import { dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
 
 const TEST_ENV: AppEnv = {
@@ -163,9 +164,9 @@ describe('Envelopes — sender cancel (e2e)', () => {
 
     const invite = outbound.rows.find((r) => r.kind === 'invite');
     if (!invite) throw new Error('expected invite to be enqueued');
-    const match = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url));
-    if (!match) throw new Error('could not parse plaintext token from sign_url');
-    return { envId: env.body.id, signerId: signer.body.id, plaintextToken: match[1]! };
+    // Insert A: the token exists only in the dispatched message.
+    const plaintextToken = await dispatchSignToken(app, invite.to_email);
+    return { envId: env.body.id, signerId: signer.body.id, plaintextToken };
   }
 
   it('POST /envelopes/:id/cancel flips status, revokes pending tokens, fans out withdrawn_to_signer email, records canceled event', async () => {
