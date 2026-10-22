@@ -8,6 +8,7 @@ import type {
   EnvelopeFieldsTable,
   EnvelopeEventsTable,
 } from '../../db/schema';
+import { isFeatureEnabled } from 'shared';
 import { DB_TOKEN } from '../db/db.provider';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
 import {
@@ -180,6 +181,15 @@ function toEnvelopeDomain(
     expires_at: toIsoRequired(envelope.expires_at),
     tags: [...(envelope.tags ?? [])],
     reminders_enabled: envelope.reminders_enabled !== false,
+    // Cadence columns (migration 0025) reach the wire only with the flag on,
+    // so responses stay byte-identical while customReminders is dark.
+    ...(isFeatureEnabled('customReminders')
+      ? {
+          reminder_first_after_days: envelope.reminder_first_after_days,
+          reminder_interval_days: envelope.reminder_interval_days,
+          reminder_max: envelope.reminder_max,
+        }
+      : {}),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
     signers: signers.map(toSignerDomain),

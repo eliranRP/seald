@@ -2,12 +2,18 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
+import { isFeatureEnabled, REMINDER_CADENCE_BOUNDS } from 'shared';
+import { IsExpiryInBounds } from './reminder-settings.validators';
 
 export class PatchEnvelopeDto {
   @IsOptional()
@@ -16,8 +22,13 @@ export class PatchEnvelopeDto {
   @MaxLength(200)
   readonly title?: string;
 
+  /**
+   * Draft only. While `customReminders` is on the value must be between one
+   * day and 90 days from now (see IsExpiryInBounds).
+   */
   @IsOptional()
   @IsISO8601()
+  @IsExpiryInBounds()
   readonly expires_at?: string;
 
   /**
@@ -41,4 +52,31 @@ export class PatchEnvelopeDto {
   @IsOptional()
   @IsBoolean()
   readonly reminders_enabled?: boolean;
+
+  /*
+   * Reminder cadence (WP-09). Bounds apply only while `customReminders` is
+   * on. While it is off the validators are skipped, and the service rejects
+   * the keys, so the request fails the same way it did before the field
+   * existed.
+   */
+  @IsOptional()
+  @ValidateIf(() => isFeatureEnabled('customReminders'))
+  @IsInt()
+  @Min(REMINDER_CADENCE_BOUNDS.firstAfterDays.min)
+  @Max(REMINDER_CADENCE_BOUNDS.firstAfterDays.max)
+  readonly reminder_first_after_days?: number;
+
+  @IsOptional()
+  @ValidateIf(() => isFeatureEnabled('customReminders'))
+  @IsInt()
+  @Min(REMINDER_CADENCE_BOUNDS.intervalDays.min)
+  @Max(REMINDER_CADENCE_BOUNDS.intervalDays.max)
+  readonly reminder_interval_days?: number;
+
+  @IsOptional()
+  @ValidateIf(() => isFeatureEnabled('customReminders'))
+  @IsInt()
+  @Min(REMINDER_CADENCE_BOUNDS.maxReminders.min)
+  @Max(REMINDER_CADENCE_BOUNDS.maxReminders.max)
+  readonly reminder_max?: number;
 }

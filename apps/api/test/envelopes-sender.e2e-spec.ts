@@ -291,6 +291,109 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     expect(updated.body.title).toBe('Updated');
   });
 
+  describe('PATCH reminder cadence and expiry (WP-09, customReminders)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean): void => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { customReminders: on };
+    };
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+    const daysFromNow = (n: number): string =>
+      new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
+
+    async function newDraft(): Promise<string> {
+      const created = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Cadence' });
+      return created.body.id as string;
+    }
+
+    it('flag off: cadence keys are rejected with 400 and responses carry no cadence fields', async () => {
+      setFlag(false);
+      const id = await newDraft();
+      const rejected = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ reminder_max: 3 });
+      expect(rejected.status).toBe(400);
+
+      const ok = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ title: 'Still fine' });
+      expect(ok.status).toBe(200);
+      expect(ok.body).not.toHaveProperty('reminder_first_after_days');
+      expect(ok.body).not.toHaveProperty('reminder_interval_days');
+      expect(ok.body).not.toHaveProperty('reminder_max');
+    });
+
+    it('flag off: expires_at keeps its existing contract (no range check)', async () => {
+      setFlag(false);
+      const id = await newDraft();
+      const res = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(400) });
+      expect(res.status).toBe(200);
+    });
+
+    it('flag on: stores and returns cadence values, and the sender can read them back', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      const patched = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({
+          expires_at: daysFromNow(60),
+          reminder_first_after_days: 3,
+          reminder_interval_days: 2,
+          reminder_max: 5,
+        });
+      expect(patched.status).toBe(200);
+      expect(patched.body).toMatchObject({
+        reminder_first_after_days: 3,
+        reminder_interval_days: 2,
+        reminder_max: 5,
+      });
+
+      const fetched = await request(app.getHttpServer()).get(`/envelopes/${id}`).set(auth(tokenA));
+      expect(fetched.body).toMatchObject({ reminder_first_after_days: 3, reminder_max: 5 });
+    });
+
+    it('flag on: out-of-range cadence values are rejected', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      for (const body of [
+        { reminder_first_after_days: 0 },
+        { reminder_interval_days: 31 },
+        { reminder_max: 8 },
+      ]) {
+        const res = await request(app.getHttpServer())
+          .patch(`/envelopes/${id}`)
+          .set(auth(tokenA))
+          .send(body);
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('flag on: expiry outside one day to 90 days is rejected', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      const tooFar = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(200) });
+      expect(tooFar.status).toBe(400);
+      const tooSoon = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(0.2) });
+      expect(tooSoon.status).toBe(400);
+    });
+  });
+
   it('DELETE /envelopes/:id removes a draft; 404 for cross-owner', async () => {
     const created = await request(app.getHttpServer())
       .post('/envelopes')

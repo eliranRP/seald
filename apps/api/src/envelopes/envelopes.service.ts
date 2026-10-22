@@ -62,6 +62,14 @@ type EnvelopeStatus = Envelope['status'];
 const DEFAULT_EXPIRY_DAYS = 30;
 const MAX_SHORT_CODE_RETRIES = 5;
 
+function hasCadenceKeys(patch: UpdateDraftMetadataPatch): boolean {
+  return (
+    patch.reminder_first_after_days !== undefined ||
+    patch.reminder_interval_days !== undefined ||
+    patch.reminder_max !== undefined
+  );
+}
+
 /**
  * Sender-side orchestration for envelope drafts: create, read, list, patch,
  * delete, upload-commit, signer management, field replacement, expiry,
@@ -325,6 +333,12 @@ export class EnvelopesService {
     const sanitized = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     ) as UpdateDraftMetadataPatch;
+    // Reminder cadence is WP-09 behind `customReminders`. While the flag is
+    // dark the field is not accepted, which is the same 400 an unknown
+    // property gets before the flag existed.
+    if (!isFeatureEnabled('customReminders') && hasCadenceKeys(sanitized)) {
+      throw new BadRequestException('validation_error');
+    }
     if (Object.keys(sanitized).length === 0) {
       throw new BadRequestException('validation_error');
     }

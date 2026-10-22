@@ -242,4 +242,43 @@ describe('ReminderSchedulerService', () => {
     expect(result.queued).toBe(0);
     expect(result.skipped).toBe(1);
   });
+
+  it('waits for the envelope first-reminder delay before the first automated reminder', async () => {
+    envelopes = [
+      dueEnvelope({
+        reminder_first_after_days: 3,
+        reminder_interval_days: 2,
+        reminder_max: 7,
+      }),
+    ];
+    lastMailAt = '2026-05-01T12:00:00.000Z';
+    // Invite is 1 day ago: below the 3-day first delay.
+    const early = await scheduler.enqueueDue(new Date('2026-05-02T12:00:00.000Z'), 50);
+    expect(early.queued).toBe(0);
+    // Invite is 3 days ago: due.
+    const due = await scheduler.enqueueDue(new Date('2026-05-04T12:00:00.000Z'), 50);
+    expect(due.queued).toBe(1);
+    expect(emails[0]?.payload['reminder_cadence']).toContain(
+      'up to 7 automatic reminders, starting 3 days after sending and then every 2 days',
+    );
+  });
+
+  it('honours a per-envelope reminder_max below the global cap', async () => {
+    envelopes = [dueEnvelope({ reminder_max: 2 })];
+    const signerId = envelopes[0]!.signers[0]!.id;
+    for (let i = 0; i < 2; i += 1) {
+      emails.push({
+        envelope_id: envelopes[0]!.id,
+        signer_id: signerId,
+        kind: 'reminder',
+        to_email: 'ada@example.com',
+        to_name: 'Ada',
+        payload: { automated: true },
+        dedupe_key: `prior-cap-${i}`,
+      });
+    }
+    const result = await scheduler.enqueueDue(NOW, 50);
+    expect(result.queued).toBe(0);
+    expect(claimed).toHaveLength(0);
+  });
 });

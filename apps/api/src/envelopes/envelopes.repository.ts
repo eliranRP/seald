@@ -35,6 +35,13 @@ export interface UpdateDraftMetadataPatch {
    * `awaiting_others`. Omitted means "leave the column alone".
    */
   readonly reminders_enabled?: boolean;
+  /**
+   * Reminder cadence (migration 0025). Draft only. The service only
+   * forwards these while `customReminders` is on.
+   */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
 }
 
 /** One unsigned signer the reminder sweep may queue mail for. */
