@@ -1,11 +1,13 @@
 import type { AxiosRequestConfig } from 'axios';
+import type { AnyFieldKind, FieldMetaOptions } from 'shared';
 import { signApiClient } from '@/lib/api/signApiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
-export type FieldKind = 'signature' | 'initials' | 'date' | 'text' | 'checkbox' | 'email';
+/** Every kind the API knows; the four new ones only while `fieldMetaV2` is on (WP-07). */
+export type FieldKind = AnyFieldKind;
 export type SignatureFormat = 'drawn' | 'typed' | 'upload';
 
 export interface SignMeEnvelope {
@@ -17,6 +19,9 @@ export interface SignMeEnvelope {
   readonly expires_at: string;
   readonly tc_version: string;
   readonly privacy_version: string;
+  /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly date_format?: string | null;
+  readonly timezone?: string | null;
 }
 export interface SignMeSigner {
   readonly id: string;
@@ -46,6 +51,8 @@ export interface SignMeField {
   readonly filled_at?: string | null;
   /** Present only while `multiDocumentEnvelopes` is on (WP-03). `page` is 1-based within that document. */
   readonly document_id?: string;
+  /** Per-kind options (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
 }
 /** One PDF of the envelope, as the signer sees it (WP-03; no hashes or paths). */
 export interface SignMeDocument {

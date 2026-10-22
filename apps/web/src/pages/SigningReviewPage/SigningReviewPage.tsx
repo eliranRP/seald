@@ -14,6 +14,15 @@ import { SignatureCapture } from '@/components/SignatureCapture';
 import type { SignatureCaptureKind, SignatureCaptureResult } from '@/components/SignatureCapture';
 import { SignatureMark } from '@/components/SignatureMark';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import {
+  displayText,
+  isReadOnly,
+  metaLabel,
+  usesMetaDrawer,
+} from '@/features/signingFill/inputs/fieldDisplay';
+import { fillErrorMessage } from '@/features/signingFill/inputs/fillErrors';
+import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
+import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
 import type { SignMeField } from '@/features/signing';
 
 const Page = styled.div`
@@ -172,6 +181,9 @@ function defaultLabel(kind: ReviewFieldKind): string {
     text: 'Text',
     email: 'Email',
     checkbox: 'Checkbox',
+    number: 'Number',
+    radio: 'Choice',
+    dropdown: 'Selection',
   };
   return m[kind];
 }
@@ -187,7 +199,8 @@ function looksLikeUrl(s: string): boolean {
 
 function toReviewItem(f: SignMeField): ReviewItem {
   const kind = toUiKind(f);
-  const label = f.link_id && f.link_id !== 'name' ? f.link_id : defaultLabel(kind);
+  const label =
+    metaLabel(f) ?? (f.link_id && f.link_id !== 'name' ? f.link_id : defaultLabel(kind));
   let preview: React.ReactNode = '—';
   if (kind === 'checkbox') {
     preview = f.value_boolean ? '✓ Checked' : '—';
@@ -209,7 +222,8 @@ function toReviewItem(f: SignMeField): ReviewItem {
       preview = <SignatureMark name={f.value_text} size={22} />;
     }
   } else if (typeof f.value_text === 'string') {
-    preview = f.value_text;
+    // Numbers in their format and choices by label (flag `fieldMetaV2`).
+    preview = displayText(f) ?? f.value_text;
   }
   return { id: f.id, kind, label, page: f.page, valuePreview: preview };
 }
@@ -220,8 +234,14 @@ function fieldIsFilled(f: SignMeField): boolean {
 }
 
 /** Item 11 — bridge between SignMeField.kind and FieldInputDrawer.kind. */
-function inputKindFor(kind: ReviewFieldKind): FieldInputKind | null {
+function inputKindFor(kind: ReviewFieldKind): FieldInputKind | MetaInputKind | null {
   if (kind === 'text' || kind === 'email' || kind === 'date' || kind === 'name') return kind;
+  if (
+    isFeatureEnabled('fieldMetaV2') &&
+    (kind === 'number' || kind === 'radio' || kind === 'dropdown')
+  ) {
+    return kind;
+  }
   return null;
 }
 
@@ -266,8 +286,10 @@ function Content() {
   // mounts so values land through the same mutations and audit events.
   const [textEdit, setTextEdit] = useState<{
     readonly field: SignMeField;
-    readonly kind: FieldInputKind;
+    readonly kind: FieldInputKind | MetaInputKind;
   } | null>(null);
+  // Meta-aware editor (flag `fieldMetaV2`): the API's refusal, shown inline.
+  const [editError, setEditError] = useState<string | null>(null);
   const [sigEdit, setSigEdit] = useState<{
     readonly field: SignMeField;
     readonly kind: SignatureCaptureKind;
@@ -305,7 +327,7 @@ function Content() {
       // Checkboxes aren't editable on the review page — re-toggle is
       // confusing once already affirmed; "Back to fields" remains the
       // path for that edge case.
-      if (uiKind === 'checkbox') return base;
+      if (uiKind === 'checkbox' || isReadOnly(f)) return base;
       return { ...base, onEdit: () => handleEdit(f, uiKind) };
     });
   }, [fields, documents, multiDoc, handleEdit]);
@@ -367,7 +389,10 @@ function Content() {
   // through the same mutations the fill page uses (fillField /
   // setSignature) so the audit chain order is identical regardless of
   // where the edit was initiated.
-  const closeTextEdit = useCallback(() => setTextEdit(null), []);
+  const closeTextEdit = useCallback(() => {
+    setTextEdit(null);
+    setEditError(null);
+  }, []);
   const closeSigEdit = useCallback(() => setSigEdit(null), []);
 
   const applyTextEdit = useCallback(
@@ -383,6 +408,26 @@ function Content() {
       }
     },
     [fillField, textEdit?.field.id],
+  );
+
+  const applyMetaEdit = useCallback(
+    async (value: string) => {
+      const field = textEdit?.field;
+      if (!field) return;
+      try {
+        await fillField(field.id, { value_text: value });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setEditError(
+          fillErrorMessage(e.message ?? '', field.meta) ||
+            'We could not update this field. Please try again.',
+        );
+        return;
+      }
+      setEditError(null);
+      setTextEdit(null);
+    },
+    [fillField, textEdit?.field],
   );
 
   const applySigEdit = useCallback(
@@ -463,22 +508,43 @@ function Content() {
 
         {/* Item 11 — inline editors. Both stay mounted so React Query
             invalidation / focus management is identical to the fill page. */}
-        <FieldInputDrawer
-          open={textEdit !== null}
-          label={textEdit ? (textEdit.field.link_id ?? textEdit.kind) : ''}
-          kind={textEdit?.kind ?? 'text'}
-          initialValue={
-            textEdit && typeof textEdit.field.value_text === 'string'
-              ? textEdit.field.value_text
-              : ''
-          }
-          onCancel={closeTextEdit}
-          onApply={(v) => {
-            applyTextEdit(v).catch(() => {
-              /* surfaced via error state */
-            });
-          }}
-        />
+        {textEdit !== null && usesMetaDrawer(textEdit.field) ? (
+          <MetaFieldDrawer
+            key={textEdit.field.id}
+            open
+            label={metaLabel(textEdit.field) ?? textEdit.field.link_id ?? textEdit.kind}
+            kind={textEdit.kind as MetaInputKind}
+            meta={textEdit.field.meta}
+            initialValue={textEdit.field.value_text ?? undefined}
+            signerName={signer?.name}
+            dateFormat={envelope?.date_format}
+            timezone={envelope?.timezone}
+            serverError={editError}
+            onCancel={closeTextEdit}
+            onApply={(v) => {
+              applyMetaEdit(v).catch(() => {
+                /* surfaced via editError */
+              });
+            }}
+          />
+        ) : (
+          <FieldInputDrawer
+            open={textEdit !== null}
+            label={textEdit ? (textEdit.field.link_id ?? textEdit.kind) : ''}
+            kind={(textEdit?.kind ?? 'text') as FieldInputKind}
+            initialValue={
+              textEdit && typeof textEdit.field.value_text === 'string'
+                ? textEdit.field.value_text
+                : ''
+            }
+            onCancel={closeTextEdit}
+            onApply={(v) => {
+              applyTextEdit(v).catch(() => {
+                /* surfaced via error state */
+              });
+            }}
+          />
+        )}
 
         <SignatureCapture
           open={sigEdit !== null}

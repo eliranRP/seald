@@ -4,6 +4,10 @@ import { isFeatureEnabled } from 'shared';
 import { ArrowDown, Check, ListChecks, MoreVertical } from 'lucide-react';
 import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
+import type { FieldInputKind } from '@/components/FieldInputDrawer';
+import { isReadOnly, usesMetaDrawer } from '@/features/signingFill/inputs/fieldDisplay';
+import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
+import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
 import { Icon } from '@/components/Icon';
 import { PageThumbRail } from '@/components/PageThumbRail';
 import { PageToolbar } from '@/components/PageToolbar';
@@ -82,6 +86,9 @@ const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   text: 240,
   email: 240,
   checkbox: 24,
+  number: 140,
+  radio: 200,
+  dropdown: 200,
 };
 const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   signature: 54,
@@ -91,6 +98,9 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   text: 36,
   email: 36,
   checkbox: 24,
+  number: 36,
+  radio: 72,
+  dropdown: 36,
 };
 
 const SUPPORT_EMAIL = 'support@seald.nromomentum.com';
@@ -163,6 +173,9 @@ function Content() {
     handleFieldClick,
     handleNext,
     handleTextApply,
+    handleMetaApply,
+    drawerError,
+    drawerBusy,
     handleSignatureApply,
     handleReview,
     handleDecline,
@@ -447,7 +460,8 @@ function Content() {
                 >
                   {orderedFields.map((f) => {
                     const uiKind = toUiKind(f);
-                    const label = fieldLabel(f, uiKind);
+                    const baseLabel = fieldLabel(f, uiKind);
+                    const label = isReadOnly(f) ? `${baseLabel} (read-only)` : baseLabel;
                     const width = f.width
                       ? denormalizeCoord(f.width, canvasWidth)
                       : DEFAULT_FIELD_W[uiKind];
@@ -492,22 +506,44 @@ function Content() {
         </RailSlot>
       </Center>
 
-      <FieldInputDrawer
-        open={textDrawer !== null}
-        label={textDrawer ? fieldLabel(textDrawer.field, toUiKind(textDrawer.field)) : ''}
-        kind={textDrawer?.kind ?? 'text'}
-        initialValue={
-          textDrawer && typeof textDrawer.field.value_text === 'string'
-            ? textDrawer.field.value_text
-            : ''
-        }
-        onCancel={closeTextDrawer}
-        onApply={(v) => {
-          handleTextApply(v).catch(() => {
-            /* surfaced via error state */
-          });
-        }}
-      />
+      {textDrawer !== null && usesMetaDrawer(textDrawer.field) ? (
+        <MetaFieldDrawer
+          key={textDrawer.field.id}
+          open
+          label={fieldLabel(textDrawer.field, toUiKind(textDrawer.field))}
+          kind={textDrawer.kind as MetaInputKind}
+          meta={textDrawer.field.meta}
+          initialValue={textDrawer.field.value_text ?? undefined}
+          signerName={session.signer?.name}
+          dateFormat={envelope?.date_format}
+          timezone={envelope?.timezone}
+          serverError={drawerError}
+          busy={drawerBusy}
+          onCancel={closeTextDrawer}
+          onApply={(v) => {
+            handleMetaApply(v).catch(() => {
+              /* surfaced via drawerError */
+            });
+          }}
+        />
+      ) : (
+        <FieldInputDrawer
+          open={textDrawer !== null}
+          label={textDrawer ? fieldLabel(textDrawer.field, toUiKind(textDrawer.field)) : ''}
+          kind={(textDrawer?.kind ?? 'text') as FieldInputKind}
+          initialValue={
+            textDrawer && typeof textDrawer.field.value_text === 'string'
+              ? textDrawer.field.value_text
+              : ''
+          }
+          onCancel={closeTextDrawer}
+          onApply={(v) => {
+            handleTextApply(v).catch(() => {
+              /* surfaced via error state */
+            });
+          }}
+        />
+      )}
 
       <SignatureCapture
         open={sigDrawer !== null}

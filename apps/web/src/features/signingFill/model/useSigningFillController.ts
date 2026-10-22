@@ -3,8 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import type { FieldInputKind } from '@/components/FieldInputDrawer';
 import type { SignatureCaptureResult } from '@/components/SignatureCapture';
 import type { SignerFieldKind } from '@/components/SignerField';
+import { isFeatureEnabled } from 'shared';
 import { useSigningSession } from '@/features/signing';
 import type { SignMeField } from '@/features/signing';
+import {
+  displayText,
+  isReadOnly,
+  metaLabel,
+  readOnlyDefault,
+  usesMetaDrawer,
+} from '../inputs/fieldDisplay';
+import { fillErrorMessage } from '../inputs/fillErrors';
+import type { MetaInputKind } from '../inputs/MetaFieldDrawer';
 
 interface ApiErrorLike extends Error {
   status?: number;
@@ -12,7 +22,8 @@ interface ApiErrorLike extends Error {
 
 interface TextDrawerState {
   readonly field: SignMeField;
-  readonly kind: FieldInputKind;
+  /** The legacy four, plus number, radio and dropdown while `fieldMetaV2` is on. */
+  readonly kind: FieldInputKind | MetaInputKind;
 }
 
 interface SigDrawerState {
@@ -24,6 +35,7 @@ export function toUiKind(f: SignMeField): SignerFieldKind {
   // wire kind + link_id "name" convention — we don't have a dedicated wire
   // kind for "name", so the sender marks name fields via link_id.
   if (f.kind === 'text' && f.link_id === 'name') return 'name';
+  // name, number, radio and dropdown are real wire kinds while `fieldMetaV2` is on.
   return f.kind;
 }
 
@@ -34,7 +46,9 @@ export function fieldIsFilled(f: SignMeField): boolean {
 
 export function fieldValue(f: SignMeField): string | boolean | null {
   if (f.kind === 'checkbox') return f.value_boolean ?? null;
-  return f.value_text ?? null;
+  // Numbers in their format and choices by label (flag `fieldMetaV2`); the
+  // stored text otherwise.
+  return displayText(f) ?? f.value_text ?? null;
 }
 
 const FIELD_LABEL_BY_KIND: Record<SignerFieldKind, string> = {
@@ -45,9 +59,14 @@ const FIELD_LABEL_BY_KIND: Record<SignerFieldKind, string> = {
   text: 'Text',
   email: 'Email',
   checkbox: 'Checkbox',
+  number: 'Number',
+  radio: 'Choose one',
+  dropdown: 'Select',
 };
 
 export function fieldLabel(f: SignMeField, uiKind: SignerFieldKind): string {
+  const custom = metaLabel(f);
+  if (custom !== undefined) return custom;
   return f.link_id && f.link_id !== 'name' ? f.link_id : FIELD_LABEL_BY_KIND[uiKind];
 }
 
@@ -79,6 +98,13 @@ interface UseSigningFillControllerReturn {
   readonly handleFieldClick: (field: SignMeField) => Promise<void>;
   readonly handleNext: () => void;
   readonly handleTextApply: (value: string) => Promise<void>;
+  /**
+   * Meta-aware drawers (flag `fieldMetaV2`): fills, and keeps the drawer
+   * open with `drawerError` set when the API refuses the value.
+   */
+  readonly handleMetaApply: (value: string) => Promise<void>;
+  readonly drawerError: string | null;
+  readonly drawerBusy: boolean;
   readonly handleSignatureApply: (result: SignatureCaptureResult) => Promise<void>;
   readonly handleReview: () => void;
   readonly handleDecline: () => Promise<void>;
@@ -106,6 +132,8 @@ export function useSigningFillController({
   const navigate = useNavigate();
   const { fillField, setSignature, decline, nextField, fields, withdrawConsent } =
     useSigningSession();
+  const [drawerError, setDrawerError] = useState<string | null>(null);
+  const [drawerBusy, setDrawerBusy] = useState(false);
 
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [textDrawer, setTextDrawer] = useState<TextDrawerState | null>(null);
@@ -147,7 +175,33 @@ export function useSigningFillController({
     scrollToField(field);
   }
 
-  const closeTextDrawer = useCallback(() => setTextDrawer(null), []);
+  // Read-only fields (flag `fieldMetaV2`) show the sender's default and the
+  // signer cannot change them, so they are filled with that default once,
+  // which is the only value the API accepts for them.
+  const autoFilledRef = useRef<Set<string>>(new Set());
+  const fillFieldRef = useRef(fillField);
+  useEffect(() => {
+    fillFieldRef.current = fillField;
+  });
+  useEffect(() => {
+    if (!isFeatureEnabled('fieldMetaV2')) return;
+    for (const f of fields) {
+      if (f.kind === 'checkbox' || f.kind === 'signature' || f.kind === 'initials') continue;
+      if (!isReadOnly(f) || fieldIsFilled(f) || autoFilledRef.current.has(f.id)) continue;
+      const def = readOnlyDefault(f);
+      if (def === null) continue;
+      autoFilledRef.current.add(f.id);
+      fillFieldRef.current(f.id, { value_text: def }).catch((err: unknown) => {
+        autoFilledRef.current.delete(f.id);
+        setError(fillErrorMessage((err as ApiErrorLike).message ?? '', f.meta));
+      });
+    }
+  }, [fields]);
+
+  const closeTextDrawer = useCallback(() => {
+    setTextDrawer(null);
+    setDrawerError(null);
+  }, []);
   const closeSigDrawer = useCallback(() => setSigDrawer(null), []);
 
   /**
@@ -183,6 +237,8 @@ export function useSigningFillController({
       setError(null);
       setActiveFieldId(field.id);
       const uiKind = toUiKind(field);
+      // A read-only field is not editable by the signer.
+      if (isReadOnly(field)) return;
       if (uiKind === 'checkbox') {
         // Toggling a checkbox FROM filled→unfilled shouldn't auto-
         // advance — the user is correcting a mistake, not progressing.
@@ -245,6 +301,11 @@ export function useSigningFillController({
         setSigDrawer({ field, kind: uiKind });
         return;
       }
+      if (usesMetaDrawer(field)) {
+        setDrawerError(null);
+        setTextDrawer({ field, kind: uiKind as MetaInputKind });
+        return;
+      }
       if (uiKind === 'email' || uiKind === 'date' || uiKind === 'name' || uiKind === 'text') {
         // Same for text fields: always re-open the drawer so the user
         // can edit their previous input.
@@ -295,6 +356,44 @@ export function useSigningFillController({
     },
     // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
     [envelopeId, fillField, navigate, textDrawer, fields, activeDocumentId, onActiveDocumentChange],
+  );
+
+  const handleMetaApply = useCallback(
+    async (value: string): Promise<void> => {
+      if (!textDrawer || drawerBusy) return;
+      const { field } = textDrawer;
+      setDrawerBusy(true);
+      try {
+        await fillField(field.id, { value_text: value });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setDrawerBusy(false);
+        if (e.status === 401 || e.status === 410) {
+          navigate(`/sign/${envelopeId}`, { replace: true });
+          return;
+        }
+        setDrawerError(
+          fillErrorMessage(e.message ?? '', field.meta) ||
+            'Could not save that field. Please try again.',
+        );
+        return;
+      }
+      setDrawerBusy(false);
+      setDrawerError(null);
+      setTextDrawer(null);
+      advanceTo(findNextAfter(field.id));
+    },
+    // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; refreshed on every render.
+    [
+      drawerBusy,
+      envelopeId,
+      fillField,
+      navigate,
+      textDrawer,
+      fields,
+      activeDocumentId,
+      onActiveDocumentChange,
+    ],
   );
 
   const handleSignatureApply = useCallback(
@@ -403,6 +502,9 @@ export function useSigningFillController({
     handleFieldClick,
     handleNext,
     handleTextApply,
+    handleMetaApply,
+    drawerError,
+    drawerBusy,
     handleSignatureApply,
     handleReview,
     handleDecline,
