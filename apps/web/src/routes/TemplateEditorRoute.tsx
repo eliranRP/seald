@@ -27,6 +27,7 @@ import {
   setTemplates,
   subscribeToTemplates,
   type ResolvedField,
+  type TemplateSummary,
 } from '../features/templates';
 import {
   createTemplate,
@@ -35,7 +36,6 @@ import {
   updateTemplate,
   uploadTemplateExamplePdf,
 } from '../features/templates/templatesApi';
-import type { TemplateSummary } from '../features/templates';
 
 import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
 import { useDebouncedCallback } from '../lib/useDebouncedCallback';
