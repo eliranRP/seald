@@ -40,6 +40,9 @@ describePg('SealSweepPgRepository (real Postgres)', () => {
     dedicated.pathname = `/${DB_NAME}`;
     const dedicatedUrl = dedicated.toString();
     pool = new Pool({ connectionString: dedicatedUrl, max: 8 });
+    // The afterAll `drop database … with (force)` can terminate an idle
+    // client still in the pool; without a listener that error is unhandled.
+    pool.on('error', () => undefined);
     await pool.query(`
       create schema if not exists auth;
       create table if not exists auth.users (id uuid primary key);
