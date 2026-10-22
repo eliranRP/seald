@@ -26,6 +26,7 @@ import {
   resolveTemplateFields,
   setTemplates,
   subscribeToTemplates,
+  type ResolvedField,
 } from '../features/templates';
 import {
   createTemplate,
@@ -70,6 +71,14 @@ interface TemplateEditorHandoffState {
   readonly pendingFile?: File;
   readonly templateSigners?: ReadonlyArray<AddSignerContact>;
   readonly templateRename?: string;
+  /**
+   * Fields the API already expanded for the saved example
+   * (`POST /templates/:id/apply`), valid only for `templateFieldsPages`
+   * pages. When the editor's resolved page count differs (or this is
+   * absent) it expands locally instead.
+   */
+  readonly templateFields?: ReadonlyArray<ResolvedField>;
+  readonly templateFieldsPages?: number;
 }
 
 /**
@@ -370,11 +379,11 @@ export function TemplateEditorRoute() {
       // for legacy templates that only stored `signerIndex` — see the
       // rebinder's stable-id rules. Without it, the wizard's
       // remove-then-add path would still shift kept signers' fields.
-      const resolved = resolveTemplateFields(
-        sourceTemplate.fields,
-        resolvedPages,
-        sourceTemplate.lastSigners,
-      );
+      const resolved =
+        initialHandoff?.templateFields !== undefined &&
+        initialHandoff.templateFieldsPages === resolvedPages
+          ? initialHandoff.templateFields
+          : resolveTemplateFields(sourceTemplate.fields, resolvedPages, sourceTemplate.lastSigners);
       // Apply the user-spec signer-count rules: bind by ordinal, drop
       // fields whose owning signer was removed, fall back to signers[0]
       // only for legacy (pre-signerIndex) templates. Centralized in
@@ -400,6 +409,8 @@ export function TemplateEditorRoute() {
     createDocument,
     updateDocument,
     initialHandoff?.templateSigners,
+    initialHandoff?.templateFields,
+    initialHandoff?.templateFieldsPages,
     initialHandoff?.pendingFile,
     sourceTemplate,
     fetchedExampleFile,

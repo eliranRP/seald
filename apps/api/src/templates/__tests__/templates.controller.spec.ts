@@ -5,6 +5,7 @@ import type { CreateTemplateDto } from '../dto/create-template.dto';
 import type { UpdateTemplateDto } from '../dto/update-template.dto';
 import { TemplatesController } from '../templates.controller';
 import type { TemplatesService } from '../templates.service';
+import type { TemplateApplyService } from '../template-apply.service';
 
 const USER: AuthUser = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -56,11 +57,13 @@ function makeMockRes(): jest.Mocked<Response> {
 
 describe('TemplatesController', () => {
   let svc: jest.Mocked<TemplatesService>;
+  let applySvc: jest.Mocked<TemplateApplyService>;
   let ctrl: TemplatesController;
 
   beforeEach(() => {
     svc = makeMockSvc();
-    ctrl = new TemplatesController(svc);
+    applySvc = { apply: jest.fn() } as unknown as jest.Mocked<TemplateApplyService>;
+    ctrl = new TemplatesController(svc, applySvc);
   });
 
   it('list passes the caller user.id through', async () => {
@@ -108,6 +111,13 @@ describe('TemplatesController', () => {
     const out = await ctrl.use(USER, ID);
     expect(out).toBe(bumped);
     expect(svc.use).toHaveBeenCalledWith(USER.id, ID);
+  });
+
+  it('apply forwards user.id, id and totalPages to the apply service', async () => {
+    const result = { template_id: ID, total_pages: 3, fields: [] };
+    applySvc.apply.mockResolvedValue(result);
+    await expect(ctrl.apply(USER, ID, { totalPages: 3 })).resolves.toBe(result);
+    expect(applySvc.apply).toHaveBeenCalledWith(USER.id, ID, 3);
   });
 
   describe('uploadExample', () => {

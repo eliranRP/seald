@@ -27,8 +27,9 @@ export {
   SEAL_DOWNLOAD_ERROR,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
-export { TEMPLATE_FIELD_TYPES } from './templates';
+export { TEMPLATE_FIELD_TYPES, expandTemplateFields } from './templates';
 export type {
+  ResolvedTemplateField,
   Template,
   TemplateField,
   TemplateFieldType,

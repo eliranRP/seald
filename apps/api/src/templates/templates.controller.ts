@@ -18,7 +18,9 @@ import type { Response } from 'express';
 import type { Template } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
+import { ApplyTemplateDto } from './dto/apply-template.dto';
 import { CreateTemplateDto } from './dto/create-template.dto';
+import { TemplateApplyService, type TemplateApplyResult } from './template-apply.service';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { TemplatesService } from './templates.service';
 
@@ -31,7 +33,10 @@ const EXAMPLE_PDF_MAX_BYTES = 25 * 1024 * 1024;
 // route here authenticates by default.
 @Controller('templates')
 export class TemplatesController {
-  constructor(private readonly svc: TemplatesService) {}
+  constructor(
+    private readonly svc: TemplatesService,
+    private readonly applySvc: TemplateApplyService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: AuthUser): Promise<ReadonlyArray<Template>> {
@@ -73,6 +78,21 @@ export class TemplatesController {
   @HttpCode(200)
   use(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<Template> {
     return this.svc.use(user.id, id);
+  }
+
+  /**
+   * Expand the template's saved layout onto a document of `totalPages`
+   * pages (`pageRule` all / allButLast / first / last / N), returning the
+   * concrete per-page fields. Read-only: does not bump `uses_count`.
+   */
+  @Post(':id/apply')
+  @HttpCode(200)
+  apply(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ApplyTemplateDto,
+  ): Promise<TemplateApplyResult> {
+    return this.applySvc.apply(user.id, id, dto.totalPages);
   }
 
   /**

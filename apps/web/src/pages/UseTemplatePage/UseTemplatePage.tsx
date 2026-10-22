@@ -28,7 +28,10 @@ import {
   type TemplateSummary,
 } from '@/features/templates';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
-import { updateTemplate as apiUpdateTemplate } from '@/features/templates/templatesApi';
+import {
+  applyTemplate,
+  updateTemplate as apiUpdateTemplate,
+} from '@/features/templates/templatesApi';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import { useAppState } from '@/providers/AppStateProvider';
 import {
@@ -170,6 +173,7 @@ export function UseTemplatePage() {
    * store update can't overwrite the user's edits.
    */
   const userTouchedSignersRef = useRef(false);
+  const continuingRef = useRef(false);
   useEffect(() => {
     if (userTouchedSignersRef.current) return;
     if (signers.length > 0) return;
@@ -263,9 +267,24 @@ export function UseTemplatePage() {
     // (the actual signed envelope's example PDF lives server-side
     // once /templates/:id/example lands).
     if (docChoice === 'saved' && template) {
-      navigate(`/templates/${encodeURIComponent(template.id)}/edit`, {
-        state: { templateSigners: handoffSigners },
-      });
+      // The API expands the saved layout onto the example's page count.
+      // If it is unreachable the editor expands locally, so a failure
+      // here never blocks the hand-off.
+      if (continuingRef.current) return;
+      continuingRef.current = true;
+      const target = `/templates/${encodeURIComponent(template.id)}/edit`;
+      void applyTemplate(template.id, Math.max(1, template.pages))
+        .then(
+          (templateFields) => ({
+            templateFields,
+            templateFieldsPages: Math.max(1, template.pages),
+          }),
+          () => ({}),
+        )
+        .then((expanded) => {
+          continuingRef.current = false;
+          navigate(target, { state: { templateSigners: handoffSigners, ...expanded } });
+        });
       return;
     }
 

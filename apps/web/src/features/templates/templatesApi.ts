@@ -1,7 +1,11 @@
 import type { AxiosRequestConfig } from 'axios';
 import { apiClient } from '@/lib/api/apiClient';
 import { seald } from '@/styles/theme';
-import type { TemplateFieldLayout as TemplateField, TemplateSummary } from './templates';
+import type {
+  ResolvedField,
+  TemplateFieldLayout as TemplateField,
+  TemplateSummary,
+} from './templates';
 
 /**
  * Wire shape the Nest `TemplatesController` returns for a single
@@ -143,6 +147,24 @@ export async function bumpUseCount(id: string, signal?: AbortSignal): Promise<Te
     configWithSignal(signal),
   );
   return toSummary(data);
+}
+
+/**
+ * Ask the API to expand the template's saved layout (`pageRule` all /
+ * allButLast / first / last / N) onto a document of `totalPages` pages.
+ * Read-only on the server; does not bump the use count.
+ */
+export async function applyTemplate(
+  id: string,
+  totalPages: number,
+  signal?: AbortSignal,
+): Promise<ReadonlyArray<ResolvedField>> {
+  const { data } = await apiClient.post<{ readonly fields: ReadonlyArray<ResolvedField> }>(
+    `/templates/${encodeURIComponent(id)}/apply`,
+    { totalPages },
+    configWithSignal(signal),
+  );
+  return data.fields;
 }
 
 function browserMultipartHeaders(): Exclude<AxiosRequestConfig['headers'], undefined> {
