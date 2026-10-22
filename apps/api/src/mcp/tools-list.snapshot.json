@@ -1,5 +1,5 @@
 {
-  "server_version": "0.2.0",
+  "server_version": "0.3.0",
   "variants": {
     "all_flags_on": [
       {
@@ -1182,7 +1182,10 @@
                       "job_failed",
                       "retention_deleted",
                       "document_added",
-                      "step_started"
+                      "step_started",
+                      "access_code_sent",
+                      "access_code_verified",
+                      "access_code_failed"
                     ]
                   },
                   "actor_kind": {
@@ -2432,7 +2435,10 @@
                       "job_failed",
                       "retention_deleted",
                       "document_added",
-                      "step_started"
+                      "step_started",
+                      "access_code_sent",
+                      "access_code_verified",
+                      "access_code_failed"
                     ]
                   },
                   "actor_kind": {

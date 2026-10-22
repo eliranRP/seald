@@ -64,6 +64,10 @@ export const EVENT_TYPES = [
   'document_added',
   // WP-05 (migration 0023): a signing step was invited (sequential mode).
   'step_started',
+  // WP-10 (migration 0026): emailed one-time code before access / submit.
+  'access_code_sent',
+  'access_code_verified',
+  'access_code_failed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

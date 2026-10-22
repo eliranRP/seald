@@ -188,6 +188,9 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   retention_deleted: 'Document retention expired',
   document_added: 'Document added',
   step_started: 'Signing step started',
+  access_code_sent: 'One-time code emailed',
+  access_code_verified: 'Emailed one-time code entered',
+  access_code_failed: 'Wrong one-time code entered',
 };
 
 interface DerivedView {

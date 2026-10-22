@@ -1,4 +1,5 @@
 export * from './signer';
+export * from './signer-access-auth';
 export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
 export {
   DEFAULT_REMINDER_CADENCE,
