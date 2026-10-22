@@ -15,9 +15,18 @@ import {
 import type { Envelope, EnvelopeEvent, EnvelopeField } from '../envelopes/envelope.entity';
 import { eventHash } from '../envelopes/event-hash';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import {
+  documentDeclinedPath,
+  documentSealedPath,
+  legacyOriginalPath,
+} from '../envelopes/documents/document-paths';
+import {
+  EnvelopeDocumentsRepository,
+  type EnvelopeDocumentRecord,
+} from '../envelopes/documents/envelope-documents.repository';
 import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
-import { buildAuditPdf } from './audit-pdf';
+import { buildAuditPdf, type AuditDocumentHash } from './audit-pdf';
 import { declinedPdfPath } from './declined-pdf-path';
 import { DssInjector } from './dss-injector';
 import { PadesSigner } from './pades-signer';
@@ -25,6 +34,13 @@ import { PadesSigner } from './pades-signer';
 /**
  * Sealing pipeline for terminal envelopes. Invoked by the worker when a
  * claim returns a `seal` or `audit_only` job.
+ *
+ * Multi-file envelopes (WP-03): steps 1-6 run once per document, in
+ * `ord` order, each with only its own fields. Every document gets its own
+ * PAdES seal (B-T -> B-LT -> B-LTA unchanged). Document 1 keeps the legacy
+ * `{id}/sealed.pdf`; the others go to `{id}/documents/{doc_id}/sealed.pdf`.
+ * One audit.pdf lists every document's original and sealed hash. A
+ * single-document envelope seals exactly as before.
  *
  * seal:
  *   1. Download original.pdf
@@ -65,7 +81,48 @@ export class SealingService {
     private readonly pades: PadesSigner,
     private readonly dss: DssInjector,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly documents: EnvelopeDocumentsRepository,
   ) {}
+
+  /**
+   * Documents to seal, with the fields that sit on each. An envelope with
+   * no document rows (a pre-0022 shape; every row gets one by trigger)
+   * seals as one legacy document. With one document every field goes on
+   * it unfiltered, so the legacy burn-in input is unchanged.
+   */
+  private async planDocuments(envelope: Envelope): Promise<SealPlanItem[]> {
+    const docs = await this.documents.listByEnvelope(envelope.id);
+    const first = docs[0];
+    if (first === undefined) {
+      return [
+        {
+          doc: null,
+          ord: 1,
+          title: envelope.title,
+          originalPath: legacyOriginalPath(envelope.id),
+          originalSha256: envelope.original_sha256,
+          originalPages: envelope.original_pages,
+          fields: envelope.fields,
+        },
+      ];
+    }
+    const byField = docs.length > 1 ? await this.documents.listFieldDocumentIds(envelope.id) : null;
+    return docs.map((doc) => ({
+      doc,
+      ord: doc.ord,
+      title: doc.title,
+      originalPath:
+        doc.original_file_path ?? (doc.ord === 1 ? legacyOriginalPath(envelope.id) : null),
+      originalSha256: doc.original_sha256,
+      originalPages: doc.original_pages,
+      fields:
+        byField === null
+          ? envelope.fields
+          : envelope.fields.filter(
+              (f) => (byField.get(f.id) ?? f.document_id ?? first.id) === doc.id,
+            ),
+    }));
+  }
 
   async processSealJob(envelope_id: string): Promise<void> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
@@ -86,8 +143,7 @@ export class SealingService {
       return;
     }
 
-    const originalPath = `${envelope_id}/original.pdf`;
-    const originalBytes = await this.storage.download(originalPath);
+    const plan = await this.planDocuments(envelope);
 
     // Events + signer details feed both the optional pre-seal certificate
     // and audit.pdf. Nothing appends an event between here and the audit
@@ -97,9 +153,11 @@ export class SealingService {
       this.repo.listSignerAuditDetails(envelope_id),
     ]);
 
-    let sealedBytes = await this.burnIn(envelope, originalBytes);
+    // One certificate for the envelope; with `appendCertificate` the same
+    // pages are appended to every document before its seal.
+    let certificate: Buffer | null = null;
     if (isFeatureEnabled('appendCertificate')) {
-      const certificate = await buildAuditPdf({
+      certificate = await buildAuditPdf({
         envelope,
         events,
         signerDetails,
@@ -111,40 +169,63 @@ export class SealingService {
         // available" wording either way.
         timestampApplied: true,
         preSeal: { chainHeadSha256: chainHeadHex(events) },
+        ...auditDocumentsInput(plan, null),
       });
-      sealedBytes = await appendPdfPages(sealedBytes, certificate);
     }
-    const signed = await this.pades.sign(sealedBytes);
-    // PAdES B-T → B-LT (/DSS) → B-LTA (document timestamp), each step an
-    // ISO 32000-1 §7.5.6 incremental update that leaves the B-T bytes
-    // untouched. Every step degrades to the previous level on failure.
-    const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
-    const sealedSha = sha256Hex(signedBytes);
-    const sealedPath = `${envelope_id}/sealed.pdf`;
-    await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
 
-    // Count pages on the sealed file itself: with `appendCertificate` it
-    // carries the certificate pages after the original ones, so it can
-    // differ from original_pages.
-    const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
-    const sealedPages = sealedPdfDoc.getPageCount();
+    const sealed: SealedDocument[] = [];
+    for (const item of plan) {
+      if (item.originalPath === null) {
+        throw new Error(`document ${item.doc?.id ?? item.ord} of ${envelope_id} has no original`);
+      }
+      const originalBytes = await this.storage.download(item.originalPath);
+      let sealedBytes = await this.burnIn(envelope, originalBytes, item.fields);
+      if (certificate !== null) sealedBytes = await appendPdfPages(sealedBytes, certificate);
+      const signed = await this.pades.sign(sealedBytes);
+      // PAdES B-T -> B-LT (/DSS) -> B-LTA (document timestamp), each step an
+      // ISO 32000-1 section 7.5.6 incremental update that leaves the B-T
+      // bytes untouched. Every step degrades to the previous level on failure.
+      const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
+      const sealedSha = sha256Hex(signedBytes);
+      const sealedPath = documentSealedPath(envelope_id, item.doc?.id ?? '', item.ord);
+      await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
+      // Count pages on the sealed file itself: with `appendCertificate` it
+      // carries the certificate pages after the original ones, so it can
+      // differ from original_pages.
+      const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
+      sealed.push({
+        item,
+        path: sealedPath,
+        sha256: sealedSha,
+        pages: sealedPdfDoc.getPageCount(),
+        timestampApplied: signed.timestampApplied,
+      });
+    }
+    for (const done of sealed) {
+      if (done.item.doc !== null) {
+        await this.documents.setSealed(done.item.doc.id, done.path, done.sha256);
+      }
+    }
+    const primary = sealed[0];
+    if (primary === undefined) throw new Error(`seal job for ${envelope_id}: nothing sealed`);
 
     const auditBytes = await buildAuditPdf({
       envelope,
       events,
       signerDetails,
-      sealedSha256: sealedSha,
-      sealedPages,
+      sealedSha256: primary.sha256,
+      sealedPages: primary.pages,
       publicUrl: this.env.APP_PUBLIC_URL,
       cmsSealApplied: this.pades.appliesCmsSeal,
-      timestampApplied: signed.timestampApplied,
+      timestampApplied: sealed.every((done) => done.timestampApplied),
+      ...auditDocumentsInput(plan, sealed),
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
 
     const updated = await this.repo.transitionToSealed(envelope_id, {
-      sealed_file_path: sealedPath,
-      sealed_sha256: sealedSha,
+      sealed_file_path: primary.path,
+      sealed_sha256: primary.sha256,
       audit_file_path: auditPath,
     });
     if (!updated) {
@@ -245,8 +326,11 @@ export class SealingService {
     if (!envelope) throw new NotFoundException('envelope_not_found');
 
     // Written before audit.pdf + setAuditFile. A retry rewrites the same
-    // path, so the job stays idempotent.
-    await this.writeDeclinedPdf(envelope);
+    // paths, so the job stays idempotent. One stamped copy per document.
+    const plan = await this.planDocuments(envelope);
+    for (const item of plan) {
+      await this.writeDeclinedPdf(envelope, item);
+    }
 
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),
@@ -261,6 +345,7 @@ export class SealingService {
       publicUrl: this.env.APP_PUBLIC_URL,
       cmsSealApplied: false,
       timestampApplied: false,
+      ...auditDocumentsInput(plan, null),
     });
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
@@ -273,22 +358,27 @@ export class SealingService {
    * can check it came from Seald. Burns in no signer data. Skipped for a
    * non-terminal status, and when original.pdf is missing (logged).
    */
-  private async writeDeclinedPdf(envelope: Envelope): Promise<void> {
+  private async writeDeclinedPdf(envelope: Envelope, item: SealPlanItem): Promise<void> {
     const banner = NOT_SIGNED_BANNERS[envelope.status];
     if (banner === undefined) return;
     let originalBytes: Buffer;
     try {
-      originalBytes = await this.storage.download(`${envelope.id}/original.pdf`);
+      if (item.originalPath === null) throw new Error('no original path');
+      originalBytes = await this.storage.download(item.originalPath);
     } catch (err) {
       this.logger.warn(
-        `audit_only job for ${envelope.id}: no original.pdf, skipping declined.pdf (${err instanceof Error ? err.message : String(err)})`,
+        `audit_only job for ${envelope.id}: no original for document ${item.ord}, skipping its declined.pdf (${err instanceof Error ? err.message : String(err)})`,
       );
       return;
     }
     const stamped = await stampNotSignedBanner(originalBytes, banner);
     const signed = await this.pades.sign(stamped);
     const sealed = await this.dss.upgradeToBLt(signed.pdf);
-    await this.storage.upload(declinedPdfPath(envelope.id), sealed, 'application/pdf');
+    const path =
+      item.doc === null
+        ? declinedPdfPath(envelope.id)
+        : documentDeclinedPath(envelope.id, item.doc.id, item.ord);
+    await this.storage.upload(path, sealed, 'application/pdf');
   }
 
   /**
@@ -296,14 +386,18 @@ export class SealingService {
    * are normalized (0..1) relative to the page size. Origin is top-left in
    * the wire contract; pdf-lib uses bottom-left, so we flip y.
    */
-  private async burnIn(envelope: Envelope, originalBytes: Buffer): Promise<Buffer> {
+  private async burnIn(
+    envelope: Envelope,
+    originalBytes: Buffer,
+    fields: ReadonlyArray<EnvelopeField> = envelope.fields,
+  ): Promise<Buffer> {
     const pdf = await PDFDocument.load(originalBytes);
     const helvetica = await pdf.embedFont(StandardFonts.Helvetica);
     const pages = pdf.getPages();
 
     // Group fields by signer so we only fetch each signature image once.
     const fieldsBySigner = new Map<string, EnvelopeField[]>();
-    for (const f of envelope.fields) {
+    for (const f of fields) {
       const list = fieldsBySigner.get(f.signer_id) ?? [];
       list.push(f);
       fieldsBySigner.set(f.signer_id, list);
@@ -364,6 +458,45 @@ export class SealingService {
     const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
+}
+
+/** One document of a seal or audit_only job. `doc` is null for the
+ *  synthesized legacy document of an envelope without document rows. */
+interface SealPlanItem {
+  readonly doc: EnvelopeDocumentRecord | null;
+  readonly ord: number;
+  readonly title: string;
+  readonly originalPath: string | null;
+  readonly originalSha256: string | null;
+  readonly originalPages: number | null;
+  readonly fields: ReadonlyArray<EnvelopeField>;
+}
+
+interface SealedDocument {
+  readonly item: SealPlanItem;
+  readonly path: string;
+  readonly sha256: string;
+  readonly pages: number;
+  readonly timestampApplied: boolean;
+}
+
+/** `documents` for buildAuditPdf: only set for a multi-file envelope, so a
+ *  single-file audit.pdf keeps its layout. */
+function auditDocumentsInput(
+  plan: ReadonlyArray<SealPlanItem>,
+  sealed: ReadonlyArray<SealedDocument> | null,
+): { documents?: AuditDocumentHash[] } {
+  if (plan.length <= 1) return {};
+  return {
+    documents: plan.map((item, i) => ({
+      ord: item.ord,
+      title: item.title,
+      originalSha256: item.originalSha256,
+      originalPages: item.originalPages,
+      sealedSha256: sealed?.[i]?.sha256 ?? null,
+      sealedPages: sealed?.[i]?.pages ?? null,
+    })),
+  };
 }
 
 /** Banner per terminal non-completed status. Other statuses get none. */

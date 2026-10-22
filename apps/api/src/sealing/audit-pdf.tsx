@@ -74,6 +74,22 @@ export interface AuditPdfInput {
    *  a card shows the head of the audit event chain. `sealedSha256` is
    *  ignored in this mode. Omit for the standalone audit.pdf. */
   readonly preSeal?: PreSealInfo;
+  /** WP-03: every document of a multi-file envelope, in order. With more
+   *  than one, a "Documents" page lists each one's original and sealed
+   *  SHA-256. Omitted (or one entry) renders the single-file layout
+   *  unchanged; page 1 then describes document 1. */
+  readonly documents?: ReadonlyArray<AuditDocumentHash>;
+}
+
+/** WP-03: one row of the "Documents" page. */
+export interface AuditDocumentHash {
+  readonly ord: number;
+  readonly title: string;
+  readonly originalSha256: string | null;
+  readonly originalPages: number | null;
+  /** Null before sealing (pre-seal pages) and for audit_only jobs. */
+  readonly sealedSha256: string | null;
+  readonly sealedPages: number | null;
 }
 
 export interface PreSealInfo {
@@ -104,6 +120,7 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       timestampApplied={input.timestampApplied}
       sealedPages={input.sealedPages}
       preSeal={input.preSeal ?? null}
+      documents={input.documents ?? []}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
     />,
@@ -975,6 +992,7 @@ interface DocumentRenderProps {
   timestampApplied: boolean;
   sealedPages: number | null;
   preSeal: PreSealInfo | null;
+  documents: ReadonlyArray<AuditDocumentHash>;
   verifyUrl: string;
   qrDataUrl: string;
 }
@@ -1004,6 +1022,20 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         />
         <PageFooter ctx={ctx} />
       </Page>
+
+      {props.documents.length > 1 ? (
+        <Page size="LETTER" style={styles.page}>
+          <PageHeader suffix="Documents" />
+          <Section num="02" title="Documents in this envelope (SHA-256)" />
+          <Text style={styles.p2Intro}>
+            This envelope holds {props.documents.length} documents. Each one was sealed on its own;
+            the fingerprints below identify every original and every sealed file. Page 1 shows
+            document 1.
+          </Text>
+          <DocumentHashList documents={props.documents} preSeal={props.preSeal !== null} />
+          <PageFooter ctx={ctx} />
+        </Page>
+      ) : null}
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Participants" />
@@ -1346,6 +1378,45 @@ function sealedHashCards(ctx: RenderCtx): HashCardInfo[] {
       hash: ctx.sealedSha256 ?? '— (unsealed)',
     },
   ];
+}
+
+/** WP-03: original + sealed hash of every document, in order. */
+function DocumentHashList({
+  documents,
+  preSeal,
+}: {
+  documents: ReadonlyArray<AuditDocumentHash>;
+  preSeal: boolean;
+}): React.ReactElement {
+  return (
+    <View style={styles.hashBlock}>
+      {documents.map((d) => (
+        <View key={d.ord} style={styles.hashCard} wrap={false}>
+          <View style={styles.hashRow}>
+            <View style={styles.hashDot} />
+            <Text style={styles.hashType}>{`DOCUMENT ${d.ord} · ORIGINAL`}</Text>
+            <Text style={styles.hashFilename}>{safeFilename(d.title)}</Text>
+            {d.originalPages ? (
+              <Text style={styles.hashPages}> · {d.originalPages} pages</Text>
+            ) : null}
+          </View>
+          <Text style={styles.hashValue}>{d.originalSha256 ?? '—'}</Text>
+          <View style={styles.hashRow}>
+            <View style={[styles.hashDot, d.sealedSha256 !== null ? styles.hashDotSigned : {}]} />
+            <Text style={styles.hashType}>{`DOCUMENT ${d.ord} · SIGNED`}</Text>
+            <Text style={styles.hashFilename}>{safeFilename(d.title, true)}</Text>
+            {d.sealedSha256 !== null && d.sealedPages ? (
+              <Text style={styles.hashPages}> · {d.sealedPages} pages</Text>
+            ) : null}
+          </View>
+          <Text style={styles.hashValue}>
+            {d.sealedSha256 ??
+              (preSeal ? 'sealed-file hash: on the separate audit trail' : '— (unsealed)')}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function VerifyCard({

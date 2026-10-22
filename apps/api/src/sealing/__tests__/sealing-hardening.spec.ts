@@ -11,6 +11,7 @@ import { declinedPdfPath } from '../declined-pdf-path';
 import type { DssInjector } from '../dss-injector';
 import { PadesSigner, type PadesSignResult } from '../pades-signer';
 import { SealingService } from '../sealing.service';
+import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 
 /**
  * WP-01 items 3 and 4: the optional pre-seal certificate appended inside
@@ -79,9 +80,17 @@ function makeHarness(envelope: Envelope, events: EnvelopeEvent[], seed: Map<stri
       return b;
     },
   } as unknown as DssInjector;
-  const svc = new SealingService(repo, storage, {} as OutboundEmailsRepository, signer, dss, {
-    APP_PUBLIC_URL: 'https://seald.example',
-  } as AppEnv);
+  const svc = new SealingService(
+    repo,
+    storage,
+    {} as OutboundEmailsRepository,
+    signer,
+    dss,
+    {
+      APP_PUBLIC_URL: 'https://seald.example',
+    } as AppEnv,
+    new InMemoryEnvelopeDocumentsRepository(),
+  );
   return { svc, signer, files, dssCalls, auditSet } satisfies Harness;
 }
 
