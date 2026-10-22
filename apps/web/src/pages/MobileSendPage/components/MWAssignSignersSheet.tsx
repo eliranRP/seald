@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { Check } from 'lucide-react';
 import { PrimaryBtn, SecondaryBtn } from '../MobileSendPage.styles';
 import type { MobileSigner } from '../types';
-import { MWBottomSheet } from './MWBottomSheet';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 
 const Note = styled.div`
   font-size: 12px;

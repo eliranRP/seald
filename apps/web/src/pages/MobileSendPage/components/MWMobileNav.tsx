@@ -7,7 +7,7 @@ import { isFeatureEnabled } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { useAuth } from '@/providers/AuthProvider';
 import { NAV_ITEMS, matchNavId } from '@/layout/navItems';
-import { MWBottomSheet } from './MWBottomSheet';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 
 // Per product (2026-05-03, refined): mobile users are locked to /m/send;
 // every desktop AppShell route bounces back here. The hamburger drawer

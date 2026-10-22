@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
-import { SheetBackdrop, SheetGrabber, SheetSurface, SheetTitle } from '../MobileSendPage.styles';
+import { SheetBackdrop, SheetGrabber, SheetSurface, SheetTitle } from './MWBottomSheet.styles';
 
 const FOCUSABLE_SELECTOR =
   'input:not([disabled]),textarea:not([disabled]),select:not([disabled]),button:not([disabled]),[tabindex]:not([tabindex="-1"])';
