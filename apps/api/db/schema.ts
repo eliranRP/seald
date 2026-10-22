@@ -31,6 +31,9 @@ export interface Database {
   // Migration 0032 — bulk send from a template (WP-36).
   bulk_batches: BulkBatchesTable;
   bulk_batch_rows: BulkBatchRowsTable;
+  // Migration 0033 — template direct links (WP-37).
+  template_direct_links: TemplateDirectLinksTable;
+  template_direct_link_claims: TemplateDirectLinkClaimsTable;
 }
 
 /** Migration 0032 (WP-36). */
@@ -80,6 +83,38 @@ export interface BulkBatchRowsTable {
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
+
+/**
+ * Migration 0033 (WP-37). One live row per template (`revoked_at` null).
+ * `token_hash` is hex SHA-256 of the 256-bit token, which is never stored.
+ */
+export interface TemplateDirectLinksTable {
+  id: Generated<string>;
+  template_id: string;
+  owner_id: string;
+  token_hash: string;
+  prefix: string;
+  signer_slot: string;
+  enabled: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  daily_cap: ColumnType<number, number | undefined, number | undefined>;
+  sender_name: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  sender_email: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+  revoked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+}
+
+/** Migration 0033. The abuse ledger: one row per accepted visitor attempt. */
+export interface TemplateDirectLinkClaimsTable {
+  id: Generated<string>;
+  link_id: string;
+  email_hash: string;
+  envelope_id: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+/** Migration 0033. How an envelope came to exist. */
+export type EnvelopeSourceDb = 'app' | 'template' | 'direct_link' | 'api' | 'mcp' | 'bulk';
 
 /** Migration 0026 (WP-10). `none` or the emailed one-time code. */
 export type SignerAuthMethodDb = 'none' | 'email_otp';
@@ -279,6 +314,8 @@ export interface TemplateLastSignerDb {
   name: string;
   email: string;
   color: string;
+  // WP-06 gap — 1-based signing step; stored only while `signingOrder` is on.
+  signing_order?: number;
 }
 
 export interface TemplatesTable {
@@ -294,6 +331,8 @@ export interface TemplatesTable {
   // example PDF. Nullable — set by `POST /templates/:id/example` after
   // the row exists. Migration 0010.
   example_pdf_path: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  // Migration 0033 (WP-06 gap). Read only while `signingOrder` is on.
+  delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, DeliveryModeDb | undefined>;
   uses_count: ColumnType<number, number | undefined, number | undefined>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
@@ -380,6 +419,15 @@ export interface EnvelopesTable {
   // Migration 0023 (WP-05): updatable on drafts by the signing-order route,
   // and stamped at send with the mode in force.
   delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, DeliveryModeDb | undefined>;
+  // Migration 0033 (WP-37) — provenance, written by the direct-links module.
+  source: ColumnType<EnvelopeSourceDb, EnvelopeSourceDb | undefined, EnvelopeSourceDb | undefined>;
+  direct_link_id: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  // Migration 0031 — the template this envelope was made from, if any.
+  source_template_id: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null | undefined
+  >;
   original_file_path: string | null;
   original_sha256: string | null;
   original_pages: number | null;

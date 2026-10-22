@@ -1,4 +1,4 @@
-import type { Template, TemplateField, TemplateLastSigner } from 'shared';
+import type { DeliveryMode, Template, TemplateField, TemplateLastSigner } from 'shared';
 
 export interface CreateTemplateInput {
   readonly owner_id: string;
@@ -14,6 +14,8 @@ export interface CreateTemplateInput {
    */
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  /** WP-06 gap. Omitted means `parallel`. */
+  readonly delivery_mode?: DeliveryMode;
 }
 
 export interface UpdateTemplatePatch {
@@ -23,6 +25,7 @@ export interface UpdateTemplatePatch {
   readonly field_layout?: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  readonly delivery_mode?: DeliveryMode;
 }
 
 /**

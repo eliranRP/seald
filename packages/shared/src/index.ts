@@ -126,6 +126,7 @@ export type {
   SetSigningOrderRequest,
 } from './envelope-contract';
 export * from './locales';
+export * from './direct-links';
 export {
   ALL_FIELD_KINDS,
   NEW_FIELD_KINDS,

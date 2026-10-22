@@ -14,6 +14,6 @@ import { TemplatesService } from './templates.service';
     TemplateApplyService,
     { provide: TemplatesRepository, useClass: TemplatesPgRepository },
   ],
-  exports: [TemplatesRepository, TemplateApplyService],
+  exports: [TemplatesRepository, TemplateApplyService, TemplatesService],
 })
 export class TemplatesModule {}

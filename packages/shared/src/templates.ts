@@ -11,6 +11,8 @@
  * `field_layout` jsonb column.
  */
 
+import type { DeliveryMode } from './envelope-contract';
+
 export const TEMPLATE_FIELD_TYPES = [
   'signature',
   'initial',
@@ -96,6 +98,12 @@ export interface TemplateLastSigner {
   readonly name: string;
   readonly email: string;
   readonly color: string;
+  /**
+   * WP-06 gap. 1-based signing step of this slot; slots with the same
+   * number sign together. Meaningful when the template's `delivery_mode`
+   * is `sequential`. Only stored and returned while `signingOrder` is on.
+   */
+  readonly signing_order?: number;
 }
 
 /**
@@ -116,6 +124,12 @@ export interface Template {
    * the first "Send and update template" persists it.
    */
   readonly last_signers: ReadonlyArray<TemplateLastSigner>;
+  /**
+   * WP-06 gap. `sequential` makes envelopes made from this template sign in
+   * the order given by each slot's `signing_order`. Present only while
+   * `signingOrder` is on; absent means parallel.
+   */
+  readonly delivery_mode?: DeliveryMode;
   /**
    * `true` when an example PDF has been uploaded for this template
    * (via `POST /templates/:id/example`). The SPA uses this to decide
@@ -138,6 +152,7 @@ export interface CreateTemplateInput {
   readonly field_layout: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  readonly delivery_mode?: DeliveryMode;
 }
 
 export interface UpdateTemplateInput {
@@ -147,6 +162,7 @@ export interface UpdateTemplateInput {
   readonly field_layout?: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  readonly delivery_mode?: DeliveryMode;
 }
 
 /**

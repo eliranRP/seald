@@ -1,7 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Kysely, Selectable } from 'kysely';
 import { sql } from 'kysely';
-import type { Template, TemplateField, TemplateLastSigner } from 'shared';
+import {
+  isFeatureEnabled,
+  type Template,
+  type TemplateField,
+  type TemplateLastSigner,
+} from 'shared';
 import type { Database, TemplatesTable } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
@@ -22,6 +27,9 @@ function toDomain(r: Row): Template {
     field_layout: r.field_layout as ReadonlyArray<TemplateField>,
     tags: (r.tags ?? []) as ReadonlyArray<string>,
     last_signers: (r.last_signers ?? []) as ReadonlyArray<TemplateLastSigner>,
+    // WP-06 gap: on the wire only while `signingOrder` is on, so the flag-off
+    // response is byte-for-byte what it was.
+    ...(isFeatureEnabled('signingOrder') ? { delivery_mode: r.delivery_mode } : {}),
     // The storage path itself is internal — surface only a boolean so
     // clients can decide whether to fetch the PDF without learning the
     // bucket layout.
@@ -50,6 +58,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
         field_layout: JSON.stringify(input.field_layout),
         tags: JSON.stringify(input.tags ?? []),
         last_signers: JSON.stringify(input.last_signers ?? []),
+        ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
       })
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -92,6 +101,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
     if (patch.last_signers !== undefined) {
       update['last_signers'] = JSON.stringify(patch.last_signers);
     }
+    if (patch.delivery_mode !== undefined) update['delivery_mode'] = patch.delivery_mode;
     if (Object.keys(update).length === 1) {
       // Only updated_at — caller passed an empty patch. Return current.
       return this.findOneByOwner(owner_id, id);

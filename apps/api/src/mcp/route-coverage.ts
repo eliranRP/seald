@@ -131,6 +131,12 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /bulk-batches/:id': { planned: 'step-15' },
   'POST /bulk-batches/:id/confirm': { planned: 'step-15' },
   'POST /bulk-batches/:id/cancel': { planned: 'step-15' },
+  // WP-37: the template's direct link (the public `/direct-links/*` routes are @Public).
+  'GET /templates/:id/direct-link': { planned: 'step-13' },
+  'POST /templates/:id/direct-link': { planned: 'step-13' },
+  'PATCH /templates/:id/direct-link': { planned: 'step-13' },
+  'POST /templates/:id/direct-link/rotate': { planned: 'step-13' },
+  'DELETE /templates/:id/direct-link': { planned: 'step-13' },
 
   // Google Drive
   // A Seald settings link, not a consent URL minted for the key (see the tool).

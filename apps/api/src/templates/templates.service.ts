@@ -51,6 +51,7 @@ export class TemplatesService {
         : dto.field_layout,
       tags: dto.tags ?? [],
       last_signers: dto.last_signers ?? [],
+      ...(dto.delivery_mode !== undefined ? { delivery_mode: dto.delivery_mode } : {}),
     });
   }
 

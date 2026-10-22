@@ -9,6 +9,8 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+import { DELIVERY_MODES, type DeliveryMode } from 'shared';
+import { FlagGatedProperty } from '../../common/flag-gated.validators';
 import { TemplateFieldDto, TemplateLastSignerDto } from './create-template.dto';
 
 export class UpdateTemplateDto {
@@ -52,4 +54,12 @@ export class UpdateTemplateDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateLastSignerDto)
   readonly last_signers?: ReadonlyArray<TemplateLastSignerDto>;
+
+  /** WP-06 gap. Accepted only while `signingOrder` is on. */
+  @FlagGatedProperty(
+    'signingOrder',
+    (v) => (DELIVERY_MODES as ReadonlyArray<unknown>).includes(v),
+    (p) => `${p} must be one of the following values: ${DELIVERY_MODES.join(', ')}`,
+  )
+  readonly delivery_mode?: DeliveryMode;
 }

@@ -17,9 +17,12 @@ import {
   type ValidationOptions,
 } from 'class-validator';
 import {
+  DELIVERY_MODES,
+  MAX_SIGNING_ORDER,
   TEMPLATE_FIELD_TYPES,
   TEMPLATE_FIELD_TYPES_V2,
   type AnyTemplateFieldType,
+  type DeliveryMode,
   type TemplatePageRule,
 } from 'shared';
 import {
@@ -140,6 +143,17 @@ export class TemplateLastSignerDto {
     message: 'color must be a 6-digit hex like #RRGGBB',
   })
   readonly color!: string;
+
+  /**
+   * WP-06 gap. 1-based signing step of this slot (slots with the same number
+   * sign together). Accepted only while `signingOrder` is on.
+   */
+  @FlagGatedProperty(
+    'signingOrder',
+    (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= MAX_SIGNING_ORDER,
+    (p) => `${p} must be an integer between 1 and ${MAX_SIGNING_ORDER}`,
+  )
+  readonly signing_order?: number;
 }
 
 export class CreateTemplateDto {
@@ -196,4 +210,12 @@ export class CreateTemplateDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateLastSignerDto)
   readonly last_signers?: ReadonlyArray<TemplateLastSignerDto>;
+
+  /** WP-06 gap. Accepted only while `signingOrder` is on. */
+  @FlagGatedProperty(
+    'signingOrder',
+    (v) => (DELIVERY_MODES as ReadonlyArray<unknown>).includes(v),
+    (p) => `${p} must be one of the following values: ${DELIVERY_MODES.join(', ')}`,
+  )
+  readonly delivery_mode?: DeliveryMode;
 }

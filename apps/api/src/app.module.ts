@@ -7,6 +7,7 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ConfigModule } from './config/config.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DbModule } from './db/db.module';
+import { DirectLinksModule } from './direct-links/direct-links.module';
 import { GDriveModule } from './integrations/gdrive/gdrive.module';
 import { ConversionModule } from './integrations/gdrive/conversion/conversion.module';
 import { EmailModule } from './email/email.module';
@@ -62,6 +63,8 @@ import { StorageModule } from './storage/storage.module';
     AutomationsModule,
     // WP-17: POST /mcp, dark behind `mcpServer` + MCP_DISABLED.
     McpModule,
+    // WP-37: /templates/:id/direct-link and /direct-links/:token, dark behind `directLinks`.
+    DirectLinksModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
