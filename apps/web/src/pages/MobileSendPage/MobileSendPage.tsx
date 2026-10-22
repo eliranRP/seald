@@ -59,7 +59,7 @@ import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelo
 import { useEnvelopesQuery } from '@/features/envelopes/useEnvelopes';
 import type { MWRecentEnvelope } from './screens/MWStart';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
-import { SIGNER_COLOR_PALETTE } from '@/lib/mockApi';
+import { seald } from '@/styles/theme';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 
 const STEP_LABELS: Readonly<Record<MobileStep, string>> = {
@@ -292,7 +292,7 @@ export function MobileSendPage() {
         const fallbackName = user?.name || sessionUser.email || 'Me';
         const fallbackEmail = user?.email || sessionUser.email || '';
         const color = pickAvailableColor(
-          SIGNER_COLOR_PALETTE,
+          seald.color.signer,
           prev.map((s) => s.color),
         );
         return [
@@ -404,7 +404,7 @@ export function MobileSendPage() {
   const addSignerLocal = useCallback((input: SignerInput): void => {
     setSigners((prev) => {
       const color = pickAvailableColor(
-        SIGNER_COLOR_PALETTE,
+        seald.color.signer,
         prev.map((s) => s.color),
       );
       return [

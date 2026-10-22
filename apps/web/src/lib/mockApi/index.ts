@@ -6,9 +6,6 @@ import type { AppDocument, AppUser } from './types';
 
 export type { AppDocument, AppUser, DocumentSigner, DocumentStatus } from './types';
 
-export { SIGNER_COLOR_PALETTE } from './data/palette';
-export type { SignerColor } from './data/palette';
-
 /**
  * Tiny simulated network delay so consumers have to treat the result as async
  * (and render loading state) even though we resolve from in-memory data.

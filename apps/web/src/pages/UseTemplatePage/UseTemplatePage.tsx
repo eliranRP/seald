@@ -34,6 +34,7 @@ import {
 } from '@/features/templates/templatesApi';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import { useAppState } from '@/providers/AppStateProvider';
+import { seald } from '@/styles/theme';
 import {
   DocumentTitle,
   DocumentTitleRow,
@@ -59,14 +60,6 @@ import {
   TooltipBubble,
   TooltipWrap,
 } from './UseTemplatePage.styles';
-
-/**
- * Stable color palette for guest signers (typed-in emails). Cycles
- * after 6 — matches the Design-Guide's SignersDropdown palette so the
- * step 1 chip and the editor's PlacedField swatch agree on color
- * assignment for the same signer.
- */
-const SIGNER_COLORS = ['#F472B6', '#7DD3FC', '#FBBF24', '#A78BFA', '#34D399', '#FB7185'] as const;
 
 /**
  * Project the API's `last_signers` (camelCased to `lastSigners` on
@@ -320,7 +313,7 @@ export function UseTemplatePage() {
       // a single envelope to render in a unique color.
       const used = prev.map((s) => s.color);
       const color = used.includes(contact.color)
-        ? pickAvailableColor(SIGNER_COLORS, used)
+        ? pickAvailableColor(seald.color.signer, used)
         : contact.color;
       return [
         ...prev,
@@ -342,7 +335,7 @@ export function UseTemplatePage() {
         return prev;
       }
       const color = pickAvailableColor(
-        SIGNER_COLORS,
+        seald.color.signer,
         prev.map((s) => s.color),
       );
       return [

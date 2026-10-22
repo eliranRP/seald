@@ -22,13 +22,6 @@ const meta: Meta<typeof CreateSignatureRequestDialog> = {
 export default meta;
 type Story = StoryObj<typeof CreateSignatureRequestDialog>;
 
-const SIGNER_PALETTE = [
-  seald.color.indigo[500],
-  seald.color.success[500],
-  seald.color.warn[500],
-  seald.color.info[500],
-] as const;
-
 function Demo(args: { readonly initialOpen: boolean }): JSX.Element {
   const { initialOpen } = args;
   const [open, setOpen] = useState(initialOpen);
@@ -51,7 +44,8 @@ function Demo(args: { readonly initialOpen: boolean }): JSX.Element {
         }
         onCreateContact={(name, email) =>
           setSigners((prev) => {
-            const color = SIGNER_PALETTE[prev.length % SIGNER_PALETTE.length] ?? SIGNER_PALETTE[0];
+            const color =
+              seald.color.signer[prev.length % seald.color.signer.length] ?? seald.color.signer[0];
             return [...prev, { id: `s_${String(prev.length + 1)}`, name, email, color }];
           })
         }

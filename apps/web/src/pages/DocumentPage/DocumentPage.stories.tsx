@@ -5,6 +5,7 @@ import { DocumentPage } from './DocumentPage';
 import type { DocumentPageSigner } from './DocumentPage.types';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
+import { seald } from '../../styles/theme';
 
 const INITIAL_SIGNERS: ReadonlyArray<DocumentPageSigner> = [
   { id: 's1', name: 'Eliran Azulay', email: 'eliran@azulay.co', color: '#F472B6' },
@@ -24,7 +25,7 @@ const CONTACTS: ReadonlyArray<AddSignerContact> = [
   { id: 'c5', name: 'Priya Kapoor', email: 'priya@kapoor.com', color: '#818CF8' },
 ];
 
-const PALETTE = ['#F472B6', '#7DD3FC', '#10B981', '#F59E0B', '#818CF8'] as const;
+const PALETTE = seald.color.signer;
 
 const meta: Meta<typeof DocumentPage> = {
   title: 'L4/DocumentPage',

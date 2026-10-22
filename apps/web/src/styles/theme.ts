@@ -40,6 +40,15 @@ export const seald = {
       violet: { 50: '#F5F3FF', 500: '#8B5CF6', 700: '#6D28D9' },
       cyan: { 50: '#ECFEFF', 500: '#06B6D4', 700: '#0E7490' },
     },
+    /**
+     * Signer colour palette. Every signer that is auto-assigned a colour
+     * walks this list in order and takes the first entry not already in use
+     * (`pickAvailableColor`). This is the only copy: the mock API, the
+     * use-template wizard, the upload roster and the stories all read it.
+     * Keep it duplicate-free, because two signers sharing a colour is the
+     * F8 bug this token exists to prevent.
+     */
+    signer: ['#F472B6', '#7DD3FC', '#FBBF24', '#A78BFA', '#34D399', '#FB7185'],
     /** Brand marks. These are not theme accents — they stay the vendor colors. */
     brand: {
       google: {
@@ -149,3 +158,6 @@ export const seald = {
 } as const;
 
 export type SealdTheme = typeof seald;
+
+/** One entry of `seald.color.signer`. */
+export type SignerColor = (typeof seald.color.signer)[number];

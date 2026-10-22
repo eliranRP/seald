@@ -9,7 +9,7 @@ import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
+import { seald } from '@/styles/theme';
 import { pickAvailableColor } from '../features/signers/pickAvailableColor';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
@@ -261,7 +261,7 @@ export function UploadRoute() {
           id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           name,
           email,
-          color: pickAvailableColor(SIGNER_COLOR_PALETTE, used),
+          color: pickAvailableColor(seald.color.signer, used),
         };
       };
 
