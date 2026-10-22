@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { isFeatureEnabled } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import { burnInField } from './burn-in-fields';
 import type { AppEnv } from '../config/env.schema';
@@ -11,7 +12,8 @@ import {
   buildTimelineHtml,
   type TimelineEventFragment,
 } from '../email/template-fragments';
-import type { Envelope, EnvelopeField } from '../envelopes/envelope.entity';
+import type { Envelope, EnvelopeEvent, EnvelopeField } from '../envelopes/envelope.entity';
+import { eventHash } from '../envelopes/event-hash';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { signatureStoragePath } from '../signing/signature-paths';
 import { StorageService } from '../storage/storage.service';
@@ -27,17 +29,23 @@ import { PadesSigner } from './pades-signer';
  *   1. Download original.pdf
  *   2. Burn-in each signer's signature.png at their signature/initials fields
  *      + drawText for date/text/email + checkbox stamps
- *   3. Hand to PadesSigner.sign() (noop in MVP)
- *   4. Upload sealed.pdf
- *   5. Generate audit.pdf (events timeline + QR to /verify/{short_code})
- *   6. Upload audit.pdf
- *   7. repo.transitionToSealed (status → completed; no event row)
- *   8. Enqueue `completed` email to the sender and every signer
+ *   3. Flag `appendCertificate` only: render the certificate in pre-seal
+ *      mode (no sealed hash; original hash + event chain head) and append
+ *      its pages to the burned-in PDF, so they fall under the seal
+ *   4. PadesSigner.sign() (KMS or P12 CMS seal, B-T with a TSA; Noop only
+ *      when no provider is configured — see SealingModule)
+ *   5. DssInjector: B-T → B-LT (/DSS) → B-LTA (document timestamp)
+ *   6. Upload sealed.pdf
+ *   7. Generate audit.pdf (events timeline + QR to /verify/{short_code});
+ *      it stays the record that carries the sealed SHA-256
+ *   8. Upload audit.pdf
+ *   9. repo.transitionToSealed (status → completed; no event row)
+ *  10. Enqueue `completed` email to the sender and every signer
  *      and append `sealed` if that event is not already recorded
  *      (one row per mailbox; deduped on retry)
  *
  * audit_only:
- *   1. Envelope is already terminal (declined/expired). Generate audit.pdf.
+ *   1. Envelope is already terminal (declined/expired/canceled). Generate audit.pdf.
  *   2. Upload + repo.setAuditFile. No seal, no completed emails.
  *
  * Throwing bubbles up to the worker, which records the error via
@@ -78,33 +86,46 @@ export class SealingService {
     const originalPath = `${envelope_id}/original.pdf`;
     const originalBytes = await this.storage.download(originalPath);
 
-    const sealedBytes = await this.burnIn(envelope, originalBytes);
-    const signed = await this.pades.sign(sealedBytes);
-    const btSignedBytes = signed.pdf;
-    // PAdES B-T → B-LT upgrade. The DssInjector pipeline (cert-chain
-    // extraction + OCSP/CRL fetch + /DSS dictionary build) is wired here;
-    // the injector itself returns the B-T bytes unchanged today because a
-    // full-resave would mutate the existing /Sig.Contents byte range and
-    // break the embedded signature. The remaining piece is the ISO
-    // 32000-1 §7.5.6 incremental-update writer — see TODO at the bottom
-    // of dss-injector.ts. Until then the chain-extractor and revocation-
-    // fetcher are still exercised by unit tests, ready to slot in when
-    // the writer lands.
-    const signedBytes = await this.dss.upgradeToBLt(btSignedBytes);
-    const sealedSha = sha256Hex(signedBytes);
-    const sealedPath = `${envelope_id}/sealed.pdf`;
-    await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
-
-    // The sealed file's page count differs from original_pages because
-    // burn-in appends the cover/signature page. Surface it to the audit
-    // PDF so the "Signed document" hash card reflects reality.
-    const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
-    const sealedPages = sealedPdfDoc.getPageCount();
-
+    // Events + signer details feed both the optional pre-seal certificate
+    // and audit.pdf. Nothing appends an event between here and the audit
+    // render, so one read serves both.
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),
       this.repo.listSignerAuditDetails(envelope_id),
     ]);
+
+    let sealedBytes = await this.burnIn(envelope, originalBytes);
+    if (isFeatureEnabled('appendCertificate')) {
+      const certificate = await buildAuditPdf({
+        envelope,
+        events,
+        signerDetails,
+        sealedSha256: null,
+        sealedPages: null,
+        publicUrl: this.env.APP_PUBLIC_URL,
+        cmsSealApplied: this.pades.appliesCmsSeal,
+        // Unknown before sign(); the pre-seal copy is the hedged "when
+        // available" wording either way.
+        timestampApplied: true,
+        preSeal: { chainHeadSha256: chainHeadHex(events) },
+      });
+      sealedBytes = await appendPdfPages(sealedBytes, certificate);
+    }
+    const signed = await this.pades.sign(sealedBytes);
+    // PAdES B-T → B-LT (/DSS) → B-LTA (document timestamp), each step an
+    // ISO 32000-1 §7.5.6 incremental update that leaves the B-T bytes
+    // untouched. Every step degrades to the previous level on failure.
+    const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
+    const sealedSha = sha256Hex(signedBytes);
+    const sealedPath = `${envelope_id}/sealed.pdf`;
+    await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
+
+    // Count pages on the sealed file itself: with `appendCertificate` it
+    // carries the certificate pages after the original ones, so it can
+    // differ from original_pages.
+    const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
+    const sealedPages = sealedPdfDoc.getPageCount();
+
     const auditBytes = await buildAuditPdf({
       envelope,
       events,
@@ -312,6 +333,23 @@ export class SealingService {
     const out = await pdf.save({ useObjectStreams: false });
     return Buffer.from(out);
   }
+}
+
+/** Append every page of `extra` after the pages of `base`. */
+async function appendPdfPages(base: Buffer, extra: Buffer): Promise<Buffer> {
+  const pdf = await PDFDocument.load(base);
+  const source = await PDFDocument.load(extra);
+  const pages = await pdf.copyPages(source, source.getPageIndices());
+  for (const page of pages) pdf.addPage(page);
+  // Classic xref for @signpdf/placeholder-plain (see burnIn).
+  return Buffer.from(await pdf.save({ useObjectStreams: false }));
+}
+
+/** Hex SHA-256 of the last event's canonical JSON: the value the next
+ *  event's `prev_event_hash` will hold (rule S.6). */
+function chainHeadHex(events: ReadonlyArray<EnvelopeEvent>): string | null {
+  const last = events[events.length - 1];
+  return last ? eventHash(last).toString('hex') : null;
 }
 
 interface CompletionParty {
