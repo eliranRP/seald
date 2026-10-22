@@ -78,6 +78,19 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'A Drive file is still being converted. Poll gdrive_conversion_status, then pass its document_id.',
   job_not_found: 'No conversion job with this id was found for this account.',
   job_not_found_or_terminal: 'No running conversion job with this id was found.',
+  automation_not_found: 'No automation with this id was found for this account.',
+  automation_run_not_found: 'No automation run with this id was found for this account.',
+  automation_limit_reached: 'This account already has the most automations allowed.',
+  automation_disabled: 'The automation is off. Turn it on first.',
+  automation_not_ready: 'The automation is missing its destination. Edit it and save again.',
+  automation_secrets_not_configured: 'Webhook automations are not available on this server yet.',
+  recipe_not_available: 'This recipe is not available yet.',
+  recipe_mismatch: 'recipe does not match the automation being edited.',
+  retry_not_allowed:
+    'This run failed for a reason a retry cannot fix. Edit the automation instead.',
+  webhook_url_required: 'A webhook recipe needs a url.',
+  webhook_url_blocked: 'Seald does not send to that address. Use a public https address.',
+  template_not_found: 'No template with this id was found for this account.',
 };
 
 function messageFor(slug: string, status: number): string {
@@ -133,6 +146,8 @@ const PASS_THROUGH_5XX_SLUGS = new Set([
   'conversion-failed',
   'conversion_unavailable',
   'drive-upstream-error',
+  // Automations (WP-30): the webhook secrets key is not configured.
+  'automation_secrets_not_configured',
 ]);
 
 /** `retryAfter` (seconds) and `url` a service put on its exception body. */

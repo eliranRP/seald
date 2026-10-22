@@ -218,5 +218,6 @@ export type {
 } from './api-keys';
 export * from './mcp';
 export * from './mcp-write';
+export * from './mcp-automations';
 export * from './approvals';
 export * from './bulk-send';

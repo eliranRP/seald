@@ -7,6 +7,7 @@ import { EnvelopeQueriesModule } from '../envelopes/queries/envelope-queries.mod
 import { IdempotencyModule } from '../idempotency/idempotency.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { McpAuthGuard, McpFlagGuard } from './mcp-auth.guard';
+import { AutomationApprovalRegistrar } from './tools/automations/automation-approval.registrar';
 import { McpController } from './mcp.controller';
 import { McpServices } from './mcp-services';
 import { McpToolRunner } from './tool-runner';
@@ -31,6 +32,13 @@ import { McpToolRunner } from './tool-runner';
     ApprovalsModule,
   ],
   controllers: [McpController],
-  providers: [McpFlagGuard, McpAuthGuard, McpServices, McpToolRunner],
+  providers: [
+    McpFlagGuard,
+    McpAuthGuard,
+    McpServices,
+    McpToolRunner,
+    // WP-30: registers the automations approval kind's real handler.
+    AutomationApprovalRegistrar,
+  ],
 })
 export class McpModule {}

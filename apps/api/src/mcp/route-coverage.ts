@@ -31,6 +31,9 @@ export const SHIPPED_STEPS = [
   'step-8c',
   'step-8d',
   'step-9',
+  // WP-30: automations A3. The /automations HTTP routes land with the
+  // settings UI (WP-31) and map to these tools in that package.
+  'step-a3',
 ] as const;
 
 export const EXCLUSION_REASONS = [

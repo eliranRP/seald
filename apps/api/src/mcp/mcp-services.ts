@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AccountDirectoryService } from '../accounts/account-directory.service';
 import { ApprovalsService } from '../approvals/approvals.service';
+import { AutomationsService } from '../automations/automations.service';
 import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-documents.service';
 import { EnvelopesService } from '../envelopes/envelopes.service';
 import { EnvelopeQueriesService } from '../envelopes/queries/envelope-queries.service';
@@ -30,5 +31,7 @@ export class McpServices {
     readonly drive: DriveSourceService,
     // WP-21 (step 7c): approval-gated tools ask here; approvals_get / _list read.
     readonly approvals: ApprovalsService,
+    // WP-30 (automations A3): the same service the settings API uses.
+    readonly automations: AutomationsService,
   ) {}
 }

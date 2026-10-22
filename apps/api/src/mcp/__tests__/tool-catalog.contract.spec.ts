@@ -1,9 +1,10 @@
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
-import { API_KEY_SCOPES, FEATURE_FLAGS, type FeatureFlag } from 'shared';
+import { API_KEY_DEFAULT_SCOPES, API_KEY_SCOPES, FEATURE_FLAGS, type FeatureFlag } from 'shared';
 import { describeTool, listTools } from '../tool-catalog';
 import {
   MCP_APPROVAL_TOOLS,
+  MCP_AUTOMATION_TOOLS,
   MCP_READ_TOOLS,
   MCP_SUGGEST_TOOLS,
   MCP_TOOLS,
@@ -72,7 +73,28 @@ describe('MCP tool catalog (contract)', () => {
       ...MCP_WRITE_TOOLS,
       ...MCP_APPROVAL_TOOLS,
       ...MCP_SUGGEST_TOOLS,
+      ...MCP_AUTOMATION_TOOLS,
     ]);
+  });
+
+  it('ships the automation tools (A3): automations:write for writes, both flags required', () => {
+    expect(MCP_AUTOMATION_TOOLS.map((t) => t.name)).toEqual([
+      'automations_list',
+      'automations_upsert_recipe',
+      'automations_set_enabled',
+      'automations_list_runs',
+      'automations_get_run',
+      'automations_retry_run',
+    ]);
+    for (const tool of MCP_AUTOMATION_TOOLS) {
+      expect(tool.requiresFlags).toEqual(['mcpServer', 'workflowAutomations']);
+      expect(tool.scopes).toEqual([tool.mutating ? 'automations:write' : 'automations:read']);
+    }
+    // automations:write is never a default scope (docs/design/mcp-server.md rule 5).
+    expect(API_KEY_DEFAULT_SCOPES).not.toContain('automations:write');
+    expect(API_KEY_DEFAULT_SCOPES).not.toContain('automations:read');
+    // No tool tests a webhook yet: automations_test_webhook is A2b.
+    expect(MCP_TOOLS.map((t) => t.name)).not.toContain('automations_test_webhook');
   });
 
   it('ships no send, remind or cancel tool before the approval steps', () => {
@@ -156,6 +178,7 @@ describe('MCP tool catalog (contract)', () => {
         ['envelopes_remove_document', ['multiDocumentEnvelopes']],
         ['envelopes_set_recipient_order', ['signingOrder']],
         ['gdrive_import', ['gdriveIntegration']],
+        ['automations_list', ['mcpServer', 'workflowAutomations']],
       ]),
     );
     const all = Object.fromEntries(Object.keys(FEATURE_FLAGS).map((k) => [k, true]));
