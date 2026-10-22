@@ -19,6 +19,50 @@ function syntaxRule(bans) {
   return ['error', ...bans];
 }
 
+// Existing global import ban. Overrides replace `no-restricted-imports`
+// options wholesale, so every override that sets the rule repeats this.
+const signpdfPath = {
+  name: '@signpdf/utils',
+  importNames: ['extractSignature'],
+  message:
+    'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
+};
+
+// MCP transport boundary (docs/design/mcp-server.md, step 0d). `src/mcp`
+// reaches the application through `*.service.ts` and `shared` only. The
+// patterns match imports that leave the directory (`../`); a specifier
+// alone cannot tell `../registry` (inside mcp) from `../../envelopes/x`,
+// so the strict "services only" rule is a deny-list of what is not one.
+const mcpModulePattern = {
+  group: ['../**/*.module'],
+  message: 'src/mcp must not import Nest modules. Only src/mcp/*.module.ts wires them.',
+};
+const mcpDeniedPatterns = [
+  {
+    group: ['../**/*.repository', '../**/*.repository.*', '../**/db', '../**/db/**'],
+    message: 'src/mcp must not touch repositories or the database. Call a *.service.ts instead.',
+  },
+  {
+    group: ['../**/*.controller', '../**/*.guard', '../**/*.interceptor', '../**/*.http-errors'],
+    message:
+      'src/mcp must not import HTTP transport code (controllers, guards, HTTP error mapping).',
+  },
+  {
+    group: [
+      '../**/signing/**',
+      '../**/signing.service',
+      '../**/signer-session.service',
+      '../**/signer-session',
+    ],
+    message:
+      'src/mcp must not import the signing module. Signing stays with the signer in a browser (docs/design/mcp-server.md).',
+  },
+];
+const mcpDeniedPaths = [
+  signpdfPath,
+  { name: 'pg', message: 'src/mcp must not use the database driver. Call a *.service.ts instead.' },
+];
+
 module.exports = {
   root: true,
   env: { node: true, jest: true, es2022: true },
@@ -30,13 +74,12 @@ module.exports = {
     tsconfigRootDir: __dirname,
   },
   plugins: ['@typescript-eslint', '@eslint-community/eslint-comments'],
-  extends: [
-    'eslint:recommended',
-    'plugin:@typescript-eslint/recommended',
-    'prettier',
-  ],
+  extends: ['eslint:recommended', 'plugin:@typescript-eslint/recommended', 'prettier'],
   rules: {
-    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    '@typescript-eslint/no-unused-vars': [
+      'error',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+    ],
     '@typescript-eslint/no-explicit-any': 'warn',
     // Node.js best-practices skill, rule 2.3 — every promise must be awaited or
     // attached with .catch(); fire-and-forget loses errors and crashes the process
@@ -55,14 +98,7 @@ module.exports = {
     'no-restricted-imports': [
       'error',
       {
-        paths: [
-          {
-            name: '@signpdf/utils',
-            importNames: ['extractSignature'],
-            message:
-              'Do not use extractSignature from @signpdf/utils — it strips trailing 0x00 bytes. Use extractContents() in pades-verify-helpers.ts.',
-          },
-        ],
+        paths: [signpdfPath],
       },
     ],
   },
@@ -70,7 +106,12 @@ module.exports = {
     {
       // CLIs + smoke scripts run interactively; console output is the contract.
       // Specs still use double-casts for test doubles (testing cycle).
-      files: ['scripts/**/*.{ts,js,mjs,cjs}', 'test/**/*.{ts,js}', '**/*.spec.ts', '**/__tests__/**'],
+      files: [
+        'scripts/**/*.{ts,js,mjs,cjs}',
+        'test/**/*.{ts,js}',
+        '**/*.spec.ts',
+        '**/__tests__/**',
+      ],
       rules: {
         'no-console': 'off',
         '@typescript-eslint/no-non-null-assertion': 'off',
@@ -92,6 +133,24 @@ module.exports = {
       rules: {
         '@typescript-eslint/no-non-null-assertion': 'off',
         'no-restricted-syntax': syntaxRule(syntaxBans.filter((ban) => ban !== asUnknownAsBan)),
+      },
+    },
+    {
+      // MCP boundary. Specs may import anything they need to build fixtures.
+      files: ['src/mcp/**/*.ts'],
+      excludedFiles: ['src/mcp/**/__tests__/**', 'src/mcp/**/*.spec.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          { paths: mcpDeniedPaths, patterns: [mcpModulePattern, ...mcpDeniedPatterns] },
+        ],
+      },
+    },
+    {
+      // The MCP Nest module is the one place that wires other modules.
+      files: ['src/mcp/*.module.ts'],
+      rules: {
+        'no-restricted-imports': ['error', { paths: mcpDeniedPaths, patterns: mcpDeniedPatterns }],
       },
     },
   ],
