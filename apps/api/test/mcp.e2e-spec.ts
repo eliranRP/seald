@@ -472,9 +472,9 @@ describePg('MCP server (e2e, real Postgres)', () => {
       await client?.close();
     });
 
-    it('lists exactly the read tools with JSON schemas', async () => {
+    it('lists the read tools first, then the WP-19 draft tools, with JSON schemas', async () => {
       const { tools } = await client.listTools();
-      expect(tools.map((t) => t.name)).toEqual([
+      expect(tools.slice(0, 7).map((t) => t.name)).toEqual([
         'me_get',
         'envelopes_search',
         'envelopes_get',
@@ -485,8 +485,15 @@ describePg('MCP server (e2e, real Postgres)', () => {
       ]);
       for (const t of tools) {
         expect(t.inputSchema.type).toBe('object');
-        expect(t.annotations?.readOnlyHint).toBe(true);
+        // Read tools are read-only; every other tool takes an idempotency key.
+        if (!t.annotations?.readOnlyHint) {
+          expect(t.inputSchema.required).toEqual(
+            expect.arrayContaining(['idempotency_key', 'dry_run']),
+          );
+        }
       }
+      // Nothing sends, reminds or cancels before the approval steps.
+      expect(tools.filter((t) => /send|remind/.test(t.name))).toEqual([]);
     });
 
     it('me_get returns the account behind the key', async () => {

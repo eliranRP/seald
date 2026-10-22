@@ -48,8 +48,12 @@ const mcpDeniedPatterns = [
       'src/mcp must not import HTTP transport code (controllers, guards, HTTP error mapping).',
   },
   {
+    // The one exception is the sender-side signing-order service behind
+    // `PUT /envelopes/:id/signing-order` (WP-05), which the draft tools
+    // call (WP-19). It sets the order on a draft; it does not sign.
     group: [
       '../**/signing/**',
+      '!../**/signing/signing-order.service',
       '../**/signing.service',
       '../**/signer-session.service',
       '../**/signer-session',

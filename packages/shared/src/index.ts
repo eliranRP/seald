@@ -216,3 +216,4 @@ export type {
   RevokeApiKeyResponse,
 } from './api-keys';
 export * from './mcp';
+export * from './mcp-write';

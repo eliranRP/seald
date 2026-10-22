@@ -19,7 +19,15 @@
  */
 
 /** Steps whose tools have shipped. A `planned` entry may not name one. */
-export const SHIPPED_STEPS = ['step-4', 'step-5', 'step-6'] as const;
+export const SHIPPED_STEPS = [
+  'step-4',
+  'step-5',
+  'step-6',
+  'step-8a',
+  'step-8b',
+  'step-8c',
+  'step-8d',
+] as const;
 
 export const EXCLUSION_REASONS = [
   'signer_link',
@@ -47,29 +55,31 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
 
   // Envelopes
   'GET /envelopes': { tool: 'envelopes_search' },
-  'POST /envelopes': { planned: 'step-8c' },
+  'POST /envelopes': { tool: 'envelopes_create' },
   'GET /envelopes/:id': { tool: 'envelopes_get' },
-  'PATCH /envelopes/:id': { planned: 'step-8c' },
-  'PUT /envelopes/:id/signing-order': { planned: 'step-8c' },
-  'GET /envelopes/:id/access-auth': { planned: 'step-8c' },
-  'PATCH /envelopes/:id/access-auth': { planned: 'step-8c' },
-  'DELETE /envelopes/:id': { planned: 'step-8c' },
-  'POST /envelopes/:id/upload': { planned: 'step-8b' },
+  'PATCH /envelopes/:id': { tool: 'envelopes_update' },
+  'PUT /envelopes/:id/signing-order': { tool: 'envelopes_set_recipient_order' },
+  // WP-10 signer access-code settings: tool lands with the MCP "Later" list (WP-26).
+  'GET /envelopes/:id/access-auth': { planned: 'step-later' },
+  'PATCH /envelopes/:id/access-auth': { planned: 'step-later' },
+  'DELETE /envelopes/:id': { tool: 'envelopes_delete_draft' },
+  'POST /envelopes/:id/upload': { tool: 'envelopes_upload_pdf' },
   'POST /envelopes/:id/send': { planned: 'step-10' },
   'POST /envelopes/:id/cancel': { planned: 'step-11' },
   'POST /envelopes/:id/signers/:signer_id/remind': { planned: 'step-11' },
-  'POST /envelopes/:id/signers': { planned: 'step-8c' },
-  'DELETE /envelopes/:id/signers/:signer_id': { planned: 'step-8c' },
-  'PUT /envelopes/:id/fields': { planned: 'step-9' },
+  'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
+  'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
+  // WP-19 ships placement (draft prepare); WP-20 (step 9) adds suggestions.
+  'PUT /envelopes/:id/fields': { tool: 'envelopes_place_fields' },
   'GET /envelopes/:id/events': { tool: 'envelopes_list_events' },
   'GET /envelopes/:id/download': { tool: 'envelopes_download_url' },
   'POST /envelopes/:id/gdrive/save': { planned: 'step-14' },
 
   // Documents of an envelope (WP-03)
   'GET /envelopes/:id/documents': { tool: 'envelopes_get' },
-  'POST /envelopes/:id/documents': { planned: 'step-8b' },
-  'PUT /envelopes/:id/documents/order': { planned: 'step-8c' },
-  'DELETE /envelopes/:id/documents/:document_id': { planned: 'step-8c' },
+  'POST /envelopes/:id/documents': { tool: 'envelopes_add_document' },
+  'PUT /envelopes/:id/documents/order': { tool: 'envelopes_reorder_documents' },
+  'DELETE /envelopes/:id/documents/:document_id': { tool: 'envelopes_remove_document' },
 
   // Contacts
   'GET /contacts': { planned: 'step-12' },
@@ -90,16 +100,19 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /templates/:id/example': { planned: 'step-13' },
 
   // Google Drive
-  'GET /integrations/gdrive/oauth/url': { planned: 'step-8d' },
+  // A Seald settings link, not a consent URL minted for the key (see the tool).
+  'GET /integrations/gdrive/oauth/url': { tool: 'gdrive_connect_url' },
   'GET /integrations/gdrive/oauth/start': {
     excluded: 'oauth_browser_redirect',
     note: 'Full-page 302 to Google for mobile browsers; an agent gets the same consent link from oauth/url.',
   },
-  'GET /integrations/gdrive/accounts': { planned: 'step-8d' },
+  'GET /integrations/gdrive/accounts': { tool: 'gdrive_list_accounts' },
   'DELETE /integrations/gdrive/accounts/:id': { planned: 'step-14' },
-  'GET /integrations/gdrive/files': { planned: 'step-8d' },
-  'GET /integrations/gdrive/picker-credentials': { planned: 'step-8d' },
-  'POST /integrations/gdrive/conversion': { planned: 'step-8d' },
-  'GET /integrations/gdrive/conversion/:jobId': { planned: 'step-8d' },
-  'DELETE /integrations/gdrive/conversion/:jobId': { planned: 'step-8d' },
+  'GET /integrations/gdrive/files': { tool: 'gdrive_list_files' },
+  // An agent cannot open Google's picker: gdrive_import answers a file the
+  // app cannot read with gdrive_file_not_picked and a Seald picker link.
+  'GET /integrations/gdrive/picker-credentials': { tool: 'gdrive_import' },
+  'POST /integrations/gdrive/conversion': { tool: 'gdrive_import' },
+  'GET /integrations/gdrive/conversion/:jobId': { tool: 'gdrive_conversion_status' },
+  'DELETE /integrations/gdrive/conversion/:jobId': { tool: 'gdrive_conversion_cancel' },
 };

@@ -83,9 +83,6 @@ export class EnvelopeQueriesService {
   ) {}
 
   async search(owner_id: string, input: SearchInput): Promise<SearchResult> {
-    // The import source name is not stored yet (design doc: until the
-    // import PR writes it, this filter matches nothing).
-    if (input.drive_file_name !== undefined) return { items: [], next_cursor: null };
     if (
       input.date_from !== undefined &&
       input.date_to !== undefined &&
@@ -107,6 +104,10 @@ export class EnvelopeQueriesService {
       ...(input.date_from !== undefined ? { date_from: input.date_from } : {}),
       ...(input.date_to !== undefined ? { date_to: input.date_to } : {}),
       ...(input.template_id !== undefined ? { template_id: input.template_id } : {}),
+      // Recorded per document by the MCP Drive import (WP-19, migration 0029).
+      ...(input.drive_file_name !== undefined
+        ? { drive_file_name: input.drive_file_name.toLowerCase() }
+        : {}),
       limit,
       cursor,
     });

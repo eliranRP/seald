@@ -34,6 +34,8 @@ export interface SearchFilters {
   /** Exclusive, ISO. */
   readonly date_to?: string;
   readonly template_id?: string;
+  /** Lower-cased substring of a document's Drive source name (migration 0029). */
+  readonly drive_file_name?: string;
   readonly limit: number;
   readonly cursor: UpdatedAtCursor | null;
 }

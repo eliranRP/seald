@@ -23,6 +23,8 @@ export interface Database {
   api_keys: ApiKeysTable;
   // Migration 0026 — emailed one-time codes for signers (WP-10).
   signer_otp_challenges: SignerOtpChallengesTable;
+  // Migration 0029 — MCP staged uploads (WP-19).
+  mcp_uploads: McpUploadsTable;
 }
 
 /** Migration 0026 (WP-10). `none` or the emailed one-time code. */
@@ -45,6 +47,30 @@ export interface SignerOtpChallengesTable {
   consumed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   locked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   superseded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+/**
+ * Migration 0029 (WP-19). A file an MCP client staged before attaching it
+ * to a draft. `id` is the tool-facing `document_id` / `upload_id`.
+ */
+export interface McpUploadsTable {
+  id: Generated<string>;
+  owner_id: string;
+  storage_key: string;
+  filename: string | null;
+  mime: string | null;
+  sha256: string | null;
+  byte_length: number | null;
+  page_count: number | null;
+  thumbnail_url: string | null;
+  source: ColumnType<'upload' | 'gdrive', 'upload' | 'gdrive' | undefined, never>;
+  drive_file_id: string | null;
+  drive_file_name: string | null;
+  conversion_job_id: string | null;
+  expires_at: ColumnType<Date, string, never>;
+  completed_at: ColumnType<Date | null, string | null | undefined, string | null>;
+  consumed_at: ColumnType<Date | null, string | null | undefined, string | null>;
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
@@ -387,6 +413,8 @@ export interface EnvelopeDocumentsTable {
   sealed_sha256: string | null;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
+  /** Migration 0029 (WP-19). Name of the Drive file this document was imported from. */
+  source_drive_file_name: ColumnType<string | null, string | null | undefined, string | null>;
 }
 
 export interface EnvelopeEventsTable {
@@ -472,9 +500,14 @@ export interface IdempotencyRecordsTable {
   path: string;
   request_hash: string;
   response_status: number;
-  response_body: ColumnType<Record<string, unknown>, string, never>;
-  created_at: ColumnType<Date, string | undefined, never>;
-  expires_at: ColumnType<Date, string | undefined, never>;
+  response_body: ColumnType<Record<string, unknown>, string, string>;
+  created_at: ColumnType<Date, string | undefined, string | undefined>;
+  expires_at: ColumnType<Date, string | undefined, string | undefined>;
+  /**
+   * Migration 0029 (WP-19). Null while an MCP call holds the key and has
+   * not stored its response yet.
+   */
+  completed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
 }
 
 export interface EmailWebhooksTable {

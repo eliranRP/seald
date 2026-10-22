@@ -14,6 +14,15 @@ export interface DriveImportArgs {
   readonly timeoutMs?: number;
   /** Caller-side cancellation (e.g. an MCP request abort). */
   readonly signal?: AbortSignal;
+  /**
+   * What the timeout does. `cancel` (default) cancels the job and throws
+   * `conversion-failed`, as before. `pending` leaves the job running and
+   * throws {@link DriveImportPendingError} with its id, so the caller can
+   * poll it (MCP `conversion_pending`, WP-19).
+   */
+  readonly onTimeout?: 'cancel' | 'pending';
+  /** Called once the job id exists, before the wait. */
+  readonly onStarted?: (jobId: string) => Promise<void> | void;
 }
 
 export interface DriveImportResult {
@@ -28,6 +37,14 @@ export class DriveImportError extends Error {
   constructor(public readonly code: DriveImportErrorCode) {
     super(code);
     this.name = 'DriveImportError';
+  }
+}
+
+/** The wait ran out with `onTimeout: 'pending'`; the job is still running. */
+export class DriveImportPendingError extends Error {
+  constructor(public readonly jobId: string) {
+    super('conversion_pending');
+    this.name = 'DriveImportPendingError';
   }
 }
 
@@ -59,6 +76,7 @@ export class DriveImportService {
       fileId: args.fileId,
       mimeType: args.mimeType,
     });
+    if (args.onStarted) await args.onStarted(jobId);
     for (;;) {
       if (args.signal?.aborted) {
         this.gateway.cancel(jobId, args.userId);
@@ -74,10 +92,21 @@ export class DriveImportService {
       }
       if (view.status === 'cancelled') throw new DriveImportError('cancelled');
       if (Date.now() >= deadline) {
+        if (args.onTimeout === 'pending') throw new DriveImportPendingError(jobId);
         this.gateway.cancel(jobId, args.userId);
         throw new DriveImportError('conversion-failed');
       }
       await new Promise<void>((resolve) => setTimeout(resolve, pollMs));
     }
+  }
+
+  /** The job as `GET /integrations/gdrive/conversion/:jobId` returns it, or null. */
+  view(jobId: string, userId: string): ConversionJobView | null {
+    return this.gateway.view(jobId, userId) ?? null;
+  }
+
+  /** `DELETE /integrations/gdrive/conversion/:jobId`: false when unknown or finished. */
+  cancel(jobId: string, userId: string): boolean {
+    return this.gateway.cancel(jobId, userId);
   }
 }

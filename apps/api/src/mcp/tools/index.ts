@@ -1,17 +1,36 @@
 import type { McpTool } from '../tool';
+import { documentsUploadCompleteTool } from './documents/documents-upload-complete.tool';
+import { documentsUploadStartTool } from './documents/documents-upload-start.tool';
+import { documentsUploadTool } from './documents/documents-upload.tool';
+import { envelopesAddDocumentTool } from './documents/envelopes-add-document.tool';
+import { envelopesUploadPdfTool } from './documents/envelopes-upload-pdf.tool';
 import { envelopesDownloadUrlTool } from './envelopes-download-url.tool';
 import { envelopesGetTool } from './envelopes-get.tool';
 import { envelopesListEventsTool } from './envelopes-list-events.tool';
 import { envelopesListPendingTool } from './envelopes-list-pending.tool';
 import { envelopesSearchTool } from './envelopes-search.tool';
 import { envelopesStatusTool } from './envelopes-status.tool';
+import { gdriveConnectUrlTool } from './gdrive/gdrive-connect-url.tool';
+import { gdriveConversionCancelTool } from './gdrive/gdrive-conversion-cancel.tool';
+import { gdriveConversionStatusTool } from './gdrive/gdrive-conversion-status.tool';
+import { gdriveImportTool } from './gdrive/gdrive-import.tool';
+import { gdriveListAccountsTool } from './gdrive/gdrive-list-accounts.tool';
+import { gdriveListFilesTool } from './gdrive/gdrive-list-files.tool';
+import { gdriveSearchFilesTool } from './gdrive/gdrive-search-files.tool';
 import { meGetTool } from './me-get.tool';
+import { envelopesAddSignerTool } from './prepare/envelopes-add-signer.tool';
+import { envelopesCreateTool } from './prepare/envelopes-create.tool';
+import { envelopesDeleteDraftTool } from './prepare/envelopes-delete-draft.tool';
+import { envelopesPlaceFieldsTool } from './prepare/envelopes-place-fields.tool';
+import { envelopesPrepareTool } from './prepare/envelopes-prepare.tool';
+import { envelopesRemoveDocumentTool } from './prepare/envelopes-remove-document.tool';
+import { envelopesRemoveSignerTool } from './prepare/envelopes-remove-signer.tool';
+import { envelopesReorderDocumentsTool } from './prepare/envelopes-reorder-documents.tool';
+import { envelopesSetRecipientOrderTool } from './prepare/envelopes-set-recipient-order.tool';
+import { envelopesUpdateTool } from './prepare/envelopes-update.tool';
 
-/**
- * Every shipped tool. A tool that is not shipped is absent, not stubbed.
- * Order is the `tools/list` order.
- */
-export const MCP_TOOLS: readonly McpTool[] = [
+/** Read tools (WP-17, steps 4–6). */
+export const MCP_READ_TOOLS: readonly McpTool[] = [
   meGetTool,
   envelopesSearchTool,
   envelopesGetTool,
@@ -20,3 +39,38 @@ export const MCP_TOOLS: readonly McpTool[] = [
   envelopesListPendingTool,
   envelopesListEventsTool,
 ];
+
+/** Write tools (WP-19, steps 8a–8d). Drafts only: nothing here sends. */
+export const MCP_WRITE_TOOLS: readonly McpTool[] = [
+  // 8b — uploads
+  documentsUploadTool,
+  documentsUploadStartTool,
+  documentsUploadCompleteTool,
+  envelopesUploadPdfTool,
+  envelopesAddDocumentTool,
+  // 8d — Google Drive
+  gdriveListAccountsTool,
+  gdriveConnectUrlTool,
+  gdriveListFilesTool,
+  gdriveSearchFilesTool,
+  gdriveImportTool,
+  gdriveConversionStatusTool,
+  gdriveConversionCancelTool,
+  // 8c — prepare a draft
+  envelopesCreateTool,
+  envelopesUpdateTool,
+  envelopesDeleteDraftTool,
+  envelopesAddSignerTool,
+  envelopesRemoveSignerTool,
+  envelopesPlaceFieldsTool,
+  envelopesSetRecipientOrderTool,
+  envelopesReorderDocumentsTool,
+  envelopesRemoveDocumentTool,
+  envelopesPrepareTool,
+];
+
+/**
+ * Every shipped tool. A tool that is not shipped is absent, not stubbed.
+ * Order is the `tools/list` order.
+ */
+export const MCP_TOOLS: readonly McpTool[] = [...MCP_READ_TOOLS, ...MCP_WRITE_TOOLS];

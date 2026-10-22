@@ -38,6 +38,10 @@ describe('src/mcp import boundary (step 0d)', () => {
     ['the shared package', "import { isFeatureEnabled } from 'shared';"],
     ['a file inside src/mcp', "import { registry } from '../registry';"],
     ['a third-party package', "import { z } from 'zod';"],
+    [
+      'the sender-side signing-order service',
+      "import { SigningOrderService } from '../../signing/signing-order.service';",
+    ],
   ])('allows importing %s', async (_name, source) => {
     expect(await restrictedMessages(TOOL, source)).toEqual([]);
   });

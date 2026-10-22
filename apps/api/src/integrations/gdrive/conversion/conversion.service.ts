@@ -49,6 +49,14 @@ export interface ConversionAssetWriter {
 
 export const CONVERSION_ASSET_WRITER = Symbol('CONVERSION_ASSET_WRITER');
 
+/**
+ * Storage path the default asset writer puts a finished conversion at.
+ * The MCP Drive import (WP-19) reads the PDF back from here.
+ */
+export function conversionAssetPath(userId: string, jobId: string): string {
+  return `gdrive-conversions/${userId}/${jobId}.pdf`;
+}
+
 export interface ConvertOnceArgs {
   readonly accessToken: string;
   readonly fileId: string;

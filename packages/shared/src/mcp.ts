@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { API_KEY_SCOPES } from './api-keys';
 import {
   ACTOR_KINDS,
+  DELIVERY_MODES,
   ENVELOPE_STATUSES,
   EVENT_TYPES,
   EnvelopeDocumentSchema,
@@ -75,7 +76,7 @@ export const EnvelopesSearchInputSchema = z.strictObject({
   /** Exclusive upper bound on `updated_at`. */
   date_to: iso.optional(),
   template_id: uuid.optional(),
-  /** The import source name is not stored yet, so this filter matches nothing until it is. */
+  /** Case-insensitive substring of the name of a Drive file one of the documents was imported from. */
   drive_file_name: z.string().trim().min(1).max(255).optional(),
   limit: limit.optional(),
   cursor: cursor.optional(),
@@ -135,6 +136,8 @@ export const McpFieldSchema = z.object({
   width: z.number().nullable(),
   height: z.number().nullable(),
   required: z.boolean(),
+  /** Per-kind options (WP-07). Present while `fieldMetaV2` is on. */
+  meta: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const McpEnvelopeSchema = z.object({
@@ -152,6 +155,16 @@ export const McpEnvelopeSchema = z.object({
   signers: z.array(McpSignerSchema),
   fields: z.array(McpFieldSchema),
   documents: z.array(McpDocumentSchema),
+  // Added in 0.3.0 (WP-19). Optional so older readers stay valid.
+  delivery_mode: z.enum(DELIVERY_MODES).optional(),
+  reminders_enabled: z.boolean().optional(),
+  /** Present while `customReminders` is on. */
+  reminder_first_after_days: z.number().int().optional(),
+  reminder_interval_days: z.number().int().optional(),
+  reminder_max: z.number().int().optional(),
+  /** Present while `fieldMetaV2` is on; null means the signer's own format. */
+  date_format: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
 });
 
 export const MeGetOutputSchema = z.object({
@@ -271,6 +284,11 @@ export const McpToolErrorSchema = z.object({
   message: z.string(),
   retryable: z.boolean(),
   retry_after_seconds: z.number().int().positive().optional(),
+  /**
+   * A Seald app page the owner opens to unblock the call (connect Drive,
+   * pick a file). Never carries a token.
+   */
+  url: z.string().optional(),
   next_steps: z.array(z.object({ tool: z.string(), args: z.record(z.string(), z.unknown()) })),
 });
 

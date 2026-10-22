@@ -1,4 +1,4 @@
-import type { Envelope, EnvelopeDocument, McpEnvelope } from 'shared';
+import type { Envelope, EnvelopeDocument, McpEnvelope, McpField } from 'shared';
 import { mcpSignerStatus } from '../../envelopes/queries/envelope-queries.service';
 
 /**
@@ -31,19 +31,35 @@ export function toMcpEnvelope(envelope: Envelope): McpEnvelope {
       signed_at: s.signed_at,
       declined_at: s.declined_at,
     })),
-    fields: envelope.fields.map((f) => ({
-      id: f.id,
-      signer_id: f.signer_id,
-      ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
-      kind: f.kind,
-      page: f.page,
-      x: f.x,
-      y: f.y,
-      width: f.width ?? null,
-      height: f.height ?? null,
-      required: f.required,
-    })),
+    fields: envelope.fields.map(toMcpField),
     documents: (envelope.documents ?? []).map(toMcpDocument),
+    delivery_mode: envelope.delivery_mode,
+    reminders_enabled: envelope.reminders_enabled,
+    ...(envelope.reminder_first_after_days !== undefined
+      ? { reminder_first_after_days: envelope.reminder_first_after_days }
+      : {}),
+    ...(envelope.reminder_interval_days !== undefined
+      ? { reminder_interval_days: envelope.reminder_interval_days }
+      : {}),
+    ...(envelope.reminder_max !== undefined ? { reminder_max: envelope.reminder_max } : {}),
+    ...(envelope.date_format !== undefined ? { date_format: envelope.date_format } : {}),
+    ...(envelope.timezone !== undefined ? { timezone: envelope.timezone } : {}),
+  };
+}
+
+export function toMcpField(f: Envelope['fields'][number]): McpField {
+  return {
+    id: f.id,
+    signer_id: f.signer_id,
+    ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
+    kind: f.kind,
+    page: f.page,
+    x: f.x,
+    y: f.y,
+    width: f.width ?? null,
+    height: f.height ?? null,
+    required: f.required,
+    ...(f.meta !== undefined ? { meta: { ...f.meta } } : {}),
   };
 }
 

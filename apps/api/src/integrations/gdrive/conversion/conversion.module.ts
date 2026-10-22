@@ -13,6 +13,7 @@ import {
   CONVERSION_ASSET_WRITER,
   CONVERSION_MAX_BYTES,
   ConversionService,
+  conversionAssetPath,
   DRIVE_FETCHER,
   GOTENBERG_CLIENT,
   type ConversionAssetWriter,
@@ -49,7 +50,7 @@ const ConversionAssetWriterProvider: Provider = {
   inject: [StorageService],
   useFactory: (storage: StorageService): ConversionAssetWriter => {
     return async ({ userId, jobId, bytes }): Promise<{ url: string }> => {
-      const path = `gdrive-conversions/${userId}/${jobId}.pdf`;
+      const path = conversionAssetPath(userId, jobId);
       await storage.upload(path, bytes, 'application/pdf');
       const url = await storage.createSignedUrl(path, 60 * 60);
       return { url };
@@ -106,6 +107,8 @@ const ConversionServiceProvider: Provider = {
     // /files rate limiting by hammering /conversion — DO NOT add a
     // GDriveRateLimiterFactoryProvider line.
   ],
-  exports: [ConversionService, ConversionGateway, DriveImportService],
+  // GOTENBERG_CLIENT: the MCP upload path (WP-19) converts a local .docx
+  // with the same network-isolated sidecar.
+  exports: [ConversionService, ConversionGateway, DriveImportService, GOTENBERG_CLIENT],
 })
 export class ConversionModule {}

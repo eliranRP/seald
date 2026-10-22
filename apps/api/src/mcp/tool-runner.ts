@@ -62,10 +62,9 @@ export class McpToolRunner {
       return errorResult(toolError('validation_error'));
     }
 
-    let raw: unknown;
-    try {
-      raw = await tool.invoke(parsed.data, { principal, services: this.services, now });
-    } catch (err) {
+    const ctx = { principal, services: this.services, now };
+    const data = parsed.data as Record<string, unknown>;
+    const fail = (err: unknown): CallToolResult => {
       const mapped = mapToolFailure(err, args);
       if (mapped) {
         done(mapped.slug);
@@ -76,8 +75,77 @@ export class McpToolRunner {
           `type=${err instanceof Error ? err.name : typeof err}`,
       );
       throw new McpError(ErrorCode.InternalError, 'internal_error');
+    };
+
+    // Dry run (step 8a): validate, write nothing, store no idempotency row.
+    if (tool.mutating && data['dry_run'] === true) {
+      try {
+        const would = await (tool.preview ?? missingPreview)(data, ctx);
+        return this.finish(tool, { dry_run: true, would }, done);
+      } catch (err) {
+        return fail(err);
+      }
     }
 
+    if (!tool.mutating) {
+      let raw: unknown;
+      try {
+        raw = await tool.invoke(data, ctx);
+      } catch (err) {
+        return fail(err);
+      }
+      return this.finish(tool, raw, done);
+    }
+
+    // Idempotency (step 8a): `mcp:<key_id>:<client key>`, request hash over
+    // the tool name and the arguments without the key.
+    const begin = await this.services.idempotency.begin({
+      ownerId: principal.ownerId,
+      namespace: `mcp:${principal.keyId}`,
+      clientKey: String(data['idempotency_key']),
+      method: 'MCP',
+      path: tool.name,
+      args: data,
+    });
+    if (begin.kind === 'conflict') {
+      done('idempotency_conflict');
+      return errorResult(toolError('idempotency_conflict', { status: 409 }));
+    }
+    if (begin.kind === 'in_progress') {
+      done('idempotency_in_progress');
+      return errorResult(
+        toolError('idempotency_in_progress', {
+          status: 409,
+          retryable: true,
+          retry_after_seconds: 2,
+        }),
+      );
+    }
+    if (begin.kind === 'replay') return this.finish(tool, begin.body, done, 'replay');
+
+    let result: CallToolResult;
+    try {
+      const raw = await tool.invoke(data, ctx);
+      result = this.finish(tool, raw, done);
+    } catch (err) {
+      await this.services.idempotency.release(begin.handle);
+      if (err instanceof McpError) throw err;
+      return fail(err);
+    }
+    await this.services.idempotency.complete(begin.handle, result.structuredContent);
+    return result;
+  }
+
+  /**
+   * Parse the result through the output schema (dropping any key it does
+   * not name), scan it for token-shaped strings, and wrap it.
+   */
+  private finish(
+    tool: McpTool,
+    raw: unknown,
+    done: (slug: string) => void,
+    slug = 'ok',
+  ): CallToolResult {
     const output = tool.output.safeParse(raw);
     if (!output.success) {
       this.log.error(`tool=${tool.name} slug=internal_error reason=output_schema`);
@@ -95,13 +163,17 @@ export class McpToolRunner {
       throw new McpError(ErrorCode.InternalError, 'internal_error');
     }
 
-    done('ok');
+    done(slug);
     const structured = output.data as Record<string, unknown>;
     return {
       content: [{ type: 'text', text: JSON.stringify(structured) }],
       structuredContent: structured,
     };
   }
+}
+
+async function missingPreview(): Promise<never> {
+  throw new Error('mutating tool without preview');
 }
 
 /**

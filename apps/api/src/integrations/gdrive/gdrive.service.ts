@@ -93,7 +93,12 @@ export class GDriveService {
     userId: string,
     accountId: string,
     mimeFilter: DriveMimeFilter = 'all',
-  ): Promise<{ files: ReadonlyArray<DriveFile> }> {
+    page: {
+      readonly nameContains?: string;
+      readonly pageSize?: number;
+      readonly pageToken?: string;
+    } = {},
+  ): Promise<{ files: ReadonlyArray<DriveFile>; nextPageToken?: string }> {
     assertAccountId(accountId);
     if (!SUPPORTED_MIME_FILTERS.has(mimeFilter)) {
       throw new DriveRequestError('unsupported-mime', 'mime_filter_not_in_allow_list');
@@ -104,7 +109,7 @@ export class GDriveService {
     await this.rateLimiter.acquire(userId);
     const { accessToken } = await this.getAccessToken(accountId, userId);
     try {
-      return await this.filesProxy({ accessToken, mimeFilter });
+      return await this.filesProxy({ accessToken, mimeFilter, ...page });
     } catch (err) {
       throw toDriveListError(err);
     }

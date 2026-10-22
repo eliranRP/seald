@@ -100,6 +100,13 @@ export class EnvelopeQueriesPgRepository extends EnvelopeQueriesRepository {
       // Migration 0031 column; not in db/schema.ts yet, so referenced raw.
       where.push(sql`e.source_template_id = ${f.template_id}::uuid`);
     }
+    if (f.drive_file_name !== undefined) {
+      const pattern = likeContains(f.drive_file_name);
+      where.push(sql`exists (
+        select 1 from public.envelope_documents d
+         where d.envelope_id = e.id
+           and lower(d.source_drive_file_name) like ${pattern} escape '\\')`);
+    }
     if (f.signer !== undefined) {
       const pattern = likeContains(f.signer);
       where.push(sql`exists (

@@ -88,6 +88,16 @@ function sortKeysDeep(value: unknown): unknown {
   return out;
 }
 
+/**
+ * Canonical JSON of any JSON-shaped value: object keys sorted at every
+ * depth, arrays kept in order, no whitespace. The same sort the metadata
+ * subobject gets above, exported so other hashes (the MCP idempotency
+ * `request_hash`) use this one implementation instead of their own.
+ */
+export function canonicalJsonValue(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value)) ?? 'null';
+}
+
 export function eventHash(event: CanonicalEventInput): Buffer {
   return createHash('sha256').update(canonicalJson(event), 'utf8').digest();
 }

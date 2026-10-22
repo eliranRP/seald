@@ -5,6 +5,7 @@ import { ContactsModule } from '../contacts/contacts.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { GDriveModule } from '../integrations/gdrive/gdrive.module';
 import { TemplatesModule } from '../templates/templates.module';
+import { UploadsModule } from '../uploads/uploads.module';
 import { IdempotencyRepository } from './idempotency.repository';
 import { IdempotencyPgRepository } from './idempotency.repository.pg';
 import { MeController } from './me.controller';
@@ -28,6 +29,7 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
     EnvelopesModule,
     TemplatesModule,
     GDriveModule,
+    UploadsModule,
   ],
   controllers: [MeController],
   providers: [

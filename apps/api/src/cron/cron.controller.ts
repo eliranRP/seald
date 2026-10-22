@@ -20,6 +20,7 @@ import {
 import { requireFlag } from '../common/feature-flag.guard';
 import { SealSweepService, type SealSweepResult } from '../sealing/seal-sweep.service';
 import { StepSweepService, type StepSweepResult } from '../signing/step-sweep.service';
+import { StagedUploadsService } from '../uploads/staged-uploads.service';
 
 /**
  * Internal cron endpoints. Locked down with a shared-secret header
@@ -39,6 +40,7 @@ export class CronController {
     private readonly sealSweep: SealSweepService,
     private readonly stepSweep: StepSweepService,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly stagedUploads: StagedUploadsService,
   ) {}
 
   /**
@@ -126,6 +128,23 @@ export class CronController {
     requireFlag('signingOrder');
     this.assertSecret(secret);
     return this.stepSweep.sweep(new Date());
+  }
+
+  /**
+   * POST /internal/cron/mcp-upload-sweep (WP-19)
+   *
+   * The MCP staged-upload cleanup pass: deletes expired uploads that were
+   * never attached to a draft, with their staging objects. 404 while the
+   * `mcpServer` flag is off.
+   */
+  @Post('mcp-upload-sweep')
+  @HttpCode(200)
+  async sweepMcpUploads(
+    @Headers('x-cron-secret') secret: string | undefined,
+  ): Promise<{ deleted: number; objects_failed: number }> {
+    requireFlag('mcpServer');
+    this.assertSecret(secret);
+    return this.stagedUploads.sweepExpired(new Date());
   }
 
   private assertSecret(provided: string | undefined): void {

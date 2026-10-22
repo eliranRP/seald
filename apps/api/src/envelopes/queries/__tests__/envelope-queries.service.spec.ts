@@ -78,13 +78,10 @@ describe('EnvelopeQueriesService.search', () => {
     expect(searchCalls[1]).toEqual({ limit: 20, cursor: null });
   });
 
-  it('matches nothing on drive_file_name until the source name is stored', async () => {
-    const { svc, repo } = setup();
-    expect(await svc.search(OWNER, { drive_file_name: 'x' })).toEqual({
-      items: [],
-      next_cursor: null,
-    });
-    expect(repo.search).not.toHaveBeenCalled();
+  it('passes drive_file_name to the repository, lower-cased (WP-19 records it on import)', async () => {
+    const { svc, searchCalls } = setup();
+    await svc.search(OWNER, { drive_file_name: 'Q3 Contract' });
+    expect(searchCalls[0]).toEqual({ drive_file_name: 'q3 contract', limit: 20, cursor: null });
   });
 
   it('rejects an empty date window', async () => {

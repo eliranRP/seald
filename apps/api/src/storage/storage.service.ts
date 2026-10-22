@@ -19,6 +19,22 @@ export abstract class StorageService {
   abstract createSignedUrl(path: string, expiresInSeconds: number): Promise<string>;
   /** Returns true if the object exists. Used for assertions after upload. */
   abstract exists(path: string): Promise<boolean>;
+
+  /**
+   * Presigned upload (WP-19, MCP `documents_upload_start`): a URL the
+   * caller PUTs the bytes to without our credentials. Only one object,
+   * `path`, can be written through it. Adapters that cannot presign throw.
+   */
+  async createSignedUploadUrl(_path: string, _expiresInSeconds: number): Promise<SignedUpload> {
+    throw new StorageError('sign_upload', 501, 'presigned uploads are not supported');
+  }
+}
+
+/** A presigned PUT. `headers` must be sent with the PUT. */
+export interface SignedUpload {
+  readonly url: string;
+  readonly method: 'PUT';
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 /**
@@ -135,6 +151,37 @@ export class SupabaseStorageService extends StorageService {
     // Supabase returns a path like /object/sign/<bucket>/<path>?token=… that
     // is relative to the storage API root (/storage/v1).
     return `${this.baseUrl}${rel}`;
+  }
+
+  /**
+   * Supabase `POST /object/upload/sign/{bucket}/{path}` returns a path
+   * with a single-object upload token. The token's lifetime is the storage
+   * server's `SIGNED_UPLOAD_URL_EXPIRATION_TIME`; the API asks for
+   * `expiresInSeconds` and does not accept a `complete` for an upload whose
+   * staging row has expired. The bucket's `file_size_limit` and
+   * `allowed_mime_types` reject a PUT past the cap or of another type.
+   */
+  override async createSignedUploadUrl(
+    path: string,
+    expiresInSeconds: number,
+  ): Promise<SignedUpload> {
+    const url = `${this.baseUrl}/object/upload/sign/${this.bucket}/${encodePath(path)}`;
+    const res = await fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { ...this.authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expiresIn: expiresInSeconds }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new StorageError('sign_upload', res.status, text);
+    }
+    const json = (await res.json()) as { url?: string };
+    if (!json.url) throw new StorageError('sign_upload', 500, 'response missing url');
+    return {
+      url: `${this.baseUrl}${json.url}`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/pdf', 'x-upsert': 'false' },
+    };
   }
 
   async exists(path: string): Promise<boolean> {
