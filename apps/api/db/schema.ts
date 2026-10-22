@@ -21,6 +21,31 @@ export interface Database {
   gdrive_envelope_exports: GDriveEnvelopeExportsTable;
   // Migration 0028 — API keys for `/mcp` and `/api/v1` (WP-14).
   api_keys: ApiKeysTable;
+  // Migration 0026 — emailed one-time codes for signers (WP-10).
+  signer_otp_challenges: SignerOtpChallengesTable;
+}
+
+/** Migration 0026 (WP-10). `none` or the emailed one-time code. */
+export type SignerAuthMethodDb = 'none' | 'email_otp';
+
+/**
+ * Migration 0026. One row per code sent. `code_hash` is hex HMAC-SHA256
+ * under SIGNER_OTP_KEY, null until the worker mints the code at dispatch;
+ * the code itself is never stored.
+ */
+export interface SignerOtpChallengesTable {
+  id: Generated<string>;
+  envelope_id: string;
+  signer_id: string;
+  purpose: 'access' | 'action';
+  code_hash: string | null;
+  attempts: ColumnType<number, number | undefined, number | undefined>;
+  expires_at: ColumnType<Date, string, string | undefined>;
+  sent_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  consumed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  locked_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  superseded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
 }
 
 /**
@@ -184,7 +209,10 @@ export type EventTypeDb =
   | 'job_failed'
   | 'retention_deleted'
   | 'document_added'
-  | 'step_started';
+  | 'step_started'
+  | 'access_code_sent'
+  | 'access_code_verified'
+  | 'access_code_failed';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -233,6 +261,19 @@ export interface EnvelopesTable {
   // the signer sent. Read and written only while `fieldMetaV2` is on.
   date_format: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   timezone: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  // Migration 0026 (WP-10) — envelope default for the emailed one-time
+  // code before access / before submit. Read only while `signerAccessAuth`
+  // is on.
+  access_auth: ColumnType<
+    SignerAuthMethodDb,
+    SignerAuthMethodDb | undefined,
+    SignerAuthMethodDb | undefined
+  >;
+  action_auth: ColumnType<
+    SignerAuthMethodDb,
+    SignerAuthMethodDb | undefined,
+    SignerAuthMethodDb | undefined
+  >;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -249,6 +290,18 @@ export interface EnvelopeSignersTable {
   // Migration 0023 (WP-05) — when this signer's step was invited. Null on
   // drafts and for later steps of a sequential envelope until they start.
   invited_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  // Migration 0026 (WP-10) — per-signer override; null inherits the
+  // envelope's access_auth / action_auth.
+  access_auth: ColumnType<
+    SignerAuthMethodDb | null,
+    SignerAuthMethodDb | null | undefined,
+    SignerAuthMethodDb | null | undefined
+  >;
+  action_auth: ColumnType<
+    SignerAuthMethodDb | null,
+    SignerAuthMethodDb | null | undefined,
+    SignerAuthMethodDb | null | undefined
+  >;
 
   // Migration 0027 (MCP Insert A) — both are written by the email
   // dispatcher when it sends an invite or reminder: a fresh token's hash
@@ -382,7 +435,8 @@ export type EmailKindDb =
   | 'expired_to_sender'
   | 'expired_to_signer'
   | 'signed_to_sender'
-  | 'api_key_created';
+  | 'api_key_created'
+  | 'access_code';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {
