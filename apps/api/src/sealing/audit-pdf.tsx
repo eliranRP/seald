@@ -67,6 +67,20 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
+  /** Pre-seal mode (WP-01, flag `appendCertificate`). The pages are
+   *  rendered before `pades.sign` and appended inside sealed.pdf, so the
+   *  sealed SHA-256 cannot appear (it would hash itself). The signed-
+   *  document card points at audit.pdf and the verify page instead, and
+   *  a card shows the head of the audit event chain. `sealedSha256` is
+   *  ignored in this mode. Omit for the standalone audit.pdf. */
+  readonly preSeal?: PreSealInfo;
+}
+
+export interface PreSealInfo {
+  /** Hex SHA-256 of the canonical JSON of the last event at seal time
+   *  (the value the next event's `prev_event_hash` will carry). Null
+   *  when the envelope has no events. */
+  readonly chainHeadSha256: string | null;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -89,6 +103,7 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       cmsSealApplied={input.cmsSealApplied}
       timestampApplied={input.timestampApplied}
       sealedPages={input.sealedPages}
+      preSeal={input.preSeal ?? null}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
     />,
@@ -959,6 +974,7 @@ interface DocumentRenderProps {
   cmsSealApplied: boolean;
   timestampApplied: boolean;
   sealedPages: number | null;
+  preSeal: PreSealInfo | null;
   verifyUrl: string;
   qrDataUrl: string;
 }
@@ -1041,7 +1057,14 @@ interface RenderCtx extends DocumentRenderProps {
  *  SHA-256 and no CMS seal (NoopPadesSigner). `none` is audit-only. */
 type SealMark = 'cms' | 'hash-only' | 'none';
 
-function sealMark(input: { sealedSha256: string | null; cmsSealApplied: boolean }): SealMark {
+function sealMark(input: {
+  sealedSha256: string | null;
+  cmsSealApplied: boolean;
+  preSeal: PreSealInfo | null;
+}): SealMark {
+  // Pre-seal pages ship inside the file the seal is about to cover, so
+  // the mark follows the signer, not a hash that does not exist yet.
+  if (input.preSeal !== null) return input.cmsSealApplied ? 'cms' : 'hash-only';
   const sealed = input.sealedSha256 !== null && input.cmsSealApplied;
   if (sealed) return 'cms';
   if (input.sealedSha256 !== null && !input.cmsSealApplied) return 'hash-only';
@@ -1251,8 +1274,59 @@ function Datagrid({ ctx }: { ctx: RenderCtx }): React.ReactElement {
 }
 
 function HashCards({ ctx }: { ctx: RenderCtx }): React.ReactElement {
+  const cards = ctx.preSeal !== null ? preSealHashCards(ctx, ctx.preSeal) : sealedHashCards(ctx);
+  return (
+    <View style={styles.hashBlock}>
+      {cards.map((c) => (
+        <View key={c.label} style={styles.hashCard}>
+          <View style={styles.hashRow}>
+            <View style={[styles.hashDot, c.signed ? styles.hashDotSigned : {}]} />
+            <Text style={styles.hashType}>{c.label.toUpperCase()}</Text>
+            <Text style={styles.hashFilename}>{c.filename}</Text>
+            {c.pages > 0 ? <Text style={styles.hashPages}> · {c.pages} pages</Text> : null}
+          </View>
+          <Text style={styles.hashValue}>{c.hash}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+interface HashCardInfo {
+  signed: boolean;
+  label: string;
+  filename: string;
+  pages: number;
+  hash: string;
+}
+
+/** Pre-seal (appended) pages: the sealed hash is not knowable inside the
+ *  file it covers, so point at where it is recorded, and show the event
+ *  chain head that this certificate was rendered against. */
+function preSealHashCards(ctx: RenderCtx, preSeal: PreSealInfo): HashCardInfo[] {
   const env = ctx.envelope;
-  const cards = [
+  return [
+    {
+      signed: false,
+      label: 'Original document',
+      filename: safeFilename(env.title),
+      pages: env.original_pages ?? 0,
+      hash: env.original_sha256 ?? '—',
+    },
+    {
+      // Two cards, like the sealed layout, so page 1 does not overflow.
+      signed: true,
+      label: 'Audit event chain head',
+      filename: 'sealed-file hash: on the separate audit trail',
+      pages: 0,
+      hash: preSeal.chainHeadSha256 ?? '—',
+    },
+  ];
+}
+
+function sealedHashCards(ctx: RenderCtx): HashCardInfo[] {
+  const env = ctx.envelope;
+  return [
     {
       signed: false,
       label: 'Original document',
@@ -1272,21 +1346,6 @@ function HashCards({ ctx }: { ctx: RenderCtx }): React.ReactElement {
       hash: ctx.sealedSha256 ?? '— (unsealed)',
     },
   ];
-  return (
-    <View style={styles.hashBlock}>
-      {cards.map((c, i) => (
-        <View key={i} style={styles.hashCard}>
-          <View style={styles.hashRow}>
-            <View style={[styles.hashDot, c.signed ? styles.hashDotSigned : {}]} />
-            <Text style={styles.hashType}>{c.label.toUpperCase()}</Text>
-            <Text style={styles.hashFilename}>{c.filename}</Text>
-            {c.pages > 0 ? <Text style={styles.hashPages}> · {c.pages} pages</Text> : null}
-          </View>
-          <Text style={styles.hashValue}>{c.hash}</Text>
-        </View>
-      ))}
-    </View>
-  );
 }
 
 function VerifyCard({
