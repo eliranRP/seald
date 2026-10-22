@@ -554,8 +554,9 @@ Where a wave has more than about 6 parallel WPs, the orchestrator caps concurren
 - **Scopes:** new `account:admin`, `keys:admin`, `envelopes:sign`; none pre-checked on the Developers page.
 - **D6 — security vulnerabilities (2026-10-22):** all dependency CVE fixes (Security Scan: Trivy + `pnpm audit`, and CI's audit job) are deferred to the end of the PR as **WP-46**. Until then those checks are expected red; every other check must be green at each wave checkpoint.
 
-### WP-46 — Security sweep · `sonnet` · last, after WP-39
+### WP-46 — Security sweep · `opus` · last, after WP-39 (see D7)
 - **Goal:** make Security Scan (Trivy fs, CRITICAL/HIGH, `.trivyignore`) and every `pnpm audit --prod --audit-level=high` job green against the final lockfile, including deps added by earlier WPs. Patch through root `pnpm.overrides` or direct bumps, lockfile regenerated with `pnpm install`. Packages with no fix (e.g. node-forge, used by sealing) get an ignore entry with a dated justification only after checking the vulnerable API is unreachable from `apps/api/src/sealing`; if it is reachable, escalate to opus and the owner.
 - **Owns:** root `package.json` overrides, `pnpm-lock.yaml`, `.trivyignore`, `apps/landing/package.json` bumps.
 - **Acceptance:** Security Scan and CI audit green; full gate, landing build and `pades-verify` green.
+- **D7 — all security findings deferred (2026-10-22):** every security-scanner finding raised during waves 0–7 (CodeQL alerts, Trivy, `pnpm audit`, gitleaks, SSRF/crypto review notes) is collected and fixed or dispositioned in **WP-46** at the very end, not as it appears. Known so far: dependency CVEs (Trivy + audit); CodeQL `js/insufficient-password-hash` ×3 on API-key SHA-256 hashing (`apps/api/src/api-keys/api-key-secret.ts`, its spec) — false positive by design, inline suppression ineffective under default setup, owner to dismiss or choose HMAC+pepper. WP-46 owner: opus (was sonnet).
 
