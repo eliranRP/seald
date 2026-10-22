@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { useState } from 'react';
 import { UploadPage } from './UploadPage';
 
@@ -69,4 +70,23 @@ export const WithTemplateNotFound: Story = {
       onClearTemplate={() => {}}
     />
   ),
+};
+
+function MultipleDemo() {
+  const [names, setNames] = useState<ReadonlyArray<string>>([]);
+  return (
+    <UploadPage
+      multiple
+      onFileSelected={(f) => setNames([f.name])}
+      onFilesSelected={(files) => setNames(files.map((f) => f.name))}
+      {...(names.length > 0 ? { subtitle: `Selected: ${names.join(', ')}` } : {})}
+    />
+  );
+}
+
+/** Flag `multiDocumentEnvelopes` on: the picker and the dropzone take several PDFs. */
+export const MultipleFiles: Story = {
+  name: 'Several files (multi-document envelopes)',
+  parameters: { chromatic: { modes: chromaticViewportModes } },
+  render: () => <MultipleDemo />,
 };

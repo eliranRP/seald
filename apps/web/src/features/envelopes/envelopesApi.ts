@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { EnvelopeListItem } from 'shared';
+import type { EnvelopeDocument, EnvelopeListItem } from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
@@ -42,6 +42,8 @@ export interface EnvelopeField {
   readonly height?: number | null;
   readonly required: boolean;
   readonly link_id?: string | null;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly document_id?: string;
 }
 
 /**
@@ -71,6 +73,8 @@ export interface Envelope {
   readonly signers: ReadonlyArray<EnvelopeSigner>;
   readonly fields: ReadonlyArray<EnvelopeField>;
   readonly tags: ReadonlyArray<string>;
+  /** The envelope's documents in order. Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly documents?: ReadonlyArray<EnvelopeDocument>;
   /** Absent on older payloads; treat missing as on. */
   readonly reminders_enabled?: boolean;
   /** Reminder cadence (WP-09). Present only while `customReminders` is on. */
@@ -138,6 +142,8 @@ export interface FieldPlacement {
   readonly height?: number | null;
   readonly required?: boolean;
   readonly link_id?: string | null;
+  /** Multi-document envelopes (WP-03): the document the field sits on. Omitted means document 1. */
+  readonly document_id?: string;
 }
 
 /* ---------------- Wire functions ---------------- */
@@ -252,7 +258,9 @@ export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit';
 
 export interface EnvelopeDownloadUrl {
   readonly url: string;
-  readonly kind: EnvelopeDownloadKind;
+  readonly kind: EnvelopeDownloadKind | 'zip';
+  /** Echoed by the API when `document_id` was requested (WP-03). */
+  readonly document_id?: string;
 }
 
 /**
@@ -270,9 +278,20 @@ export async function getEnvelopeDownloadUrl(
   id: string,
   kind?: EnvelopeDownloadKind,
   signal?: AbortSignal,
+  /**
+   * Multi-document envelopes (WP-03): `{ documentId }` picks one document's
+   * original or sealed PDF; `{ zip: true }` asks for the bundle of every
+   * sealed document plus the audit PDF. Ignored by the API while the flag
+   * is off, and omitted by every legacy caller.
+   */
+  multi?: { readonly documentId?: string; readonly zip?: boolean },
 ): Promise<EnvelopeDownloadUrl> {
   const base = configWithSignal(signal) ?? {};
-  const params = kind !== undefined ? { ...(base.params ?? {}), kind } : base.params;
+  const query: Record<string, string> = {};
+  if (kind !== undefined) query.kind = kind;
+  if (multi?.zip === true) query.kind = 'zip';
+  if (multi?.documentId !== undefined && multi.zip !== true) query.document_id = multi.documentId;
+  const params = Object.keys(query).length > 0 ? { ...(base.params ?? {}), ...query } : base.params;
   const config = params !== undefined ? { ...base, params } : base;
   const { data } = await apiClient.get<EnvelopeDownloadUrl>(`/envelopes/${id}/download`, config);
   return data;

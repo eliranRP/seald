@@ -15,6 +15,11 @@ export interface ReviewItem {
   readonly label: string;
   readonly page: number;
   /**
+   * Multi-document envelopes (WP-04): title of the document the field sits
+   * on. Shown after the page number; omitted for a single-document envelope.
+   */
+  readonly documentTitle?: string | undefined;
+  /**
    * The preview rendered on the right side of the row. For signatures the
    * caller passes a <SignatureMark/>; for checkboxes a string like "Checked";
    * for text/date/name/email the raw string.

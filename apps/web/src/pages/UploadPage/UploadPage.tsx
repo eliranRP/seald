@@ -46,6 +46,10 @@ const DEFAULT_SUBTITLE =
   "Drop a PDF, or choose from your computer. We'll walk you through placing signature fields and sending it off.";
 const DEFAULT_DROP_HEADING = 'Drop your PDF here';
 const DEFAULT_CHOOSE = 'Choose file';
+const MULTI_SUBTITLE =
+  "Drop one or more PDFs, or choose them from your computer. We'll walk you through placing signature fields and sending them off.";
+const MULTI_DROP_HEADING = 'Drop your PDFs here';
+const MULTI_CHOOSE = 'Choose files';
 
 /**
  * Returns true when the file matches `accept`. Accepts a comma-separated list
@@ -133,13 +137,15 @@ function AnalyzingLoader({ fileName }: { readonly fileName?: string | undefined 
 export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, ref) => {
   const {
     onFileSelected,
+    onFilesSelected,
+    multiple = false,
     onError,
     title = DEFAULT_TITLE,
-    subtitle = DEFAULT_SUBTITLE,
+    subtitle = multiple ? MULTI_SUBTITLE : DEFAULT_SUBTITLE,
     hideHeader = false,
-    dropHeading = DEFAULT_DROP_HEADING,
+    dropHeading = multiple ? MULTI_DROP_HEADING : DEFAULT_DROP_HEADING,
     dropSubheading,
-    chooseLabel = DEFAULT_CHOOSE,
+    chooseLabel = multiple ? MULTI_CHOOSE : DEFAULT_CHOOSE,
     accept = DEFAULT_ACCEPT,
     maxSizeBytes = DEFAULT_MAX_BYTES,
     status = 'idle',
@@ -189,6 +195,36 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
     [accept, maxSizeBytes, onFileSelected, raiseError, sizeMb],
   );
 
+  /**
+   * Several files at once (`multiple`). Each file is validated like a
+   * single one; any rejection reports its error and drops only that file.
+   */
+  const ingestMany = useCallback(
+    (files: ReadonlyArray<File>): void => {
+      const valid: File[] = [];
+      let failed = false;
+      for (const file of files) {
+        if (!matchesAccept(file, accept)) {
+          raiseError('type', `${file.name} isn't a PDF, so it was skipped.`);
+          failed = true;
+        } else if (file.size > maxSizeBytes) {
+          raiseError('size', `${file.name} is larger than ${sizeMb} MB, so it was skipped.`);
+          failed = true;
+        } else {
+          valid.push(file);
+        }
+      }
+      if (valid.length === 0) return;
+      if (!failed) setError(null);
+      if (onFilesSelected) onFilesSelected(valid);
+      else {
+        const [first] = valid;
+        if (first) onFileSelected(first);
+      }
+    },
+    [accept, maxSizeBytes, onFileSelected, onFilesSelected, raiseError, sizeMb],
+  );
+
   const openPicker = useCallback((): void => {
     inputRef.current?.click();
   }, []);
@@ -203,6 +239,12 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
 
   const handleInputChange = useCallback(
     (e: ChangeEvent<HTMLInputElement>): void => {
+      if (multiple) {
+        const files = Array.from(e.target.files ?? []);
+        if (files.length > 0) ingestMany(files);
+        e.target.value = '';
+        return;
+      }
       const file = e.target.files?.[0];
       if (file) {
         ingest(file);
@@ -210,7 +252,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
       // Allow re-selecting the same file later.
       e.target.value = '';
     },
-    [ingest],
+    [ingest, ingestMany, multiple],
   );
 
   const handleDragEnter = useCallback((e: DragEvent<HTMLDivElement>): void => {
@@ -241,12 +283,17 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
       e.stopPropagation();
       dragDepth.current = 0;
       setDragging(false);
+      if (multiple) {
+        const files = Array.from(e.dataTransfer.files ?? []);
+        if (files.length > 0) ingestMany(files);
+        return;
+      }
       const file = e.dataTransfer.files?.[0];
       if (file) {
         ingest(file);
       }
     },
-    [ingest],
+    [ingest, ingestMany, multiple],
   );
 
   return (
@@ -345,8 +392,9 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                 id={inputId}
                 type="file"
                 accept={accept}
+                {...(multiple ? { multiple: true } : {})}
                 onChange={handleInputChange}
-                aria-label="Choose PDF file"
+                aria-label={multiple ? 'Choose PDF files' : 'Choose PDF file'}
               />
             </Dropzone>
           )}

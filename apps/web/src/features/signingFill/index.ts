@@ -13,3 +13,5 @@ export {
   fieldValue,
   fieldLabel,
 } from './model';
+export { DocumentRail, summarizeDocuments } from './DocumentRail';
+export type { DocumentRailItem, DocumentRailProps } from './DocumentRail';

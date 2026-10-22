@@ -30,6 +30,17 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   /** Fires instead of `onFileSelected` when the file fails `accept` or `maxSizeBytes`. */
   readonly onError?: ((code: UploadPageErrorCode, message: string) => void) | undefined;
 
+  // Multiple files (WP-04, flag `multiDocumentEnvelopes`) -----------------
+  /**
+   * When `true`, the picker and the dropzone accept several PDFs and the
+   * validated list is handed to `onFilesSelected` (falling back to
+   * `onFileSelected` with the first one when that is not supplied).
+   * Defaults to `false`: one file, exactly as before.
+   */
+  readonly multiple?: boolean | undefined;
+  /** Fires with every validated file, in pick order, when `multiple` is on. */
+  readonly onFilesSelected?: ((files: ReadonlyArray<File>) => void) | undefined;
+
   // Dropzone copy / limits -----------------------------------------------
   readonly title?: string | undefined;
   readonly subtitle?: string | undefined;

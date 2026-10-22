@@ -87,6 +87,26 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    */
   readonly banner?: ReactNode | undefined;
   /**
+   * Multi-document drafts (WP-04, flag `multiDocumentEnvelopes`): strip
+   * above the canvas that switches the document being edited. Omitted
+   * (the default) renders nothing, so single-document drafts are unchanged.
+   */
+  readonly documentSwitcher?: ReactNode | undefined;
+  /**
+   * Multi-document drafts (WP-04): the document list (reorder / remove /
+   * add), rendered at the top of the right rail. Omitted renders nothing.
+   */
+  readonly documentsPanel?: ReactNode | undefined;
+  /**
+   * Multi-document drafts (WP-04): field totals across every document for
+   * the send gate. `fields` only holds the document on screen, so without
+   * this the gate would count that one document alone. Omitted falls back
+   * to counting `fields`.
+   */
+  readonly sendTotals?:
+    | { readonly fieldCount: number; readonly signatureFieldCount: number }
+    | undefined;
+  /**
    * Override the right-rail send button copy + icon. Defaults stay as
    * `Send to sign`. Templates flip this to `Save as template` when the
    * sender is authoring a brand-new template (no envelope to send yet).

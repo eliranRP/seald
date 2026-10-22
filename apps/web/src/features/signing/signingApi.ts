@@ -44,6 +44,15 @@ export interface SignMeField {
   readonly value_text?: string | null;
   readonly value_boolean?: boolean | null;
   readonly filled_at?: string | null;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). `page` is 1-based within that document. */
+  readonly document_id?: string;
+}
+/** One PDF of the envelope, as the signer sees it (WP-03; no hashes or paths). */
+export interface SignMeDocument {
+  readonly id: string;
+  readonly ord: number;
+  readonly title: string;
+  readonly original_pages: number | null;
 }
 export interface SignMeOtherSigner {
   readonly id: string;
@@ -55,6 +64,8 @@ export interface SignMeResponse {
   readonly signer: SignMeSigner;
   readonly fields: ReadonlyArray<SignMeField>;
   readonly other_signers: ReadonlyArray<SignMeOtherSigner>;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly documents?: ReadonlyArray<SignMeDocument>;
 }
 
 export interface StartSessionInput {
@@ -225,10 +236,13 @@ export async function decline(reason?: string, signal?: AbortSignal): Promise<De
  * Supabase storage doesn't emit `Access-Control-Allow-Credentials`, so
  * an unnecessary credentials flag would trip browser CORS.
  */
-export async function getPdfSignedUrl(signal?: AbortSignal): Promise<string> {
-  const { data } = await signApiClient.get<{ readonly url: string }>(
-    '/sign/pdf',
-    configWithSignal(signal),
-  );
+export async function getPdfSignedUrl(signal?: AbortSignal, documentId?: string): Promise<string> {
+  // `document_id` picks one document of a multi-document envelope (WP-03);
+  // omitted, the API serves document 1 exactly as before.
+  const config: AxiosRequestConfig =
+    documentId !== undefined
+      ? { ...configWithSignal(signal), params: { document_id: documentId } }
+      : configWithSignal(signal);
+  const { data } = await signApiClient.get<{ readonly url: string }>('/sign/pdf', config);
   return data.url;
 }

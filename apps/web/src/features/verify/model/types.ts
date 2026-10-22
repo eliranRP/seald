@@ -31,7 +31,7 @@ export type VerifyEventActorKind = 'sender' | 'signer' | 'system';
 // `intent_to_sign_confirmed`, and `consent_withdrawn`, which crashed
 // `describeEvent()` with `Cannot read properties of undefined (reading
 // 'toLowerCase')` when those events appeared on a real envelope.
-import type { EventType } from 'shared';
+import type { EventType, VerifyDocument } from 'shared';
 export type VerifyEventType = EventType;
 
 export interface VerifyEnvelope {
@@ -90,4 +90,9 @@ export interface VerifyResponse {
   readonly sealed_url: string | null;
   /** 5-minute pre-signed URL. Null when no audit.pdf has been generated. */
   readonly audit_url: string | null;
+  /**
+   * Each document with its hashes and a sealed-PDF URL (WP-03). Present
+   * only while `multiDocumentEnvelopes` is on API-side.
+   */
+  readonly documents?: ReadonlyArray<VerifyDocument>;
 }

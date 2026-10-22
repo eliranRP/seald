@@ -29,6 +29,13 @@ import { Button } from '@/components/Button';
 import { DownloadMenu } from '@/components/DownloadMenu';
 import type { DownloadMenuItem } from '@/components/DownloadMenu';
 import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
+import {
+  EnvelopeDocumentsCard,
+  moveItem,
+  useRemoveEnvelopeDocumentMutation,
+  useReorderEnvelopeDocumentsMutation,
+} from '@/features/documentEditor/documents';
+import type { EnvelopeDocument } from 'shared';
 import { Skeleton } from '@/components/Skeleton';
 import { TagEditor } from '@/components/TagEditor';
 import { ReminderToggle } from '@/components/ReminderToggle';
@@ -413,11 +420,19 @@ export function EnvelopeDetailPage() {
   //     the browser treats it as user-initiated. If we awaited first,
   //     the popup blocker would reject it on Safari/Firefox.
   const openArtifact = useCallback(
-    async (kind: 'sealed' | 'original' | 'audit' | undefined, friendly: string): Promise<void> => {
+    async (
+      kind: 'sealed' | 'original' | 'audit' | undefined,
+      friendly: string,
+      // Multi-document envelopes (WP-04): one document, or the zip of all.
+      multi?: { readonly documentId?: string; readonly zip?: boolean },
+    ): Promise<void> => {
       if (!envelope) return;
       const win = window.open('about:blank', '_blank');
       try {
-        const { url } = await getEnvelopeDownloadUrl(envelope.id, kind);
+        const { url } =
+          multi === undefined
+            ? await getEnvelopeDownloadUrl(envelope.id, kind)
+            : await getEnvelopeDownloadUrl(envelope.id, kind, undefined, multi);
         if (win && !win.closed) {
           try {
             win.opener = null;
@@ -536,6 +551,16 @@ export function EnvelopeDetailPage() {
         await handleSaveToGdrive();
         return;
       }
+      if (kind === 'zip') {
+        setDownloadInFlight('zip');
+        setToast(null);
+        try {
+          await openArtifact(undefined, 'Documents zip', { zip: true });
+        } finally {
+          setDownloadInFlight(null);
+        }
+        return;
+      }
       if (kind !== 'sealed' && kind !== 'original' && kind !== 'audit' && kind !== 'bundle') {
         return;
       }
@@ -603,6 +628,53 @@ export function EnvelopeDetailPage() {
       }
     },
     [envelope, openArtifact, handleSaveToGdrive],
+  );
+
+  // Per-document download (WP-04): the sealed PDF once sealed, else the original.
+  const handleDownloadDocument = useCallback(
+    async (d: EnvelopeDocument) => {
+      if (!envelope) return;
+      setDownloadInFlight(d.id);
+      setToast(null);
+      try {
+        const sealed = envelope.status === 'completed';
+        await openArtifact(sealed ? 'sealed' : 'original', d.title, { documentId: d.id });
+      } finally {
+        setDownloadInFlight(null);
+      }
+    },
+    [envelope, openArtifact],
+  );
+
+  const reorderDocuments = useReorderEnvelopeDocumentsMutation(id ?? '');
+  const removeDocument = useRemoveEnvelopeDocumentMutation(id ?? '');
+  const handleMoveDocument = useCallback(
+    (docId: string, direction: 'up' | 'down') => {
+      const list = envelope?.documents;
+      if (!list) return;
+      const from = list.findIndex((d) => d.id === docId);
+      const next = moveItem(list, from, direction === 'up' ? from - 1 : from + 1);
+      reorderDocuments.mutate(
+        next.map((d) => d.id),
+        {
+          onError: () =>
+            setToast({
+              kind: 'danger',
+              text: 'Could not reorder the documents. Please try again.',
+            }),
+        },
+      );
+    },
+    [envelope?.documents, reorderDocuments],
+  );
+  const handleRemoveDocument = useCallback(
+    (docId: string) => {
+      removeDocument.mutate(docId, {
+        onError: () =>
+          setToast({ kind: 'danger', text: 'Could not remove the document. Please try again.' }),
+      });
+    },
+    [removeDocument],
   );
 
   const handleViewAudit = useCallback(async () => {
@@ -734,8 +806,14 @@ export function EnvelopeDetailPage() {
   const isTerminal = TERMINAL_STATUSES.has(envelope.status);
   const hasPending = envelope.signers.some((s) => s.signed_at === null && s.declined_at === null);
 
+  // Multi-document envelopes (WP-04): per-document rows + a zip replace the
+  // single-document sealed/original/bundle rows. Off, or one document: the
+  // legacy menu below, unchanged.
+  const envelopeDocuments = envelope.documents ?? [];
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && envelopeDocuments.length > 1;
+
   const originalAvailable = envelope.original_pages !== null;
-  const downloadItems: ReadonlyArray<DownloadMenuItem> = [
+  const legacyDownloadItems: ReadonlyArray<DownloadMenuItem> = [
     {
       kind: 'original',
       icon: FileText,
@@ -791,6 +869,21 @@ export function EnvelopeDetailPage() {
         ]
       : []),
   ];
+  const multiDownloadItems: ReadonlyArray<DownloadMenuItem> = [
+    {
+      kind: 'zip',
+      icon: Package,
+      title: 'All documents (zip)',
+      description: `Every sealed document (${String(envelopeDocuments.length)}) plus the audit trail in one zip.`,
+      meta: isComplete ? 'ZIP' : 'Available once sealed',
+      available: isComplete,
+      recommended: isComplete,
+      primaryLabel: 'all documents (zip)',
+    },
+    legacyDownloadItems[2] as DownloadMenuItem,
+    ...legacyDownloadItems.slice(4),
+  ];
+  const downloadItems = multiDoc ? multiDownloadItems : legacyDownloadItems;
   const downloadInFlightKind = gdriveInFlight ? 'gdrive' : downloadInFlight;
 
   return (
@@ -919,6 +1012,26 @@ export function EnvelopeDetailPage() {
           </TimelineCard>
 
           <Sidebar>
+            {multiDoc ? (
+              <EnvelopeDocumentsCard
+                documents={envelopeDocuments}
+                sealed={isComplete}
+                busyId={downloadInFlight}
+                onDownload={(d) => {
+                  handleDownloadDocument(d).catch(() => {
+                    /* surfaced via the toast inside openArtifact */
+                  });
+                }}
+                onDownloadAll={() => {
+                  handleDownload('zip').catch(() => {
+                    /* surfaced via the toast inside openArtifact */
+                  });
+                }}
+                {...(envelope.status === 'draft'
+                  ? { onMove: handleMoveDocument, onRemove: handleRemoveDocument }
+                  : {})}
+              />
+            ) : null}
             <SignersCard>
               <SignersHeading>Signers</SignersHeading>
               {envelope.signers.length === 0 ? (

@@ -116,6 +116,9 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onBack,
     onSaveAsTemplate,
     banner,
+    documentSwitcher,
+    documentsPanel,
+    sendTotals,
     sendLabel,
     templateMode,
     templateName,
@@ -369,6 +372,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               </CenterHeader>
             </CenterTop>
 
+            {documentSwitcher ?? null}
             {banner ? <BannerSlot>{banner}</BannerSlot> : null}
 
             <CanvasScroll ref={canvasScrollRef}>
@@ -579,6 +583,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           >
             <RightRailInner>
               <RightRailScroll>
+                {documentsPanel ?? null}
                 {isTemplateAuthoring ? (
                   // Template-authoring mode: explanatory summary card
                   // sits where the Signers panel would. Signers are
@@ -673,7 +678,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     />
                   </ReminderSlot>
                   <SendPanelFooter
-                    fieldCount={fields.length}
+                    fieldCount={sendTotals?.fieldCount ?? fields.length}
                     /* The seald API rejects envelopes without a signature
                        (`signer_without_signature_field`). Surface the
                        constraint as a UI gate: count placed signatures
@@ -681,7 +686,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                        Templates flow doesn't go through this branch
                        (uses TemplatePrimaryFooter above) so this only
                        applies to the regular envelope flow. */
-                    signatureFieldCount={fields.filter((f) => f.type === 'signature').length}
+                    signatureFieldCount={
+                      sendTotals?.signatureFieldCount ??
+                      fields.filter((f) => f.type === 'signature').length
+                    }
                     signerCount={signers.length}
                     onSend={onSend}
                     {...(onSaveDraft ? { onSaveDraft } : {})}

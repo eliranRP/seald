@@ -8,6 +8,7 @@ import {
   patchEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
+import { addEnvelopeDocument } from '@/features/documentEditor/documents/documentsApi';
 import type { FieldPlacement, PatchEnvelopeInput } from './envelopesApi';
 import type { SendReminderSettings } from './sendReminderSettings';
 
@@ -58,6 +59,13 @@ export type SendEnvelopeSignerInput =
       readonly color?: string;
     };
 
+export interface SendEnvelopeDocumentInput {
+  /** Id the editor uses on `PlacedFieldValue.documentId`. */
+  readonly localId: string;
+  readonly title: string;
+  readonly file: File | Blob;
+}
+
 /**
  * Input snapshot for the "send this draft" orchestration. The sender editor
  * keeps everything in local state while the user is placing fields. When
@@ -75,7 +83,18 @@ export interface SendEnvelopeInput {
   readonly buildFields: (
     /** Map: local signer id → server signer id returned by addSigner. */
     localSignerIdToServerSignerId: ReadonlyMap<string, string>,
+    /**
+     * Map: local document id → server document id. Empty unless `documents`
+     * was passed (multi-document draft, flag `multiDocumentEnvelopes`).
+     */
+    localDocumentIdToServerDocumentId: ReadonlyMap<string, string>,
   ) => ReadonlyArray<FieldPlacement>;
+  /**
+   * Multi-document drafts (WP-04, flag `multiDocumentEnvelopes`): every PDF
+   * in order. When present, each is added through `POST /envelopes/:id/documents`
+   * in this order instead of the single legacy upload of `file`.
+   */
+  readonly documents?: ReadonlyArray<SendEnvelopeDocumentInput>;
   /**
    * Optional sender identity for the final POST /envelopes/:id/send.
    * Used by guest mode (anonymous Supabase session, JWT has no email);
@@ -150,7 +169,17 @@ export function useSendEnvelope(): UseSendEnvelope {
       }
 
       setPhase('uploading');
-      await uploadEnvelopeFile(envelope.id, input.file);
+      const localDocumentIdToServerDocumentId = new Map<string, string>();
+      if (input.documents !== undefined && input.documents.length > 0) {
+        // Sequential: the server assigns `ord` by arrival, so call order is
+        // the order the sender arranged.
+        for (const d of input.documents) {
+          const added = await addEnvelopeDocument(envelope.id, d.file, d.title);
+          localDocumentIdToServerDocumentId.set(d.localId, added.id);
+        }
+      } else {
+        await uploadEnvelopeFile(envelope.id, input.file);
+      }
 
       setPhase('adding-signers');
       const localSignerIdToServerSignerId = new Map<string, string>();
@@ -170,7 +199,10 @@ export function useSendEnvelope(): UseSendEnvelope {
       }
 
       setPhase('placing-fields');
-      const fields = input.buildFields(localSignerIdToServerSignerId);
+      const fields = input.buildFields(
+        localSignerIdToServerSignerId,
+        localDocumentIdToServerDocumentId,
+      );
       if (fields.length > 0) {
         await placeEnvelopeFields(envelope.id, fields);
       }

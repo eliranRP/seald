@@ -38,6 +38,12 @@ export interface PlacedFieldValue {
    * action; cleared via "Ungroup". `undefined` for standalone fields.
    */
   readonly groupId?: string | undefined;
+  /**
+   * Multi-document drafts (WP-04): id of the draft document the field sits
+   * on. Undefined on single-document drafts, and on fields that predate
+   * the document list (those belong to the first document).
+   */
+  readonly documentId?: string | undefined;
 }
 
 type RootAttrs = Omit<

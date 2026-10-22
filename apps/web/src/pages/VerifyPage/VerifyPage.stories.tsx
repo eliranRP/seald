@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { chromaticViewportModes } from '@/stories/chromaticViewports';
+import { withMultiDocumentFlag } from '@/stories/multiDocumentFlag';
 import { useState } from 'react';
 import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -310,4 +311,41 @@ export const NotFound: Story = {
 export const ChainBroken: Story = {
   render: () => <StoryHarness data={{ ...COMPLETED, chain_intact: false }} />,
   globals: { viewport: { value: 'mobile', isRotated: false } },
+};
+
+/**
+ * Multi-document envelope (flag `multiDocumentEnvelopes`): one block per
+ * document with its own original and sealed SHA-256 and a sealed download,
+ * in place of the single document and hash rows.
+ */
+export const MultipleDocuments: Story = {
+  decorators: [withMultiDocumentFlag],
+  render: () => (
+    <StoryHarness
+      data={{
+        ...COMPLETED,
+        documents: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            ord: 1,
+            title: 'Unconditional Final Waiver and Release',
+            original_pages: 4,
+            original_sha256: '7a8afa33b5b077e0486f08fc301e6865caf7b8ea0ea256505df80ea6034c1261',
+            sealed_sha256: 'cafebabedeadbeef1234567890abcdef1234567890abcdef1234567890abcdef',
+            sealed_url: 'https://example.test/doc-1-sealed.pdf',
+          },
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            ord: 2,
+            title: 'Schedule of values',
+            original_pages: 2,
+            original_sha256: '1122334455667788990011223344556677889900112233445566778899001122',
+            sealed_sha256: 'ffeeddccbbaa99887766554433221100ffeeddccbbaa99887766554433221100',
+            sealed_url: 'https://example.test/doc-2-sealed.pdf',
+          },
+        ],
+      }}
+    />
+  ),
+  globals: { viewport: { value: 'desktop', isRotated: false } },
 };

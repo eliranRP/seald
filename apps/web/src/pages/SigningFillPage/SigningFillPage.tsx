@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
 import { ArrowDown, Check, ListChecks, MoreVertical } from 'lucide-react';
 import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
@@ -19,8 +20,10 @@ import {
   type SignMeField,
 } from '@/features/signing';
 import {
+  DocumentRail,
   fieldIsFilled,
   fieldLabel,
+  summarizeDocuments,
   fieldValue,
   toUiKind,
   useDocumentZoomNav,
@@ -111,11 +114,35 @@ function Content() {
   const envelopeId = params.envelopeId ?? '';
 
   const session = useSigningSession();
-  const { envelope, fields, completedRequired, requiredCount, allRequiredFilled, nextField } =
-    session;
+  const {
+    envelope,
+    fields: allFields,
+    documents,
+    completedRequired,
+    requiredCount,
+    allRequiredFilled,
+    nextField,
+  } = session;
 
-  const totalPages = envelope?.original_pages ?? 1;
-  const pdfSrc = useSigningPdfSource(envelope?.id);
+  // Multi-document envelopes (WP-04). Off, or one document: everything below
+  // is the single-document view, untouched.
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && documents.length > 1;
+  const [requestedDocumentId, setRequestedDocumentId] = useState<string | null>(null);
+  const activeDocument = multiDoc
+    ? (documents.find((d) => d.id === requestedDocumentId) ?? documents[0])
+    : undefined;
+  // `fields` is what the canvas shows: the active document's fields. The
+  // progress counts, "Next field" and review keep using every document.
+  const fields = useMemo(
+    () =>
+      activeDocument === undefined
+        ? allFields
+        : allFields.filter((f) => f.document_id === activeDocument.id),
+    [allFields, activeDocument],
+  );
+
+  const totalPages = activeDocument?.original_pages ?? envelope?.original_pages ?? 1;
+  const pdfSrc = useSigningPdfSource(envelope?.id, activeDocument?.id);
   const { doc: signingPdfDoc } = usePdfDocument(pdfSrc);
   // Mobile canvas overflow fix (audit item 1): width is viewport-aware
   // (`computeCanvasWidth`); height threads the same width through so the
@@ -140,7 +167,11 @@ function Content() {
     handleReview,
     handleDecline,
     handleWithdrawConsent,
-  } = useSigningFillController({ envelopeId });
+  } = useSigningFillController({
+    envelopeId,
+    activeDocumentId: activeDocument?.id,
+    onActiveDocumentChange: multiDoc ? setRequestedDocumentId : undefined,
+  });
 
   // Zoom + scroll-spy + page rail — extracted to a reusable hook (rule 1.1).
   const {
@@ -156,8 +187,11 @@ function Content() {
   } = useDocumentZoomNav({ totalPages, resetKey: pdfSrc });
 
   const { download: downloadPdf, busy: downloadBusy } = useDownloadPdf({
-    getUrl: () => getPdfSignedUrl(),
-    filename: envelope?.title ?? 'document',
+    getUrl: () =>
+      activeDocument === undefined
+        ? getPdfSignedUrl()
+        : getPdfSignedUrl(undefined, activeDocument.id),
+    filename: activeDocument?.title ?? envelope?.title ?? 'document',
   });
 
   // Mobile chrome state (audit items 4 + 5).
@@ -170,13 +204,13 @@ function Content() {
   const optionalStats = useMemo(() => {
     let total = 0;
     let filled = 0;
-    for (const f of fields) {
+    for (const f of allFields) {
       if (f.required) continue;
       total += 1;
       if (fieldIsFilled(f)) filled += 1;
     }
     return { total, filled, remaining: total - filled };
-  }, [fields]);
+  }, [allFields]);
   const [optionalPromptOpen, setOptionalPromptOpen] = useState(false);
 
   // Wrap handleReview so it stops to confirm when optionals are blank
@@ -200,12 +234,21 @@ function Content() {
     setOptionalPromptOpen(false);
     // Jump to the first unfilled optional field — uses the same
     // `data-r-page` scroll-spy as the rest of the navigation.
-    const firstOptionalUnfilled = fields.find((f) => !f.required && !fieldIsFilled(f));
+    const firstOptionalUnfilled = allFields.find((f) => !f.required && !fieldIsFilled(f));
     if (firstOptionalUnfilled) {
+      if (
+        multiDoc &&
+        firstOptionalUnfilled.document_id !== undefined &&
+        firstOptionalUnfilled.document_id !== activeDocument?.id
+      ) {
+        // It sits on another document: bring that one up.
+        setRequestedDocumentId(firstOptionalUnfilled.document_id);
+        return;
+      }
       const el = document.querySelector(`[data-r-page="${firstOptionalUnfilled.page}"]`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [fields]);
+  }, [allFields, multiDoc, activeDocument?.id]);
 
   // Mobile-overflow handlers route to the same hook handlers as the
   // desktop buttons so the audit-trail outcome is identical
@@ -256,6 +299,10 @@ function Content() {
   const progressLabel = isMobile
     ? `${completedRequired} of ${requiredCount} · ${pct}%`
     : `${completedRequired} of ${requiredCount} fields complete`;
+
+  const nextFieldDocument =
+    multiDoc && nextField ? documents.find((d) => d.id === nextField.document_id) : undefined;
+  const railItems = multiDoc ? summarizeDocuments(documents, allFields, fieldIsFilled) : [];
 
   // Audit item 5 — mobile fields panel lists every field on the
   // active page.
@@ -354,7 +401,7 @@ function Content() {
             onClick={handleNext}
             aria-label={`Next field: ${fieldLabel(nextField, toUiKind(nextField))} on page ${
               nextField.page
-            }`}
+            }${nextFieldDocument ? ` of ${nextFieldDocument.title}` : ''}`}
           >
             <Icon icon={ArrowDown} size={14} />
             Next field
@@ -367,6 +414,14 @@ function Content() {
           </ReviewBtn>
         ) : null}
       </ActionBar>
+
+      {activeDocument !== undefined ? (
+        <DocumentRail
+          documents={railItems}
+          activeId={activeDocument.id}
+          onSelect={setRequestedDocumentId}
+        />
+      ) : null}
 
       {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
@@ -386,7 +441,7 @@ function Content() {
                   key={p}
                   pageNum={p}
                   totalPages={totalPages}
-                  title={envelope.title}
+                  title={activeDocument?.title ?? envelope.title}
                   pdfSrc={pdfSrc ?? undefined}
                   width={canvasWidth}
                 >

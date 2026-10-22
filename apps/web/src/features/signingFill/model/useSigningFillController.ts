@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { FieldInputKind } from '@/components/FieldInputDrawer';
 import type { SignatureCaptureResult } from '@/components/SignatureCapture';
@@ -58,6 +58,14 @@ function scrollToField(field: SignMeField): void {
 
 interface UseSigningFillControllerArgs {
   readonly envelopeId: string;
+  /**
+   * Multi-document envelopes (WP-04): the document on screen and the way to
+   * switch it. When both are given, "Next field" and the auto-advance after
+   * a fill switch to the document that holds the target field first, then
+   * scroll to it. Omitted for a single-document envelope.
+   */
+  readonly activeDocumentId?: string | undefined;
+  readonly onActiveDocumentChange?: ((documentId: string) => void) | undefined;
 }
 
 interface UseSigningFillControllerReturn {
@@ -92,6 +100,8 @@ interface UseSigningFillControllerReturn {
  */
 export function useSigningFillController({
   envelopeId,
+  activeDocumentId,
+  onActiveDocumentChange,
 }: UseSigningFillControllerArgs): UseSigningFillControllerReturn {
   const navigate = useNavigate();
   const { fillField, setSignature, decline, nextField, fields, withdrawConsent } =
@@ -112,6 +122,30 @@ export function useSigningFillController({
   const lastByKindRef = useRef<Partial<Record<'signature' | 'initials', SignatureCaptureResult>>>(
     {},
   );
+
+  // A field on another document can only be scrolled to once that document's
+  // pages are on screen, so the scroll waits for the switch to commit.
+  const pendingFocusRef = useRef<SignMeField | null>(null);
+  useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (pending === null || pending.document_id !== activeDocumentId) return;
+    pendingFocusRef.current = null;
+    scrollToField(pending);
+  }, [activeDocumentId]);
+
+  /** Scrolls to a field, switching document first when it sits on another one. */
+  function focusField(field: SignMeField): void {
+    if (
+      onActiveDocumentChange !== undefined &&
+      field.document_id !== undefined &&
+      field.document_id !== activeDocumentId
+    ) {
+      pendingFocusRef.current = field;
+      onActiveDocumentChange(field.document_id);
+      return;
+    }
+    scrollToField(field);
+  }
 
   const closeTextDrawer = useCallback(() => setTextDrawer(null), []);
   const closeSigDrawer = useCallback(() => setSigDrawer(null), []);
@@ -140,7 +174,7 @@ export function useSigningFillController({
   }
   function advanceTo(target: SignMeField | null): void {
     if (!target) return;
-    scrollToField(target);
+    focusField(target);
     setActiveFieldId(target.id);
   }
 
@@ -218,7 +252,15 @@ export function useSigningFillController({
       }
     },
     // the inline `findNextAfter`/`advanceTo` close over `fields`; listed here so the callback re-binds when fields change instead of running against a stale snapshot.
-    [envelopeId, fillField, navigate, setSignature, fields],
+    [
+      envelopeId,
+      fillField,
+      navigate,
+      setSignature,
+      fields,
+      activeDocumentId,
+      onActiveDocumentChange,
+    ],
   );
 
   // "Next field" / jump-to-next-zone: scroll + highlight only. We deliberately
@@ -227,9 +269,10 @@ export function useSigningFillController({
   // mutate document state.
   const handleNext = useCallback((): void => {
     if (!nextField) return;
-    scrollToField(nextField);
+    focusField(nextField);
     setActiveFieldId(nextField.id);
-  }, [nextField]);
+    // `focusField` is an inline helper over the current document state; it is re-created every render so is not listed.
+  }, [nextField, activeDocumentId, onActiveDocumentChange]);
 
   const handleTextApply = useCallback(
     async (value: string): Promise<void> => {
@@ -251,7 +294,7 @@ export function useSigningFillController({
       advanceTo(findNextAfter(id));
     },
     // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
-    [envelopeId, fillField, navigate, textDrawer, fields],
+    [envelopeId, fillField, navigate, textDrawer, fields, activeDocumentId, onActiveDocumentChange],
   );
 
   const handleSignatureApply = useCallback(
@@ -296,7 +339,15 @@ export function useSigningFillController({
       advanceTo(findNextAfter(id));
     },
     // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
-    [envelopeId, navigate, setSignature, sigDrawer, fields],
+    [
+      envelopeId,
+      navigate,
+      setSignature,
+      sigDrawer,
+      fields,
+      activeDocumentId,
+      onActiveDocumentChange,
+    ],
   );
 
   const handleReview = useCallback((): void => {

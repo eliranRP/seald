@@ -13,6 +13,7 @@ import {
 } from './useSigning';
 import type {
   FillValue,
+  SignMeDocument,
   SignMeEnvelope,
   SignMeField,
   SignMeOtherSigner,
@@ -27,6 +28,8 @@ export interface SigningSessionValue {
   readonly signer: SignMeSigner | null;
   readonly fields: ReadonlyArray<SignMeField>;
   readonly otherSigners: ReadonlyArray<SignMeOtherSigner>;
+  /** The envelope's documents in order; empty unless `multiDocumentEnvelopes` is on API-side (WP-03). */
+  readonly documents: ReadonlyArray<SignMeDocument>;
   readonly completedRequired: number;
   readonly requiredCount: number;
   readonly nextField: SignMeField | null;
@@ -83,6 +86,7 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
       signer: q.data?.signer ?? null,
       fields,
       otherSigners: q.data?.other_signers ?? [],
+      documents: q.data?.documents ?? [],
       requiredCount: required.length,
       completedRequired: completed.length,
       nextField: next,

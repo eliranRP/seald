@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
-import { INTENT_TO_SIGN_NOTE } from 'shared';
+import { INTENT_TO_SIGN_NOTE, isFeatureEnabled } from 'shared';
 import { Info, PenTool } from 'lucide-react';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
@@ -247,6 +247,7 @@ function Content() {
     envelope,
     signer,
     fields,
+    documents,
     submit,
     confirmIntentToSign,
     withdrawConsent,
@@ -283,19 +284,31 @@ function Content() {
     }
   }, []);
 
-  const items = useMemo<ReadonlyArray<ReviewItem>>(
-    () =>
-      fields.filter(fieldIsFilled).map((f) => {
-        const base = toReviewItem(f);
-        const uiKind = toUiKind(f);
-        // Checkboxes aren't editable on the review page — re-toggle is
-        // confusing once already affirmed; "Back to fields" remains the
-        // path for that edge case.
-        if (uiKind === 'checkbox') return base;
-        return { ...base, onEdit: () => handleEdit(f, uiKind) };
-      }),
-    [fields, handleEdit],
-  );
+  // Multi-document envelopes (WP-04): rows are grouped by document, in
+  // document order, and name the document. Off, or one document: untouched.
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && documents.length > 1;
+  const items = useMemo<ReadonlyArray<ReviewItem>>(() => {
+    const titleById = new Map(documents.map((d) => [d.id, d.title] as const));
+    const orderById = new Map(documents.map((d, i) => [d.id, i] as const));
+    const filled = fields.filter(fieldIsFilled);
+    const ordered = multiDoc
+      ? [...filled].sort(
+          (a, b) =>
+            (orderById.get(a.document_id ?? '') ?? 0) - (orderById.get(b.document_id ?? '') ?? 0),
+        )
+      : filled;
+    return ordered.map((f) => {
+      const base = multiDoc
+        ? { ...toReviewItem(f), documentTitle: titleById.get(f.document_id ?? '') }
+        : toReviewItem(f);
+      const uiKind = toUiKind(f);
+      // Checkboxes aren't editable on the review page — re-toggle is
+      // confusing once already affirmed; "Back to fields" remains the
+      // path for that edge case.
+      if (uiKind === 'checkbox') return base;
+      return { ...base, onEdit: () => handleEdit(f, uiKind) };
+    });
+  }, [fields, documents, multiDoc, handleEdit]);
 
   const handleBack = useCallback(
     () => navigate(`/sign/${envelopeId}/fill`),
