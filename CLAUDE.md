@@ -170,6 +170,20 @@ idempotent (already-applied filenames are skipped).
   filename = …`) so re-runs are safe. See `0014_repair_gdrive_accounts.sql`
   for the canonical pattern.
 
+### i18n
+
+- Catalogs live in `packages/shared/locales/<lng>/<ns>.json` (today: `en/common.json`)
+  and are consumed by both apps. Web: `apps/web/src/lib/i18n/` (`I18nProvider`,
+  typed `useT()`; keys are checked against the English catalog). API:
+  `apps/api/src/i18n/` (`t(locale, key)`) and `apps/api/src/email/template-loader.ts`
+  (`templates/<kind>/<locale>/` -> `<kind>/en/` -> flat `<kind>/`).
+- English only for now. A new locale is a catalog drop-in plus an entry in
+  `SUPPORTED_LOCALES` (`packages/shared/src/locales.ts`).
+- **Never machine-translate legal or consent strings** (`product-claims.ts`, ESIGN
+  disclosure, terms). They stay English in every locale.
+- Flag `i18n` (`isFeatureEnabled('i18n')`): off means locale resolution always returns
+  `en`; on means `navigator.language` -> supported list -> `en`.
+
 ### Sprint history
 - **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
 - **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
