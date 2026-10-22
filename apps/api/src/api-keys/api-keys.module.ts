@@ -1,4 +1,5 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
+import { ApprovalsCoreModule } from '../approvals/approvals-core.module';
 import { AuthModule } from '../auth/auth.module';
 import { ApiKeyAuthService } from './api-key-auth.service';
 import { ApiKeysFlagMiddleware } from './api-keys-flag.middleware';
@@ -14,7 +15,8 @@ import { ApiKeysService } from './api-keys.service';
  * (WP-35), and `ApiKeysService` for account deletion.
  */
 @Module({
-  imports: [AuthModule],
+  // ApprovalsCoreModule: revoking a key expires its pending approvals (WP-21).
+  imports: [AuthModule, ApprovalsCoreModule],
   controllers: [ApiKeysController],
   providers: [
     ApiKeysService,

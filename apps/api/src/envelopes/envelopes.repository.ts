@@ -319,7 +319,9 @@ export interface EventInput {
     // WP-10 (migration 0026)
     | 'access_code_sent'
     | 'access_code_verified'
-    | 'access_code_failed';
+    | 'access_code_failed'
+    // WP-21 (migration 0030)
+    | 'approval_decided';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;

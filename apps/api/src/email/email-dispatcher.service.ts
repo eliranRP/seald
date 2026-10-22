@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
@@ -73,6 +74,8 @@ export class EmailDispatcherService {
     @Inject(APP_ENV) env: AppEnv,
     // WP-10: mints the one-time code of an `access_code` row at dispatch.
     @Optional() private readonly accessCodes?: AccessCodeMinter,
+    // WP-21: mints the link token of an `approval_request` row at dispatch.
+    @Optional() private readonly approvalLinks?: ApprovalLinkMinter,
   ) {
     this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
@@ -159,6 +162,18 @@ export class EmailDispatcherService {
           );
           await this.repo.markSkipped(claimed.id, 'challenge_not_open');
           return { id: claimed.id, status: 'skipped', error: 'challenge_not_open' };
+        }
+        payload = { ...payload, ...minted };
+      }
+      if (claimed.kind === 'approval_request') {
+        // WP-21: the approval link token exists only in this message; its
+        // hash is stored on the approval. Null: the approval was decided,
+        // expired, or superseded by a newer email.
+        const minted = this.approvalLinks ? await this.approvalLinks.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(`approval_request skipped approval_not_pending outbound=${claimed.id}`);
+          await this.repo.markSkipped(claimed.id, 'approval_not_pending');
+          return { id: claimed.id, status: 'skipped', error: 'approval_not_pending' };
         }
         payload = { ...payload, ...minted };
       }
@@ -308,7 +323,11 @@ export class EmailDispatcherService {
 const SIGNER_LINK_KINDS = new Set<string>(['invite', 'reminder']);
 
 /** Kinds whose body is minted per attempt (a link token or a one-time code). */
-const PER_ATTEMPT_BODY_KINDS = new Set<string>([...SIGNER_LINK_KINDS, 'access_code']);
+const PER_ATTEMPT_BODY_KINDS = new Set<string>([
+  ...SIGNER_LINK_KINDS,
+  'access_code',
+  'approval_request',
+]);
 
 const TEMPLATE_KINDS = new Set<string>([
   'invite',
@@ -322,6 +341,8 @@ const TEMPLATE_KINDS = new Set<string>([
   'signed_to_sender',
   'api_key_created',
   'access_code',
+  'approval_request',
+  'approval_denied',
 ]);
 
 /**

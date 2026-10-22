@@ -48,6 +48,22 @@ const envSchema = z
      * access-code routes answer 503 `access_code_unavailable`.
      */
     SIGNER_OTP_KEY: z.string().min(32).optional(),
+    /**
+     * WP-21 — server key for the approval page's CSRF value
+     * (`HMAC(key, approval_id || nonce)`). Required (>=32 chars) in
+     * production while `mcpServer` or `publicApi` is on. Unset elsewhere,
+     * the API draws a random key per process, so a restart only makes an
+     * open Approve/Deny page reload.
+     */
+    APPROVAL_CSRF_KEY: z.string().min(32).optional(),
+    /**
+     * WP-21 — the mail provider's daily and monthly quota (Resend free
+     * tier: 100 and 3000). Approval mail stops with `approval_limit` once
+     * 80% of either is used today / this month, so signer mail keeps the
+     * headroom. Optional; those defaults apply when unset.
+     */
+    EMAIL_PROVIDER_DAILY_QUOTA: z.coerce.number().int().positive().optional(),
+    EMAIL_PROVIDER_MONTHLY_QUOTA: z.coerce.number().int().positive().optional(),
     CRON_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
@@ -262,6 +278,19 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['SIGNER_OTP_KEY'],
         message: 'SIGNER_OTP_KEY required (>=32 chars) while the signerAccessAuth flag is on',
+      });
+    }
+
+    if (
+      env.NODE_ENV === 'production' &&
+      (isFeatureEnabled('mcpServer') || isFeatureEnabled('publicApi')) &&
+      !env.APPROVAL_CSRF_KEY
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['APPROVAL_CSRF_KEY'],
+        message:
+          'APPROVAL_CSRF_KEY required (>=32 chars) in production while mcpServer or publicApi is on',
       });
     }
 

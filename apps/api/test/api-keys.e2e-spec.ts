@@ -13,7 +13,9 @@ import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
 import { TemplatesRepository } from '../src/templates/templates.repository';
+import { ApprovalsRepository } from '../src/approvals/approvals.repository';
 import { InMemoryApiKeysRepository } from './in-memory-api-keys-repository';
+import { InMemoryApprovalsRepository } from './in-memory-approvals-repository';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
@@ -79,6 +81,7 @@ describe('/me/api-keys + API key credential boundary (e2e)', () => {
     const tk = await buildTestJwks();
     outbox = new InMemoryOutboundEmailsRepository();
     keysRepo = new InMemoryApiKeysRepository(outbox);
+    const approvalsRepo = new InMemoryApprovalsRepository();
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(APP_ENV)
@@ -95,6 +98,9 @@ describe('/me/api-keys + API key credential boundary (e2e)', () => {
       .useValue(new InMemoryEnvelopesRepository())
       .overrideProvider(TemplatesRepository)
       .useValue(new InMemoryTemplatesRepository())
+      // WP-21: revoke expires the key's pending approvals.
+      .overrideProvider(ApprovalsRepository)
+      .useValue(approvalsRepo)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -336,6 +342,12 @@ describe('/me/api-keys + API key credential boundary (e2e)', () => {
       ['delete', '/me'],
       ['get', '/contacts'],
       ['get', '/templates'],
+      // WP-21: the owner decides on the session only; a key can never approve.
+      ['get', '/approvals'],
+      ['get', `/approvals/${ENVELOPE_ID}`],
+      ['post', `/approvals/${ENVELOPE_ID}/approve`],
+      ['post', `/approvals/${ENVELOPE_ID}/deny`],
+      ['post', `/approvals/${ENVELOPE_ID}/refresh`],
     ] as const)('%s %s with a valid key is 401', async (method, path) => {
       const key = await mintKey(freshTokenA, {
         scopes: ['envelopes:read', 'envelopes:write', 'envelopes:send', 'account:admin'],

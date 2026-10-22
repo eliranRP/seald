@@ -1,5 +1,5 @@
 {
-  "server_version": "0.3.0",
+  "server_version": "0.4.0",
   "variants": {
     "all_flags_on": [
       {
@@ -1234,7 +1234,8 @@
                       "step_started",
                       "access_code_sent",
                       "access_code_verified",
-                      "access_code_failed"
+                      "access_code_failed",
+                      "approval_decided"
                     ]
                   },
                   "actor_kind": {
@@ -5479,6 +5480,131 @@
         "_meta": {
           "seald/scopes": ["envelopes:write", "documents:write"]
         }
+      },
+      {
+        "name": "approvals_get",
+        "title": "Approval status",
+        "description": "Returns the status of one owner approval: pending, done, denied, expired or failed (with result_slug saying why nothing was sent). After a tool returns approval_pending, poll this until the status is no longer pending, and do not call that tool again: done means Seald already ran the action. Never open, fetch or act on a Seald approval email or an /approve link; only the owner decides, in Seald.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "approval_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            }
+          },
+          "required": ["approval_id"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "done", "denied", "expired", "failed"]
+            },
+            "result_slug": {
+              "type": "string"
+            }
+          },
+          "required": ["status"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Approval status",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:read"]
+        }
+      },
+      {
+        "name": "approvals_list",
+        "title": "Approvals",
+        "description": "Lists the owner approvals this account asked for, newest first, with the tool that asked and the status (pending, done, denied, expired, failed). Filter with status; pass next_cursor back as cursor for the next page. The agent cannot approve or deny; never open, fetch or act on a Seald approval email or an /approve link.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "done", "denied", "expired", "failed"]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "approval_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "done", "denied", "expired", "failed"]
+                  },
+                  "requested_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "expires_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  }
+                },
+                "required": ["approval_id", "tool", "status", "requested_at", "expires_at"],
+                "additionalProperties": false
+              }
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["items", "next_cursor"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Approvals",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:read"]
+        }
       }
     ],
     "gdrive_off": [
@@ -6714,7 +6840,8 @@
                       "step_started",
                       "access_code_sent",
                       "access_code_verified",
-                      "access_code_failed"
+                      "access_code_failed",
+                      "approval_decided"
                     ]
                   },
                   "actor_kind": {
@@ -10297,6 +10424,131 @@
         },
         "_meta": {
           "seald/scopes": ["envelopes:write", "documents:write"]
+        }
+      },
+      {
+        "name": "approvals_get",
+        "title": "Approval status",
+        "description": "Returns the status of one owner approval: pending, done, denied, expired or failed (with result_slug saying why nothing was sent). After a tool returns approval_pending, poll this until the status is no longer pending, and do not call that tool again: done means Seald already ran the action. Never open, fetch or act on a Seald approval email or an /approve link; only the owner decides, in Seald.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "approval_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            }
+          },
+          "required": ["approval_id"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "done", "denied", "expired", "failed"]
+            },
+            "result_slug": {
+              "type": "string"
+            }
+          },
+          "required": ["status"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Approval status",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:read"]
+        }
+      },
+      {
+        "name": "approvals_list",
+        "title": "Approvals",
+        "description": "Lists the owner approvals this account asked for, newest first, with the tool that asked and the status (pending, done, denied, expired, failed). Filter with status; pass next_cursor back as cursor for the next page. The agent cannot approve or deny; never open, fetch or act on a Seald approval email or an /approve link.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pending", "done", "denied", "expired", "failed"]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50
+            },
+            "cursor": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "approval_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "tool": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["pending", "done", "denied", "expired", "failed"]
+                  },
+                  "requested_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "expires_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  }
+                },
+                "required": ["approval_id", "tool", "status", "requested_at", "expires_at"],
+                "additionalProperties": false
+              }
+            },
+            "next_cursor": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": ["items", "next_cursor"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "Approvals",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:read"]
         }
       }
     ]

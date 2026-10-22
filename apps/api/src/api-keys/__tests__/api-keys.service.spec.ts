@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { CreateApiKeyResponseSchema, ApiKeyListResponseSchema } from 'shared';
 import { InMemoryApiKeysRepository } from '../../../test/in-memory-api-keys-repository';
+import { InMemoryApprovalsRepository } from '../../../test/in-memory-approvals-repository';
+import { ApprovalsLifecycleService } from '../../approvals/approvals-lifecycle.service';
 import { InMemoryOutboundEmailsRepository } from '../../../test/in-memory-outbound-emails-repository';
 import type { AuthUser } from '../../auth/auth-user';
 import type { AppEnv } from '../../config/env.schema';
@@ -353,7 +355,95 @@ describe('ApiKeysService.revoke', () => {
     );
     expect(repo.rows[0]!.revokedAt).toBeNull();
   });
+
+  it("expires that key's pending approvals (WP-21), and only that key's", async () => {
+    const outbox = new InMemoryOutboundEmailsRepository();
+    const repo = new InMemoryApiKeysRepository(outbox);
+    const approvals = new InMemoryApprovalsRepository();
+    const lifecycle = new ApprovalsLifecycleService(approvals);
+    const svc = new ApiKeysService(
+      repo,
+      { APP_PUBLIC_URL: 'https://seald.example/' } as AppEnv,
+      lifecycle,
+    );
+    const a = await svc.create(USER, {}, NOW);
+    const b = await svc.create(USER, {}, NOW);
+    const open = (id: string, keyId: string) => ({
+      ...approvalRow(id),
+      apiKeyId: keyId,
+    });
+    approvals.rows.push(open('r1', a.key.id), open('r2', a.key.id), open('r3', b.key.id));
+    await svc.revoke(USER, a.key.id, NOW);
+    expect(approvals.rows.map((r) => [r.id, r.expiredReason])).toEqual([
+      ['r1', 'api_key_revoked'],
+      ['r2', 'api_key_revoked'],
+      ['r3', null],
+    ]);
+    // A foreign revoke attempt expires nothing.
+    await expect(svc.revoke({ ...USER, id: OTHER }, b.key.id, NOW)).rejects.toThrow();
+    expect(approvals.rows[2]!.expiredAt).toBeNull();
+  });
+
+  it('still revokes when expiring the approvals fails', async () => {
+    const outbox = new InMemoryOutboundEmailsRepository();
+    const repo = new InMemoryApiKeysRepository(outbox);
+    const failing = {
+      expireForRevokedKey: () => Promise.reject(new Error('db down')),
+    } as unknown as ApprovalsLifecycleService;
+    const svc = new ApiKeysService(
+      repo,
+      { APP_PUBLIC_URL: 'https://seald.example/' } as AppEnv,
+      failing,
+    );
+    const res = await svc.create(USER, {}, NOW);
+    expect(await svc.revoke(USER, res.key.id, NOW)).toEqual({ revoked: true });
+    expect(repo.rows[0]!.revokedAt).toBe(NOW.toISOString());
+  });
 });
+
+function approvalRow(id: string): InMemoryApprovalsRepository['rows'][number] {
+  const at = NOW.toISOString();
+  return {
+    id,
+    ownerId: OWNER,
+    apiKeyId: null,
+    oauthGrantId: null,
+    kind: 'envelope_send',
+    tool: 'envelopes_send',
+    subjectKey: `envelope:${id}`,
+    envelopeId: null,
+    args: {},
+    summary: {
+      kind: 'envelope_send',
+      action_label: 'Send for signature',
+      title: 'NDA',
+      recipients: [],
+      page_count: 1,
+      key_name: 'Key 1',
+      approver_email: 'maya@example.com',
+      destination: null,
+    },
+    subjectHash: 'a'.repeat(64),
+    linkTokenHash: null,
+    previousTokenHash: null,
+    priorTokenHashes: [],
+    notify: 'email',
+    approveRequires: 'link',
+    ownerEditedAt: null,
+    expiresAt: new Date(NOW.getTime() + DAY).toISOString(),
+    approvedAt: null,
+    deniedAt: null,
+    failedAt: null,
+    expiredAt: null,
+    completedAt: null,
+    expiredReason: null,
+    decidedVia: null,
+    resultSlug: null,
+    result: null,
+    createdAt: at,
+    updatedAt: at,
+  };
+}
 
 describe('ApiKeysService.list', () => {
   it('shows Expired for a key past expires_at and only the caller’s live keys', async () => {

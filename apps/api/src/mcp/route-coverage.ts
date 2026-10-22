@@ -8,7 +8,9 @@
  *   (`WP-45`, the approval-gated account and key actions) that will ship
  *   its tool;
  * - `{ excluded }`: only for a route with no agent-facing action (a
- *   signer-link, verify, cron or OAuth browser redirect route).
+ *   signer-link, verify, cron or OAuth browser redirect route), or the
+ *   owner's own Approve / Deny / review re-mint (the human side of an
+ *   approval, browser-only per D5).
  *
  * `@Public()` routes (signing, verify, cron, health, the OAuth callback
  * and `/mcp` itself) are skipped by decorator in
@@ -23,6 +25,7 @@ export const SHIPPED_STEPS = [
   'step-4',
   'step-5',
   'step-6',
+  'step-7c',
   'step-8a',
   'step-8b',
   'step-8c',
@@ -34,6 +37,10 @@ export const EXCLUSION_REASONS = [
   'verify',
   'cron',
   'oauth_browser_redirect',
+  // WP-21 (D5): the owner's own Approve / Deny is the human side of an
+  // approval. An agent asking for it would approve itself; there is no
+  // `approvals_decide` tool by design.
+  'owner_approval_decision',
 ] as const;
 export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
 
@@ -80,6 +87,24 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /envelopes/:id/documents': { tool: 'envelopes_add_document' },
   'PUT /envelopes/:id/documents/order': { tool: 'envelopes_reorder_documents' },
   'DELETE /envelopes/:id/documents/:document_id': { tool: 'envelopes_remove_document' },
+
+  // Owner approvals (WP-21). The queue reads map to the agent's status
+  // tools; the decisions are the owner's own and never a tool. The
+  // email-link routes (`/approvals/from-email*`) are @Public().
+  'GET /approvals': { tool: 'approvals_list' },
+  'GET /approvals/:id': { tool: 'approvals_get' },
+  'POST /approvals/:id/approve': {
+    excluded: 'owner_approval_decision',
+    note: 'The owner approves in Seald with a fresh sign-in; an agent tool here would approve itself.',
+  },
+  'POST /approvals/:id/deny': {
+    excluded: 'owner_approval_decision',
+    note: 'The owner denies in Seald; the agent only polls approvals_get for the outcome.',
+  },
+  'POST /approvals/:id/refresh': {
+    excluded: 'owner_approval_decision',
+    note: 'Re-mints after the owner edits fields from Review; an agent re-previews through its own tool instead.',
+  },
 
   // Contacts
   'GET /contacts': { planned: 'step-12' },

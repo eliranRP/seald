@@ -36,7 +36,9 @@ export type EmailTemplateKind =
   | 'expired_to_signer'
   | 'signed_to_sender'
   | 'api_key_created'
-  | 'access_code';
+  | 'access_code'
+  | 'approval_request'
+  | 'approval_denied';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -184,6 +186,8 @@ const TITLES: Record<string, string> = {
   signed_to_sender: 'Seald — Signature recorded',
   api_key_created: 'Seald — New API key created',
   access_code: 'Seald — Your one-time code',
+  approval_request: 'Seald — Approval needed',
+  approval_denied: 'Seald — Request denied',
 };
 
 function prettyTitle(kind: string): string {

@@ -6,6 +6,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   API_KEY_DEFAULT_SCOPES,
@@ -22,6 +23,7 @@ import {
   type CreateApiKeyResponse,
   type RevokeApiKeyResponse,
 } from 'shared';
+import { ApprovalsLifecycleService } from '../approvals/approvals-lifecycle.service';
 import type { AuthUser } from '../auth/auth-user';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -63,6 +65,9 @@ export class ApiKeysService {
   constructor(
     private readonly repo: ApiKeysRepository,
     @Inject(APP_ENV) env: AppEnv,
+    // WP-21: revoking a key expires its pending approvals. Optional so
+    // unit specs that build the service by hand keep working.
+    @Optional() private readonly approvals?: ApprovalsLifecycleService,
   ) {
     this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
   }
@@ -120,8 +125,22 @@ export class ApiKeysService {
   async revoke(user: AuthUser, id: string, now: Date = new Date()): Promise<RevokeApiKeyResponse> {
     const result = await this.repo.revoke(user.id, id, now);
     if (result === 'not_found') throw new NotFoundException('api_key_not_found');
-    // WP-21 hook: revoking also expires that key's pending approvals.
-    if (result === 'revoked') this.log.log(`api key revoked id=${id} owner=${user.id}`);
+    if (result === 'revoked') {
+      this.log.log(`api key revoked id=${id} owner=${user.id}`);
+      // Revoking also expires that key's pending approvals (WP-21). Run on
+      // a repeat revoke too, so a failed first pass is retried. A failure
+      // here does not undo the revoke: an Approve still finds the key
+      // revoked at decision time, records Failed and sends nothing.
+    }
+    if (this.approvals) {
+      try {
+        await this.approvals.expireForRevokedKey(id, now);
+      } catch (err) {
+        this.log.error(
+          `approvals not expired on revoke key=${id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
     return { revoked: true };
   }
 

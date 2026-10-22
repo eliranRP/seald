@@ -15,6 +15,7 @@ import { GDRIVE_REPOSITORY, type GDriveRepository } from '../integrations/gdrive
 import { GDriveService } from '../integrations/gdrive/gdrive.service';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { StagedUploadsService } from '../uploads/staged-uploads.service';
+import { ApprovalsLifecycleService } from '../approvals/approvals-lifecycle.service';
 
 /**
  * Hard cap on how many envelopes the inline streaming export will emit.
@@ -152,6 +153,10 @@ export class MeService {
     // staging objects are removed here. Optional so unit specs that build
     // the service by hand keep working.
     @Optional() private readonly stagedUploads?: StagedUploadsService,
+    // Owner approvals and send confirmations (WP-21). The rows also
+    // cascade with auth.users; this removes them and their outbox rows
+    // explicitly. Optional for hand-built unit specs.
+    @Optional() private readonly approvals?: ApprovalsLifecycleService,
   ) {}
 
   /**
@@ -472,6 +477,21 @@ export class MeService {
     const emailHash = createHash('sha256')
       .update((user.email ?? '').toLowerCase())
       .digest('hex');
+
+    if (this.approvals) {
+      // Before the keys: approvals reference them. Best effort: the rows
+      // also cascade when the auth.users row goes (migration 0030).
+      try {
+        const approvalsDeleted = await this.approvals.deleteAllForOwner(user.id);
+        this.logger.log(
+          `account-delete: mcp_approvals deleted=${approvalsDeleted} user=${user.id}`,
+        );
+      } catch {
+        this.logger.warn(
+          `account-delete: mcp_approvals not removed (cascade applies) user=${user.id}`,
+        );
+      }
+    }
 
     const keysDeleted = await this.apiKeys.deleteAllForOwner(user.id);
     this.logger.log(`account-delete: api_keys deleted=${keysDeleted} user=${user.id}`);

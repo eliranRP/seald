@@ -26,10 +26,12 @@ describe('TemplateService', () => {
       'signed_to_sender',
       'api_key_created',
       'access_code',
+      'approval_request',
+      'approval_denied',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(11);
+    expect(kinds).toHaveLength(13);
   });
 
   describe('every template is a self-contained HTML doc', () => {

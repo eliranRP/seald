@@ -167,15 +167,25 @@ describe('MCP route coverage (contract)', () => {
     }
   });
 
-  it('excludes only signer-link, verify, cron or OAuth browser routes, each with a note', () => {
-    for (const cov of Object.values(ROUTE_COVERAGE)) {
+  it('excludes only signer-link, verify, cron, OAuth browser or owner-decision routes, each with a note', () => {
+    for (const [key, cov] of Object.entries(ROUTE_COVERAGE)) {
       if (!('excluded' in cov)) continue;
       expect(EXCLUSION_REASONS).toContain(cov.excluded);
       expect(cov.note.length).toBeGreaterThan(10);
+      // The owner-decision exclusion covers the approval routes only.
+      if (cov.excluded === 'owner_approval_decision') {
+        expect(key).toMatch(/^POST \/approvals\/:id\/(approve|deny|refresh)$/);
+      }
     }
   });
 
-  it('gives require_owner_approval no tool', () => {
-    for (const tool of listTools()) expect(tool.name).not.toMatch(/approval/);
+  it('gives require_owner_approval no tool, and no tool decides an approval', () => {
+    for (const tool of listTools()) {
+      expect(tool.name).not.toMatch(
+        /require_owner_approval|approvals_(approve|deny|decide|refresh)/,
+      );
+      if (/approval/.test(tool.name))
+        expect(['approvals_get', 'approvals_list']).toContain(tool.name);
+    }
   });
 });

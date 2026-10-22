@@ -1,0 +1,9 @@
+You denied {{key_name}}.
+
+Nothing was sent. The request was: {{action_label}} — {{title}}.
+{{suspended_line}}
+
+Didn't expect this request? Revoke the key in Settings → Developers (sign-in required):
+  {{settings_url}}
+
+Sent via Seald · {{public_url}}

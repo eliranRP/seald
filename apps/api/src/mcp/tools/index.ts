@@ -1,4 +1,6 @@
 import type { McpTool } from '../tool';
+import { approvalsGetTool } from './approvals/approvals-get.tool';
+import { approvalsListTool } from './approvals/approvals-list.tool';
 import { documentsUploadCompleteTool } from './documents/documents-upload-complete.tool';
 import { documentsUploadStartTool } from './documents/documents-upload-start.tool';
 import { documentsUploadTool } from './documents/documents-upload.tool';
@@ -69,8 +71,15 @@ export const MCP_WRITE_TOOLS: readonly McpTool[] = [
   envelopesPrepareTool,
 ];
 
+/** Approval reads (WP-21, step 7c). There is no tool that decides. */
+export const MCP_APPROVAL_TOOLS: readonly McpTool[] = [approvalsGetTool, approvalsListTool];
+
 /**
  * Every shipped tool. A tool that is not shipped is absent, not stubbed.
  * Order is the `tools/list` order.
  */
-export const MCP_TOOLS: readonly McpTool[] = [...MCP_READ_TOOLS, ...MCP_WRITE_TOOLS];
+export const MCP_TOOLS: readonly McpTool[] = [
+  ...MCP_READ_TOOLS,
+  ...MCP_WRITE_TOOLS,
+  ...MCP_APPROVAL_TOOLS,
+];
