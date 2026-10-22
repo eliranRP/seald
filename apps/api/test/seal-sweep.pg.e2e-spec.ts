@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { Kysely, PostgresDialect } from 'kysely';
@@ -16,7 +16,8 @@ import { SealSweepPgRepository } from '../src/sealing/seal-sweep.repository.pg';
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = 'seal_sweep_ci';
+// Unique per run: suites from parallel jobs share one Postgres server.
+const DB_NAME = `seal_sweep_${randomBytes(4).toString('hex')}`;
 
 if (!databaseUrl && process.env.CI === 'true') {
   throw new Error('SUBMIT_SIGNER_DATABASE_URL is required in CI for the seal-sweep pg spec');

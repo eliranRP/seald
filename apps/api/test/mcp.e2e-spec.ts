@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -36,7 +36,8 @@ import { DB_TOKEN } from '../src/db/db.provider';
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = 'mcp_wp17_e2e';
+// Unique per run: suites from parallel jobs share one Postgres server.
+const DB_NAME = `mcp_e2e_${randomBytes(4).toString('hex')}`;
 const MIGRATIONS = resolve(__dirname, '../db/migrations');
 
 if (!databaseUrl && process.env.CI === 'true') {

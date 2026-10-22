@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { copyFileSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -35,7 +35,8 @@ import { EnvelopesPgRepository } from '../src/envelopes/envelopes.repository.pg'
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = 'envelope_docs_0022_ci';
+// Unique per run: suites from parallel jobs share one Postgres server.
+const DB_NAME = `envelope_docs_0022_${randomBytes(4).toString('hex')}`;
 const MIGRATIONS_DIR = resolve(__dirname, '../db/migrations');
 const MIGRATE = resolve(__dirname, '../scripts/migrate.sh');
 const UP = join(MIGRATIONS_DIR, '0022_envelope_documents.sql');

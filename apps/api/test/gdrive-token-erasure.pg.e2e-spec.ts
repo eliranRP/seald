@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { Pool } from 'pg';
@@ -16,7 +16,8 @@ import { Pool } from 'pg';
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = 'gdrive_0021_ci';
+// Unique per run: suites from parallel jobs share one Postgres server.
+const DB_NAME = `gdrive_0021_${randomBytes(4).toString('hex')}`;
 
 if (!databaseUrl && process.env.CI === 'true') {
   throw new Error(
