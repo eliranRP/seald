@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { DEFAULT_LOCALE } from 'shared';
+import { loadTemplateSource } from './template-loader';
 
 /**
  * Transactional email template registry + renderer.
@@ -49,7 +51,8 @@ export interface RenderedTemplate {
 @Injectable()
 export class TemplateService implements OnModuleInit {
   private readonly log = new Logger('TemplateService');
-  private readonly compiled = new Map<EmailTemplateKind, CompiledTemplate>();
+  /** Keyed `<kind>:<locale>`; `en` is compiled eagerly at boot, others lazily. */
+  private readonly compiled = new Map<string, CompiledTemplate>();
   private readonly templatesDir: string;
   private sharedCss = '';
 
@@ -80,28 +83,22 @@ export class TemplateService implements OnModuleInit {
     for (const entry of entries) {
       const entryPath = resolve(this.templatesDir, entry);
       if (!statSync(entryPath).isDirectory()) continue;
-      this.compileOne(entry as EmailTemplateKind);
+      this.compileOne(entry as EmailTemplateKind, DEFAULT_LOCALE);
     }
     this.log.log(`compiled ${this.compiled.size} email templates`);
   }
 
-  private compileOne(kind: EmailTemplateKind): void {
-    const dir = resolve(this.templatesDir, kind);
-    const htmlPath = resolve(dir, 'body.html');
-    const txtPath = resolve(dir, 'body.txt');
-    const subjectPath = resolve(dir, 'subject.txt');
-    if (!existsSync(htmlPath) || !existsSync(txtPath) || !existsSync(subjectPath)) {
-      throw new Error(
-        `TemplateService: incomplete template set at '${kind}/' — expected body.html + body.txt + subject.txt`,
-      );
-    }
-    const fragment = readFileSync(htmlPath, 'utf8');
-    const html = this.wrapFragment(kind, fragment);
-    this.compiled.set(kind, {
-      html,
-      text: readFileSync(txtPath, 'utf8'),
-      subject: readFileSync(subjectPath, 'utf8').trim(),
-    });
+  private compileOne(kind: EmailTemplateKind, locale: string): CompiledTemplate {
+    // Locale fallback (templates/<kind>/<locale>/ -> /en/ -> flat) lives in
+    // template-loader.ts.
+    const src = loadTemplateSource(this.templatesDir, kind, locale);
+    const compiled: CompiledTemplate = {
+      html: this.wrapFragment(kind, src.html),
+      text: src.text,
+      subject: src.subject,
+    };
+    this.compiled.set(compiledKey(kind, locale), compiled);
+    return compiled;
   }
 
   private wrapFragment(kind: EmailTemplateKind, fragment: string): string {
@@ -136,11 +133,9 @@ ${fragment}
   render(
     kind: EmailTemplateKind,
     vars: Readonly<Record<string, string | number>>,
+    locale: string = DEFAULT_LOCALE,
   ): RenderedTemplate {
-    const tpl = this.compiled.get(kind);
-    if (!tpl) {
-      throw new Error(`TemplateService: unknown template kind '${kind}'`);
-    }
+    const tpl = this.compiled.get(compiledKey(kind, locale)) ?? this.compileLazily(kind, locale);
     return {
       // HTML body: escape every substituted value to neutralize stored XSS
       // / phishing-grade content injection (F-001). `*_html` keys are
@@ -155,10 +150,24 @@ ${fragment}
     };
   }
 
+  private compileLazily(kind: EmailTemplateKind, locale: string): CompiledTemplate {
+    // Only kinds that compiled at boot are known; anything else is a caller bug.
+    if (!this.compiled.has(compiledKey(kind, DEFAULT_LOCALE))) {
+      throw new Error(`TemplateService: unknown template kind '${kind}'`);
+    }
+    return this.compileOne(kind, locale);
+  }
+
   /** Test-only helper: get the list of kinds that compiled successfully. */
   kinds(): readonly EmailTemplateKind[] {
-    return [...this.compiled.keys()];
+    return [...this.compiled.keys()]
+      .filter((k) => k.endsWith(`:${DEFAULT_LOCALE}`))
+      .map((k) => k.slice(0, -(DEFAULT_LOCALE.length + 1)) as EmailTemplateKind);
   }
+}
+
+function compiledKey(kind: string, locale: string): string {
+  return `${kind}:${locale}`;
 }
 
 const TITLES: Record<string, string> = {
