@@ -1,0 +1,233 @@
+import styled from 'styled-components';
+
+export const Stack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[6]};
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  min-width: 0;
+`;
+
+export const Intro = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.body};
+  line-height: ${({ theme }) => theme.font.lineHeight.relaxed};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+export const Section = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[3]};
+  min-width: 0;
+`;
+
+export const SectionTitle = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.h5};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const Actions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
+export const ColumnList = styled.ul`
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const ColumnItem = styled.li`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+export const Mono = styled.code`
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme }) => theme.color.bg.sunken};
+  padding: 2px ${({ theme }) => theme.space[1]};
+  border-radius: ${({ theme }) => theme.radius.xs};
+  overflow-wrap: anywhere;
+`;
+
+export const Field = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+export const FieldLabel = styled.label`
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const FileInput = styled.input`
+  min-height: 44px;
+  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
+  border: 1px dashed ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font: inherit;
+  font-size: 16px;
+  color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme }) => theme.color.paper};
+  max-width: 100%;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
+`;
+
+export const Select = styled.select`
+  min-height: 44px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  font: inherit;
+  font-size: 16px;
+  color: ${({ theme }) => theme.color.fg[1]};
+  background: ${({ theme }) => theme.color.paper};
+  max-width: 100%;
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 1px;
+  }
+`;
+
+export const Notice = styled.div<{ $tone?: 'error' | 'info' }>`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.space[2]};
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  border: 1px solid
+    ${({ theme, $tone }) => ($tone === 'error' ? theme.color.danger[500] : theme.color.border[1])};
+  background: ${({ theme, $tone }) =>
+    $tone === 'error' ? theme.color.danger[50] : theme.color.bg.sunken};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const SummaryLine = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.body};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const TableScroll = styled.div`
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
+`;
+
+export const Table = styled.table`
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[1]};
+  text-align: left;
+
+  caption {
+    padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+    text-align: left;
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  th,
+  td {
+    padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[4]};
+    vertical-align: top;
+    border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  }
+
+  th {
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    color: ${({ theme }) => theme.color.fg[2]};
+    background: ${({ theme }) => theme.color.bg.sunken};
+    white-space: nowrap;
+  }
+`;
+
+export const Recipient = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-wrap: anywhere;
+`;
+
+export const Muted = styled.span`
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const ProblemList = styled.ul`
+  margin: 0;
+  padding-left: ${({ theme }) => theme.space[4]};
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+  color: ${({ theme }) => theme.color.danger[700]};
+`;
+
+export const ProgressBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const VisuallyHidden = styled.span`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+`;
+
+export const TextLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  min-height: 44px;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  text-decoration: underline;
+  border-radius: ${({ theme }) => theme.radius.sm};
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
+`;

@@ -30,6 +30,11 @@ type Story = StoryObj<typeof TemplateCard>;
 
 export const Default: Story = {};
 
+export const WithBulkSend: Story = {
+  name: 'Bulk send enabled',
+  args: { onBulkSend: noop },
+};
+
 export const NoTags: Story = {
   name: 'No tags attached',
   args: { template: TEMPLATES[1]! },

@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TemplatesListPage } from './pages/TemplatesListPage';
 import { UseTemplatePage } from './pages/UseTemplatePage';
+import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { SignInPage } from './pages/SignInPage';
@@ -225,6 +226,9 @@ export function AppRoutes() {
           <Route path="/signers" element={<ContactsPage />} />
           <Route path="/templates" element={<TemplatesListPage />} />
           <Route path="/templates/:id/use" element={<UseTemplatePage />} />
+          {/* WP-36: bulk CSV send. The page itself shows "not available" with
+              `bulkSend` off, so the route can stay mounted. */}
+          <Route path="/templates/:id/bulk-send/:batchId?" element={<BulkSendPage />} />
           {/* Step 3 of the templates wizard runs INSIDE AppShell so the
               global NavBar stays visible across the entire wizard.
               The TemplateFlowHeader (back / mode pill / step pills /

@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from 'react';
-import { Pencil, PenTool, Send, Tag, Trash2 } from 'lucide-react';
+import { Pencil, PenTool, Send, Tag, Trash2, Users } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { tagColorFor } from '@/features/templates';
 import type { TemplateCardAccent, TemplateCardProps } from './TemplateCard.types';
@@ -65,7 +65,7 @@ function pickAccent(seed: string): TemplateCardAccent {
  * card-click never overrides them.
  */
 export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
-  const { template, onUse, onEdit, onDelete, onTagClick, onEditTags, ...rest } = props;
+  const { template, onUse, onEdit, onDelete, onTagClick, onEditTags, onBulkSend, ...rest } = props;
   const widths = useMemo(() => computeLineWidths(template.id, THUMB_LINE_COUNT), [template.id]);
   const accent = useMemo(() => pickAccent(template.id), [template.id]);
 
@@ -179,6 +179,17 @@ export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, r
           >
             <Icon icon={Pencil} size={12} />
             Edit
+          </ActionButton>
+        ) : null}
+        {onBulkSend ? (
+          <ActionButton
+            type="button"
+            onClick={() => onBulkSend(template)}
+            aria-label={`Bulk send ${template.name}`}
+            title="Send to many people from a CSV"
+          >
+            <Icon icon={Users} size={12} />
+            Bulk
           </ActionButton>
         ) : null}
         <ActionPrimary

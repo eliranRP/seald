@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import * as sharedModule from 'shared';
 
 // Mock the templates API before the page imports it so the autosave
 // path's PATCH /templates/:id call is observable without hitting the
@@ -364,5 +365,34 @@ describe('UseTemplatePage — debounced title autosave', () => {
     await user.type(input, 'Whatever');
     vi.advanceTimersByTime(600);
     expect(updateTemplateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('UseTemplatePage — bulk send entry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('links to bulk send for a template with a saved document while bulkSend is on', () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
+    setTemplates([{ ...SAMPLE, hasExamplePdf: true }]);
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.getByRole('link', { name: 'Send to many from a CSV' })).toHaveAttribute(
+      'href',
+      `/templates/${encodeURIComponent(SAMPLE.id)}/bulk-send`,
+    );
+  });
+
+  it('is hidden while bulkSend is off, and for a template with no saved document', () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockReturnValue(false);
+    setTemplates([{ ...SAMPLE, hasExamplePdf: true }]);
+    const first = renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.queryByRole('link', { name: 'Send to many from a CSV' })).toBeNull();
+    first.unmount();
+
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
+    setTemplates([{ ...SAMPLE, hasExamplePdf: false }]);
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.queryByRole('link', { name: 'Send to many from a CSV' })).toBeNull();
   });
 });

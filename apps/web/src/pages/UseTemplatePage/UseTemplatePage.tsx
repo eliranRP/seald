@@ -27,6 +27,7 @@ import {
   subscribeToTemplates,
   type TemplateSummary,
 } from '@/features/templates';
+import { isBulkSendEnabled } from '@/features/bulkSend';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 import {
   applyTemplate,
@@ -59,6 +60,7 @@ import {
   StepInner,
   TooltipBubble,
   TooltipWrap,
+  BulkSendLink,
 } from './UseTemplatePage.styles';
 
 /**
@@ -454,6 +456,11 @@ export function UseTemplatePage() {
                     </TooltipBubble>
                   ) : null}
                 </TooltipWrap>
+                {isBulkSendEnabled() && template?.hasExamplePdf ? (
+                  <BulkSendLink to={`/templates/${encodeURIComponent(template.id)}/bulk-send`}>
+                    Send to many from a CSV
+                  </BulkSendLink>
+                ) : null}
               </DocumentTitleRow>
             ) : null}
 

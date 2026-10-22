@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styled, { css } from 'styled-components';
 
 /**
@@ -173,6 +174,21 @@ export const DocumentTitleRow = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
   margin-bottom: ${({ theme }) => theme.space[5]};
+`;
+
+export const BulkSendLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  text-decoration: underline;
+  border-radius: ${({ theme }) => theme.radius.sm};
+
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
+    outline-offset: 2px;
+  }
 `;
 
 export const DocumentTitle = styled.h2`

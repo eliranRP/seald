@@ -89,4 +89,20 @@ describe('TemplateCard', () => {
       queryByRole('button', { name: new RegExp(`Edit tags for ${TEMPLATE.name}$`, 'i') }),
     ).toBeNull();
   });
+
+  it('Bulk send overlay action fires onBulkSend and does not bubble to onUse', async () => {
+    const onUse = vi.fn();
+    const onBulkSend = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <TemplateCard template={TEMPLATE} onUse={onUse} onBulkSend={onBulkSend} />,
+    );
+    await userEvent.click(getByRole('button', { name: `Bulk send ${TEMPLATE.name}` }));
+    expect(onBulkSend).toHaveBeenCalledWith(TEMPLATE);
+    expect(onUse).not.toHaveBeenCalled();
+  });
+
+  it('hides the Bulk send action when onBulkSend is not supplied (flag off)', () => {
+    const { queryByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
+    expect(queryByRole('button', { name: `Bulk send ${TEMPLATE.name}` })).toBeNull();
+  });
 });

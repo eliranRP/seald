@@ -19,6 +19,7 @@ import {
   updateTemplate as apiUpdateTemplate,
 } from '@/features/templates/templatesApi';
 import type { TemplateSummary } from '@/features/templates';
+import { isBulkSendEnabled } from '@/features/bulkSend';
 import { TagFilterMenu } from '@/components/TagFilterMenu';
 import {
   ActiveTagOverflow,
@@ -196,6 +197,14 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
   const handleEdit = useCallback(
     (template: TemplateSummary): void => {
       navigate(`/templates/${encodeURIComponent(template.id)}/use?mode=edit`);
+    },
+    [navigate],
+  );
+
+  const bulkOn = isBulkSendEnabled();
+  const handleBulkSend = useCallback(
+    (template: TemplateSummary): void => {
+      navigate(`/templates/${encodeURIComponent(template.id)}/bulk-send`);
     },
     [navigate],
   );
@@ -454,6 +463,7 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                             onDuplicate={handleDuplicate}
                             onTagClick={(tag) => toggleActiveTag(tag)}
                             onEditTags={(tpl) => setEditTagsFor(tpl)}
+                            onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
                           />
                         ))}
                       </Grid>
@@ -475,6 +485,7 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                       onDuplicate={handleDuplicate}
                       onTagClick={(tag) => toggleActiveTag(tag)}
                       onEditTags={(tpl) => setEditTagsFor(tpl)}
+                      onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
                     />
                   ))}
                 </Grid>
