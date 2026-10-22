@@ -1,4 +1,7 @@
 import { FileText, Pencil } from 'lucide-react';
+import { isFeatureEnabled } from 'shared';
+import { SigningOrderEditor } from '@/features/signers/signingOrder';
+import type { SigningOrderValue } from '@/features/signers/signingOrder';
 import { ReminderToggle } from '@/components/ReminderToggle';
 import { SendSettings } from '@/components/SendSettings';
 import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
@@ -165,6 +168,9 @@ export interface MWReviewProps {
   /** Expiry and reminder cadence (WP-09). Omitted hides the controls. */
   readonly reminderSettings?: SendReminderSettings | undefined;
   readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
+  /** Signing order (WP-06). Omitted, or flag `signingOrder` off, hides the control. */
+  readonly signingOrder?: SigningOrderValue | undefined;
+  readonly onSigningOrderChange?: ((next: SigningOrderValue) => void) | undefined;
 }
 
 export function MWReview(props: MWReviewProps) {
@@ -179,6 +185,8 @@ export function MWReview(props: MWReviewProps) {
     onRemindersEnabledChange,
     reminderSettings,
     onReminderSettingsChange,
+    signingOrder,
+    onSigningOrderChange,
   } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
@@ -237,6 +245,18 @@ export function MWReview(props: MWReviewProps) {
           </SignerRow>
         ))}
       </Card>
+      {signingOrder &&
+      onSigningOrderChange &&
+      signers.length > 1 &&
+      isFeatureEnabled('signingOrder') ? (
+        <Card>
+          <SigningOrderEditor
+            signers={signers}
+            value={signingOrder}
+            onChange={onSigningOrderChange}
+          />
+        </Card>
+      ) : null}
       <Card>
         {reminderSettings && onReminderSettingsChange ? (
           <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />

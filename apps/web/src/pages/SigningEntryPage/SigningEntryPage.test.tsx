@@ -121,6 +121,18 @@ describe('SigningEntryPage', () => {
     expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
   });
 
+  // WP-06: a signer in a later step opens the link early. Friendly wait
+  // page, not the "already used" copy.
+  it('maps 409 not_your_turn to the not-your-turn page', async () => {
+    const err = Object.assign(new Error('not_your_turn'), { status: 409 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(
+      await screen.findByRole('heading', { name: /not your turn to sign yet/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /already been used/i })).not.toBeInTheDocument();
+  });
+
   it('maps 404 to the not-found state', async () => {
     const err = Object.assign(new Error('envelope_not_found'), { status: 404 });
     post.mockRejectedValueOnce(err);

@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { EnvelopeDocument, EnvelopeListItem } from 'shared';
+import type { DeliveryMode, EnvelopeDocument, EnvelopeListItem } from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
@@ -29,6 +29,10 @@ export interface EnvelopeSigner {
   readonly tc_accepted_at: string | null;
   readonly signed_at: string | null;
   readonly declined_at: string | null;
+  /** When this signer's step was invited. Present only while `signingOrder` is on (WP-05). */
+  readonly invited_at?: string | null;
+  /** 1-based signing step. Present only while `signingOrder` is on (WP-05). */
+  readonly step?: number;
 }
 
 export interface EnvelopeField {
@@ -73,6 +77,8 @@ export interface Envelope {
   readonly signers: ReadonlyArray<EnvelopeSigner>;
   readonly fields: ReadonlyArray<EnvelopeField>;
   readonly tags: ReadonlyArray<string>;
+  /** `parallel` (default) or `sequential`. Meaningful to the UI only while `signingOrder` is on (WP-05). */
+  readonly delivery_mode?: DeliveryMode;
   /** The envelope's documents in order. Present only while `multiDocumentEnvelopes` is on (WP-03). */
   readonly documents?: ReadonlyArray<EnvelopeDocument>;
   /** Absent on older payloads; treat missing as on. */
@@ -225,7 +231,9 @@ export type EnvelopeEventType =
   | 'session_invalidated_by_decline'
   | 'session_invalidated_by_cancel'
   | 'job_failed'
-  | 'retention_deleted';
+  | 'retention_deleted'
+  | 'document_added'
+  | 'step_started';
 
 export interface EnvelopeEvent {
   readonly id: string;
@@ -418,6 +426,25 @@ export async function placeEnvelopeFields(
   const { data } = await apiClient.put<ReadonlyArray<EnvelopeField>>(
     `/envelopes/${envelopeId}/fields`,
     { fields },
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+/** `PUT /envelopes/:id/signing-order` body (WP-05, flag `signingOrder`). */
+export interface SetSigningOrderInput {
+  readonly delivery_mode: DeliveryMode;
+  readonly signers?: ReadonlyArray<{ readonly signer_id: string; readonly signing_order: number }>;
+}
+
+export async function setEnvelopeSigningOrder(
+  envelopeId: string,
+  input: SetSigningOrderInput,
+  signal?: AbortSignal,
+): Promise<Envelope> {
+  const { data } = await apiClient.put<Envelope>(
+    `/envelopes/${envelopeId}/signing-order`,
+    input,
     configWithSignal(signal),
   );
   return data;

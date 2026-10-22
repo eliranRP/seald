@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -44,6 +45,8 @@ import {
 import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
 import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 const TOAST_AUTO_DISMISS_MS = 4000;
+
+const NO_SIGNER_IDS: ReadonlyArray<string> = [];
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -210,6 +213,7 @@ export function TemplateEditorRoute() {
   // Local draft id — created lazily once we know the page count.
   const [draftId, setDraftId] = useState<string | null>(null);
   const draft = draftId ? getDocument(draftId) : undefined;
+  const signingOrder = useSigningOrder(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   /**
    * Saved example PDF fetched from the API when the user picks a
@@ -667,6 +671,7 @@ export function TemplateEditorRoute() {
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
           reminderSettings,
+          signingOrder: signingOrder.value,
         });
         sendDocument(draft.id);
         navigate(`/document/${result.envelope_id}/sent`);
@@ -674,7 +679,16 @@ export function TemplateEditorRoute() {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
       }
     },
-    [draft, navigate, remindersEnabled, reminderSettings, sendDocument, sendEnvelope, toNormalized],
+    [
+      draft,
+      navigate,
+      remindersEnabled,
+      reminderSettings,
+      signingOrder.value,
+      sendDocument,
+      sendEnvelope,
+      toNormalized,
+    ],
   );
 
   const handleSend = useCallback(() => {
@@ -882,6 +896,8 @@ export function TemplateEditorRoute() {
             onRemindersEnabledChange={setRemindersEnabled}
             reminderSettings={reminderSettings}
             onReminderSettingsChange={setReminderSettings}
+            signingOrder={signingOrder.value}
+            onSigningOrderChange={signingOrder.setValue}
             // Only expose Save-as-template in modes where saving is the
             // user's stated intent: authoring a new template ('new') or
             // explicitly editing an existing one ('editing'). In 'using'

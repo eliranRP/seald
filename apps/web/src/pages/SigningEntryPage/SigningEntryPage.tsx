@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reportSignerEvent } from '@/features/signing';
+import { isNotYourTurnError, NotYourTurn } from '@/features/signers/signingOrder';
 import * as api from '@/features/signing/signingApi';
 import {
   Body,
@@ -44,13 +45,22 @@ export function resetInflightForTests(): void {
   inflight.clear();
 }
 
-type EntryState = 'loading' | 'invalid' | 'burned' | 'not-found' | 'rate-limit' | 'generic';
+type EntryState =
+  | 'loading'
+  | 'invalid'
+  | 'burned'
+  | 'not-found'
+  | 'rate-limit'
+  | 'not-your-turn'
+  | 'generic';
 
 interface ApiErrorLike extends Error {
   status?: number;
 }
 
 function mapError(err: ApiErrorLike): EntryState {
+  // WP-06: 409 not_your_turn is a wait, not a used link.
+  if (isNotYourTurnError(err)) return 'not-your-turn';
   if (err.status === 400) return 'invalid';
   // 401 invalid_token, 410 envelope_terminal, 409 already_signed/declined
   // (from assertStillSignable). All four mean "this link won't sign anything"
@@ -78,6 +88,10 @@ const COPY: Record<EntryState, { readonly title: string; readonly body: string }
   'not-found': {
     title: "We couldn't find this signing request",
     body: 'Double-check the link in your email, or ask the sender to resend it.',
+  },
+  'not-your-turn': {
+    title: "It's not your turn to sign yet",
+    body: "We'll email you a signing link as soon as it's your turn.",
   },
   'rate-limit': {
     title: 'Too many attempts',
@@ -175,6 +189,8 @@ export function SigningEntryPage() {
     setState('loading');
     setRetryCounter((n) => n + 1);
   }, []);
+
+  if (state === 'not-your-turn') return <NotYourTurn />;
 
   const copy = COPY[state];
   // Item 1 — only the two recoverable error states get a retry CTA. The

@@ -48,6 +48,8 @@ import {
   useEnvelopeEventsQuery,
   useEnvelopeQuery,
 } from '@/features/envelopes';
+import { SigningOrderSteps } from '@/features/signers/signingOrder';
+import { stepStartedText } from '@/features/signers/signingOrder/stepStartedText';
 import { formatShortDateOrDash, formatTimelineWhen } from '@/lib/dateFormat';
 import {
   useCancelEnvelopeMutation,
@@ -236,6 +238,15 @@ function eventsToTimeline(
           kind: 'reminder',
         });
         break;
+      case 'step_started':
+        rendered.push({
+          ...base,
+          icon: Send,
+          tone: 'indigo',
+          text: stepStartedText(ev.metadata, new Map(envelope.signers.map((x) => [x.id, x.name]))),
+          kind: 'step',
+        });
+        break;
       case 'sealed':
         rendered.push({
           ...base,
@@ -293,14 +304,16 @@ function eventsToTimeline(
     }
   }
 
+  const ordered = isFeatureEnabled('signingOrder') && envelope.delivery_mode === 'sequential';
   if (envelope.status === 'awaiting_others' || envelope.status === 'sealing') {
     for (const s of envelope.signers) {
       if (s.signed_at === null && s.declined_at === null) {
+        const notYetInvited = ordered && (s.invited_at === null || s.invited_at === undefined);
         rendered.push({
           id: `pending-${s.id}`,
           icon: Clock,
           tone: 'amber',
-          text: 'Waiting on signature',
+          text: notYetInvited ? 'Waiting for their turn' : 'Waiting on signature',
           by: s.name,
           at: null,
           kind: 'pending',
@@ -1052,6 +1065,11 @@ export function EnvelopeDetailPage() {
                   ))}
                 </SignerList>
               )}
+              <SigningOrderSteps
+                deliveryMode={envelope.delivery_mode}
+                signers={envelope.signers}
+                sent={envelope.status !== 'draft'}
+              />
               {envelope.status === 'draft' || envelope.status === 'awaiting_others' ? (
                 <ReminderToggle
                   enabled={reminders.enabled}

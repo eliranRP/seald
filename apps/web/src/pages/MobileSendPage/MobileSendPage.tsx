@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
@@ -248,6 +249,7 @@ export function MobileSendPage() {
   }, [gdriveOn, searchParams, driveAccountId, setSearchParams]);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
+  const signingOrder = useSigningOrder(signers.map((s) => s.id));
   const [meIncluded, setMeIncluded] = useState(false);
 
   // Place-step state
@@ -588,6 +590,7 @@ export function MobileSendPage() {
         ...(user?.name ? { senderName: user.name } : {}),
         remindersEnabled,
         reminderSettings,
+        signingOrder: signingOrder.value,
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
@@ -630,6 +633,7 @@ export function MobileSendPage() {
     contacts,
     remindersEnabled,
     reminderSettings,
+    signingOrder.value,
     runSend,
     title,
     user,
@@ -802,6 +806,8 @@ export function MobileSendPage() {
               onRemindersEnabledChange={setRemindersEnabled}
               reminderSettings={reminderSettings}
               onReminderSettingsChange={setReminderSettings}
+              signingOrder={signingOrder.value}
+              onSigningOrderChange={signingOrder.setValue}
             />
             {sendPhase === 'error' && sendError && (
               <div

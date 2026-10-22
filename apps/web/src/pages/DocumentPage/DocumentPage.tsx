@@ -25,6 +25,7 @@ import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog'
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
 import { ReminderToggle } from '@/components/ReminderToggle';
 import { SendSettings } from '@/components/SendSettings';
+import { SigningOrderEditor } from '@/features/signers/signingOrder';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
@@ -112,6 +113,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onRemindersEnabledChange,
     reminderSettings,
     onReminderSettingsChange,
+    signingOrder,
+    onSigningOrderChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
@@ -619,6 +622,13 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                       onRequestAdd={() => setAddSignerOpen((v) => !v)}
                       {...(onRemoveSigner ? { onRemoveSigner } : {})}
                     />
+                    {signingOrder && onSigningOrderChange ? (
+                      <SigningOrderEditor
+                        signers={signers}
+                        value={signingOrder}
+                        onChange={onSigningOrderChange}
+                      />
+                    ) : null}
                   </>
                 )}
                 <FieldsPlacedList

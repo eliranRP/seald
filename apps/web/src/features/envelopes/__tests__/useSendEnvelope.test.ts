@@ -8,6 +8,7 @@ vi.mock('../envelopesApi', () => ({
   placeEnvelopeFields: vi.fn(),
   sendEnvelope: vi.fn(),
   patchEnvelope: vi.fn(),
+  setEnvelopeSigningOrder: vi.fn(),
 }));
 
 import * as api from '../envelopesApi';
@@ -20,6 +21,7 @@ const addEnvelopeSigner = api.addEnvelopeSigner as unknown as ReturnType<typeof 
 const placeEnvelopeFields = api.placeEnvelopeFields as unknown as ReturnType<typeof vi.fn>;
 const sendEnvelope = api.sendEnvelope as unknown as ReturnType<typeof vi.fn>;
 const patchEnvelope = api.patchEnvelope as unknown as ReturnType<typeof vi.fn>;
+const setEnvelopeSigningOrder = api.setEnvelopeSigningOrder as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   createEnvelope.mockReset();
@@ -28,6 +30,7 @@ beforeEach(() => {
   placeEnvelopeFields.mockReset();
   sendEnvelope.mockReset();
   patchEnvelope.mockReset();
+  setEnvelopeSigningOrder.mockReset();
   patchEnvelope.mockResolvedValue({ id: 'env-1' });
 });
 
@@ -293,6 +296,77 @@ describe('useSendEnvelope', () => {
       setFlag(false);
       await runWith();
       expect(patchEnvelope).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('signing order (WP-06)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { signingOrder: on };
+    };
+    const runOrdered = async (sequential: boolean) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      addEnvelopeSigner
+        .mockResolvedValueOnce({ id: 'srv-a' })
+        .mockResolvedValueOnce({ id: 'srv-b' })
+        .mockResolvedValueOnce({ id: 'srv-c' });
+      placeEnvelopeFields.mockResolvedValueOnce([]);
+      setEnvelopeSigningOrder.mockResolvedValueOnce({ id: 'env-1' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [
+            { localId: 'a', contactId: 'a' },
+            { localId: 'b', contactId: 'b' },
+            { localId: 'c', contactId: 'c' },
+          ],
+          buildFields: () => [],
+          signingOrder: {
+            sequential,
+            rows: [
+              { id: 'a', joinsPrevious: false },
+              { id: 'b', joinsPrevious: true },
+              { id: 'c', joinsPrevious: false },
+            ],
+          },
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('sets the order with server ids after the signers exist and before send', async () => {
+      setFlag(true);
+      await runOrdered(true);
+      expect(setEnvelopeSigningOrder).toHaveBeenCalledWith('env-1', {
+        delivery_mode: 'sequential',
+        signers: [
+          { signer_id: 'srv-a', signing_order: 1 },
+          { signer_id: 'srv-b', signing_order: 1 },
+          { signer_id: 'srv-c', signing_order: 2 },
+        ],
+      });
+      const order = setEnvelopeSigningOrder.mock.invocationCallOrder[0]!;
+      expect(order).toBeGreaterThan(addEnvelopeSigner.mock.invocationCallOrder[2]!);
+      expect(order).toBeLessThan(sendEnvelope.mock.invocationCallOrder[0]!);
+    });
+
+    it('makes no signing-order call when the sender kept any order', async () => {
+      setFlag(true);
+      await runOrdered(false);
+      expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
+    });
+
+    it('makes no signing-order call while the flag is off', async () => {
+      setFlag(false);
+      await runOrdered(true);
+      expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
     });
   });
 });

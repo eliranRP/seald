@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isFeatureEnabled } from 'shared';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -46,6 +47,8 @@ import {
   normalizeCoord,
 } from '../lib/canvas-coords';
 const TOAST_AUTO_DISMISS_MS = 4000;
+
+const NO_SIGNER_IDS: ReadonlyArray<string> = [];
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -166,6 +169,7 @@ export function DocumentRoute() {
   );
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
+  const signingOrder = useSigningOrder(doc?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   // Resolve the source template (if any) so the banner copy can quote
   // the exact name/page count. Re-resolves when the module store
@@ -417,6 +421,7 @@ export function DocumentRoute() {
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
           reminderSettings,
+          signingOrder: signingOrder.value,
         });
 
         // Persist the server envelope id back onto the local draft so the
@@ -437,6 +442,7 @@ export function DocumentRoute() {
       navigate,
       remindersEnabled,
       reminderSettings,
+      signingOrder.value,
       sendDocument,
       sendEnvelope,
       canvasHeight,
@@ -695,6 +701,8 @@ export function DocumentRoute() {
         onRemindersEnabledChange={setRemindersEnabled}
         reminderSettings={reminderSettings}
         onReminderSettingsChange={setReminderSettings}
+        signingOrder={signingOrder.value}
+        onSigningOrderChange={signingOrder.setValue}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
         {...(drafts.multi ? {} : { onSaveAsTemplate: handleOpenSaveTemplate })}

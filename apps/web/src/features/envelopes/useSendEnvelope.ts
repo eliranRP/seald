@@ -5,11 +5,14 @@ import {
   createEnvelope,
   placeEnvelopeFields,
   sendEnvelope,
+  setEnvelopeSigningOrder,
   patchEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
 import { addEnvelopeDocument } from '@/features/documentEditor/documents/documentsApi';
 import type { FieldPlacement, PatchEnvelopeInput } from './envelopesApi';
+import { toSigningOrderRequest } from '@/features/signers/signingOrder/model';
+import type { SigningOrderValue } from '@/features/signers/signingOrder/model';
 import type { SendReminderSettings } from './sendReminderSettings';
 
 /**
@@ -112,6 +115,13 @@ export interface SendEnvelopeInput {
    * with the draft patch only while `customReminders` is on.
    */
   readonly reminderSettings?: SendReminderSettings;
+  /**
+   * Signing order chosen in the recipient editor (WP-06). Used only while
+   * `signingOrder` is on and the sender chose "in order": the order is set
+   * through `PUT /envelopes/:id/signing-order` after the signers exist and
+   * before send. Rows are keyed by the same local ids as `signers`.
+   */
+  readonly signingOrder?: SigningOrderValue;
 }
 
 export interface SendEnvelopeResult {
@@ -144,6 +154,7 @@ export interface UseSendEnvelope {
  *   2. POST /envelopes/:id/upload   (multipart file)
  *   3. POST /envelopes/:id/signers  (per contact)
  *   4. PUT  /envelopes/:id/fields   (all fields, normalized coords)
+ *      PUT  /envelopes/:id/signing-order (only when `signingOrder` is on and ordered)
  *   5. POST /envelopes/:id/send
  *
  * The hook is not a `useMutation` because we want progressive `phase` state
@@ -205,6 +216,11 @@ export function useSendEnvelope(): UseSendEnvelope {
       );
       if (fields.length > 0) {
         await placeEnvelopeFields(envelope.id, fields);
+      }
+
+      if (input.signingOrder !== undefined && isFeatureEnabled('signingOrder')) {
+        const order = toSigningOrderRequest(input.signingOrder, localSignerIdToServerSignerId);
+        if (order !== null) await setEnvelopeSigningOrder(envelope.id, order);
       }
 
       setPhase('sending');

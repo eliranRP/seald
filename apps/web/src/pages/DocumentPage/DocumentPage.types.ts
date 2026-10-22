@@ -3,6 +3,7 @@ import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerD
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
 import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
+import type { SigningOrderValue } from '@/features/signers/signingOrder';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { PDFDocumentProxy } from '@/lib/pdf';
 
@@ -69,6 +70,9 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   /** Expiry and reminder cadence for this send (WP-09). Omitted hides the controls. */
   readonly reminderSettings?: SendReminderSettings | undefined;
   readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
+  /** Signing order for this send (WP-06). Omitted, or flag `signingOrder` off, hides the control. */
+  readonly signingOrder?: SigningOrderValue | undefined;
+  readonly onSigningOrderChange?: ((next: SigningOrderValue) => void) | undefined;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
   /**

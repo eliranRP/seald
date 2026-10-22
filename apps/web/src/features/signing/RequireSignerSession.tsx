@@ -1,5 +1,6 @@
 import { Navigate, Outlet, useParams } from 'react-router-dom';
 import { AuthLoadingScreen } from '@/layout/AuthLoadingScreen';
+import { isNotYourTurnError, NotYourTurn } from '@/features/signers/signingOrder';
 import { useSignMeQuery } from './useSigning';
 
 interface ApiErrorLike extends Error {
@@ -24,6 +25,10 @@ export function RequireSignerSession() {
     return <AuthLoadingScreen />;
   }
   if (q.error) {
+    // WP-06: the signer's step has not been invited yet. Not an error.
+    if (isNotYourTurnError(q.error)) {
+      return <NotYourTurn onRetry={() => void q.refetch()} />;
+    }
     const { status } = q.error as ApiErrorLike;
     if (status === 401 || status === 410) {
       return <Navigate to={`/sign/${envelopeId}`} replace />;
