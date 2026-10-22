@@ -129,6 +129,15 @@ const envSchema = z
     WORKER_ENABLED: strictBooleanString(false),
 
     /**
+     * Request-time kill switch for workflow automations (WP-28). `true`
+     * makes the feature behave as if `workflowAutomations` were off: no
+     * trigger rows, no matching, no worker, routes 404. No rebuild needed.
+     * Optional in the parsed type so hand-built test envs need no change;
+     * readers treat anything but `true` as "not disabled".
+     */
+    AUTOMATIONS_DISABLED: strictBooleanString(false).optional(),
+
+    /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
      * only when `feature.gdriveIntegration` is on. The KMS key is the
      * per-tenant CMK that wraps the per-row data key encrypting each

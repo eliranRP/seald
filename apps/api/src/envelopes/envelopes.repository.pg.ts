@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { sql, type Kysely, type RawBuilder, type Selectable, type Transaction } from 'kysely';
 import { eventHash } from './event-hash';
 import type {
@@ -40,6 +40,10 @@ import {
   type UpdateDraftMetadataPatch,
 } from './envelopes.repository';
 import { REMINDER_INTERVAL_MS } from '../reminders/reminder-eligibility';
+import {
+  AUTOMATION_EVENT_HOOK,
+  type AutomationEventHook,
+} from '../automations/automation-event-hook';
 
 type EnvelopeRow = Selectable<EnvelopesTable>;
 type SignerRow = Selectable<EnvelopeSignersTable>;
@@ -237,7 +241,14 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
 
 @Injectable()
 export class EnvelopesPgRepository extends EnvelopesRepository {
-  constructor(@Inject(DB_TOKEN) private readonly db: Kysely<Database>) {
+  constructor(
+    @Inject(DB_TOKEN) private readonly db: Kysely<Database>,
+    // WP-28 declared hook: workflow automations' pending trigger row is
+    // written inside appendEvent's transaction; matching runs after commit.
+    @Optional()
+    @Inject(AUTOMATION_EVENT_HOOK)
+    private readonly automationHook?: AutomationEventHook,
+  ) {
     super();
   }
 
@@ -1466,7 +1477,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        return await this.db.transaction().execute(async (trx) => {
+        const event = await this.db.transaction().execute(async (trx) => {
           const latest = await trx
             .selectFrom('envelope_events')
             .selectAll()
@@ -1490,8 +1501,13 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             })
             .returningAll()
             .executeTakeFirstOrThrow();
-          return toEventDomain(row);
+          const inserted = toEventDomain(row);
+          await this.automationHook?.recordTrigger(trx, inserted);
+          return inserted;
         });
+        // After commit, never awaited: a matcher error cannot fail the caller.
+        this.automationHook?.afterCommit(event);
+        return event;
       } catch (err) {
         lastErr = err;
         if (!isPrevHashUniqueViolation(err)) throw err;
