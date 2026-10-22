@@ -28,7 +28,7 @@ export const Unassigned: Story = {
 export const LongSignerName: Story = {
   args: {
     kind: 'email',
-    signer: { name: 'Maximiliana Alexandrina Featherstonehaugh-Smythe', color: '#A78BFA' },
+    signer: { name: 'Elizabeth Catherine Featherstonehaugh-Smythe', color: '#A78BFA' },
     required: true,
   },
 };

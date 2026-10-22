@@ -510,7 +510,8 @@
     "HSTS",
     "hsts",
     "deutan",
-    "protan"
+    "protan",
+    "describedby"
   ],
   "ignoreRegExpList": [
     "Base64",

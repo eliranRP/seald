@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE, LOCALE_NAMESPACES, matchSupportedLocale, type Locale } 
 
 /**
  * Server-side string lookup (WP-38), used by the certificate and other
- * server-rendered artefacts. Catalogs are the same JSON files the SPA
+ * server-rendered artifacts. Catalogs are the same JSON files the SPA
  * uses: `packages/shared/locales/<lng>/<ns>.json`.
  *
  * Keys are dotted paths in the `common` namespace (e.g.

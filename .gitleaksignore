@@ -1,0 +1,3 @@
+# Reviewed false positives (fingerprint = commit:path:rule:line).
+# 2026-10-22: obvious fake key 'seald_live_abc123' in a component test fixture.
+b0345a98a87f16506dc18f1cddb6ac500307c44a:apps/web/src/components/SecretOnceSheet/SecretOnceSheet.test.tsx:generic-api-key:7
