@@ -128,7 +128,7 @@ export const LEGACY_SIGNER_LINK_KEYS: readonly string[] = ['sign_url'];
  * in step with the 0027 check constraint.
  *
  * Hand-written single pass instead of a regex: payloads include user text,
- * and `/\/sign\/[^"\s]*[?&]t=…/` backtracks polynomially on input that
+ * and `/\/sign\/[^"\s]*[?&]t=…/` backtracks in polynomial time on input that
  * repeats `/sign/` (CodeQL js/polynomial-redos). Each `/sign/` run up to
  * the next quote or whitespace is scanned once, then skipped.
  */
