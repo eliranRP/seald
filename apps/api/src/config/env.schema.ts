@@ -138,6 +138,16 @@ const envSchema = z
     AUTOMATIONS_DISABLED: strictBooleanString(false).optional(),
 
     /**
+     * Incident kill switch for the MCP surface (docs/design/mcp-server.md,
+     * Transport). `true` makes `/mcp` 404 even while the `mcpServer` flag
+     * is on, and turns off the key routes that only MCP keeps alive. It is
+     * validated here at boot but read from `process.env` on every request
+     * (`mcpDisabled()` in `mcp-disabled.ts`), so flipping it needs no
+     * rebuild. Optional so hand-built test envs need no change.
+     */
+    MCP_DISABLED: strictBooleanString(false).optional(),
+
+    /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
      * only when `feature.gdriveIntegration` is on. The KMS key is the
      * per-tenant CMK that wraps the per-row data key encrypting each

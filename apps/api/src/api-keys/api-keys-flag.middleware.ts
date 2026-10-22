@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, type NestMiddleware } from '@nestjs/common';
 import { isFeatureEnabled } from 'shared';
+import { mcpDisabled } from '../config/mcp-disabled';
 
 /**
  * API keys serve `/mcp` (`mcpServer`) and `/api/v1` (`publicApi`, parity
@@ -8,7 +9,7 @@ import { isFeatureEnabled } from 'shared';
  * so flipping it needs no rebuild.
  */
 export function apiKeysEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  const mcpOn = isFeatureEnabled('mcpServer') && env['MCP_DISABLED'] !== 'true';
+  const mcpOn = isFeatureEnabled('mcpServer') && !mcpDisabled(env);
   return mcpOn || isFeatureEnabled('publicApi');
 }
 
