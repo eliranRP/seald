@@ -1,4 +1,5 @@
-import type { FieldKind } from 'shared';
+import { BadRequestException } from '@nestjs/common';
+import { isNewFieldKind, parseFieldMeta, type AnyFieldKind as FieldKind } from 'shared';
 
 /**
  * One field as `PUT /envelopes/:id/fields` accepts it, before defaults.
@@ -18,6 +19,8 @@ export interface FieldPlacementInput {
   readonly link_id?: string | null;
   /** WP-03. Only present while `multiDocumentEnvelopes` is on. */
   readonly document_id?: string;
+  /** WP-07. Only present while `fieldMetaV2` is on. */
+  readonly meta?: Readonly<Record<string, unknown>>;
 }
 
 /** The row `EnvelopesService.replaceFields` stores. */
@@ -33,6 +36,8 @@ export interface NormalizedFieldPlacement {
   readonly link_id: string | null;
   /** WP-03. Omitted means document 1. */
   readonly document_id?: string;
+  /** WP-07. Omitted unless the request carried meta. */
+  readonly meta?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -50,8 +55,47 @@ export function normalizeFieldPlacements(
     y: f.y,
     width: f.width ?? null,
     height: f.height ?? null,
-    required: f.required ?? true,
+    // WP-07: an explicit `required` wins; otherwise `meta.required`.
+    required: f.required ?? (typeof f.meta?.['required'] === 'boolean' ? f.meta['required'] : true),
     link_id: f.link_id ?? null,
     ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
+    ...(f.meta !== undefined ? { meta: f.meta } : {}),
   }));
+}
+
+/**
+ * WP-07. Validate every placement's `meta` against its kind with the shared
+ * Zod union and return the placements with the parsed (stripped, typed)
+ * meta. With `fieldMetaV2` on, every field is stored with a meta object
+ * (`{}` when none was sent); radio and dropdown therefore must carry
+ * `options`. Throws one 400 listing every problem as `fields.<i>.meta...`.
+ */
+export function validatePlacementMeta<
+  T extends { readonly kind: FieldKind; readonly meta?: Readonly<Record<string, unknown>> },
+>(fields: readonly T[]): Array<T & { readonly meta: Readonly<Record<string, unknown>> }> {
+  const problems: string[] = [];
+  const out = fields.map((f, i) => {
+    const parsed = parseFieldMeta(f.kind, f.meta ?? {});
+    if (!parsed.ok) {
+      for (const issue of parsed.issues) {
+        problems.push(`fields.${i}.${issue.path}: ${issue.message}`);
+      }
+      return { ...f, meta: {} };
+    }
+    return { ...f, meta: parsed.meta };
+  });
+  if (problems.length > 0) throw new BadRequestException(problems);
+  return out;
+}
+
+/**
+ * WP-07 flag-off guard for callers that skip the DTO (MCP, scripts): new
+ * kinds and meta are refused with the plain `validation_error` slug.
+ */
+export function assertNoMetaV2(
+  fields: ReadonlyArray<{ readonly kind: FieldKind; readonly meta?: unknown }>,
+): void {
+  if (fields.some((f) => f.meta !== undefined || isNewFieldKind(f.kind))) {
+    throw new BadRequestException('validation_error');
+  }
 }

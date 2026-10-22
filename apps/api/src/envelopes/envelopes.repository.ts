@@ -42,6 +42,12 @@ export interface UpdateDraftMetadataPatch {
   readonly reminder_first_after_days?: number;
   readonly reminder_interval_days?: number;
   readonly reminder_max?: number;
+  /**
+   * WP-07 (migration 0024). Draft only. The service only forwards these
+   * while `fieldMetaV2` is on.
+   */
+  readonly date_format?: string;
+  readonly timezone?: string;
 }
 
 /** One unsigned signer the reminder sweep may queue mail for. */
@@ -79,6 +85,8 @@ export interface CreateFieldInput {
   readonly link_id?: string | null;
   /** WP-03. Omitted means document 1 (the DB trigger fills it in). */
   readonly document_id?: string;
+  /** WP-07. Validated options; only sent while `fieldMetaV2` is on. */
+  readonly meta?: Readonly<Record<string, unknown>>;
 }
 
 /**

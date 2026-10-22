@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isFeatureEnabled } from 'shared';
 import { eventHash } from '../src/envelopes/event-hash';
 import type {
   AddSignerInput,
@@ -373,6 +374,8 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       value_text: null,
       value_boolean: null,
       filled_at: null,
+      // WP-07: like the pg adapter, only present with the flag on.
+      ...(isFeatureEnabled('fieldMetaV2') ? { meta: { ...(f.meta ?? {}) } } : {}),
     }));
     this.envelopes.set(envelope_id, { ...e, fields: mapped });
     // WP-03: like the pg column, kept off the field object itself.

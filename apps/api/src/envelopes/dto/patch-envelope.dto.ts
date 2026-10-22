@@ -12,7 +12,14 @@ import {
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import { isFeatureEnabled, REMINDER_CADENCE_BOUNDS } from 'shared';
+import {
+  DATE_FORMATS,
+  isDateFormat,
+  isFeatureEnabled,
+  isValidTimeZone,
+  REMINDER_CADENCE_BOUNDS,
+} from 'shared';
+import { FlagGatedProperty } from '../../common/flag-gated.validators';
 import { IsExpiryInBounds } from './reminder-settings.validators';
 
 export class PatchEnvelopeDto {
@@ -79,4 +86,23 @@ export class PatchEnvelopeDto {
   @Min(REMINDER_CADENCE_BOUNDS.maxReminders.min)
   @Max(REMINDER_CADENCE_BOUNDS.maxReminders.max)
   readonly reminder_max?: number;
+
+  /**
+   * How date fields render (WP-07, migration 0024). Draft only. Flag off:
+   * rejected like any unknown property.
+   */
+  @FlagGatedProperty(
+    'fieldMetaV2',
+    isDateFormat,
+    (p) => `${p} must be one of the following values: ${DATE_FORMATS.join(', ')}`,
+  )
+  readonly date_format?: string;
+
+  /** IANA timezone for date fields (WP-07). Draft only. */
+  @FlagGatedProperty(
+    'fieldMetaV2',
+    (v) => typeof v === 'string' && v.length <= 64 && isValidTimeZone(v),
+    (p) => `${p} must be an IANA timezone such as Europe/Berlin`,
+  )
+  readonly timezone?: string;
 }

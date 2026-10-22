@@ -156,7 +156,17 @@ function toFieldDomain(row: FieldRow): EnvelopeField {
     value_text: row.value_text,
     value_boolean: row.value_boolean,
     filled_at: toIso(row.filled_at),
+    // WP-07: only with the flag on, so responses are unchanged while dark.
+    ...(isFeatureEnabled('fieldMetaV2') ? { meta: parseStoredMeta(row.meta) } : {}),
   };
+}
+
+/** jsonb arrives as an object; tolerate a string and anything unexpected. */
+function parseStoredMeta(raw: unknown): Record<string, unknown> {
+  const value = typeof raw === 'string' ? (JSON.parse(raw) as unknown) : raw;
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function toEnvelopeDomain(
@@ -189,6 +199,10 @@ function toEnvelopeDomain(
           reminder_interval_days: envelope.reminder_interval_days,
           reminder_max: envelope.reminder_max,
         }
+      : {}),
+    // Migration 0024 (WP-07): same flag-gated shape as the cadence above.
+    ...(isFeatureEnabled('fieldMetaV2')
+      ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
       : {}),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
@@ -951,6 +965,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             // WP-03: only sent when set, so the 0022 trigger defaults the
             // rest to document 1 (and pre-0022 schemas never see the key).
             ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
+            // WP-07: only sent when set, so pre-0024 schemas never see it.
+            ...(f.meta !== undefined ? { meta: JSON.stringify(f.meta) } : {}),
           })),
         )
         .returningAll()

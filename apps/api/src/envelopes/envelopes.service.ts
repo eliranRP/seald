@@ -52,6 +52,7 @@ import {
   ShortCodeCollisionError,
 } from './envelopes.repository';
 import { generateShortCode } from './short-code';
+import { assertNoMetaV2, validatePlacementMeta } from './field-placement.service';
 import { inspectPdfBytes } from './pdf-inspection';
 
 export type { ListResult };
@@ -337,6 +338,13 @@ export class EnvelopesService {
     // dark the field is not accepted, which is the same 400 an unknown
     // property gets before the flag existed.
     if (!isFeatureEnabled('customReminders') && hasCadenceKeys(sanitized)) {
+      throw new BadRequestException('validation_error');
+    }
+    // Date format / timezone are WP-07 behind `fieldMetaV2`; same rule.
+    if (
+      !isFeatureEnabled('fieldMetaV2') &&
+      (sanitized.date_format !== undefined || sanitized.timezone !== undefined)
+    ) {
       throw new BadRequestException('validation_error');
     }
     if (Object.keys(sanitized).length === 0) {
@@ -641,6 +649,12 @@ export class EnvelopesService {
     }
     if (validate) await validate(fields);
 
+    // WP-07: meta is validated per kind while `fieldMetaV2` is on; while it
+    // is off a caller that skipped the DTO still cannot sneak it in.
+    if (isFeatureEnabled('fieldMetaV2')) {
+      return this.repo.replaceFields(envelope_id, validatePlacementMeta(fields));
+    }
+    assertNoMetaV2(fields);
     return this.repo.replaceFields(envelope_id, fields);
   }
 

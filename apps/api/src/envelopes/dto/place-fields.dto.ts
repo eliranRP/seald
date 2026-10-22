@@ -3,7 +3,6 @@ import {
   ArrayMaxSize,
   IsArray,
   IsBoolean,
-  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -14,13 +13,20 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { FIELD_KINDS, type FieldKind } from 'shared';
+import { ALL_FIELD_KINDS, FIELD_KINDS, type AnyFieldKind as FieldKind } from 'shared';
+import {
+  FlagGatedProperty,
+  IsInWhenEnabled,
+  isPlainObject,
+} from '../../common/flag-gated.validators';
 
 export class FieldPlacementDto {
   @IsUUID()
   readonly signer_id!: string;
 
-  @IsIn([...FIELD_KINDS])
+  // WP-07: name / number / radio / dropdown only while `fieldMetaV2` is on;
+  // flag off the list and the message are the legacy ones.
+  @IsInWhenEnabled('fieldMetaV2', FIELD_KINDS, ALL_FIELD_KINDS)
   readonly kind!: FieldKind;
 
   @IsInt()
@@ -57,6 +63,13 @@ export class FieldPlacementDto {
   @IsString()
   @MaxLength(100)
   readonly link_id?: string | null;
+
+  /**
+   * WP-07. Per-kind options; the deep check is the shared Zod union, run by
+   * the service. Flag off: rejected like any unknown property.
+   */
+  @FlagGatedProperty('fieldMetaV2', isPlainObject, (p) => `${p} must be an object`)
+  readonly meta?: Record<string, unknown>;
 }
 
 export class PlaceFieldsDto {

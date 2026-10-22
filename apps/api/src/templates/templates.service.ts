@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import type { Template } from 'shared';
+import { isFeatureEnabled, type Template } from 'shared';
 import { StorageService } from '../storage/storage.service';
 import type { CreateTemplateDto } from './dto/create-template.dto';
 import type { UpdateTemplateDto } from './dto/update-template.dto';
+import { validateTemplateMeta } from './template-meta';
 import { TemplatesRepository, type UpdateTemplatePatch } from './templates.repository';
 
 /**
@@ -45,7 +46,9 @@ export class TemplatesService {
       title: dto.title,
       description: dto.description ?? null,
       cover_color: dto.cover_color ?? null,
-      field_layout: dto.field_layout,
+      field_layout: isFeatureEnabled('fieldMetaV2')
+        ? validateTemplateMeta(dto.field_layout)
+        : dto.field_layout,
       tags: dto.tags ?? [],
       last_signers: dto.last_signers ?? [],
     });
@@ -59,7 +62,12 @@ export class TemplatesService {
     const patch = Object.fromEntries(
       Object.entries(dto).filter(([, v]) => v !== undefined),
     ) as UpdateTemplatePatch;
-    const t = await this.repo.update(owner_id, id, patch);
+    // WP-07: validate meta per kind while `fieldMetaV2` is on.
+    const checked: UpdateTemplatePatch =
+      isFeatureEnabled('fieldMetaV2') && patch.field_layout !== undefined
+        ? { ...patch, field_layout: validateTemplateMeta(patch.field_layout) }
+        : patch;
+    const t = await this.repo.update(owner_id, id, checked);
     if (!t) throw new NotFoundException('template_not_found');
     return t;
   }

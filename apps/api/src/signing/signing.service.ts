@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
-import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION } from 'shared';
+import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION, isFeatureEnabled } from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { Inject } from '@nestjs/common';
@@ -29,6 +29,7 @@ import type {
 } from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
+import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
 import { SigningTokenService } from './signing-token.service';
@@ -57,6 +58,9 @@ export interface SignMeResponse {
     readonly expires_at: string;
     readonly tc_version: string;
     readonly privacy_version: string;
+    /** WP-07: how date fields render; only while `fieldMetaV2` is on. */
+    readonly date_format?: string | null;
+    readonly timezone?: string | null;
   };
   readonly signer: {
     readonly id: string;
@@ -160,6 +164,9 @@ export class SigningService {
         expires_at: envelope.expires_at,
         tc_version: envelope.tc_version,
         privacy_version: envelope.privacy_version,
+        ...(isFeatureEnabled('fieldMetaV2')
+          ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
+          : {}),
       },
       signer: {
         id: signer.id,
@@ -366,9 +373,24 @@ export class SigningService {
       throw new BadRequestException('wrong_field_kind');
     }
 
+    // WP-07: kind + meta validation (flag on only; flag off keeps the
+    // legacy "store what was sent" behaviour).
+    const checked = isFeatureEnabled('fieldMetaV2')
+      ? validateFieldFill(
+          {
+            kind: field.kind,
+            meta: field.meta ?? {},
+            signerName: signer.name,
+            dateFormat: envelope.date_format,
+            timezone: envelope.timezone,
+          },
+          body,
+        )
+      : body;
+
     const updated = await this.repo.fillField(field_id, signer.id, {
-      value_text: body.value_text ?? null,
-      value_boolean: body.value_boolean ?? null,
+      value_text: checked.value_text ?? null,
+      value_boolean: checked.value_boolean ?? null,
     });
     if (!updated) throw new NotFoundException('field_not_found');
 

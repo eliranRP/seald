@@ -1,6 +1,6 @@
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
-import type { TemplateFieldType } from 'shared';
+import type { AnyTemplateFieldType } from 'shared';
 import type { ResolvedField } from './templates';
 
 /**
@@ -10,7 +10,9 @@ import type { ResolvedField } from './templates';
  * paths (TemplateEditorRoute, UploadRoute) share the mapping without
  * duplicating it across routes.
  */
-const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
+// WP-07 widened the API's template types (name, number, radio, dropdown).
+// The editor has no such kinds until WP-08, so those are skipped here.
+const TEMPLATE_TO_FIELD_KIND: Partial<Record<AnyTemplateFieldType, FieldKind>> = {
   signature: 'signature',
   initial: 'initials',
   date: 'date',
@@ -66,6 +68,8 @@ export function rebindFieldsToSigners(
   const signerById = new Map(signers.map((s) => [s.id, s]));
   const out: PlacedFieldValue[] = [];
   for (const rf of resolved) {
+    const kind = TEMPLATE_TO_FIELD_KIND[rf.type];
+    if (kind === undefined) continue;
     let targetSignerId: string | undefined;
     if (rf.signerRoleId !== undefined) {
       // Stable-id path: drop when the role's owner is no longer in
@@ -86,7 +90,7 @@ export function rebindFieldsToSigners(
     out.push({
       id: rf.id,
       page: rf.page,
-      type: TEMPLATE_TO_FIELD_KIND[rf.type],
+      type: kind,
       x: rf.x,
       y: rf.y,
       signerIds: targetSignerId !== undefined ? [targetSignerId] : [],
