@@ -65,14 +65,14 @@ const OID_SIGNING_CERTIFICATE_V1 = '1.2.840.113549.1.9.16.2.12';
 const OID_SIGNING_CERTIFICATE_V2 = '1.2.840.113549.1.9.16.2.47';
 const OID_TIMESTAMP_TOKEN = '1.2.840.113549.1.9.16.2.14';
 
-export interface VerifyResult {
+interface VerifyResult {
   readonly path: string;
   readonly errors: string[];
   readonly warnings: string[];
   readonly info: string[];
 }
 
-export function verifyOne(path: string, bytes: Buffer): VerifyResult {
+function verifyOne(path: string, bytes: Buffer): VerifyResult {
   const errors: string[] = [];
   const warnings: string[] = [];
   const info: string[] = [];
@@ -461,5 +461,4 @@ function main(): void {
   process.exit(failed > 0 ? 1 : 0);
 }
 
-// Run as a CLI only; the e2e suite imports `verifyOne` directly.
-if (require.main === module) main();
+main();
