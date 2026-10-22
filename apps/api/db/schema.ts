@@ -211,6 +211,10 @@ export interface EnvelopesTable {
   // Migration 0020 — sender can turn daily unsigned-signer reminders off.
   // Default true so rows created before the column existed stay opted in.
   reminders_enabled: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  // Migration 0025 — per-envelope reminder cadence (defaults: 1, 1, 7).
+  reminder_first_after_days: ColumnType<number, number | undefined, number | undefined>;
+  reminder_interval_days: ColumnType<number, number | undefined, number | undefined>;
+  reminder_max: ColumnType<number, number | undefined, number | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
