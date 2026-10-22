@@ -1,5 +1,13 @@
 import { forwardRef, Global, Module } from '@nestjs/common';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
+import { AccessAuthSettingsController } from './access-auth/access-auth-settings.controller';
+import { AccessAuthRepository } from './access-auth/access-auth.repository';
+import { AccessAuthPgRepository } from './access-auth/access-auth.repository.pg';
+import { AccessAuthService } from './access-auth/access-auth.service';
+import { AccessCodeMinter } from './access-auth/access-code-minter.service';
+import { AccessCodeSessionGuard } from './access-auth/access-code-session.guard';
+import { AccessCodeController } from './access-auth/access-code.controller';
+import { AccessPendingSessionService } from './access-auth/access-pending-session.service';
 import { SignerSessionGuard } from './signer-session.guard';
 import { SignerSessionService } from './signer-session.service';
 import { SigningController } from './signing.controller';
@@ -23,7 +31,13 @@ import { StepSweepRepository, StepSweepService } from './step-sweep.service';
 @Global()
 @Module({
   imports: [forwardRef(() => EnvelopesModule)],
-  controllers: [SigningController, SigningOrderController],
+  controllers: [
+    SigningController,
+    SigningOrderController,
+    // WP-10, dark behind `signerAccessAuth`.
+    AccessAuthSettingsController,
+    AccessCodeController,
+  ],
   providers: [
     SigningTokenService,
     SignerSessionService,
@@ -33,6 +47,12 @@ import { StepSweepRepository, StepSweepService } from './step-sweep.service';
     // WP-05 backstop for sequential steps whose invites were lost.
     StepSweepService,
     { provide: StepSweepRepository, useClass: StepSweepPgRepository },
+    // WP-10 signer access code.
+    AccessAuthService,
+    AccessCodeMinter,
+    AccessPendingSessionService,
+    AccessCodeSessionGuard,
+    { provide: AccessAuthRepository, useClass: AccessAuthPgRepository },
   ],
   exports: [
     SigningTokenService,
@@ -41,6 +61,9 @@ import { StepSweepRepository, StepSweepService } from './step-sweep.service';
     SigningService,
     SigningOrderService,
     StepSweepService,
+    AccessAuthService,
+    AccessCodeMinter,
+    AccessAuthRepository,
   ],
 })
 export class SigningModule {}

@@ -315,7 +315,11 @@ export interface EventInput {
     | 'job_failed'
     | 'retention_deleted'
     | 'document_added'
-    | 'step_started';
+    | 'step_started'
+    // WP-10 (migration 0026)
+    | 'access_code_sent'
+    | 'access_code_verified'
+    | 'access_code_failed';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;

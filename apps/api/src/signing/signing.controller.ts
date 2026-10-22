@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Param,
   ParseUUIDPipe,
   Post,
@@ -34,6 +35,9 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { SignerSession } from './signer-session.decorator';
 import { SignerSessionGuard, type SignerSessionContext } from './signer-session.guard';
 import { SIGNER_SESSION_COOKIE, SignerSessionService } from './signer-session.service';
+import { pendingCookie } from './access-auth/access-code.controller';
+import { AccessPendingSessionService } from './access-auth/access-pending-session.service';
+import { SubmitDto } from './access-auth/dto/submit.dto';
 import { SigningService, type SignMeResponse } from './signing.service';
 
 /**
@@ -54,6 +58,8 @@ export class SigningController {
     private readonly session: SignerSessionService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly documents: EnvelopeDocumentsService,
+    // WP-10: mints the pending cookie when a code is required first.
+    @Optional() private readonly pending?: AccessPendingSessionService,
   ) {}
 
   @Post('start')
@@ -65,8 +71,44 @@ export class SigningController {
   async start(
     @Body() dto: StartSessionDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ envelope_id: string; signer_id: string; requires_tc_accept: boolean }> {
+  ): Promise<
+    | { envelope_id: string; signer_id: string; requires_tc_accept: boolean }
+    | {
+        status: 'access_code_required';
+        envelope_id: string;
+        signer_id: string;
+        email_masked: string;
+      }
+  > {
     const result = await this.svc.startSession(dto.envelope_id, dto.token);
+
+    if ('status' in result) {
+      // WP-10: no signer session. A pending cookie, scoped to the
+      // access-code routes, lets the signer ask for and enter the code;
+      // any older `seald_sign` cookie is cleared.
+      if (!this.pending) throw new Error('AccessPendingSessionService missing');
+      const secure = this.env.NODE_ENV === 'production';
+      const jwt = await this.pending.mint({
+        envelope_id: result.envelope_id,
+        signer_id: result.signer_id,
+      });
+      res.setHeader('Set-Cookie', [
+        pendingCookie(jwt, secure, this.pending.cookieMaxAgeSeconds),
+        serializeCookie(SIGNER_SESSION_COOKIE, '', {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure,
+          path: '/sign',
+          maxAge: 0,
+        }),
+      ]);
+      return {
+        status: 'access_code_required',
+        envelope_id: result.envelope_id,
+        signer_id: result.signer_id,
+        email_masked: result.email_masked,
+      };
+    }
 
     // HttpOnly cookie. SameSite=Lax so the email-link top-level navigation
     // includes it on subsequent fetches; Secure in production but omitted in
@@ -254,12 +296,15 @@ export class SigningController {
     @SignerSession() session: SignerSessionContext,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    // WP-10: `access_code` for the re-verify; rejected while the flag is off.
+    @Body() body?: SubmitDto,
   ): Promise<{ status: 'submitted'; envelope_status: string }> {
     const result = await this.svc.submit(
       session.envelope,
       session.signer,
       extractClientIp(req),
       req.headers['user-agent'] ?? null,
+      body?.access_code,
     );
     // Clear the session cookie — the session is no longer usable since the
     // signer has submitted. Any subsequent /sign/* call 401s.

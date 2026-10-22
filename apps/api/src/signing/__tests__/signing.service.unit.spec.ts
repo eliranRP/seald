@@ -278,6 +278,7 @@ describe('SigningService.startSession', () => {
       },
     });
     const result = await svc.startSession(ENV_ID, 'A'.repeat(43));
+    if ('status' in result) throw new Error('unexpected access_code_required');
     expect(result.envelope_id).toBe(ENV_ID);
     expect(result.signer_id).toBe(SIGNER_ID);
     expect(result.requires_tc_accept).toBe(true);

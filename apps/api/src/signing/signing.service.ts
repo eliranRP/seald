@@ -13,10 +13,15 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
-import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION, isFeatureEnabled } from 'shared';
+import {
+  CURRENT_SIGNER_AUTH_TIER,
+  ESIGN_DISCLOSURE_VERSION,
+  isFeatureEnabled,
+  maskEmail,
+} from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
-import { Inject } from '@nestjs/common';
+import { Inject, Optional } from '@nestjs/common';
 import { insertOutboundEmailIdempotent, sameMailbox } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { buildTimelineHtml, type TimelineEventFragment } from '../email/template-fragments';
@@ -29,6 +34,7 @@ import type {
 } from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
+import { AccessAuthService } from './access-auth/access-auth.service';
 import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
@@ -48,6 +54,17 @@ export interface StartSessionResult {
   readonly requires_tc_accept: boolean;
   /** The session JWT to set as an HttpOnly cookie on the response. */
   readonly session_jwt: string;
+}
+
+/**
+ * WP-10: the link token was valid, but this signer must enter an emailed
+ * code first. No signer session is issued.
+ */
+export interface StartSessionAccessCodeRequired {
+  readonly status: 'access_code_required';
+  readonly envelope_id: string;
+  readonly signer_id: string;
+  readonly email_masked: string;
 }
 
 export interface SignMeResponse {
@@ -107,9 +124,16 @@ export class SigningService {
     private readonly outboundEmails: OutboundEmailsRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly signingOrder: SigningOrderService,
+    // WP-10 (flag `signerAccessAuth`): access code before the session and
+    // the optional re-verify at submit. Optional so unit specs that build
+    // the service by hand keep working.
+    @Optional() private readonly accessAuth?: AccessAuthService,
   ) {}
 
-  async startSession(envelope_id: string, token: string): Promise<StartSessionResult> {
+  async startSession(
+    envelope_id: string,
+    token: string,
+  ): Promise<StartSessionResult | StartSessionAccessCodeRequired> {
     // Hash at the boundary; plaintext never persists.
     const hash = this.tokens.hash(token);
     const found = await this.repo.findSignerByAccessTokenHash(hash);
@@ -126,6 +150,16 @@ export class SigningService {
 
     assertStillSignable(envelope, signer);
     assertSignersTurn(envelope, signer);
+
+    // WP-10: the token is proven, but the session waits for the code.
+    if (this.accessAuth && (await this.accessAuth.requires(envelope, signer, 'access'))) {
+      return {
+        status: 'access_code_required',
+        envelope_id: envelope.id,
+        signer_id: signer.id,
+        email_masked: maskEmail(signer.email),
+      };
+    }
 
     const session_jwt = await this.session.mint({
       envelope_id: envelope.id,
@@ -431,6 +465,7 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    accessCode?: string,
   ): Promise<{ status: 'submitted'; envelope_status: Envelope['status'] }> {
     if (signer.tc_accepted_at === null) {
       throw new PreconditionFailedException('tc_required');
@@ -449,6 +484,13 @@ export class SigningService {
     );
     if (unfilledRequired.length > 0) {
       throw new UnprocessableEntityException('missing_fields');
+    }
+
+    // WP-10: with `action_auth = email_otp` the whole submission (every
+    // field, not only signatures) needs a fresh emailed code. Checked
+    // last, so a request that fails the checks above spends no attempt.
+    if (this.accessAuth) {
+      await this.accessAuth.assertActionCode(envelope, signer, accessCode, ip, userAgent);
     }
 
     const submitted = await this.repo.submitSigner(signer.id, ip, userAgent);

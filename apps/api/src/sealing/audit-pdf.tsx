@@ -13,6 +13,7 @@ import {
 } from '@react-pdf/renderer';
 import * as React from 'react';
 import QRCode from 'qrcode';
+import { maskEmail } from 'shared';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
 import { stepOf, stepOrders } from '../signing/signing-order';
@@ -1966,6 +1967,7 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   const events: ParticipantEvent[] = [];
   const invite = signerInviteRow(ctx, signer);
   if (invite) events.push(invite);
+  events.push(...accessCodeRows(perEvents, signer));
   const viewed = perEvents.find((e) => e.event_type === 'viewed');
   if (viewed) {
     events.push({
@@ -2053,6 +2055,39 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
     identifier: formatUuidWrap(signer.id),
     events,
   };
+}
+
+/**
+ * WP-10: the emailed one-time code checks, read from the hash-chained
+ * `access_code_verified` events. The first check before opening and the
+ * last re-check before signing. Legal wording: "emailed one-time code",
+ * never "identity verified" (the signature level stays SES).
+ */
+function accessCodeRows(
+  perEvents: ReadonlyArray<EnvelopeEvent>,
+  signer: EnvelopeSigner,
+): ParticipantEvent[] {
+  const verified = perEvents.filter((e) => e.event_type === 'access_code_verified');
+  const access = verified.find((e) => e.metadata['purpose'] !== 'action');
+  const action = [...verified].reverse().find((e) => e.metadata['purpose'] === 'action');
+  const rows: ParticipantEvent[] = [];
+  for (const ev of [access, action]) {
+    if (!ev) continue;
+    const masked =
+      typeof ev.metadata['to_masked'] === 'string'
+        ? ev.metadata['to_masked']
+        : maskEmail(signer.email);
+    rows.push({
+      kind: 'consent',
+      action:
+        ev === action
+          ? `Re-checked before signing: emailed one-time code to ${masked}`
+          : `Identity check: emailed one-time code to ${masked}`,
+      ip: ev.ip ?? '—',
+      at: formatDateTimeShort(ev.created_at),
+    });
+  }
+  return rows;
 }
 
 /**
@@ -2176,6 +2211,8 @@ function deriveVerificationChecks(raw: ReadonlyArray<string>): ReadonlyArray<str
   const out: string[] = [];
   if (seen.has('email') || seen.size === 0) out.push('Email');
   if (seen.has('account')) out.push('Account');
+  // WP-10: a correct emailed one-time code (not an identity check of the person).
+  if (seen.has('email_otp')) out.push('Email code');
   return out;
 }
 

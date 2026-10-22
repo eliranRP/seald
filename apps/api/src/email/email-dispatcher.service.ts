@@ -1,7 +1,8 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { AccessCodeMinter } from '../signing/access-auth/access-code-minter.service';
 import { isSignersTurn } from '../signing/signing-order';
 import { SigningTokenService } from '../signing/signing-token.service';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
@@ -70,6 +71,8 @@ export class EmailDispatcherService {
     private readonly envelopes: EnvelopesRepository,
     private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) env: AppEnv,
+    // WP-10: mints the one-time code of an `access_code` row at dispatch.
+    @Optional() private readonly accessCodes?: AccessCodeMinter,
   ) {
     this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
@@ -147,6 +150,18 @@ export class EmailDispatcherService {
         }
         payload = { ...payload, sign_url: signUrl };
       }
+      if (claimed.kind === 'access_code') {
+        // WP-10: the code exists only in this message; its HMAC is stored.
+        const minted = this.accessCodes ? await this.accessCodes.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(
+            `access_code skipped challenge_not_open envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+          );
+          await this.repo.markSkipped(claimed.id, 'challenge_not_open');
+          return { id: claimed.id, status: 'skipped', error: 'challenge_not_open' };
+        }
+        payload = { ...payload, ...minted };
+      }
       const rendered = this.render(claimed, payload);
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
@@ -165,7 +180,7 @@ export class EmailDispatcherService {
         // A link-bearing body changes on every attempt (fresh token), so
         // each attempt gets its own provider idempotency key. Reusing the
         // row id would make the provider replay or reject the earlier body.
-        idempotencyKey: SIGNER_LINK_KINDS.has(claimed.kind)
+        idempotencyKey: PER_ATTEMPT_BODY_KINDS.has(claimed.kind)
           ? `${claimed.id}:${claimed.attempts}`
           : claimed.id,
       };
@@ -292,6 +307,9 @@ export class EmailDispatcherService {
 /** Kinds whose email carries the signer's `/sign/…?t=` link. */
 const SIGNER_LINK_KINDS = new Set<string>(['invite', 'reminder']);
 
+/** Kinds whose body is minted per attempt (a link token or a one-time code). */
+const PER_ATTEMPT_BODY_KINDS = new Set<string>([...SIGNER_LINK_KINDS, 'access_code']);
+
 const TEMPLATE_KINDS = new Set<string>([
   'invite',
   'reminder',
@@ -303,6 +321,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'expired_to_signer',
   'signed_to_sender',
   'api_key_created',
+  'access_code',
 ]);
 
 /**

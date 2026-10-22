@@ -25,10 +25,11 @@ describe('TemplateService', () => {
       'expired_to_signer',
       'signed_to_sender',
       'api_key_created',
+      'access_code',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(10);
+    expect(kinds).toHaveLength(11);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -331,6 +332,28 @@ describe('TemplateService', () => {
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
       expect(out.html).toContain('>Seald</strong>');
       expect(out.text).toContain('Revoke it now');
+    });
+
+    it('access_code shows the code, says how long it lasts, and carries no signing link', () => {
+      const out = svc.render('access_code', {
+        ...vars,
+        code: '042917',
+        purpose_line: 'Enter it on the signing page to open the document.',
+        expires_minutes: 10,
+      });
+      expect(out.subject).toBe('042917 is your Seald code for "NDA v1"');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('042917');
+        expect(part).toContain('Enter it on the signing page to open the document.');
+        expect(part).toContain('10');
+        expect(part).not.toContain('/sign/');
+        expect(part).not.toContain('?t=');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+        // Legal wording: an emailed code, never an identity claim.
+        expect(part.toLowerCase()).not.toContain('identity verified');
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
     });
 
     it('api_key_created escapes a hostile key name in HTML', () => {

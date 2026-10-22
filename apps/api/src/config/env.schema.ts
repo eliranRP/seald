@@ -1,3 +1,4 @@
+import { isFeatureEnabled } from 'shared';
 import { z } from 'zod';
 import { STRICT_BOOLEAN_STRING_MESSAGE, strictBooleanString } from './strict-boolean-string';
 
@@ -38,6 +39,14 @@ const envSchema = z
     PRIVACY_VERSION: z.string().min(1).default('2026-09-30.3'),
 
     SIGNER_SESSION_SECRET: z.string().optional(),
+    /**
+     * WP-10 — HMAC key (pepper) for emailed signer one-time codes. Only
+     * the HMAC of a code is stored; without this key the codes in
+     * `signer_otp_challenges` cannot be tested offline. Required (>=32
+     * chars) outside tests while `signerAccessAuth` is on; unset, the
+     * access-code routes answer 503 `access_code_unavailable`.
+     */
+    SIGNER_OTP_KEY: z.string().min(32).optional(),
     CRON_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
@@ -234,6 +243,14 @@ const envSchema = z
           });
         }
       }
+    }
+
+    if (env.NODE_ENV !== 'test' && isFeatureEnabled('signerAccessAuth') && !env.SIGNER_OTP_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SIGNER_OTP_KEY'],
+        message: 'SIGNER_OTP_KEY required (>=32 chars) while the signerAccessAuth flag is on',
+      });
     }
 
     if (env.EMAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) {
