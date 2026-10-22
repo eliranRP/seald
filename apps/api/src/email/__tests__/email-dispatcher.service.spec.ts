@@ -211,12 +211,24 @@ describe('EmailDispatcherService', () => {
   it('refuses to store a payload that carries a signing token', async () => {
     await expect(
       repo.insert(
-        inviteRow({ payload: { ...inviteRow().payload, sign_url: 'http://x/sign/env-1?t=abc' } }),
+        inviteRow({ payload: { ...inviteRow().payload, sign_url: 'http://x/sign/env-1' } }),
       ),
     ).rejects.toThrow(/signer_token_in_outbound_payload/);
     await expect(
-      repo.insert(inviteRow({ payload: { cta: 'http://x/sign/env-1?t=abc' } })),
+      repo.insert(
+        inviteRow({
+          payload: {
+            cta: 'http://x/sign/3f0c2a9e-5b1d-4c7e-9a2b-1d2e3f4a5b6c?t=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          },
+        }),
+      ),
     ).rejects.toThrow(/signer_token_in_outbound_payload/);
+    // User text that merely looks like a query parameter is fine.
+    await expect(
+      repo.insert(
+        inviteRow({ payload: { ...inviteRow().payload, envelope_title: 'Lease?t=final' } }),
+      ),
+    ).resolves.toMatchObject({ payload: { envelope_title: 'Lease?t=final' } });
   });
 
   it('keeps the row id as the provider key for mails without a signing link', async () => {

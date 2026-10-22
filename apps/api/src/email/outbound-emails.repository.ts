@@ -121,12 +121,17 @@ export abstract class OutboundEmailsRepository {
  */
 export const LEGACY_SIGNER_LINK_KEYS: readonly string[] = ['sign_url'];
 
-/** A `?t=` / `&t=` query parameter, as in `/sign/<id>?t=<token>`. */
-const TOKEN_QUERY_PARAM = /[?&]t=[A-Za-z0-9_-]/;
+/**
+ * A signing link that carries a token-shaped value: `/sign/…?t=<32+
+ * base64url chars>` (real tokens are 43). Scoped to `/sign/` and a long
+ * value so user text such as a title "Lease?t=final" never matches. Kept
+ * in step with the 0027 check constraint.
+ */
+const SIGNING_LINK_WITH_TOKEN = /\/sign\/[^"\s]*[?&]t=[A-Za-z0-9_-]{32,}/;
 
 /**
  * Insert A: an outbound payload holds ids only, never a signer token or a
- * `?t=` link. The worker mints the token at dispatch. Returns a short
+ * `/sign/…?t=` link. The worker mints the token at dispatch. Returns a short
  * reason when `payload` breaks that rule, else null. Checked on every
  * insert and enforced again by the 0027 check constraint.
  */
@@ -136,7 +141,7 @@ export function findSignerTokenInPayload(
   for (const key of LEGACY_SIGNER_LINK_KEYS) {
     if (key in payload) return `payload_key:${key}`;
   }
-  if (TOKEN_QUERY_PARAM.test(JSON.stringify(payload))) return 'payload_token_query';
+  if (SIGNING_LINK_WITH_TOKEN.test(JSON.stringify(payload))) return 'payload_signing_link';
   return null;
 }
 

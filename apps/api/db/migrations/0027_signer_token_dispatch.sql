@@ -14,7 +14,10 @@
 --    - pending / failed rows: the dispatcher mints a new token when it
 --      sends them, which invalidates any earlier copy of the same link.
 -- 2. Forbid it from coming back: a check constraint rejects any payload
---    with a `sign_url` key or a `?t=` / `&t=` query parameter.
+--    with a `sign_url` key or a signing link carrying a token-shaped
+--    value (`/sign/…?t=` or `&t=` followed by 32+ base64url chars). The
+--    pattern is scoped to `/sign/` and a long value so user text in the
+--    payload (a title like "Lease?t=final") is never rejected.
 --
 -- Idempotent: the scrub only touches rows that still have the key, and
 -- the constraint is added only when it is missing. The down script
@@ -39,7 +42,7 @@ begin
       add constraint outbound_emails_payload_no_signer_token
       check (
         not (payload ? 'sign_url')
-        and payload::text !~ '[?&]t=[A-Za-z0-9_-]'
+        and payload::text !~ '/sign/[^"[:space:]]*[?&]t=[A-Za-z0-9_-]{32,}'
       ) not valid;
   end if;
   -- New rows are checked from here on. Validate the existing ones too, but

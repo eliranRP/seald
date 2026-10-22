@@ -174,6 +174,8 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     // The constraint is live: neither the legacy key nor a ?t= link is accepted.
     await expect(insertRaw({ sign_url: legacyLink })).rejects.toMatchObject({ code: '23514' });
     await expect(insertRaw({ cta: legacyLink })).rejects.toMatchObject({ code: '23514' });
+    // User text that only looks like a query parameter is not a signing link.
+    await expect(insertRaw({ envelope_title: 'Lease?t=final' })).resolves.toBeDefined();
 
     // Simulate rows queued before 0027: drop the constraint, store links,
     // then re-apply the migration file exactly as migrate.sh does.
