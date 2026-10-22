@@ -16,6 +16,7 @@ import QRCode from 'qrcode';
 import { maskEmail } from 'shared';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
+import { resolveContentLocale, t } from '../i18n';
 import { stepOf, stepOrders } from '../signing/signing-order';
 
 /**
@@ -1002,6 +1003,9 @@ interface DocumentRenderProps {
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
   const detailsBySigner = new Map(props.signerDetails.map((d) => [d.signer_id, d]));
   const ctx: RenderCtx = { ...props, detailsBySigner };
+  // WP-38: section headings only; wording and legal text stay English.
+  const locale = resolveContentLocale({ envelopeLocale: props.envelope.locale });
+  const heading = (key: string): string => t(locale, `server.certificate.sections.${key}`);
   return (
     <Document
       title={`Audit trail — ${props.envelope.title}`}
@@ -1012,9 +1016,9 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
         <Hero envelope={props.envelope} mark={sealMark(props)} />
-        <Section num="01" title="Document evidence and access" />
+        <Section num="01" title={heading('evidence')} />
         <Datagrid ctx={ctx} />
-        <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
+        <Section num="02" title={heading('fingerprint')} />
         <HashCards ctx={ctx} />
         <VerifyCard
           verifyUrl={props.verifyUrl}
@@ -1028,7 +1032,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
       {props.documents.length > 1 ? (
         <Page size="LETTER" style={styles.page}>
           <PageHeader suffix="Documents" />
-          <Section num="02" title="Documents in this envelope (SHA-256)" />
+          <Section num="02" title={heading('documents')} />
           <Text style={styles.p2Intro}>
             This envelope holds {props.documents.length} documents. Each one was sealed on its own;
             the fingerprints below identify every original and every sealed file. Page 1 shows
@@ -1041,7 +1045,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Participants" />
-        <Section num="03" title="Participants and events" />
+        <Section num="03" title={heading('participants')} />
         <Text style={styles.p2Intro}>
           Each table below records the major events for every participant in the signing process —
           the actions they took, the IP address they took them from, and the time those actions were
@@ -1057,7 +1061,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Terms & definitions" />
-        <Section num="04" title="Terms used in this document" />
+        <Section num="04" title={heading('terms')} />
         <Text style={styles.termsIntro}>
           The following definitions explain every field and event recorded in this audit trail. This
           glossary is provided so the document can stand alone as a record of legal evidence in any
@@ -1069,7 +1073,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Terms & definitions (continued)" />
-        <Section num="05" title="Signature formats, events, and references" />
+        <Section num="05" title={heading('formats')} />
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>

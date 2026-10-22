@@ -23,6 +23,7 @@ function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
   const patch: {
     date_format?: string;
     timezone?: string;
+    locale?: string;
     reminders_enabled?: boolean;
     expires_at?: string;
     reminder_first_after_days?: number;
@@ -44,6 +45,14 @@ function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
     if (settings.timezone !== undefined && settings.timezone !== '') {
       patch.timezone = settings.timezone;
     }
+  }
+  if (
+    settings !== undefined &&
+    isFeatureEnabled('i18n') &&
+    settings.locale !== undefined &&
+    settings.locale !== ''
+  ) {
+    patch.locale = settings.locale;
   }
   return Object.keys(patch).length > 0 ? patch : null;
 }

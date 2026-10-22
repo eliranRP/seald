@@ -102,7 +102,7 @@ export class EnvelopesService {
 
   async createDraft(
     owner_id: string,
-    dto: { title: string },
+    dto: { title: string; locale?: string },
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
   ): Promise<Envelope> {
     const expires_at = new Date(
@@ -114,6 +114,8 @@ export class EnvelopesService {
       tc_version: this.env.TC_VERSION,
       privacy_version: this.env.PRIVACY_VERSION,
       expires_at,
+      // WP-38: the DTO rejects `locale` while `i18n` is off; guard anyway.
+      ...(isFeatureEnabled('i18n') && dto.locale !== undefined ? { locale: dto.locale } : {}),
     });
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -349,6 +351,10 @@ export class EnvelopesService {
     ) {
       throw new BadRequestException('validation_error');
     }
+    // Locale is WP-38 behind `i18n`; same rule.
+    if (!isFeatureEnabled('i18n') && sanitized.locale !== undefined) {
+      throw new BadRequestException('validation_error');
+    }
     if (Object.keys(sanitized).length === 0) {
       throw new BadRequestException('validation_error');
     }
@@ -570,7 +576,7 @@ export class EnvelopesService {
   async addSigner(
     owner_id: string,
     envelope_id: string,
-    dto: { contact_id?: string; email?: string; name?: string; color?: string },
+    dto: { contact_id?: string; email?: string; name?: string; color?: string; locale?: string },
   ): Promise<EnvelopeSigner> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -582,6 +588,7 @@ export class EnvelopesService {
       name: string;
       color: string;
       role: 'signatory';
+      locale?: string;
     };
 
     if (dto.contact_id) {
@@ -607,6 +614,10 @@ export class EnvelopesService {
         color: dto.color ?? '#818CF8',
         role: 'signatory',
       };
+    }
+
+    if (isFeatureEnabled('i18n') && dto.locale !== undefined) {
+      signerInput = { ...signerInput, locale: dto.locale };
     }
 
     try {

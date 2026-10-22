@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { EnvelopeLocaleProvider } from '@/lib/i18n';
 import {
   useAcceptTermsMutation,
   useDeclineMutation,
@@ -130,7 +131,17 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
     withdrawMut,
   ]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  // WP-38: signer locale, then envelope locale, then the browser's.
+  return (
+    <Ctx.Provider value={value}>
+      <EnvelopeLocaleProvider
+        signerLocale={value.signer?.locale}
+        envelopeLocale={value.envelope?.locale}
+      >
+        {children}
+      </EnvelopeLocaleProvider>
+    </Ctx.Provider>
+  );
 }
 
 export function useSigningSession(): SigningSessionValue {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_LOCALES } from './locales';
 
 export const ENVELOPE_STATUSES = [
   'draft',
@@ -106,6 +107,9 @@ export const SignerSchema = z.object({
   // envelope's distinct orders; signers with the same step sign together.
   invited_at: iso.nullable().optional(),
   step: z.number().int().min(1).optional(),
+  // WP-38 (migration 0035): per-signer locale override. Present only while
+  // the `i18n` flag is on; null inherits the envelope's locale.
+  locale: z.string().nullable().optional(),
 });
 export type Signer = z.infer<typeof SignerSchema>;
 
@@ -239,6 +243,9 @@ export const EnvelopeSchema = z.object({
   // `fieldMetaV2` flag is on; null means "keep what the signer sent".
   date_format: z.string().nullable().optional(),
   timezone: z.string().nullable().optional(),
+  // WP-38 (migration 0035): locale of the signing experience and emails.
+  // Present only while the `i18n` flag is on; null means `en`.
+  locale: z.string().nullable().optional(),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -271,6 +278,8 @@ export type EnvelopeEvent = z.infer<typeof EnvelopeEventSchema>;
 // Request DTOs
 export const CreateEnvelopeRequestSchema = z.object({
   title: z.string().min(1).max(200),
+  // WP-38: accepted only while the `i18n` flag is on.
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 export type CreateEnvelopeRequest = z.infer<typeof CreateEnvelopeRequestSchema>;
 
@@ -284,6 +293,8 @@ export const PatchEnvelopeRequestSchema = z
     reminder_max: z.number().int().optional(),
     date_format: z.string().min(1).max(40).optional(),
     timezone: z.string().min(1).max(64).optional(),
+    // WP-38: accepted only while the `i18n` flag is on.
+    locale: z.enum(SUPPORTED_LOCALES).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
@@ -297,12 +308,15 @@ export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
  */
 const AddSignerContactRequestSchema = z.object({
   contact_id: uuid,
+  // WP-38: accepted only while the `i18n` flag is on.
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 
 const AddSignerAdhocRequestSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(200),
   color: hexColor.optional(),
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 
 export const AddSignerRequestSchema = z.union([

@@ -99,6 +99,8 @@ export interface Envelope {
   /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
   readonly date_format?: string | null;
   readonly timezone?: string | null;
+  /** Envelope language (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
   readonly gdriveExport?: EnvelopeGdriveExportState | null;
@@ -216,6 +218,8 @@ export interface PatchEnvelopeInput {
   /** Date field rendering (WP-07); accepted only while `fieldMetaV2` is on. */
   readonly date_format?: string;
   readonly timezone?: string;
+  /** Envelope language (WP-38); accepted only while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export async function patchEnvelope(

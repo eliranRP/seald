@@ -4,7 +4,15 @@
   },
   "server": {
     "certificate": {
-      "title": "Certificate of completion"
+      "title": "Certificate of completion",
+      "sections": {
+        "evidence": "Document evidence and access",
+        "fingerprint": "Cryptographic fingerprint (SHA-256)",
+        "documents": "Documents in this envelope (SHA-256)",
+        "participants": "Participants and events",
+        "terms": "Terms used in this document",
+        "formats": "Signature formats, events, and references"
+      }
     }
   }
 }

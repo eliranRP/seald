@@ -25,6 +25,7 @@ import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog'
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
 import { ReminderToggle } from '@/components/ReminderToggle';
 import { DateFormatSettings } from '@/components/DateFormatSettings';
+import { LocaleSettings } from '@/components/LocaleSettings';
 import { SendSettings } from '@/components/SendSettings';
 import { SigningOrderEditor } from '@/features/signers/signingOrder';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
@@ -719,6 +720,12 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                     ) : null}
                     {reminderSettings && onReminderSettingsChange ? (
                       <DateFormatSettings
+                        value={reminderSettings}
+                        onChange={onReminderSettingsChange}
+                      />
+                    ) : null}
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <LocaleSettings
                         value={reminderSettings}
                         onChange={onReminderSettingsChange}
                       />

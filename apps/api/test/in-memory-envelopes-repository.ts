@@ -125,6 +125,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       fields: [],
       tags: [],
       reminders_enabled: true,
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
       created_at: now,
       updated_at: now,
     };
@@ -383,6 +384,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       tc_accepted_at: null,
       signed_at: null,
       declined_at: null,
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
     };
     this.envelopes.set(envelope_id, { ...e, signers: [...e.signers, signer] });
     return signer;

@@ -80,6 +80,8 @@ export interface SignMeResponse {
     /** WP-07: how date fields render; only while `fieldMetaV2` is on. */
     readonly date_format?: string | null;
     readonly timezone?: string | null;
+    /** WP-38: envelope language; only while `i18n` is on. */
+    readonly locale?: string | null;
   };
   readonly signer: {
     readonly id: string;
@@ -92,6 +94,8 @@ export interface SignMeResponse {
     readonly tc_accepted_at: string | null;
     readonly signed_at: string | null;
     readonly declined_at: string | null;
+    /** WP-38: signer language override; only while `i18n` is on. */
+    readonly locale?: string | null;
   };
   /** Fields the caller should fill. Only fields belonging to THIS signer. */
   readonly fields: ReadonlyArray<EnvelopeField>;
@@ -205,6 +209,7 @@ export class SigningService {
         ...(isFeatureEnabled('fieldMetaV2')
           ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
           : {}),
+        ...(isFeatureEnabled('i18n') ? { locale: envelope.locale ?? null } : {}),
       },
       signer: {
         id: signer.id,
@@ -217,6 +222,7 @@ export class SigningService {
         tc_accepted_at: signer.tc_accepted_at,
         signed_at: signer.signed_at,
         declined_at: signer.declined_at,
+        ...(isFeatureEnabled('i18n') ? { locale: signer.locale ?? null } : {}),
       },
       fields: myFields,
       other_signers: others,

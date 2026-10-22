@@ -147,6 +147,8 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     declined_at: toIso(row.declined_at),
     // WP-05: reaches the wire only with `signingOrder` on.
     ...(isFeatureEnabled('signingOrder') ? { invited_at: toIso(row.invited_at) } : {}),
+    // WP-38: reaches the wire only with `i18n` on.
+    ...(isFeatureEnabled('i18n') ? { locale: row.locale ?? null } : {}),
   };
 }
 
@@ -213,6 +215,8 @@ function toEnvelopeDomain(
     ...(isFeatureEnabled('fieldMetaV2')
       ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
       : {}),
+    // Migration 0035 (WP-38): same flag-gated shape.
+    ...(isFeatureEnabled('i18n') ? { locale: envelope.locale ?? null } : {}),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
     signers: isFeatureEnabled('signingOrder')
@@ -303,6 +307,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           tc_version: input.tc_version,
           privacy_version: input.privacy_version,
           expires_at: input.expires_at,
+          // WP-38: only sent when set, so pre-0035 schemas never see the key.
+          ...(input.locale !== undefined ? { locale: input.locale } : {}),
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -936,6 +942,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           name: input.name,
           color: input.color,
           role: input.role,
+          ...(input.locale !== undefined ? { locale: input.locale } : {}),
         })
         .returningAll()
         .executeTakeFirstOrThrow();

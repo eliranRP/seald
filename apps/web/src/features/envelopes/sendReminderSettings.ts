@@ -14,6 +14,8 @@ export interface SendReminderSettings {
    */
   readonly dateFormat?: string | undefined;
   readonly timezone?: string | undefined;
+  /** Envelope language (WP-38, flag `i18n`): one of `SUPPORTED_LOCALES`. */
+  readonly locale?: string | undefined;
 }
 
 export const DEFAULT_SEND_REMINDER_SETTINGS: SendReminderSettings = {

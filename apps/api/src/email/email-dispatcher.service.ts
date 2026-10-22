@@ -1,8 +1,10 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
 import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { resolveContentLocale } from '../i18n';
 import { AccessCodeMinter } from '../signing/access-auth/access-code-minter.service';
 import { isSignersTurn } from '../signing/signing-order';
 import { SigningTokenService } from '../signing/signing-token.service';
@@ -177,7 +179,7 @@ export class EmailDispatcherService {
         }
         payload = { ...payload, ...minted };
       }
-      const rendered = this.render(claimed, payload);
+      const rendered = this.render(claimed, payload, await this.localeFor(claimed));
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
@@ -268,9 +270,29 @@ export class EmailDispatcherService {
     return `${this.publicUrl}/sign/${row.envelope_id}?t=${token}`;
   }
 
+  /**
+   * WP-38: signer-facing mail uses signer.locale ?? envelope.locale ?? 'en';
+   * sender-facing mail (`*_to_sender`, or any row with no signer) uses
+   * envelope.locale ?? 'en'. Flag `i18n` off: always `en`, no lookup.
+   */
+  private async localeFor(row: OutboundEmailRow): Promise<string> {
+    if (!isFeatureEnabled('i18n') || !row.envelope_id) return DEFAULT_LOCALE;
+    const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
+    if (!envelope) return DEFAULT_LOCALE;
+    const signerFacing = row.signer_id !== null && !row.kind.endsWith('_to_sender');
+    const signer = signerFacing
+      ? envelope.signers.find((item) => item.id === row.signer_id)
+      : undefined;
+    return resolveContentLocale({
+      envelopeLocale: envelope.locale,
+      signerLocale: signer?.locale,
+    });
+  }
+
   private render(
     row: OutboundEmailRow,
     payload: Readonly<Record<string, unknown>>,
+    locale: string,
   ): ReturnType<TemplateService['render']> | null {
     if (!TEMPLATE_KINDS.has(row.kind)) return null;
     // The payload is a JSON blob; TemplateService expects a flat map of
@@ -284,7 +306,7 @@ export class EmailDispatcherService {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);
     }
-    return this.templates.render(row.kind as EmailTemplateKind, vars);
+    return this.templates.render(row.kind as EmailTemplateKind, vars, locale);
   }
 
   private async handleSendError(row: OutboundEmailRow, err: unknown): Promise<DispatchOutcome> {

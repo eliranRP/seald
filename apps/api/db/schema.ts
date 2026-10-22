@@ -457,6 +457,9 @@ export interface EnvelopesTable {
   // the signer sent. Read and written only while `fieldMetaV2` is on.
   date_format: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   timezone: ColumnType<string | null, string | null | undefined, string | null | undefined>;
+  // Migration 0035 (WP-38) — locale for signer-facing UI and email; null
+  // means the default (en). Read and written only while `i18n` is on.
+  locale: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   // Migration 0026 (WP-10) — envelope default for the emailed one-time
   // code before access / before submit. Read only while `signerAccessAuth`
   // is on.
@@ -486,6 +489,9 @@ export interface EnvelopeSignersTable {
   // Migration 0023 (WP-05) — when this signer's step was invited. Null on
   // drafts and for later steps of a sequential envelope until they start.
   invited_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  // Migration 0035 (WP-38) — per-signer locale override; null inherits the
+  // envelope's. Read and written only while `i18n` is on.
+  locale: ColumnType<string | null, string | null | undefined, string | null | undefined>;
   // Migration 0026 (WP-10) — per-signer override; null inherits the
   // envelope's access_auth / action_auth.
   access_auth: ColumnType<

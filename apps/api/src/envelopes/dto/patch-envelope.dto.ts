@@ -16,7 +16,9 @@ import {
   DATE_FORMATS,
   isDateFormat,
   isFeatureEnabled,
+  isSupportedLocale,
   isValidTimeZone,
+  SUPPORTED_LOCALES,
   REMINDER_CADENCE_BOUNDS,
 } from 'shared';
 import { FlagGatedProperty } from '../../common/flag-gated.validators';
@@ -105,4 +107,12 @@ export class PatchEnvelopeDto {
     (p) => `${p} must be an IANA timezone such as Europe/Berlin`,
   )
   readonly timezone?: string;
+
+  /** Signing-experience and email locale (WP-38). Draft only. Flag off: rejected. */
+  @FlagGatedProperty(
+    'i18n',
+    (v) => typeof v === 'string' && isSupportedLocale(v),
+    (p) => `${p} must be one of the following values: ${SUPPORTED_LOCALES.join(', ')}`,
+  )
+  readonly locale?: string;
 }

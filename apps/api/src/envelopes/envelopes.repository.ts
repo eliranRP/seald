@@ -19,6 +19,8 @@ export interface CreateDraftInput {
   readonly tc_version: string;
   readonly privacy_version: string;
   readonly expires_at: string; // ISO
+  /** WP-38. Only sent while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export interface UpdateDraftMetadataPatch {
@@ -48,6 +50,8 @@ export interface UpdateDraftMetadataPatch {
    */
   readonly date_format?: string;
   readonly timezone?: string;
+  /** WP-38 (migration 0035). Draft only. Only forwarded while `i18n` is on. */
+  readonly locale?: string;
 }
 
 /** One unsigned signer the reminder sweep may queue mail for. */
@@ -71,6 +75,8 @@ export interface AddSignerInput {
   readonly name: string;
   readonly color: string;
   readonly role?: SignerRole;
+  /** WP-38. Only sent while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export interface CreateFieldInput {

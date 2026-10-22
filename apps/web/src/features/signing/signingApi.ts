@@ -22,6 +22,8 @@ export interface SignMeEnvelope {
   /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
   readonly date_format?: string | null;
   readonly timezone?: string | null;
+  /** Envelope language (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
 }
 export interface SignMeSigner {
   readonly id: string;
@@ -34,6 +36,8 @@ export interface SignMeSigner {
   readonly tc_accepted_at: string | null;
   readonly signed_at: string | null;
   readonly declined_at: string | null;
+  /** This signer's language override (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
 }
 export interface SignMeField {
   readonly id: string;
