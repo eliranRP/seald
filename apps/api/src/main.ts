@@ -73,7 +73,9 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // MCP (WP-17): browser hosts such as the MCP Inspector send the
+    // protocol version header on every POST to /mcp.
+    allowedHeaders: ['Content-Type', 'Authorization', 'Mcp-Protocol-Version', 'Last-Event-ID'],
     maxAge: 600,
   });
 

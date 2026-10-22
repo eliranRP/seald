@@ -13,6 +13,7 @@ import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
+import { McpModule } from './mcp/mcp.module';
 import { MeModule } from './me/me.module';
 import { SealingModule } from './sealing/sealing.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -56,6 +57,8 @@ import { StorageModule } from './storage/storage.module';
     GDriveModule,
     ConversionModule,
     AutomationsModule,
+    // WP-17: POST /mcp, dark behind `mcpServer` + MCP_DISABLED.
+    McpModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
