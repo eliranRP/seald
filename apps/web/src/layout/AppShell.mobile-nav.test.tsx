@@ -47,6 +47,7 @@ function renderShellAt(path: string, authMode: 'authed' | 'guest' = 'authed') {
           <Route path="/templates" element={<h1>desktop templates</h1>} />
           <Route path="/signers" element={<h1>desktop signers</h1>} />
           <Route path="/document/new" element={<h1>desktop upload</h1>} />
+          <Route path="/approve/:id/review" element={<h1>approval review</h1>} />
         </Route>
         <Route path="/m/send" element={<h1>mobile sender</h1>} />
       </Routes>
@@ -106,5 +107,12 @@ describe('AppShell — mobile-locks-to-msend', () => {
     mobileViewport = false;
     const { getByRole } = renderShellAt('/documents', 'guest');
     expect(getByRole('heading', { name: /desktop dashboard/i })).toBeInTheDocument();
+  });
+
+  it('keeps the guided approval review on a mobile viewport (exempt from the /m/send redirect)', () => {
+    mobileViewport = true;
+    const { getByRole, queryByRole } = renderShellAt('/approve/abc/review');
+    expect(getByRole('heading', { name: /approval review/i })).toBeInTheDocument();
+    expect(queryByRole('heading', { name: /mobile sender/i })).toBeNull();
   });
 });

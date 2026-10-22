@@ -1,0 +1,52 @@
+/**
+ * Validator for the `?next=` return path that sign-in honours. The guided
+ * approval review sends an unauthenticated owner to `/signin?next=…`, and
+ * after sign-in the app returns them to that path. Only the approval
+ * review is a legitimate target, so anything else is refused.
+ *
+ * Accepted: `/approve/<id>` and `/approve/<id>/review`, with an optional
+ * query string made of `[A-Za-z0-9_=&-]` (for example `?page=1`).
+ *
+ * Refused, and so `null`: absolute and protocol-relative URLs
+ * (`https://…`, `//evil.com`), backslash tricks (`/\evil.com`), any other
+ * path, fragments, empty or dot segments, whitespace and control
+ * characters, and any leftover percent escape. A percent escape can only
+ * remain after double encoding, because `URLSearchParams` has already
+ * decoded the value once. Refusing it stops a second decode from turning a
+ * refused path into an accepted one.
+ *
+ * The target is also opened with the in-app router, never `window.location`,
+ * so even a value that slipped through stays inside the single-page app.
+ */
+export const NEXT_PARAM = 'next';
+
+const APPROVE_PREFIX = '/approve/';
+const MAX_NEXT_LENGTH = 512;
+const PATH_SEGMENT = /^[A-Za-z0-9_-]+$/;
+const QUERY_STRING = /^[A-Za-z0-9_=&-]+$/;
+
+/**
+ * Returns `candidate` unchanged when it is a safe `/approve/…` path, or
+ * `null` when it is not. `candidate` is the value after one URL decode.
+ */
+export function validateNextPath(candidate: string | null | undefined): string | null {
+  if (typeof candidate !== 'string') return null;
+  if (candidate.length === 0 || candidate.length > MAX_NEXT_LENGTH) return null;
+  if (candidate.includes('%')) return null;
+  if (!candidate.startsWith(APPROVE_PREFIX)) return null;
+
+  const queryAt = candidate.indexOf('?');
+  const pathPart = queryAt === -1 ? candidate : candidate.slice(0, queryAt);
+  const queryPart = queryAt === -1 ? null : candidate.slice(queryAt + 1);
+
+  const segments = pathPart.slice(APPROVE_PREFIX.length).split('/');
+  if (!segments.every((segment) => PATH_SEGMENT.test(segment))) return null;
+  if (queryPart !== null && !QUERY_STRING.test(queryPart)) return null;
+
+  return candidate;
+}
+
+/** Reads and validates `?next=` from a search-params object. */
+export function readNextParam(params: URLSearchParams): string | null {
+  return validateNextPath(params.get(NEXT_PARAM));
+}

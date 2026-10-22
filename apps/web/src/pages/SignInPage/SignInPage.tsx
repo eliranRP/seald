@@ -6,6 +6,7 @@ import { AuthShell } from '@/components/AuthShell';
 import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
 import { pathForAuthMode } from '@/layout/authPaths';
+import { readNextParam } from '@/layout/nextPath';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
@@ -74,16 +75,20 @@ export function SignInPage() {
     navigate('/forgot-password');
   }, [navigate]);
 
+  const next = readNextParam(params);
+
   const handleAuthed = useCallback((): void => {
-    // Per product (2026-05-03, refined): the desktop dashboard at
-    // /documents — and the rest of the AppShell-hosted desktop surfaces —
+    // A validated `?next=` (an approval review) wins. It is an in-app
+    // path, checked by readNextParam, so it cannot leave the app.
+    // Otherwise, per product (2026-05-03, refined): the desktop dashboard
+    // at /documents — and the rest of the AppShell-hosted desktop surfaces —
     // were not designed for a 390 px viewport (table cells overlap, hero
     // text wraps, the title char-stacks). Rather than retrofit
     // responsiveness onto every desktop page, mobile users are locked to
     // the dedicated mobile sender at /m/send. Desktop visitors still
     // land on /documents.
-    navigate(isMobile ? '/m/send' : '/documents');
-  }, [isMobile, navigate]);
+    navigate(next ?? (isMobile ? '/m/send' : '/documents'));
+  }, [isMobile, navigate, next]);
 
   return (
     <AuthShell>

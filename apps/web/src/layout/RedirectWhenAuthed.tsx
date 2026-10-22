@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from 'react-router-dom';
+import { Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../providers/AuthProvider';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { AuthLoadingScreen } from './AuthLoadingScreen';
+import { readNextParam } from './nextPath';
 
 /**
  * Inverse guard for the auth pages. Signed-in visitors are bounced off
@@ -13,15 +14,21 @@ import { AuthLoadingScreen } from './AuthLoadingScreen';
  * page, mobile users are locked to the dedicated mobile sender at
  * /m/send. Desktop visitors still land on /documents. Guests stay put
  * so they can still reach the auth CTAs.
+ *
+ * A validated `?next=` (an `/approve/…` path, see `nextPath.ts`) wins over
+ * both defaults, so an owner who signs in from the approval review goes
+ * back to the review on any viewport.
  */
 export function RedirectWhenAuthed() {
   const { user, loading } = useAuth();
   const isMobile = useIsMobileViewport();
+  const [params] = useSearchParams();
   if (loading) {
     return <AuthLoadingScreen />;
   }
   if (user) {
-    return <Navigate to={isMobile ? '/m/send' : '/documents'} replace />;
+    const next = readNextParam(params);
+    return <Navigate to={next ?? (isMobile ? '/m/send' : '/documents')} replace />;
   }
   return <Outlet />;
 }
