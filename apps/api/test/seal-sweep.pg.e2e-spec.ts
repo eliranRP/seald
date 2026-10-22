@@ -90,8 +90,12 @@ describePg('SealSweepPgRepository (real Postgres)', () => {
       [id, ownerId, shortCode, opts.status ?? 'sealing'],
     );
     await pool.query(
-      `insert into public.envelope_signers (envelope_id, email, name, color, signed_at)
-       values ($1, $2, 'S', '#112233', $3)`,
+      // Table checks: a signed signer must have accepted the terms and have a
+      // signature format.
+      `insert into public.envelope_signers
+         (envelope_id, email, name, color, signed_at, tc_accepted_at, signature_format)
+       values ($1, $2, 'S', '#112233', $3::timestamptz, $3::timestamptz,
+               case when $3::timestamptz is null then null else 'typed'::signature_format end)`,
       [
         id,
         `${shortCode}@example.com`,
