@@ -30,6 +30,7 @@ export const SHIPPED_STEPS = [
   'step-8b',
   'step-8c',
   'step-8d',
+  'step-9',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -76,7 +77,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /envelopes/:id/signers/:signer_id/remind': { planned: 'step-11' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
-  // WP-19 ships placement (draft prepare); WP-20 (step 9) adds suggestions.
+  // WP-19 ships placement; suggestions (envelopes_suggest_fields, step 9) have no route.
   'PUT /envelopes/:id/fields': { tool: 'envelopes_place_fields' },
   'GET /envelopes/:id/events': { tool: 'envelopes_list_events' },
   'GET /envelopes/:id/download': { tool: 'envelopes_download_url' },

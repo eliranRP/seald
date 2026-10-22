@@ -2,7 +2,13 @@ import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { API_KEY_SCOPES, FEATURE_FLAGS, type FeatureFlag } from 'shared';
 import { describeTool, listTools } from '../tool-catalog';
-import { MCP_APPROVAL_TOOLS, MCP_READ_TOOLS, MCP_TOOLS, MCP_WRITE_TOOLS } from '../tools';
+import {
+  MCP_APPROVAL_TOOLS,
+  MCP_READ_TOOLS,
+  MCP_SUGGEST_TOOLS,
+  MCP_TOOLS,
+  MCP_WRITE_TOOLS,
+} from '../tools';
 import { SHIPPED_STEPS } from '../route-coverage';
 
 /** docs/design/mcp-server.md § Test plan: contract tests for the catalog. */
@@ -60,7 +66,13 @@ describe('MCP tool catalog (contract)', () => {
     // Step 7c: approval reads only. No tool approves or denies.
     expect(MCP_APPROVAL_TOOLS.map((t) => t.name)).toEqual(['approvals_get', 'approvals_list']);
     for (const tool of MCP_APPROVAL_TOOLS) expect(tool.annotations.readOnlyHint).toBe(true);
-    expect(MCP_TOOLS).toEqual([...MCP_READ_TOOLS, ...MCP_WRITE_TOOLS, ...MCP_APPROVAL_TOOLS]);
+    expect(MCP_SUGGEST_TOOLS.map((t) => t.name)).toEqual(['envelopes_suggest_fields']);
+    expect(MCP_TOOLS).toEqual([
+      ...MCP_READ_TOOLS,
+      ...MCP_WRITE_TOOLS,
+      ...MCP_APPROVAL_TOOLS,
+      ...MCP_SUGGEST_TOOLS,
+    ]);
   });
 
   it('ships no send, remind or cancel tool before the approval steps', () => {

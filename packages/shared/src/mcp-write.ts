@@ -339,6 +339,19 @@ export const EnvelopesPlaceFieldsInputSchema = z.strictObject({
 
 export const EnvelopesPlaceFieldsOutputSchema = z.object({ fields: z.array(McpFieldSchema) });
 
+export const EnvelopesSuggestFieldsInputSchema = z.strictObject({
+  envelope_id: uuid,
+  /** Only this signer. Default: every signer. */
+  signer_id: uuid.optional(),
+  /** The document that carries the signatures. Default: the last one. */
+  document_id: uuid.optional(),
+});
+
+export const EnvelopesSuggestFieldsOutputSchema = z.object({
+  fields: z.array(McpFieldPlacementSchema).max(MCP_MAX_FIELDS),
+  note: z.string(),
+});
+
 export const EnvelopesSetSigningOrderInputSchema = z.strictObject({
   envelope_id: uuid,
   delivery_mode: z.enum(DELIVERY_MODES),
@@ -453,4 +466,5 @@ export type McpStagedDocument = z.infer<typeof McpStagedDocumentSchema>;
 export type GdriveImportOutput = z.infer<typeof GdriveImportOutputSchema>;
 export type EnvelopesPrepareInput = z.infer<typeof EnvelopesPrepareInputSchema>;
 export type McpPrepareDocument = z.infer<typeof McpPrepareDocumentSchema>;
+export type EnvelopesSuggestFieldsInput = z.infer<typeof EnvelopesSuggestFieldsInputSchema>;
 export type McpFieldPlacement = z.infer<typeof McpFieldPlacementSchema>;

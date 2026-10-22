@@ -29,6 +29,7 @@ import { envelopesRemoveDocumentTool } from './prepare/envelopes-remove-document
 import { envelopesRemoveSignerTool } from './prepare/envelopes-remove-signer.tool';
 import { envelopesReorderDocumentsTool } from './prepare/envelopes-reorder-documents.tool';
 import { envelopesSetRecipientOrderTool } from './prepare/envelopes-set-recipient-order.tool';
+import { envelopesSuggestFieldsTool } from './prepare/envelopes-suggest-fields.tool';
 import { envelopesUpdateTool } from './prepare/envelopes-update.tool';
 
 /** Read tools (WP-17, steps 4–6). */
@@ -41,6 +42,9 @@ export const MCP_READ_TOOLS: readonly McpTool[] = [
   envelopesListPendingTool,
   envelopesListEventsTool,
 ];
+
+/** Suggestion tools (WP-20, step 9). Read-only: nothing is placed. */
+export const MCP_SUGGEST_TOOLS: readonly McpTool[] = [envelopesSuggestFieldsTool];
 
 /** Write tools (WP-19, steps 8a–8d). Drafts only: nothing here sends. */
 export const MCP_WRITE_TOOLS: readonly McpTool[] = [
@@ -82,4 +86,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
   ...MCP_READ_TOOLS,
   ...MCP_WRITE_TOOLS,
   ...MCP_APPROVAL_TOOLS,
+  ...MCP_SUGGEST_TOOLS,
 ];
