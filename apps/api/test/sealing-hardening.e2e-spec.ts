@@ -28,6 +28,7 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
+import { dispatchSignToken } from './dispatched-sign-links';
 
 /**
  * WP-01 sealing hardening, end to end through AppModule with a real P12
@@ -319,7 +320,7 @@ describeOrSkip('Sealing hardening — B-LTA, appended certificate, declined.pdf 
       .expect(200);
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
     const invite = outbound.rows.filter((r) => r.kind === 'invite').pop()!;
-    const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url))![1]!;
+    const token = await dispatchSignToken(app, invite.to_email);
     const started = await request(app.getHttpServer())
       .post('/sign/start')
       .send({ envelope_id: env.body.id, token });

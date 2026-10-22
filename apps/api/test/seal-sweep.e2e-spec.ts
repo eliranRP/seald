@@ -20,6 +20,7 @@ import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-re
 import { InMemorySealSweepRepository } from './in-memory-seal-sweep-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
+import { dispatchSignToken } from './dispatched-sign-links';
 
 const CRON_SECRET = 's'.repeat(48);
 
@@ -184,7 +185,7 @@ describe('Seal sweep (e2e)', () => {
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
 
     const invite = outbound.rows.find((r) => r.kind === 'invite')!;
-    const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url))![1]!;
+    const token = await dispatchSignToken(app, invite.to_email);
     const started = await request(app.getHttpServer())
       .post('/sign/start')
       .send({ envelope_id: env.body.id, token });
