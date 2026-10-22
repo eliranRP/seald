@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { isFeatureEnabled, resolveExpiresAt } from 'shared';
 import {
   addEnvelopeSigner,
   createEnvelope,
@@ -7,7 +8,31 @@ import {
   patchEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
-import type { FieldPlacement } from './envelopesApi';
+import type { FieldPlacement, PatchEnvelopeInput } from './envelopesApi';
+import type { SendReminderSettings } from './sendReminderSettings';
+
+/**
+ * Builds the one draft PATCH that runs before upload. Returns null when
+ * there is nothing to change, so the default send makes no extra request.
+ */
+function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
+  const patch: {
+    reminders_enabled?: boolean;
+    expires_at?: string;
+    reminder_first_after_days?: number;
+    reminder_interval_days?: number;
+    reminder_max?: number;
+  } = {};
+  if (input.remindersEnabled === false) patch.reminders_enabled = false;
+  const settings = input.reminderSettings;
+  if (settings !== undefined && isFeatureEnabled('customReminders')) {
+    patch.expires_at = resolveExpiresAt(settings.expiry, Date.now());
+    patch.reminder_first_after_days = settings.cadence.firstAfterDays;
+    patch.reminder_interval_days = settings.cadence.intervalDays;
+    patch.reminder_max = settings.cadence.maxReminders;
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
 
 /**
  * One entry in `SendEnvelopeInput.signers`. Two shapes (mirrors the API DTO
@@ -63,6 +88,11 @@ export interface SendEnvelopeInput {
    * send. Omitted or true keeps the server default (reminders on).
    */
   readonly remindersEnabled?: boolean;
+  /**
+   * Expiry and reminder cadence chosen in the send controls (WP-09). Sent
+   * with the draft patch only while `customReminders` is on.
+   */
+  readonly reminderSettings?: SendReminderSettings;
 }
 
 export interface SendEnvelopeResult {
@@ -114,8 +144,9 @@ export function useSendEnvelope(): UseSendEnvelope {
     try {
       setPhase('creating');
       const envelope = await createEnvelope({ title: input.title });
-      if (input.remindersEnabled === false) {
-        await patchEnvelope(envelope.id, { reminders_enabled: false });
+      const draftPatch = buildDraftPatch(input);
+      if (draftPatch !== null) {
+        await patchEnvelope(envelope.id, draftPatch);
       }
 
       setPhase('uploading');

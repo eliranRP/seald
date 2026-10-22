@@ -17,6 +17,10 @@ import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '../features/envelopes/sendReminderSettings';
 import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
@@ -128,6 +132,9 @@ export function DocumentRoute() {
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [guestSenderOpen, setGuestSenderOpen] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
 
@@ -330,6 +337,7 @@ export function DocumentRoute() {
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
+          reminderSettings,
         });
 
         // Persist the server envelope id back onto the local draft so the
@@ -344,7 +352,7 @@ export function DocumentRoute() {
         setSendError(friendlySendError(err));
       }
     },
-    [doc, navigate, remindersEnabled, sendDocument, sendEnvelope, canvasHeight],
+    [doc, navigate, remindersEnabled, reminderSettings, sendDocument, sendEnvelope, canvasHeight],
   );
 
   /**
@@ -552,6 +560,8 @@ export function DocumentRoute() {
         onSend={handleSend}
         remindersEnabled={remindersEnabled}
         onRemindersEnabledChange={setRemindersEnabled}
+        reminderSettings={reminderSettings}
+        onReminderSettingsChange={setReminderSettings}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
         onSaveAsTemplate={handleOpenSaveTemplate}

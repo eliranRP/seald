@@ -16,6 +16,10 @@ import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '../features/envelopes/sendReminderSettings';
 import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
@@ -160,6 +164,9 @@ export function TemplateEditorRoute() {
   const { guest } = useAuth();
   const sendEnvelope = useSendEnvelope();
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
 
   const decodedId = decodeURIComponent(params.id ?? '');
   const isNewTemplate = decodedId === 'new';
@@ -659,6 +666,7 @@ export function TemplateEditorRoute() {
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
+          reminderSettings,
         });
         sendDocument(draft.id);
         navigate(`/document/${result.envelope_id}/sent`);
@@ -666,7 +674,7 @@ export function TemplateEditorRoute() {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
       }
     },
-    [draft, navigate, remindersEnabled, sendDocument, sendEnvelope, toNormalized],
+    [draft, navigate, remindersEnabled, reminderSettings, sendDocument, sendEnvelope, toNormalized],
   );
 
   const handleSend = useCallback(() => {
@@ -872,6 +880,8 @@ export function TemplateEditorRoute() {
             onSend={mode === 'new' ? () => {} : handleSend}
             remindersEnabled={remindersEnabled}
             onRemindersEnabledChange={setRemindersEnabled}
+            reminderSettings={reminderSettings}
+            onReminderSettingsChange={setReminderSettings}
             // Only expose Save-as-template in modes where saving is the
             // user's stated intent: authoring a new template ('new') or
             // explicitly editing an existing one ('editing'). In 'using'

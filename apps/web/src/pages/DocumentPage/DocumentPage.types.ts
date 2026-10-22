@@ -2,6 +2,7 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
+import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { PDFDocumentProxy } from '@/lib/pdf';
 
@@ -65,6 +66,9 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    */
   readonly remindersEnabled?: boolean | undefined;
   readonly onRemindersEnabledChange?: ((enabled: boolean) => void) | undefined;
+  /** Expiry and reminder cadence for this send (WP-09). Omitted hides the controls. */
+  readonly reminderSettings?: SendReminderSettings | undefined;
+  readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
   /**

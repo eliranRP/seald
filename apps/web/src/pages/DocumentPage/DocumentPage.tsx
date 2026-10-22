@@ -24,6 +24,7 @@ import { PlacedField } from '@/components/PlacedField';
 import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { SendSettings } from '@/components/SendSettings';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
@@ -109,6 +110,8 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onSend,
     remindersEnabled,
     onRemindersEnabledChange,
+    reminderSettings,
+    onReminderSettingsChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
@@ -659,10 +662,14 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               ) : (
                 <RightRailFooter>
                   <ReminderSlot>
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+                    ) : null}
                     <ReminderToggle
                       enabled={reminders.enabled}
                       pending={reminders.pending}
                       onChange={reminders.onChange}
+                      cadence={reminderSettings?.cadence}
                     />
                   </ReminderSlot>
                   <SendPanelFooter

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 vi.mock('../envelopesApi', () => ({
@@ -238,5 +238,61 @@ describe('useSendEnvelope', () => {
     expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
       uploadEnvelopeFile.mock.invocationCallOrder[0]!,
     );
+  });
+
+  describe('expiry and reminder cadence (WP-09)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { customReminders: on };
+    };
+    const runWith = async () => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [],
+          buildFields: () => [],
+          reminderSettings: {
+            expiry: { kind: 'days', days: 14 },
+            cadence: { firstAfterDays: 3, intervalDays: 2, maxReminders: 4 },
+          },
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('patches expiry and cadence before upload while customReminders is on', async () => {
+      setFlag(true);
+      const before = Date.now();
+      await runWith();
+      expect(patchEnvelope).toHaveBeenCalledTimes(1);
+      const [id, patch] = patchEnvelope.mock.calls[0] as [string, Record<string, unknown>];
+      expect(id).toBe('env-1');
+      expect(patch).toMatchObject({
+        reminder_first_after_days: 3,
+        reminder_interval_days: 2,
+        reminder_max: 4,
+      });
+      const expiresMs = Date.parse(patch['expires_at'] as string);
+      const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+      expect(expiresMs).toBeGreaterThanOrEqual(before + fourteenDays);
+      expect(expiresMs).toBeLessThanOrEqual(Date.now() + fourteenDays);
+      expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
+        uploadEnvelopeFile.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('sends no cadence or expiry fields while customReminders is off', async () => {
+      setFlag(false);
+      await runWith();
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
   });
 });

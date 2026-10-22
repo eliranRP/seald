@@ -59,6 +59,10 @@ import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelo
 import { useEnvelopesQuery } from '@/features/envelopes/useEnvelopes';
 import type { MWRecentEnvelope } from './screens/MWStart';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '@/features/envelopes/sendReminderSettings';
 import { seald } from '@/styles/theme';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 
@@ -114,6 +118,9 @@ export function MobileSendPage() {
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
 
   // Slice-D §2 MEDIUM (audit fix): pull the most recent envelopes from
   // the API so MWStart can surface a "Recent" list. Gated on the user
@@ -580,6 +587,7 @@ export function MobileSendPage() {
         ...(user?.email ? { senderEmail: user.email } : {}),
         ...(user?.name ? { senderName: user.name } : {}),
         remindersEnabled,
+        reminderSettings,
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
@@ -616,7 +624,18 @@ export function MobileSendPage() {
     } finally {
       sendingRef.current = false;
     }
-  }, [pdfFile, signers, contacts, remindersEnabled, runSend, title, user, fields, canvasBounds]);
+  }, [
+    pdfFile,
+    signers,
+    contacts,
+    remindersEnabled,
+    reminderSettings,
+    runSend,
+    title,
+    user,
+    fields,
+    canvasBounds,
+  ]);
 
   // ---- per-step CTA ----
   const stepNum = MOBILE_STEP_ORDER.indexOf(step) + 1;
@@ -781,6 +800,8 @@ export function MobileSendPage() {
               totalPages={totalPages}
               remindersEnabled={remindersEnabled}
               onRemindersEnabledChange={setRemindersEnabled}
+              reminderSettings={reminderSettings}
+              onReminderSettingsChange={setReminderSettings}
             />
             {sendPhase === 'error' && sendError && (
               <div

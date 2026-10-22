@@ -1,5 +1,7 @@
 import { FileText, Pencil } from 'lucide-react';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { SendSettings } from '@/components/SendSettings';
+import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
 import styled from 'styled-components';
 import type { MobilePlacedField, MobileSigner } from '../types';
 
@@ -160,6 +162,9 @@ export interface MWReviewProps {
   readonly totalPages: number;
   readonly remindersEnabled: boolean;
   readonly onRemindersEnabledChange: (enabled: boolean) => void;
+  /** Expiry and reminder cadence (WP-09). Omitted hides the controls. */
+  readonly reminderSettings?: SendReminderSettings | undefined;
+  readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
 }
 
 export function MWReview(props: MWReviewProps) {
@@ -172,6 +177,8 @@ export function MWReview(props: MWReviewProps) {
     totalPages,
     remindersEnabled,
     onRemindersEnabledChange,
+    reminderSettings,
+    onReminderSettingsChange,
   } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
@@ -231,7 +238,14 @@ export function MWReview(props: MWReviewProps) {
         ))}
       </Card>
       <Card>
-        <ReminderToggle enabled={remindersEnabled} onChange={onRemindersEnabledChange} />
+        {reminderSettings && onReminderSettingsChange ? (
+          <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+        ) : null}
+        <ReminderToggle
+          enabled={remindersEnabled}
+          onChange={onRemindersEnabledChange}
+          cadence={reminderSettings?.cadence}
+        />
       </Card>
     </Wrap>
   );

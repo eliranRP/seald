@@ -73,6 +73,10 @@ export interface Envelope {
   readonly tags: ReadonlyArray<string>;
   /** Absent on older payloads; treat missing as on. */
   readonly reminders_enabled?: boolean;
+  /** Reminder cadence (WP-09). Present only while `customReminders` is on. */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
   readonly created_at: string;
   readonly updated_at: string;
   readonly gdriveExport?: EnvelopeGdriveExportState | null;
@@ -179,6 +183,10 @@ export interface PatchEnvelopeInput {
   readonly tags?: ReadonlyArray<string>;
   /** Daily unsigned-signer reminders. Omit to leave the current value. */
   readonly reminders_enabled?: boolean;
+  /** Draft only. Cadence fields are accepted while `customReminders` is on. */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
 }
 
 export async function patchEnvelope(
