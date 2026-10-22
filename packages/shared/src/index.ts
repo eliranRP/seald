@@ -107,3 +107,24 @@ export type {
   VerifyDocument,
 } from './envelope-contract';
 export * from './locales';
+export {
+  AUTOMATION_SCOPES,
+  AUTOMATION_TRIGGERS,
+  AUTOMATION_ACTIONS,
+  AUTOMATION_RUN_STATUSES,
+  AUTOMATION_TRIGGER_BY_EVENT_TYPE,
+  AUTOMATION_RECIPE_IDS,
+  AUTOMATION_RECIPES,
+  MAX_AUTOMATIONS_PER_OWNER,
+  MAX_AUTOMATION_EMAIL_RECIPIENTS,
+  AUTOMATION_MAX_ATTEMPTS,
+  automationTriggerForEvent,
+} from './automations';
+export type {
+  AutomationScope,
+  AutomationTrigger,
+  AutomationAction,
+  AutomationRunStatus,
+  AutomationRecipeId,
+  AutomationRecipe,
+} from './automations';
