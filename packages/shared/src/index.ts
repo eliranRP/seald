@@ -128,3 +128,33 @@ export type {
   AutomationRecipeId,
   AutomationRecipe,
 } from './automations';
+export {
+  API_KEY_PREFIX,
+  API_KEY_PREFIX_SECRET_CHARS,
+  API_KEY_MAX_LIVE,
+  API_KEY_DEFAULT_TTL_DAYS,
+  API_KEY_MAX_TTL_DAYS,
+  API_KEY_TTL_CHOICES_DAYS,
+  API_KEY_NAME_MAX,
+  API_KEY_SCOPES,
+  API_KEY_DEFAULT_SCOPES,
+  API_KEY_FRESH_LOGIN_SCOPES,
+  API_KEY_FRESH_LOGIN_MAX_AGE_SECONDS,
+  API_KEY_STATUSES,
+  isApiKeyScope,
+  requiresFreshLogin,
+  ApiKeySchema,
+  ApiKeyListResponseSchema,
+  CreateApiKeyRequestSchema,
+  CreateApiKeyResponseSchema,
+  RevokeApiKeyResponseSchema,
+} from './api-keys';
+export type {
+  ApiKeyScope,
+  ApiKeyStatus,
+  ApiKey,
+  ApiKeyListResponse,
+  CreateApiKeyRequest,
+  CreateApiKeyResponse,
+  RevokeApiKeyResponse,
+} from './api-keys';
