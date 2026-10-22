@@ -10,8 +10,14 @@
       "import": "./src/index.ts",
       "require": "./dist/index.js",
       "default": "./dist/index.js"
-    }
+    },
+    "./locales/*": "./locales/*"
   },
+  "files": [
+    "dist",
+    "src",
+    "locales"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "lint": "echo 'no lint in shared'",

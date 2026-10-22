@@ -97,3 +97,4 @@ export type {
   VerifyResponse,
   ErrorSlug,
 } from './envelope-contract';
+export * from './locales';

@@ -1,0 +1,10 @@
+{
+  "guestBadge": {
+    "label": "Guest mode"
+  },
+  "server": {
+    "certificate": {
+      "title": "Certificate of completion"
+    }
+  }
+}
