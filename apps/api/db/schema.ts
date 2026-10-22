@@ -5,6 +5,7 @@ export interface Database {
   envelopes: EnvelopesTable;
   envelope_signers: EnvelopeSignersTable;
   envelope_fields: EnvelopeFieldsTable;
+  envelope_documents: EnvelopeDocumentsTable;
   envelope_events: EnvelopeEventsTable;
   envelope_jobs: EnvelopeJobsTable;
   outbound_emails: OutboundEmailsTable;
@@ -148,7 +149,8 @@ export type EventTypeDb =
   | 'session_invalidated_by_decline'
   | 'session_invalidated_by_cancel'
   | 'job_failed'
-  | 'retention_deleted';
+  | 'retention_deleted'
+  | 'document_added';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -256,6 +258,30 @@ export interface EnvelopeFieldsTable {
   value_boolean: boolean | null;
   filled_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
+  /**
+   * Migration 0022 (WP-03). Not null; the `envelope_fields_default_document`
+   * trigger fills document 1 when an insert leaves it out, so single-file
+   * writers keep working.
+   */
+  document_id: ColumnType<string, string | undefined, string>;
+}
+
+/**
+ * Migration 0022 (WP-03). One PDF of an envelope. `ord` 1 is mirrored to
+ * the legacy `envelopes.original_*` / `sealed_*` columns by trigger.
+ */
+export interface EnvelopeDocumentsTable {
+  id: Generated<string>;
+  envelope_id: string;
+  ord: number;
+  title: string;
+  original_file_path: string | null;
+  original_sha256: string | null;
+  original_pages: number | null;
+  sealed_file_path: string | null;
+  sealed_sha256: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export interface EnvelopeEventsTable {
