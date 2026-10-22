@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { strictBooleanString } from './strict-boolean-string';
+import { STRICT_BOOLEAN_STRING_MESSAGE, strictBooleanString } from './strict-boolean-string';
 
 const envSchema = z
   .object({
@@ -41,7 +41,27 @@ const envSchema = z
     CRON_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
-    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).default('local'),
+    /**
+     * No default (rule S.1): unset means "no CMS signer" (NoopPadesSigner),
+     * which production refuses unless PDF_SIGNING_ALLOW_NOOP=true. A set
+     * provider with missing config throws at startup in SealingModule.
+     */
+    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).optional(),
+    /**
+     * Escape hatch for a production host that may seal without a CMS
+     * signature (staging). Only read when PDF_SIGNING_PROVIDER is unset.
+     * Same strict parsing as `strictBooleanString` (the string "false"
+     * stays false), but optional with no default so existing typed env
+     * fixtures need no new key; unset reads as false.
+     */
+    PDF_SIGNING_ALLOW_NOOP: z
+      .stringbool({
+        truthy: ['true', '1'],
+        falsy: ['false', '0'],
+        case: 'sensitive',
+        error: STRICT_BOOLEAN_STRING_MESSAGE,
+      })
+      .optional(),
 
     // Email provider-specific
     RESEND_API_KEY: z.string().optional(),

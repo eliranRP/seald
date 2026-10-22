@@ -76,6 +76,10 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   `PDF_SIGNING_KMS_CERT_PEM` or `_PATH`, `PDF_SIGNING_TSA_URLS` (CSV;
   rotated on failure by `MultiTsaClient`; legacy singular
   `PDF_SIGNING_TSA_URL` still honored).
+  `PDF_SIGNING_PROVIDER` has no default: unset means `NoopPadesSigner`,
+  which production refuses unless `PDF_SIGNING_ALLOW_NOOP=true`
+  (strict boolean string; staging escape hatch only). A set provider
+  with missing config throws at startup (WP-01).
 - **S.4** Verifier: `pnpm --filter api exec ts-node scripts/verify-pades.ts <dir>`.
   Runs as the `pades-verify` CI job on every PR — gates regressions in
   `/Contents` parsing, signed-attrs digest, TST presence, and DSS
