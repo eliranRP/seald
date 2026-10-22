@@ -17,6 +17,7 @@ import {
   ReminderSchedulerService,
   type ReminderSweepResult,
 } from '../reminders/reminder-scheduler.service';
+import { SealSweepService, type SealSweepResult } from '../sealing/seal-sweep.service';
 
 /**
  * Internal cron endpoints. Locked down with a shared-secret header
@@ -33,6 +34,7 @@ export class CronController {
     private readonly envelopes: EnvelopesService,
     private readonly emailDispatcher: EmailDispatcherService,
     private readonly reminders: ReminderSchedulerService,
+    private readonly sealSweep: SealSweepService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -88,6 +90,22 @@ export class CronController {
   ): Promise<ReminderSweepResult> {
     this.assertSecret(secret);
     return this.reminders.enqueueDue(new Date(), 50);
+  }
+
+  /**
+   * POST /internal/cron/seal-sweep
+   *
+   * Backstop for the seal pipeline: re-queues fully-signed envelopes whose
+   * `all_signed` event is 15 min to 6 h old and whose seal job is missing,
+   * failed-with-attempts-left, or stuck `running` > 15 min. Envelopes older
+   * than 6 h are logged and left alone. Idempotent and safe to run from
+   * several instances (unique-per-envelope job row + skip locked).
+   */
+  @Post('seal-sweep')
+  @HttpCode(200)
+  async sweepSeals(@Headers('x-cron-secret') secret: string | undefined): Promise<SealSweepResult> {
+    this.assertSecret(secret);
+    return this.sealSweep.sweep(new Date());
   }
 
   private assertSecret(provided: string | undefined): void {

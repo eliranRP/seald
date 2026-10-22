@@ -7,6 +7,8 @@ import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { DssInjector } from './dss-injector';
 import { KmsPadesSigner, NoopPadesSigner, P12PadesSigner, PadesSigner } from './pades-signer';
 import { RevocationFetcher } from './revocation-fetcher';
+import { SealSweepPgRepository } from './seal-sweep.repository.pg';
+import { SealSweepRepository, SealSweepService } from './seal-sweep.service';
 import { SealingService } from './sealing.service';
 import { TsaClient } from './tsa-client';
 import { WorkerService } from './worker.service';
@@ -114,6 +116,8 @@ export function selectPadesSigner(
   providers: [
     SealingService,
     WorkerService,
+    SealSweepService,
+    { provide: SealSweepRepository, useClass: SealSweepPgRepository },
     TsaClient,
     RevocationFetcher,
     DssInjector,
@@ -123,6 +127,13 @@ export function selectPadesSigner(
       inject: [APP_ENV, TsaClient],
     },
   ],
-  exports: [SealingService, PadesSigner, TsaClient, DssInjector, RevocationFetcher],
+  exports: [
+    SealingService,
+    SealSweepService,
+    PadesSigner,
+    TsaClient,
+    DssInjector,
+    RevocationFetcher,
+  ],
 })
 export class SealingModule {}
