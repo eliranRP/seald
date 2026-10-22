@@ -17,7 +17,9 @@ import {
   ReminderSchedulerService,
   type ReminderSweepResult,
 } from '../reminders/reminder-scheduler.service';
+import { requireFlag } from '../common/feature-flag.guard';
 import { SealSweepService, type SealSweepResult } from '../sealing/seal-sweep.service';
+import { StepSweepService, type StepSweepResult } from '../signing/step-sweep.service';
 
 /**
  * Internal cron endpoints. Locked down with a shared-secret header
@@ -35,6 +37,7 @@ export class CronController {
     private readonly emailDispatcher: EmailDispatcherService,
     private readonly reminders: ReminderSchedulerService,
     private readonly sealSweep: SealSweepService,
+    private readonly stepSweep: StepSweepService,
     @Inject(APP_ENV) private readonly env: AppEnv,
   ) {}
 
@@ -106,6 +109,23 @@ export class CronController {
   async sweepSeals(@Headers('x-cron-secret') secret: string | undefined): Promise<SealSweepResult> {
     this.assertSecret(secret);
     return this.sealSweep.sweep(new Date());
+  }
+
+  /**
+   * POST /internal/cron/step-sweep (WP-05, flag `signingOrder`)
+   *
+   * Backstop for sequential signing: a step marked invited at least 5 min
+   * ago whose signers never got an invite row (the after-commit half of
+   * the submit or send failed) is claimed and started again. Idempotent:
+   * an existing `step_started` is reused and invites are deduped per
+   * signer. 404 while the flag is off.
+   */
+  @Post('step-sweep')
+  @HttpCode(200)
+  async sweepSteps(@Headers('x-cron-secret') secret: string | undefined): Promise<StepSweepResult> {
+    requireFlag('signingOrder');
+    this.assertSecret(secret);
+    return this.stepSweep.sweep(new Date());
   }
 
   private assertSecret(provided: string | undefined): void {

@@ -7,6 +7,8 @@ import { SigningOrderController } from './signing-order.controller';
 import { SigningOrderService } from './signing-order.service';
 import { SigningService } from './signing.service';
 import { SigningTokenService } from './signing-token.service';
+import { StepSweepPgRepository } from './step-sweep.repository.pg';
+import { StepSweepRepository, StepSweepService } from './step-sweep.service';
 
 /**
  * @Global() so the envelopes service (sender-side) + signing service
@@ -28,6 +30,9 @@ import { SigningTokenService } from './signing-token.service';
     SignerSessionGuard,
     SigningService,
     SigningOrderService,
+    // WP-05 backstop for sequential steps whose invites were lost.
+    StepSweepService,
+    { provide: StepSweepRepository, useClass: StepSweepPgRepository },
   ],
   exports: [
     SigningTokenService,
@@ -35,6 +40,7 @@ import { SigningTokenService } from './signing-token.service';
     SignerSessionGuard,
     SigningService,
     SigningOrderService,
+    StepSweepService,
   ],
 })
 export class SigningModule {}

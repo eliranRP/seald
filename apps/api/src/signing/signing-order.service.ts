@@ -12,6 +12,7 @@ import { insertOutboundEmailIdempotent } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import type { Envelope, StepInvite } from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { stepOf } from './signing-order';
 
 /**
  * The invite payload. It holds no signing link: the dispatcher mints the
@@ -107,6 +108,59 @@ export class SigningOrderService {
         signer_ids: [...invite.signer_ids],
       },
     });
+    await this.queueInvites(envelope, invite.signer_ids, event.id);
+  }
+
+  /**
+   * Step sweep backstop: re-run a step start whose after-commit half was
+   * lost. The step's `step_started` event is appended only if it is not
+   * in the chain yet (send writes step 1's; a crashed submit may have
+   * written step N's before failing); invites for `signerIds` are queued
+   * with the same per-signer dedupe keys, so nothing goes out twice.
+   */
+  async resumeStep(
+    envelope: Envelope,
+    signingOrder: number,
+    signerIds: ReadonlyArray<string>,
+  ): Promise<void> {
+    const step = stepOf(envelope.signers, signingOrder);
+    const events = await this.repo.listEventsForEnvelope(envelope.id);
+    const existing = events.find(
+      (e) =>
+        e.event_type === 'step_started' &&
+        e.metadata['step'] === step &&
+        e.metadata['signing_order'] === signingOrder,
+    );
+    const eventId =
+      existing?.id ??
+      (
+        await this.repo.appendEvent({
+          envelope_id: envelope.id,
+          actor_kind: 'system',
+          event_type: 'step_started',
+          metadata: {
+            step,
+            signing_order: signingOrder,
+            signer_ids: envelope.signers
+              .filter(
+                (s) =>
+                  s.signing_order === signingOrder &&
+                  s.signed_at === null &&
+                  s.declined_at === null,
+              )
+              .map((s) => s.id),
+            resumed: true,
+          },
+        })
+      ).id;
+    await this.queueInvites(envelope, signerIds, eventId);
+  }
+
+  private async queueInvites(
+    envelope: Envelope,
+    signerIds: ReadonlyArray<string>,
+    sourceEventId: string,
+  ): Promise<void> {
     const senderEmail = envelope.sender_email;
     if (!senderEmail) return;
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
@@ -115,7 +169,7 @@ export class SigningOrderService {
       { email: senderEmail, name: envelope.sender_name },
       publicUrl,
     );
-    for (const signerId of invite.signer_ids) {
+    for (const signerId of signerIds) {
       const signer = envelope.signers.find((s) => s.id === signerId);
       if (!signer) continue;
       await insertOutboundEmailIdempotent(this.outboundEmails, {
@@ -124,7 +178,7 @@ export class SigningOrderService {
         kind: 'invite',
         to_email: signer.email,
         to_name: signer.name,
-        source_event_id: event.id,
+        source_event_id: sourceEventId,
         dedupe_key: `invite_step:${envelope.id}:${signer.id}`,
         payload,
       });

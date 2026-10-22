@@ -51,6 +51,9 @@ function build(envelope: Envelope | null, opts: { setResult?: Envelope | null } 
       events.push(input);
       return { id: `ev-${events.length}`, ...input };
     },
+    async listEventsForEnvelope() {
+      return events.map((e, i) => ({ id: `ev-${i + 1}`, metadata: {}, ...e }));
+    },
   } as unknown as EnvelopesRepository;
   const outbound = {
     async insert(input: InsertOutboundEmailInput) {
@@ -166,5 +169,52 @@ describe('SigningOrderService.startStep', () => {
     await svc.startStep(sent, { step: 2, signing_order: 2, signer_ids: [C] });
     await svc.startStep(sent, { step: 2, signing_order: 2, signer_ids: [C] });
     expect(inserts).toHaveLength(1);
+  });
+});
+
+describe('SigningOrderService.resumeStep (step sweep)', () => {
+  const sent = draft({
+    status: 'awaiting_others',
+    delivery_mode: 'sequential',
+    sender_email: 'owner@example.com',
+    sender_name: 'Owner',
+    signers: [
+      makeSigner({
+        id: A,
+        email: 'a@example.com',
+        signing_order: 1,
+        signed_at: '2026-10-22T09:00:00.000Z',
+      }),
+      makeSigner({ id: B, email: 'b@example.com', signing_order: 2, signed_at: null }),
+      makeSigner({ id: C, email: 'c@example.com', signing_order: 2, signed_at: null }),
+    ],
+  });
+
+  it('appends step_started when the chain lacks it, then queues the invites', async () => {
+    const { svc, events, inserts } = build(sent);
+    await svc.resumeStep(sent, 2, [B, C]);
+    expect(events).toEqual([
+      expect.objectContaining({
+        event_type: 'step_started',
+        metadata: { step: 2, signing_order: 2, signer_ids: [B, C], resumed: true },
+      }),
+    ]);
+    expect(inserts.map((i) => [i.to_email, i.source_event_id, i.dedupe_key])).toEqual([
+      ['b@example.com', 'ev-1', `invite_step:${ENV_ID}:${B}`],
+      ['c@example.com', 'ev-1', `invite_step:${ENV_ID}:${C}`],
+    ]);
+  });
+
+  it('reuses an existing step_started and never appends it twice', async () => {
+    const { svc, events, inserts } = build(sent);
+    // A submit appended the event, then failed before queuing the invites.
+    await svc.startStep(sent, { step: 2, signing_order: 2, signer_ids: [] });
+    await svc.resumeStep(sent, 2, [B, C]);
+    await svc.resumeStep(sent, 2, [B, C]);
+    expect(events.filter((e) => e.event_type === 'step_started')).toHaveLength(1);
+    expect(inserts.map((i) => [i.to_email, i.source_event_id])).toEqual([
+      ['b@example.com', 'ev-1'],
+      ['c@example.com', 'ev-1'],
+    ]);
   });
 });

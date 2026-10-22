@@ -14,13 +14,16 @@ import { OutboundEmailsRepository } from '../src/email/outbound-emails.repositor
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
 import { ReminderSchedulerService } from '../src/reminders/reminder-scheduler.service';
+import { SigningOrderService } from '../src/signing/signing-order.service';
 import { SigningTokenService } from '../src/signing/signing-token.service';
+import { StepSweepRepository } from '../src/signing/step-sweep.service';
 import { StorageService } from '../src/storage/storage.service';
 import { dispatchSignLinks } from './dispatched-sign-links';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
+import { InMemoryStepSweepRepository } from './in-memory-step-sweep-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { setFlag } from './pades-e2e-harness';
 import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
@@ -38,6 +41,7 @@ import { buildTestJwks } from './test-jwks';
  *   - flag off: the route 404s, responses carry no `invited_at` / `step`,
  *     and send stays parallel even for a draft stored as sequential.
  */
+const CRON_SECRET = 'c'.repeat(48);
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
   PORT: 0,
@@ -62,6 +66,7 @@ const TEST_ENV: AppEnv = {
   WORKER_ENABLED: false,
   GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
   GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,
+  CRON_SECRET,
 };
 
 const USER_A = '00000000-0000-0000-0000-00000000000a';
@@ -105,6 +110,8 @@ describe('Signing order (WP-05, e2e)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      .overrideProvider(StepSweepRepository)
+      .useValue(new InMemoryStepSweepRepository(envelopesRepo, outbound))
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -353,6 +360,44 @@ describe('Signing order (WP-05, e2e)', () => {
       expect(reminded).toEqual(['ada@example.com', 'bea@example.com']);
     });
 
+    it('the step sweep resumes a step whose start failed after the submit committed', async () => {
+      const { envId, signerIds } = await sequentialTwoSteps();
+      await http().post(`/envelopes/${envId}/send`).set(auth).expect(201);
+      const links = await dispatchSignLinks(app, [envId]);
+      const startStep = jest
+        .spyOn(app.get(SigningOrderService), 'startStep')
+        .mockRejectedValueOnce(new Error('db down'));
+      for (const link of links) await signWith(envId, link.token);
+      startStep.mockRestore();
+      // Step 2 is stamped invited, but nobody was told.
+      expect(invitesTo(envId)).toEqual(['ada@example.com', 'bea@example.com']);
+      expect(envelopesRepo.invitedAt.get(signerIds['cy']!)).toEqual(expect.any(String));
+
+      const sweep = () =>
+        http().post('/internal/cron/step-sweep').set('X-Cron-Secret', CRON_SECRET);
+      // Too fresh to touch.
+      expect((await sweep().expect(200)).body.resumed).toBe(0);
+
+      const aged = new Date(Date.now() - 10 * 60_000).toISOString();
+      envelopesRepo.invitedAt.set(signerIds['cy']!, aged);
+      const res = await sweep().expect(200);
+      expect(res.body).toMatchObject({ resumed: 1, resumed_envelope_ids: [envId] });
+      expect(invitesTo(envId)).toEqual(['ada@example.com', 'bea@example.com', 'cy@example.com']);
+      expect(eventsOf(envId, 'step_started')).toHaveLength(2);
+
+      // Idempotent: a later pass does nothing more.
+      envelopesRepo.invitedAt.set(signerIds['cy']!, aged);
+      expect((await sweep().expect(200)).body.resumed).toBe(0);
+      expect(eventsOf(envId, 'step_started')).toHaveLength(2);
+      const step2 = await dispatchSignLinks(app, [envId]);
+      expect(step2.map((l) => l.to)).toEqual(['cy@example.com']);
+    });
+
+    it('the step-sweep route needs the cron secret', async () => {
+      const res = await http().post('/internal/cron/step-sweep').set('X-Cron-Secret', 'nope');
+      expect(res.status).toBe(401);
+    });
+
     it('a parallel envelope invites everyone at send, as before', async () => {
       const { envId } = await buildDraft(['ada', 'bea']);
       await http()
@@ -419,6 +464,10 @@ describe('Signing order (WP-05, e2e)', () => {
         .set(auth)
         .send({ delivery_mode: 'sequential' });
       expect(res.status).toBe(404);
+      const sweep = await http()
+        .post('/internal/cron/step-sweep')
+        .set('X-Cron-Secret', CRON_SECRET);
+      expect(sweep.status).toBe(404);
 
       // A draft stored as sequential (flag flipped off before send) still
       // sends in parallel.

@@ -5,7 +5,12 @@ import { promisify } from 'node:util';
 import { Kysely, PostgresDialect } from 'kysely';
 import { Pool, type QueryResult } from 'pg';
 import type { Database } from '../db/schema';
+import type { AppEnv } from '../src/config/env.schema';
+import { OutboundEmailsPgRepository } from '../src/email/outbound-emails.repository.pg';
 import { EnvelopesPgRepository } from '../src/envelopes/envelopes.repository.pg';
+import { SigningOrderService } from '../src/signing/signing-order.service';
+import { StepSweepPgRepository } from '../src/signing/step-sweep.repository.pg';
+import { StepSweepService } from '../src/signing/step-sweep.service';
 
 /**
  * WP-05 signing order against real Postgres:
@@ -17,16 +22,21 @@ import { EnvelopesPgRepository } from '../src/envelopes/envelopes.repository.pg'
  *      or both could report the next step.
  *   2. send stamps `invited_at` on step 1 only; setSigningOrder is
  *      draft-only.
- *   3. Migration 0023: backfill of `invited_at` for envelopes already
+ *   3. Step sweep backstop: a step whose after-commit half was lost
+ *      (no invite, maybe no step_started) is resumed once, even by two
+ *      overlapping sweeps; an existing step_started is reused; later
+ *      passes do nothing.
+ *   4. Migration 0023: backfill of `invited_at` for envelopes already
  *      sent, idempotent re-run, and up → down → up.
  *
- * Uses its own database on the server named by SUBMIT_SIGNER_DATABASE_URL
- * (like seal-sweep.pg.e2e-spec.ts). Skips without the URL; in CI a
- * missing URL fails the file.
+ * Runs against the database SUBMIT_SIGNER_DATABASE_URL names (like
+ * submit-signer.concurrency.e2e-spec.ts), migrating it with the real
+ * runner; it never creates or drops a database. Every row it writes
+ * belongs to a fresh owner, and the down/up test ends with 0023 applied.
+ * Skips without the URL; in CI a missing URL fails the file.
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = `signing_order_${randomBytes(4).toString('hex')}`;
 const MIGRATIONS_DIR = resolve(__dirname, '../db/migrations');
 const UP = join(MIGRATIONS_DIR, '0023_signing_order.sql');
 const DOWN = join(MIGRATIONS_DIR, 'down', '0023_signing_order_down.sql');
@@ -39,7 +49,6 @@ if (!databaseUrl && process.env.CI === 'true') {
 const describePg = databaseUrl ? describe : describe.skip;
 
 describePg('signing order (real Postgres)', () => {
-  let admin: Pool | undefined;
   let pool: Pool;
   let db: Kysely<Database>;
   let repo: EnvelopesPgRepository;
@@ -52,15 +61,8 @@ describePg('signing order (real Postgres)', () => {
 
   beforeAll(async () => {
     if (!databaseUrl) throw new Error('SUBMIT_SIGNER_DATABASE_URL missing');
-    admin = new Pool({ connectionString: databaseUrl, max: 1 });
-    await admin.query(`drop database if exists ${DB_NAME} with (force)`);
-    await admin.query(`create database ${DB_NAME}`);
-    const dedicated = new URL(databaseUrl);
-    dedicated.pathname = `/${DB_NAME}`;
-    dedicatedUrl = dedicated.toString();
+    dedicatedUrl = databaseUrl;
     pool = new Pool({ connectionString: dedicatedUrl, max: 12, application_name: APP_NAME });
-    // The afterAll `drop database … with (force)` can terminate an idle
-    // client still in the pool; without a listener that error is unhandled.
     pool.on('error', () => undefined);
     await pool.query(`
       create schema if not exists auth;
@@ -79,10 +81,6 @@ describePg('signing order (real Postgres)', () => {
 
   afterAll(async () => {
     await db?.destroy();
-    if (admin) {
-      await admin.query(`drop database if exists ${DB_NAME} with (force)`);
-      await admin.end();
-    }
   });
 
   async function draftWith(
@@ -217,6 +215,159 @@ describePg('signing order (real Postgres)', () => {
     expect(last?.envelope_status).toBe('sealing');
   }, 30_000);
 
+  describe('step sweep', () => {
+    const ENV = { APP_PUBLIC_URL: 'https://seald.example', WORKER_ENABLED: false } as AppEnv;
+    let outbound: OutboundEmailsPgRepository;
+    let order: SigningOrderService;
+    let sweeper: StepSweepService;
+
+    beforeAll(() => {
+      outbound = new OutboundEmailsPgRepository(db);
+      order = new SigningOrderService(repo, outbound, ENV);
+      sweeper = new StepSweepService(new StepSweepPgRepository(db), repo, order, ENV);
+    });
+
+    async function sendSequential(envelopeId: string): Promise<void> {
+      const sent = await repo.sendDraft({
+        envelope_id: envelopeId,
+        sender_email: 'sender@example.com',
+        sender_name: 'Sender',
+        delivery_mode: 'sequential',
+      });
+      if (!sent) throw new Error('sendDraft failed');
+    }
+
+    async function inviteRows(envelopeId: string) {
+      return (
+        await pool.query<{ signer_id: string; source_event_id: string; dedupe_key: string }>(
+          `select signer_id, source_event_id, dedupe_key from public.outbound_emails
+            where envelope_id = $1 and kind = 'invite' order by created_at`,
+          [envelopeId],
+        )
+      ).rows;
+    }
+
+    async function stepEvents(envelopeId: string) {
+      return (
+        await pool.query<{ id: string; metadata: Record<string, unknown> }>(
+          `select id, metadata from public.envelope_events
+            where envelope_id = $1 and event_type = 'step_started' order by created_at`,
+          [envelopeId],
+        )
+      ).rows;
+    }
+
+    async function age(envelopeId: string, minutes: number): Promise<void> {
+      await pool.query(
+        `update public.envelope_signers
+            set invited_at = invited_at - make_interval(mins => $2)
+          where envelope_id = $1 and invited_at is not null`,
+        [envelopeId, minutes],
+      );
+    }
+
+    async function inviteFor(envelopeId: string, signerId: string): Promise<void> {
+      await outbound.insert({
+        envelope_id: envelopeId,
+        signer_id: signerId,
+        kind: 'invite',
+        to_email: `${signerId}@example.com`,
+        to_name: 'S',
+        payload: { envelope_title: 'Ordered' },
+      });
+    }
+
+    it('resumes a step whose invites were lost exactly once under overlapping sweeps', async () => {
+      const { envelopeId, ids } = await draftWith({ ada: 1, bea: 2 });
+      await sendSequential(envelopeId);
+      await inviteFor(envelopeId, ids['ada']!);
+      await ready(ids['ada']!);
+      const submitted = await repo.submitSigner(ids['ada']!, null, null);
+      expect(submitted?.next_step?.signer_ids).toEqual([ids['bea']]);
+      // The after-commit startStep "failed": no event, no invite for Bea.
+
+      // Too fresh: the sweep leaves a just-started step alone.
+      const fresh = await sweeper.sweep(new Date());
+      expect(fresh.resumed_envelope_ids).not.toContain(envelopeId);
+
+      await age(envelopeId, 10);
+      const [one, two] = await Promise.all([sweeper.sweep(new Date()), sweeper.sweep(new Date())]);
+      const hits = [...one.resumed_envelope_ids, ...two.resumed_envelope_ids].filter(
+        (id) => id === envelopeId,
+      );
+      expect(hits).toHaveLength(1);
+
+      const events = await stepEvents(envelopeId);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata).toMatchObject({ step: 2, signing_order: 2 });
+      const invites = await inviteRows(envelopeId);
+      expect(invites.filter((r) => r.signer_id === ids['bea'])).toEqual([
+        {
+          signer_id: ids['bea'],
+          source_event_id: events[0]?.id,
+          dedupe_key: `invite_step:${envelopeId}:${ids['bea']}`,
+        },
+      ]);
+
+      // A later pass, even with the stamp aged again, finds Bea invited.
+      await age(envelopeId, 30);
+      const later = await sweeper.sweep(new Date());
+      expect(later.resumed_envelope_ids).not.toContain(envelopeId);
+      expect(await stepEvents(envelopeId)).toHaveLength(1);
+      expect((await inviteRows(envelopeId)).filter((r) => r.signer_id === ids['bea'])).toHaveLength(
+        1,
+      );
+    }, 30_000);
+
+    it('reuses a step_started that was appended before the failure', async () => {
+      const { envelopeId, ids } = await draftWith({ cy: 1, dan: 2 });
+      await sendSequential(envelopeId);
+      await inviteFor(envelopeId, ids['cy']!);
+      await ready(ids['cy']!);
+      await repo.submitSigner(ids['cy']!, null, null);
+      const appended = await repo.appendEvent({
+        envelope_id: envelopeId,
+        actor_kind: 'system',
+        event_type: 'step_started',
+        metadata: { step: 2, signing_order: 2, signer_ids: [ids['dan']] },
+      });
+      await age(envelopeId, 10);
+
+      const result = await sweeper.sweep(new Date());
+      expect(result.resumed_envelope_ids).toContain(envelopeId);
+      const events = await stepEvents(envelopeId);
+      expect(events.map((e) => e.id)).toEqual([appended.id]);
+      const dan = (await inviteRows(envelopeId)).filter((r) => r.signer_id === ids['dan']);
+      expect(dan.map((r) => r.source_event_id)).toEqual([appended.id]);
+      expect((await repo.verifyEventChain(envelopeId)).chain_intact).toBe(true);
+    }, 30_000);
+
+    it('resumes step 1 when send died before its invites, and skips parallel envelopes', async () => {
+      const lost = await draftWith({ eve: 1, fay: 2 });
+      await sendSequential(lost.envelopeId);
+      await age(lost.envelopeId, 10);
+
+      const parallel = await draftWith({ gus: 1 });
+      await repo.sendDraft({
+        envelope_id: parallel.envelopeId,
+        sender_email: 'sender@example.com',
+        sender_name: 'Sender',
+        delivery_mode: 'parallel',
+      });
+      await age(parallel.envelopeId, 10);
+
+      const result = await sweeper.sweep(new Date());
+      expect(result.resumed_envelope_ids).toContain(lost.envelopeId);
+      expect(result.resumed_envelope_ids).not.toContain(parallel.envelopeId);
+      const invites = await inviteRows(lost.envelopeId);
+      expect(invites.map((r) => r.signer_id)).toEqual([lost.ids['eve']]);
+      const events = await stepEvents(lost.envelopeId);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.metadata).toMatchObject({ step: 1, signing_order: 1 });
+      expect(await inviteRows(parallel.envelopeId)).toEqual([]);
+    }, 30_000);
+  });
+
   it('0023: backfills sent envelopes, re-runs idempotently, and survives up → down → up', async () => {
     // An envelope sent before 0023: invited_at null, one `sent` event per
     // signer (Ada's backdated), and a draft that must stay untouched.
@@ -235,7 +386,10 @@ describePg('signing order (real Postgres)', () => {
       [legacy.envelopeId, legacy.ids['ada'], adaSent],
     );
     const draft = await draftWith({ dee: 1 });
-    await pool.query('update public.envelope_signers set invited_at = null');
+    await pool.query(
+      'update public.envelope_signers set invited_at = null where envelope_id = any($1::uuid[])',
+      [[legacy.envelopeId, draft.envelopeId]],
+    );
 
     await psqlFile(UP);
     const stamps = await invitedAt(legacy.envelopeId);
