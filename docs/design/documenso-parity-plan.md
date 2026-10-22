@@ -504,7 +504,7 @@ Each WP lands as its own commit series (`type(scope): … (WP-xx)`), so the one 
 | 4 | WP-06, WP-08, WP-10, WP-19, WP-29 (A2) | 10 → 19 → 29 → 06 → 08 |
 | 5 | WP-11, WP-20, WP-21, WP-30, WP-36, WP-37, WP-38 (locale columns) | 21 → 20 → 36 → 37 → 30 → 38 → 11 |
 | 6 | WP-22, WP-23, WP-24, WP-25, WP-29 (A2b), WP-31, WP-32, WP-33, WP-34, WP-35 | 23 → 24 → 25 → 29b → 35 → 33 → 34 → 32 → 22 → 31 |
-| 7 | WP-26, WP-27 (if D3), WP-41, then WP-39 | 26 → 27 → 41 → 39 |
+| 7 | WP-26, WP-27, WP-45, WP-41, then WP-39 | 26 → 27 → 45 → 41 → 39 |
 
 Where a wave has more than about 6 parallel WPs, the orchestrator caps concurrency at 5 worktrees and starts the rest as slots free up.
 
@@ -540,3 +540,16 @@ Where a wave has more than about 6 parallel WPs, the orchestrator caps concurren
 - **D2b — legal text:** legal and consent strings (`product-claims.ts`, ESIGN disclosure, terms) are never machine-translated. A future non-English locale shows them in English with a "translation for convenience" notice.
 - **D3 — MCP OAuth 2.1:** build it now, dark behind `mcpServer` (WP-27 stays in wave 7).
 - **D4 — intent-to-sign copy for MCP sends (WP-23):** the slot ships with today's sentence; final wording comes with the legal v0.4 flag-flip PR.
+- **D5 — MCP full parity (2026-10-22):** every action a signed-in user can take in the web app gets an MCP tool. `route-coverage.contract.spec.ts` (WP-17) allows `excluded` only for routes with no user-facing action (signer-token routes reached by a signer link, verify, cron, OAuth browser callbacks); every other sender route must map to a `tool` or `planned`. The four actions the MCP doc excluded are exposed **behind owner approval** (same email-first Approve/Deny page as send, WP-21/WP-22), delivered by **WP-45**.
+
+### WP-45 — MCP parity for the approval-gated actions · `opus` · wave 7
+- **Goal:** tools for the four previously excluded actions, each returning `approval_pending` and executing only after the owner approves on the Approve/Deny page with a fresh sign-in (`amr` check, as for `envelopes:send`):
+  1. `account_delete` → `DELETE /me` (approval page repeats the irreversible-deletion warning and requires typing the account email).
+  2. `api_keys_create` / `api_keys_revoke` → the key is shown once **on the approval page only**, never in the tool result; an agent can never mint a key with more scopes than its own.
+  3. `approvals_set_required` → toggles `require_owner_approval`; turning it **off** always needs approval, turning it on applies immediately.
+  4. `envelopes_sign_as_signer` → for envelopes where the owner is a signer: the approval page *is* the signer's consent (ESIGN disclosure, intent-to-sign, field review) and applies the owner's saved signature/initials only on Approve; recorded as `signed` with `actor` = signer and `via=mcp_approval` in the hash chain and on the certificate. Never applies to other signers.
+- **Owns:** `apps/api/src/mcp/tools/{account,api-keys,approvals-settings,sign-as-signer}.*`, approval kinds in the WP-21 module (declared minimal edit).
+- **Depends on:** WP-14, WP-17, WP-21, WP-22, WP-24.
+- **Acceptance:** each tool returns `approval_pending` and performs nothing until Approve; Deny/expiry leaves state unchanged; e2e for each; the parity spec has no `excluded` sender routes left.
+- **Scopes:** new `account:admin`, `keys:admin`, `envelopes:sign`; none pre-checked on the Developers page.
+
