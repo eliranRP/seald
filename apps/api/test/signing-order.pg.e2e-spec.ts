@@ -29,14 +29,14 @@ import { StepSweepService } from '../src/signing/step-sweep.service';
  *   4. Migration 0023: backfill of `invited_at` for envelopes already
  *      sent, idempotent re-run, and up → down → up.
  *
- * Runs against the database SUBMIT_SIGNER_DATABASE_URL names (like
- * submit-signer.concurrency.e2e-spec.ts), migrating it with the real
- * runner; it never creates or drops a database. Every row it writes
- * belongs to a fresh owner, and the down/up test ends with 0023 applied.
+ * Creates its own scratch database on the server SUBMIT_SIGNER_DATABASE_URL
+ * names and migrates it with the real runner, then drops it. Every row it
+ * writes belongs to a fresh owner, and the down/up test ends with 0023 applied.
  * Skips without the URL; in CI a missing URL fails the file.
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
+const DB_NAME = `signing_order_${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 const MIGRATIONS_DIR = resolve(__dirname, '../db/migrations');
 const UP = join(MIGRATIONS_DIR, '0023_signing_order.sql');
 const DOWN = join(MIGRATIONS_DIR, 'down', '0023_signing_order_down.sql');
@@ -53,6 +53,7 @@ describePg('signing order (real Postgres)', () => {
   let db: Kysely<Database>;
   let repo: EnvelopesPgRepository;
   let dedicatedUrl: string;
+  let admin: Pool | undefined;
   let ownerId: string;
 
   async function psqlFile(file: string): Promise<void> {
@@ -61,7 +62,16 @@ describePg('signing order (real Postgres)', () => {
 
   beforeAll(async () => {
     if (!databaseUrl) throw new Error('SUBMIT_SIGNER_DATABASE_URL missing');
-    dedicatedUrl = databaseUrl;
+    // Own scratch database: the URL database is shared with
+    // submit-signer.concurrency, and two migrate.sh runs on one database
+    // race on schema_migrations when jest runs the suites in parallel.
+    admin = new Pool({ connectionString: databaseUrl, max: 1 });
+    admin.on('error', () => undefined);
+    await admin.query(`drop database if exists ${DB_NAME} with (force)`);
+    await admin.query(`create database ${DB_NAME}`);
+    const dedicated = new URL(databaseUrl);
+    dedicated.pathname = `/${DB_NAME}`;
+    dedicatedUrl = dedicated.toString();
     pool = new Pool({ connectionString: dedicatedUrl, max: 12, application_name: APP_NAME });
     pool.on('error', () => undefined);
     await pool.query(`
@@ -81,6 +91,10 @@ describePg('signing order (real Postgres)', () => {
 
   afterAll(async () => {
     await db?.destroy();
+    if (admin) {
+      await admin.query(`drop database if exists ${DB_NAME} with (force)`);
+      await admin.end();
+    }
   });
 
   async function draftWith(
