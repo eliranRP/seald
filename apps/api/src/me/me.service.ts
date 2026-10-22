@@ -13,6 +13,7 @@ import { SupabaseAdminClient, SupabaseAdminError } from './supabase-admin.client
 import { TombstonesRepository } from './tombstones.repository';
 import { GDRIVE_REPOSITORY, type GDriveRepository } from '../integrations/gdrive/gdrive.repository';
 import { GDriveService } from '../integrations/gdrive/gdrive.service';
+import { ApiKeysService } from '../api-keys/api-keys.service';
 
 /**
  * Hard cap on how many envelopes the inline streaming export will emit.
@@ -143,6 +144,9 @@ export class MeService {
     // Supabase admin actually observe.
     @Inject(GDRIVE_REPOSITORY) private readonly gdriveRepo: GDriveRepository,
     private readonly gdrive: GDriveService,
+    // API keys go first so an agent key stops working before anything else
+    // is purged. The auth.users FK also cascades (migration 0028).
+    private readonly apiKeys: ApiKeysService,
   ) {}
 
   /**
@@ -463,6 +467,9 @@ export class MeService {
     const emailHash = createHash('sha256')
       .update((user.email ?? '').toLowerCase())
       .digest('hex');
+
+    const keysDeleted = await this.apiKeys.deleteAllForOwner(user.id);
+    this.logger.log(`account-delete: api_keys deleted=${keysDeleted} user=${user.id}`);
 
     const wiped = await this.idempotencyRepo.deleteByUser(user.id);
     this.logger.log(`account-delete: idempotency_records wiped=${wiped} user=${user.id}`);

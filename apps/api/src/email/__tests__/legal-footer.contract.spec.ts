@@ -7,6 +7,7 @@ import { parseEnv } from '../../config/env.schema';
  * postal line. The operator's personal name stays off these templates.
  */
 const TEMPLATES = [
+  'api_key_created',
   'completed',
   'declined_to_sender',
   'expired_to_sender',

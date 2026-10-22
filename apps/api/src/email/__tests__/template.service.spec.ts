@@ -24,10 +24,11 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'api_key_created',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(9);
+    expect(kinds).toHaveLength(10);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -306,6 +307,44 @@ describe('TemplateService', () => {
       expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
       expect(out.html).not.toContain('?t=');
       expect(out.text).not.toContain('?t=');
+    });
+
+    it('api_key_created names the key and prefix, links to Developers, and resolves every var', () => {
+      const out = svc.render('api_key_created', {
+        ...vars,
+        key_name: 'Key 2',
+        key_prefix: 'seald_live_AbCdEf12',
+        scopes_readable: 'envelopes:read, envelopes:send',
+        created_at_readable: '2026-10-22 12:00 UTC',
+        expires_at_readable: '2027-01-20 12:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/developers',
+      });
+      expect(out.subject).toBe('New API key "Key 2" created on your Seald account');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('Key 2');
+        expect(part).toContain('seald_live_AbCdEf12');
+        expect(part).toContain('envelopes:read, envelopes:send');
+        expect(part).toContain('2027-01-20 12:00 UTC');
+        expect(part).toContain('https://seald.nromomentum.com/settings/developers');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
+      expect(out.text).toContain('Revoke it now');
+    });
+
+    it('api_key_created escapes a hostile key name in HTML', () => {
+      const out = svc.render('api_key_created', {
+        ...vars,
+        key_name: '<img src=x onerror=alert(1)>',
+        key_prefix: 'seald_live_AbCdEf12',
+        scopes_readable: 'envelopes:read',
+        created_at_readable: '',
+        expires_at_readable: '',
+        settings_url: 'https://seald.nromomentum.com/settings/developers',
+      });
+      expect(out.html).not.toContain('<img src=x');
+      expect(out.html).toContain('&lt;img src=x');
     });
 
     it('completed body.txt keeps the verb "Sealed document:" (past-tense action label)', () => {
