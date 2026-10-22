@@ -6,7 +6,7 @@ import { createPgMemDb, type PgMemHandle } from '../../../test/pg-mem-db';
  * pg-mem database with migration 0031 applied on top of the shared
  * harness. The real file is loaded with pg-mem shims:
  *   - `begin;` / `commit;` stripped (pg-mem auto-commits each statement).
- *   - `do $$ … $$;` blocks stripped (no plpgsql); the guarded statements
+ *   - `do $$ … $$;` blocks stripped (pg-mem runs no procedural blocks); the guarded statements
  *     they hold — the enum types, the jobs→runs FK and the updated_at
  *     trigger — are re-issued plainly (the trigger is skipped, as in the
  *     shared harness).
@@ -38,7 +38,7 @@ export function createAutomationsPgMemDb(): PgMemHandle {
   handle.mem.public.none(patched);
   handle.mem.public.none(`
     alter table public.automation_jobs
-      add constraint automation_jobs_run_id_fkey
+      add constraint automation_jobs_run_id_fk
       foreign key (run_id) references public.automation_runs(id) on delete cascade;
   `);
   return handle;
