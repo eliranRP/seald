@@ -29,6 +29,8 @@ describe('api key secret format', () => {
   it('key_hash is hex SHA-256 of the full secret, 64 chars', () => {
     const key = generateApiKey();
     const secret = key.token.slice(API_KEY_PREFIX.length);
+    // Pins the intended SHA-256 format of a random API key (not a password).
+    // codeql[js/insufficient-password-hash]
     expect(key.keyHash).toBe(createHash('sha256').update(secret).digest('hex'));
     expect(key.keyHash).toMatch(/^[0-9a-f]{64}$/);
     expect(hashSecret(secret)).toBe(key.keyHash);

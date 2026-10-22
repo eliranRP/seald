@@ -40,6 +40,11 @@ export interface ParsedApiKey {
 }
 
 function checksumOf(body: string): string {
+  // SHA-256 is deliberate: the input is a 256-bit random API key, not a
+  // human-chosen password, so a slow KDF adds no brute-force resistance and
+  // would put bcrypt/argon2 cost on every authenticated request. Reviewed on
+  // PR #380; see docs/design/mcp-server.md § API keys.
+  // codeql[js/insufficient-password-hash]
   return createHash('sha256')
     .update(`${API_KEY_PREFIX}${body}`)
     .digest('base64url')
@@ -47,6 +52,11 @@ function checksumOf(body: string): string {
 }
 
 export function hashSecret(secret: string): string {
+  // SHA-256 is deliberate: the input is a 256-bit random API key, not a
+  // human-chosen password, so a slow KDF adds no brute-force resistance and
+  // would put bcrypt/argon2 cost on every authenticated request. Reviewed on
+  // PR #380; see docs/design/mcp-server.md § API keys.
+  // codeql[js/insufficient-password-hash]
   return createHash('sha256').update(secret).digest('hex');
 }
 
