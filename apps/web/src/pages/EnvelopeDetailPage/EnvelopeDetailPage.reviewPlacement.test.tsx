@@ -141,7 +141,7 @@ describe('EnvelopeDetailPage: Review placement (MCP "Later")', () => {
   });
 
   it('with the MCP server flag off the page is unchanged', async () => {
-    host.__SEALD_FEATURE_OVERRIDES__ = {};
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: false };
     mockEnvelope('draft');
     renderAt('env-1');
 

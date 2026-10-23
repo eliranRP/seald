@@ -11,11 +11,13 @@ import type { AppEnv } from '../src/config/env.schema';
 import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { SealSweepRepository } from '../src/sealing/seal-sweep.service';
 import { SealingService } from '../src/sealing/sealing.service';
 import { StorageService } from '../src/storage/storage.service';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemorySealSweepRepository } from './in-memory-seal-sweep-repository';
 import { InMemoryStorageService } from './in-memory-storage';
@@ -94,6 +96,9 @@ describe('Seal sweep (e2e)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      // signerAccessAuth ships on: /sign/start reads access settings.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
 
     app = moduleRef.createNestApplication();

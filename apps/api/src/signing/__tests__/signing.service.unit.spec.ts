@@ -724,8 +724,10 @@ describe('SigningService.fillField', () => {
         return null;
       },
     });
+    // A valid date, so the fieldMetaV2 kind check (on or off) passes and
+    // the repo's null is what the service reports.
     await expect(
-      svc.fillField(env, freshSigner(), FIELD_ID, { value_text: 'x' }, null, null),
+      svc.fillField(env, freshSigner(), FIELD_ID, { value_text: '2026-04-24' }, null, null),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

@@ -58,8 +58,7 @@ enforce all of them yet.
       `ci-success` can finish. Lint, unit tests, web tests, Storybook,
       Playwright, API e2e, and the PAdES verifier skip that diff. The
       same ignore list skips `playwright.yml`, `security.yml`, and
-      `lint-meta.yml`, and Chromatic's path filter does not match, so
-      those checks are absent rather than green. Those three workflows
+      `lint-meta.yml`, so those checks are absent rather than green. Those three workflows
       still use the docs `paths-ignore`. A docs-only push to `main`
       still skips `ci.yml`.
 
@@ -346,7 +345,8 @@ Storybook, when the diff is a component:
 pnpm --filter web storybook
 ```
 
-Chromatic runs in CI for web PRs. Do not ignore a visual diff on a
+Chromatic is not in CI. If you run it locally
+(`pnpm --filter web chromatic`), do not ignore a visual diff on a
 primitive (`Button`, `TextField`, `Badge`, `NavBar`) without saying why.
 
 ### Migrations

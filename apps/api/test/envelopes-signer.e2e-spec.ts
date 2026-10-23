@@ -20,6 +20,8 @@ import { dispatchSignLinks, dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -82,6 +84,10 @@ describe('Signing — /sign/start (e2e)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      // signerAccessAuth ships on: /sign/start reads the signer's access
+      // settings, so the access-auth store must be in memory too.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
 
     app = moduleRef.createNestApplication();

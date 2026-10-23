@@ -54,7 +54,9 @@ describe('automation_copy delivery (dispatcher, template, stop link)', () => {
             },
           },
         },
-        { provide: EnvelopesRepository, useValue: {} },
+        // With `i18n` on the dispatcher looks the envelope up for its
+        // locale; an unknown envelope renders in English.
+        { provide: EnvelopesRepository, useValue: { findByIdWithAll: async () => null } },
         { provide: APP_ENV, useValue: ENV },
       ],
     }).compile();

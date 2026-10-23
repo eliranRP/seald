@@ -55,7 +55,8 @@ beforeEach(() => {
 });
 
 describe('McpFlagGuard', () => {
-  it('404s while mcpServer is off (the shipped default)', () => {
+  it('404s while mcpServer is off', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: false };
     expect(() => new McpFlagGuard().canActivate()).toThrow(NotFoundException);
   });
 

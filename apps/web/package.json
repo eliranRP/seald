@@ -21,8 +21,7 @@
     "bdd:full": "bddgen && playwright test",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
-    "chromatic": "chromatic --exit-zero-on-changes --build-script-name=build-storybook",
-    "chromatic:ci": "chromatic --exit-zero-on-changes --build-script-name=build-storybook --auto-accept-changes=main"
+    "chromatic": "chromatic --exit-zero-on-changes --build-script-name=build-storybook"
   },
   "dependencies": {
     "@sentry/react": "^10.53.1",

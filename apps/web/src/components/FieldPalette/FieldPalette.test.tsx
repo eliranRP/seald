@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
@@ -6,6 +6,12 @@ import { createRef } from 'react';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { FieldPalette } from './FieldPalette';
 import { FIELD_KINDS } from '../../types/sealdTypes';
+
+type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+
+afterEach(() => {
+  delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+});
 
 describe('FieldPalette', () => {
   it('renders Required section with Signature and Initials by default', () => {
@@ -59,23 +65,39 @@ describe('FieldPalette', () => {
     expect(kind).toBe('date');
   });
 
-  it('custom requiredKinds moves kinds between sections', () => {
-    const { getAllByRole, getByText } = renderWithTheme(
-      <FieldPalette requiredKinds={['date', 'email']} />,
-    );
-    const requiredHeader = getByText('Required fields');
-    const optionalHeader = getByText('Optional fields');
-    expect(requiredHeader).toBeDefined();
-    expect(optionalHeader).toBeDefined();
+  it.each([
+    [false, []],
+    [true, ['Name', 'Number', 'Radio', 'Dropdown']],
+  ])(
+    'custom requiredKinds moves kinds between sections (fieldMetaV2 %s)',
+    (fieldMetaV2, newKinds) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2 };
+      const { getAllByRole, getByText } = renderWithTheme(
+        <FieldPalette requiredKinds={['date', 'email']} />,
+      );
+      const requiredHeader = getByText('Required fields');
+      const optionalHeader = getByText('Optional fields');
+      expect(requiredHeader).toBeDefined();
+      expect(optionalHeader).toBeDefined();
 
-    const rows = getAllByRole('button');
-    const orderedLabels = rows.map((r) => r.getAttribute('aria-label'));
-    // Required first (signature & initials are NOT required now; date & email are).
-    // Default `kinds` is FIELD_KINDS = [signature, initials, date, text, checkbox, email]
-    // Required filtered in source order: [date, email]
-    // Optional filtered: [signature, initials, text, checkbox]
-    expect(orderedLabels).toEqual(['Date', 'Email', 'Signature', 'Initials', 'Text', 'Checkbox']);
-  });
+      const rows = getAllByRole('button');
+      const orderedLabels = rows.map((r) => r.getAttribute('aria-label'));
+      // Required first (signature & initials are NOT required now; date & email are).
+      // Default `kinds` is paletteFieldKinds(): FIELD_KINDS = [signature, initials,
+      // date, text, checkbox, email], plus the four WP-08 kinds with fieldMetaV2 on.
+      // Required filtered in source order: [date, email]
+      // Optional filtered: [signature, initials, text, checkbox, ...new kinds]
+      expect(orderedLabels).toEqual([
+        'Date',
+        'Email',
+        'Signature',
+        'Initials',
+        'Text',
+        'Checkbox',
+        ...newKinds,
+      ]);
+    },
+  );
 
   it('custom hint ReactNode replaces the default hint', () => {
     const { getByText, queryByText } = renderWithTheme(

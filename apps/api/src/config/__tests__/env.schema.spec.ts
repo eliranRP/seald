@@ -1,4 +1,17 @@
+import type { FeatureFlag } from 'shared';
 import { parseEnv } from '../env.schema';
+
+// Fake, low-entropy key material: the right shape (32 bytes as 64 hex
+// characters), never a real secret. workflowAutomations ships on, so every
+// env that boots needs a well-formed AUTOMATION_SECRETS_KEY.
+const AUTOMATION_SECRETS_KEY = 'ab'.repeat(32);
+
+type OverrideHost = { __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>> };
+const host = globalThis as unknown as OverrideHost;
+
+afterEach(() => {
+  delete host.__SEALD_FEATURE_OVERRIDES__;
+});
 
 describe('parseEnv', () => {
   const valid = {
@@ -9,6 +22,7 @@ describe('parseEnv', () => {
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db',
+    AUTOMATION_SECRETS_KEY,
   };
 
   it('parses a valid env', () => {
@@ -46,6 +60,7 @@ describe('env.schema — DATABASE_URL', () => {
     SUPABASE_JWT_AUDIENCE: 'authenticated',
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
+    AUTOMATION_SECRETS_KEY,
   };
 
   it('rejects missing DATABASE_URL', () => {
@@ -77,6 +92,7 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db?sslmode=disable',
+    AUTOMATION_SECRETS_KEY,
   };
 
   it('accepts minimal test env with all phase 3 defaults applied', () => {
@@ -209,6 +225,11 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
       PDF_SIGNING_SSLCOM_CLIENT_SECRET: 'sec',
       PDF_SIGNING_SSLCOM_CERT_ID: 'cert',
       PDF_SIGNING_TSA_URL: 'https://freetsa.org/tsr',
+      // Required while signerAccessAuth / mcpServer+publicApi /
+      // workflowAutomations are on (they ship on). Fake fixtures.
+      SIGNER_OTP_KEY: 'o'.repeat(48),
+      APPROVAL_CSRF_KEY: 'k'.repeat(40),
+      AUTOMATION_SECRETS_KEY,
     });
     expect(env.NODE_ENV).toBe('production');
     expect(env.EMAIL_PROVIDER).toBe('resend');
@@ -224,6 +245,7 @@ describe('env.schema — WORKER_ENABLED', () => {
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db',
+    AUTOMATION_SECRETS_KEY,
   };
 
   it('parses "false" as false', () => {
@@ -258,6 +280,7 @@ describe('env.schema — PDF_SIGNING_ALLOW_NOOP (WP-01, rule S.1)', () => {
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db',
+    AUTOMATION_SECRETS_KEY,
   };
 
   it('parses "true" / "1" as true and "false" / "0" as false', () => {
@@ -273,5 +296,60 @@ describe('env.schema — PDF_SIGNING_ALLOW_NOOP (WP-01, rule S.1)', () => {
     expect(() => parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: 'yes' })).toThrow(
       /PDF_SIGNING_ALLOW_NOOP: must be a boolean string/,
     );
+  });
+});
+
+describe('env.schema — keys required by the parity flags', () => {
+  const prod = {
+    NODE_ENV: 'production',
+    SUPABASE_URL: 'https://x.supabase.co',
+    CORS_ORIGIN: 'https://seald.app',
+    APP_PUBLIC_URL: 'https://seald.app',
+    DATABASE_URL: 'postgres://u:p@h:5432/d?sslmode=require',
+    SIGNER_SESSION_SECRET: '0'.repeat(64),
+    CRON_SECRET: '1'.repeat(64),
+    SIGNER_OTP_KEY: 'o'.repeat(48),
+    APPROVAL_CSRF_KEY: 'k'.repeat(40),
+    AUTOMATION_SECRETS_KEY,
+  };
+
+  it('boots a production env that carries every key', () => {
+    expect(parseEnv(prod).NODE_ENV).toBe('production');
+  });
+
+  it('refuses to boot without SIGNER_OTP_KEY while signerAccessAuth is on', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { signerAccessAuth: true };
+    const { SIGNER_OTP_KEY: _omit, ...rest } = prod;
+    expect(() => parseEnv(rest)).toThrow(/SIGNER_OTP_KEY required/);
+  });
+
+  it('boots without SIGNER_OTP_KEY while signerAccessAuth is off', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { signerAccessAuth: false };
+    const { SIGNER_OTP_KEY: _omit, ...rest } = prod;
+    expect(() => parseEnv(rest)).not.toThrow();
+  });
+
+  it('refuses to boot in production without APPROVAL_CSRF_KEY while mcpServer or publicApi is on', () => {
+    const { APPROVAL_CSRF_KEY: _omit, ...rest } = prod;
+    for (const [mcpServer, publicApi] of [
+      [true, false],
+      [false, true],
+      [true, true],
+    ] as const) {
+      host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer, publicApi };
+      expect(() => parseEnv(rest)).toThrow(/APPROVAL_CSRF_KEY required/);
+    }
+  });
+
+  it('boots without APPROVAL_CSRF_KEY when mcpServer and publicApi are both off', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: false, publicApi: false };
+    const { APPROVAL_CSRF_KEY: _omit, ...rest } = prod;
+    expect(() => parseEnv(rest)).not.toThrow();
+  });
+
+  it('refuses to boot without AUTOMATION_SECRETS_KEY while workflowAutomations is on', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { workflowAutomations: true };
+    const { AUTOMATION_SECRETS_KEY: _omit, ...rest } = prod;
+    expect(() => parseEnv(rest)).toThrow(/AUTOMATION_SECRETS_KEY required/);
   });
 });

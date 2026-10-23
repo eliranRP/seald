@@ -8,7 +8,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PDFDocument } from 'pdf-lib';
 import sharp from 'sharp';
-import { VerifyDocumentSchema } from 'shared';
+import { VerifyDocumentSchema, isFeatureEnabled } from 'shared';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
@@ -19,6 +19,7 @@ import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { PadesSigner } from '../src/sealing/pades-signer';
 import { SealingService } from '../src/sealing/sealing.service';
 import { StorageService } from '../src/storage/storage.service';
@@ -26,6 +27,7 @@ import { dispatchSignToken } from './dispatched-sign-links';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { setFlag, startFakeTsa, tryGenerateP12, TS_NODE_BIN } from './pades-e2e-harness';
@@ -129,6 +131,9 @@ describeOrSkip('Multi-file envelopes (e2e, WP-03)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      // signerAccessAuth ships on: /sign/start reads access settings.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
@@ -324,8 +329,15 @@ describeOrSkip('Multi-file envelopes (e2e, WP-03)', () => {
 
       const sealedA = storage.get(`${envId}/sealed.pdf`)!.bytes;
       const sealedB = storage.get(`${envId}/documents/${docB}/sealed.pdf`)!.bytes;
-      expect((await PDFDocument.load(sealedA)).getPageCount()).toBe(2);
-      expect((await PDFDocument.load(sealedB)).getPageCount()).toBe(1);
+      // With appendCertificate on (it ships on) the same certificate pages
+      // follow the original pages of every document; off, the page counts
+      // are the originals'.
+      const certPages = isFeatureEnabled('appendCertificate')
+        ? (await PDFDocument.load(sealedA)).getPageCount() - 2
+        : 0;
+      if (isFeatureEnabled('appendCertificate')) expect(certPages).toBeGreaterThan(0);
+      expect((await PDFDocument.load(sealedA)).getPageCount()).toBe(2 + certPages);
+      expect((await PDFDocument.load(sealedB)).getPageCount()).toBe(1 + certPages);
       expectBLta('wp03-document-1.sealed.pdf', sealedA);
       expectBLta('wp03-document-2.sealed.pdf', sealedB);
       expect(envelope.sealed_sha256).toBe(sha256(sealedA));
@@ -574,6 +586,8 @@ describeOrSkip('Multi-file envelopes (e2e, WP-03)', () => {
           'id',
           'kind',
           'link_id',
+          // WP-07 adds `meta` while fieldMetaV2 is on; independent of WP-03.
+          ...(isFeatureEnabled('fieldMetaV2') ? ['meta'] : []),
           'page',
           'required',
           'signer_id',

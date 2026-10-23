@@ -469,7 +469,10 @@ describe('useSendEnvelope', () => {
     });
 
     it('patches date_format and timezone before upload while fieldMetaV2 is on', async () => {
-      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = {
+        fieldMetaV2: true,
+        customReminders: false,
+      };
       await runWith('dd/MM/yyyy', 'Asia/Jerusalem');
       expect(patchEnvelope).toHaveBeenCalledWith('env-1', {
         date_format: 'dd/MM/yyyy',
@@ -481,13 +484,35 @@ describe('useSendEnvelope', () => {
     });
 
     it('sends nothing when neither is chosen', async () => {
-      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = {
+        fieldMetaV2: true,
+        customReminders: false,
+      };
       await runWith();
       expect(patchEnvelope).not.toHaveBeenCalled();
     });
 
+    it('folds date settings and the reminder cadence into one patch with both flags on', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = {
+        fieldMetaV2: true,
+        customReminders: true,
+      };
+      await runWith('dd/MM/yyyy', 'Asia/Jerusalem');
+      expect(patchEnvelope).toHaveBeenCalledTimes(1);
+      expect(patchEnvelope.mock.calls[0]?.[1]).toMatchObject({
+        date_format: 'dd/MM/yyyy',
+        timezone: 'Asia/Jerusalem',
+        reminder_first_after_days: 1,
+        reminder_interval_days: 1,
+        reminder_max: 7,
+      });
+    });
+
     it('sends nothing while fieldMetaV2 is off', async () => {
-      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: false };
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = {
+        fieldMetaV2: false,
+        customReminders: false,
+      };
       await runWith('dd/MM/yyyy', 'UTC');
       expect(patchEnvelope).not.toHaveBeenCalled();
     });
