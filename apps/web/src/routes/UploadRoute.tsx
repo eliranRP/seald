@@ -35,6 +35,7 @@ import {
   isWordFile,
 } from '../features/documentEditor/upload/convertUpload';
 import { makeMeSigner } from '../features/documentEditor/upload/meSigner';
+import { TO_QUERY_PARAM, recipientFromQuery } from '../features/contacts/recipientFromQuery';
 
 const TEMPLATE_QUERY_PARAM = 'template';
 const RECENT_TEMPLATE_COUNT = 3;
@@ -81,7 +82,7 @@ export function UploadRoute() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { createDocument, updateDocument } = useAppState();
+  const { createDocument, updateDocument, contacts } = useAppState();
   const { user: authUser } = useAuth();
 
   // Capture the handoff payload exactly once on mount. The effect below
@@ -268,6 +269,10 @@ export function UploadRoute() {
       if (handoffSigners.length > 0) signers = handoffSigners;
       else if (authUser !== null && hasIdentity) signers = [makeMeSigner(authUser)];
 
+      // `?to=<email>` (Contacts → Send): the person is already on the list.
+      const toSigner = recipientFromQuery(searchParams.get(TO_QUERY_PARAM), contacts, signers);
+      if (toSigner) signers = [...signers, toSigner];
+
       // Pre-populate fields when the sender came from a template. Pages that
       // don't exist on the new PDF are filtered out by `resolveTemplateFields`.
       let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
@@ -312,6 +317,8 @@ export function UploadRoute() {
       navigate,
       template,
       authUser,
+      contacts,
+      searchParams,
       initialHandoff?.templateSigners,
       initialHandoff?.pendingFile,
     ],
