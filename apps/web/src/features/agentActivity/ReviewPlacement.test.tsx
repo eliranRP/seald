@@ -77,7 +77,7 @@ describe('ReviewPlacement', () => {
   });
 
   it.each([
-    ['the MCP server is off', () => (host.__SEALD_FEATURE_OVERRIDES__ = {}), {}],
+    ['the MCP server is off', () => (host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: false }), {}],
     ['the envelope is already out', () => undefined, { status: 'awaiting_others' as const }],
     ['there are no fields', () => undefined, { fields: [] }],
     ['there are no signers', () => undefined, { signers: [] }],
