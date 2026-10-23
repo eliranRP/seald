@@ -1,288 +1,375 @@
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import * as sharedModule from 'shared';
+import { SAMPLE_TEMPLATES as TEMPLATES } from '@/test/templateFixtures';
+import { renderWithProviders } from '@/test/renderWithProviders';
+import { getTemplates, setTemplates as publishTemplates } from '@/features/templates';
+import type { TemplateSummary } from '@/features/templates';
+import * as templatesApi from '@/features/templates/templatesApi';
 import { TemplatesListPage } from './TemplatesListPage';
-import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
-import { renderWithProviders } from '../../test/renderWithProviders';
-import { setTemplates as publishTemplates, type TemplateSummary } from '../../features/templates';
-import * as templatesApi from '../../features/templates/templatesApi';
+
+vi.mock('@/lib/pdf', async () => ({
+  ...(await vi.importActual<Record<string, unknown>>('@/lib/pdf')),
+  readPdfInfo: vi.fn().mockResolvedValue({ pages: 3, aspect: 1.294 }),
+}));
 
 function LocationProbe() {
-  const location = useLocation();
-  return <div data-testid="probe">{`${location.pathname}${location.search}`}</div>;
+  const loc = useLocation();
+  return <output aria-label="location">{`${loc.pathname}${loc.search}`}</output>;
 }
 
-function renderPage() {
+const [NDA, MSA, ICA, RELEASE] = TEMPLATES as [
+  TemplateSummary,
+  TemplateSummary,
+  TemplateSummary,
+  TemplateSummary,
+  ...TemplateSummary[],
+];
+
+const TAGGED: ReadonlyArray<TemplateSummary> = [
+  { ...NDA, tags: ['Legal'] },
+  { ...MSA, tags: ['HR'] },
+  { ...ICA, tags: ['HR'] },
+  { ...RELEASE, tags: ['Sales'] },
+];
+
+function renderPage(initial: ReadonlyArray<TemplateSummary> = TAGGED, path = '/templates') {
   return renderWithProviders(
-    <MemoryRouter initialEntries={['/templates']}>
+    <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/templates" element={<TemplatesListPage initialTemplates={TEMPLATES} />} />
-        <Route path="/templates/:id/use" element={<LocationProbe />} />
-        <Route path="/document/new" element={<LocationProbe />} />
+        <Route path="/templates" element={<TemplatesListPage initialTemplates={initial} />} />
+        <Route
+          path="/templates/:id/use"
+          element={<TemplatesListPage initialTemplates={initial} />}
+        />
+        <Route path="*" element={<LocationProbe />} />
       </Routes>
     </MemoryRouter>,
   );
 }
 
-describe('TemplatesListPage', () => {
-  it('renders the "Templates" eyebrow + heading + one card per template', () => {
+const cardNames = (): string[] =>
+  screen
+    .getAllByRole('button')
+    .filter((b) => b.hasAttribute('aria-describedby') && !b.hasAttribute('aria-haspopup'))
+    .map((b) => b.getAttribute('aria-labelledby'))
+    .map((id) => (id ? (document.getElementById(id)?.textContent ?? '') : ''));
+
+beforeEach(() => {
+  publishTemplates([]);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+  publishTemplates([]);
+});
+
+describe('TemplatesListPage — list', () => {
+  it('shows the title, the count and one card per template', () => {
     renderPage();
-    // The shared PageHeader puts "Templates" in the eyebrow slot and
-    // the "Place fields once…" lede as the H1, matching the standard
-    // PageHeader pattern across DashboardPage / ContactsPage.
-    // (Audit A · TemplatesListPage M-10).
-    expect(screen.getByText(/^templates$/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /place fields once\. reuse forever\./i }),
-    ).toBeInTheDocument();
-    for (const t of TEMPLATES) {
-      expect(screen.getByRole('heading', { level: 3, name: t.name })).toBeInTheDocument();
-    }
+    expect(screen.getByRole('heading', { name: 'Templates', level: 1 })).toBeInTheDocument();
+    expect(screen.getByLabelText('4 templates')).toBeInTheDocument();
+    expect(cardNames()).toEqual(TAGGED.map((t) => t.name));
+    expect(screen.queryByRole('checkbox', { name: /group by tag/i })).toBeNull();
   });
 
-  it('exposes a primary "New template" CTA + a dashed create tile', () => {
+  it('"New template" opens the new-template flow', async () => {
+    const user = userEvent.setup();
     renderPage();
-    expect(screen.getByRole('button', { name: /^new template$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /create a new template/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'New template' }));
+    expect(screen.getByLabelText('location')).toHaveTextContent('/templates/new');
   });
 
-  it('clicking the primary "New template" navigates to /templates/new/use', async () => {
+  it('clicking a card opens its Use dialog', async () => {
+    const user = userEvent.setup();
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^new template$/i }));
-    expect(screen.getByTestId('probe').textContent).toBe('/templates/new/use');
-  });
-
-  it('clicking a card navigates to the use-template route', async () => {
-    renderPage();
-    const first = TEMPLATES[0]!;
-    // Whole card is a button labelled by the template name.
-    await userEvent.click(screen.getByRole('button', { name: first.name }));
-    expect(screen.getByTestId('probe').textContent).toBe(
-      `/templates/${encodeURIComponent(first.id)}/use`,
-    );
-  });
-
-  it('clicking the hover-overlay Use button also navigates to the use route', async () => {
-    renderPage();
-    const first = TEMPLATES[0]!;
-    await userEvent.click(screen.getByRole('button', { name: `Use ${first.name}` }));
-    expect(screen.getByTestId('probe').textContent).toBe(
-      `/templates/${encodeURIComponent(first.id)}/use`,
-    );
-  });
-
-  it('search filters templates case-insensitively against name + description', async () => {
-    renderPage();
-    await userEvent.type(
-      screen.getByRole('searchbox', { name: /search by name or tag/i }),
-      'mutual',
-    );
-    await waitFor(() => {
-      expect(
-        screen.queryByRole('heading', { level: 3, name: /independent contractor/i }),
-      ).toBeNull();
-    });
-    expect(screen.getByRole('heading', { level: 3, name: /mutual nda/i })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 3, name: /photography release/i })).toBeNull();
-  });
-
-  it('search matches against description text', async () => {
-    renderPage();
-    await userEvent.type(screen.getByRole('searchbox', { name: /search by name or tag/i }), '1099');
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { level: 3, name: /mutual nda/i })).toBeNull();
-    });
-    expect(
-      screen.getByRole('heading', { level: 3, name: /independent contractor/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('shows the empty-state status when search has zero matches', async () => {
-    renderPage();
-    await userEvent.type(
-      screen.getByRole('searchbox', { name: /search by name or tag/i }),
-      'zzznomatch',
-    );
-    await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(/no templates match/i);
-    });
-  });
-
-  it('Delete trigger opens a confirm modal; confirming removes the card', async () => {
-    renderPage();
-    const original = TEMPLATES[0]!;
-    const before = screen.getAllByRole('heading', { level: 3 }).length;
-    await userEvent.click(screen.getByRole('button', { name: `Delete ${original.name}` }));
-    // Modal opens with a serif title + destructive Delete button.
-    const dialog = await screen.findByRole('dialog', {
-      name: new RegExp(`delete ${original.name}`, 'i'),
-    });
-    expect(within(dialog).getByText(/delete this template\?/i)).toBeInTheDocument();
-    await userEvent.click(
-      within(dialog).getByRole('button', {
-        name: new RegExp(`confirm delete ${original.name}`, 'i'),
-      }),
-    );
-    expect(
-      screen.queryByRole('heading', { level: 3, name: original.name }),
-    ).not.toBeInTheDocument();
-    expect(screen.getAllByRole('heading', { level: 3 }).length).toBe(before - 1);
-  });
-
-  it('Delete modal Cancel keeps the card and closes the modal', async () => {
-    renderPage();
-    const original = TEMPLATES[0]!;
-    await userEvent.click(screen.getByRole('button', { name: `Delete ${original.name}` }));
-    const dialog = await screen.findByRole('dialog', {
-      name: new RegExp(`delete ${original.name}`, 'i'),
-    });
-    await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }));
-    expect(
-      screen.queryByRole('dialog', { name: new RegExp(`delete ${original.name}`, 'i') }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3, name: original.name })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: NDA.name }));
+    expect(await screen.findByRole('dialog', { name: `Use ${NDA.name}` })).toBeInTheDocument();
   });
 });
 
-// Regression suite: tag edits MUST round-trip to the server. Earlier
-// behaviour optimistically updated only the local module store and
-// never called PATCH /templates/:id, so tags vanished on refetch.
-// We render WITHOUT `initialTemplates` here so the page takes the
-// network branch (`apiUpdateTemplate`); the module store is seeded
-// directly and the API client is spied/mocked.
+describe('TemplatesListPage — search and tags', () => {
+  it('search filters by name, case-insensitively, and says how many matched', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByRole('searchbox', { name: 'Search templates' }), 'WAIVER');
+    expect(cardNames()).toEqual([NDA.name]);
+    expect(screen.getByText('1 result')).toBeInTheDocument();
+  });
+
+  it('shows "No matches" with a way to clear the search', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.type(screen.getByRole('searchbox', { name: 'Search templates' }), 'zzz');
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(cardNames()).toHaveLength(4);
+  });
+
+  it('tag pills: All plus every tag, one active at a time, click again to reset', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const group = screen.getByRole('group', { name: 'Filter by tag' });
+    expect(
+      within(group)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['All', 'HR', 'Legal', 'Sales']);
+    await user.click(within(group).getByRole('button', { name: 'HR' }));
+    expect(within(group).getByRole('button', { name: 'HR' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(cardNames()).toEqual([MSA.name, ICA.name]);
+    expect(screen.getByText('2 results')).toBeInTheDocument();
+    await user.click(within(group).getByRole('button', { name: 'Sales' }));
+    expect(cardNames()).toEqual([RELEASE.name]);
+    await user.click(within(group).getByRole('button', { name: 'Sales' }));
+    expect(cardNames()).toHaveLength(4);
+    await user.click(within(group).getByRole('button', { name: 'Legal' }));
+    await user.click(within(group).getByRole('button', { name: 'All' }));
+    expect(cardNames()).toHaveLength(4);
+  });
+
+  it('search and tag combine (AND)', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: 'HR' }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search templates' }), 'contractor');
+    expect(cardNames()).toEqual([ICA.name]);
+  });
+});
+
+describe('TemplatesListPage — states', () => {
+  it('shows skeleton cards while the first fetch is pending', () => {
+    vi.spyOn(templatesApi, 'listTemplates').mockReturnValue(new Promise(() => undefined));
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/templates']}>
+        <TemplatesListPage />
+      </MemoryRouter>,
+    );
+    expect(screen.getByLabelText('Loading templates')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('shows the empty state with one New template action', async () => {
+    vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue([]);
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/templates']}>
+        <TemplatesListPage />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('No templates yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New template' })).toHaveLength(1);
+  });
+});
+
+describe('TemplatesListPage — card menu', () => {
+  it('Edit opens the template editor in edit mode', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    expect(screen.getByLabelText('location')).toHaveTextContent(
+      `/templates/${encodeURIComponent(NDA.id)}/edit?mode=edit`,
+    );
+  });
+
+  it('lists Edit, Duplicate, Tags and Delete', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
+    expect(screen.getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
+      'Edit',
+      'Duplicate',
+      'Tags',
+      'Delete',
+    ]);
+  });
+
+  it('Duplicate adds the copy right after the original and confirms', async () => {
+    const user = userEvent.setup();
+    const copy: TemplateSummary = { ...NDA, id: 'copy-1', name: `${NDA.name} copy`, uses: 0 };
+    vi.spyOn(templatesApi, 'duplicateTemplateApi').mockResolvedValue(copy);
+    renderPage();
+    await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    expect(await screen.findByText(`Duplicated as ${copy.name}`)).toBeInTheDocument();
+    expect(cardNames().slice(0, 2)).toEqual([NDA.name, copy.name]);
+  });
+
+  it('says so when the duplicate fails', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(templatesApi, 'duplicateTemplateApi').mockRejectedValue(new Error('boom'));
+    renderPage();
+    await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Duplicate' }));
+    expect(await screen.findByText('Could not duplicate. Try again.')).toBeInTheDocument();
+    expect(cardNames()).toHaveLength(4);
+  });
+});
+
+describe('TemplatesListPage — delete and undo', () => {
+  async function askDelete(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await user.click(screen.getByRole('button', { name: `More for ${name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
+    return screen.getByRole('alertdialog', { name: `Delete ${name}?` });
+  }
+
+  it('confirms, removes the card, shows Template deleted, and Undo restores it', async () => {
+    const user = userEvent.setup();
+    const del = vi.spyOn(templatesApi, 'deleteTemplate').mockResolvedValue();
+    const restore = vi.spyOn(templatesApi, 'restoreTemplate').mockResolvedValue(NDA);
+    vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue(TAGGED);
+    renderPage();
+    const dialog = await askDelete(user, NDA.name);
+    expect(within(dialog).getByText('Sent documents stay.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(cardNames()).not.toContain(NDA.name));
+    expect(del).toHaveBeenCalledWith(NDA.id);
+    expect(await screen.findByText('Template deleted')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() => expect(restore).toHaveBeenCalledWith(NDA.id));
+    await waitFor(() => expect(cardNames()).toContain(NDA.name));
+  });
+
+  it('Keep and Escape leave the template alone', async () => {
+    const user = userEvent.setup();
+    const del = vi.spyOn(templatesApi, 'deleteTemplate').mockResolvedValue();
+    renderPage();
+    const dialog = await askDelete(user, NDA.name);
+    await user.click(within(dialog).getByRole('button', { name: 'Keep' }));
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    await askDelete(user, NDA.name);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(del).not.toHaveBeenCalled();
+    expect(cardNames()).toContain(NDA.name);
+  });
+
+  it('refetches and says so when the delete fails', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(templatesApi, 'deleteTemplate').mockRejectedValue(new Error('boom'));
+    const list = vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue(TAGGED);
+    renderPage();
+    const dialog = await askDelete(user, NDA.name);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    expect(await screen.findByText('Could not delete. Try again.')).toBeInTheDocument();
+    await waitFor(() => expect(list).toHaveBeenCalled());
+    await waitFor(() => expect(cardNames()).toContain(NDA.name));
+  });
+});
+
+describe('TemplatesListPage — deep link /templates/:id/use', () => {
+  it('opens the Use dialog for that template and closing returns to /templates', async () => {
+    const user = userEvent.setup();
+    renderPage(TAGGED, `/templates/${encodeURIComponent(MSA.id)}/use`);
+    const dialog = await screen.findByRole('dialog', { name: `Use ${MSA.name}` });
+    await user.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('an unknown id says "Template not found" and shows the list', async () => {
+    vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue(TAGGED);
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/templates/nope/use']}>
+        <Routes>
+          <Route path="/templates" element={<TemplatesListPage />} />
+          <Route path="/templates/:id/use" element={<TemplatesListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Template not found')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: NDA.name })).toBeInTheDocument();
+  });
+});
+
 describe('TemplatesListPage — tag edits persist to the server', () => {
-  // Seed must include a template carrying tags so we have a known
-  // baseline to mutate, plus a second template with the "Legal" tag
-  // so the editor's `allTags` set surfaces "Legal" as a togglable
-  // option (the popover only renders existing tags as <option>;
-  // brand-new tags go through the create row instead).
-  const TEMPLATE: TemplateSummary = {
-    ...TEMPLATES[0]!,
-    tags: ['Construction'],
-  };
-  const PEER: TemplateSummary = {
-    ...TEMPLATES[1]!,
-    tags: ['Legal'],
-  };
+  const TEMPLATE: TemplateSummary = { ...NDA, tags: ['Construction'] };
+  const PEER: TemplateSummary = { ...MSA, tags: ['Legal'] };
 
   let listSpy: ReturnType<typeof vi.spyOn>;
   let updateSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    // The page hydrates from `listTemplates` on mount when
-    // `initialTemplates` is omitted. Resolve to both seed rows so
-    // `allTags` includes "Construction" + "Legal".
     listSpy = vi.spyOn(templatesApi, 'listTemplates').mockResolvedValue([TEMPLATE, PEER]);
     updateSpy = vi.spyOn(templatesApi, 'updateTemplate').mockImplementation(async (id, patch) => {
       const base = id === TEMPLATE.id ? TEMPLATE : PEER;
-      // `exactOptionalPropertyTypes` means we can't spread the
-      // optional `description` (typed `string`) from a patch with
-      // `description?: string`. Cast to TemplateSummary — the runtime
-      // shape is already correct since we only override fields that
-      // exist on the base.
       return { ...base, ...patch, id } as TemplateSummary;
     });
     publishTemplates([TEMPLATE, PEER]);
   });
 
-  afterEach(() => {
-    listSpy.mockRestore();
-    updateSpy.mockRestore();
-    publishTemplates([]);
-  });
-
   function renderNetworkPage() {
-    // No `initialTemplates` prop → page takes the API path.
     return renderWithProviders(
       <MemoryRouter initialEntries={['/templates']}>
         <Routes>
           <Route path="/templates" element={<TemplatesListPage />} />
-          <Route path="/templates/:id/use" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>,
     );
+  }
+
+  async function openTags(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole('button', { name: TEMPLATE.name });
+    await user.click(screen.getByRole('button', { name: `More for ${TEMPLATE.name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Tags' }));
+    return screen.findByRole('dialog', { name: /edit template tags/i });
   }
 
   it('toggling a tag PATCHes /templates/:id with the new tags array', async () => {
+    const user = userEvent.setup();
     renderNetworkPage();
-    await screen.findByRole('heading', { level: 3, name: TEMPLATE.name });
-    // Open the per-card tag editor via the hover overlay action.
-    await userEvent.click(screen.getByRole('button', { name: `Edit tags for ${TEMPLATE.name}` }));
-    const dialog = await screen.findByRole('dialog', { name: /edit template tags/i });
-    // Toggle "Legal" — adds it to the existing ["Construction"] roster.
-    await userEvent.click(within(dialog).getByRole('option', { name: /Legal/i }));
-    await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledTimes(1);
-    });
-    const [calledId, calledPatch] = updateSpy.mock.calls[0]!;
-    expect(calledId).toBe(TEMPLATE.id);
-    expect(calledPatch).toEqual({ tags: ['Construction', 'Legal'] });
+    const dialog = await openTags(user);
+    await user.click(within(dialog).getByRole('option', { name: /Legal/i }));
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    expect(updateSpy.mock.calls[0]![0]).toBe(TEMPLATE.id);
+    expect(updateSpy.mock.calls[0]![1]).toEqual({ tags: ['Construction', 'Legal'] });
   });
 
   it('creating a brand-new tag PATCHes with the appended tag', async () => {
+    const user = userEvent.setup();
     renderNetworkPage();
-    await screen.findByRole('heading', { level: 3, name: TEMPLATE.name });
-    await userEvent.click(screen.getByRole('button', { name: `Edit tags for ${TEMPLATE.name}` }));
-    const dialog = await screen.findByRole('dialog', { name: /edit template tags/i });
-    await userEvent.type(within(dialog).getByLabelText(/find or create tag/i), 'Procurement');
-    await userEvent.click(within(dialog).getByRole('button', { name: /create.*procurement/i }));
-    await waitFor(() => {
-      expect(updateSpy).toHaveBeenCalledTimes(1);
-    });
-    const [, patch] = updateSpy.mock.calls[0]!;
-    expect(patch).toEqual({ tags: ['Construction', 'Procurement'] });
+    const dialog = await openTags(user);
+    await user.type(within(dialog).getByLabelText(/find or create tag/i), 'Procurement');
+    await user.click(within(dialog).getByRole('button', { name: /create.*procurement/i }));
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1));
+    expect(updateSpy.mock.calls[0]![1]).toEqual({ tags: ['Construction', 'Procurement'] });
   });
 
   it('refetches when the server PATCH fails (rolls local optimistic state back)', async () => {
+    const user = userEvent.setup();
     updateSpy.mockRejectedValueOnce(new Error('boom'));
     renderNetworkPage();
-    await screen.findByRole('heading', { level: 3, name: TEMPLATE.name });
-    await userEvent.click(screen.getByRole('button', { name: `Edit tags for ${TEMPLATE.name}` }));
-    const dialog = await screen.findByRole('dialog', { name: /edit template tags/i });
-    await userEvent.click(within(dialog).getByRole('option', { name: /Legal/i }));
-    await waitFor(() => {
-      // Initial mount fetch + the recovery refetch after the patch failed.
-      expect(listSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
-    });
+    const dialog = await openTags(user);
+    await user.click(within(dialog).getByRole('option', { name: /Legal/i }));
+    await waitFor(() => expect(listSpy.mock.calls.length).toBeGreaterThanOrEqual(2));
+    expect(getTemplates().length).toBe(2);
   });
 });
 
-describe('TemplatesListPage bulk send entry', () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+describe('TemplatesListPage — flagged entry points', () => {
+  const WITH_PDF: TemplateSummary = { ...NDA, hasExamplePdf: true };
+  const WITHOUT_PDF: TemplateSummary = { ...MSA, hasExamplePdf: false };
 
-  const WITH_PDF: TemplateSummary = { ...TEMPLATES[0]!, hasExamplePdf: true };
-  const WITHOUT_PDF: TemplateSummary = { ...TEMPLATES[1]!, hasExamplePdf: false };
-
-  function renderBulk() {
-    return renderWithProviders(
-      <MemoryRouter initialEntries={['/templates']}>
-        <Routes>
-          <Route
-            path="/templates"
-            element={<TemplatesListPage initialTemplates={[WITH_PDF, WITHOUT_PDF]} />}
-          />
-          <Route path="/templates/:id/bulk-send" element={<LocationProbe />} />
-        </Routes>
-      </MemoryRouter>,
-    );
-  }
-
-  it('is hidden while the bulkSend flag is off', () => {
+  it('bulk send is hidden while the flag is off', async () => {
+    const user = userEvent.setup();
     vi.spyOn(sharedModule, 'isFeatureEnabled').mockReturnValue(false);
-    renderBulk();
-    expect(screen.queryByRole('button', { name: /^bulk send /i })).toBeNull();
+    renderPage([WITH_PDF, WITHOUT_PDF]);
+    await user.click(screen.getByRole('button', { name: `More for ${WITH_PDF.name}` }));
+    expect(screen.queryByRole('menuitem', { name: 'Send to many' })).toBeNull();
   });
 
-  it('shows for a template with a saved document only, and opens the bulk send page', async () => {
+  it('bulk send shows for a template with a saved document only, and opens the bulk send page', async () => {
+    const user = userEvent.setup();
     vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
-    renderBulk();
-    expect(screen.queryByRole('button', { name: `Bulk send ${WITHOUT_PDF.name}` })).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: `Bulk send ${WITH_PDF.name}` }));
-    expect(screen.getByTestId('probe').textContent).toBe(
+    renderPage([WITH_PDF, WITHOUT_PDF]);
+    await user.click(screen.getByRole('button', { name: `More for ${WITHOUT_PDF.name}` }));
+    expect(screen.queryByRole('menuitem', { name: 'Send to many' })).toBeNull();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: `More for ${WITH_PDF.name}` }));
+    await user.click(screen.getByRole('menuitem', { name: 'Send to many' }));
+    expect(screen.getByLabelText('location')).toHaveTextContent(
       `/templates/${encodeURIComponent(WITH_PDF.id)}/bulk-send`,
     );
   });

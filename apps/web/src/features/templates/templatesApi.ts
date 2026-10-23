@@ -71,6 +71,7 @@ function toSummary(t: ApiTemplate): TemplateSummary {
     pages: inferPagesFromLayout(t.field_layout),
     fieldCount: t.field_layout.length,
     lastUsed: t.last_used_at ? new Date(t.last_used_at).toLocaleDateString() : '—',
+    lastUsedAt: t.last_used_at,
     uses: t.uses_count,
     cover: t.cover_color ?? seald.color.indigo[50],
     exampleFile: '',
@@ -146,6 +147,29 @@ export async function updateTemplate(
 
 export async function deleteTemplate(id: string, signal?: AbortSignal): Promise<void> {
   await apiClient.delete(`/templates/${encodeURIComponent(id)}`, configWithSignal(signal));
+}
+
+/** Copy a template ("NAME copy") together with its saved example PDF. */
+export async function duplicateTemplateApi(
+  id: string,
+  signal?: AbortSignal,
+): Promise<TemplateSummary> {
+  const { data } = await apiClient.post<ApiTemplate>(
+    `/templates/${encodeURIComponent(id)}/duplicate`,
+    {},
+    configWithSignal(signal),
+  );
+  return toSummary(data);
+}
+
+/** Undo a delete (the "Template deleted" Undo toast). */
+export async function restoreTemplate(id: string, signal?: AbortSignal): Promise<TemplateSummary> {
+  const { data } = await apiClient.post<ApiTemplate>(
+    `/templates/${encodeURIComponent(id)}/restore`,
+    {},
+    configWithSignal(signal),
+  );
+  return toSummary(data);
 }
 
 export async function bumpUseCount(id: string, signal?: AbortSignal): Promise<TemplateSummary> {

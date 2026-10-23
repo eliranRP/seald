@@ -7,7 +7,6 @@ ErrorBoundary
 FilterToolbar
 GuestSenderEmailDialog
 SendConfirmDialog
-SignersStepCard
 TagChip
 TagEditor
 TagEditorPopover

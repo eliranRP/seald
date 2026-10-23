@@ -1,6 +1,2 @@
 export { TemplateFlowHeader } from './TemplateFlowHeader';
-export type {
-  TemplateFlowHeaderProps,
-  TemplateFlowStep,
-  TemplateFlowMode,
-} from './TemplateFlowHeader.types';
+export type { TemplateFlowHeaderProps, TemplateFlowMode } from './TemplateFlowHeader.types';
