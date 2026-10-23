@@ -6,8 +6,10 @@ export interface SelectSignersPopoverSigner {
   readonly color: string;
 }
 
-export interface SelectSignersPopoverProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> {
+export interface SelectSignersPopoverProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'onSelect'
+> {
   readonly open: boolean;
   readonly signers: ReadonlyArray<SelectSignersPopoverSigner>;
   readonly initialSelectedIds?: ReadonlyArray<string> | undefined;

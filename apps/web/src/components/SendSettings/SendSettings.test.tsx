@@ -48,12 +48,12 @@ describe('SendSettings', () => {
     expect(screen.queryByRole('combobox', { name: 'Expires in' })).not.toBeInTheDocument();
   });
 
-  it('shows the defaults: 30 days, first after 1 day, every 1 day, at most 7', () => {
+  it('shows the defaults: 30 days, first after 3 days, every 3 days, at most 7', () => {
     render(<Harness />);
     expect(screen.getByRole('group', { name: /expiry and reminders/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Expires in' })).toHaveValue('30');
-    expect(screen.getByRole('spinbutton', { name: 'First reminder after (days)' })).toHaveValue(1);
-    expect(screen.getByRole('spinbutton', { name: 'Then every (days)' })).toHaveValue(1);
+    expect(screen.getByRole('spinbutton', { name: 'First reminder after (days)' })).toHaveValue(3);
+    expect(screen.getByRole('spinbutton', { name: 'Then every (days)' })).toHaveValue(3);
     expect(screen.getByRole('spinbutton', { name: 'Maximum reminders' })).toHaveValue(7);
   });
 
@@ -106,9 +106,9 @@ describe('SendSettings', () => {
     render(<Harness onChange={onChange} />);
     const first = screen.getByRole('spinbutton', { name: 'First reminder after (days)' });
 
-    fireEvent.change(first, { target: { value: '3' } });
+    fireEvent.change(first, { target: { value: '5' } });
     expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ cadence: expect.objectContaining({ firstAfterDays: 3 }) }),
+      expect.objectContaining({ cadence: expect.objectContaining({ firstAfterDays: 5 }) }),
     );
 
     onChange.mockClear();

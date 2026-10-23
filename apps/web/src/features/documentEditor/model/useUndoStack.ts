@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import { UNDO_HISTORY_LIMIT } from './lib';
 
@@ -43,7 +43,9 @@ export function useUndoStack({
   const redoStackRef = useRef<ReadonlyArray<ReadonlyArray<PlacedFieldValue>>>([]);
   const clipboardRef = useRef<ReadonlyArray<PlacedFieldValue>>([]);
   const fieldsRef = useRef<ReadonlyArray<PlacedFieldValue> | undefined>(fields);
-  fieldsRef.current = fields;
+  useEffect(() => {
+    fieldsRef.current = fields;
+  }, [fields]);
 
   // A new edit starts a new timeline: whatever was undone can no longer be redone.
   const pushUndo = useCallback((snapshot: ReadonlyArray<PlacedFieldValue>): void => {

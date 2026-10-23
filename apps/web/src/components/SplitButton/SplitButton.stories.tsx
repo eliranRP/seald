@@ -3,9 +3,9 @@ import { Pen } from 'lucide-react';
 import { SplitButton } from './SplitButton';
 
 const meta: Meta<typeof SplitButton> = {
-  title: 'L2/SplitButton',
+  title: 'L1/SplitButton',
   component: SplitButton,
-  tags: ['autodocs', 'layer-2'],
+  tags: ['autodocs', 'layer-1'],
   args: { label: 'Send', onMain: () => {}, onOptions: () => {} },
 };
 export default meta;
