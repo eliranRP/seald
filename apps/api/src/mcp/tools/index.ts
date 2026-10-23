@@ -1,6 +1,12 @@
 import type { McpTool } from '../tool';
 import { approvalsGetTool } from './approvals/approvals-get.tool';
 import { approvalsListTool } from './approvals/approvals-list.tool';
+import { automationsGetRunTool } from './automations/automations-get-run.tool';
+import { automationsListRunsTool } from './automations/automations-list-runs.tool';
+import { automationsListTool } from './automations/automations-list.tool';
+import { automationsRetryRunTool } from './automations/automations-retry-run.tool';
+import { automationsSetEnabledTool } from './automations/automations-set-enabled.tool';
+import { automationsUpsertRecipeTool } from './automations/automations-upsert-recipe.tool';
 import { documentsUploadCompleteTool } from './documents/documents-upload-complete.tool';
 import { documentsUploadStartTool } from './documents/documents-upload-start.tool';
 import { documentsUploadTool } from './documents/documents-upload.tool';
@@ -79,6 +85,20 @@ export const MCP_WRITE_TOOLS: readonly McpTool[] = [
 export const MCP_APPROVAL_TOOLS: readonly McpTool[] = [approvalsGetTool, approvalsListTool];
 
 /**
+ * Automation tools (WP-30, automations A3). Reads need `automations:read`;
+ * writes need `automations:write`, which no key has by default. Listed only
+ * while `mcpServer` and `workflowAutomations` are on.
+ */
+export const MCP_AUTOMATION_TOOLS: readonly McpTool[] = [
+  automationsListTool,
+  automationsUpsertRecipeTool,
+  automationsSetEnabledTool,
+  automationsListRunsTool,
+  automationsGetRunTool,
+  automationsRetryRunTool,
+];
+
+/**
  * Every shipped tool. A tool that is not shipped is absent, not stubbed.
  * Order is the `tools/list` order.
  */
@@ -87,4 +107,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
   ...MCP_WRITE_TOOLS,
   ...MCP_APPROVAL_TOOLS,
   ...MCP_SUGGEST_TOOLS,
+  ...MCP_AUTOMATION_TOOLS,
 ];
