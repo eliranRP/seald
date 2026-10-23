@@ -30,6 +30,11 @@ describe('theme.ts ↔ tokens.css parity', () => {
     ['tag-cyan-500', seald.color.tag.cyan[500]],
     ['google-blue', seald.color.brand.google.blue],
     ['drive-green', seald.color.brand.drive.green],
+    ['success-200', seald.color.success[200]],
+    ['success-400', seald.color.success[400]],
+    ['danger-200', seald.color.danger[200]],
+    ['danger-800', seald.color.danger[800]],
+    ['fg-on-accent', seald.color.fgOnAccent],
   ])('palette %s matches', (name, expected) => {
     expect(extract(name).toUpperCase()).toBe(expected.toUpperCase());
   });
@@ -39,5 +44,45 @@ describe('theme.ts ↔ tokens.css parity', () => {
     expect(seald.color.bg.app).toBe('var(--bg-app)');
     expect(seald.color.border.focus).toBe('var(--border-focus)');
     expect(seald.color.accent.base).toBe('var(--accent)');
+  });
+});
+
+describe('v2 type, radius and motion tokens', () => {
+  it.each([
+    ['fs-badge', seald.font.size.badge],
+    ['fs-micro', seald.font.size.micro],
+    ['fs-xs', seald.font.size.xs],
+    ['fs-caption', seald.font.size.caption],
+    ['fs-sm', seald.font.size.bodySm],
+    ['fs-body', seald.font.size.bodyMd],
+    ['fs-md', seald.font.size.body],
+    ['fs-lg', seald.font.size.lg],
+    ['fs-xl', seald.font.size.xl],
+    ['fs-2xl', seald.font.size.x2l],
+    ['fs-3xl', seald.font.size.x3l],
+    ['fs-4xl', seald.font.size.x4l],
+    ['fs-5xl', seald.font.size.x5l],
+    ['fs-code', seald.font.size.code],
+    ['r-hair', seald.radius.hair],
+    ['r-2xs', seald.radius.xxs],
+    ['r-md', seald.radius.md],
+    ['dur-instant', seald.motion.durInstant],
+    ['dur-enter', seald.motion.durEnter],
+    ['dur-exit', seald.motion.durExit],
+    ['ease-out', seald.motion.easeOut],
+    ['ease-in', seald.motion.easeIn],
+    ['ease-spring', seald.motion.easeSpring],
+    ['stagger', seald.motion.stagger],
+  ])('--%s matches theme', (name, expected) => {
+    expect(extract(name)).toBe(expected);
+  });
+
+  it.each([
+    ['fw-regular', seald.font.weight.regular],
+    ['fw-medium', seald.font.weight.medium],
+    ['fw-semibold', seald.font.weight.semibold],
+    ['fw-bold', seald.font.weight.bold],
+  ])('--%s matches theme', (name, expected) => {
+    expect(Number(extract(name))).toBe(expected);
   });
 });

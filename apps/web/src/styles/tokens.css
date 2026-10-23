@@ -24,6 +24,8 @@
   --indigo-900: #312e81;
 
   --success-50: #ecfdf5;
+  --success-200: #a7f3d0;
+  --success-400: #34d399;
   --success-500: #10b981;
   --success-700: #047857;
   --warn-50: #fffbeb;
@@ -32,6 +34,8 @@
   --danger-50: #fef2f2;
   --danger-500: #ef4444;
   --danger-700: #b91c1c;
+  --danger-200: #fecaca;
+  --danger-800: #991b1b;
   --info-50: #eff6ff;
   --info-500: #3b82f6;
   --info-700: #1d4ed8;
@@ -69,6 +73,50 @@
   --accent-hover: var(--indigo-700);
   --accent-press: var(--indigo-800);
   --accent-subtle: var(--indigo-50);
+  --fg-on-accent: #ffffff;
+
+  /* Type scale (theme.font.size). */
+  --fs-badge: 10px;
+  --fs-micro: 11px;
+  --fs-xs: 12px;
+  --fs-caption: 13px;
+  --fs-sm: 14px;
+  --fs-body: 15px;
+  --fs-md: 16px;
+  --fs-lg: 18px;
+  --fs-xl: 20px;
+  --fs-2xl: 24px;
+  --fs-3xl: 28px;
+  --fs-4xl: 32px;
+  --fs-5xl: 44px;
+  --fs-code: 96px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  /* Radii (theme.radius). */
+  --r-hair: 2px;
+  --r-2xs: 4px;
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* Motion (theme.motion). */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-instant: 80ms;
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-enter: 280ms;
+  --dur-exit: 160ms;
+  --dur-slow: 320ms;
+  --stagger: 35ms;
 
   /* Modal backdrop / scrim — audit slice C #6 (MEDIUM). Single token
      consumed by every overlay (DisconnectModal, future drawers, etc). */
