@@ -79,6 +79,14 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // Account
   'GET /me': { tool: 'me_get' },
   // WP-45 (D5): each acts only after the owner approves with a fresh sign-in.
+  'GET /me/settings': {
+    excluded: 'owner_in_app_only',
+    note: 'The owner reads their own profile, signature and defaults in the app; an agent has me_get.',
+  },
+  'PATCH /me/settings': {
+    excluded: 'owner_in_app_only',
+    note: 'Edits the owner saved signature and notification switches, which an agent should not change.',
+  },
   'GET /me/export': { tool: 'account_export' },
   'DELETE /me': { tool: 'account_delete' },
   'GET /me/api-keys': { tool: 'api_keys_list' },

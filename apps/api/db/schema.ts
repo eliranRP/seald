@@ -15,6 +15,8 @@ export interface Database {
   // Migration 0012 — bookkeeping for deleted accounts. See the migration
   // header for the GDPR Art. 17(3)(b/e) carve-out rationale.
   deleted_user_tombstones: DeletedUserTombstonesTable;
+  // Migration 0043 — the sender's own settings (profile, signature, defaults).
+  user_settings: UserSettingsTable;
   // Migration 0013 — Drive integration (Phase 5 WT-A).
   gdrive_accounts: GDriveAccountsTable;
   // Migration 0017 — "Save envelope artifacts to Google Drive" bookkeeping.
@@ -369,6 +371,20 @@ export interface DeletedUserTombstonesTable {
   // transient Supabase failure left the tombstone but not the auth-row
   // removal) refreshes the timestamp via `recordDeletion`'s upsert.
   deleted_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface UserSettingsTable {
+  user_id: string;
+  display_name: string | null;
+  signature_type: 'typed' | 'drawn' | 'uploaded';
+  signature_text: string | null;
+  signature_image: string | null;
+  initials: string | null;
+  notify_signed: boolean;
+  notify_daily_summary: boolean;
+  reminder_default: 'off' | '2d' | '3d' | 'weekly';
+  expiry_default_days: number;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
