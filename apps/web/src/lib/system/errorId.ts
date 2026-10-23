@@ -1,5 +1,8 @@
-/** Crockford-style base32 without look-alikes (no I, L, O, U). */
-const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+/** Crockford-style base32, so there are no look-alike letters (no I, L, O, U). */
+const DIGITS = '0123456789';
+// cspell:disable-next-line
+const LETTERS = 'ABCDEFGHJKMNPQRSTVWXYZ';
+const ALPHABET = DIGITS + LETTERS;
 const ID_LENGTH = 5;
 
 /**

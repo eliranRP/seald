@@ -79,7 +79,7 @@ export interface ApiError extends Error {
 /** Rate-limit toast fallback when the API sends no usable Retry-After. */
 const DEFAULT_RETRY_AFTER_SECONDS = 30;
 
-type RetriableConfig = InternalAxiosRequestConfig & { _sealdAuthRetried?: boolean };
+type ReplayableConfig = InternalAxiosRequestConfig & { _sealdAuthRetried?: boolean };
 
 function headerString(err: AxiosError, name: string): string | undefined {
   const value: unknown = err.response?.headers?.[name];
@@ -121,7 +121,7 @@ async function reactToSystemStatus(error: AxiosError, retryAfter: number | undef
     return undefined;
   }
   if (status === 401) {
-    const config = error.config as RetriableConfig | undefined;
+    const config = error.config as ReplayableConfig | undefined;
     const hadToken = Boolean(config?.headers?.get('Authorization'));
     if (!config || !hadToken) return undefined;
     if (!config._sealdAuthRetried) {

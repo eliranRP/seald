@@ -6,7 +6,7 @@ import { Toast } from '@/components/Toast';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { clearSessionExpired, dismissNotice, useSystemState } from '@/lib/system/systemStore';
 import { useAuth } from '@/providers/AuthProvider';
-import { pathWithNext, validateNextPath } from './nextPath';
+import { pathWithNext, validateReturnPath } from './nextPath';
 
 /**
  * Global system UI mounted once in the app shell: the "You were signed out"
@@ -25,7 +25,7 @@ export function SystemOverlays(): JSX.Element {
   const mobile = useIsMobileViewport();
 
   const signInAgain = useCallback((): void => {
-    const here = validateNextPath(`${location.pathname}${location.search}`);
+    const here = validateReturnPath(`${location.pathname}${location.search}`);
     void signOut()
       .catch(() => undefined)
       .finally(() => {

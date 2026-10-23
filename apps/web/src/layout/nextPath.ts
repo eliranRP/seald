@@ -45,6 +45,19 @@ const QUERY_STRING = /^[A-Za-z0-9_=&-]+$/;
  * `null` when it is not. `candidate` is the value after one URL decode.
  */
 export function validateNextPath(candidate: string | null | undefined): string | null {
+  return validate(candidate, false);
+}
+
+/**
+ * Like `validateNextPath`, plus the owner's own pages. Used for sign-in
+ * return trips (`?next=`, the signed-out dialog); the approvals module keeps
+ * the strict approval-only rule.
+ */
+export function validateReturnPath(candidate: string | null | undefined): string | null {
+  return validate(candidate, true);
+}
+
+function validate(candidate: string | null | undefined, allowAppPages: boolean): string | null {
   if (typeof candidate !== 'string') return null;
   if (candidate.length === 0 || candidate.length > MAX_NEXT_LENGTH) return null;
   if (candidate.includes('%')) return null;
@@ -54,9 +67,11 @@ export function validateNextPath(candidate: string | null | undefined): string |
   const pathPart = queryAt === -1 ? candidate : candidate.slice(0, queryAt);
   const queryPart = queryAt === -1 ? null : candidate.slice(queryAt + 1);
 
-  const exact = (NEXT_EXACT as readonly string[]).includes(pathPart);
+  const exact = allowAppPages && (NEXT_EXACT as readonly string[]).includes(pathPart);
   if (!exact) {
-    const prefix = NEXT_PREFIXES.find((p) => pathPart.startsWith(p));
+    const prefix = (allowAppPages ? NEXT_PREFIXES : NEXT_PREFIXES.slice(0, 1)).find((p) =>
+      pathPart.startsWith(p),
+    );
     if (prefix === undefined) return null;
     const segments = pathPart.slice(prefix.length).split('/');
     if (!segments.every((segment) => PATH_SEGMENT.test(segment))) return null;
@@ -68,7 +83,7 @@ export function validateNextPath(candidate: string | null | undefined): string |
 
 /** Reads and validates `?next=` from a search-params object. */
 export function readNextParam(params: URLSearchParams): string | null {
-  return validateNextPath(params.get(NEXT_PARAM));
+  return validateReturnPath(params.get(NEXT_PARAM));
 }
 
 /** `path?next=<next>` when `next` is a valid approval path, else `path`. */
@@ -107,7 +122,7 @@ export function takeRememberedNext(now: number = Date.now()): string | null {
     const { next, at } = parsed as { next?: unknown; at?: unknown };
     if (typeof next !== 'string' || typeof at !== 'number') return null;
     if (now - at > REMEMBER_MAX_AGE_MS) return null;
-    return validateNextPath(next);
+    return validateReturnPath(next);
   } catch {
     return null;
   }
