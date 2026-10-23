@@ -483,8 +483,8 @@ test.describe('template + sign happy path', () => {
     await expect(senderDialog).toBeVisible();
     await senderDialog.getByRole('textbox').first().fill('sender@example.com');
     await senderDialog.getByRole('button', { name: /^continue$/i }).click();
-    await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
+    // The retired /sent page redirects (guests land back on the editor entry).
+    await page.waitForURL(/\/document\/new$/, { timeout: 15_000 });
 
     // ---------------------- 4. Signer: entry → prep → fill → review → done
 

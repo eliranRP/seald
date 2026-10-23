@@ -293,27 +293,9 @@ test.describe('guest mode — full sender flow', () => {
     await expect(senderDialog).toBeVisible();
     await senderDialog.getByRole('textbox').first().fill('guest-sender@example.com');
     await senderDialog.getByRole('button', { name: /^continue$/i }).click();
-    await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
-
-    // ---- Confirmation page must render the handoff summary on the
-    // server-uuid URL. Pre-fix this asserted "Document not found" because
-    // `getDocument(<server-uuid>)` returned undefined — the in-memory
-    // draft was only addressable by its local `d_xxx` id. The fix
-    // persists `envelope_id` on the local draft so post-send lookup
-    // resolves.
-    await expect(
-      page.getByRole('heading', { level: 1, name: /your envelope is on its way/i }),
-    ).toBeVisible();
-    await expect(page.getByText(/guest-signer@example\.com/i)).toBeVisible();
-
-    // ---- "Back to documents" must NOT bounce a guest off the dashboard
-    // (which is gated by RequireAuth, not RequireAuthOrGuest). Pre-fix
-    // the click navigated to /documents which then redirected the guest
-    // back to /document/new — flashing the editor again, which the user
-    // reported as "the screen jumps back to the signature fields screen".
-    await page.getByRole('button', { name: /back to documents/i }).click();
-    await page.waitForURL(/\/document\/new$/, { timeout: 5_000 });
+    // The retired /sent page redirects: a guest has no Documents list, so
+    // they land back on the editor entry.
+    await page.waitForURL(/\/document\/new$/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/document\/new$/);
   });
 });

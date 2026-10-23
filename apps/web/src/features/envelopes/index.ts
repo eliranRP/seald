@@ -14,6 +14,7 @@ export {
   useSendEnvelopeMutation,
   useDeleteEnvelopeMutation,
   useCancelEnvelopeMutation,
+  useUnsendEnvelopeMutation,
 } from './useEnvelopes';
 export type {
   UploadFileArgs,
@@ -38,6 +39,7 @@ export {
   sendEnvelope,
   deleteEnvelope,
   cancelEnvelope,
+  unsendEnvelope,
 } from './envelopesApi';
 export type {
   AddEnvelopeSignerInput,

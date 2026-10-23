@@ -520,6 +520,21 @@ export interface CancelEnvelopeResponse {
  * `awaiting_others` / `sealing`; terminal statuses surface as 409. Use the
  * delete-draft flow for `draft` envelopes.
  */
+/**
+ * Undo after Send: `POST /envelopes/:id/unsend`. Allowed only for the owner,
+ * within 10 s of sending and before any signer opened the document; the
+ * envelope returns to `draft`. Failures surface as 409 slugs
+ * (`unsend_window_expired`, `unsend_signer_engaged`, `envelope_not_sent`).
+ */
+export async function unsendEnvelope(id: string, signal?: AbortSignal): Promise<Envelope> {
+  const { data } = await apiClient.post<Envelope>(
+    `/envelopes/${id}/unsend`,
+    undefined,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
 export async function cancelEnvelope(
   id: string,
   signal?: AbortSignal,
