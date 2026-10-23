@@ -1,30 +1,45 @@
 import styled, { css, type DefaultTheme } from 'styled-components';
+import { pressable } from '@/styles/motion';
 import type { ButtonSize, ButtonVariant } from './Button.types';
 
-const sizeStyles = (t: DefaultTheme, size: ButtonSize) =>
-  ({
+const HEIGHT: Record<ButtonSize, string> = { sm: '32px', md: '44px', lg: '48px' };
+
+const sizeStyles = (t: DefaultTheme, size: ButtonSize, iconOnly: boolean) => {
+  const base = {
     sm: css`
-      padding: ${t.space[1]} ${t.space[3]};
-      font-size: ${t.font.size.bodySm};
+      padding: 0 ${t.space[3]};
+      font-size: ${t.font.size.caption};
+      font-weight: ${t.font.weight.medium};
       border-radius: ${t.radius.sm};
     `,
     md: css`
-      padding: ${t.space[2]} ${t.space[4]};
+      padding: 0 18px;
       font-size: ${t.font.size.bodySm};
       border-radius: ${t.radius.md};
     `,
     lg: css`
-      padding: ${t.space[3]} ${t.space[5]};
-      font-size: ${t.font.size.body};
+      padding: 0 18px;
+      font-size: ${t.font.size.bodyMd};
       border-radius: ${t.radius.md};
     `,
-  })[size];
+  }[size];
+  return css`
+    height: ${HEIGHT[size]};
+    min-height: ${HEIGHT[size]};
+    ${base}
+    ${iconOnly &&
+    css`
+      width: ${HEIGHT[size]};
+      padding: 0;
+    `}
+  `;
+};
 
 const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
   ({
     primary: css`
       background: ${t.color.indigo[600]};
-      color: ${t.color.accent.ink};
+      color: ${t.color.fgOnAccent};
       border-color: ${t.color.indigo[600]};
       &:hover:not(:disabled) {
         background: ${t.color.indigo[700]};
@@ -33,7 +48,6 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       &:active:not(:disabled) {
         background: ${t.color.indigo[800]};
         border-color: ${t.color.indigo[800]};
-        transform: scale(0.98);
       }
     `,
     secondary: css`
@@ -53,20 +67,21 @@ const variantStyles = (t: DefaultTheme, v: ButtonVariant) =>
       }
     `,
     danger: css`
-      background: ${t.color.paper};
-      color: ${t.color.danger[700]};
-      border-color: ${t.color.danger[500]};
+      background: ${t.color.danger[700]};
+      color: ${t.color.fgOnAccent};
+      border-color: ${t.color.danger[700]};
       &:hover:not(:disabled) {
-        background: ${t.color.danger[50]};
+        background: ${t.color.danger[800]};
+        border-color: ${t.color.danger[800]};
       }
     `,
     dark: css`
       background: ${t.color.ink[900]};
-      color: ${t.color.accent.ink};
+      color: ${t.color.fgOnAccent};
       border-color: ${t.color.ink[900]};
       &:hover:not(:disabled) {
-        background: ${t.color.ink[800]};
-        border-color: ${t.color.ink[800]};
+        background: ${t.color.ink[700]};
+        border-color: ${t.color.ink[700]};
       }
     `,
   })[v];
@@ -75,23 +90,23 @@ export const ButtonRoot = styled.button<{
   $variant: ButtonVariant;
   $size: ButtonSize;
   $fullWidth: boolean;
+  $iconOnly: boolean;
 }>`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   gap: ${({ theme }) => theme.space[2]};
   font-family: ${({ theme }) => theme.font.sans};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  line-height: 1.2;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
-  transition:
-    background ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
-    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
-    transform ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
-    box-shadow ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard};
   width: ${({ $fullWidth }) => ($fullWidth ? '100%' : 'auto')};
-  ${({ theme, $size }) => sizeStyles(theme, $size)}
+  ${pressable}
+  ${({ theme, $size, $iconOnly }) => sizeStyles(theme, $size, $iconOnly)}
   ${({ theme, $variant }) => variantStyles(theme, $variant)}
   &:focus-visible {
     outline: none;
@@ -101,19 +116,5 @@ export const ButtonRoot = styled.button<{
   &[aria-busy='true'] {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-`;
-
-export const Spinner = styled.span`
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  animation: spin 800ms linear infinite;
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
   }
 `;

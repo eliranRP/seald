@@ -1,16 +1,25 @@
 import { forwardRef } from 'react';
+import { Icon } from '../Icon';
 import type { EmptyStateProps } from './EmptyState.types';
-import { Root } from './EmptyState.styles';
+import { Action, Art, Root, Text, Title } from './EmptyState.styles';
 
 /**
- * L1 primitive — centered muted-text placeholder shown when a list / table has
- * no items to display.
+ * L1 primitive — empty list / table placeholder (canvas `.empty`):
+ * icon art + serif title + one action. Children render as a short muted
+ * line, which keeps the original text-only usage working.
  */
 export const EmptyState = forwardRef<HTMLDivElement, EmptyStateProps>((props, ref) => {
-  const { children, ...rest } = props;
+  const { icon, title, action, children, ...rest } = props;
   return (
     <Root ref={ref} {...rest}>
-      {children}
+      {icon ? (
+        <Art aria-hidden>
+          <Icon icon={icon} size={32} />
+        </Art>
+      ) : null}
+      {title ? <Title>{title}</Title> : null}
+      {children ? <Text>{children}</Text> : null}
+      {action ? <Action>{action}</Action> : null}
     </Root>
   );
 });

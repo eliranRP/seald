@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Send, ArrowRight } from 'lucide-react';
+import { Send, ArrowRight, MoreHorizontal } from 'lucide-react';
 import { Button } from './Button';
 
 const meta: Meta<typeof Button> = {
@@ -45,6 +45,8 @@ export const AllVariants: Story = {
       <Button variant="primary" loading>
         Loading
       </Button>
+      <Button variant="ghost" iconOnly iconLeft={MoreHorizontal} aria-label="More actions" />
+      <Button variant="secondary" size="sm" iconOnly iconLeft={MoreHorizontal} aria-label="More" />
     </div>
   ),
 };

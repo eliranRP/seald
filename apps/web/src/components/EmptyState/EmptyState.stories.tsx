@@ -1,4 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { FileText, Plus } from 'lucide-react';
+import { Button } from '../Button';
 import { EmptyState } from './EmptyState';
 
 const meta: Meta<typeof EmptyState> = {
@@ -18,6 +20,16 @@ export const AllVariants: Story = {
       <EmptyState>No documents match this filter.</EmptyState>
       <EmptyState>No signers yet. Add one to get started.</EmptyState>
     </div>
+  ),
+};
+
+export const WithArtTitleAction: Story = {
+  render: () => (
+    <EmptyState
+      icon={FileText}
+      title="No documents yet"
+      action={<Button iconLeft={Plus}>New document</Button>}
+    />
   ),
 };
 

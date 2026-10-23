@@ -27,6 +27,14 @@ export const WithInteraction: Story = {
   render: () => <Card aria-label="Contract — NDA 2026">Interactive region</Card>,
 };
 
+export const Interactive: Story = {
+  render: () => (
+    <Card interactive padding={5}>
+      Hover me — lifts 2px
+    </Card>
+  ),
+};
+
 export const Edge: Story = {
   render: () => (
     <Card>

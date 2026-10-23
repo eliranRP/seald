@@ -1,8 +1,9 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
 import { Icon } from '../Icon';
+import { Spinner } from '../Spinner';
 import type { ButtonProps } from './Button.types';
-import { ButtonRoot, Spinner } from './Button.styles';
+import { ButtonRoot } from './Button.styles';
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
   const {
@@ -12,6 +13,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) =>
     iconRight,
     loading = false,
     fullWidth = false,
+    iconOnly = false,
     disabled,
     onClick,
     children,
@@ -19,10 +21,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) =>
     ...rest
   } = props;
   const isInert = disabled || loading;
-  const iconSize = size === 'sm' ? 16 : 20;
+  const iconSize = iconOnly && size !== 'sm' ? 20 : 16;
 
   let leftSlot: ReactNode = null;
-  if (loading) leftSlot = <Spinner aria-hidden />;
+  if (loading) leftSlot = <Spinner size={size === 'sm' ? 'sm' : 'md'} />;
   else if (iconLeft) leftSlot = <Icon icon={iconLeft} size={iconSize} />;
 
   return (
@@ -31,6 +33,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) =>
       $variant={variant}
       $size={size}
       $fullWidth={fullWidth}
+      $iconOnly={iconOnly}
       {...rest}
       type={type ?? 'button'}
       disabled={disabled}

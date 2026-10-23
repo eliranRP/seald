@@ -2,7 +2,6 @@
 # *.test.ts(x) or *.stories.ts(x). Clear these in the testing cycle.
 # Do not add names. Review by 2026-12-31.
 ColumnResizeHandle
-DialogPrimitives
 EnvelopeIllustration
 ErrorBoundary
 FilterToolbar
@@ -15,5 +14,4 @@ TagEditorPopover
 TagFilterMenu
 TemplateFlowHeader
 TemplateModeBanner
-Toast
 shared
