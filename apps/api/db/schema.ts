@@ -485,6 +485,7 @@ export type EventTypeDb =
   | 'access_code_failed'
   | 'approval_decided'
   | 'signer_corrected'
+  | 'signer_replaced'
   | 'expiry_changed';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
@@ -732,7 +733,8 @@ export type EmailKindDb =
   | 'bulk_complete'
   | 'automation_copy'
   | 'automation_disabled'
-  | 'signer_corrected';
+  | 'signer_corrected'
+  | 'signer_replaced';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

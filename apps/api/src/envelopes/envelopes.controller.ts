@@ -30,6 +30,7 @@ import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
 import { MultiDocumentPlaceFieldsDto, PlaceFieldsDto } from './dto/place-fields.dto';
+import { ReplaceSignerDto, UpdateSignerDto } from './dto/update-signer.dto';
 import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type { EnvelopeEvent, EnvelopeField, EnvelopeSigner } from './envelope.entity';
@@ -210,6 +211,38 @@ export class EnvelopesController {
     @Body() dto: AddSignerDto,
   ): Promise<EnvelopeSigner> {
     return this.svc.addSigner(user.id, id, dto);
+  }
+
+  /** Fix a signer's email (and optionally name) and re-invite them. Owner only. */
+  @Patch(':id/signers/:signer_id')
+  async updateSigner(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('signer_id', ParseUUIDPipe) signer_id: string,
+    @Body() dto: UpdateSignerDto,
+    @Req() req: Request,
+  ): Promise<EnvelopeSigner> {
+    const { signer } = await this.svc.fixSigner(user.id, id, signer_id, dto, {
+      ip: extractClientIp(req),
+      user_agent: req.headers['user-agent'] ?? null,
+    });
+    return signer;
+  }
+
+  /** Swap a signer who has not signed for someone else. Owner only. */
+  @Post(':id/signers/:signer_id/replace')
+  async replaceSigner(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('signer_id', ParseUUIDPipe) signer_id: string,
+    @Body() dto: ReplaceSignerDto,
+    @Req() req: Request,
+  ): Promise<EnvelopeSigner> {
+    const { signer } = await this.svc.replaceSigner(user.id, id, signer_id, dto, {
+      ip: extractClientIp(req),
+      user_agent: req.headers['user-agent'] ?? null,
+    });
+    return signer;
   }
 
   @Delete(':id/signers/:signer_id')

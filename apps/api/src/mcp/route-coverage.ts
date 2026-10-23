@@ -115,6 +115,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
+  'PATCH /envelopes/:id/signers/:signer_id': { tool: 'envelopes_fix_signer' },
+  // Envelope detail redesign: replace a signer. No tool yet.
+  'POST /envelopes/:id/signers/:signer_id/replace': { planned: 'step-16' },
   // WP-19 ships placement; suggestions (envelopes_suggest_fields, step 9) have no route.
   'PUT /envelopes/:id/fields': { tool: 'envelopes_place_fields' },
   'GET /envelopes/:id/events': { tool: 'envelopes_list_events' },

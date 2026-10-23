@@ -257,6 +257,7 @@ export type EnvelopeEventType =
   | 'step_started'
   // WP-26 (migration 0039)
   | 'signer_corrected'
+  | 'signer_replaced'
   | 'expiry_changed';
 
 export interface EnvelopeEvent {

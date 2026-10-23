@@ -330,6 +330,7 @@ export interface EventInput {
     | 'approval_decided'
     // WP-26 (migration 0039)
     | 'signer_corrected'
+    | 'signer_replaced'
     | 'expiry_changed';
   readonly ip?: string | null;
   readonly user_agent?: string | null;

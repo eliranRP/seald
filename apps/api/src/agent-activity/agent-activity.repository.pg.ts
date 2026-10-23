@@ -11,6 +11,7 @@ const WRITE_EVENT_TYPES = [
   'canceled',
   'reminder_sent',
   'signer_corrected',
+  'signer_replaced',
   'expiry_changed',
 ];
 

@@ -55,6 +55,8 @@ describe('EnvelopesController', () => {
       remindSigner: jest.fn(),
       addSigner: jest.fn(),
       removeSigner: jest.fn(),
+      fixSigner: jest.fn(),
+      replaceSigner: jest.fn(),
       replaceFields: jest.fn(),
       listEvents: jest.fn(),
       getDownloadUrl: jest.fn(),
@@ -373,6 +375,42 @@ describe('EnvelopesController', () => {
       svc.addSigner.mockResolvedValue(signer as never);
       await controller.addSigner(USER, 'env-1', { contact_id: 'c-1' });
       expect(svc.addSigner).toHaveBeenCalledWith(USER.id, 'env-1', { contact_id: 'c-1' });
+    });
+  });
+
+  describe('PATCH and replace signer routes', () => {
+    const req = { headers: { 'user-agent': 'UA' }, ip: '203.0.113.9' } as unknown as Request;
+
+    it('PATCH threads the dto and returns the signer', async () => {
+      svc.fixSigner.mockResolvedValue({ signer: { id: 's1' }, email_changed: true } as never);
+      const out = await controller.updateSigner(USER, 'env-1', 's1', { email: 'a@b.co' }, req);
+      expect(out).toEqual({ id: 's1' });
+      expect(svc.fixSigner).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        's1',
+        { email: 'a@b.co' },
+        expect.objectContaining({ user_agent: 'UA' }),
+      );
+    });
+
+    it('replace threads name and email and returns the signer', async () => {
+      svc.replaceSigner.mockResolvedValue({ signer: { id: 's1' } } as never);
+      const out = await controller.replaceSigner(
+        USER,
+        'env-1',
+        's1',
+        { name: 'Jo', email: 'jo@b.co' },
+        req,
+      );
+      expect(out).toEqual({ id: 's1' });
+      expect(svc.replaceSigner).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        's1',
+        { name: 'Jo', email: 'jo@b.co' },
+        expect.objectContaining({ user_agent: 'UA' }),
+      );
     });
   });
 

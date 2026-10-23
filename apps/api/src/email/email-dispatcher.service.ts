@@ -383,6 +383,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'automation_copy',
   'automation_disabled',
   'signer_corrected',
+  'signer_replaced',
 ]);
 
 /**
