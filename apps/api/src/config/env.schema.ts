@@ -1,6 +1,7 @@
 import { isFeatureEnabled } from 'shared';
 import { z } from 'zod';
 import { parseAutomationSecretsKey } from '../automations/actions/webhook/secret-box';
+import { parsePreregisteredClients } from '../mcp/oauth/oauth-clients-env';
 import { STRICT_BOOLEAN_STRING_MESSAGE, strictBooleanString } from './strict-boolean-string';
 
 const envSchema = z
@@ -201,6 +202,24 @@ const envSchema = z
     MCP_DISABLED: strictBooleanString(false).optional(),
 
     /**
+     * MCP OAuth 2.1 (WP-27). Unread while `mcpOauth` is off.
+     *
+     * - `MCP_OAUTH_ISSUER`: the authorization server's issuer and the base
+     *   of the `/mcp` resource identifier. Unset: the API's public origin
+     *   (API_PUBLIC_URL, else derived from APP_PUBLIC_URL).
+     * - `MCP_OAUTH_CLIENTS`: pre-registered public clients, a JSON array
+     *   of `{ "client_id", "client_name", "redirect_uris": [...] }`
+     *   (https or loopback redirect URIs only). Startup throws when it is
+     *   malformed. There is no dynamic registration; any other client must
+     *   use an https client id metadata document (CIMD).
+     * - `MCP_OAUTH_VERIFIED_CIMD_HOSTS`: CSV of hostnames whose CIMD
+     *   clients the consent page does not label "unverified".
+     */
+    MCP_OAUTH_ISSUER: z.string().url().optional(),
+    MCP_OAUTH_CLIENTS: z.string().optional(),
+    MCP_OAUTH_VERIFIED_CIMD_HOSTS: z.string().optional(),
+
+    /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
      * only when `feature.gdriveIntegration` is on. The KMS key is the
      * per-tenant CMK that wraps the per-row data key encrypting each
@@ -308,6 +327,18 @@ const envSchema = z
         message:
           'APPROVAL_CSRF_KEY required (>=32 chars) in production while mcpServer or publicApi is on',
       });
+    }
+
+    if (env.MCP_OAUTH_CLIENTS !== undefined) {
+      try {
+        parsePreregisteredClients(env.MCP_OAUTH_CLIENTS);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MCP_OAUTH_CLIENTS'],
+          message: err instanceof Error ? err.message : 'MCP_OAUTH_CLIENTS is invalid',
+        });
+      }
     }
 
     if (env.AUTOMATION_SECRETS_KEY !== undefined && env.AUTOMATION_SECRETS_KEY !== '') {

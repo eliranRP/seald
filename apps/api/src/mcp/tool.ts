@@ -1,6 +1,6 @@
 import { McpDryRunOutputSchema, type ApiKeyScope, type FeatureFlag } from 'shared';
 import { z } from 'zod';
-import type { ApiKeyPrincipal } from '../api-keys/api-key-auth.service';
+import type { McpPrincipal } from './mcp-principal';
 import type { McpServices } from './mcp-services';
 
 /** Steps of docs/design/mcp-server.md § Pull requests that ship tools. */
@@ -8,7 +8,7 @@ export type McpStep = `step-${string}`;
 
 export interface McpToolContext {
   /** The verified credential. `owner_id` always comes from here, never from arguments. */
-  readonly principal: ApiKeyPrincipal;
+  readonly principal: McpPrincipal;
   readonly services: McpServices;
   readonly now: Date;
 }

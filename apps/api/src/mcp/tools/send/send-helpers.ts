@@ -16,6 +16,8 @@ export function credentialOf(ctx: McpToolContext): AgentCredential {
     keyPrefix: p.keyPrefix,
     requireOwnerApproval: p.requireOwnerApproval,
     allowNewRecipients: p.allowNewRecipients,
+    // WP-27: an OAuth access token asks as its grant.
+    ...(p.oauth ? { oauth: p.oauth } : {}),
   };
 }
 

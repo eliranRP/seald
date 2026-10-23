@@ -57,6 +57,7 @@ export class PinnedRequestError extends Error {
 }
 
 const MAX_RETRY_AFTER_MS = 6 * 60 * 60_000;
+const EMPTY = Buffer.alloc(0);
 
 export function parseRetryAfter(
   value: string | string[] | undefined,
@@ -110,13 +111,75 @@ function sameAddress(remote: string | undefined, pinned: string): boolean {
 }
 
 export function pinnedPost(opts: PinnedPostOptions): Promise<PinnedPostResult> {
+  return pinnedRequest({ ...opts, method: 'POST', collectBody: false }).then((r) => ({
+    status: r.status,
+    truncated: r.truncated,
+    ...(r.retryAfterMs !== undefined ? { retryAfterMs: r.retryAfterMs } : {}),
+  }));
+}
+
+export interface PinnedGetOptions {
+  readonly target: WebhookTarget;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly connectTimeoutMs: number;
+  readonly totalTimeoutMs: number;
+  /** Bodies larger than this are cut off and reported `truncated`. */
+  readonly maxResponseBytes: number;
+  /** Test-only: extra TLS trust roots for a local HTTPS server. */
+  readonly ca?: string | Buffer;
+}
+
+export interface PinnedGetResult {
+  readonly status: number;
+  readonly contentType: string | null;
+  /** True when the body exceeded the cap; `body` then holds only the first bytes. */
+  readonly truncated: boolean;
+  readonly body: Buffer;
+}
+
+/**
+ * One GET to a pinned, pre-checked address with the same guarantees as
+ * `pinnedPost` (no DNS here, no redirects, no pooled sockets, timeouts),
+ * returning a size-capped body. Used for OAuth client metadata
+ * documents (WP-27, CIMD).
+ */
+export function pinnedGet(opts: PinnedGetOptions): Promise<PinnedGetResult> {
+  return pinnedRequest({ ...opts, method: 'GET', body: '', collectBody: true }).then((r) => ({
+    status: r.status,
+    contentType: r.contentType,
+    truncated: r.truncated,
+    body: r.body,
+  }));
+}
+
+interface PinnedRequestOptions {
+  readonly target: WebhookTarget;
+  readonly method: 'GET' | 'POST';
+  readonly headers: Readonly<Record<string, string>>;
+  readonly body: string;
+  readonly collectBody: boolean;
+  readonly connectTimeoutMs: number;
+  readonly totalTimeoutMs: number;
+  readonly maxResponseBytes: number;
+  readonly ca?: string | Buffer;
+}
+
+interface PinnedRequestResult {
+  readonly status: number;
+  readonly retryAfterMs?: number;
+  readonly contentType: string | null;
+  readonly truncated: boolean;
+  readonly body: Buffer;
+}
+
+function pinnedRequest(opts: PinnedRequestOptions): Promise<PinnedRequestResult> {
   const { target } = opts;
-  return new Promise<PinnedPostResult>((resolve, reject) => {
+  return new Promise<PinnedRequestResult>((resolve, reject) => {
     let settled = false;
     let req: ClientRequest | undefined;
     const timers: NodeJS.Timeout[] = [];
 
-    const settle = (outcome: { err: Error } | { result: PinnedPostResult }): void => {
+    const settle = (outcome: { err: Error } | { result: PinnedRequestResult }): void => {
       if (settled) return;
       settled = true;
       for (const t of timers) clearTimeout(t);
@@ -138,7 +201,7 @@ export function pinnedPost(opts: PinnedPostOptions): Promise<PinnedPostResult> {
     const headers: Record<string, string> = {
       ...opts.headers,
       Host: target.hostHeader,
-      'Content-Length': String(Buffer.byteLength(opts.body)),
+      ...(opts.method === 'POST' ? { 'Content-Length': String(Buffer.byteLength(opts.body)) } : {}),
       Connection: 'close',
     };
 
@@ -147,7 +210,7 @@ export function pinnedPost(opts: PinnedPostOptions): Promise<PinnedPostResult> {
       family: target.family,
       port: target.port,
       path: target.path,
-      method: 'POST',
+      method: opts.method,
       headers,
       agent: false,
       // Never resolve: `host` is already an IP literal. If anything asks
@@ -159,14 +222,25 @@ export function pinnedPost(opts: PinnedPostOptions): Promise<PinnedPostResult> {
       clearTimeout(connectTimer);
       const status = res.statusCode ?? 0;
       const retryAfterMs = parseRetryAfter(res.headers['retry-after'], Date.now());
+      const contentType = res.headers['content-type'] ?? null;
       let seen = 0;
       let truncated = false;
+      const chunks: Buffer[] = [];
       const done = (): void =>
         settle({
-          result: { status, truncated, ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) },
+          result: {
+            status,
+            truncated,
+            contentType,
+            body: opts.collectBody
+              ? Buffer.concat(chunks).subarray(0, opts.maxResponseBytes)
+              : EMPTY,
+            ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+          },
         });
       res.on('data', (chunk: Buffer) => {
         seen += chunk.length;
+        if (opts.collectBody) chunks.push(chunk);
         if (seen > opts.maxResponseBytes) {
           truncated = true;
           done();

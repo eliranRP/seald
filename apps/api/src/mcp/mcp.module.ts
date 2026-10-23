@@ -12,6 +12,7 @@ import { McpAuthGuard, McpFlagGuard } from './mcp-auth.guard';
 import { AutomationApprovalRegistrar } from './tools/automations/automation-approval.registrar';
 import { McpController } from './mcp.controller';
 import { McpServices } from './mcp-services';
+import { McpOAuthModule } from './oauth/mcp-oauth.module';
 import { McpToolRunner } from './tool-runner';
 
 /**
@@ -35,6 +36,9 @@ import { McpToolRunner } from './tool-runner';
     // WP-25: contacts and templates services.
     ContactsModule,
     TemplatesModule,
+    // WP-27: OAuth 2.1 authorization server + access-token verifier,
+    // dark behind `mcpOauth`; mounted here, not in app.module.ts.
+    McpOAuthModule,
   ],
   controllers: [McpController],
   // WP-35: the public REST API (`src/public-api`) runs the same tools.

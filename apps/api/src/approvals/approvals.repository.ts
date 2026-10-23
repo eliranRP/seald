@@ -8,8 +8,16 @@ import type {
 import type { InsertOutboundEmailInput } from '../email/outbound-emails.repository';
 import type { ApprovalRecord, TokenMatch } from './approval-state';
 
-/** The key facts an approval needs, read at request and at decision time. */
+/**
+ * The key facts an approval needs, read at request and at decision time.
+ * An OAuth grant (WP-27) reads as the same facts: `credential: 'oauth'`,
+ * `id` is the grant id, `name` the connected app's label and `prefix`
+ * empty. Absent `credential` means an API key.
+ */
 export interface ApprovalKeyFacts {
+  readonly credential?: 'api_key' | 'oauth';
+  /** OAuth only: `oauth_clients.id` of the grant's client. */
+  readonly oauthClientId?: string | null;
   readonly id: string;
   readonly ownerId: string;
   readonly name: string;
@@ -126,6 +134,9 @@ export interface ConsumeConfirmationInput {
 export abstract class ApprovalsRepository {
   abstract findKeyFacts(apiKeyId: string): Promise<ApprovalKeyFacts | null>;
 
+  /** WP-27: an OAuth grant as key facts (`credential: 'oauth'`). */
+  abstract findGrantFacts(oauthGrantId: string): Promise<ApprovalKeyFacts | null>;
+
   abstract findOwnerMailbox(ownerId: string): Promise<OwnerMailbox | null>;
 
   /**
@@ -206,6 +217,13 @@ export abstract class ApprovalsRepository {
   /** Revoking a key expires its open approvals. Returns the rows expired. */
   abstract expireOpenForApiKey(apiKeyId: string, reason: string, now: Date): Promise<number>;
 
+  /** WP-27: revoking an OAuth grant expires its open approvals. */
+  abstract expireOpenForOAuthGrant(
+    oauthGrantId: string,
+    reason: string,
+    now: Date,
+  ): Promise<number>;
+
   /** An email change (session-only) expires every open approval of the owner. */
   abstract expireOpenForOwner(ownerId: string, reason: string, now: Date): Promise<number>;
 
@@ -213,6 +231,9 @@ export abstract class ApprovalsRepository {
   abstract deleteAllForOwner(ownerId: string): Promise<number>;
 
   abstract countDenialsForKey(apiKeyId: string, since: Date): Promise<number>;
+
+  /** WP-27: denials of one OAuth grant (the same suspension rule as a key). */
+  abstract countDenialsForGrant(oauthGrantId: string, since: Date): Promise<number>;
 
   /** All outbound mail created since each boundary (the provider quota breaker). */
   abstract countOutboundSince(

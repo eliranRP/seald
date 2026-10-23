@@ -34,6 +34,90 @@ export interface Database {
   // Migration 0033 — template direct links (WP-37).
   template_direct_links: TemplateDirectLinksTable;
   template_direct_link_claims: TemplateDirectLinkClaimsTable;
+  // Migration 0036 — MCP OAuth 2.1 (WP-27).
+  oauth_clients: OAuthClientsTable;
+  oauth_grants: OAuthGrantsTable;
+  oauth_authorization_codes: OAuthAuthorizationCodesTable;
+  oauth_refresh_tokens: OAuthRefreshTokensTable;
+  oauth_access_tokens: OAuthAccessTokensTable;
+}
+
+type Ts = ColumnType<Date, string | undefined, string | undefined>;
+type NullableTs36 = ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+type TextArray = ColumnType<string[], string[], string[]>;
+
+/** Migration 0036 (WP-27). A snapshot of a pre-registered or CIMD client. */
+export interface OAuthClientsTable {
+  id: Generated<string>;
+  client_id: string;
+  kind: 'preregistered' | 'cimd';
+  client_name: string;
+  redirect_uris: TextArray;
+  created_at: Ts;
+  updated_at: Ts;
+}
+
+/** Migration 0036 (WP-27). One live grant per owner and client; revoked, never deleted. */
+export interface OAuthGrantsTable {
+  id: Generated<string>;
+  owner_id: string;
+  client_ref: string;
+  scopes: TextArray;
+  require_owner_approval: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  allow_new_recipients: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  always_require_signin: ColumnType<boolean, boolean | undefined, boolean | undefined>;
+  approval_notify: ColumnType<'email' | 'none', 'email' | 'none' | undefined, 'email' | 'none'>;
+  created_at: Ts;
+  updated_at: Ts;
+  last_used_at: NullableTs36;
+  revoked_at: NullableTs36;
+  revoked_reason: ColumnType<string | null, string | null | undefined, string | null>;
+}
+
+/** Migration 0036 (WP-27). Single use, 60 seconds; only the SHA-256 of the code. */
+export interface OAuthAuthorizationCodesTable {
+  id: Generated<string>;
+  code_hash: string;
+  grant_id: string;
+  owner_id: string;
+  client_ref: string;
+  redirect_uri: string;
+  code_challenge: string;
+  resource: string;
+  scopes: TextArray;
+  expires_at: ColumnType<Date, string, never>;
+  consumed_at: NullableTs36;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+/** Migration 0036 (WP-27). Rotated on every use; `family_id` is the code it grew from. */
+export interface OAuthRefreshTokensTable {
+  id: Generated<string>;
+  token_hash: string;
+  grant_id: string;
+  family_id: string;
+  client_ref: string;
+  scopes: TextArray;
+  resource: string;
+  absolute_expires_at: ColumnType<Date, string, never>;
+  idle_expires_at: ColumnType<Date, string, never>;
+  rotated_at: NullableTs36;
+  revoked_at: NullableTs36;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+/** Migration 0036 (WP-27). Opaque, about an hour; only the SHA-256 is stored. */
+export interface OAuthAccessTokensTable {
+  id: Generated<string>;
+  token_hash: string;
+  grant_id: string;
+  family_id: string;
+  client_ref: string;
+  scopes: TextArray;
+  resource: string;
+  expires_at: ColumnType<Date, string, never>;
+  revoked_at: NullableTs36;
+  created_at: ColumnType<Date, string | undefined, never>;
 }
 
 /** Migration 0032 (WP-36). */

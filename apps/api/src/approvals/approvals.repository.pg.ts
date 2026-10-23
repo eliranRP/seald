@@ -12,6 +12,7 @@ import {
   type ApprovalRecord,
   type TokenMatch,
 } from './approval-state';
+import { connectedAppLabel } from '../mcp/oauth/connected-app-label';
 import {
   ApprovalsRepository,
   type ApprovalKeyFacts,
@@ -26,6 +27,9 @@ import {
 } from './approvals.repository';
 
 type Row = Selectable<McpApprovalsTable>;
+
+/** An OAuth grant never expires by itself (its tokens do); the facts carry a far date. */
+const FAR_FUTURE = '9999-12-31T00:00:00.000Z';
 type Db = Kysely<Database> | Transaction<Database>;
 
 function iso(value: Date | string | null): string | null {
@@ -131,6 +135,41 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
       prefix: row.prefix,
       revokedAt: iso(row.revoked_at),
       expiresAt: iso(row.expires_at),
+      alwaysRequireSignin: row.always_require_signin,
+      allowNewRecipients: row.allow_new_recipients,
+      approvalNotify: row.approval_notify,
+    };
+  }
+
+  async findGrantFacts(oauthGrantId: string): Promise<ApprovalKeyFacts | null> {
+    const row = await this.db
+      .selectFrom('oauth_grants as g')
+      .innerJoin('oauth_clients as c', 'c.id', 'g.client_ref')
+      .select([
+        'g.id',
+        'g.owner_id',
+        'g.client_ref',
+        'g.revoked_at',
+        'g.always_require_signin',
+        'g.allow_new_recipients',
+        'g.approval_notify',
+        'c.kind',
+        'c.client_id',
+        'c.client_name',
+      ])
+      .where('g.id', '=', oauthGrantId)
+      .executeTakeFirst();
+    if (!row) return null;
+    return {
+      credential: 'oauth',
+      oauthClientId: row.client_ref,
+      id: row.id,
+      ownerId: row.owner_id,
+      name: connectedAppLabel(row.kind, row.client_id, row.client_name),
+      prefix: '',
+      revokedAt: iso(row.revoked_at),
+      // A grant has no expiry of its own: its tokens expire.
+      expiresAt: FAR_FUTURE,
       alwaysRequireSignin: row.always_require_signin,
       allowNewRecipients: row.allow_new_recipients,
       approvalNotify: row.approval_notify,
@@ -254,6 +293,14 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
         const counted = await sql<{ n: number }>`
           select count(*)::int as n from public.mcp_approvals
            where api_key_id = ${input.apiKeyId}::uuid and ${openAt(input.now)}`.execute(trx);
+        if ((counted.rows[0]?.n ?? 0) >= input.maxOpenPerKey) return { outcome: 'limit_open' };
+      } else if (input.oauthGrantId !== null) {
+        // WP-27: an OAuth grant holds the same open-approval cap as a key.
+        const counted = await sql<{ n: number }>`
+          select count(*)::int as n from public.mcp_approvals
+           where oauth_grant_id = ${input.oauthGrantId}::uuid and ${openAt(input.now)}`.execute(
+          trx,
+        );
         if ((counted.rows[0]?.n ?? 0) >= input.maxOpenPerKey) return { outcome: 'limit_open' };
       }
       if (await mailCapReached()) return { outcome: 'limit_mail' };
@@ -525,6 +572,21 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
     return rows.length;
   }
 
+  async expireOpenForOAuthGrant(oauthGrantId: string, reason: string, now: Date): Promise<number> {
+    const at = now.toISOString();
+    const rows = await this.db
+      .updateTable('mcp_approvals')
+      .set({ expired_at: at, expired_reason: reason.slice(0, 64), updated_at: at })
+      .where('oauth_grant_id', '=', oauthGrantId)
+      .where('approved_at', 'is', null)
+      .where('denied_at', 'is', null)
+      .where('failed_at', 'is', null)
+      .where('expired_at', 'is', null)
+      .returning('id')
+      .execute();
+    return rows.length;
+  }
+
   async expireOpenForOwner(ownerId: string, reason: string, now: Date): Promise<number> {
     const at = now.toISOString();
     const rows = await this.db
@@ -562,6 +624,14 @@ export class ApprovalsPgRepository extends ApprovalsRepository {
     const result = await sql<{ n: number }>`
       select count(*)::int as n from public.mcp_approvals
        where api_key_id = ${apiKeyId}::uuid
+         and denied_at >= ${since.toISOString()}::timestamptz`.execute(this.db);
+    return result.rows[0]?.n ?? 0;
+  }
+
+  async countDenialsForGrant(oauthGrantId: string, since: Date): Promise<number> {
+    const result = await sql<{ n: number }>`
+      select count(*)::int as n from public.mcp_approvals
+       where oauth_grant_id = ${oauthGrantId}::uuid
          and denied_at >= ${since.toISOString()}::timestamptz`.execute(this.db);
     return result.rows[0]?.n ?? 0;
   }

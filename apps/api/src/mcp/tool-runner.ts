@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { McpToolError } from 'shared';
-import { hasScopes, type ApiKeyPrincipal } from '../api-keys/api-key-auth.service';
+import { hasScopes } from '../api-keys/api-key-auth.service';
 import type { IdempotencyBegin } from '../idempotency/idempotency.service';
 import { findTokenShapedStrings } from './leak-scan';
+import type { McpPrincipal } from './mcp-principal';
 import { McpServices } from './mcp-services';
 import { findTool } from './tool-catalog';
 import { mapToolFailure, toolError } from './tool-errors';
@@ -36,7 +37,7 @@ export class McpToolRunner {
   async call(
     name: string,
     rawArgs: Record<string, unknown> | undefined,
-    principal: ApiKeyPrincipal,
+    principal: McpPrincipal,
     now: Date = new Date(),
   ): Promise<CallToolResult> {
     const started = Date.now();

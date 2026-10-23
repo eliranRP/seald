@@ -1,4 +1,5 @@
 import type { ApprovalKind, ApprovalPendingResult } from 'shared';
+import { requesterOf } from './mcp-principal';
 import type { McpToolContext } from './tool';
 
 /**
@@ -21,7 +22,7 @@ export function requestApproval(
   args: Record<string, unknown>,
 ): Promise<ApprovalPendingResult> {
   return ctx.services.approvals.request({
-    requester: { ownerId: ctx.principal.ownerId, apiKeyId: ctx.principal.keyId },
+    requester: requesterOf(ctx.principal),
     kind,
     tool,
     args,

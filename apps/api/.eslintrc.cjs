@@ -168,6 +168,20 @@ module.exports = {
       },
     },
     {
+      // WP-27: the OAuth 2.1 authorization server under src/mcp/oauth owns
+      // its tables, HTTP endpoints and Nest module. It is auth
+      // infrastructure, not the tool layer, so only the signing and
+      // extractSignature bans apply.
+      files: ['src/mcp/oauth/**/*.ts'],
+      excludedFiles: ['src/mcp/oauth/**/__tests__/**', 'src/mcp/oauth/**/*.spec.ts'],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          { paths: [signpdfPath], patterns: [mcpDeniedPatterns[2]] },
+        ],
+      },
+    },
+    {
       // The MCP Nest module is the one place that wires other modules.
       files: ['src/mcp/*.module.ts'],
       rules: {

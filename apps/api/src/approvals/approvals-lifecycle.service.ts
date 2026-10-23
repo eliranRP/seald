@@ -28,7 +28,14 @@ export class ApprovalsLifecycleService {
     return n;
   }
 
-  /** An email change expires every pending approval of the owner; none is revived. */
+  /** WP-27: revoking a connected app (OAuth grant) expires its pending approvals, like a key. */
+  async expireForRevokedGrant(oauthGrantId: string, now: Date = new Date()): Promise<number> {
+    const n = await this.repo.expireOpenForOAuthGrant(oauthGrantId, 'oauth_grant_revoked', now);
+    if (n > 0) this.log.log(`approvals expired on grant revoke grant=${oauthGrantId} count=${n}`);
+    return n;
+  }
+
+  /** An email change every pending approval of the owner; none is revived. */
   expireForEmailChange(ownerId: string, now: Date = new Date()): Promise<number> {
     return this.repo.expireOpenForOwner(ownerId, 'email_changed', now);
   }
@@ -49,5 +56,24 @@ export class ApprovalsLifecycleService {
     return (
       (await this.repo.countDenialsForKey(apiKeyId, since)) >= APPROVAL_POLICY.denialsToSuspend
     );
+  }
+
+  /** WP-27: the same three-denials rule for an OAuth grant. */
+  async isGrantSendSuspended(oauthGrantId: string, now: Date = new Date()): Promise<boolean> {
+    const since = new Date(now.getTime() - DAY_MS);
+    return (
+      (await this.repo.countDenialsForGrant(oauthGrantId, since)) >=
+      APPROVAL_POLICY.denialsToSuspend
+    );
+  }
+
+  /** Suspension for whichever credential asked (a key or an OAuth grant). */
+  async isCredentialSendSuspended(
+    ref: { readonly apiKeyId: string | null; readonly oauthGrantId: string | null },
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    if (ref.apiKeyId !== null) return this.isSendSuspended(ref.apiKeyId, now);
+    if (ref.oauthGrantId !== null) return this.isGrantSendSuspended(ref.oauthGrantId, now);
+    return false;
   }
 }

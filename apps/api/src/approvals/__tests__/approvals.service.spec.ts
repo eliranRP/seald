@@ -814,3 +814,105 @@ async function openRow(w: World) {
   void w;
   return row;
 }
+
+/**
+ * WP-27: an OAuth grant asks for approval exactly like a key, as itself.
+ * The row names the grant (never a key), the open-approval cap and the
+ * denial suspension apply per grant, and a revoked grant fails the
+ * decision with `oauth_grant_revoked`.
+ */
+describe('ApprovalsService with an OAuth grant (WP-27)', () => {
+  const GRANT = '00000000-0000-4000-8000-0000000000d1';
+  const CLIENT = '00000000-0000-4000-8000-0000000000e1';
+  const grantRequester = { ownerId: OWNER, apiKeyId: null, oauthGrantId: GRANT };
+
+  function withGrant(revoked = false): World {
+    const w = setup();
+    w.repo.grants.set(GRANT, {
+      credential: 'oauth',
+      oauthClientId: CLIENT,
+      id: GRANT,
+      ownerId: OWNER,
+      name: 'Claude (connected app)',
+      prefix: '',
+      revokedAt: revoked ? NOW.toISOString() : null,
+      expiresAt: '9999-12-31T00:00:00.000Z',
+      alwaysRequireSignin: false,
+      allowNewRecipients: false,
+      approvalNotify: 'email',
+    });
+    return w;
+  }
+
+  const sendAsGrant = (w: World) =>
+    w.svc.request({
+      requester: grantRequester,
+      kind: 'envelope_send',
+      args: { envelope_id: ENV_ID },
+      now: NOW,
+    });
+
+  it('opens a row bound to the grant, with the connected app as the key name', async () => {
+    const w = withGrant();
+    const res = await sendAsGrant(w);
+    expect(res.status).toBe('approval_pending');
+    const row = w.repo.rows.find((r) => r.id === res.approval_id);
+    expect(row).toMatchObject({ apiKeyId: null, oauthGrantId: GRANT });
+    expect(row?.summary.key_name).toBe('Claude (connected app)');
+  });
+
+  it('Approve records oauth attribution on the decision event', async () => {
+    const w = withGrant();
+    const res = await sendAsGrant(w);
+    const token = await dispatch(w);
+    const card = await decide(w, token, 'approve');
+    expect(card).toMatchObject({ state: 'done', decided: true });
+    expect(w.calls).toEqual(['send:owner@example.com']);
+    expect(w.events[0]).toEqual({
+      event_type: 'approval_decided',
+      metadata: expect.objectContaining({
+        approval_id: res.approval_id,
+        key_id: null,
+        key_prefix: null,
+        key_name: 'Claude (connected app)',
+        oauth_grant_id: GRANT,
+      }),
+    });
+  });
+
+  it('a revoked grant cannot ask, and a grant revoked before Approve fails the decision', async () => {
+    const revoked = withGrant(true);
+    await expect(sendAsGrant(revoked)).rejects.toThrow('oauth_grant_revoked');
+
+    const w = withGrant();
+    await sendAsGrant(w);
+    const token = await dispatch(w);
+    const facts = w.repo.grants.get(GRANT);
+    if (!facts) throw new Error('no grant');
+    w.repo.grants.set(GRANT, { ...facts, revokedAt: NOW.toISOString() });
+    const card = await decide(w, token, 'approve');
+    expect(card).toMatchObject({ state: 'failed', result_slug: 'oauth_grant_revoked' });
+    expect(w.calls).toEqual([]);
+  });
+
+  it('revoking the grant expires its pending approvals; three denials suspend it', async () => {
+    const w = withGrant();
+    await sendAsGrant(w);
+    expect(await w.lifecycle.expireForRevokedGrant(GRANT, NOW)).toBe(1);
+
+    for (let i = 0; i < 3; i += 1) {
+      w.repo.rows.push({
+        ...(await openRow(w)),
+        id: `00000000-0000-4000-8000-00000000f00${i}`,
+        apiKeyId: null,
+        oauthGrantId: GRANT,
+        deniedAt: NOW.toISOString(),
+      });
+    }
+    expect(await w.lifecycle.isGrantSendSuspended(GRANT, NOW)).toBe(true);
+    expect(
+      await w.lifecycle.isCredentialSendSuspended({ apiKeyId: null, oauthGrantId: GRANT }, NOW),
+    ).toBe(true);
+    expect(await w.lifecycle.isSendSuspended(KEY, NOW)).toBe(false);
+  });
+});

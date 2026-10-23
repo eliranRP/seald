@@ -29,6 +29,23 @@ export interface AgentCredential {
   readonly keyPrefix: string;
   readonly requireOwnerApproval: boolean;
   readonly allowNewRecipients: boolean;
+  /**
+   * WP-27: set when the credential is an OAuth access token. `keyId` is
+   * then the grant id, and the grant (not a key) is what asks, is
+   * suspended, and is named on the audit rows.
+   */
+  readonly oauth?: { readonly grantId: string; readonly clientId: string } | null;
+}
+
+/** The approvals requester for a credential: a key, or an OAuth grant (WP-27). */
+export function requesterOf(cred: AgentCredential): {
+  readonly ownerId: string;
+  readonly apiKeyId: string | null;
+  readonly oauthGrantId: string | null;
+} {
+  return cred.oauth
+    ? { ownerId: cred.ownerId, apiKeyId: null, oauthGrantId: cred.oauth.grantId }
+    : { ownerId: cred.ownerId, apiKeyId: cred.keyId, oauthGrantId: null };
 }
 
 /** MCP request events carry this user agent and no client name. */
@@ -70,7 +87,7 @@ export class AgentEnvelopeActionsService {
     envelopeId: string,
     now: Date,
   ): Promise<Record<string, unknown>> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     const envelope = await this.envelopes.checkSend(cred.ownerId, envelopeId);
     const ownerEmail = await this.verifiedMailbox(cred.ownerId);
     const ownerIsSigner = envelope.signers.some((s) => sameMailbox(s.email, ownerEmail));
@@ -97,7 +114,7 @@ export class AgentEnvelopeActionsService {
     envelopeId: string,
     now: Date,
   ): Promise<EnvelopesPreviewSendOutput> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     const envelope = await this.envelopes.checkSend(cred.ownerId, envelopeId);
     const ownerEmail = await this.verifiedMailbox(cred.ownerId);
     const signers = envelope.signers.map((s) => ({
@@ -144,7 +161,7 @@ export class AgentEnvelopeActionsService {
       };
     }
     const minted = await this.confirmations.mint(
-      { ownerId: cred.ownerId, apiKeyId: cred.keyId, oauthGrantId: null },
+      requesterOf(cred),
       envelopeId,
       subject.subjectHash,
       now,
@@ -172,7 +189,7 @@ export class AgentEnvelopeActionsService {
     confirmationToken: string | undefined,
     now: Date,
   ): Promise<EnvelopesSendOutput> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     const args = { envelope_id: envelopeId };
     if (cred.requireOwnerApproval) {
       return this.request(cred, 'envelope_send', 'envelopes_send', args, now);
@@ -190,7 +207,7 @@ export class AgentEnvelopeActionsService {
       // Recomputed under the lock: a draft edited since the preview fails.
       const locked = await this.subject(cred, 'envelope_send', args, now);
       const consumed = await this.confirmations.consume(
-        { ownerId: cred.ownerId, apiKeyId: cred.keyId, oauthGrantId: null },
+        requesterOf(cred),
         confirmationToken,
         envelopeId,
         locked.subjectHash,
@@ -227,7 +244,7 @@ export class AgentEnvelopeActionsService {
     readonly signer: { readonly id: string; readonly name: string; readonly email: string };
     readonly approval: 'email';
   }> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     const { envelope, signer } = await this.envelopes.checkRemind(
       cred.ownerId,
       envelopeId,
@@ -272,7 +289,7 @@ export class AgentEnvelopeActionsService {
     envelopeId: string,
     now: Date,
   ): Promise<Record<string, unknown>> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     const envelope = await this.envelopes.getById(cred.ownerId, envelopeId);
     if (envelope.status !== 'awaiting_others' && envelope.status !== 'sealing') {
       throw new ConflictException('envelope_terminal');
@@ -291,7 +308,7 @@ export class AgentEnvelopeActionsService {
     envelopeId: string,
     now: Date,
   ): Promise<ApprovalPendingResult> {
-    await this.guard.assertNotSuspended(cred.ownerId, cred.keyId, now);
+    await this.assertNotSuspended(cred, now);
     return this.request(
       cred,
       'envelope_cancel',
@@ -325,7 +342,7 @@ export class AgentEnvelopeActionsService {
     now: Date,
   ): Promise<AgentSubject> {
     return this.approvals.subjectForAgent({
-      requester: { ownerId: cred.ownerId, apiKeyId: cred.keyId },
+      requester: requesterOf(cred),
       kind,
       args,
       now,
@@ -340,12 +357,17 @@ export class AgentEnvelopeActionsService {
     now: Date,
   ): Promise<ApprovalPendingResult> {
     return this.approvals.request({
-      requester: { ownerId: cred.ownerId, apiKeyId: cred.keyId },
+      requester: requesterOf(cred),
       kind,
       tool,
       args,
       now,
     });
+  }
+
+  private assertNotSuspended(cred: AgentCredential, now: Date): Promise<void> {
+    const ref = requesterOf(cred);
+    return this.guard.assertNotSuspended(cred.ownerId, ref.apiKeyId, now, ref.oauthGrantId);
   }
 
   private async verifiedMailbox(ownerId: string): Promise<string> {
@@ -359,12 +381,12 @@ export class AgentEnvelopeActionsService {
   /** `metadata.mcp` of the unattended send (no owner approval; no session). */
   private attribution(cred: AgentCredential, ownerEmail: string, tool: string): McpEventMetadata {
     return {
-      auth: 'api_key',
-      key_id: cred.keyId,
-      key_prefix: cred.keyPrefix,
+      auth: cred.oauth ? 'oauth' : 'api_key',
+      key_id: cred.oauth ? null : cred.keyId,
+      key_prefix: cred.oauth ? null : cred.keyPrefix,
       key_name: cred.keyName,
-      oauth_client_id: null,
-      oauth_grant_id: null,
+      oauth_client_id: cred.oauth ? cred.oauth.clientId : null,
+      oauth_grant_id: cred.oauth ? cred.oauth.grantId : null,
       acting_for_user_id: cred.ownerId,
       acting_for_email: ownerEmail,
       tool,

@@ -13,6 +13,8 @@ interface Check {
 const NEVER: readonly Check[] = [
   { name: 'signing link token', re: /[?&]t=/ },
   { name: 'api key', re: /seald_live_/ },
+  // WP-27: OAuth access and refresh tokens.
+  { name: 'oauth token', re: /seald_o[ar]t_/ },
   { name: 'token hash column', re: /access_token_hash/ },
   { name: 'storage path column', re: /storage_path|_file_path/ },
   { name: 'link token', re: /link_token/ },

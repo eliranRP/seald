@@ -10,7 +10,7 @@ import {
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { MCP_SERVER_VERSION } from 'shared';
-import type { ApiKeyPrincipal } from '../api-keys/api-key-auth.service';
+import type { McpPrincipal } from './mcp-principal';
 import { listTools } from './tool-catalog';
 import type { McpToolRunner } from './tool-runner';
 
@@ -25,7 +25,7 @@ import type { McpToolRunner } from './tool-runner';
  * Resources and prompts are advertised (the doc's `initialize` shape)
  * with empty lists until their pull request ships them.
  */
-export function createMcpServer(runner: McpToolRunner, principal: ApiKeyPrincipal): McpServer {
+export function createMcpServer(runner: McpToolRunner, principal: McpPrincipal): McpServer {
   const mcp = new McpServer(
     { name: 'seald', version: MCP_SERVER_VERSION },
     { capabilities: { tools: { listChanged: false }, resources: {}, prompts: {} } },

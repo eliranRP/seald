@@ -159,8 +159,9 @@ export class ApprovalsService {
 
     const opened = await this.repo.openOrRepreview({
       ownerId,
-      apiKeyId: key.id,
-      oauthGrantId: input.requester.oauthGrantId ?? null,
+      // WP-27: an OAuth grant asks as itself, never as a key.
+      apiKeyId: key.credential === 'oauth' ? null : key.id,
+      oauthGrantId: key.credential === 'oauth' ? key.id : null,
       kind: input.kind,
       tool: input.tool ?? handler.tool,
       subjectKey: evaluated.described.subjectKey,
@@ -230,13 +231,13 @@ export class ApprovalsService {
     const args = parsed.data;
 
     const { ownerId } = input.requester;
-    if (input.requester.apiKeyId === null) {
-      // OAuth grants (WP-27) bring their own key-equivalent settings.
+    if (input.requester.apiKeyId === null && !input.requester.oauthGrantId) {
       throw new ConflictException('approval_credential_unsupported');
     }
-    const key = await this.repo.findKeyFacts(input.requester.apiKeyId);
+    // WP-27: an OAuth grant brings the same key-equivalent settings.
+    const key = await this.credentialFacts(input.requester);
     if (!key || key.ownerId !== ownerId || key.revokedAt !== null) {
-      throw new ForbiddenException('api_key_revoked');
+      throw new ForbiddenException(revokedSlug(input.requester));
     }
     if (key.expiresAt === null || Date.parse(key.expiresAt) <= now.getTime()) {
       throw new ForbiddenException('api_key_expired');
@@ -397,7 +398,7 @@ export class ApprovalsService {
     const record = await this.ownedRecord(user.id, id);
     if (!isPendingUndecided(record, now)) throw new ConflictException('approval_not_pending');
     const handler = this.registry.get(record.kind);
-    const key = record.apiKeyId ? await this.repo.findKeyFacts(record.apiKeyId) : null;
+    const key = await this.credentialFacts(record);
     if (!key) throw new ConflictException('approval_not_pending');
     const mailbox = await this.repo.findOwnerMailbox(record.ownerId);
     const ownerEmail = mailbox?.email ?? record.summary.approver_email;
@@ -473,7 +474,7 @@ export class ApprovalsService {
   ): Promise<{ readonly record: ApprovalRecord; readonly decided: boolean }> {
     if (!isPendingUndecided(record, d.now)) return { record, decided: false };
     const handler = this.registry.get(record.kind);
-    const key = record.apiKeyId ? await this.repo.findKeyFacts(record.apiKeyId) : null;
+    const key = await this.credentialFacts(record);
     const mailbox = await this.repo.findOwnerMailbox(record.ownerId);
     const ownerEmail = mailbox?.email ?? record.summary.approver_email;
     const meta = {
@@ -495,7 +496,7 @@ export class ApprovalsService {
       let evaluated: Evaluated;
       try {
         args = handler.args.parse(record.args);
-        if (!key) throw new ForbiddenException('api_key_revoked');
+        if (!key) throw new ForbiddenException(revokedSlug(record));
         evaluated = await this.evaluate(handler, args, record.ownerId, ownerEmail, key, d.now);
       } catch (err) {
         const failed = await this.repo.markFailedUndecided(record.id, slugOf(err), meta);
@@ -511,7 +512,7 @@ export class ApprovalsService {
         throw new ForbiddenException('session_required');
       }
       if (key && key.revokedAt !== null) {
-        const failed = await this.repo.markFailedUndecided(record.id, 'api_key_revoked', meta);
+        const failed = await this.repo.markFailedUndecided(record.id, revokedSlug(record), meta);
         return failed ? { record: failed, decided: false } : unchanged();
       }
       if (key && (key.expiresAt === null || Date.parse(key.expiresAt) <= d.now.getTime())) {
@@ -579,12 +580,13 @@ export class ApprovalsService {
       );
       return { record: failed ?? claimed, decided: true };
     }
+    const oauth = claimed.apiKeyId === null && claimed.oauthGrantId !== null;
     const mcp: McpEventMetadata = {
-      auth: 'api_key',
-      key_id: key?.id ?? claimed.apiKeyId,
-      key_prefix: key?.prefix ?? null,
+      auth: oauth ? 'oauth' : 'api_key',
+      key_id: oauth ? null : (key?.id ?? claimed.apiKeyId),
+      key_prefix: oauth ? null : (key?.prefix ?? null),
       key_name: key?.name ?? claimed.summary.key_name,
-      oauth_client_id: null,
+      oauth_client_id: oauth ? (key?.oauthClientId ?? null) : null,
       oauth_grant_id: claimed.oauthGrantId,
       acting_for_user_id: claimed.ownerId,
       acting_for_email: ownerEmail,
@@ -643,9 +645,11 @@ export class ApprovalsService {
           signed_in: signedIn,
           ip: audit.ip,
           user_agent: audit.userAgent,
-          key_id: key?.id ?? record.apiKeyId,
+          key_id: record.apiKeyId !== null ? (key?.id ?? record.apiKeyId) : null,
           key_name: key ? displayKeyName(key.name) : record.summary.key_name,
-          key_prefix: key?.prefix ?? null,
+          key_prefix: record.apiKeyId !== null ? (key?.prefix ?? null) : null,
+          // WP-27: a connected app's grant, when that is what asked.
+          ...(record.oauthGrantId !== null ? { oauth_grant_id: record.oauthGrantId } : {}),
         },
       });
       return true;
@@ -675,10 +679,12 @@ export class ApprovalsService {
     ownerEmail: string,
     now: Date,
   ): Promise<void> {
-    const suspended = record.apiKeyId
-      ? await this.lifecycle.isSendSuspended(record.apiKeyId, now)
-      : false;
-    if (suspended) this.log.warn(`key send suspended after denials key=${record.apiKeyId ?? ''}`);
+    const suspended = await this.lifecycle.isCredentialSendSuspended(record, now);
+    if (suspended) {
+      this.log.warn(
+        `key send suspended after denials key=${record.apiKeyId ?? ''} grant=${record.oauthGrantId ?? ''}`,
+      );
+    }
     if (!(await this.breaker.allows(now))) return;
     await insertOutboundEmailIdempotent(this.outbox, {
       kind: 'approval_denied',
@@ -713,7 +719,12 @@ export class ApprovalsService {
     key: ApprovalKeyFacts,
     now: Date,
   ): Promise<Evaluated> {
-    const kindCtx = { ownerId, ownerEmail, now, apiKeyId: key.id };
+    const kindCtx = {
+      ownerId,
+      ownerEmail,
+      now,
+      apiKeyId: key.credential === 'oauth' ? null : key.id,
+    };
     const described = await handler.describe(args, kindCtx);
     const known = await this.repo.findKnownRecipients(
       ownerId,
@@ -770,7 +781,7 @@ export class ApprovalsService {
   /** A pending row whose subject drifted reads Expired from now on. */
   private async expireIfDrifted(record: ApprovalRecord, now: Date): Promise<ApprovalRecord> {
     const handler = this.registry.get(record.kind);
-    const key = record.apiKeyId ? await this.repo.findKeyFacts(record.apiKeyId) : null;
+    const key = await this.credentialFacts(record);
     if (!key) return record;
     const mailbox = await this.repo.findOwnerMailbox(record.ownerId);
     const ownerEmail = mailbox?.email ?? record.summary.approver_email;
@@ -784,6 +795,16 @@ export class ApprovalsService {
       return record;
     }
     return (await this.repo.markExpired(record.id, 'subject_changed', now)) ?? record;
+  }
+
+  /** WP-27: the key or OAuth grant a request or a stored row names. */
+  private credentialFacts(ref: {
+    readonly apiKeyId: string | null;
+    readonly oauthGrantId?: string | null;
+  }): Promise<ApprovalKeyFacts | null> {
+    if (ref.apiKeyId !== null) return this.repo.findKeyFacts(ref.apiKeyId);
+    if (ref.oauthGrantId) return this.repo.findGrantFacts(ref.oauthGrantId);
+    return Promise.resolve(null);
   }
 
   private async lookupToken(
@@ -922,4 +943,12 @@ function decodeCursor(raw: string): { readonly createdAt: string; readonly id: s
     // fall through
   }
   throw new BadRequestException('invalid_cursor');
+}
+
+/** The Failed slug for a credential that is gone: a revoked key or a disconnected app. */
+function revokedSlug(ref: {
+  readonly apiKeyId: string | null;
+  readonly oauthGrantId?: string | null;
+}): string {
+  return ref.apiKeyId === null && ref.oauthGrantId ? 'oauth_grant_revoked' : 'api_key_revoked';
 }

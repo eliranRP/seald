@@ -2,6 +2,11 @@ import { NotFoundException, UnauthorizedException, type ExecutionContext } from 
 import type { FeatureFlag } from 'shared';
 import type { ApiKeyAuthService, ApiKeyVerifyResult } from '../../api-keys/api-key-auth.service';
 import { MCP_PRINCIPAL, McpAuthGuard, McpFlagGuard, type McpRequest } from '../mcp-auth.guard';
+import {
+  OAuthAccessTokenService,
+  type OAuthAccessVerifyResult,
+} from '../oauth/oauth-access-token.service';
+import type { McpOAuthConfig } from '../oauth/oauth-config';
 import { pinProtocolVersion } from '../mcp.controller';
 import { principal } from '../tools/__tests__/harness';
 
@@ -13,16 +18,41 @@ afterEach(() => {
   delete process.env.MCP_DISABLED;
 });
 
+const res = {
+  headers: {} as Record<string, string>,
+  setHeader(k: string, v: string) {
+    this.headers[k] = v;
+  },
+};
+
 function ctx(req: Partial<McpRequest>): ExecutionContext {
   return {
-    switchToHttp: () => ({ getRequest: () => req }),
+    switchToHttp: () => ({ getRequest: () => req, getResponse: () => res }),
   } as unknown as ExecutionContext;
 }
 
-function guardWith(result: ApiKeyVerifyResult): { guard: McpAuthGuard; verify: jest.Mock } {
+const OAUTH_CONFIG = { issuer: 'https://api.seald.test', resource: 'https://api.seald.test/mcp' };
+
+function guardWith(
+  result: ApiKeyVerifyResult,
+  oauthResult: OAuthAccessVerifyResult = { ok: false, error: 'invalid_token' },
+): { guard: McpAuthGuard; verify: jest.Mock; oauthVerify: jest.Mock } {
   const verify = jest.fn(async () => result);
-  return { guard: new McpAuthGuard({ verify } as unknown as ApiKeyAuthService), verify };
+  const oauthVerify = jest.fn(async () => oauthResult);
+  return {
+    guard: new McpAuthGuard(
+      { verify } as unknown as ApiKeyAuthService,
+      { verify: oauthVerify } as unknown as OAuthAccessTokenService,
+      OAUTH_CONFIG as unknown as McpOAuthConfig,
+    ),
+    verify,
+    oauthVerify,
+  };
 }
+
+beforeEach(() => {
+  res.headers = {};
+});
 
 describe('McpFlagGuard', () => {
   it('404s while mcpServer is off (the shipped default)', () => {
@@ -71,6 +101,73 @@ describe('McpAuthGuard', () => {
     const { guard, verify } = guardWith({ ok: false, error: 'missing_token' });
     await expect(guard.canActivate(ctx({ headers: {} }))).rejects.toThrow('missing_token');
     expect(verify).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('McpAuthGuard with OAuth (WP-27)', () => {
+  // Fake, low-entropy: the right shape, not a real token.
+  const ACCESS = `seald_oat_${'x'.repeat(43)}`;
+  const oauthPrincipal = {
+    ...principal(['envelopes:read']),
+    keyId: '77777777-7777-4777-8777-777777777777',
+    keyPrefix: '',
+    keyName: 'Claude (connected app)',
+    oauth: {
+      grantId: '77777777-7777-4777-8777-777777777777',
+      clientId: '66666666-6666-4666-8666-666666666666',
+    },
+  };
+
+  it('flag off: an OAuth-shaped bearer goes to the key verifier and 401s with no WWW-Authenticate', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true, mcpOauth: false };
+    const { guard, verify, oauthVerify } = guardWith({ ok: false, error: 'invalid_token' });
+    await expect(
+      guard.canActivate(ctx({ headers: { authorization: `Bearer ${ACCESS}` } })),
+    ).rejects.toThrow(UnauthorizedException);
+    expect(oauthVerify).not.toHaveBeenCalled();
+    expect(verify).toHaveBeenCalledWith(ACCESS);
+    expect(res.headers['WWW-Authenticate']).toBeUndefined();
+  });
+
+  it('flag on: an access token is verified by the OAuth verifier and its principal stored', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true, mcpOauth: true };
+    const { guard, verify, oauthVerify } = guardWith(
+      { ok: false, error: 'invalid_token' },
+      oauthPrincipal,
+    );
+    const req: Partial<McpRequest> = { headers: { authorization: `Bearer ${ACCESS}` } };
+    await expect(guard.canActivate(ctx(req))).resolves.toBe(true);
+    expect(oauthVerify).toHaveBeenCalledWith(ACCESS);
+    expect(verify).not.toHaveBeenCalled();
+    expect(req[MCP_PRINCIPAL]?.oauth?.grantId).toBe(oauthPrincipal.oauth.grantId);
+  });
+
+  it('flag on: an API key still goes to the key verifier', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true, mcpOauth: true };
+    const p = principal();
+    const { guard, oauthVerify } = guardWith(p);
+    const req: Partial<McpRequest> = { headers: { authorization: 'Bearer abc' } };
+    await expect(guard.canActivate(ctx(req))).resolves.toBe(true);
+    expect(oauthVerify).not.toHaveBeenCalled();
+    expect(req[MCP_PRINCIPAL]).toBe(p);
+  });
+
+  it('flag on: a missing credential 401s with the resource metadata pointer', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true, mcpOauth: true };
+    const { guard } = guardWith({ ok: false, error: 'missing_token' });
+    await expect(guard.canActivate(ctx({ headers: {} }))).rejects.toThrow('missing_token');
+    expect(res.headers['WWW-Authenticate']).toBe(
+      'Bearer realm="seald", resource_metadata="https://api.seald.test/.well-known/oauth-protected-resource"',
+    );
+  });
+
+  it('flag on: a bad access token 401s invalid_token with error="invalid_token"', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true, mcpOauth: true };
+    const { guard } = guardWith({ ok: false, error: 'invalid_token' });
+    await expect(
+      guard.canActivate(ctx({ headers: { authorization: `Bearer ${ACCESS}` } })),
+    ).rejects.toThrow('invalid_token');
+    expect(res.headers['WWW-Authenticate']).toContain('error="invalid_token"');
   });
 });
 

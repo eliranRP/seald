@@ -68,6 +68,20 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /me/api-keys': { planned: 'WP-45' },
   'POST /me/api-keys': { planned: 'WP-45' },
   'POST /me/api-keys/:id/revoke': { planned: 'WP-45' },
+  // WP-27: connected apps (OAuth grants) sit next to keys: credential
+  // management, so the same approval-gated WP-45 track.
+  'GET /me/connected-apps': { planned: 'WP-45' },
+  'POST /me/connected-apps/:id/revoke': { planned: 'WP-45' },
+  // WP-27: the OAuth consent page's API. The owner's browser approves an
+  // app; an agent calling it would grant itself access.
+  'POST /oauth/consent/describe': {
+    excluded: 'oauth_browser_redirect',
+    note: 'Consent page read for the OAuth authorization flow; the owner, not an agent, consents.',
+  },
+  'POST /oauth/consent': {
+    excluded: 'oauth_browser_redirect',
+    note: 'The owner approves or denies an OAuth client in the browser; an agent would grant itself.',
+  },
 
   // Envelopes
   'GET /envelopes': { tool: 'envelopes_search' },

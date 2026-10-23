@@ -54,8 +54,17 @@ export class SendGuardService {
     private readonly lifecycle: ApprovalsLifecycleService,
   ) {}
 
-  async assertNotSuspended(ownerId: string, apiKeyId: string | null, now: Date): Promise<void> {
-    if (apiKeyId !== null && (await this.lifecycle.isSendSuspended(apiKeyId, now))) {
+  async assertNotSuspended(
+    ownerId: string,
+    apiKeyId: string | null,
+    now: Date,
+    oauthGrantId: string | null = null,
+  ): Promise<void> {
+    const keySuspended =
+      apiKeyId !== null
+        ? await this.lifecycle.isSendSuspended(apiKeyId, now)
+        : oauthGrantId !== null && (await this.lifecycle.isGrantSendSuspended(oauthGrantId, now));
+    if (keySuspended) {
       throw new ForbiddenException('key_send_suspended');
     }
     if (await this.isDeliverySuspended(ownerId, now)) {

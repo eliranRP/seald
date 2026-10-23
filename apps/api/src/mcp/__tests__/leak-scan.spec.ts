@@ -7,6 +7,8 @@ describe('findTokenShapedStrings', () => {
   it.each([
     ['a signing link token', { url: 'https://seald.test/sign/abc?t=secret' }, 'signing link token'],
     ['an API key', { note: KEY }, 'api key'],
+    ['an OAuth access token', { note: `${'seald_oat_'}${'x'.repeat(43)}` }, 'oauth token'],
+    ['an OAuth refresh token', { note: `${'seald_ort_'}${'x'.repeat(43)}` }, 'oauth token'],
     ['a token hash column', { access_token_hash: 'x' }, 'token hash column'],
     ['a storage path', { storage_path: 'a/b.pdf' }, 'storage path column'],
     ['a file path column', { sealed_file_path: 'a/b.pdf' }, 'storage path column'],

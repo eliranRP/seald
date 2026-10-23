@@ -37,6 +37,10 @@ interface StoredConfirmation extends InsertConfirmationInput {
 export class InMemoryApprovalsRepository extends ApprovalsRepository {
   readonly rows: Mutable<ApprovalRecord>[] = [];
   readonly keys = new Map<string, ApprovalKeyFacts>();
+  /** WP-27: OAuth grants as key facts, by grant id. */
+  readonly grants = new Map<string, ApprovalKeyFacts>();
+  /** WP-27: optional live source for grants (the in-memory OAuth repository). */
+  grantSource: ((id: string) => Promise<ApprovalKeyFacts | null>) | null = null;
   readonly mailboxes = new Map<string, OwnerMailbox>();
   /** owner id → lower-cased known addresses. */
   readonly known = new Map<string, Set<string>>();
@@ -47,6 +51,11 @@ export class InMemoryApprovalsRepository extends ApprovalsRepository {
 
   async findKeyFacts(apiKeyId: string): Promise<ApprovalKeyFacts | null> {
     return this.keys.get(apiKeyId) ?? null;
+  }
+
+  async findGrantFacts(oauthGrantId: string): Promise<ApprovalKeyFacts | null> {
+    if (this.grantSource) return this.grantSource(oauthGrantId);
+    return this.grants.get(oauthGrantId) ?? null;
   }
 
   async findOwnerMailbox(ownerId: string): Promise<OwnerMailbox | null> {
@@ -121,6 +130,14 @@ export class InMemoryApprovalsRepository extends ApprovalsRepository {
     if (
       input.apiKeyId !== null &&
       this.rows.filter((r) => r.apiKeyId === input.apiKeyId && isOpen(r, now)).length >=
+        input.maxOpenPerKey
+    ) {
+      return { outcome: 'limit_open' };
+    }
+    if (
+      input.apiKeyId === null &&
+      input.oauthGrantId !== null &&
+      this.rows.filter((r) => r.oauthGrantId === input.oauthGrantId && isOpen(r, now)).length >=
         input.maxOpenPerKey
     ) {
       return { outcome: 'limit_open' };
@@ -333,6 +350,18 @@ export class InMemoryApprovalsRepository extends ApprovalsRepository {
     return n;
   }
 
+  async expireOpenForOAuthGrant(oauthGrantId: string, reason: string, now: Date): Promise<number> {
+    let n = 0;
+    for (const r of this.rows) {
+      if (r.oauthGrantId === oauthGrantId && hasNoOutcome(r)) {
+        r.expiredAt = now.toISOString();
+        r.expiredReason = reason;
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   async expireOpenForOwner(ownerId: string, reason: string, now: Date): Promise<number> {
     let n = 0;
     for (const r of this.rows) {
@@ -357,6 +386,15 @@ export class InMemoryApprovalsRepository extends ApprovalsRepository {
     return this.rows.filter(
       (r) =>
         r.apiKeyId === apiKeyId && r.deniedAt !== null && Date.parse(r.deniedAt) >= since.getTime(),
+    ).length;
+  }
+
+  async countDenialsForGrant(oauthGrantId: string, since: Date): Promise<number> {
+    return this.rows.filter(
+      (r) =>
+        r.oauthGrantId === oauthGrantId &&
+        r.deniedAt !== null &&
+        Date.parse(r.deniedAt) >= since.getTime(),
     ).length;
   }
 

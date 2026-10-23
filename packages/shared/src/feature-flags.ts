@@ -76,6 +76,15 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
   mcpServer: false,
 
   /**
+   * MCP OAuth 2.1 (WP-27, decision D3). Gates the authorization server
+   * (`/.well-known/oauth-*`, `/oauth/*`), the consent page, OAuth access
+   * tokens on `/mcp` and "Connected apps". Needs `mcpServer` too, so the
+   * OAuth surface stays dark until both are flipped. Off: `/mcp` accepts
+   * API keys only, exactly as before.
+   */
+  mcpOauth: false,
+
+  /**
    * Workflow automations and outbound webhooks (WP-29 family). Gates the
    * automation builder and webhook delivery. Dark until flipped in a later
    * PR.
@@ -119,6 +128,7 @@ export type FeatureFlag =
   | 'signerAccessAuth'
   | 'appendCertificate'
   | 'mcpServer'
+  | 'mcpOauth'
   | 'workflowAutomations'
   | 'publicApi'
   | 'bulkSend'
