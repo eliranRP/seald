@@ -25,9 +25,7 @@ function makeFile(name: string, type: string, sizeBytes: number): File {
 describe('UploadPage', () => {
   it('renders the default heading and dropzone copy', () => {
     renderPage();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /start a new document/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /new document/i })).toBeInTheDocument();
     expect(screen.getByText(/drop your pdf here/i)).toBeInTheDocument();
     expect(screen.getByText(/up to 25 mb/i)).toBeInTheDocument();
   });
@@ -162,5 +160,129 @@ describe('UploadPage', () => {
   it('has no axe violations', async () => {
     const { container } = renderPage();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  describe('with source tiles and Word support', () => {
+    it('lists the sources as a radiogroup with Upload selected', () => {
+      renderPage({
+        allowWord: true,
+        showSources: true,
+        onPickTemplate: vi.fn(),
+        templateCount: 6,
+        onPickDrive: vi.fn(),
+        onScan: vi.fn(),
+      });
+      const group = screen.getByRole('radiogroup', { name: 'Source' });
+      expect(group).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /upload file/i })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      );
+      expect(screen.getByRole('radio', { name: /template/i })).toHaveAttribute(
+        'aria-checked',
+        'false',
+      );
+      expect(screen.getByRole('radio', { name: /google drive/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /scan with phone/i })).toBeInTheDocument();
+    });
+
+    it('fires each source handler', () => {
+      const onPickTemplate = vi.fn();
+      const onPickDrive = vi.fn();
+      const onScan = vi.fn();
+      renderPage({ showSources: true, onPickTemplate, onPickDrive, onScan });
+      fireEvent.click(screen.getByRole('radio', { name: /template/i }));
+      fireEvent.click(screen.getByRole('radio', { name: /google drive/i }));
+      fireEvent.click(screen.getByRole('radio', { name: /scan with phone/i }));
+      expect(onPickTemplate).toHaveBeenCalledTimes(1);
+      expect(onPickDrive).toHaveBeenCalledTimes(1);
+      expect(onScan).toHaveBeenCalledTimes(1);
+    });
+
+    it('accepts a Word file when allowWord is on', () => {
+      const onFileSelected = vi.fn();
+      renderPage({ allowWord: true, onFileSelected });
+      const input = screen.getByLabelText('Choose file') as HTMLInputElement;
+      const docx = makeFile(
+        'contract.docx',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        1024,
+      );
+      fireEvent.change(input, { target: { files: [docx] } });
+      expect(onFileSelected).toHaveBeenCalledWith(docx);
+    });
+
+    it('rejects a PNG with "PDF or Word only", the file name, and Choose another', () => {
+      const onFileSelected = vi.fn();
+      renderPage({ allowWord: true, showSources: true, onFileSelected });
+      const input = screen.getByLabelText('Choose file') as HTMLInputElement;
+      fireEvent.change(input, { target: { files: [makeFile('Invoice.png', 'image/png', 10)] } });
+      expect(onFileSelected).not.toHaveBeenCalled();
+      expect(screen.getByText('PDF or Word only')).toBeInTheDocument();
+      expect(screen.getByText('Invoice.png')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /choose another/i })).toBeInTheDocument();
+    });
+
+    it('rejects a big file with "Max 25 MB" and offers Drive', () => {
+      const onPickDrive = vi.fn();
+      renderPage({ allowWord: true, showSources: true, onPickDrive });
+      const input = screen.getByLabelText('Choose file') as HTMLInputElement;
+      fireEvent.change(input, {
+        target: { files: [makeFile('Scanned contract.pdf', 'application/pdf', 41 * 1024 * 1024)] },
+      });
+      expect(screen.getByText('Max 25 MB')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /try google drive/i }));
+      expect(onPickDrive).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows recent templates as chips and fires the pick', () => {
+      const onPickRecentTemplate = vi.fn();
+      renderPage({
+        showSources: true,
+        recentTemplates: [{ id: 't1', name: 'NDA — mutual', signers: 2 }],
+        onPickRecentTemplate,
+      });
+      fireEvent.click(screen.getByRole('button', { name: /nda — mutual/i }));
+      expect(onPickRecentTemplate).toHaveBeenCalledWith('t1');
+    });
+  });
+
+  describe('loading states', () => {
+    it('shows the analyzing checklist with live page count and cancels', () => {
+      const onCancelAnalysis = vi.fn();
+      renderPage({
+        status: 'analyzing',
+        analyzingFileName: 'Master services agreement.pdf',
+        analyzedPages: 8,
+        onCancelAnalysis,
+      });
+      expect(screen.getByRole('status')).toHaveTextContent('Master services agreement.pdf');
+      expect(screen.getByText('Read file')).toBeInTheDocument();
+      expect(screen.getByText('Pages')).toBeInTheDocument();
+      expect(screen.getByText('8')).toBeInTheDocument();
+      expect(screen.getByText(/opens the editor when ready/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+      expect(onCancelAnalysis).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the Word conversion step', () => {
+      renderPage({ status: 'converting', analyzingFileName: 'Q3 vendor agreement.docx' });
+      expect(screen.getByText('Convert to PDF')).toBeInTheDocument();
+    });
+
+    it('shows a failure with Retry when conversion fails', () => {
+      const onRetryConversion = vi.fn();
+      renderPage({
+        status: 'converting',
+        analyzingFileName: 'a.docx',
+        conversionFailed: true,
+        onRetryConversion,
+        onCancelAnalysis: vi.fn(),
+      });
+      expect(screen.getByText(/couldn.t convert/i)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /retry/i }));
+      expect(onRetryConversion).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: /upload another/i })).toBeInTheDocument();
+    });
   });
 });

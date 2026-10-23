@@ -1,310 +1,376 @@
-import styled, { css, keyframes, type DefaultTheme } from 'styled-components';
+import styled, { css, type DefaultTheme } from 'styled-components';
+import { rise } from '@/styles/motion';
+import { visuallyHidden } from '@/styles/mixins';
 
-function loaderStepDotBg(theme: DefaultTheme, done: boolean, active: boolean): string {
-  if (done) return theme.color.success[500];
-  if (active) return theme.color.indigo[600];
-  return theme.color.ink[200];
-}
+const MOBILE = '@media (max-width: 640px)';
 
-export const Shell = styled.div`
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
+export const Body = styled.div`
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   background: ${({ theme }) => theme.color.bg.app};
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
-export const Body = styled.div`
-  display: flex;
-  flex: 1 1 auto;
-  min-height: 0;
-`;
-
 export const Main = styled.main`
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: auto;
-  padding: ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]}
-    ${({ theme }) => theme.space[20]};
-
-  /* Responsive page padding. The desktop 48/48/80 padding crushes
-     content on small viewports. Mirrors DashboardPage's MOBILE breakpoint
-     so the two L4 sender surfaces share one rhythm. Audit A · UploadPage
-     M-5. */
-  @media (max-width: 768px) {
-    padding: ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[4]}
-      ${({ theme }) => theme.space[12]};
+  display: flex;
+  justify-content: center;
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[6]}`};
+  ${MOBILE} {
+    padding: ${({ theme }) => theme.space[4]};
   }
 `;
 
 export const Inner = styled.div`
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 880px;
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[8]};
-`;
-
-/**
- * Heading block — the page's "Start a new document" title + subtitle.
- * Centered so it visually balances over the 960 px dropzone instead of
- * sitting in a misaligned two-column with empty whitespace to the right.
- * Audit A · UploadPage H-1.
- */
-export const HeadingBlock = styled.div`
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-`;
-
-export const Heading = styled.h1`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h1};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
-  line-height: ${({ theme }) => theme.font.lineHeight.tight};
-  color: ${({ theme }) => theme.color.fg[1]};
-  margin: 0;
-`;
-
-/**
- * Subtitle below the heading. Previously had `max-width: 58ch` which —
- * combined with the heading sitting at the 960 px Inner's left edge —
- * read as an unbalanced two-column. Now centered with no width cap so
- * it flows naturally below the (centered) heading. Audit A · UploadPage
- * H-1.
- */
-export const Subtitle = styled.p`
-  margin: 0;
-  font-size: ${({ theme }) => theme.font.size.body};
-  line-height: ${({ theme }) => theme.font.lineHeight.normal};
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const Dropzone = styled.div<{ readonly $dragging: boolean }>`
-  background: ${({ theme }) => theme.color.bg.surface};
-  border: 1.5px dashed ${({ theme }) => theme.color.indigo[300]};
-  border-radius: ${({ theme }) => theme.radius['2xl']};
-  padding: ${({ theme }) => theme.space[16]} ${({ theme }) => theme.space[8]};
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[5]};
-  transition:
-    background ${({ theme }) => theme.motion.durBase} ${({ theme }) => theme.motion.easeStandard},
-    border-color ${({ theme }) => theme.motion.durBase} ${({ theme }) => theme.motion.easeStandard};
-
-  ${({ $dragging, theme }) =>
-    $dragging &&
-    css`
-      background: ${theme.color.indigo[50]};
-      border-color: ${theme.color.indigo[500]};
-    `}
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
+  gap: ${({ theme }) => theme.space[6]};
+  ${MOBILE} {
+    gap: ${({ theme }) => theme.space[4]};
   }
 `;
 
-export const IconCircle = styled.div`
-  width: 64px;
-  height: 64px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.indigo[50]};
-  color: ${({ theme }) => theme.color.indigo[600]};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+export const Heading = styled.h1`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.x3l};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
+  color: ${({ theme }) => theme.color.fg[1]};
+  ${MOBILE} {
+    ${visuallyHidden}
+  }
 `;
 
-export const DropHeading = styled.div`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h3};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+export const HeadingBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const Subtitle = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.body};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/* ----- sources ----- */
+
+export const Sources = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: ${({ theme }) => theme.space[4]};
+  ${MOBILE} {
+    grid-template-columns: repeat(3, 1fr);
+    gap: ${({ theme }) => theme.space[2]};
+  }
+`;
+
+/* ----- dropzone ----- */
+
+function dropBorder(theme: DefaultTheme, dragging: boolean, error: boolean): string {
+  if (error) return theme.color.danger[500];
+  return dragging ? theme.color.indigo[600] : theme.color.border[2];
+}
+
+function dropBackground(theme: DefaultTheme, dragging: boolean, error: boolean): string {
+  if (error) return theme.color.danger[50];
+  return dragging ? theme.color.indigo[50] : theme.color.paper;
+}
+
+export const Dropzone = styled.div<{ $dragging: boolean; $error: boolean }>`
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => theme.space[8]};
+  text-align: center;
+  border-radius: ${({ theme }) => theme.radius.xl};
+  border: 2px dashed ${({ theme, $dragging, $error }) => dropBorder(theme, $dragging, $error)};
+  background: ${({ theme, $dragging, $error }) => dropBackground(theme, $dragging, $error)};
+  transition:
+    border-color ${({ theme }) => theme.motion.durFast},
+    background ${({ theme }) => theme.motion.durFast};
+  ${MOBILE} {
+    min-height: 220px;
+    padding: ${({ theme }) => theme.space[5]};
+  }
+`;
+
+export const DropIcon = styled.span<{ $error: boolean }>`
+  display: inline-flex;
+  color: ${({ theme, $error }) => ($error ? theme.color.danger[500] : theme.color.indigo[600])};
+`;
+
+export const DropHeading = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.xl};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
-export const DropSubheading = styled.div`
+export const DropSubheading = styled.p`
+  margin: 0;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const Actions = styled.div`
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const MetaRow = styled.div`
+  display: flex;
+  align-items: center;
   gap: ${({ theme }) => theme.space[3]};
-  margin-top: ${({ theme }) => theme.space[3]};
 `;
 
-export const HiddenFileInput = styled.input`
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+export const IconMeta = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
-export const ErrorText = styled.p`
+export const AlertInline = styled.p`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
   margin: 0;
   font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.danger[700]};
 `;
 
-/* ---- Analyzing loader ------------------------------------------------ */
-
-export const scan = keyframes`
-  0%   { top: 10px; opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { top: calc(100% - 10px); opacity: 0; }
+export const Mono = styled.span`
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;
 
-export const stepPulse = keyframes`
-  0%, 100% { opacity: 0.55; transform: translateY(0); }
-  50%      { opacity: 1;    transform: translateY(-1px); }
+export const HiddenFileInput = styled.input`
+  ${visuallyHidden}
 `;
 
-export const shine = keyframes`
-  0%   { background-position: -120% 0; }
-  100% { background-position: 220% 0; }
-`;
+/* ----- old secondary links row (hosts without source tiles) ----- */
 
-export const LoaderCard = styled.div`
-  width: 100%;
-  max-width: 640px;
-  margin: 0 auto;
-  background: ${({ theme }) => theme.color.bg.surface};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius['2xl']};
-  padding: ${({ theme }) => `${theme.space[12]} ${theme.space[8]} ${theme.space[8]}`};
+export const TemplatePromptDivider = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   align-items: center;
-  gap: ${({ theme }) => theme.space[5]};
-  box-shadow: ${({ theme }) => theme.shadow.md};
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+  margin-top: ${({ theme }) => theme.space[4]};
+  padding-top: ${({ theme }) => theme.space[4]};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  width: 100%;
 `;
 
-export const LoaderPage = styled.div`
-  position: relative;
-  width: 140px;
-  height: 180px;
-  background: ${({ theme }) => theme.color.bg.surface};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  padding: 14px 12px;
-  box-sizing: border-box;
-  box-shadow: ${({ theme }) => theme.shadow.md};
-  overflow: hidden;
-`;
-
-export const LoaderLine = styled.div<{ $width: string }>`
-  height: 2px;
-  width: ${({ $width }) => $width};
-  background: ${({ theme }) => theme.color.ink[100]};
-  border-radius: 1px;
-  margin: 5px 0;
-  &:nth-child(1) {
-    background: ${({ theme }) => theme.color.ink[200]};
-  }
-`;
-
-export const LoaderScan = styled.div`
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  height: 2px;
-  border-radius: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    ${({ theme }) => theme.color.indigo[600]},
-    transparent
-  );
-  box-shadow: 0 0 10px rgba(79, 70, 229, 0.7);
-  animation: ${scan} 1.1s ease-in-out infinite;
-`;
-
-export const LoaderTitle = styled.div`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h3};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.fg[1]};
-  text-align: center;
-`;
-
-export const LoaderSubtitle = styled.div`
+export const TemplatePromptHint = styled.span`
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[3]};
-  text-align: center;
-  font-family: ${({ theme }) => theme.font.mono};
 `;
 
-export const LoaderProgress = styled.div`
-  width: 100%;
-  height: 4px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.ink[100]};
-  overflow: hidden;
-  position: relative;
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      ${({ theme }) => theme.color.indigo[600]} 30%,
-      ${({ theme }) => theme.color.indigo[600]} 70%,
-      transparent 100%
-    );
-    background-size: 50% 100%;
-    background-repeat: no-repeat;
-    animation: ${shine} 1.4s linear infinite;
+export const TemplatePromptLink = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  padding: ${({ theme }) => theme.space[1]};
+  font-family: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  cursor: pointer;
+  &:hover {
+    text-decoration: underline;
   }
 `;
 
-export const LoaderSteps = styled.ul`
-  list-style: none;
-  margin: 0;
-  padding: 0;
+export const TemplatePromptDot = styled.span`
+  color: ${({ theme }) => theme.color.fg[4]};
+`;
+
+/* ----- file card + checklist ----- */
+
+export const FileCard = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.space[4]};
+  padding: ${({ theme }) => theme.space[5]};
+  background: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  box-shadow: ${({ theme }) => theme.shadow.sm};
+  ${rise}
+  ${MOBILE} {
+    flex-wrap: wrap;
+    padding: ${({ theme }) => theme.space[4]};
+  }
+`;
+
+export const Thumb = styled.div`
+  flex-shrink: 0;
+  width: 56px;
+  height: 72px;
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[1]};
-  width: 100%;
+  gap: 6px;
+  padding: ${({ theme }) => `${theme.space[3]} 10px`};
+  background: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.ink[150]};
+  border-radius: ${({ theme }) => theme.radius.xxs};
+  box-shadow: ${({ theme }) => theme.shadow.xs};
+  & > i {
+    display: block;
+    height: 3px;
+    border-radius: 2px;
+    background: ${({ theme }) => theme.color.ink[150]};
+  }
+  & > i:last-child {
+    width: 60%;
+  }
 `;
 
-export const LoaderStep = styled.li<{ $active: boolean }>`
+export const Grow = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const FileName = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.lg};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+
+export const FileMeta = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const Progress = styled.div<{ $error?: boolean }>`
+  height: 6px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[100]};
+  overflow: hidden;
+  & > span {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: ${({ theme }) => theme.radius.pill};
+    background: ${({ theme, $error }) =>
+      $error ? theme.color.danger[500] : theme.color.indigo[600]};
+    transform-origin: left;
+  }
+`;
+
+export const Checklist = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: ${({ theme }) => `${theme.space[2]} 0 0`};
+  padding: 0;
+  list-style: none;
+`;
+
+export const CheckItem = styled.li<{ $state: 'done' | 'active' | 'todo' }>`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
+  gap: 10px;
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : theme.color.fg[3])};
-  padding: ${({ theme }) => `${theme.space[1]} 0`};
-  animation: ${({ $active }) => ($active ? stepPulse : 'none')} 1.6s ease-in-out infinite;
+  color: ${({ theme, $state }) => ($state === 'todo' ? theme.color.fg[3] : theme.color.fg[1])};
+  font-weight: ${({ theme, $state }) =>
+    $state === 'active' ? theme.font.weight.semibold : theme.font.weight.regular};
 `;
 
-export const LoaderStepDot = styled.span<{ $active: boolean; $done: boolean }>`
-  width: 10px;
-  height: 10px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme, $done, $active }) => loaderStepDotBg(theme, $done, $active)};
-  flex-shrink: 0;
-  transition: background 200ms ease;
+export const CheckIco = styled.span<{ $state: 'done' | 'active' | 'todo' }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid ${({ theme }) => theme.color.border[2]};
+  ${({ theme, $state }) =>
+    $state === 'done' &&
+    css`
+      background: ${theme.color.success[500]};
+      border-color: ${theme.color.success[500]};
+      color: ${theme.color.fgOnAccent};
+    `}
+  ${({ theme, $state }) =>
+    $state === 'active' &&
+    css`
+      border-color: ${theme.color.indigo[600]};
+      color: ${theme.color.indigo[600]};
+    `}
 `;
 
-/* ---- Template banner ---- */
+export const CheckNum = styled.span`
+  margin-left: auto;
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const OpensHint = styled.p`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/* ----- recent templates ----- */
+
+export const Eyebrow = styled.h2`
+  margin: 0 0 ${({ theme }) => theme.space[3]};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const ChipRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[2]};
+  ${MOBILE} {
+    flex-direction: column;
+    & > button {
+      width: 100%;
+      border-radius: ${({ theme }) => theme.radius.md};
+      justify-content: flex-start;
+    }
+  }
+`;
+
+/* ----- template banner ----- */
 
 export const TemplateBanner = styled.div<{ $tone: 'info' | 'warning' }>`
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: ${({ theme }) => theme.space[3]};
   padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]}`};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -317,89 +383,19 @@ export const TemplateBanner = styled.div<{ $tone: 'info' | 'warning' }>`
   font-size: ${({ theme }) => theme.font.size.bodySm};
 `;
 
-export const TemplateBannerText = styled.span`
-  flex: 1 1 auto;
-  min-width: 0;
-`;
+export const TemplateBannerText = styled.span``;
 
 export const TemplateBannerStrong = styled.strong`
-  font-weight: 600;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
 `;
 
 export const TemplateBannerClear = styled.button`
-  appearance: none;
+  border: 0;
   background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
+  font-family: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: inherit;
   text-decoration: underline;
   cursor: pointer;
-  &:hover {
-    opacity: 0.85;
-  }
-  &:focus-visible {
-    outline: 2px solid currentColor;
-    outline-offset: 2px;
-    border-radius: 2px;
-  }
-`;
-
-/**
- * Secondary-actions row below the primary "Choose file" button. Uses
- * theme spacing tokens instead of the previous raw 22/22/10 px so the
- * row obeys the rest of the page's 4 px-grid rhythm. Audit A · UploadPage
- * L-6.
- */
-export const TemplatePromptDivider = styled.div`
-  margin-top: ${({ theme }) => theme.space[5]};
-  padding-top: ${({ theme }) => theme.space[5]};
-  border-top: 1px dashed ${({ theme }) => theme.color.border[2]};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: ${({ theme }) => theme.space[2]};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const TemplatePromptHint = styled.span``;
-
-/**
- * Vertical pipe between the Template and Drive secondary actions in
- * the dropzone footer prompt row. Decorative — `aria-hidden` at the
- * call site so screen readers don't announce a stray pipe character.
- */
-export const TemplatePromptDot = styled.span`
-  color: ${({ theme }) => theme.color.fg[4]};
-  font-size: 12px;
-  user-select: none;
-`;
-
-export const TemplatePromptLink = styled.button`
-  appearance: none;
-  background: transparent;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  color: ${({ theme }) => theme.color.indigo[700]};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  font-size: 13px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
-
-  &:hover {
-    color: ${({ theme }) => theme.color.indigo[600]};
-  }
-
-  &:focus-visible {
-    outline: 2px solid ${({ theme }) => theme.color.indigo[500]};
-    outline-offset: 3px;
-    border-radius: 4px;
-  }
 `;
