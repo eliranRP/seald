@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
@@ -310,6 +310,8 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
           <Route path="/signers" element={<ContactsPage />} />
+          {/* One canonical URL for Contacts. */}
+          <Route path="/contacts" element={<Navigate to="/signers" replace />} />
           <Route path="/templates" element={<TemplatesListPage />} />
           <Route path="/templates/:id/use" element={<UseTemplatePage />} />
           {/* WP-36: bulk CSV send. The page itself shows "not available" with
