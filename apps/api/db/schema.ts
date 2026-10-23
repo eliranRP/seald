@@ -419,6 +419,8 @@ export interface TemplatesTable {
   delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, DeliveryModeDb | undefined>;
   uses_count: ColumnType<number, number | undefined, number | undefined>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  // Migration 0042 — soft delete; null while the template is live.
+  deleted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -429,6 +431,8 @@ export interface ContactsTable {
   name: string;
   email: string;
   color: string;
+  // Migration 0041 — soft delete; null while the contact is live.
+  deleted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
