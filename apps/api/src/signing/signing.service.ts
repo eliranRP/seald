@@ -39,7 +39,7 @@ import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
 import { isSignersTurn } from './signing-order';
-import { notYourTurn, terminalGone } from './link-state';
+import { alreadyActed, notYourTurn, terminalGone } from './link-state';
 import { SigningOrderService } from './signing-order.service';
 import { SigningTokenService } from './signing-token.service';
 
@@ -78,6 +78,8 @@ export interface SignMeResponse {
     readonly expires_at: string;
     readonly tc_version: string;
     readonly privacy_version: string;
+    /** Who sent it, for "from {name}" in the signer header. */
+    readonly sender_name?: string | null;
     /** WP-07: how date fields render; only while `fieldMetaV2` is on. */
     readonly date_format?: string | null;
     readonly timezone?: string | null;
@@ -207,6 +209,7 @@ export class SigningService {
         expires_at: envelope.expires_at,
         tc_version: envelope.tc_version,
         privacy_version: envelope.privacy_version,
+        sender_name: envelope.sender_name ?? null,
         ...(isFeatureEnabled('fieldMetaV2')
           ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
           : {}),
@@ -876,11 +879,8 @@ function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
   if (envelope.status !== 'awaiting_others') {
     throw terminalGone(envelope, signer);
   }
-  if (signer.signed_at !== null) {
-    throw new ConflictException({ message: 'already_signed', reason: 'already_signed' });
-  }
-  if (signer.declined_at !== null) {
-    throw new ConflictException({ message: 'already_declined', reason: 'declined' });
+  if (signer.signed_at !== null || signer.declined_at !== null) {
+    throw alreadyActed(envelope, signer);
   }
 }
 

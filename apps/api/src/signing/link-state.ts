@@ -20,13 +20,38 @@ export function terminalReason(
   return 'canceled';
 }
 
+/** Extra fields a link-state screen shows: the sender's name, and when the signer signed. */
+function hints(
+  envelope: Pick<Envelope, 'sender_name'>,
+  signer?: Pick<EnvelopeSigner, 'signed_at'>,
+): { sender_name?: string; signed_at?: string } {
+  return {
+    ...(envelope.sender_name ? { sender_name: envelope.sender_name } : {}),
+    ...(signer?.signed_at ? { signed_at: signer.signed_at } : {}),
+  };
+}
+
 export function terminalGone(
-  envelope: Pick<Envelope, 'status'>,
+  envelope: Pick<Envelope, 'status' | 'sender_name'>,
   signer: Pick<EnvelopeSigner, 'signed_at' | 'declined_at'>,
 ): GoneException {
   return new GoneException({
     message: 'envelope_terminal',
     reason: terminalReason(envelope, signer),
+    ...hints(envelope, signer),
+  });
+}
+
+/** 409 for a signer who already signed (`already_signed`) or declined (`declined`). */
+export function alreadyActed(
+  envelope: Pick<Envelope, 'sender_name'>,
+  signer: Pick<EnvelopeSigner, 'signed_at' | 'declined_at'>,
+): ConflictException {
+  const signed = signer.signed_at !== null;
+  return new ConflictException({
+    message: signed ? 'already_signed' : 'already_declined',
+    reason: (signed ? 'already_signed' : 'declined') satisfies LinkReason,
+    ...hints(envelope, signer),
   });
 }
 
@@ -40,11 +65,14 @@ function waitingOn(envelope: Pick<Envelope, 'signers'>): string | undefined {
   return word ? word : undefined;
 }
 
-export function notYourTurn(envelope: Pick<Envelope, 'signers'>): ConflictException {
+export function notYourTurn(
+  envelope: Pick<Envelope, 'signers' | 'sender_name'>,
+): ConflictException {
   const waiting = waitingOn(envelope);
   return new ConflictException({
     message: 'not_your_turn',
     reason: 'not_your_turn' satisfies LinkReason,
     ...(waiting !== undefined ? { waiting_on: waiting } : {}),
+    ...hints(envelope),
   });
 }
