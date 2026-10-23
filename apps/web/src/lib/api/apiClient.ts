@@ -1,6 +1,8 @@
 import axios from 'axios';
 import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { Clock } from 'lucide-react';
 import { supabase } from '../supabase/supabaseClient';
+import { publishNotice, raiseSessionExpired, setMaintenance } from '../system/systemStore';
 
 /**
  * Shared axios instance for every call to the Nest API.
@@ -72,9 +74,71 @@ export interface ApiError extends Error {
   retryAfter?: number;
 }
 
+/** Rate-limit toast fallback when the API sends no usable Retry-After. */
+const DEFAULT_RETRY_AFTER_SECONDS = 30;
+
+type RetriableConfig = InternalAxiosRequestConfig & { _sealdAuthRetried?: boolean };
+
+function headerString(err: AxiosError, name: string): string | undefined {
+  const value: unknown = err.response?.headers?.[name];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function retryAfterSeconds(err: AxiosError, bodyValue: unknown): number | undefined {
+  const raw = Number(headerString(err, 'retry-after'));
+  if (Number.isFinite(raw) && raw > 0) return Math.ceil(raw);
+  if (typeof bodyValue === 'number' && bodyValue > 0) return Math.ceil(bodyValue);
+  return undefined;
+}
+
+/**
+ * System-level reactions that no caller should have to repeat (design
+ * System.dc: session, rate limit, maintenance). 401: one silent token
+ * refresh and replay; if the refresh fails the "You were signed out" dialog
+ * opens and the page stays mounted. 429: a toast with the wait. 503 with
+ * `x-maintenance: 1`: the maintenance page.
+ */
+async function reactToSystemStatus(error: AxiosError, retryAfter: number | undefined) {
+  const status = error.response?.status;
+  if (status === 429) {
+    const seconds = retryAfter ?? DEFAULT_RETRY_AFTER_SECONDS;
+    publishNotice(
+      {
+        title: `Too many requests \u00b7 try in ${String(seconds)} s`,
+        tone: 'info',
+        icon: Clock,
+        duration: seconds * 1000,
+      },
+      'rate-limit',
+    );
+    return undefined;
+  }
+  if (status === 503 && headerString(error, 'x-maintenance') === '1') {
+    const eta = (error.response?.data as { eta_minutes?: unknown } | undefined)?.eta_minutes;
+    setMaintenance(true, typeof eta === 'number' ? eta : null);
+    return undefined;
+  }
+  if (status === 401) {
+    const config = error.config as RetriableConfig | undefined;
+    const hadToken = Boolean(config?.headers?.get('Authorization'));
+    if (!config || !hadToken) return undefined;
+    if (!config._sealdAuthRetried) {
+      config._sealdAuthRetried = true;
+      const { data, error: refreshError } = await supabase.auth
+        .refreshSession()
+        .catch(() => ({ data: { session: null }, error: new Error('refresh_failed') }));
+      if (!refreshError && data.session) {
+        return apiClient.request(config);
+      }
+    }
+    raiseSessionExpired();
+  }
+  return undefined;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: unknown) => {
+  async (error: unknown) => {
     if (axios.isAxiosError(error)) {
       const message = messageFromAxiosError(error);
       const wrapped: ApiError = new Error(message);
@@ -95,9 +159,12 @@ apiClient.interceptors.response.use(
         // caller can branch on it, for example `fresh_login_required` (WP-22).
         wrapped.code = body.error;
       }
-      if (typeof body?.retryAfter === 'number') {
-        wrapped.retryAfter = body.retryAfter;
+      const retryAfter = retryAfterSeconds(error, body?.retryAfter);
+      if (retryAfter !== undefined) {
+        wrapped.retryAfter = retryAfter;
       }
+      const replayed = await reactToSystemStatus(error, retryAfter);
+      if (replayed) return replayed;
       throw wrapped;
     }
     throw error;
