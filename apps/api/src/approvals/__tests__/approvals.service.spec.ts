@@ -27,6 +27,34 @@ const SIGNER_A = '33333333-3333-4333-8333-333333333333';
 const SIGNER_B = '44444444-4444-4444-8444-444444444444';
 const PUBLIC = 'https://seald.test';
 const NOW = new Date('2026-10-22T12:00:00.000Z');
+
+// The link minter stamps its own clock (new Date()), so pin Date to NOW;
+// otherwise every approval minted here expires once the real date passes
+// NOW + 24 h. Only Date is faked; timers and promises run normally.
+beforeEach(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: [
+      'hrtime',
+      'nextTick',
+      'performance',
+      'queueMicrotask',
+      'requestAnimationFrame',
+      'cancelAnimationFrame',
+      'requestIdleCallback',
+      'cancelIdleCallback',
+      'setImmediate',
+      'clearImmediate',
+      'setInterval',
+      'clearInterval',
+      'setTimeout',
+      'clearTimeout',
+    ],
+  });
+});
+afterEach(() => {
+  jest.useRealTimers();
+});
 const HOUR = 3_600_000;
 
 const env = {
