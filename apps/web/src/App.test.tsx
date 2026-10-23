@@ -162,11 +162,15 @@ function makePdf(name = 'contract.pdf', sizeBytes = 1024): File {
   return file;
 }
 
-describe('App routing', () => {
+// Every route here is lazy-loaded; a cold import can take seconds on a busy
+// runner, so steps and tests get a budget well above the defaults.
+const STEP_TIMEOUT = { timeout: 10000 };
+
+describe('App routing', { timeout: 20000 }, () => {
   it('redirects root to the Dashboard', async () => {
     renderApp(['/']);
     expect(
-      await screen.findByRole('heading', { level: 1, name: /^documents$/i }),
+      await screen.findByRole('heading', { level: 1, name: /^documents$/i }, STEP_TIMEOUT),
     ).toBeInTheDocument();
   });
 
@@ -194,8 +198,6 @@ describe('App routing', () => {
   // `usePdfDocument` synchronously reports numPages: 1, so UploadRoute
   // opens the editor as soon as a PDF is chosen: there is no signer step,
   // signers are added in the editor.
-  const STEP_TIMEOUT = { timeout: 5000 };
-
   it('opens the editor straight after a PDF is chosen', async () => {
     renderApp(['/document/new']);
     const input = (await screen.findByLabelText(
