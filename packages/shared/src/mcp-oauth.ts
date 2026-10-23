@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeOffset } from './iso-datetime';
 import { API_KEY_SCOPES } from './api-keys';
 
 /**
@@ -32,7 +33,7 @@ export const MCP_OAUTH_LIFETIMES = {
 export const MCP_OAUTH_CONSENT_PATH = '/oauth/mcp/consent';
 
 const scopeEnum = z.enum(API_KEY_SCOPES);
-const isoDate = z.string().datetime({ offset: true });
+const isoDate = isoDateTimeOffset();
 
 /**
  * The authorization request the consent page carries: exactly the query

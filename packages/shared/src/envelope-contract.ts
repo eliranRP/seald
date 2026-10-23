@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeUtc } from './iso-datetime';
 import { SUPPORTED_LOCALES } from './locales';
 
 export const ENVELOPE_STATUSES = [
@@ -87,7 +88,7 @@ export type SignerUiStatus = (typeof SIGNER_UI_STATUSES)[number];
 // synthetic identifiers used in tests/seeds without buying any real-world
 // safety — Postgres already gates ingest at the column level.
 export const uuid = z.guid();
-export const iso = z.string().datetime();
+export const iso = isoDateTimeUtc();
 export const sha256 = z.string().regex(/^[0-9a-f]{64}$/);
 export const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 

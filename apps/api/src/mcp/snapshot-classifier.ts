@@ -59,13 +59,37 @@ class Collector {
   readonly additive: string[] = [];
 }
 
+/**
+ * `anyOf: [X, {type:"null"}]` and `X` with `type: [t, "null"]` are the same
+ * JSON Schema (zod 4.6 switched nullable fields from the first form to the
+ * second). Rewrite the anyOf form to the type-array form so a renderer
+ * change alone is not reported as a break.
+ */
+function normalizeNullable(schema: unknown): unknown {
+  if (!isObject(schema)) return schema;
+  const branches = schema['anyOf'];
+  if (!Array.isArray(branches) || branches.length !== 2) return schema;
+  const nullIdx = branches.findIndex(
+    (b) => isObject(b) && Object.keys(b).length === 1 && b['type'] === 'null',
+  );
+  if (nullIdx === -1) return schema;
+  const other = branches[1 - nullIdx];
+  if (!isObject(other) || typeof other['type'] !== 'string' || other['type'] === 'null') {
+    return schema;
+  }
+  const { anyOf: _drop, ...rest } = schema;
+  return { ...rest, ...other, type: [other['type'], 'null'] };
+}
+
 function compareSchema(
-  oldS: unknown,
-  newS: unknown,
+  oldRaw: unknown,
+  newRaw: unknown,
   path: string,
   io: 'input' | 'output',
   out: Collector,
 ): void {
+  const oldS = normalizeNullable(oldRaw);
+  const newS = normalizeNullable(newRaw);
   if (stableStringify(oldS) === stableStringify(newS)) return;
   if (!isObject(oldS) || !isObject(newS)) {
     out.breaking.push(`${path}: schema replaced`);

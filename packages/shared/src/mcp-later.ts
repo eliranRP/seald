@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeOffset } from './iso-datetime';
 import { ApprovalPendingResultSchema } from './approvals';
 import { BULK_BATCH_STATUSES, BULK_ROW_STATUSES } from './bulk-send';
 import { DELIVERY_MODES, MAX_SIGNING_ORDER, hexColor, iso, uuid } from './envelope-contract';
@@ -44,7 +45,7 @@ export const EnvelopesFixSignerOutputSchema = ApprovalPendingResultSchema;
 export const EnvelopesChangeExpiryInputSchema = z.strictObject({
   envelope_id: uuid,
   /** New expiry, ISO 8601 with a zone or offset. At least a day from now, at most 90 days (UTC). */
-  expires_at: z.string().datetime({ offset: true }),
+  expires_at: isoDateTimeOffset(),
   ...write,
 });
 

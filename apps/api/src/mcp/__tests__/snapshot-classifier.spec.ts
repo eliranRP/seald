@@ -29,6 +29,24 @@ const withInput = (patch: (p: Record<string, unknown>) => void, required = ['env
   return { ...base, inputSchema: { ...(base.inputSchema as object), properties: props, required } };
 };
 
+describe('classifyToolsChange nullable rendering', () => {
+  const withField = (field: object) =>
+    tool('t', { properties: { a: field }, required: [] }, { properties: { b: field } });
+  const oldForm = { anyOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] };
+  const newForm = { type: ['string', 'null'], minLength: 1 };
+
+  it('treats anyOf[X, null] and type:[X, null] as identical', () => {
+    expect(classifyToolsChange([withField(oldForm)], [withField(newForm)]).kind).toBe('none');
+  });
+
+  it('still flags a real narrowing hidden behind the new form', () => {
+    const narrowed = { type: ['string', 'null'], minLength: 5 };
+    expect(classifyToolsChange([withField(oldForm)], [withField(narrowed)]).kind).toBe('breaking');
+    const dropsNull = { type: 'string', minLength: 1 };
+    expect(classifyToolsChange([withField(oldForm)], [withField(dropsNull)]).kind).toBe('breaking');
+  });
+});
+
 describe('classifyToolsChange', () => {
   it('none for an identical catalog', () => {
     expect(classifyToolsChange([base], [base]).kind).toBe('none');
