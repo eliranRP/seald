@@ -5,6 +5,14 @@ export function isDevelopersEnabled(): boolean {
   return isFeatureEnabled('mcpServer') || isFeatureEnabled('publicApi');
 }
 
+/**
+ * "Connected apps" (MCP OAuth, WP-27) need both `mcpServer` and
+ * `mcpOauth`, the same pair the API checks.
+ */
+export function isConnectedAppsEnabled(): boolean {
+  return isFeatureEnabled('mcpServer') && isFeatureEnabled('mcpOauth');
+}
+
 /** Short plain label per scope. The scope id stays visible as the hint. */
 export const SCOPE_LABELS: Readonly<Record<ApiKeyScope, string>> = {
   'envelopes:read': 'Read documents',

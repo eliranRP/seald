@@ -5,7 +5,8 @@
  * review is a legitimate target, so anything else is refused.
  *
  * Accepted: `/approve/<id>` and `/approve/<id>/review`, with an optional
- * query string made of `[A-Za-z0-9_=&-]` (for example `?page=1`).
+ * query string made of `[A-Za-z0-9_=&-]` (for example `?page=1`), and the
+ * exact path `/oauth/mcp/consent` (WP-27, no query).
  *
  * Refused, and so `null`: absolute and protocol-relative URLs
  * (`https://…`, `//evil.com`), backslash tricks (`/\evil.com`), any other
@@ -21,6 +22,12 @@
 export const NEXT_PARAM = 'next';
 
 const APPROVE_PREFIX = '/approve/';
+/**
+ * WP-27: the MCP OAuth consent page, exactly, with no query. Its
+ * authorization request waits in sessionStorage during sign-in instead,
+ * so the long, percent-encoded query never has to pass this validator.
+ */
+const OAUTH_CONSENT_PATH = '/oauth/mcp/consent';
 const MAX_NEXT_LENGTH = 512;
 const PATH_SEGMENT = /^[A-Za-z0-9_-]+$/;
 const QUERY_STRING = /^[A-Za-z0-9_=&-]+$/;
@@ -33,6 +40,7 @@ export function validateNextPath(candidate: string | null | undefined): string |
   if (typeof candidate !== 'string') return null;
   if (candidate.length === 0 || candidate.length > MAX_NEXT_LENGTH) return null;
   if (candidate.includes('%')) return null;
+  if (candidate === OAUTH_CONSENT_PATH) return candidate;
   if (!candidate.startsWith(APPROVE_PREFIX)) return null;
 
   const queryAt = candidate.indexOf('?');

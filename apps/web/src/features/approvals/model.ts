@@ -25,6 +25,8 @@ export const STATUS_LABELS: Readonly<Record<ApprovalStatus, string>> = {
 const FAILURE_COPY: Readonly<Record<string, string>> = {
   api_key_revoked: 'The key that asked was revoked, so nothing was sent.',
   api_key_expired: 'The key that asked has expired, so nothing was sent.',
+  // WP-27: an OAuth connected app that was disconnected before the decision.
+  oauth_grant_revoked: 'The app that asked was disconnected, so nothing was sent.',
   execution_interrupted: 'The request was interrupted before it finished. Nothing was sent.',
   send_daily_cap: 'The daily send limit was reached, so nothing was sent.',
   recipient_cap: 'Too many new recipients for one day, so nothing was sent.',

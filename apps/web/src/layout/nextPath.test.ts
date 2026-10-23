@@ -48,6 +48,23 @@ describe('validateNextPath — accepted approval paths', () => {
   });
 });
 
+describe('validateNextPath — the MCP OAuth consent page (WP-27)', () => {
+  it('accepts the exact consent path', () => {
+    expect(validateNextPath('/oauth/mcp/consent')).toBe('/oauth/mcp/consent');
+  });
+
+  it.each([
+    '/oauth/mcp/consent?client_id=x',
+    '/oauth/mcp/consent/',
+    '/oauth/mcp/consent/../../evil',
+    '/oauth/gdrive/callback',
+    '//oauth/mcp/consent',
+    'https://evil.com/oauth/mcp/consent',
+  ])('refuses %s', (candidate) => {
+    expect(validateNextPath(candidate)).toBeNull();
+  });
+});
+
 describe('validateNextPath — open-redirect and off-site cases', () => {
   it.each([
     ['absolute https URL', 'https://evil.com/approve/abc'],

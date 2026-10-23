@@ -96,6 +96,10 @@ const DirectLinkPage = lazy(() =>
 const ApprovePage = lazy(() =>
   import('./pages/ApprovePage').then((m) => ({ default: m.ApprovePage })),
 );
+// WP-27: MCP OAuth consent, outside AppShell (same posture as /approve).
+const OAuthConsentPage = lazy(() =>
+  import('./pages/OAuthConsentPage').then((m) => ({ default: m.OAuthConsentPage })),
+);
 const ApproveDetailPage = lazy(() =>
   import('./pages/ApproveDetailPage').then((m) => ({ default: m.ApproveDetailPage })),
 );
@@ -169,6 +173,19 @@ export function AppRoutes() {
           Bug G (Phase 6.A iter-2 PROD, 2026-05-04). Pinned by
           apps/web/src/pages/GDriveOAuthCallbackPage/AppRoutes.gdrive-oauth-callback.test.tsx. */}
       <Route path="/oauth/gdrive/callback" element={<GDriveOAuthCallbackPage />} />
+
+      {/* MCP OAuth consent (WP-27). Outside <AppShell /> and outside RequireAuth:
+          the page itself sends a signed-out owner to /signin?next=… and keeps
+          the authorization request in sessionStorage meanwhile. Dark unless
+          `mcpServer` and `mcpOauth` are both on. */}
+      <Route
+        path="/oauth/mcp/consent"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <OAuthConsentPage />
+          </Suspense>
+        }
+      />
 
       {/* Public verify surface. Anyone with a 13-char short_code can pull
           the envelope's metadata + audit timeline. No auth gate. */}

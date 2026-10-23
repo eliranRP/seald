@@ -10,6 +10,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import type { ApiError } from '@/lib/api/apiClient';
 import { NotAvailable } from './NotAvailable';
 import { ConnectClient } from './ConnectClient';
+import { ConnectedApps } from './ConnectedApps';
 import { CreateKeyAdvanced } from './CreateKeyAdvanced';
 import { Disclosure } from './Disclosure';
 import { KeyList } from './KeyList';
@@ -163,6 +164,8 @@ export function DevelopersPanel() {
       </Section>
 
       <ConnectClient />
+
+      <ConnectedApps />
 
       <SecretOnceSheet
         open={created !== null}
