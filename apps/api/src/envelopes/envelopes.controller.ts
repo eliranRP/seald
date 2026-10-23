@@ -192,6 +192,24 @@ export class EnvelopesController {
     });
   }
 
+  /**
+   * Undo after Send. Owner only, within 10 s of `sent_at` and before any
+   * signer opened the document. Returns the envelope, back as a draft.
+   */
+  @Post(':id/unsend')
+  unsend(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ): Promise<Envelope> {
+    return this.svc
+      .unsend(user.id, id, {
+        ip: extractClientIp(req),
+        user_agent: req.headers['user-agent'] ?? null,
+      })
+      .then((envelope) => this.withDocuments(envelope));
+  }
+
   @Post(':id/signers/:signer_id/remind')
   @HttpCode(202)
   async remindSigner(

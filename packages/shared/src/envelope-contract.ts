@@ -75,6 +75,8 @@ export const EVENT_TYPES = [
   'signer_corrected',
   'signer_replaced',
   'expiry_changed',
+  // Migration 0045
+  'unsent',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

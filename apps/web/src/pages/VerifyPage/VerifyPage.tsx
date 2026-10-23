@@ -195,6 +195,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   signer_corrected: 'Signer details corrected',
   signer_replaced: 'Signer replaced',
   expiry_changed: 'Expiry changed',
+  unsent: 'Send undone',
 };
 
 interface DerivedView {

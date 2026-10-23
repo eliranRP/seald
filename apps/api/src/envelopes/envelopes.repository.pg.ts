@@ -41,6 +41,7 @@ import {
   type ReminderCandidate,
   type SetSigningOrderInput,
   type UpdateDraftMetadataPatch,
+  type UnsendOutcome,
 } from './envelopes.repository';
 import {
   inviteNextStep,
@@ -1505,6 +1506,58 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
       if (!envelope) return null;
       return { envelope, notifiedSignerIds, alreadySignedSignerIds };
+    });
+  }
+
+  async unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome> {
+    return this.db.transaction().execute(async (trx) => {
+      // Lock the row so a concurrent first view or signature cannot slip in
+      // between the checks below and the status flip.
+      const env = await trx
+        .selectFrom('envelopes')
+        .select(['id', 'owner_id', 'status', 'sent_at'])
+        .where('id', '=', envelope_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' } as const;
+      if (env.status !== 'awaiting_others' || env.sent_at === null) {
+        return { ok: false, reason: 'not_sent' } as const;
+      }
+      if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
+        return { ok: false, reason: 'window_expired' } as const;
+      }
+      const signers = await trx
+        .selectFrom('envelope_signers')
+        .select(['id', 'viewed_at', 'signed_at', 'declined_at'])
+        .where('envelope_id', '=', envelope_id)
+        .execute();
+      if (
+        signers.some((s) => s.viewed_at !== null || s.signed_at !== null || s.declined_at !== null)
+      ) {
+        return { ok: false, reason: 'signer_engaged' } as const;
+      }
+      const stamp = now.toISOString();
+      const updated = await trx
+        .updateTable('envelopes')
+        .set({ status: 'draft', sent_at: null, updated_at: stamp })
+        .where('id', '=', envelope_id)
+        .where('owner_id', '=', owner_id)
+        .where('status', '=', 'awaiting_others')
+        .executeTakeFirst();
+      if ((updated?.numUpdatedRows ?? 0n) === 0n) return { ok: false, reason: 'not_sent' } as const;
+      await trx
+        .updateTable('envelope_signers')
+        .set({ access_token_hash: null, access_token_sent_at: null, invited_at: null })
+        .where('envelope_id', '=', envelope_id)
+        .execute();
+      const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
+      if (!envelope) return { ok: false, reason: 'not_found' } as const;
+      return { ok: true, envelope } as const;
     });
   }
 

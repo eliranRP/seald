@@ -131,6 +131,24 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
     };
   }
 
+  async cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }> {
+    let canceled = 0;
+    let alreadyHandled = 0;
+    for (let i = 0; i < this.rows.length; i++) {
+      const row = this.rows[i]!;
+      if (row.envelope_id !== envelope_id || row.kind !== 'invite') continue;
+      if (row.status === 'pending') {
+        this.rows[i] = { ...row, status: 'canceled' };
+        canceled++;
+      } else if (row.status === 'sending' || row.status === 'sent') {
+        alreadyHandled++;
+      }
+    }
+    return { canceled, alreadyHandled };
+  }
+
   async markSkipped(id: string, reason: string): Promise<void> {
     const idx = this.rows.findIndex((r) => r.id === id);
     if (idx === -1) return;

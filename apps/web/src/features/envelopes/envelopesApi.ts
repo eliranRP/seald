@@ -258,7 +258,9 @@ export type EnvelopeEventType =
   // WP-26 (migration 0039)
   | 'signer_corrected'
   | 'signer_replaced'
-  | 'expiry_changed';
+  | 'expiry_changed'
+  // Migration 0045
+  | 'unsent';
 
 export interface EnvelopeEvent {
   readonly id: string;

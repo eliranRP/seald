@@ -112,6 +112,16 @@ export abstract class OutboundEmailsRepository {
    * `last_error` set to `reason`. The drain loop will not claim it again.
    */
   abstract markSkipped(id: string, reason: string): Promise<void>;
+
+  /**
+   * Undo after Send: flip every still-`pending` invite of the envelope to
+   * `canceled`, so the drain loop never claims it. Rows already claimed or
+   * sent are left alone and counted, so the caller can record both in the
+   * audit event.
+   */
+  abstract cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }>;
 }
 
 /**
