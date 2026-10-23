@@ -4,7 +4,8 @@
  * global Supabase AuthGuard protects, maps to one of:
  *
  * - `{ tool }`: the shipped tool that covers it;
- * - `{ planned }`: the pull-request step (`step-N`) or work package
+ * - `{ planned }`: the pull-request step (`step-N`, or `step-aN` for the
+ *   automations track in workflow-automations.md) or work package
  *   (`WP-45`, the approval-gated account and key actions) that will ship
  *   its tool;
  * - `{ excluded }`: only for a route with no agent-facing action (a
@@ -109,6 +110,12 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     excluded: 'owner_approval_decision',
     note: 'Re-mints after the owner edits fields from Review; an agent re-previews through its own tool instead.',
   },
+
+  // Automations (WP-29 A2b). `automations_test_webhook` ships with A2b's
+  // MCP half over the same `AutomationTestService.sendTest`
+  // (workflow-automations.md § Pull requests); the rest of /automations
+  // lands with the settings page (WP-31) and maps to the A3 tools.
+  'POST /automations/:id/test': { planned: 'step-a2b' },
 
   // Contacts
   'GET /contacts': { planned: 'step-12' },

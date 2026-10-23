@@ -177,6 +177,8 @@ export {
   MAX_AUTOMATIONS_PER_OWNER,
   MAX_AUTOMATION_EMAIL_RECIPIENTS,
   AUTOMATION_MAX_ATTEMPTS,
+  AUTOMATION_TEST_PER_RECIPE_PER_MINUTE,
+  AUTOMATION_TEST_PER_OWNER_PER_MINUTE,
   automationTriggerForEvent,
 } from './automations';
 export type {
@@ -186,6 +188,7 @@ export type {
   AutomationRunStatus,
   AutomationRecipeId,
   AutomationRecipe,
+  AutomationTestResult,
 } from './automations';
 export {
   API_KEY_PREFIX,

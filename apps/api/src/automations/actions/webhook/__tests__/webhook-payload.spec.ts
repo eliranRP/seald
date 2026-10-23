@@ -2,6 +2,7 @@ import { AUTOMATION_TRIGGERS } from 'shared';
 import {
   WEBHOOK_PAYLOAD_VERSION,
   buildWebhookPayload,
+  buildWebhookTestPayload,
   payloadDetailFrom,
   type WebhookPayloadSource,
 } from '../webhook-payload';
@@ -82,6 +83,29 @@ describe('webhook payload', () => {
       expect(p.type).toMatch(/^(envelope|signer)\.(sealed|sent|signed|declined|expired|viewed)$/);
       for (const k of keysDeep(p))
         expect(k).not.toMatch(/token|sign_url|access_token|secret|url_ciphertext|path/i);
+    },
+  );
+});
+
+describe('buildWebhookTestPayload (A2b)', () => {
+  it.each(AUTOMATION_TRIGGERS)(
+    'is clearly marked as a test and carries no envelope data for %s',
+    (trigger) => {
+      const p = buildWebhookTestPayload({
+        id: 'evt-test',
+        automationId: 'auto-1',
+        trigger,
+        createdAt: '2026-10-22T10:00:00.000Z',
+      });
+      expect(p).toMatchObject({
+        version: WEBHOOK_PAYLOAD_VERSION,
+        id: 'evt-test',
+        type: 'automation.test',
+        test: true,
+      });
+      expect(Object.keys(p.data).sort()).toEqual(['automation_id', 'event_type']);
+      for (const k of keysDeep(p))
+        expect(k).not.toMatch(/token|sign_url|access_token|secret|url|path|envelope|signer/i);
     },
   );
 });

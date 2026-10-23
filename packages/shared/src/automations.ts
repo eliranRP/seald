@@ -109,3 +109,30 @@ export const MAX_AUTOMATIONS_PER_OWNER = 10;
 export const MAX_AUTOMATION_EMAIL_RECIPIENTS = 10;
 /** Automatic attempts before a temporary failure becomes `failed` + retryable. */
 export const AUTOMATION_MAX_ATTEMPTS = 8;
+
+/** A2b: `POST /automations/:id/test` sends at most this many test events per recipe per minute. */
+export const AUTOMATION_TEST_PER_RECIPE_PER_MINUTE = 5;
+/** …and at most this many per owner per minute, across all their recipes. */
+export const AUTOMATION_TEST_PER_OWNER_PER_MINUTE = 20;
+
+/**
+ * Response of `POST /automations/:id/test` (A2b). The test ran: `ok` says
+ * whether the receiver answered 2xx. A delivery failure is still a 200
+ * with `ok: false` and a slug (`webhook_url_blocked`, `webhook_timeout`,
+ * `http_404`, …). The response body is read up to 64 KB and discarded;
+ * only the status code and whether the cap was hit come back. A test is
+ * not stored as a run.
+ */
+export interface AutomationTestResult {
+  readonly ok: boolean;
+  /** Body `id` and `Seald-Event-Id` of the test POST. Not a run id. */
+  readonly event_id: string;
+  readonly type: 'automation.test';
+  readonly response_status: number | null;
+  readonly duration_ms: number;
+  readonly response_truncated: boolean;
+  /** Failure slug, null on success. Never the URL or the response body. */
+  readonly error: string | null;
+  /** True when the same failure on a real run would be retried (timeout, DNS, 5xx, 408, 429). */
+  readonly transient: boolean;
+}

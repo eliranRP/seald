@@ -101,3 +101,45 @@ export function buildWebhookPayload(
     data,
   };
 }
+
+/** `type` of the A2b test event. Never a real envelope event. */
+export const WEBHOOK_TEST_EVENT_TYPE = 'automation.test';
+
+/**
+ * Body of `POST /automations/:id/test` (design doc § Run history and recipe
+ * UI): same envelope (`version`, `id`, `type`, `created_at`, `data`) as a
+ * real delivery, clearly marked with `type: automation.test` and
+ * `test: true`. It carries no envelope, signer, title or verify link, so a
+ * receiver that ignores `type` still cannot mistake it for a document.
+ */
+export interface WebhookTestPayload {
+  readonly version: typeof WEBHOOK_PAYLOAD_VERSION;
+  readonly id: string;
+  readonly type: typeof WEBHOOK_TEST_EVENT_TYPE;
+  readonly test: true;
+  readonly created_at: string;
+  readonly data: {
+    readonly automation_id: string;
+    /** The `type` this recipe sends for real events. */
+    readonly event_type: WebhookEventType;
+  };
+}
+
+export function buildWebhookTestPayload(input: {
+  readonly id: string;
+  readonly automationId: string;
+  readonly trigger: AutomationTrigger;
+  readonly createdAt: string;
+}): WebhookTestPayload {
+  return {
+    version: WEBHOOK_PAYLOAD_VERSION,
+    id: input.id,
+    type: WEBHOOK_TEST_EVENT_TYPE,
+    test: true,
+    created_at: input.createdAt,
+    data: {
+      automation_id: input.automationId,
+      event_type: WEBHOOK_EVENT_TYPE_BY_TRIGGER[input.trigger],
+    },
+  };
+}

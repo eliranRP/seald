@@ -156,12 +156,13 @@ describe('MCP route coverage (contract)', () => {
     }
   });
 
-  it('plans only unshipped steps or WP-45', () => {
+  // `step-aN` is an automations-track PR (workflow-automations.md § Pull requests).
+  it('plans only unshipped steps (MCP step-N or automations step-aN) or WP-45', () => {
     for (const [key, cov] of Object.entries(ROUTE_COVERAGE)) {
       if (!('planned' in cov)) continue;
       expect({ key, planned: cov.planned }).toEqual({
         key,
-        planned: expect.stringMatching(/^(step-\d+[a-z]?|WP-45)$/),
+        planned: expect.stringMatching(/^(step-a?\d+[a-z]?|WP-45)$/),
       });
       expect(SHIPPED_STEPS as readonly string[]).not.toContain(cov.planned);
     }
