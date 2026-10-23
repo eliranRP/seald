@@ -72,6 +72,8 @@ export interface ApiError extends Error {
   status?: number;
   code?: string;
   retryAfter?: number;
+  /** Id the API stamped on a 5xx (`request_id`), for support. */
+  requestId?: string;
 }
 
 /** Rate-limit toast fallback when the API sends no usable Retry-After. */
@@ -150,6 +152,7 @@ apiClient.interceptors.response.use(
             readonly code?: unknown;
             readonly error?: unknown;
             readonly retryAfter?: unknown;
+            readonly request_id?: unknown;
           }
         | undefined;
       if (typeof body?.code === 'string') {
@@ -158,6 +161,9 @@ apiClient.interceptors.response.use(
         // `HttpExceptionFilter` answers `{ error: <slug> }`. Keep the slug so a
         // caller can branch on it, for example `fresh_login_required` (WP-22).
         wrapped.code = body.error;
+      }
+      if (typeof body?.request_id === 'string') {
+        wrapped.requestId = body.request_id;
       }
       const retryAfter = retryAfterSeconds(error, body?.retryAfter);
       if (retryAfter !== undefined) {

@@ -124,4 +124,20 @@ describe('apiClient system reactions', () => {
     );
     expect(getSystemState().maintenance.active).toBe(false);
   });
+
+  it('exposes the request_id of a 5xx on the thrown error', async () => {
+    const adapter: AxiosAdapter = (config) =>
+      Promise.reject(failure(config, 500, { error: 'internal_error', request_id: 'req-abc' }));
+    const original = apiClient.defaults.adapter;
+    apiClient.defaults.adapter = adapter;
+    try {
+      await expect(apiClient.get('/x')).rejects.toMatchObject({
+        requestId: 'req-abc',
+        status: 500,
+      });
+    } finally {
+      if (original === undefined) delete apiClient.defaults.adapter;
+      else apiClient.defaults.adapter = original;
+    }
+  });
 });
