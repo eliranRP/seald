@@ -383,6 +383,12 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     }
     return false;
   }
+  async correctSigner(): Promise<never> {
+    throw new Error('not exercised here');
+  }
+  async updateOpenExpiry(): Promise<never> {
+    throw new Error('not exercised here');
+  }
   async recordSignerViewed(): Promise<EnvelopeSigner> {
     throw new Error('not_implemented_in_fake');
   }

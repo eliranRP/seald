@@ -57,7 +57,22 @@ export class SendGuardPgRepository extends SendGuardRepository {
              coalesce(sum(n), 0)::int as new_recipients
         from per_envelope`.execute(this.db);
     const row = result.rows[0];
-    return { sends: row?.sends ?? 0, newRecipients: row?.new_recipients ?? 0 };
+    // WP-26: rows of an approved MCP bulk batch that the worker has not
+    // sent yet are already spoken for, so a second approval cannot spend
+    // the same daily allowance. A row stops counting here once it is sent
+    // (its `sent` event counts above).
+    const queued = await sql<{ n: number }>`
+      select count(*)::int as n
+        from public.bulk_batch_rows r
+        join public.bulk_batches b on b.id = r.batch_id
+       where b.owner_id = ${ownerId}::uuid
+         and b.options ? 'mcp'
+         and b.status = 'processing'
+         and r.status in ('pending', 'processing')`.execute(this.db);
+    return {
+      sends: (row?.sends ?? 0) + (queued.rows[0]?.n ?? 0),
+      newRecipients: row?.new_recipients ?? 0,
+    };
   }
 
   async deliveryHealthSince(ownerId: string, since: Date): Promise<DeliveryHealth> {

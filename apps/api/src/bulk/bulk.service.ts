@@ -26,7 +26,7 @@ import type { AuthUser } from '../auth/auth-user';
 import { resolveSenderIdentity } from '../envelopes/sender-identity';
 import { TemplatesRepository } from '../templates/templates.repository';
 import { countRows } from './bulk-complete-email';
-import { BULK_TITLE_COLUMN, deriveSlots, validateBulkCsv } from './bulk-schema';
+import { BULK_TITLE_COLUMN, deriveSlots, validateBulkCsv, type ValidatedCsv } from './bulk-schema';
 import { BulkSummaryService } from './bulk-summary.service';
 import {
   BulkRepository,
@@ -34,7 +34,13 @@ import {
   type BulkOptions,
   type BulkRowRecord,
 } from './bulk.repository';
-import { CsvParseError, parseCsv } from './csv-parser';
+import { CsvParseError, parseCsv, type CsvRecord } from './csv-parser';
+
+/** One row an agent passed: a title and one signer per template slot. */
+export interface BulkAgentRow {
+  readonly title?: string | undefined;
+  readonly signers: ReadonlyArray<{ readonly name: string; readonly email: string }>;
+}
 
 /** Raw multipart text fields that carry the batch options. */
 export type BulkOptionFields = Readonly<Record<string, unknown>>;
@@ -176,6 +182,100 @@ export class BulkService {
       })),
     );
     return this.toWire(batch, await this.repo.listRows(batch.id), slots);
+  }
+
+  /**
+   * WP-26 (MCP): check the rows an agent passed against the template's
+   * slots, without writing. Rows are `{ title?, signers }` with one signer
+   * per slot in slot order; the same row rules as a CSV apply.
+   */
+  async validateRows(
+    owner_id: string,
+    template_id: string,
+    rows: ReadonlyArray<BulkAgentRow>,
+  ): Promise<{
+    readonly template: Template;
+    readonly slots: ReadonlyArray<BulkSlot>;
+    readonly validated: ValidatedCsv;
+    readonly records: ReadonlyArray<CsvRecord>;
+  }> {
+    const { template, slots } = await this.loadSendable(owner_id, template_id);
+    if (rows.some((r) => r.signers.length !== slots.length)) {
+      throw new UnprocessableEntityException('template_signer_count_mismatch');
+    }
+    const header: string[] = [];
+    for (const slot of slots) header.push(slot.name_column, slot.email_column);
+    header.push(BULK_TITLE_COLUMN);
+    const records: CsvRecord[] = [
+      { record: 1, cells: header },
+      ...rows.map((r, i) => ({
+        record: i + 2,
+        cells: [...r.signers.flatMap((s) => [s.name, s.email]), r.title ?? ''],
+      })),
+    ];
+    return { template, slots, validated: validateBulkCsv(records, slots), records };
+  }
+
+  /**
+   * WP-26 (MCP): a preview batch from rows an agent passed. Every row must
+   * be valid; one bad row fails the call with `bulk_rows_invalid` and
+   * writes nothing, so the owner approves exactly the rows that will send.
+   * Nothing is sent until {@link confirmForAgent}.
+   */
+  async createFromRows(
+    owner: { readonly id: string; readonly email: string },
+    template_id: string,
+    rows: ReadonlyArray<BulkAgentRow>,
+  ): Promise<BulkBatch> {
+    const sender = resolveSenderIdentity({ email: owner.email });
+    const { template, slots, validated, records } = await this.validateRows(
+      owner.id,
+      template_id,
+      rows,
+    );
+    if (validated.rows.some((r) => r.errors.length > 0)) {
+      throw new UnprocessableEntityException('bulk_rows_invalid');
+    }
+    const batch = await this.repo.createPreview(
+      {
+        owner_id: owner.id,
+        template_id: template.id,
+        template_title: template.title,
+        sender_email: sender.email,
+        sender_name: sender.name,
+        filename: null,
+        csv_sha256: createHash('sha256').update(JSON.stringify(records)).digest('hex'),
+        slot_count: slots.length,
+        options: {},
+        column_errors: validated.column_errors,
+        ignored_columns: validated.ignored_columns,
+      },
+      validated.rows.map((r) => ({
+        row_index: r.row,
+        recipients: r.recipients,
+        title: r.title,
+        errors: r.errors,
+      })),
+    );
+    return this.toWire(batch, await this.repo.listRows(batch.id), slots);
+  }
+
+  /**
+   * WP-26 (MCP): confirm a batch the owner approved. The attribution is
+   * stored on the batch first, so every envelope the worker sends for it
+   * carries `metadata.mcp`.
+   */
+  async confirmForAgent(
+    owner_id: string,
+    id: string,
+    attribution: Pick<BulkOptions, 'mcp' | 'new_recipient_emails'>,
+    now: Date = new Date(),
+  ): Promise<BulkBatch> {
+    const batch = await this.requireBatch(owner_id, id);
+    if (batch.status === 'preview') {
+      await this.repo.mergePreviewOptions(owner_id, id, attribution);
+    }
+    return this.confirm(owner_id, id, now);
   }
 
   async get(owner_id: string, id: string): Promise<BulkBatch> {

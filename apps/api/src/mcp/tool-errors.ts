@@ -122,6 +122,25 @@ const MESSAGES: Readonly<Record<string, string>> = {
   no_signers: 'The draft has no signers yet.',
   no_fields: 'The draft has no fields yet.',
   signer_without_signature_field: 'Every signer needs a required signature or initials field.',
+  // WP-26 (step 15): fix a signer, change an expiry, bulk send.
+  signer_not_found: 'No signer with this id was found on the envelope.',
+  signer_already_signed: 'This signer already signed, so their details cannot be corrected.',
+  signer_unchanged: 'The name and email are what the signer already has.',
+  expiry_out_of_range:
+    'The new expiry must be at least a day from now and at most 90 days out (UTC).',
+  expiry_unchanged: 'The envelope already expires at that time.',
+  bulk_rows_invalid:
+    'One or more rows are invalid (a name or email is missing, malformed or repeated in a row). Run dry_run to see which.',
+  bulk_batch_not_found: 'No bulk batch with this id was found for this account.',
+  bulk_batch_not_pending: 'This batch was already approved, canceled or finished.',
+  bulk_preview_expired: 'This batch was not approved in time. Send it again.',
+  bulk_no_valid_rows: 'The batch has no rows that can be sent.',
+  bulk_template_changed: 'The template changed after the batch was made. Send it again.',
+  template_has_no_example_pdf:
+    'The template has no example PDF yet. The owner uploads one in Seald before bulk sending.',
+  template_has_too_many_signers: 'The template has more signers than a bulk send supports.',
+  template_signer_without_signature_field:
+    'Every signer slot of the template needs a signature or initials field.',
 };
 
 function messageFor(slug: string, status: number): string {

@@ -254,7 +254,10 @@ export type EnvelopeEventType =
   | 'job_failed'
   | 'retention_deleted'
   | 'document_added'
-  | 'step_started';
+  | 'step_started'
+  // WP-26 (migration 0039)
+  | 'signer_corrected'
+  | 'expiry_changed';
 
 export interface EnvelopeEvent {
   readonly id: string;

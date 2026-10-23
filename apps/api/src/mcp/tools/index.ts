@@ -40,6 +40,7 @@ import { envelopesReorderDocumentsTool } from './prepare/envelopes-reorder-docum
 import { envelopesSetRecipientOrderTool } from './prepare/envelopes-set-recipient-order.tool';
 import { envelopesSuggestFieldsTool } from './prepare/envelopes-suggest-fields.tool';
 import { envelopesUpdateTool } from './prepare/envelopes-update.tool';
+import { MCP_LATER_TOOLS } from './later';
 import { MCP_TEMPLATES_TOOLS } from './templates';
 import { envelopesPreviewRemindTool } from './remind/envelopes-preview-remind.tool';
 import { envelopesRemindTool } from './remind/envelopes-remind.tool';
@@ -122,6 +123,8 @@ export const MCP_SEND_TOOLS: readonly McpTool[] = [
   envelopesCancelTool,
 ];
 
+export { MCP_LATER_TOOLS };
+
 /**
  * Every shipped tool. A tool that is not shipped is absent, not stubbed.
  * Order is the `tools/list` order.
@@ -136,4 +139,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
   ...MCP_TEMPLATES_TOOLS,
   ...MCP_GDRIVE_WRITE_TOOLS,
   ...MCP_SEND_TOOLS,
+  ...MCP_LATER_TOOLS,
 ];

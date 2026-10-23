@@ -477,6 +477,56 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return false;
   }
 
+  async correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.status !== 'awaiting_others') return null;
+    const before = env.signers.find((s) => s.id === signer_id);
+    if (!before || before.signed_at !== null || before.declined_at !== null) return null;
+    if (
+      patch.email !== undefined &&
+      env.signers.some(
+        (s) => s.id !== signer_id && s.email.toLowerCase() === patch.email?.toLowerCase(),
+      )
+    ) {
+      throw new EnvelopeSignerEmailTakenError();
+    }
+    const signer: EnvelopeSigner = {
+      ...before,
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.email !== undefined ? { email: patch.email } : {}),
+      status: 'awaiting',
+      viewed_at: null,
+      tc_accepted_at: null,
+    };
+    this.envelopes.set(envelope_id, {
+      ...env,
+      signers: env.signers.map((s) => (s.id === signer_id ? signer : s)),
+    });
+    this.signerTokenHashes.delete(signer_id);
+    this.reminderClock.set(signer_id, { invitedAt: now.toISOString(), lastRemindedAt: null });
+    return { previous: { name: before.name, email: before.email }, signer };
+  }
+
+  async updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.owner_id !== owner_id || env.status !== 'awaiting_others') return null;
+    const next = { ...env, expires_at, updated_at: new Date().toISOString() };
+    this.envelopes.set(envelope_id, next);
+    return { previous: env.expires_at, envelope: this.present(next) };
+  }
+
   async recordSignerViewed(
     signer_id: string,
     ip: string | null,

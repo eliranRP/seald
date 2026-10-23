@@ -159,6 +159,112 @@ describe('BulkService', () => {
     });
   });
 
+  describe('rows an agent passed (WP-26)', () => {
+    const rows = [
+      { title: 'Lease 1', signers: [{ name: 'Ada', email: 'ada@example.com' }] },
+      { signers: [{ name: 'Bob', email: 'bob@example.com' }] },
+    ];
+    const owner = { id: OWNER, email: 'sender@example.com' };
+
+    it('saves a preview with the rows, titles and sender, and nothing is sent', async () => {
+      const batch = await svc.createFromRows(owner, templateId, rows);
+      expect(batch).toMatchObject({ status: 'preview', counts: { total: 2, pending: 2 } });
+      expect(batch.rows.map((r) => [r.title, r.recipients[0]?.email])).toEqual([
+        ['Lease 1', 'ada@example.com'],
+        [null, 'bob@example.com'],
+      ]);
+      const stored = [...repo.batches.values()][0];
+      expect(stored).toMatchObject({ sender_email: 'sender@example.com', filename: null });
+      expect(stored?.csv_sha256).toHaveLength(64);
+      expect(stored?.options).toEqual({});
+    });
+
+    it('one bad row fails the whole call and writes nothing', async () => {
+      await expect(
+        svc.createFromRows(owner, templateId, [
+          rows[0] as (typeof rows)[0],
+          { signers: [{ name: 'Bob', email: 'not-an-email' }] },
+        ]),
+      ).rejects.toThrow('bulk_rows_invalid');
+      expect(repo.batches.size).toBe(0);
+    });
+
+    it('needs one signer per template slot', async () => {
+      await expect(
+        svc.createFromRows(owner, templateId, [
+          {
+            signers: [
+              { name: 'Ada', email: 'ada@example.com' },
+              { name: 'Bob', email: 'bob@example.com' },
+            ],
+          },
+        ]),
+      ).rejects.toThrow('template_signer_count_mismatch');
+    });
+
+    it('validateRows reports per-row errors without writing', async () => {
+      const out = await svc.validateRows(OWNER, templateId, [
+        { signers: [{ name: '', email: 'dup@example.com' }] },
+      ]);
+      expect(out.validated.rows[0]?.errors.map((e) => e.code)).toEqual(['missing_name']);
+      expect(repo.batches.size).toBe(0);
+    });
+
+    it('a template without an example PDF cannot be sent', async () => {
+      const t = await templates.create({
+        owner_id: OWNER,
+        title: 'No PDF',
+        description: null,
+        cover_color: null,
+        field_layout: [{ type: 'signature', pageRule: 'last', x: 1, y: 1, signerRoleId: 'a' }],
+        tags: [],
+        last_signers: [],
+      });
+      await expect(svc.createFromRows(owner, t.id, rows.slice(0, 1))).rejects.toThrow(
+        'template_has_no_example_pdf',
+      );
+    });
+
+    it('does not see another owner’s template', async () => {
+      await expect(
+        svc.createFromRows({ id: OTHER, email: 'other@example.com' }, templateId, rows),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('confirmForAgent stores the attribution, then confirms', async () => {
+      const batch = await svc.createFromRows(owner, templateId, rows);
+      const mcp = {
+        auth: 'api_key',
+        key_id: '99999999-9999-4999-8999-999999999999',
+        key_prefix: 'seald_live_abcd',
+        key_name: 'Key 1',
+        oauth_client_id: null,
+        oauth_grant_id: null,
+        acting_for_user_id: OWNER,
+        acting_for_email: 'sender@example.com',
+        tool: 'envelopes_bulk_send_from_template',
+        approval: 'email',
+        approved_by_session: true,
+      } as const;
+      const confirmed = await svc.confirmForAgent(OWNER, batch.id, {
+        mcp,
+        new_recipient_emails: ['ada@example.com'],
+      });
+      expect(confirmed.status).toBe('processing');
+      expect(repo.batches.get(batch.id)?.options).toEqual({
+        mcp,
+        new_recipient_emails: ['ada@example.com'],
+      });
+    });
+
+    it('confirmForAgent leaves the options of a batch that is no longer a preview', async () => {
+      const batch = await svc.createFromRows(owner, templateId, rows);
+      await svc.confirm(OWNER, batch.id);
+      await svc.confirmForAgent(OWNER, batch.id, { new_recipient_emails: ['x@example.com'] });
+      expect(repo.batches.get(batch.id)?.options).toEqual({});
+    });
+  });
+
   describe('get and cancel', () => {
     it('reports counts and falls back to generic slot labels once the template is gone', async () => {
       const batch = await svc.createBatch(

@@ -11,7 +11,10 @@
  * has. Nothing here reaches a service or a repository directly.
  *
  * Left out on purpose: the Google Drive tools (Drive is connected in the
- * app), automations, and `envelopes_suggest_fields`. Session-only routes
+ * app), automations, and `envelopes_suggest_fields`. Also not yet routed
+ * (WP-26, MCP step 15; each is one table entry plus a summary when v1 wants
+ * it): fix a signer, change an expiry, bulk send and `batches_get`, signer
+ * access codes and template authoring. Session-only routes
  * (`/me/*`, keys, approvals decisions, signing) are not here and stay
  * unavailable to a key.
  */

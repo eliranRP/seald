@@ -71,6 +71,9 @@ export const EVENT_TYPES = [
   'access_code_failed',
   // WP-21 (migration 0030): the owner approved or denied an agent action.
   'approval_decided',
+  // WP-26 (migration 0039): a sent envelope's signer was corrected, or its expiry moved.
+  'signer_corrected',
+  'expiry_changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

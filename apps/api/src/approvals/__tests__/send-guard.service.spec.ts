@@ -59,6 +59,14 @@ describe('SendGuardService', () => {
     expect(refused).toMatchObject({ slug: 'send_daily_cap', retryAfter: 3600 });
   });
 
+  it('counts the rows of a bulk batch as that many sends (WP-26)', async () => {
+    const g = guard({ sends: 12, newRecipients: 0 });
+    expect((await slugOf(g.svc.assertCaps(OWNER, 0, NOW, 8))).slug).toBe('none');
+    expect((await slugOf(g.svc.assertCaps(OWNER, 0, NOW, 9))).slug).toBe('send_daily_cap');
+    expect((await slugOf(g.svc.assertCapsLocked(OWNER, 0, NOW, 9))).slug).toBe('send_daily_cap');
+    expect(g.calls.filter((c) => c === 'lockOwner')).toHaveLength(1);
+  });
+
   it('counts the new recipients of this send against the 25 a day', async () => {
     const g = guard({ sends: 0, newRecipients: 23 });
     expect((await slugOf(g.svc.assertCaps(OWNER, 2, NOW))).slug).toBe('none');

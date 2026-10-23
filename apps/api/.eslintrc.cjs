@@ -51,9 +51,19 @@ const mcpDeniedPatterns = [
     // The one exception is the sender-side signing-order service behind
     // `PUT /envelopes/:id/signing-order` (WP-05), which the draft tools
     // call (WP-19). It sets the order on a draft; it does not sign.
+    // WP-26 adds a second: the sender-side access-code settings service
+    // behind `GET|PATCH /envelopes/:id/access-auth` (WP-10). It reads and
+    // sets a draft's code requirement; the tools call only `getSettings` and
+    // `patchSettings`, never the signer-side code methods.
     group: [
       '../**/signing/**',
       '!../**/signing/signing-order.service',
+      // The directory is re-included first (an ignore-style pattern cannot
+      // re-include a file under an excluded directory), then everything in
+      // it but the one service is blocked again.
+      '!../**/signing/access-auth',
+      '../**/signing/access-auth/**',
+      '!../**/signing/access-auth/access-auth.service',
       '../**/signing.service',
       '../**/signer-session.service',
       '../**/signer-session',

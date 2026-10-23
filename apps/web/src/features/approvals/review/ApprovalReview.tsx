@@ -56,6 +56,10 @@ export interface ApprovalReviewProps {
   readonly notice?: ReactNode | undefined;
   /** Phone layout: header arrows, swipe, and the summary in a bottom sheet. */
   readonly isMobile: boolean;
+  /** The primary button's text. Default "Approve"; the app send flow says "Send". */
+  readonly approveLabel?: string | undefined;
+  /** The header back button's accessible name. Default "Back to the approval". */
+  readonly backLabel?: string | undefined;
 }
 
 function clampStep(step: number, total: number): number {
@@ -107,6 +111,8 @@ export function ApprovalReview({
   busy,
   notice,
   isMobile,
+  approveLabel = 'Approve',
+  backLabel = 'Back to the approval',
 }: ApprovalReviewProps) {
   const pages = useMemo(() => buildReviewPages(envelope), [envelope]);
   const total = pages.length;
@@ -148,7 +154,7 @@ export function ApprovalReview({
 
   const approveButton = (
     <Button variant="primary" size="lg" loading={busy} onClick={onApprove}>
-      Approve
+      {approveLabel}
     </Button>
   );
   const editButton = onEdit ? (
@@ -166,7 +172,7 @@ export function ApprovalReview({
   return (
     <Root>
       <Header>
-        <IconButton type="button" aria-label="Back to the approval" onClick={onExit}>
+        <IconButton type="button" aria-label={backLabel} onClick={onExit}>
           <ArrowLeft size={20} aria-hidden />
         </IconButton>
         <HeaderText>

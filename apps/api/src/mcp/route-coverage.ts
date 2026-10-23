@@ -9,9 +9,10 @@
  *   (`WP-45`, the approval-gated account and key actions) that will ship
  *   its tool;
  * - `{ excluded }`: only for a route with no agent-facing action (a
- *   signer-link, verify, cron or OAuth browser redirect route), or the
+ *   signer-link, verify, cron or OAuth browser redirect route), the
  *   owner's own Approve / Deny / review re-mint (the human side of an
- *   approval, browser-only per D5).
+ *   approval, browser-only per D5), or an owner-side route the design
+ *   leaves to the app (`owner_in_app_only`, WP-26).
  *
  * `@Public()` routes (signing, verify, cron, health, the OAuth callback
  * and `/mcp` itself) are skipped by decorator in
@@ -39,6 +40,8 @@ export const SHIPPED_STEPS = [
   'step-14',
   'step-10',
   'step-11',
+  // WP-26: the "Later" list.
+  'step-15',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -50,6 +53,17 @@ export const EXCLUSION_REASONS = [
   // approval. An agent asking for it would approve itself; there is no
   // `approvals_decide` tool by design.
   'owner_approval_decision',
+  // WP-26 (MCP step 15). The design doc's "Later" list names no tool for
+  // these owner-side routes, and each hands an agent something a tool call
+  // cannot carry safely: a file body (the template example PDF, which the
+  // staged upload flow does not cover), a public entry point anyone holding
+  // the link can use (a template's direct link, whose create/rotate/revoke
+  // is an owner decision with no approval kind), or the stop button on a
+  // send the owner already approved (bulk batch cancel), plus the owner's own
+  // oversight list of what agents did (`GET /agent-activity`). The contract
+  // spec pins the exact routes this reason may cover, so a new route cannot
+  // hide under it, and every entry's note says which case it is.
+  'owner_in_app_only',
 ] as const;
 export type ExclusionReason = (typeof EXCLUSION_REASONS)[number];
 
@@ -89,9 +103,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /envelopes/:id': { tool: 'envelopes_get' },
   'PATCH /envelopes/:id': { tool: 'envelopes_update' },
   'PUT /envelopes/:id/signing-order': { tool: 'envelopes_set_recipient_order' },
-  // WP-10 signer access-code settings: step 15 (WP-26, MCP "Later" list).
-  'GET /envelopes/:id/access-auth': { planned: 'step-15' },
-  'PATCH /envelopes/:id/access-auth': { planned: 'step-15' },
+  // WP-10 signer access-code settings (WP-26, step 15).
+  'GET /envelopes/:id/access-auth': { tool: 'envelopes_get_access_auth' },
+  'PATCH /envelopes/:id/access-auth': { tool: 'envelopes_set_access_auth' },
   'DELETE /envelopes/:id': { tool: 'envelopes_delete_draft' },
   'POST /envelopes/:id/upload': { tool: 'envelopes_upload_pdf' },
   // WP-24: through owner approval (envelopes_preview_send / _preview_remind preview them).
@@ -154,33 +168,63 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'PATCH /contacts/:id': { tool: 'contacts_update' },
   'DELETE /contacts/:id': { tool: 'contacts_delete' },
 
-  // Templates (step 13): the listing, the schema read and the draft built
-  // from a template are tools. Authoring a template, its example PDF and the
-  // WP-37 direct link have no step-13 tool; they are planned with step 15.
+  // Templates (steps 13 and 15): the listing, the schema read, the draft built
+  // from a template and template authoring are tools. The example PDF and the
+  // WP-37 direct link are the owner's, in the app.
   'GET /templates': { tool: 'templates_list' },
-  'POST /templates': { planned: 'step-15' },
+  'POST /templates': { tool: 'templates_create' },
   'GET /templates/:id': { tool: 'templates_get_schema' },
-  'PATCH /templates/:id': { planned: 'step-15' },
-  'DELETE /templates/:id': { planned: 'step-15' },
+  'PATCH /templates/:id': { tool: 'templates_update' },
+  'DELETE /templates/:id': { tool: 'templates_delete' },
   // envelopes_create_from_template bumps the use count itself, after success.
   'POST /templates/:id/use': { tool: 'envelopes_create_from_template' },
   'POST /templates/:id/apply': { tool: 'envelopes_create_from_template' },
-  'POST /templates/:id/example': { planned: 'step-15' },
-  'GET /templates/:id/example': { planned: 'step-15' },
-  // WP-36 bulk send from a template: MCP "Later" list (WP-26),
-  // `envelopes_bulk_send_from_template` + `batches_get` over the same service.
-  'GET /templates/:id/bulk-schema': { planned: 'step-15' },
-  'POST /templates/:id/bulk-batches': { planned: 'step-15' },
-  'GET /bulk-batches/:id': { planned: 'step-15' },
-  'POST /bulk-batches/:id/confirm': { planned: 'step-15' },
-  'POST /bulk-batches/:id/cancel': { planned: 'step-15' },
+  'POST /templates/:id/example': {
+    excluded: 'owner_in_app_only',
+    note: 'A PDF body. The owner uploads the example in the app; templates_create saves the layout only.',
+  },
+  'GET /templates/:id/example': {
+    excluded: 'owner_in_app_only',
+    note: 'Streams the example PDF bytes for the app editor; an agent reads a template with templates_get_schema.',
+  },
+  // WP-36 bulk send from a template (WP-26, step 15): one approval confirms the batch.
+  'GET /templates/:id/bulk-schema': { tool: 'templates_get_schema' },
+  'POST /templates/:id/bulk-batches': { tool: 'envelopes_bulk_send_from_template' },
+  'GET /bulk-batches/:id': { tool: 'batches_get' },
+  // The owner's Approve of the bulk approval confirms the batch.
+  'POST /bulk-batches/:id/confirm': { tool: 'envelopes_bulk_send_from_template' },
+  'POST /bulk-batches/:id/cancel': {
+    excluded: 'owner_in_app_only',
+    note: 'Stops a batch the owner already approved. The owner stops it in the app; the agent polls batches_get.',
+  },
   // WP-37: the template's direct link (the public `/direct-links/*` routes are
-  // @Public). No step-13 tool covers them; planned with the later templates PR.
-  'GET /templates/:id/direct-link': { planned: 'step-15' },
-  'POST /templates/:id/direct-link': { planned: 'step-15' },
-  'PATCH /templates/:id/direct-link': { planned: 'step-15' },
-  'POST /templates/:id/direct-link/rotate': { planned: 'step-15' },
-  'DELETE /templates/:id/direct-link': { planned: 'step-15' },
+  // @Public). Creating, rotating or revoking a public link is the owner's call in the app.
+  'GET /templates/:id/direct-link': {
+    excluded: 'owner_in_app_only',
+    note: 'The link and its claim counts belong to the owner; the design doc names no direct-link tool.',
+  },
+  'POST /templates/:id/direct-link': {
+    excluded: 'owner_in_app_only',
+    note: 'Publishes a link anyone can use to start an envelope from the template; owner only, in the app.',
+  },
+  'PATCH /templates/:id/direct-link': {
+    excluded: 'owner_in_app_only',
+    note: 'Changes who can use a published link; owner only, in the app.',
+  },
+  'POST /templates/:id/direct-link/rotate': {
+    excluded: 'owner_in_app_only',
+    note: 'Replaces the public link; owner only, in the app.',
+  },
+  'DELETE /templates/:id/direct-link': {
+    excluded: 'owner_in_app_only',
+    note: 'Turns the public link off; owner only, in the app.',
+  },
+
+  // Agent activity (WP-26): the owner's list of what each key did.
+  'GET /agent-activity': {
+    excluded: 'owner_in_app_only',
+    note: 'The owner oversight list of agent actions on the Developers page; agents read their own results through approvals_list and envelopes_list_events.',
+  },
 
   // Google Drive
   // A Seald settings link, not a consent URL minted for the key (see the tool).

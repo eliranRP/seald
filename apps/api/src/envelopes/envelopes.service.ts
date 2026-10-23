@@ -7,7 +7,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
+import { ENVELOPE_STATUSES, isExpiryWithinBounds, isFeatureEnabled } from 'shared';
 import type {
   Envelope as WireEnvelope,
   EnvelopeGdriveSaveResult,
@@ -1111,6 +1111,192 @@ export class EnvelopesService {
         reminder_cadence: '',
       },
     });
+  }
+
+  /**
+   * Every check `fixSigner` runs before it writes (WP-26): the envelope is
+   * the owner's and out for signature, the signer exists and has neither
+   * signed nor declined, the patch changes something, and a new email is
+   * not already another signer's on this envelope.
+   */
+  async checkFixSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string | undefined; readonly email?: string | undefined },
+  ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    const signer = envelope.signers.find((s) => s.id === signer_id);
+    if (!signer) throw new NotFoundException('signer_not_found');
+    if (signer.signed_at !== null) throw new ConflictException('signer_already_signed');
+    if (signer.declined_at !== null) throw new ConflictException('already_declined');
+    const nameChanged = patch.name !== undefined && patch.name !== signer.name;
+    const emailChanged =
+      patch.email !== undefined && patch.email.toLowerCase() !== signer.email.toLowerCase();
+    // A pure re-casing of the address is still a change worth writing.
+    const caseChanged = patch.email !== undefined && patch.email !== signer.email;
+    if (!nameChanged && !emailChanged && !caseChanged) {
+      throw new BadRequestException('signer_unchanged');
+    }
+    if (
+      emailChanged &&
+      envelope.signers.some(
+        (s) => s.id !== signer_id && s.email.toLowerCase() === patch.email?.toLowerCase(),
+      )
+    ) {
+      throw new ConflictException('signer_email_taken');
+    }
+    return { envelope, signer };
+  }
+
+  /**
+   * Correct a signer's name or email on an envelope that is out for
+   * signature, and re-invite (WP-26, MCP step 15; through owner approval
+   * when an agent asks). The previous link stops working at once: the
+   * corrected signer gets a new invite whose token the dispatcher mints
+   * when it sends. An address that stops being a recipient gets a short
+   * note. The change is one hash-chained `signer_corrected` event.
+   *
+   * Sequential order: the invite goes out only when it is that signer's
+   * turn, as a reminder would; a later step is invited when its turn comes.
+   */
+  async fixSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string | undefined; readonly email?: string | undefined },
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
+    now: Date = new Date(),
+  ): Promise<{ readonly signer: EnvelopeSigner; readonly email_changed: boolean }> {
+    await this.checkFixSigner(owner_id, envelope_id, signer_id, patch);
+    const cleanPatch = {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.email !== undefined ? { email: patch.email } : {}),
+    };
+    const done = await this.repo.correctSigner(envelope_id, signer_id, cleanPatch, now);
+    if (!done) {
+      // Lost a race with a signature, a decline or a terminal status: say which.
+      await this.checkFixSigner(owner_id, envelope_id, signer_id, patch);
+      throw new ConflictException('envelope_terminal');
+    }
+    const emailChanged = done.previous.email.toLowerCase() !== done.signer.email.toLowerCase();
+    const event = await this.repo.appendEvent({
+      envelope_id,
+      signer_id,
+      actor_kind: 'sender',
+      event_type: 'signer_corrected',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: withMcp(
+        {
+          previous_name: done.previous.name,
+          new_name: done.signer.name,
+          previous_email: done.previous.email,
+          new_email: done.signer.email,
+          email_changed: emailChanged,
+        },
+        attribution?.mcp,
+      ),
+    });
+
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const sender = {
+      email: envelope.sender_email ?? '',
+      name: envelope.sender_name ?? null,
+    };
+    if (isSignersTurn(envelope.delivery_mode, envelope.signers, signer_id)) {
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id,
+          kind: 'invite',
+          to_email: done.signer.email,
+          to_name: done.signer.name,
+          source_event_id: event.id,
+          payload: inviteEmailPayload(envelope, sender, publicUrl),
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+      }
+    }
+    if (emailChanged) {
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id,
+          kind: 'signer_corrected',
+          to_email: done.previous.email,
+          to_name: done.previous.name,
+          source_event_id: event.id,
+          payload: {
+            sender_name: sender.name ?? sender.email,
+            sender_email: sender.email,
+            envelope_title: envelope.title,
+            short_code: envelope.short_code,
+            verify_url: `${publicUrl}/verify/${envelope.short_code}`,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+      }
+    }
+    return { signer: done.signer, email_changed: emailChanged };
+  }
+
+  /**
+   * Every check `changeExpiry` runs before it writes (WP-26): the envelope
+   * is the owner's and out for signature, and the new time is a real
+   * change inside the bounds the send controls enforce (a day from now to
+   * the end of the UTC day 90 days out).
+   */
+  async checkChangeExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+    now: Date,
+  ): Promise<Envelope> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    const at = Date.parse(expires_at);
+    if (!isExpiryWithinBounds(at, now.getTime())) {
+      throw new BadRequestException('expiry_out_of_range');
+    }
+    if (at === Date.parse(envelope.expires_at)) throw new BadRequestException('expiry_unchanged');
+    return envelope;
+  }
+
+  /** New `expires_at` on a sent envelope (WP-26). One hash-chained `expiry_changed` event. */
+  async changeExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
+    now: Date = new Date(),
+  ): Promise<{ readonly previous_expires_at: string; readonly expires_at: string }> {
+    await this.checkChangeExpiry(owner_id, envelope_id, expires_at, now);
+    const normalized = new Date(expires_at).toISOString();
+    const done = await this.repo.updateOpenExpiry(owner_id, envelope_id, normalized);
+    if (!done) throw new ConflictException('envelope_terminal');
+    await this.repo.appendEvent({
+      envelope_id,
+      actor_kind: 'sender',
+      event_type: 'expiry_changed',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: withMcp(
+        { previous_expires_at: done.previous, expires_at: normalized },
+        attribution?.mcp,
+      ),
+    });
+    return { previous_expires_at: done.previous, expires_at: normalized };
   }
 
   /**

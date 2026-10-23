@@ -104,6 +104,45 @@ describe('classifyToolsChange', () => {
     expect(classifyToolsChange([base], [changed, v2]).kind).toBe('additive');
   });
 
+  describe('unions (anyOf)', () => {
+    const union = (kinds: string[], extra: object = {}) => ({
+      ...base,
+      outputSchema: {
+        type: 'object',
+        anyOf: [
+          { type: 'object', properties: { dry_run: { type: 'boolean' } } },
+          {
+            type: 'object',
+            properties: { kind: { type: 'string', enum: kinds }, ...extra },
+          },
+        ],
+      },
+    });
+
+    it('is additive when a branch gains an enum value or a field (the approval kinds grow this way)', () => {
+      expect(classifyToolsChange([union(['a'])], [union(['a', 'b'])]).kind).toBe('additive');
+      expect(
+        classifyToolsChange([union(['a'])], [union(['a'], { note: { type: 'string' } })]).kind,
+      ).toBe('additive');
+    });
+
+    it('is breaking when a branch loses an output field or the branch count changes', () => {
+      expect(
+        classifyToolsChange([union(['a'], { note: { type: 'string' } })], [union(['a'])]).kind,
+      ).toBe('breaking');
+      const fewer = {
+        ...union(['a']),
+        outputSchema: { type: 'object', anyOf: [{ type: 'object' }] },
+      };
+      expect(classifyToolsChange([union(['a'])], [fewer]).kind).toBe('breaking');
+    });
+
+    it('is breaking when a union appears or disappears', () => {
+      expect(classifyToolsChange([base], [union(['a'])]).kind).toBe('breaking');
+      expect(classifyToolsChange([union(['a'])], [base]).kind).toBe('breaking');
+    });
+  });
+
   it('reads the minor of a semver', () => {
     expect(minorOf('0.12.3')).toBe(12);
   });

@@ -15,10 +15,16 @@ vi.mock('@/lib/api/apiClient', () => ({
 }));
 
 import { DevelopersPanel } from './DevelopersPanel';
+import { fakeActivity, fakePage } from '@/features/agentActivity/fixtures';
 import { FAKE_SECRET, fakeKey, fakeKeys } from './fixtures';
 
 function listReturns(items: ReadonlyArray<ReturnType<typeof fakeKey>>): void {
-  getMock.mockResolvedValue({ data: { items } });
+  // The page also lists agent activity (WP-26); an empty list keeps these specs on the keys.
+  getMock.mockImplementation((url: string) =>
+    Promise.resolve({
+      data: url === '/agent-activity' ? { items: [], next_cursor: null } : { items },
+    }),
+  );
 }
 
 function renderPanel(signOut: () => Promise<void> = () => Promise.resolve()) {
@@ -58,6 +64,24 @@ describe('DevelopersPanel', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.queryByText(FAKE_SECRET, { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('lists agent activity under the keys', async () => {
+    getMock.mockImplementation((url: string) =>
+      Promise.resolve({
+        data:
+          url === '/agent-activity'
+            ? fakePage([fakeActivity({ title: 'Lease renewal' })])
+            : { items: [fakeKey()] },
+      }),
+    );
+    renderPanel();
+
+    const activity = await screen.findByRole('region', { name: 'Agent activity' });
+    expect(
+      await within(activity).findByRole('link', { name: 'Lease renewal' }),
+    ).toBeInTheDocument();
+    expect(within(activity).getByText('Sent for signature')).toBeInTheDocument();
   });
 
   it('shows connect snippets with <YOUR_KEY> only, and Later tiles', async () => {

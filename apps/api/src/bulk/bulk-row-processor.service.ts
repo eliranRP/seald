@@ -159,11 +159,16 @@ export class BulkRowProcessor {
     }
 
     try {
+      // WP-26: a batch the owner approved for an agent stamps `metadata.mcp`.
+      const mcp = batch.options.mcp;
       await this.envelopes.send(
         owner,
         envelopeId,
         { email: batch.sender_email, name: batch.sender_name },
         { ip: null, user_agent: 'bulk-send' },
+        mcp
+          ? { mcp, newRecipientEmails: new Set(batch.options.new_recipient_emails ?? []) }
+          : undefined,
       );
     } catch (err) {
       // Another worker (or the attempt that crashed) already flipped it.

@@ -110,6 +110,22 @@ export class BulkPgRepository extends BulkRepository {
     });
   }
 
+  async mergePreviewOptions(
+    owner_id: string,
+    id: string,
+    patch: Partial<BulkOptions>,
+  ): Promise<BulkBatchRecord | null> {
+    const row = await this.db
+      .updateTable('bulk_batches')
+      .set({ options: sql<string>`options || ${JSON.stringify(patch)}::jsonb` })
+      .where('id', '=', id)
+      .where('owner_id', '=', owner_id)
+      .where('status', '=', 'preview')
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toBatch(row) : null;
+  }
+
   async findBatchForOwner(owner_id: string, id: string): Promise<BulkBatchRecord | null> {
     const row = await this.db
       .selectFrom('bulk_batches')

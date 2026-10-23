@@ -48,6 +48,14 @@ export function requesterOf(cred: AgentCredential): {
     : { ownerId: cred.ownerId, apiKeyId: cred.keyId, oauthGrantId: null };
 }
 
+/** The fields `envelopes_fix_signer` passes (already parsed by the tool's input schema). */
+export interface FixSignerArgs {
+  readonly envelope_id: string;
+  readonly signer_id: string;
+  readonly name?: string | undefined;
+  readonly email?: string | undefined;
+}
+
 /** MCP request events carry this user agent and no client name. */
 export const MCP_USER_AGENT = 'SealdMCP/1';
 
@@ -314,6 +322,97 @@ export class AgentEnvelopeActionsService {
       'envelope_cancel',
       'envelopes_cancel',
       { envelope_id: envelopeId },
+      now,
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fix a signer and change an expiry (step 15): always the approval path
+  // ---------------------------------------------------------------------------
+
+  /** Fix-signer dry run: every check the request makes, no row written. */
+  async checkFixSigner(
+    cred: AgentCredential,
+    args: FixSignerArgs,
+    now: Date,
+  ): Promise<Record<string, unknown>> {
+    await this.assertNotSuspended(cred, now);
+    const { signer } = await this.envelopes.checkFixSigner(
+      cred.ownerId,
+      args.envelope_id,
+      args.signer_id,
+      args,
+    );
+    const ownerEmail = await this.verifiedMailbox(cred.ownerId);
+    if (sameMailbox(args.email ?? signer.email, ownerEmail)) {
+      throw new ConflictException('signer_is_account_owner');
+    }
+    return {
+      envelope_id: args.envelope_id,
+      signer_id: signer.id,
+      email_changes: args.email !== undefined && args.email !== signer.email.toLowerCase(),
+      approval: 'email',
+      approve_requires: 'session',
+    };
+  }
+
+  /** `envelopes_fix_signer`. Approve always needs a session. */
+  async fixSigner(
+    cred: AgentCredential,
+    args: FixSignerArgs,
+    now: Date,
+  ): Promise<ApprovalPendingResult> {
+    await this.checkFixSigner(cred, args, now);
+    return this.request(
+      cred,
+      'envelope_fix_signer',
+      'envelopes_fix_signer',
+      {
+        envelope_id: args.envelope_id,
+        signer_id: args.signer_id,
+        ...(args.name !== undefined ? { name: args.name } : {}),
+        ...(args.email !== undefined ? { email: args.email } : {}),
+      },
+      now,
+    );
+  }
+
+  /** Change-expiry dry run. */
+  async checkChangeExpiry(
+    cred: AgentCredential,
+    envelopeId: string,
+    expiresAt: string,
+    now: Date,
+  ): Promise<Record<string, unknown>> {
+    await this.assertNotSuspended(cred, now);
+    const envelope = await this.envelopes.checkChangeExpiry(
+      cred.ownerId,
+      envelopeId,
+      expiresAt,
+      now,
+    );
+    return {
+      envelope_id: envelope.id,
+      previous_expires_at: envelope.expires_at,
+      expires_at: new Date(expiresAt).toISOString(),
+      approval: 'email',
+      approve_requires: 'session',
+    };
+  }
+
+  /** `envelopes_change_expiry`. Approve always needs a session. */
+  async changeExpiry(
+    cred: AgentCredential,
+    envelopeId: string,
+    expiresAt: string,
+    now: Date,
+  ): Promise<ApprovalPendingResult> {
+    await this.checkChangeExpiry(cred, envelopeId, expiresAt, now);
+    return this.request(
+      cred,
+      'envelope_change_expiry',
+      'envelopes_change_expiry',
+      { envelope_id: envelopeId, expires_at: expiresAt },
       now,
     );
   }

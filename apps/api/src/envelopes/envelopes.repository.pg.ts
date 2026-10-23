@@ -1070,6 +1070,109 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     });
   }
 
+  async correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null> {
+    try {
+      return await this.db.transaction().execute(async (trx) => {
+        const envelope = await trx
+          .selectFrom('envelopes')
+          .select(['status'])
+          .where('id', '=', envelope_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!envelope || envelope.status !== 'awaiting_others') return null;
+        const before = await trx
+          .selectFrom('envelope_signers')
+          .selectAll()
+          .where('id', '=', signer_id)
+          .where('envelope_id', '=', envelope_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!before || before.signed_at !== null || before.declined_at !== null) return null;
+
+        const emailChanged =
+          patch.email !== undefined && patch.email.toLowerCase() !== before.email.toLowerCase();
+        const row = await trx
+          .updateTable('envelope_signers')
+          .set({
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+            ...(patch.email !== undefined ? { email: patch.email } : {}),
+            ...(emailChanged ? { contact_id: null } : {}),
+            // The old link no longer matches; the dispatcher mints a new
+            // token when the fresh invite goes out.
+            access_token_hash: null,
+            // What the previous holder of the link did is not the
+            // corrected signer's progress.
+            viewed_at: null,
+            tc_accepted_at: null,
+            verification_checks: '[]',
+            last_reminded_at: null,
+            invited_at: now.toISOString(),
+            signature_format: null,
+            signature_image_path: null,
+            signature_font: null,
+            signature_stroke_count: null,
+            signature_source_filename: null,
+            initials_format: null,
+            initials_image_path: null,
+          })
+          .where('id', '=', signer_id)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        await trx
+          .updateTable('envelope_fields')
+          .set({ value_text: null, value_boolean: null, filled_at: null })
+          .where('signer_id', '=', signer_id)
+          .execute();
+        await sql`update public.signer_otp_challenges
+                     set superseded_at = ${now.toISOString()}::timestamptz
+                   where signer_id = ${signer_id}::uuid
+                     and consumed_at is null
+                     and superseded_at is null`.execute(trx);
+        return {
+          previous: { name: before.name, email: before.email },
+          signer: toSignerDomain(row),
+        };
+      });
+    } catch (err) {
+      if (isSignerEmailUniqueViolation(err)) throw new EnvelopeSignerEmailTakenError();
+      throw err;
+    }
+  }
+
+  async updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null> {
+    const previous = await this.db.transaction().execute(async (trx) => {
+      const before = await trx
+        .selectFrom('envelopes')
+        .select(['status', 'expires_at'])
+        .where('id', '=', envelope_id)
+        .where('owner_id', '=', owner_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!before || before.status !== 'awaiting_others') return null;
+      await trx
+        .updateTable('envelopes')
+        .set({ expires_at, updated_at: new Date().toISOString() })
+        .where('id', '=', envelope_id)
+        .execute();
+      return toIsoRequired(before.expires_at);
+    });
+    if (previous === null) return null;
+    const envelope = await this.findByIdForOwner(owner_id, envelope_id);
+    return envelope ? { previous, envelope } : null;
+  }
+
   async recordSignerViewed(
     signer_id: string,
     ip: string | null,

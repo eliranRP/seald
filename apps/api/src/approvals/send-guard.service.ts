@@ -78,10 +78,14 @@ export class SendGuardService {
     return isDeliverySuspended(await this.repo.deliveryHealthSince(ownerId, since));
   }
 
-  /** Request-time check, no lock: fail early when this send could not pass. */
-  async assertCaps(ownerId: string, newRecipients: number, now: Date): Promise<void> {
+  /**
+   * Request-time check, no lock: fail early when this send could not pass.
+   * `sends` is how many envelopes the action sends (1; the rows of a bulk
+   * batch, WP-26).
+   */
+  async assertCaps(ownerId: string, newRecipients: number, now: Date, sends = 1): Promise<void> {
     const usage = await this.repo.usageSince(ownerId, utcDayStart(now));
-    if (usage.sends + 1 > MCP_DAILY_CAPS.sends) throw capError('send_daily_cap', now);
+    if (usage.sends + sends > MCP_DAILY_CAPS.sends) throw capError('send_daily_cap', now);
     if (usage.newRecipients + newRecipients > MCP_DAILY_CAPS.new_recipients) {
       throw capError('recipient_daily_cap', now);
     }
@@ -91,9 +95,14 @@ export class SendGuardService {
    * Send-time check under the owner lock. Must run inside the
    * transaction that then sends, so the lock covers the send's own rows.
    */
-  async assertCapsLocked(ownerId: string, newRecipients: number, now: Date): Promise<void> {
+  async assertCapsLocked(
+    ownerId: string,
+    newRecipients: number,
+    now: Date,
+    sends = 1,
+  ): Promise<void> {
     await this.repo.lockOwner(ownerId);
-    await this.assertCaps(ownerId, newRecipients, now);
+    await this.assertCaps(ownerId, newRecipients, now, sends);
   }
 
   /** `select … for update` on the envelope, inside the send transaction. */

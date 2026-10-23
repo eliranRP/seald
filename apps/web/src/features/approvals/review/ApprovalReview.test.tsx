@@ -72,6 +72,15 @@ describe('ApprovalReview', () => {
     }
   });
 
+  it('names the primary button and the back button when the caller says so (the app send flow)', () => {
+    renderReview({ approveLabel: 'Send', backLabel: 'Close the review' });
+    const bar = screen.getByRole('group', { name: 'Review actions' });
+    expect(within(bar).getByRole('button', { name: 'Send' })).toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close the review' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Back to the approval' })).not.toBeInTheDocument();
+  });
+
   it('Approve and Edit call their handlers; Approve never fires on its own', async () => {
     const user = userEvent.setup();
     const { props } = renderReview();

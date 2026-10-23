@@ -33,6 +33,18 @@ function stub<A extends Record<string, unknown>>(def: {
   };
 }
 
+/**
+ * MCP step 15 (WP-26): confirm a bulk batch. The real handler needs the
+ * bulk service, so `McpModule` registers it at boot (as WP-30 does for
+ * automations) and this typed stub covers a build without that module.
+ */
+export const bulkSendKind = stub({
+  kind: 'bulk_send',
+  tool: 'envelopes_bulk_send_from_template',
+  actionLabel: 'Send a document to several people',
+  args: z.strictObject({ batch_id: uuid }),
+});
+
 /** Automations A3 (WP-30): an MCP recipe change that adds an external destination. */
 export const automationExternalDestinationKind = stub({
   kind: 'automation_external_destination',

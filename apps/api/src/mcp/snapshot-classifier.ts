@@ -43,7 +43,16 @@ export function stableStringify(value: unknown): string {
 const LOWER_BOUNDS = ['minLength', 'minimum', 'minItems', 'exclusiveMinimum'];
 const UPPER_BOUNDS = ['maxLength', 'maximum', 'maxItems', 'exclusiveMaximum'];
 const DOC_KEYWORDS = ['description', 'title', 'examples', 'default'];
-const STRUCTURAL = ['type', 'properties', 'required', 'items', 'enum', 'additionalProperties'];
+const STRUCTURAL = [
+  'type',
+  'properties',
+  'required',
+  'items',
+  'enum',
+  'additionalProperties',
+  'anyOf',
+  'oneOf',
+];
 
 class Collector {
   readonly breaking: string[] = [];
@@ -104,6 +113,23 @@ function compareSchema(
       (io === 'input' ? out.breaking : out.additive).push(`${path}: enum value removed`);
     }
     if (added.length > 0) out.additive.push(`${path}: enum value added`);
+  }
+
+  // A union with the same number of branches is compared branch by branch,
+  // so a new enum value or output field inside one branch is additive (the
+  // approval kinds grow this way). A different number of branches, or a
+  // union that appears or disappears, cannot be proved safe.
+  for (const keyword of ['anyOf', 'oneOf'] as const) {
+    const a = oldS[keyword];
+    const b = newS[keyword];
+    if (a === undefined && b === undefined) continue;
+    if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
+      a.forEach((branch, i) => {
+        compareSchema(branch, b[i], `${path}|${String(i)}`, io, out);
+      });
+    } else if (stableStringify(a) !== stableStringify(b)) {
+      out.breaking.push(`${path}: ${keyword} changed`);
+    }
   }
 
   if (

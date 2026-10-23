@@ -1,4 +1,10 @@
-import type { BulkBatchStatus, BulkRecipient, BulkRowError, BulkRowStatus } from 'shared';
+import type {
+  BulkBatchStatus,
+  BulkRecipient,
+  BulkRowError,
+  BulkRowStatus,
+  McpEventMetadata,
+} from 'shared';
 
 /** Sender choices that apply to every envelope of a batch. */
 export interface BulkOptions {
@@ -12,6 +18,14 @@ export interface BulkOptions {
   };
   /** One step per template signer, in slot order (needs `signingOrder`). */
   readonly signing_order?: 'sequential';
+  /**
+   * WP-26: set when the owner approved an agent's batch. Every `sent` event
+   * the worker writes for it carries this as `metadata.mcp`, so the batch
+   * shows in the agent activity list and counts toward the daily send cap.
+   */
+  readonly mcp?: McpEventMetadata;
+  /** WP-26: lower-cased addresses that were new when the owner approved. */
+  readonly new_recipient_emails?: ReadonlyArray<string>;
 }
 
 export interface BulkBatchRecord {
@@ -92,6 +106,16 @@ export abstract class BulkRepository {
     batch: NewBulkBatch,
     rows: ReadonlyArray<NewBulkRow>,
   ): Promise<BulkBatchRecord>;
+
+  /**
+   * Merge `patch` into the options of a batch that is still a preview.
+   * Null when the batch is missing, not the owner's, or no longer a preview.
+   */
+  abstract mergePreviewOptions(
+    owner_id: string,
+    id: string,
+    patch: Partial<BulkOptions>,
+  ): Promise<BulkBatchRecord | null>;
 
   abstract findBatchForOwner(owner_id: string, id: string): Promise<BulkBatchRecord | null>;
   abstract findBatch(id: string): Promise<BulkBatchRecord | null>;

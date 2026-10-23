@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { CodeSnippet } from '@/components/CodeSnippet';
 import { SecretOnceSheet } from '@/components/SecretOnceSheet';
+import { AgentActivityPanel } from '@/features/agentActivity';
 import { useAuth } from '@/providers/AuthProvider';
 import type { ApiError } from '@/lib/api/apiClient';
 import { NotAvailable } from './NotAvailable';
@@ -164,6 +165,8 @@ export function DevelopersPanel() {
       </Section>
 
       <ConnectClient />
+
+      <AgentActivityPanel />
 
       <ConnectedApps />
 

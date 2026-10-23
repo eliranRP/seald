@@ -30,7 +30,7 @@ type EnvelopeArgs = z.infer<typeof EnvelopeArgs>;
 const RemindArgs = z.strictObject({ envelope_id: uuid, signer_id: uuid });
 type RemindArgs = z.infer<typeof RemindArgs>;
 
-function fieldsOf(envelope: Envelope): SubjectField[] {
+export function fieldsOf(envelope: Envelope): SubjectField[] {
   return envelope.fields.map((f) => ({
     id: f.id,
     signer_id: f.signer_id,
@@ -49,7 +49,7 @@ function fieldsOf(envelope: Envelope): SubjectField[] {
  * document, the page count, and the field placement. A PDF swap or a
  * field move changes `subject_hash`.
  */
-async function envelopeFacts(
+export async function envelopeFacts(
   svc: EnvelopeKindServices,
   ownerId: string,
   envelopeId: string,
@@ -72,7 +72,7 @@ async function envelopeFacts(
 }
 
 /** An MCP send or remind never goes to the account's own mailbox: send that from Seald. */
-function refuseOwnerAsSigner(
+export function refuseOwnerAsSigner(
   signers: ReadonlyArray<{ readonly email: string }>,
   ctx: ApprovalKindContext,
 ): void {
@@ -81,7 +81,10 @@ function refuseOwnerAsSigner(
   }
 }
 
-function audit(ctx: ApprovalExecuteContext): { ip: string | null; user_agent: string | null } {
+export function audit(ctx: ApprovalExecuteContext): {
+  ip: string | null;
+  user_agent: string | null;
+} {
   return { ip: ctx.audit.ip, user_agent: ctx.audit.user_agent };
 }
 

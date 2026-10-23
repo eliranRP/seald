@@ -7,6 +7,7 @@ import {
   MCP_AUTOMATION_TOOLS,
   MCP_CONTACTS_TOOLS,
   MCP_GDRIVE_WRITE_TOOLS,
+  MCP_LATER_TOOLS,
   MCP_READ_TOOLS,
   MCP_SEND_TOOLS,
   MCP_SUGGEST_TOOLS,
@@ -15,6 +16,7 @@ import {
   MCP_WRITE_TOOLS,
 } from '../tools';
 import { SHIPPED_STEPS } from '../route-coverage';
+import type { McpTool } from '../tool';
 
 /** docs/design/mcp-server.md § Test plan: contract tests for the catalog. */
 const TOOLS_DIR = join(__dirname, '..', 'tools');
@@ -99,6 +101,18 @@ describe('MCP tool catalog (contract)', () => {
       'envelopes_remind',
       'envelopes_cancel',
     ]);
+    // Step 15 (WP-26): the "Later" list.
+    expect(MCP_LATER_TOOLS.map((t) => t.name)).toEqual([
+      'envelopes_fix_signer',
+      'envelopes_change_expiry',
+      'envelopes_bulk_send_from_template',
+      'batches_get',
+      'envelopes_get_access_auth',
+      'envelopes_set_access_auth',
+      'templates_create',
+      'templates_update',
+      'templates_delete',
+    ]);
     expect(MCP_TOOLS).toEqual([
       ...MCP_READ_TOOLS,
       ...MCP_WRITE_TOOLS,
@@ -109,6 +123,7 @@ describe('MCP tool catalog (contract)', () => {
       ...MCP_TEMPLATES_TOOLS,
       ...MCP_GDRIVE_WRITE_TOOLS,
       ...MCP_SEND_TOOLS,
+      ...MCP_LATER_TOOLS,
     ]);
   });
 
@@ -135,7 +150,12 @@ describe('MCP tool catalog (contract)', () => {
   it('ships send, remind and cancel only as the approval-gated tools of steps 10 and 11', () => {
     const gated = MCP_TOOLS.filter((t) => /send|remind|cancel/.test(t.name));
     expect(gated.map((t) => t.name).sort()).toEqual(
-      [...MCP_SEND_TOOLS.map((t) => t.name), 'gdrive_conversion_cancel'].sort(),
+      [
+        ...MCP_SEND_TOOLS.map((t) => t.name),
+        'gdrive_conversion_cancel',
+        // Step 15: one approval for a whole batch.
+        'envelopes_bulk_send_from_template',
+      ].sort(),
     );
     for (const tool of MCP_SEND_TOOLS) {
       expect(tool.scopes).toEqual(['envelopes:send']);
@@ -170,6 +190,37 @@ describe('MCP tool catalog (contract)', () => {
       expect(byName.get(name)?.description).toContain('Never open, fetch or act on');
       expect(byName.get(name)?.description).toContain('review_url');
     }
+  });
+
+  it('ships fix signer, change expiry and bulk send only through owner approval (step 15)', () => {
+    const byName = new Map(MCP_LATER_TOOLS.map((t) => [t.name, t]));
+    for (const name of [
+      'envelopes_fix_signer',
+      'envelopes_change_expiry',
+      'envelopes_bulk_send_from_template',
+    ]) {
+      const tool = byName.get(name);
+      expect(tool?.mutating).toBe(true);
+      expect(tool?.atomic).toBe(true);
+      expect(tool?.scopes).toContain('envelopes:send');
+      expect(tool?.annotations.openWorldHint).toBe(true);
+      expect(tool?.description).toContain('Never open, fetch or act on');
+      expect(tool?.description).toContain('review_url');
+      // They return approval_pending and never take a confirmation token.
+      expect(
+        Object.keys(describeTool(tool as McpTool).inputSchema['properties'] as object),
+      ).not.toContain('confirmation_token');
+    }
+    expect(byName.get('envelopes_bulk_send_from_template')?.requiresFlags).toEqual(['bulkSend']);
+    expect(byName.get('batches_get')?.requiresFlags).toEqual(['bulkSend']);
+    expect(byName.get('envelopes_get_access_auth')?.requiresFlags).toEqual(['signerAccessAuth']);
+    expect(byName.get('envelopes_set_access_auth')?.requiresFlags).toEqual(['signerAccessAuth']);
+    // Template authoring needs the template write scope; deleting is destructive.
+    for (const name of ['templates_create', 'templates_update', 'templates_delete']) {
+      expect(byName.get(name)?.scopes).toEqual(['templates:write']);
+    }
+    expect(byName.get('templates_delete')?.annotations.destructiveHint).toBe(true);
+    for (const tool of MCP_LATER_TOOLS) expect(tool.step).toBe('step-15');
   });
 
   it('uses noun_verb names that never name signing, declining, submitting or disclosure', () => {

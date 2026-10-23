@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import {
   BulkRepository,
   type BulkBatchRecord,
+  type BulkOptions,
   type BulkRowRecord,
   type ClaimThrottle,
   type NewBulkBatch,
@@ -88,6 +89,17 @@ export class InMemoryBulkRepository extends BulkRepository {
       .filter((r) => r.batch_id === batch_id)
       .sort((a, b) => a.row_index - b.row_index)
       .map((r) => ({ ...r }));
+  }
+
+  async mergePreviewOptions(
+    owner_id: string,
+    id: string,
+    patch: Partial<BulkOptions>,
+  ): Promise<BulkBatchRecord | null> {
+    const b = this.batches.get(id);
+    if (!b || b.owner_id !== owner_id || b.status !== 'preview') return null;
+    b.options = { ...b.options, ...patch };
+    return { ...b };
   }
 
   async confirm(owner_id: string, id: string, now: Date): Promise<BulkBatchRecord | null> {

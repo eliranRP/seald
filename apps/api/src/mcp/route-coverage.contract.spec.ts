@@ -25,7 +25,7 @@ import { listTools } from './tool-catalog';
  * - a registry entry names no route (stale);
  * - a `tool` is absent from tools/list with every flag on;
  * - a `planned` step has already shipped, or is not `step-N` / `WP-45`;
- * - an `excluded` reason is outside the D5 list.
+ * - an `excluded` reason is outside the D5 list (plus `owner_in_app_only`, WP-26).
  *
  * `@Public()` routes (signer links, verify, cron, health, OAuth callback,
  * `/mcp`) are skipped by that decorator, not by a hand-kept list.
@@ -53,6 +53,19 @@ const TEST_ENV: AppEnv = {
   GDRIVE_GOTENBERG_URL: 'http://gotenberg:3000',
   GDRIVE_CONVERSION_MAX_BYTES: 26_214_400,
 };
+
+/** Routes `owner_in_app_only` may cover (route-coverage.ts explains each). */
+const OWNER_IN_APP_ROUTES: readonly string[] = [
+  'POST /templates/:id/example',
+  'GET /templates/:id/example',
+  'POST /bulk-batches/:id/cancel',
+  'GET /templates/:id/direct-link',
+  'POST /templates/:id/direct-link',
+  'PATCH /templates/:id/direct-link',
+  'POST /templates/:id/direct-link/rotate',
+  'DELETE /templates/:id/direct-link',
+  'GET /agent-activity',
+];
 
 interface Route {
   readonly key: string;
@@ -168,7 +181,7 @@ describe('MCP route coverage (contract)', () => {
     }
   });
 
-  it('excludes only signer-link, verify, cron, OAuth browser or owner-decision routes, each with a note', () => {
+  it('excludes only signer-link, verify, cron, OAuth browser, owner-decision or owner-in-app routes, each with a note', () => {
     for (const [key, cov] of Object.entries(ROUTE_COVERAGE)) {
       if (!('excluded' in cov)) continue;
       expect(EXCLUSION_REASONS).toContain(cov.excluded);
@@ -176,6 +189,11 @@ describe('MCP route coverage (contract)', () => {
       // The owner-decision exclusion covers the approval routes only.
       if (cov.excluded === 'owner_approval_decision') {
         expect(key).toMatch(/^POST \/approvals\/:id\/(approve|deny|refresh)$/);
+      }
+      // WP-26: the owner-in-app exclusion covers these routes only; a new
+      // route needs a tool, or a reviewed addition to this list.
+      if (cov.excluded === 'owner_in_app_only') {
+        expect(OWNER_IN_APP_ROUTES).toContain(key);
       }
     }
   });

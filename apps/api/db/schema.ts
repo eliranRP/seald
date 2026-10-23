@@ -483,7 +483,9 @@ export type EventTypeDb =
   | 'access_code_sent'
   | 'access_code_verified'
   | 'access_code_failed'
-  | 'approval_decided';
+  | 'approval_decided'
+  | 'signer_corrected'
+  | 'expiry_changed';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -729,7 +731,8 @@ export type EmailKindDb =
   | 'approval_denied'
   | 'bulk_complete'
   | 'automation_copy'
-  | 'automation_disabled';
+  | 'automation_disabled'
+  | 'signer_corrected';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

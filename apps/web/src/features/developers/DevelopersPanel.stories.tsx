@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ApiKey } from 'shared';
 import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import { AuthContext, type AuthContextValue } from '@/providers/AuthProvider';
+import { AGENT_ACTIVITY_KEY } from '@/features/agentActivity/agentActivityApi';
+import { fakePage, sampleActivity } from '@/features/agentActivity/fixtures';
 import { DevelopersPanel } from './DevelopersPanel';
 import { API_KEYS_KEY } from './developersApi';
 import { fakeKey, fakeKeys } from './fixtures';
@@ -35,15 +37,22 @@ const AUTH: AuthContextValue = {
 
 function Wrap({
   keys,
+  withActivity = true,
   children,
 }: {
   readonly keys: ReadonlyArray<ApiKey>;
+  /** Seed the agent activity list too (WP-26). Off shows the empty list. */
+  readonly withActivity?: boolean;
   readonly children: ReactNode;
 }) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
   });
   qc.setQueryData(API_KEYS_KEY, keys);
+  qc.setQueryData(AGENT_ACTIVITY_KEY, {
+    pages: [fakePage(withActivity ? sampleActivity() : [])],
+    pageParams: [undefined],
+  });
   return (
     <AuthContext.Provider value={AUTH}>
       <QueryClientProvider client={qc}>
@@ -69,7 +78,7 @@ type Story = StoryObj<typeof DevelopersPanel>;
 
 export const Empty: Story = {
   render: () => (
-    <Wrap keys={[]}>
+    <Wrap keys={[]} withActivity={false}>
       <DevelopersPanel />
     </Wrap>
   ),

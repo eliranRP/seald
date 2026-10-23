@@ -8,12 +8,14 @@ import { SendGuardService } from '../send-guard.service';
 import type { ApprovalKindHandler } from './approval-kind';
 import { envelopeCancelKind, envelopeRemindKind, envelopeSendKind } from './envelope-kinds';
 import { envelopeSaveToDriveKind, gdriveDisconnectKind } from './gdrive-kinds';
+import { envelopeChangeExpiryKind, envelopeFixSignerKind } from './later-kinds';
 import {
   accountDeleteKind,
   apiKeyCreateKind,
   apiKeyRevokeKind,
   approvalRequiredToggleKind,
   automationExternalDestinationKind,
+  bulkSendKind,
   envelopeSignAsSignerKind,
 } from './stub-kinds';
 
@@ -48,6 +50,10 @@ export class ApprovalKindRegistry {
       envelope_cancel: erase(envelopeCancelKind(env)),
       gdrive_disconnect: erase(gdriveDisconnectKind(drive)),
       envelope_save_to_drive: erase(envelopeSaveToDriveKind(drive)),
+      // WP-26 (MCP step 15). `bulk_send` is a stub until `McpModule` registers it.
+      envelope_fix_signer: erase(envelopeFixSignerKind(env)),
+      envelope_change_expiry: erase(envelopeChangeExpiryKind(env)),
+      bulk_send: erase(bulkSendKind),
       automation_external_destination: erase(automationExternalDestinationKind),
       account_delete: erase(accountDeleteKind),
       api_key_create: erase(apiKeyCreateKind),

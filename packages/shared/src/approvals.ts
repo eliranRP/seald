@@ -25,6 +25,7 @@ import { iso, uuid } from './envelope-contract';
  * - `envelope_send`, `envelope_remind`, `envelope_cancel`: MCP steps 10–11 (WP-24).
  * - `gdrive_disconnect`, `envelope_save_to_drive`: MCP step 14 (WP-25).
  * - `automation_external_destination`: automations A3 (WP-30).
+ * - `envelope_fix_signer`, `envelope_change_expiry`, `bulk_send`: MCP step 15 (WP-26).
  * - `account_delete`, `api_key_create`, `api_key_revoke`,
  *   `approval_required_toggle`, `envelope_sign_as_signer`: WP-45 (D5).
  */
@@ -34,6 +35,9 @@ export const APPROVAL_KINDS = [
   'envelope_cancel',
   'gdrive_disconnect',
   'envelope_save_to_drive',
+  'envelope_fix_signer',
+  'envelope_change_expiry',
+  'bulk_send',
   'automation_external_destination',
   'account_delete',
   'api_key_create',

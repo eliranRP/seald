@@ -48,6 +48,7 @@ import {
   useEnvelopeEventsQuery,
   useEnvelopeQuery,
 } from '@/features/envelopes';
+import { ReviewPlacement } from '@/features/agentActivity';
 import { SigningOrderSteps } from '@/features/signers/signingOrder';
 import { stepStartedText } from '@/features/signers/signingOrder/stepStartedText';
 import { formatShortDateOrDash, formatTimelineWhen } from '@/lib/dateFormat';
@@ -258,6 +259,24 @@ function eventsToTimeline(
           tone: 'indigo',
           text: stepStartedText(ev.metadata, new Map(envelope.signers.map((x) => [x.id, x.name]))),
           kind: 'step',
+        });
+        break;
+      case 'signer_corrected':
+        rendered.push({
+          ...base,
+          icon: PencilRuler,
+          tone: 'slate',
+          text: 'Signer details corrected, new link sent',
+          kind: 'signer_corrected',
+        });
+        break;
+      case 'expiry_changed':
+        rendered.push({
+          ...base,
+          icon: Clock,
+          tone: 'slate',
+          text: 'Expiry changed',
+          kind: 'expiry_changed',
         });
         break;
       case 'sealed':
@@ -969,6 +988,11 @@ export function EnvelopeDetailPage() {
               items={downloadItems}
               onSelect={handleDownload}
               inFlight={downloadInFlightKind}
+            />
+            {/* A draft an agent prepared: walk its fields, then send or edit. Draft only, flag gated. */}
+            <ReviewPlacement
+              envelope={envelope}
+              onSent={() => setToast({ kind: 'success', text: 'Sent for signature.' })}
             />
             {/*
               Terminal envelopes (completed / declined / expired /

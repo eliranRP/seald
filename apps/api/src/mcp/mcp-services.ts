@@ -8,11 +8,13 @@ import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-docume
 import { EnvelopesService } from '../envelopes/envelopes.service';
 import { EnvelopeQueriesService } from '../envelopes/queries/envelope-queries.service';
 import { IdempotencyService } from '../idempotency/idempotency.service';
+import { AccessAuthService } from '../signing/access-auth/access-auth.service';
 import { SigningOrderService } from '../signing/signing-order.service';
 import { TemplateApplyService } from '../templates/template-apply.service';
 import { TemplatesService } from '../templates/templates.service';
 import { DriveSourceService } from '../uploads/drive-source.service';
 import { StagedUploadsService } from '../uploads/staged-uploads.service';
+import { AgentBulkService } from './tools/later/agent-bulk.service';
 
 /**
  * The application services the tools may call. Tools are thin adapters:
@@ -43,5 +45,8 @@ export class McpServices {
     readonly templateApply: TemplateApplyService,
     // WP-24 (steps 10–11): send, remind and cancel through owner approval.
     readonly envelopeActions: AgentEnvelopeActionsService,
+    // WP-26 (step 15): signer access codes (WP-10) and bulk send (WP-36).
+    readonly accessAuth: AccessAuthService,
+    readonly agentBulk: AgentBulkService,
   ) {}
 }

@@ -327,7 +327,10 @@ export interface EventInput {
     | 'access_code_verified'
     | 'access_code_failed'
     // WP-21 (migration 0030)
-    | 'approval_decided';
+    | 'approval_decided'
+    // WP-26 (migration 0039)
+    | 'signer_corrected'
+    | 'expiry_changed';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -419,6 +422,37 @@ export abstract class EnvelopesRepository {
     signer_id: string,
     new_access_token_hash: string,
   ): Promise<boolean>;
+  /**
+   * WP-26 (fix a signer). Correct the name and/or email of a signer who has
+   * not signed or declined, on an envelope that is `awaiting_others`, in one
+   * transaction: the old signing link stops matching (`access_token_hash`
+   * back to null, so the dispatcher mints a new one), partial progress is
+   * cleared (viewed, accepted terms, field values, drawn signature, open
+   * access codes), the contact link is dropped when the email changes, and
+   * the reminder clock restarts. Throws {@link EnvelopeSignerEmailTakenError}
+   * when another signer already uses the new email. Null when the envelope
+   * or signer is gone or no longer eligible (a race with a signature).
+   */
+  abstract correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null>;
+
+  /**
+   * WP-26 (change expiry). New `expires_at` on an envelope that is
+   * `awaiting_others`. Null when it is not the owner's or no longer open.
+   */
+  abstract updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null>;
+
   abstract recordSignerViewed(
     signer_id: string,
     ip: string | null,
