@@ -1,153 +1,92 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
-export const Backdrop = styled.div`
-  position: fixed;
-  inset: 0;
-  /* Same dvh+safe-area treatment as FieldInputDrawer — without it the
-     bottom action row (Apply / Cancel) sat behind the iOS keyboard or
-     home indicator on iPhone 13/14/15 viewports. \`100vh\` reflects the
-     LAYOUT viewport on iOS, not the visual viewport. */
-  height: 100vh;
-  height: 100svh;
-  height: 100dvh;
-  background: rgba(11, 18, 32, 0.5);
-  z-index: ${({ theme }) => theme.z.modal};
+/** Signature pad (canvas `.sig-pad`): paper, hairline, baseline rule. */
+export const Pad = styled.div<{ readonly $draw?: boolean }>`
+  position: relative;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-`;
-
-export const Sheet = styled.div`
-  width: 100%;
-  max-width: 680px;
-  /* Cap to the visual viewport so the draw canvas + tabs + apply button
-     all stay reachable on a 667px-tall iPhone with the keyboard up.
-     Inner scroll keeps focus management predictable. */
-  max-height: 100dvh;
-  overflow-y: auto;
+  height: 140px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.paper};
-  border-radius: 20px 20px 0 0;
-  padding: ${({ theme }) => theme.space[6]} 28px calc(28px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -10px 40px rgba(11, 18, 32, 0.2);
-`;
+  overflow: hidden;
 
-export const HeaderRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.space[4]};
-`;
-
-export const Eyebrow = styled.div`
-  font-size: ${({ theme }) => theme.font.size.micro};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  letter-spacing: 0.08em;
-  color: ${({ theme }) => theme.color.fg[3]};
-  text-transform: uppercase;
-`;
-
-export const Title = styled.div`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h4};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.fg[1]};
-  margin-top: 4px;
-`;
-
-export const CloseBtn = styled.button`
-  width: 32px;
-  height: 32px;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  background: transparent;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  cursor: pointer;
-  color: ${({ theme }) => theme.color.fg[3]};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  &:focus-visible {
-    outline: none;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
+  &::after {
+    content: '';
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 32px;
+    height: 1px;
+    background: ${({ theme }) => theme.color.border[2]};
+    pointer-events: none;
   }
+
+  ${({ $draw }) =>
+    $draw
+      ? css`
+          display: block;
+        `
+      : ''}
 `;
 
-export const Tabs = styled.div`
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: ${({ theme }) => theme.color.ink[100]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  margin-bottom: ${({ theme }) => theme.space[4]};
-  width: fit-content;
-`;
-
-export const Tab = styled.button<{ readonly $active: boolean }>`
-  padding: 6px 14px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  background: ${({ theme, $active }) => ($active ? theme.color.paper : 'transparent')};
-  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : theme.color.fg[3])};
-  cursor: pointer;
-  box-shadow: ${({ theme, $active }) => ($active ? theme.shadow.sm : 'none')};
-  text-transform: capitalize;
-  &:focus-visible {
-    outline: none;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
-  }
-`;
-
-export const TextInput = styled.input`
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-family: ${({ theme }) => theme.font.sans};
-  box-sizing: border-box;
-  &:focus-visible {
-    outline: none;
-    border-color: ${({ theme }) => theme.color.indigo[500]};
-    box-shadow: ${({ theme }) => theme.shadow.focus};
-  }
-`;
-
-export const PreviewPanel = styled.div`
-  margin-top: ${({ theme }) => theme.space[4]};
-  padding: ${({ theme }) => theme.space[6]};
-  background: ${({ theme }) => theme.color.ink[50]};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100px;
-`;
-
-export const InitialScript = styled.span`
+export const Ink = styled.span<{ readonly $initials: boolean }>`
+  max-width: 100%;
+  padding: 0 24px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ${({ theme }) => theme.font.script};
-  font-size: 54px;
+  font-size: ${({ theme, $initials }) => ($initials ? theme.font.size.code : theme.font.size.x5l)};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+`;
+
+export const NameField = styled.label`
+  display: flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.paper};
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.color.indigo[600]};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+
+  input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+    font-size: ${({ theme }) => theme.font.size.bodyMd};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+`;
+
+export const PadClear = styled.div`
+  position: absolute;
+  top: 8px;
+  right: 8px;
 `;
 
 export const DrawCanvas = styled.canvas`
   display: block;
   width: 100%;
-  height: 180px;
-  background: ${({ theme }) => theme.color.ink[50]};
-  border: 1.5px dashed ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.md};
+  height: 100%;
   touch-action: none;
   cursor: crosshair;
 `;
 
 export const DrawHint = styled.div`
   margin-top: ${({ theme }) => theme.space[2]};
-  font-size: ${({ theme }) => theme.font.size.micro};
-  color: ${({ theme }) => theme.color.fg[4]};
-  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const UploadArea = styled.div`
@@ -162,54 +101,14 @@ export const UploadArea = styled.div`
   flex-direction: column;
   gap: 10px;
   text-align: center;
-`;
-
-export const Footer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[2]};
-  margin-top: ${({ theme }) => theme.space[5]};
-`;
-
-export const FooterMeta = styled.div`
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
 `;
 
-export const FooterActions = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[2]};
-`;
-
-export const CancelBtn = styled.button`
-  padding: 10px 16px;
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[2]};
-  cursor: pointer;
-`;
-
-export const ApplyBtn = styled.button`
-  padding: 10px 18px;
-  border: none;
-  border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.ink[900]};
-  color: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  cursor: pointer;
+export const Meta = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  &:disabled {
-    background: ${({ theme }) => theme.color.ink[300]};
-    cursor: not-allowed;
-  }
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;

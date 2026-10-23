@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderSigningRoute } from '../../test/renderSigningRoute';
 import { MOCK_ENVELOPE_ID } from '../../test/signingApiMock';
 import { writeDoneSnapshot } from '../../features/signing';
@@ -28,8 +29,8 @@ describe('SigningDeclinedPage', () => {
       timestamp: '',
     });
     renderDeclined();
-    expect(screen.getByRole('heading', { name: /you declined this request/i })).toBeInTheDocument();
-    expect(screen.getByText(/we've let eliran know/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Declined' })).toBeInTheDocument();
+    expect(screen.getByText('Eliran was notified.')).toBeInTheDocument();
   });
 
   it('falls back to generic text when sender_name is null', () => {
@@ -43,7 +44,7 @@ describe('SigningDeclinedPage', () => {
       timestamp: '',
     });
     renderDeclined();
-    expect(screen.getByText(/we've let the sender know/i)).toBeInTheDocument();
+    expect(screen.getByText('The sender was notified.')).toBeInTheDocument();
   });
 
   it('redirects to /sign/:id when no snapshot exists', async () => {
@@ -91,25 +92,56 @@ describe('SigningDeclinedPage', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(/recorded the withdrawal in the audit trail/i)).toBeInTheDocument();
-    // The plain "you declined this request" copy must NOT show.
-    expect(screen.queryByRole('heading', { name: /you declined this request/i })).toBeNull();
+    // The plain "Declined" heading must NOT show.
+    expect(screen.queryByRole('heading', { name: 'Declined' })).toBeNull();
   });
 
-  // Item 24 — every declined page surfaces the finality + sender-notified
-  // copy so a mis-clicker isn't left expecting a "Change my mind" path.
-  it('shows "This decision is final. The sender has been notified." on every variant', () => {
+  it('quotes what the signer told the sender', () => {
     writeDoneSnapshot({
       kind: 'declined',
       envelope_id: MOCK_ENVELOPE_ID,
       short_code: 'TESTDEC000004',
+      title: 'MSA',
+      sender_name: 'Eliran',
+      recipient_email: 'maya@example.com',
+      timestamp: '',
+      decline_reason: 'declined',
+      reason_text: 'Terms: clause 4',
+    });
+    renderDeclined();
+    expect(screen.getByText('Terms: clause 4')).toBeInTheDocument();
+  });
+
+  it('names the wrong-recipient hand-off', () => {
+    writeDoneSnapshot({
+      kind: 'declined',
+      envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDEC000005',
+      title: 'MSA',
+      sender_name: 'Eliran',
+      recipient_email: 'maya@example.com',
+      timestamp: '',
+      decline_reason: 'not-the-recipient',
+    });
+    renderDeclined();
+    expect(screen.getByRole('heading', { name: 'Wrong recipient' })).toBeInTheDocument();
+    expect(screen.getByText(/send a fresh link to the right person/i)).toBeInTheDocument();
+  });
+
+  it('Close leaves the signing flow', async () => {
+    writeDoneSnapshot({
+      kind: 'declined',
+      envelope_id: MOCK_ENVELOPE_ID,
+      short_code: 'TESTDEC000006',
       title: 'MSA',
       sender_name: null,
       recipient_email: 'maya@example.com',
       timestamp: '',
     });
     renderDeclined();
-    expect(
-      screen.getByText(/this decision is final\. the sender has been notified\./i),
-    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => {
+      expect(screen.getByTestId('__pathname__').textContent).toBe('/');
+    });
   });
 });

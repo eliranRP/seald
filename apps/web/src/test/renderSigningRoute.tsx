@@ -10,6 +10,8 @@ export interface RenderSigningRouteOptions {
   readonly initialEntry: string;
   /** The path pattern this page is mounted under, e.g. `/sign/:envelopeId/prep`. */
   readonly path: string;
+  /** Router state of the first entry, e.g. `{ fresh: true }` from the entry page. */
+  readonly state?: unknown;
 }
 
 /**
@@ -50,7 +52,13 @@ export function renderSigningRoute(
     return (
       <ThemeProvider theme={seald}>
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={[options.initialEntry]}>
+          <MemoryRouter
+            initialEntries={
+              options.state === undefined
+                ? [options.initialEntry]
+                : [{ pathname: options.initialEntry, state: options.state }]
+            }
+          >
             <Routes>
               <Route path={options.path} element={children as ReactElement} />
               <Route path="*" element={<LastPathnameProbe />} />

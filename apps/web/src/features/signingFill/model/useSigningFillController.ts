@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { FieldInputKind } from '@/components/FieldInputDrawer';
+import {
+  deriveInitialsFromName,
+  getTypedPreference,
+  typedCaptureResult,
+} from '@/components/SignatureCapture';
 import type { SignatureCaptureResult } from '@/components/SignatureCapture';
 import type { SignerFieldKind } from '@/components/SignerField';
 import { isFeatureEnabled } from 'shared';
@@ -17,6 +22,7 @@ import {
   usesMetaDrawer,
 } from '../inputs/fieldDisplay';
 import { fillErrorMessage } from '../inputs/fillErrors';
+import { nextTodoField } from './fieldOrder';
 import type { MetaInputKind } from '../inputs/MetaFieldDrawer';
 
 interface ApiErrorLike extends Error {
@@ -88,6 +94,8 @@ interface UseSigningFillControllerArgs {
    */
   readonly activeDocumentId?: string | undefined;
   readonly onActiveDocumentChange?: ((documentId: string) => void) | undefined;
+  /** Fields ignore taps while the signer has not started (consent not given yet). */
+  readonly locked?: boolean | undefined;
 }
 
 interface UseSigningFillControllerReturn {
@@ -95,11 +103,11 @@ interface UseSigningFillControllerReturn {
   readonly textDrawer: TextDrawerState | null;
   readonly sigDrawer: SigDrawerState | null;
   readonly error: string | null;
-  readonly busy: boolean;
   readonly closeTextDrawer: () => void;
   readonly closeSigDrawer: () => void;
   readonly handleFieldClick: (field: SignMeField) => Promise<void>;
-  readonly handleNext: () => void;
+  /** Scrolls to a field and marks it as the current one. */
+  readonly goTo: (field: SignMeField) => void;
   readonly handleTextApply: (value: string) => Promise<void>;
   /**
    * Meta-aware drawers (flag `fieldMetaV2`): fills, and keeps the drawer
@@ -109,15 +117,6 @@ interface UseSigningFillControllerReturn {
   readonly drawerError: string | null;
   readonly drawerBusy: boolean;
   readonly handleSignatureApply: (result: SignatureCaptureResult) => Promise<void>;
-  readonly handleReview: () => void;
-  readonly handleDecline: () => Promise<void>;
-  /**
-   * Issue #41 — ESIGN Disclosure §3 promises a Withdraw-consent control on
-   * "the signing screen". Surfaced from the controller so both the Fill
-   * and Review pages can render the same affordance with the same audit
-   * outcome (a `consent_withdrawn` event distinct from `declined`).
-   */
-  readonly handleWithdrawConsent: () => Promise<void>;
 }
 
 /**
@@ -131,11 +130,11 @@ export function useSigningFillController({
   envelopeId,
   activeDocumentId,
   onActiveDocumentChange,
+  locked = false,
 }: UseSigningFillControllerArgs): UseSigningFillControllerReturn {
   const navigate = useNavigate();
   const t = useT();
-  const { fillField, setSignature, decline, nextField, fields, withdrawConsent } =
-    useSigningSession();
+  const { fillField, setSignature, fields, documents, signer } = useSigningSession();
   const [drawerError, setDrawerError] = useState<string | null>(null);
   const [drawerBusy, setDrawerBusy] = useState(false);
 
@@ -143,7 +142,6 @@ export function useSigningFillController({
   const [textDrawer, setTextDrawer] = useState<TextDrawerState | null>(null);
   const [sigDrawer, setSigDrawer] = useState<SigDrawerState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
 
   // Remembered signature/initials — TWO separate slots because the user
   // typically wants different marks for each kind (full name on a signature
@@ -223,12 +221,7 @@ export function useSigningFillController({
    * stay current.
    */
   function findNextAfter(skipId: string): SignMeField | null {
-    for (const f of fields) {
-      if (!f.required) continue;
-      if (f.id === skipId) continue;
-      if (!fieldIsFilled(f)) return f;
-    }
-    return null;
+    return nextTodoField(fields, documents, skipId);
   }
   function advanceTo(target: SignMeField | null): void {
     if (!target) return;
@@ -238,6 +231,7 @@ export function useSigningFillController({
 
   const handleFieldClick = useCallback(
     async (field: SignMeField): Promise<void> => {
+      if (locked) return;
       setError(null);
       setActiveFieldId(field.id);
       const uiKind = toUiKind(field);
@@ -275,7 +269,21 @@ export function useSigningFillController({
         // subsequent SAME-KIND fields so they don't have to re-type /
         // re-draw / re-upload the same mark per field. First field of
         // each kind always opens the drawer to capture intent.
-        const remembered = lastByKindRef.current[uiKind];
+        let remembered = lastByKindRef.current[uiKind];
+        // Initials come from the name with no sheet: one tap and they are on the page.
+        if (!remembered && uiKind === 'initials' && signer) {
+          const text =
+            getTypedPreference({ email: signer.email, kind: 'initials' }) ??
+            deriveInitialsFromName(signer.name);
+          if (text.trim().length > 0) {
+            try {
+              remembered = await typedCaptureResult(text, 'initials');
+              lastByKindRef.current.initials = remembered;
+            } catch {
+              remembered = undefined;
+            }
+          }
+        }
         if (remembered) {
           try {
             await setSignature(field.id, {
@@ -323,22 +331,24 @@ export function useSigningFillController({
       navigate,
       setSignature,
       fields,
+      signer,
+      locked,
       activeDocumentId,
       onActiveDocumentChange,
       t,
     ],
   );
 
-  // "Next field" / jump-to-next-zone: scroll + highlight only. We deliberately
-  // do NOT open a drawer or auto-apply a remembered signature here — that's
-  // reserved for an explicit tap on the field itself. Navigation should never
-  // mutate document state.
-  const handleNext = useCallback((): void => {
-    if (!nextField) return;
-    focusField(nextField);
-    setActiveFieldId(nextField.id);
-    // `focusField` is an inline helper over the current document state; it is re-created every render so is not listed.
-  }, [nextField, activeDocumentId, onActiveDocumentChange]);
+  // "Next": scroll + highlight only. Navigation never mutates document state,
+  // so no drawer opens and no remembered signature is applied here.
+  const goTo = useCallback(
+    (field: SignMeField): void => {
+      focusField(field);
+      setActiveFieldId(field.id);
+      // `focusField` is an inline helper over the current document state; it is re-created every render so is not listed.
+    },
+    [activeDocumentId, onActiveDocumentChange],
+  );
 
   const handleTextApply = useCallback(
     async (value: string): Promise<void> => {
@@ -464,63 +474,19 @@ export function useSigningFillController({
     ],
   );
 
-  const handleReview = useCallback((): void => {
-    navigate(`/sign/${envelopeId}/review`);
-  }, [envelopeId, navigate]);
-
-  const handleDecline = useCallback(async (): Promise<void> => {
-    if (busy) return;
-    // native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
-    const confirmed = window.confirm(t('signing.fill.declineConfirm'));
-    if (!confirmed) return;
-    setBusy(true);
-    try {
-      await decline('declined-on-fill');
-      navigate(`/sign/${envelopeId}/declined`, { replace: true });
-    } catch {
-      setBusy(false);
-    }
-  }, [busy, decline, envelopeId, navigate, t]);
-
-  const handleWithdrawConsent = useCallback(async (): Promise<void> => {
-    if (busy) return;
-    // Distinct from "Decline" — withdrawal of consent under ESIGN
-    // §7001(c)(1). Mirrored from SigningPrepPage so users get the same
-    // explicit warning regardless of which signing-screen step they
-    // trigger withdrawal from (issue #41).
-    // native confirm is appropriate; a custom modal is over-engineering for an irreversible signer-side terminal action.
-    const confirmed = window.confirm(
-      'Withdraw consent to sign this document electronically?\n\n' +
-        'Seald operates electronically only — withdrawing consent ends this signing request without an alternative. ' +
-        'The sender will be notified. This is recorded in the audit trail as a withdrawal (distinct from a decline).',
-    );
-    if (!confirmed) return;
-    setBusy(true);
-    try {
-      await withdrawConsent();
-      navigate(`/sign/${envelopeId}/declined`, { replace: true });
-    } catch {
-      setBusy(false);
-    }
-  }, [busy, envelopeId, navigate, withdrawConsent]);
-
   return {
     activeFieldId,
     textDrawer,
     sigDrawer,
     error,
-    busy,
     closeTextDrawer,
     closeSigDrawer,
     handleFieldClick,
-    handleNext,
+    goTo,
     handleTextApply,
     handleMetaApply,
     drawerError,
     drawerBusy,
     handleSignatureApply,
-    handleReview,
-    handleDecline,
-    handleWithdrawConsent,
   };
 }

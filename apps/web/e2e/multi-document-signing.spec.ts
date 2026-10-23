@@ -167,12 +167,10 @@ test.describe('multi-document signing flow', () => {
     page,
   }) => {
     await page.goto(`/sign/${ENVELOPE_ID}?t=${TOKEN}`);
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/prep`, { timeout: 15_000 });
-
-    await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
-    await page.getByRole('button', { name: /start signing/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
+
+    await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+    await page.getByRole('button', { name: /^start$/i }).click();
 
     // The rail lists both documents; the first is on screen.
     const rail = page.getByRole('navigation', { name: 'Documents to sign' });
@@ -201,15 +199,13 @@ test.describe('multi-document signing flow', () => {
     await second.getByRole('textbox').fill('Answer two');
     await second.getByRole('button', { name: 'Apply' }).click();
 
-    // Everything required is filled: review names both documents.
-    await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/review`, { timeout: 15_000 });
-    await expect(page.getByText('Page 1 · Master agreement')).toBeVisible();
-    await expect(page.getByText('Page 1 · Side letter')).toBeVisible();
-
-    await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
-    await page.getByRole('button', { name: /sign and submit/i }).click();
+    // Everything required is filled: Finish confirms and submits.
+    await page.getByRole('button', { name: /^finish$/i }).click();
+    await page
+      .getByRole('dialog', { name: /finish signing/i })
+      .getByRole('button', { name: /^sign$/i })
+      .click();
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed$/i })).toBeVisible();
   });
 });

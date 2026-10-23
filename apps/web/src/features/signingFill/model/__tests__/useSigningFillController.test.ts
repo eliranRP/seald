@@ -28,6 +28,8 @@ function makeField(
 // auto-advance helper can find the next unfilled required field.
 const session: {
   fields: SignMeField[];
+  documents: never[];
+  signer: { name: string; email: string };
   nextField: SignMeField | null;
   fillField: ReturnType<typeof vi.fn>;
   setSignature: ReturnType<typeof vi.fn>;
@@ -35,6 +37,8 @@ const session: {
   withdrawConsent: ReturnType<typeof vi.fn>;
 } = {
   fields: [],
+  documents: [],
+  signer: { name: 'Maya Raskin', email: 'maya@example.com' },
   nextField: null,
   fillField: vi.fn(),
   setSignature: vi.fn(),
@@ -46,6 +50,23 @@ vi.mock('@/features/signing', async () => {
   return {
     ...actual,
     useSigningSession: () => session,
+  };
+});
+
+// jsdom has no canvas: the typed-initials PNG is a stub.
+vi.mock('@/components/SignatureCapture', async () => {
+  const actual = (await vi.importActual('@/components/SignatureCapture')) as Record<
+    string,
+    unknown
+  >;
+  return {
+    ...actual,
+    typedCaptureResult: vi.fn(async (text: string) => ({
+      blob: new Blob([text], { type: 'image/png' }),
+      format: 'typed' as const,
+      font: 'Caveat',
+      source_filename: 'initials.png',
+    })),
   };
 });
 
@@ -237,28 +258,41 @@ describe('useSigningFillController — drawers + navigation', () => {
     expect(result.current.sigDrawer).toBeNull();
   });
 
-  it('handleNext scrolls to nextField and sets activeFieldId; no-op when nextField is null', () => {
+  it('goTo scrolls to the field and marks it as the current one', () => {
     const target = makeField({ id: 'next', page: 7, kind: 'text' });
     session.fields = [target];
-    session.nextField = target;
     const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
-    act(() => result.current.handleNext());
+    act(() => result.current.goTo(target));
     expect(scrolledPages).toContain(7);
     expect(result.current.activeFieldId).toBe('next');
-
-    // Now wipe nextField — handleNext should bail without scrolling.
-    scrolledPages.length = 0;
-    session.nextField = null;
-    const { result: r2 } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
-    act(() => r2.current.handleNext());
-    expect(scrolledPages).toEqual([]);
-    expect(r2.current.activeFieldId).toBeNull();
   });
 
-  it('handleReview navigates to /sign/:envelopeId/review', () => {
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-42' }));
-    act(() => result.current.handleReview());
-    expect(navigate).toHaveBeenCalledWith('/sign/env-42/review');
+  it('a tap on initials puts the initials from the name on the page with no sheet', async () => {
+    const f = makeField({ id: 'i1', page: 1, kind: 'initials' });
+    session.fields = [f];
+    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
+    await act(async () => {
+      await result.current.handleFieldClick(f);
+    });
+    expect(result.current.sigDrawer).toBeNull();
+    expect(session.setSignature).toHaveBeenCalledTimes(1);
+    expect(session.setSignature.mock.calls[0]?.[1]).toMatchObject({
+      kind: 'initials',
+      format: 'typed',
+    });
+  });
+
+  it('ignores taps while the signer has not started', async () => {
+    const f = makeField({ id: 't1', page: 1, kind: 'text' });
+    session.fields = [f];
+    const { result } = renderHook(() =>
+      useSigningFillController({ envelopeId: 'env-1', locked: true }),
+    );
+    await act(async () => {
+      await result.current.handleFieldClick(f);
+    });
+    expect(result.current.textDrawer).toBeNull();
+    expect(result.current.activeFieldId).toBeNull();
   });
 });
 
@@ -459,20 +493,11 @@ describe('useSigningFillController — 401/410 token failures', () => {
       });
     });
 
-    // 2. Click ini1 → opens sig drawer for initials (no remembered initials)
+    // 2. Click ini1 → initials come from the name with no sheet
     await act(async () => {
       await result.current.handleFieldClick(session.fields[1]!);
     });
-    expect(result.current.sigDrawer?.kind).toBe('initials');
-
-    // Apply initials via drawer
-    await act(async () => {
-      await result.current.handleSignatureApply({
-        blob: new Blob(['ini-png'], { type: 'image/png' }),
-        format: 'typed',
-        font: 'DancingScript',
-      });
-    });
+    expect(result.current.sigDrawer).toBeNull();
 
     // 3. Click ini2 → should AUTO-apply remembered initials (no drawer)
     await act(async () => {
@@ -491,6 +516,7 @@ describe('useSigningFillController — 401/410 token failures', () => {
     expect(sigCall!.input).toHaveProperty('kind', 'signature');
     const iniCall = calls.find((c) => c.id === 'ini1');
     expect(iniCall!.input).toHaveProperty('kind', 'initials');
+    expect(iniCall!.input).toHaveProperty('format', 'typed');
   });
 
   it('remembered-signature auto-apply sends kind="signature" for the 2nd signature field', async () => {
@@ -558,101 +584,6 @@ describe('useSigningFillController — re-edit filled fields', () => {
 
     expect(result.current.textDrawer).not.toBeNull();
     expect(result.current.textDrawer?.field.id).toBe('t1');
-  });
-});
-
-describe('useSigningFillController — decline + withdraw consent', () => {
-  it('decline: cancelled confirm is a no-op', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleDecline();
-    });
-    expect(session.decline).not.toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('decline: confirmed call POSTs decline + navigates to /declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleDecline();
-    });
-    expect(session.decline).toHaveBeenCalledWith('declined-on-fill');
-    expect(navigate).toHaveBeenCalledWith('/sign/env-9/declined', { replace: true });
-  });
-
-  it('decline: API failure unsticks busy and does NOT navigate', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    session.decline = vi.fn(async () => {
-      throw new Error('boom');
-    });
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleDecline();
-    });
-    expect(navigate).not.toHaveBeenCalled();
-    expect(result.current.busy).toBe(false);
-  });
-
-  it('withdrawConsent: cancelled confirm is a no-op', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleWithdrawConsent();
-    });
-    expect(session.withdrawConsent).not.toHaveBeenCalled();
-    expect(navigate).not.toHaveBeenCalled();
-  });
-
-  it('withdrawConsent: confirmed call invokes session.withdrawConsent and navigates to /declined', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleWithdrawConsent();
-    });
-    expect(session.withdrawConsent).toHaveBeenCalled();
-    expect(navigate).toHaveBeenCalledWith('/sign/env-9/declined', { replace: true });
-  });
-
-  it('withdrawConsent: API failure unsticks busy', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    session.withdrawConsent = vi.fn(async () => {
-      throw new Error('upstream');
-    });
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    await act(async () => {
-      await result.current.handleWithdrawConsent();
-    });
-    expect(navigate).not.toHaveBeenCalled();
-    expect(result.current.busy).toBe(false);
-  });
-
-  it('busy guard: a second decline call while busy=true returns immediately', async () => {
-    // Hold the decline promise open so busy stays true while we fire a
-    // concurrent click.
-    let release: () => void = () => {};
-    const held = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    session.decline = vi.fn(async () => {
-      await held;
-    });
-    const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-9' }));
-    let firstP: Promise<void> = Promise.resolve();
-    act(() => {
-      firstP = result.current.handleDecline();
-    });
-    // Second invocation while busy must be a no-op (decline still 1 call).
-    await act(async () => {
-      await result.current.handleDecline();
-    });
-    expect(session.decline).toHaveBeenCalledTimes(1);
-    release();
-    await act(async () => {
-      await firstP;
-    });
   });
 });
 

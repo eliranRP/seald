@@ -8,7 +8,7 @@ import { installCommonSignerRoutes, json, signMeBody } from './fixtures/signerRo
  *
  *  1. Entry: `/sign/start` answers `access_code_required`. The signer asks
  *     for a code (countdown from the cooldown), enters a wrong one (422),
- *     then the right one, and lands on prep.
+ *     then the right one, and lands on the document.
  *  2. Re-check: the signer's `/sign/submit` answers 428, a fresh code is
  *     requested and entered, and the submit goes through with it.
  *
@@ -38,7 +38,7 @@ test.describe('signer access code', () => {
     await installCommonSignerRoutes(page, ENVELOPE);
   });
 
-  test('entry screen: send, wrong code, right code, then prep', async ({ page }) => {
+  test('entry screen: send, wrong code, right code, then the document', async ({ page }) => {
     let signedIn = false;
     const sends: string[] = [];
 
@@ -94,8 +94,8 @@ test.describe('signer access code', () => {
     await input.fill('482 913');
     await expect(input).toHaveValue(GOOD_CODE);
     await page.getByRole('button', { name: 'Continue' }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE.id}/prep`, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /start signing/i })).toBeVisible();
+    await page.waitForURL(`**/sign/${ENVELOPE.id}/fill`, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
   });
 
   test('entry screen: a send that is too soon shows the countdown from Retry-After', async ({
@@ -175,32 +175,28 @@ test.describe('signer access code', () => {
     });
 
     await page.goto(`/sign/${ENVELOPE.id}?t=${TOKEN}`);
-    await page.waitForURL(`**/sign/${ENVELOPE.id}/prep`, { timeout: 15_000 });
-    await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
-    await page.getByRole('button', { name: /start signing/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE.id}/fill`, { timeout: 15_000 });
-    await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE.id}/review`, { timeout: 15_000 });
-
-    await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
-    await page.getByRole('button', { name: /sign and submit/i }).click();
+    await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+    await page.getByRole('button', { name: /^start$/i }).click();
+    await page.getByRole('button', { name: /^finish$/i }).click();
+    const sheet = page.getByRole('dialog', { name: /finish signing/i });
+    await sheet.getByRole('button', { name: /^sign$/i }).click();
 
     // The final step now asks for a fresh emailed code.
-    const panel = page.getByRole('region', { name: /enter a new emailed code to finish signing/i });
+    const panel = sheet;
     await expect(panel).toBeVisible();
     await expect(panel.getByText('a***@example.com')).toBeVisible();
     await panel.getByRole('button', { name: 'Send code' }).click();
     const input = panel.getByRole('textbox', { name: /one-time code/i });
 
     await input.fill('000000');
-    await panel.getByRole('button', { name: /sign and submit/i }).click();
+    await panel.getByRole('button', { name: /^sign$/i }).click();
     await expect(panel.getByRole('alert')).toContainText(/not right/i);
 
     await input.fill(GOOD_CODE);
-    await panel.getByRole('button', { name: /sign and submit/i }).click();
+    await panel.getByRole('button', { name: /^sign$/i }).click();
     await page.waitForURL(`**/sign/${ENVELOPE.id}/done`, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed$/i })).toBeVisible();
     expect(submits).toEqual([null, { access_code: '000000' }, { access_code: GOOD_CODE }]);
   });
 });

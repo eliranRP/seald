@@ -8,10 +8,10 @@ const { When, Then } = createBdd(test);
 
 When(
   'the recipient declines the envelope',
-  async ({ signingEntryPage, signingPrepPage, signedEnvelope }) => {
+  async ({ signingEntryPage, signingFillPage, signedEnvelope }) => {
     await signingEntryPage.goto(signedEnvelope.id);
     await signingEntryPage.startSigning();
-    await signingPrepPage.decline();
+    await signingFillPage.decline();
   },
 );
 

@@ -112,4 +112,20 @@ describe('SignerField', () => {
     const btn = getByRole('button');
     expect(btn.querySelector('[data-active-indicator="true"]')).toBeNull();
   });
+  it('shows the instruction tag only on the current, unfilled field', () => {
+    const { getByText, queryByText, rerender } = renderWithTheme(
+      <SignerField {...baseProps} kind="text" label="Title" active tag="Fill" />,
+    );
+    expect(getByText('Fill')).toBeInTheDocument();
+    rerender(<SignerField {...baseProps} kind="text" label="Title" active={false} tag="Fill" />);
+    expect(queryByText('Fill')).toBeNull();
+  });
+
+  it('marks a filled auto value with a small Auto tag', () => {
+    const { getByText } = renderWithTheme(
+      <SignerField {...baseProps} kind="name" label="Name" filled auto value="Hannah Wills" />,
+    );
+    expect(getByText('Hannah Wills')).toBeInTheDocument();
+    expect(getByText('Auto')).toBeInTheDocument();
+  });
 });

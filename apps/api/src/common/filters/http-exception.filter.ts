@@ -17,7 +17,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
         typeof body === 'string'
           ? body
           : ((body as { message?: string | string[] }).message ?? 'error');
-      const normalized = { error: Array.isArray(raw) ? raw.join('; ') : raw };
+      // `reason`, `waiting_on`, `sender_name`, `signed_at` and `short_code` are additive machine hints (signer link
+      // states); no other body field is passed through.
+      const extra = typeof body === 'string' ? {} : (body as Record<string, unknown>);
+      const normalized = {
+        error: Array.isArray(raw) ? raw.join('; ') : raw,
+        ...(typeof extra['reason'] === 'string' ? { reason: extra['reason'] } : {}),
+        ...(typeof extra['waiting_on'] === 'string' ? { waiting_on: extra['waiting_on'] } : {}),
+        ...(typeof extra['sender_name'] === 'string' ? { sender_name: extra['sender_name'] } : {}),
+        ...(typeof extra['signed_at'] === 'string' ? { signed_at: extra['signed_at'] } : {}),
+        ...(typeof extra['short_code'] === 'string' ? { short_code: extra['short_code'] } : {}),
+      };
       response.status(status).json(normalized);
       return;
     }

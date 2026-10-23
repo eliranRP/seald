@@ -15,7 +15,7 @@ const SAMPLE_PDF = readFileSync(resolve(__dirname, './fixtures/sample-1page.pdf'
 /**
  * Signing-flow happy path (full coverage).
  *
- * Scope: entry → prep → fill → review → done — all five navigation
+ * Scope: entry → fill → done — all five navigation
  * checkpoints with their backing /sign/* mocks. The fill page is the
  * load-bearing one: instead of driving PDF.js + the signature canvas
  * (which would flake), we seed `/sign/me` with a single required text
@@ -203,46 +203,33 @@ test.describe('signing flow', () => {
     });
   });
 
-  test('entry → prep → fill → review → done happy path', async ({ page }) => {
+  test('entry → fill (consent, finish) → done happy path', async ({ page }) => {
     // 1. Open the signing link (envelope_id + ?t=<token>).
     await page.goto(`/sign/${ENVELOPE_ID}?t=${TOKEN}`);
 
-    // 2. Entry page exchanges the token, then redirects to /prep because
-    //    the mocked /sign/start returned requires_tc_accept: true.
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/prep`, { timeout: 15_000 });
-
-    // 3. Prep page shows the document title (in the banner header AND
-    //    the hero copy — first() collapses the strict-mode multi-match).
+    // 2. Entry page exchanges the token and opens the document, where the
+    //    consent bar waits.
+    await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
     await expect(page.getByText('Test Document').first()).toBeVisible();
 
-    // 4. T-14: tick BOTH disclosure checkboxes — the Consumer Disclosure
-    //    ack + the ESIGN §7001(c)(1)(C)(ii) "demonstrated ability"
-    //    affirmation. The "Start signing" button stays disabled until
-    //    both are checked.
-    await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
+    // 3. One checkbox, then Start: fires POST /sign/accept-terms +
+    //    POST /sign/esign-disclosure (both mocked above). Start stays
+    //    disabled until the box is ticked.
+    const start = page.getByRole('button', { name: /^start$/i });
+    await expect(start).toBeDisabled();
+    await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+    await start.click();
 
-    // 5. Click "Start signing" — fires POST /sign/accept-terms +
-    //    POST /sign/esign-disclosure (both mocked above) and navigates
-    //    to /fill.
-    await page.getByRole('button', { name: /start signing/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
+    // 4. The pre-filled required field means the bar shows Finish at once.
+    //    Finish opens the intent-to-sign sheet; Sign submits.
+    await page.getByRole('button', { name: /^finish$/i }).click();
+    const sheet = page.getByRole('dialog', { name: /finish signing/i });
+    await expect(sheet.getByText(/you intend to sign this document electronically/i)).toBeVisible();
+    await sheet.getByRole('button', { name: /^sign$/i }).click();
 
-    // 6. The pre-filled required field flips `allRequiredFilled = true`,
-    //    so the action bar shows "Review & finish" immediately. Click it.
-    await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/review`, { timeout: 15_000 });
-
-    // 7. Review page heading + T-15 intent-to-sign affirmation + submit
-    //    button. The submit button stays disabled until the intent
-    //    checkbox is ticked.
-    await expect(page.getByRole('heading', { name: /everything look right\?/i })).toBeVisible();
-    await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
-    await page.getByRole('button', { name: /sign and submit/i }).click();
-
-    // 8. Land on /done. The heading records this signature. The sealed
-    //    PDF email goes out after everyone has signed.
+    // 5. Land on /done. The heading records this signature. The sealed
+    //    PDF is downloadable after everyone has signed.
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
-    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed$/i })).toBeVisible();
   });
 });

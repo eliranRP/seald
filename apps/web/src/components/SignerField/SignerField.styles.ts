@@ -1,5 +1,15 @@
-import styled, { css } from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import type { SignerFieldKind } from './SignerField.types';
+
+const fieldPulse = keyframes`
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.18);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(79, 70, 229, 0.06);
+  }
+`;
 
 export type Tone = 'success' | 'indigo' | 'amber' | 'neutral';
 
@@ -17,28 +27,39 @@ interface RootProps {
 const toneColors = (tone: Tone) => {
   switch (tone) {
     case 'success':
+      // Done: the value sits on the paper with no chrome until hovered.
       return css`
-        background: rgba(16, 185, 129, 0.1);
-        border-color: ${({ theme }) => theme.color.success[500]};
-        color: ${({ theme }) => theme.color.success[700]};
+        background: transparent;
+        border-color: transparent;
+        color: ${({ theme }) => theme.color.fg[1]};
+        &:hover {
+          border-color: ${({ theme }) => theme.color.border[2]};
+        }
       `;
     case 'indigo':
+      // The current field: solid edge, soft glow that breathes.
       return css`
-        background: rgba(99, 102, 241, 0.12);
-        border-color: ${({ theme }) => theme.color.indigo[500]};
+        background: ${({ theme }) => theme.color.indigo[50]};
+        border-color: ${({ theme }) => theme.color.indigo[600]};
         color: ${({ theme }) => theme.color.indigo[700]};
+        animation: ${fieldPulse} 1.6s ${({ theme }) => theme.motion.easeOut} infinite;
+        @media (prefers-reduced-motion: reduce) {
+          animation: none;
+          box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.18);
+        }
       `;
     case 'amber':
+      // Required, still to do: dashed indigo.
       return css`
-        background: rgba(245, 158, 11, 0.1);
-        border-color: ${({ theme }) => theme.color.warn[500]};
-        color: ${({ theme }) => theme.color.warn[700]};
+        background: rgba(238, 242, 255, 0.85);
+        border-color: ${({ theme }) => theme.color.indigo[600]};
+        color: ${({ theme }) => theme.color.indigo[700]};
       `;
     default:
       return css`
-        background: rgba(148, 163, 184, 0.1);
+        background: rgba(248, 250, 252, 0.9);
         border-color: ${({ theme }) => theme.color.ink[400]};
-        color: ${({ theme }) => theme.color.fg[2]};
+        color: ${({ theme }) => theme.color.fg[3]};
       `;
   }
 };
@@ -49,29 +70,65 @@ export const Root = styled.button<RootProps>`
   top: ${({ $y }) => `${$y}px`};
   width: ${({ $w }) => `${$w}px`};
   height: ${({ $h }) => `${$h}px`};
-  border: 1.5px ${({ $filled }) => ($filled ? 'solid' : 'dashed')};
-  border-radius: ${({ theme, $kind }) => ($kind === 'checkbox' ? '4px' : theme.radius.sm)};
+  border: 1.5px ${({ $filled, $active }) => ($filled || $active ? 'solid' : 'dashed')};
+  border-radius: ${({ theme, $kind }) =>
+    $kind === 'checkbox' ? theme.radius.xxs : theme.radius.xs};
   padding: ${({ $kind }) => ($kind === 'checkbox' ? '0' : '0 10px')};
   display: inline-flex;
   align-items: center;
   justify-content: ${({ $kind }) => ($kind === 'checkbox' ? 'center' : 'flex-start')};
+  gap: 6px;
   cursor: pointer;
   font-family: ${({ theme }) => theme.font.sans};
   transition:
-    background 140ms,
-    border-color 140ms,
-    box-shadow 140ms;
+    background ${({ theme }) => theme.motion.durBase},
+    border-color ${({ theme }) => theme.motion.durBase},
+    box-shadow ${({ theme }) => theme.motion.durBase};
   ${({ $tone }) => toneColors($tone)};
-  ${({ $active }) =>
-    $active
-      ? css`
-          box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
-        `
-      : ''}
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+`;
+
+/** Pill to the left of the current field: where to act and what to do. */
+export const FieldTag = styled.span`
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fgOnAccent};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  white-space: nowrap;
+  pointer-events: none;
+  @media (max-width: 640px) {
+    right: auto;
+    left: 0;
+    top: -14px;
+    transform: none;
+  }
+`;
+
+export const AutoTag = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[100]};
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.badge};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 `;
 
 export const EmptyLabel = styled.span`

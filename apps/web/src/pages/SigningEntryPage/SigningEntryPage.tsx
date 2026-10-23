@@ -1,20 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { reportSignerEvent } from '@/features/signing';
-import { isNotYourTurnError, NotYourTurn } from '@/features/signers/signingOrder';
+import { AlertCircle } from 'lucide-react';
+import { Button } from '@/components/Button';
+import {
+  hintsFromError,
+  linkStateFor,
+  reportSignerEvent,
+  stashLinkHints,
+} from '@/features/signing';
 import * as api from '@/features/signing/signingApi';
 import { AccessCodeScreen } from '@/features/signing/accessCode';
+import { StatusPage, TextLink } from '@/features/signing/ui/StatusPage';
 import { useT } from '@/lib/i18n';
-import type { CommonKey } from '@/lib/i18n';
-import {
-  Body,
-  Card,
-  MailtoLink,
-  Page,
-  Spinner,
-  Title,
-  TryAgainBtn,
-} from './SigningEntryPage.styles';
 
 /**
  * Module-level map of (envelope_id, token) → in-flight Promise.
@@ -48,51 +45,24 @@ export function resetInflightForTests(): void {
   inflight.clear();
 }
 
-type EntryState =
-  | 'loading'
-  | 'invalid'
-  | 'burned'
-  | 'not-found'
-  | 'rate-limit'
-  | 'not-your-turn'
-  | 'generic';
+type EntryState = 'loading' | 'rate-limit' | 'generic';
 
 interface ApiErrorLike extends Error {
   status?: number;
+  code?: string;
+  reason?: string;
+  waiting_on?: string;
+  sender_name?: string;
+  signed_at?: string;
+  short_code?: string;
 }
-
-function mapError(err: ApiErrorLike): EntryState {
-  // WP-06: 409 not_your_turn is a wait, not a used link.
-  if (isNotYourTurnError(err)) return 'not-your-turn';
-  if (err.status === 400) return 'invalid';
-  // 401 invalid_token, 410 envelope_terminal, 409 already_signed/declined
-  // (from assertStillSignable). All four mean "this link won't sign anything"
-  // from the user's perspective, so the same copy ("already been used") is
-  // the most useful message.
-  if (err.status === 401 || err.status === 409 || err.status === 410) return 'burned';
-  if (err.status === 404) return 'not-found';
-  if (err.status === 429) return 'rate-limit';
-  return 'generic';
-}
-
-/** Catalog keys for each entry state's title and body (`signing.entry.*`). */
-const COPY_KEYS: Record<EntryState, { readonly title: CommonKey; readonly body: CommonKey }> = {
-  loading: { title: 'signing.entry.loading.title', body: 'signing.entry.loading.body' },
-  invalid: { title: 'signing.entry.invalid.title', body: 'signing.entry.invalid.body' },
-  burned: { title: 'signing.entry.burned.title', body: 'signing.entry.burned.body' },
-  'not-found': { title: 'signing.entry.notFound.title', body: 'signing.entry.notFound.body' },
-  'not-your-turn': {
-    title: 'signing.entry.notYourTurn.title',
-    body: 'signing.entry.notYourTurn.body',
-  },
-  'rate-limit': { title: 'signing.entry.rateLimit.title', body: 'signing.entry.rateLimit.body' },
-  generic: { title: 'signing.entry.generic.title', body: 'signing.entry.generic.body' },
-};
 
 /**
  * Public entry point for `/sign/:envelopeId?t=<token>`. Exchanges the token
  * for a session cookie via POST /sign/start, strips `?t=` from history, and
- * routes the user to `/prep` (or `/fill` when T&C already accepted).
+ * opens the document at `/fill`, where the consent bar waits. When the API
+ * refuses the link it lands on the matching link-state screen
+ * (`/sign/:id/link/:state`); a rate limit or a failure keeps its retry copy.
  *
  * Implementation note: we bypass React Query for this one call because
  * StrictMode's unmount/remount cycle was losing the mutation's resolution
@@ -126,7 +96,7 @@ export function SigningEntryPage() {
     });
 
     if (!envelopeId || !token) {
-      setState('invalid');
+      navigate(`/sign/${envelopeId}/link/invalid`, { replace: true });
       return undefined;
     }
 
@@ -155,12 +125,10 @@ export function SigningEntryPage() {
           return;
         }
         reportSignerEvent({ type: 'sign.session.started', envelope_id: envelopeId });
-        const next = result.requires_tc_accept
-          ? `/sign/${envelopeId}/prep`
-          : `/sign/${envelopeId}/fill`;
+        // `fresh` makes the fill page ask for consent again for this session.
         // `navigate(..., { replace: true })` updates the URL AND scrubs
         // `?t=` from history in one step.
-        navigate(next, { replace: true });
+        navigate(`/sign/${envelopeId}/fill`, { replace: true, state: { fresh: true } });
       },
       (err) => {
         if (cancelled) return;
@@ -168,13 +136,19 @@ export function SigningEntryPage() {
         inflight.delete(key);
         // Strip `?t=` from the URL without notifying React Router — using
         // navigate() here would re-fire this effect with token=null and
-        // override the error state below with 'invalid'. A bare DOM-level
-        // replaceState scrubs the token from history without triggering
-        // the router.
+        // override the error state below. A bare DOM-level replaceState
+        // scrubs the token from history without triggering the router.
         if (typeof window !== 'undefined' && token !== null) {
           window.history.replaceState(null, '', `/sign/${envelopeId}`);
         }
-        setState(mapError(err as ApiErrorLike));
+        const apiError = err as ApiErrorLike;
+        const link = linkStateFor(apiError);
+        if (link !== null) {
+          stashLinkHints(envelopeId, hintsFromError(apiError, token));
+          navigate(`/sign/${envelopeId}/link/${link}`, { replace: true });
+          return;
+        }
+        setState(apiError.status === 429 ? 'rate-limit' : 'generic');
       },
     );
 
@@ -188,63 +162,40 @@ export function SigningEntryPage() {
     setRetryCounter((n) => n + 1);
   }, []);
 
-  if (state === 'not-your-turn') return <NotYourTurn />;
-
   if (accessCodeEmail !== null) {
     return (
       <AccessCodeScreen
         emailMasked={accessCodeEmail}
-        onVerified={(result) => {
+        onVerified={() => {
           reportSignerEvent({ type: 'sign.session.started', envelope_id: envelopeId });
-          navigate(
-            result.requires_tc_accept ? `/sign/${envelopeId}/prep` : `/sign/${envelopeId}/fill`,
-            { replace: true },
-          );
+          navigate(`/sign/${envelopeId}/fill`, { replace: true, state: { fresh: true } });
         }}
       />
     );
   }
 
-  const copy = { title: t(COPY_KEYS[state].title), body: t(COPY_KEYS[state].body) };
-  // Item 1 — only the two recoverable error states get a retry CTA. The
-  // burned/invalid/not-found terminals are intentionally one-shot and the
-  // retry would just immediately re-fail; mailto stays as the path forward.
-  const canRetry = state === 'rate-limit' || state === 'generic';
-  // Item 4 — give support context without exposing the internal hostname.
-  // `encodeURIComponent` keeps the subject opaque-but-readable in clients
-  // that decode it for display.
+  if (state === 'loading') {
+    return <StatusPage busy tone="neutral" icon={AlertCircle} title={t('signing.sign.opening')} />;
+  }
+
+  // Give support context without exposing the internal hostname.
   const mailtoHref =
     `mailto:support@seald.nromomentum.com` +
     `?subject=${encodeURIComponent(t('signing.entry.helpSubject', { envelopeId }))}`;
+  const copy =
+    state === 'rate-limit'
+      ? { title: t('signing.entry.rateLimit.title'), body: t('signing.entry.rateLimit.body') }
+      : { title: t('signing.entry.generic.title'), body: t('signing.entry.generic.body') };
 
-  // Item 2 — wrap loading + terminal-error branches in landmarks that the
-  // accessibility tree exposes. `role="status"` with `aria-live="polite"`
-  // announces the loading copy without interrupting; terminal errors get
-  // `role="alert"` (implicit `aria-live="assertive"`) on the Card.
   return (
-    <Page>
-      {state === 'loading' ? (
-        <Card role="status" aria-live="polite">
-          <div style={{ display: 'grid', gap: 20, placeItems: 'center' }}>
-            <Spinner $size={24} aria-hidden="true" />
-            <Title>{copy.title}</Title>
-            <Body>{copy.body}</Body>
-          </div>
-        </Card>
-      ) : (
-        <Card role="alert">
-          <Title>{copy.title}</Title>
-          <Body>{copy.body}</Body>
-          {canRetry ? (
-            <TryAgainBtn type="button" onClick={handleRetry}>
-              {t('signing.entry.tryAgain')}
-            </TryAgainBtn>
-          ) : null}
-          <MailtoLink href={mailtoHref} rel="noreferrer">
-            {t('signing.entry.contactSupport')}
-          </MailtoLink>
-        </Card>
-      )}
-    </Page>
+    <StatusPage tone="bad" icon={AlertCircle} title={copy.title}>
+      <span role="alert">{copy.body}</span>
+      <Button variant="ghost" onClick={handleRetry}>
+        {t('signing.entry.tryAgain')}
+      </Button>
+      <TextLink href={mailtoHref} rel="noreferrer">
+        {t('signing.entry.contactSupport')}
+      </TextLink>
+    </StatusPage>
   );
 }

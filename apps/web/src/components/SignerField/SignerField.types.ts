@@ -29,5 +29,10 @@ export interface SignerFieldProps extends Omit<
   readonly h: number;
   /** Optional override for the rendered filled value (e.g. SignatureMark). */
   readonly previewNode?: ReactNode | undefined;
+  /** Short instruction in a pill beside the current field ("Sign", "Initial", "Fill"). */
+  readonly tag?: string | undefined;
+  /** Value was filled for the signer (name, date): shows a small "Auto" tag. */
+  readonly auto?: boolean | undefined;
+  readonly autoLabel?: string | undefined;
   readonly onActivate: () => void;
 }

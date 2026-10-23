@@ -735,7 +735,8 @@ export type EmailKindDb =
   | 'automation_copy'
   | 'automation_disabled'
   | 'signer_corrected'
-  | 'signer_replaced';
+  | 'signer_replaced'
+  | 'new_link_requested';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed' | 'canceled';
 
 export interface OutboundEmailsTable {

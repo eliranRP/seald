@@ -39,6 +39,7 @@ import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
 import { isSignersTurn } from './signing-order';
+import { alreadyActed, notYourTurn, terminalGone } from './link-state';
 import { SigningOrderService } from './signing-order.service';
 import { SigningTokenService } from './signing-token.service';
 
@@ -77,6 +78,8 @@ export interface SignMeResponse {
     readonly expires_at: string;
     readonly tc_version: string;
     readonly privacy_version: string;
+    /** Who sent it, for "from {name}" in the signer header. */
+    readonly sender_name?: string | null;
     /** WP-07: how date fields render; only while `fieldMetaV2` is on. */
     readonly date_format?: string | null;
     readonly timezone?: string | null;
@@ -206,6 +209,7 @@ export class SigningService {
         expires_at: envelope.expires_at,
         tc_version: envelope.tc_version,
         privacy_version: envelope.privacy_version,
+        sender_name: envelope.sender_name ?? null,
         ...(isFeatureEnabled('fieldMetaV2')
           ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
           : {}),
@@ -599,6 +603,59 @@ export class SigningService {
   }
 
   /**
+   * "Ask for a new link" on an expired link (public). The signer is named
+   * by the expired token, or by envelope id plus email. Only an expired
+   * envelope qualifies. Nothing about the outcome is revealed to the
+   * caller: an unknown signer, a live envelope and a repeat request all
+   * look alike, so the route cannot be used to probe for addresses.
+   *
+   * One request per signer per UTC day: the sender notice carries a
+   * `dedupe_key` of signer + day, so a second ask the same day is a no-op.
+   */
+  async requestNewLink(input: {
+    readonly envelope_id: string;
+    readonly token?: string | undefined;
+    readonly email?: string | undefined;
+  }): Promise<void> {
+    let envelope: Envelope | null = null;
+    let signer: EnvelopeSigner | undefined;
+    if (input.token !== undefined) {
+      const found = await this.repo.findSignerByAccessTokenHash(this.tokens.hash(input.token));
+      if (found && found.envelope.id === input.envelope_id) {
+        envelope = found.envelope;
+        signer = found.signer;
+      }
+    } else if (input.email !== undefined) {
+      const email = input.email;
+      envelope = await this.repo.findByIdWithAll(input.envelope_id);
+      signer = envelope?.signers.find((s) => sameMailbox(s.email, email));
+    }
+    if (!envelope || !signer) return;
+    if (envelope.status !== 'expired' || signer.signed_at !== null) return;
+    if (!envelope.sender_email) return;
+
+    const day = new Date().toISOString().slice(0, 10);
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    await insertOutboundEmailIdempotent(this.outboundEmails, {
+      envelope_id: envelope.id,
+      signer_id: null,
+      kind: 'new_link_requested',
+      to_email: envelope.sender_email,
+      to_name: envelope.sender_name ?? envelope.sender_email,
+      dedupe_key: `new_link_requested:${signer.id}:${day}`,
+      payload: {
+        sender_name: envelope.sender_name ?? envelope.sender_email,
+        envelope_title: envelope.title,
+        signer_name: signer.name,
+        signer_email: signer.email,
+        expired_at_readable: formatUtc(envelope.expires_at),
+        envelope_url: `${publicUrl}/document/${envelope.id}`,
+        public_url: publicUrl,
+      },
+    });
+  }
+
+  /**
    * Terminal decline — any signer declining aborts the whole envelope
    * (parallel-mode MVP). Flow:
    *
@@ -814,19 +871,16 @@ export class SigningService {
  */
 export function assertSignersTurn(envelope: Envelope, signer: EnvelopeSigner): void {
   if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
-    throw new ConflictException('not_your_turn');
+    throw notYourTurn(envelope);
   }
 }
 
 function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
   if (envelope.status !== 'awaiting_others') {
-    throw new GoneException('envelope_terminal');
+    throw terminalGone(envelope, signer);
   }
-  if (signer.signed_at !== null) {
-    throw new ConflictException('already_signed');
-  }
-  if (signer.declined_at !== null) {
-    throw new ConflictException('already_declined');
+  if (signer.signed_at !== null || signer.declined_at !== null) {
+    throw alreadyActed(envelope, signer);
   }
 }
 

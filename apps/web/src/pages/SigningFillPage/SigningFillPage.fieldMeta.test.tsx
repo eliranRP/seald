@@ -50,7 +50,14 @@ function load(
   envelope: Record<string, unknown> = {},
 ) {
   const base = makeSignMeResponse();
-  get.mockResolvedValue(ok({ ...base, envelope: { ...base.envelope, ...envelope }, fields }));
+  get.mockResolvedValue(
+    ok({
+      ...base,
+      envelope: { ...base.envelope, ...envelope },
+      signer: { ...base.signer, tc_accepted_at: '2026-04-24T00:00:00Z' },
+      fields,
+    }),
+  );
 }
 
 function renderFill() {

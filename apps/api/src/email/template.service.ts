@@ -43,7 +43,8 @@ export type EmailTemplateKind =
   | 'automation_copy'
   | 'automation_disabled'
   | 'signer_corrected'
-  | 'signer_replaced';
+  | 'signer_replaced'
+  | 'new_link_requested';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -198,6 +199,7 @@ const TITLES: Record<string, string> = {
   automation_disabled: 'Seald — Automation turned off',
   signer_corrected: 'Seald — Recipient changed',
   signer_replaced: 'Seald — You no longer need to sign',
+  new_link_requested: 'Seald — New link requested',
 };
 
 function prettyTitle(kind: string): string {

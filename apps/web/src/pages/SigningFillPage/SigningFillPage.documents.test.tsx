@@ -37,6 +37,7 @@ function twoDocumentResponse() {
   const base = makeSignMeResponse();
   return {
     ...base,
+    signer: { ...base.signer, tc_accepted_at: '2026-04-24T00:00:00Z' },
     documents: [
       { id: DOC_A, ord: 1, title: 'Master agreement', original_pages: 2 },
       { id: DOC_B, ord: 2, title: 'Side letter', original_pages: 1 },
@@ -149,10 +150,8 @@ describe('SigningFillPage with several documents', () => {
     );
     renderFill();
 
-    const next = await screen.findByRole('button', {
-      name: /next field: sign here on page 1 of side letter/i,
-    });
-    await userEvent.click(next);
+    // The only required field is the signature on the second document.
+    await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
 
     const rail = screen.getByRole('navigation', { name: /documents to sign/i });
     await waitFor(() => {
@@ -179,8 +178,6 @@ describe('SigningFillPage with several documents', () => {
     expect(
       screen.queryByRole('navigation', { name: /documents to sign/i }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('button', { name: /^next field: sign here on page 1$/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument();
   });
 });

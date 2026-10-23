@@ -19,6 +19,7 @@ const TEMPLATES = [
   'expired_to_sender',
   'expired_to_signer',
   'invite',
+  'new_link_requested',
   'reminder',
   'signed_to_sender',
   'signer_corrected',

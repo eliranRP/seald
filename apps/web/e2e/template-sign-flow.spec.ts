@@ -27,9 +27,9 @@ import { test, expect, type Page, type Route } from '@playwright/test';
  *     - mock /sign/start → requires_tc_accept
  *     - mock /sign/me with one of each renderable field kind, all
  *       pre-filled so allRequiredFilled is true on first paint
- *     - tick the two ESIGN disclosure checkboxes, click "Start signing"
+ *     - tick the one consent checkbox, click "Start"
  *     - on /fill, click "Review & finish"
- *     - on /review, tick intent-to-sign, click "Sign and submit"
+ *     - click Finish, then Sign in the confirmation sheet
  *     - assert /done renders + /sign/submit was called
  *  3. PDF asset retrieval (signer side):
  *     - the /sign/pdf mock returns a deterministic fixture URL; the spec
@@ -483,36 +483,32 @@ test.describe('template + sign happy path', () => {
     // The retired /sent page redirects (guests land back on the editor entry).
     await page.waitForURL(/\/document\/new$/, { timeout: 15_000 });
 
-    // ---------------------- 4. Signer: entry → prep → fill → review → done
+    // ---------------------- 4. Signer: entry → fill → done
 
     await page.goto(`/sign/${ENVELOPE_ID}?t=${TOKEN}`);
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/prep`, { timeout: 15_000 });
+    await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
 
     await expect(page.getByText('Seald e2e fixture').first()).toBeVisible();
 
-    // T-14 disclosure ack + ESIGN demonstrated-ability affirmation.
-    await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-    await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
-    await page.getByRole('button', { name: /start signing/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/fill`, { timeout: 15_000 });
+    await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+    await page.getByRole('button', { name: /^start$/i }).click();
 
-    // Every field is pre-filled in the /sign/me mock so the action bar
-    // shows "Review & finish" immediately.
-    await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
-    await page.waitForURL(`**/sign/${ENVELOPE_ID}/review`, { timeout: 15_000 });
-
-    await expect(page.getByRole('heading', { name: /everything look right\?/i })).toBeVisible();
-    await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
-    await page.getByRole('button', { name: /sign and submit/i }).click();
+    // Every field is pre-filled in the /sign/me mock so the bar shows
+    // Finish immediately.
+    await page.getByRole('button', { name: /^finish$/i }).click();
+    await page
+      .getByRole('dialog', { name: /finish signing/i })
+      .getByRole('button', { name: /^sign$/i })
+      .click();
 
     await page.waitForURL(`**/sign/${ENVELOPE_ID}/done`, { timeout: 15_000 });
-    // PR-4 audit (item 17) replaced the brand-wordmark <h1> with a
-    // verb-led affirmation. Match the new copy.
-    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed$/i })).toBeVisible();
 
     // ---------------------- 5. Assert mock-side contracts
 
-    expect(log.signFinish, '/sign/submit must fire on the review step').toBeGreaterThanOrEqual(1);
+    expect(log.signFinish, '/sign/submit must fire from the Finish sheet').toBeGreaterThanOrEqual(
+      1,
+    );
     expect(
       log.signPdf,
       '/sign/pdf must fire so the signer can render the doc',

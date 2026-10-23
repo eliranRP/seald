@@ -19,6 +19,8 @@ export interface SignMeEnvelope {
   readonly expires_at: string;
   readonly tc_version: string;
   readonly privacy_version: string;
+  /** Who sent it. */
+  readonly sender_name?: string | null;
   /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
   readonly date_format?: string | null;
   readonly timezone?: string | null;
@@ -150,6 +152,17 @@ export async function startSession(
     configWithSignal(signal),
   );
   return data;
+}
+
+/**
+ * "Ask for a new link" on an expired link. Public: always answers 202, and
+ * the API decides whether to tell the sender (once per signer per day).
+ */
+export async function requestNewLink(
+  input: { readonly envelope_id: string; readonly token: string },
+  signal?: AbortSignal,
+): Promise<void> {
+  await signApiClient.post('/sign/request-link', input, configWithSignal(signal));
 }
 
 export async function getMe(signal?: AbortSignal): Promise<SignMeResponse> {

@@ -15,3 +15,5 @@ export {
   fieldValue,
   fieldLabel,
 } from './useSigningFillController';
+export { useSignerAutofill } from './useSignerAutofill';
+export { isAutoField, orderFields, nextTodoField, todayIso, displayDate } from './fieldOrder';

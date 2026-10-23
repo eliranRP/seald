@@ -15,9 +15,7 @@ import { SentConfirmationPage } from '../pages/SentConfirmationPage';
 import { ContactsPage } from '../pages/ContactsPage';
 import { TemplatesListPage } from '../pages/TemplatesListPage';
 import { SigningEntryPage } from '../pages/SigningEntryPage';
-import { SigningPrepPage } from '../pages/SigningPrepPage';
 import { SigningFillPage } from '../pages/SigningFillPage';
-import { SigningReviewPage } from '../pages/SigningReviewPage';
 import { SigningDonePage } from '../pages/SigningDonePage';
 import { SigningDeclinedPage } from '../pages/SigningDeclinedPage';
 
@@ -61,9 +59,7 @@ type Fixtures = {
   contactsPage: ContactsPage;
   templatesListPage: TemplatesListPage;
   signingEntryPage: SigningEntryPage;
-  signingPrepPage: SigningPrepPage;
   signingFillPage: SigningFillPage;
-  signingReviewPage: SigningReviewPage;
   signingDonePage: SigningDonePage;
   signingDeclinedPage: SigningDeclinedPage;
 };
@@ -135,14 +131,8 @@ export const test = base.extend<Fixtures>({
   signingEntryPage: async ({ page }, use) => {
     await use(new SigningEntryPage(page));
   },
-  signingPrepPage: async ({ page }, use) => {
-    await use(new SigningPrepPage(page));
-  },
   signingFillPage: async ({ page }, use) => {
     await use(new SigningFillPage(page));
-  },
-  signingReviewPage: async ({ page }, use) => {
-    await use(new SigningReviewPage(page));
   },
   signingDonePage: async ({ page }, use) => {
     await use(new SigningDonePage(page));

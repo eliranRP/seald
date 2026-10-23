@@ -42,6 +42,20 @@ describe('HttpExceptionFilter', () => {
     expect(json).toHaveBeenCalledWith({ error: 'foo' });
   });
 
+  it('passes the additive reason and waiting_on hints through, and nothing else', () => {
+    const { host, json } = mockHost();
+    const ex = new HttpException(
+      { message: 'not_your_turn', reason: 'not_your_turn', waiting_on: 'Alex', secret: 'x' },
+      409,
+    );
+    filter.catch(ex, host);
+    expect(json).toHaveBeenCalledWith({
+      error: 'not_your_turn',
+      reason: 'not_your_turn',
+      waiting_on: 'Alex',
+    });
+  });
+
   it('joins array message bodies (ValidationPipe case)', () => {
     const { host, status, json } = mockHost();
     const ex = new BadRequestException({ message: ['a must be string', 'b must be number'] });
