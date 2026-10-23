@@ -1,0 +1,73 @@
+name: Go-live Deploy long (SSH build)
+
+# Same as deploy.yml but with longer timeouts for cold/large image builds.
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to check out on the host'
+        required: true
+        default: 'main'
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ssh_deploy_long:
+    name: Pull + compose up on EC2 (long timeout)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+      - name: Deploy over SSH (long)
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 35m
+          script: |
+            set -euo pipefail
+            cd /opt/seald
+            sudo chown -R "$(id -u):$(id -g)" .
+            REF="${{ inputs.ref || 'main' }}"
+            echo "Deploying ref=$REF"
+            # Retry git fetch a few times (host saw TLS flake earlier)
+            ok=0
+            for i in 1 2 3 4 5; do
+              if git fetch --all --tags --prune; then ok=1; break; fi
+              echo "git fetch failed (try $i); sleeping..."
+              sleep 5
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "ERROR: git fetch failed after retries" >&2
+              exit 1
+            fi
+            echo "=== git status before reset ==="
+            git status --porcelain | head -20 || true
+            git stash push --include-untracked -m "auto-stash-pre-deploy-$(date +%Y%m%d-%H%M%S)" 2>&1 | head -3 || true
+            git checkout "$REF"
+            git reset --hard "origin/$REF"
+            git clean -fd
+            echo "deployed SHA: $(git rev-parse HEAD)"
+            echo "=== disk before build ==="
+            df -h /
+            sudo docker compose pull || true
+            sudo docker compose up -d --build --force-recreate api
+            echo "=== disk after build ==="
+            df -h /
+            for i in $(seq 1 45); do
+              if sudo docker exec seald-caddy-1 wget -qO- http://api:3000/health | grep -q '"status":"ok"'; then
+                echo "/health OK after ${i} tries"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "/health never came up" >&2
+            sudo docker compose logs --tail=200 api 2>&1 | sed -E 's/(KEY|SECRET|PASSWORD|TOKEN)=[^[:space:]]+/\1=<redacted>/g' || true
+            exit 1

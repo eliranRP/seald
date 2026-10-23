@@ -1,0 +1,49 @@
+name: Go-live API recover (no rebuild)
+
+# Emergency: restart api/gotenberg/caddy from existing images without building.
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: SSH restart stack without rebuild
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 8m
+          script: |
+            set -euo pipefail
+            echo '=== docker ps -a (before) ==='
+            sudo docker ps -a --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+            echo '=== df -h / ==='
+            df -h /
+            cd /opt/seald
+            # Start existing images; do not rebuild
+            sudo docker compose up -d api gotenberg caddy || sudo docker compose up -d
+            sleep 5
+            echo '=== docker ps (after) ==='
+            sudo docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}'
+            echo '=== health probe ==='
+            for i in $(seq 1 30); do
+              if sudo docker exec seald-caddy-1 wget -qO- http://api:3000/health 2>/dev/null | grep -q '"status":"ok"'; then
+                echo "/health OK after ${i} tries"
+                exit 0
+              fi
+              # fallback direct on api container
+              if sudo docker exec seald-api-1 wget -qO- http://127.0.0.1:3000/health 2>/dev/null | grep -q '"status":"ok"'; then
+                echo "/health OK (direct) after ${i} tries"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo '/health never came up' >&2
+            sudo docker compose logs --tail=80 api 2>&1 | sed -E 's/(KEY|SECRET|PASSWORD|TOKEN)=[^[:space:]]+/\1=<redacted>/g' || true
+            exit 1
