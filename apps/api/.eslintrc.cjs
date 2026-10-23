@@ -151,6 +151,23 @@ module.exports = {
       },
     },
     {
+      // WP-35: the public REST API is a thin adapter over the MCP tool layer,
+      // so it keeps the same boundary (no repositories, no database driver,
+      // no signing; the messages name src/mcp, the rule is the same).
+      files: ['src/public-api/**/*.ts'],
+      excludedFiles: [
+        'src/public-api/**/__tests__/**',
+        'src/public-api/**/*.spec.ts',
+        'src/public-api/*.module.ts',
+      ],
+      rules: {
+        'no-restricted-imports': [
+          'error',
+          { paths: mcpDeniedPaths, patterns: [mcpModulePattern, ...mcpDeniedPatterns] },
+        ],
+      },
+    },
+    {
       // The MCP Nest module is the one place that wires other modules.
       files: ['src/mcp/*.module.ts'],
       rules: {

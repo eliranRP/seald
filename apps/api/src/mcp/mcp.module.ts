@@ -37,6 +37,8 @@ import { McpToolRunner } from './tool-runner';
     TemplatesModule,
   ],
   controllers: [McpController],
+  // WP-35: the public REST API (`src/public-api`) runs the same tools.
+  exports: [McpToolRunner],
   providers: [
     McpFlagGuard,
     McpAuthGuard,

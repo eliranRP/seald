@@ -16,6 +16,7 @@ import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
 import { McpModule } from './mcp/mcp.module';
 import { MeModule } from './me/me.module';
+import { PublicApiModule } from './public-api/public-api.module';
 import { SealingModule } from './sealing/sealing.module';
 import { BulkModule } from './bulk/bulk.module';
 import { TemplatesModule } from './templates/templates.module';
@@ -63,6 +64,8 @@ import { StorageModule } from './storage/storage.module';
     AutomationsModule,
     // WP-17: POST /mcp, dark behind `mcpServer` + MCP_DISABLED.
     McpModule,
+    // WP-35: /api/v1, dark behind `publicApi`.
+    PublicApiModule,
     // WP-37: /templates/:id/direct-link and /direct-links/:token, dark behind `directLinks`.
     DirectLinksModule,
   ],
