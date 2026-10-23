@@ -59,6 +59,7 @@ describe('EnvelopesController', () => {
       replaceSigner: jest.fn(),
       replaceFields: jest.fn(),
       listEvents: jest.fn(),
+      listEventsWithChain: jest.fn(),
       getDownloadUrl: jest.fn(),
       saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
@@ -493,12 +494,12 @@ describe('EnvelopesController', () => {
   });
 
   describe('GET /envelopes/:id/events', () => {
-    it('wraps service result as { events }', async () => {
+    it('wraps service result as { events, chain_intact }', async () => {
       const events = [{ id: 'ev1' }] as never;
-      svc.listEvents.mockResolvedValue(events);
+      svc.listEventsWithChain.mockResolvedValue({ events, chain_intact: true });
       const out = await controller.events(USER, 'env-1');
-      expect(out).toEqual({ events });
-      expect(svc.listEvents).toHaveBeenCalledWith(USER.id, 'env-1');
+      expect(out).toEqual({ events, chain_intact: true });
+      expect(svc.listEventsWithChain).toHaveBeenCalledWith(USER.id, 'env-1');
     });
   });
 

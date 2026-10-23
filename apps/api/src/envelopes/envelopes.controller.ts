@@ -283,8 +283,11 @@ export class EnvelopesController {
   events(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{ events: ReadonlyArray<EnvelopeEvent> }> {
-    return this.svc.listEvents(user.id, id).then((events) => ({ events }));
+  ): Promise<{ events: ReadonlyArray<EnvelopeEvent>; chain_intact: boolean }> {
+    return this.svc.listEventsWithChain(user.id, id).then((r) => ({
+      events: r.events,
+      chain_intact: r.chain_intact,
+    }));
   }
 
   /**

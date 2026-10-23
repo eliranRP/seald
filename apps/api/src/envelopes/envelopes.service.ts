@@ -701,6 +701,16 @@ export class EnvelopesService {
     return this.repo.listEventsForEnvelope(envelope_id);
   }
 
+  /** `listEvents` plus whether the audit hash chain still verifies (envelope detail "Chain intact"). */
+  async listEventsWithChain(
+    owner_id: string,
+    envelope_id: string,
+  ): Promise<{ readonly events: readonly EnvelopeEvent[]; readonly chain_intact: boolean }> {
+    const events = await this.listEvents(owner_id, envelope_id);
+    const { chain_intact } = await this.repo.verifyEventChain(envelope_id);
+    return { events, chain_intact };
+  }
+
   /**
    * Transition an envelope from `draft` to `awaiting_others`, write `sent`
    * events, and enqueue `invite` emails.
