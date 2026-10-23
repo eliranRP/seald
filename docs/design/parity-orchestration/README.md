@@ -6,30 +6,24 @@ Work on PR #380 (`feat/documenso-parity`, draft) was paused on 2026-10-22, partw
 - **Rules every WP agent follows:** [`agent-preamble.md`](agent-preamble.md).
 - **Running log** (what each WP delivered, its gaps and follow-ups): [`orchestrator-log.md`](orchestrator-log.md).
 
-## State at the stop
+## State
+
+Waves 0–7 are merged on `feat/documenso-parity` except WP-39 and WP-46.
 
 | Item | State |
 |---|---|
-| `feat/documenso-parity` head | `16e5073` plus this docs commit. Waves 0–5 are merged, except WP-30. |
-| CI on `16e5073` | Every functional job is green. CodeQL, Trivy and `pnpm audit` are red **by design**: D6/D7 defer every security finding to WP-46, the last WP. Do not fix them earlier. |
-| WP-30 (automations MCP tools) | **Partial, unverified.** Pushed to branch `wip/wp30-automations-mcp` (`b441d24`), based on `16e5073`. Typecheck passes; tests and gates have not run. |
-| MCP server version | 0.5.0. WP-30's WIP bumps it to 0.6.0. |
-| Migrations used | 0023–0033 and 0035. 0034 is reserved for WP-33, 0036 for WP-27. |
+| `feat/documenso-parity` head | Wave 7 through WP-45 (`46d1a57`), plus the WP-41 docs commit. |
+| Still open | **WP-39** (i18n string extraction, haiku) and **WP-46** (security sweep, opus, last). |
+| Security checks | CodeQL, Trivy and `pnpm audit` are red **by design** until WP-46 (D6/D7). Do not fix them earlier. |
+| MCP server version | 0.10.0 (`MCP_SERVER_VERSION`). |
+| Migrations used | 0022–0037 and 0039. `0038` is unused, which is harmless because the runner globs files. |
+| Docs | WP-41: CLAUDE.md covers the new env vars, S.7/S.8, the migration list, the flags and the new web routes. [`docs/self-hosting.md`](../../self-hosting.md) covers operation. |
 
 ## Next steps, in order
 
-1. **Finish WP-30.**
-   - Check out `wip/wp30-automations-mcp` and read its diff against `16e5073`.
-   - Complete the WP-30 brief: MCP tools to list, upsert, enable, list runs, get run and retry automations.
-   - `automations:write` is off by default for new keys.
-   - Implement the `automations external destination` approval kind in `apps/api/src/approvals/kinds/`. It is a stub today. MCP upserts of external destinations must return `approval_pending`, and the recipe stays inactive until the owner approves.
-   - Write unit specs plus `apps/api/test/mcp-automations.pg.e2e-spec.ts`.
-   - Run all gates, then merge onto `feat/documenso-parity`.
-2. **Wave 6**, in merge order: 23 → 24 → 25 → 29b → 35 → 33 → 34 → 32 → 22 → 31.
-   - WP-24 must make idempotency share the write's transaction first. WP-21 left `TODO(WP-24)` for the send caps, and its approve step and send step are not yet in one transaction.
-3. **Wave 7:** 26 → 27 → 45 → 41 → 39, then **WP-46** (security sweep) last.
-   - WP-26 also owns the `planned: 'step-15'` routes: access-auth and bulk send.
+1. **WP-39** (i18n string extraction), then **WP-46** (security sweep) last.
    - WP-46 picks up every security item in the log: CodeQL alerts, dependency CVEs (including node-forge), the pg Pool `error` listener, and the Terraform IMDS hop limit.
+   - Earlier waves' steps (WP-30 and the wave 6 and 7 merges) are complete. Their follow-ups are in the orchestrator log.
 
 ## How each wave was run
 

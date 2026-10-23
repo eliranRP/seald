@@ -93,6 +93,22 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   surfaces `chain_intact`. Walk via `verifyEventChain`. Canonical JSON
   contract (sorted keys, RFC 8785-ish) lives next to the helper — import
   it, don't reimplement.
+- **S.7** PAdES-B-LTA archive timestamp (`archive-timestamp.ts`, on via
+  `DssInjector.EMBED_LTA`, not behind a flag). After the B-LT `/DSS` is
+  embedded and a TSA is configured, the sealer appends a `/DocTimeStamp`
+  (`/SubFilter /ETSI.RFC3161`) over the post-DSS bytes. The TSA is handed
+  the byte range itself, never its hash (a double hash is rejected by
+  verifiers). A TSA failure degrades the seal to B-LT and keeps those
+  bytes. No TSA means no B-LTA. `verify-pades` requires a `/DocTimeStamp`
+  after any `/DSS` and checks its `/ByteRange` and TST `messageImprint`.
+- **S.8** Multi-document sealing (WP-03; creating a second document is
+  behind `multiDocumentEnvelopes`). `SealingService` seals each document
+  separately, in `ord` order, with only the fields on that document. Each
+  one gets its own PAdES seal (B-T → B-LT → B-LTA). Document 1 keeps
+  `{id}/sealed.pdf`; the others go to `{id}/documents/{doc_id}/sealed.pdf`.
+  There is one `audit.pdf` that lists every document's original and sealed
+  hash, and one event chain (S.6). A single-document envelope, or one with
+  no document rows, seals exactly as before.
 
 ### Google Drive integration env vars
 
@@ -144,6 +160,66 @@ When the feature flag `feature.gdriveIntegration` is off, all routes
 404 and the env vars are unread; the same image runs dark in dev and
 hot for prod.
 
+### Parity-plan env vars and feature flags
+
+Each var below is read only while the flag it names is on (or always, where
+noted). Keys live in the environment or AWS Secrets Manager, never in the
+database. Generate 32-byte keys with `openssl rand -hex 32`. The full
+contract is in `apps/api/src/config/env.schema.ts`, and
+`apps/api/.env.example` has a commented line for each. Operator steps are in
+[`docs/self-hosting.md`](docs/self-hosting.md).
+
+- `SIGNER_OTP_KEY` (>= 32 chars). HMAC pepper for emailed signer access
+  codes; only the HMAC is stored. Required outside tests while
+  `signerAccessAuth` is on (boot fails without it). If unset at runtime,
+  the access-code routes answer 503 `access_code_unavailable`.
+- `AUTOMATION_SECRETS_KEY`. 32-byte AES-GCM key (64 hex characters, or
+  base64 of 32 bytes) that encrypts webhook signing secrets and URLs in
+  `automation_secrets`. Startup throws if it is malformed, or if
+  `workflowAutomations` is on, the key is unset and `AUTOMATIONS_DISABLED`
+  is not `true`. Changing it makes the stored secrets unreadable.
+- `AUTOMATIONS_DISABLED`. Strict boolean, default false. `true` behaves as
+  if `workflowAutomations` were off, with no rebuild.
+- `APPROVAL_CSRF_KEY` (>= 32 chars). Server key for the CSRF value on the
+  Approve/Deny page. Required in production while `mcpServer` or
+  `publicApi` is on. Elsewhere a random key is drawn per process, so a
+  restart only reloads an open approval page.
+- `EMAIL_PROVIDER_DAILY_QUOTA` and `EMAIL_PROVIDER_MONTHLY_QUOTA`. The
+  provider's quotas (defaults 100 and 3000, the Resend free tier). Approval
+  mail stops with `approval_limit` at 80% of either, so signer mail keeps
+  the headroom.
+- `BULK_SEND_ROWS_PER_MINUTE`. Rows the bulk worker may create and send per
+  rolling minute, across all workers. Default 30, maximum 600. For `bulkSend`.
+- `API_PUBLIC_URL`. Public origin of the API, with no trailing slash. Used
+  for links in email that hit the API directly (the `email_copy` stop link)
+  and as the MCP OAuth issuer fallback. Unset, it is derived from
+  `APP_PUBLIC_URL`.
+- `MCP_DISABLED`. Incident kill switch, default false, read on every
+  request. `true` makes `/mcp`, the MCP-only key routes and the OAuth
+  routes 404 while `mcpServer` stays on. No rebuild needed.
+- `MCP_OAUTH_ISSUER`. Issuer and base of the `/mcp` resource identifier.
+  Unset, it is the API public origin. For `mcpOauth`.
+- `MCP_OAUTH_CLIENTS`. JSON array of pre-registered public clients
+  (`client_id`, `client_name`, `redirect_uris`; https or loopback only).
+  There is no dynamic registration. Malformed JSON fails startup. Any other
+  client must use an https client id metadata document (CIMD).
+- `MCP_OAUTH_VERIFIED_CIMD_HOSTS`. CSV of hostnames whose CIMD clients the
+  consent page does not label "unverified".
+- `PDF_SIGNING_ALLOW_NOOP`. Strict boolean, read only when
+  `PDF_SIGNING_PROVIDER` is unset. Production refuses to seal without a CMS
+  signature unless this is `true`. Staging escape hatch only (S.3).
+
+Feature flags are in `packages/shared/src/feature-flags.ts`. All of these
+ship `false` (`multiDocumentEnvelopes`, `signingOrder`, `fieldMetaV2`,
+`customReminders`, `signerAccessAuth`, `appendCertificate`, `mcpServer`,
+`mcpOauth`, `workflowAutomations`, `publicApi`, `bulkSend`, `directLinks`,
+`i18n`). Flipping one is its own PR. `mcpOauth` needs `mcpServer`. The
+API key routes and the approval routes are on when `mcpServer` or
+`publicApi` is on. `gdriveIntegration` is `true` and predates this work.
+Two changes are not flag-gated: the B-LTA timestamp (S.7, when a TSA is
+configured) and migration 0027 (invite and manual-reminder rows no longer
+store the plaintext signing link).
+
 ### Database migrations
 
 `apps/api/scripts/migrate.sh` runs at container boot, glob-applies every
@@ -169,6 +245,26 @@ idempotent (already-applied filenames are skipped).
   (`create … if not exists`, `delete from schema_migrations where
   filename = …`) so re-runs are safe. See `0014_repair_gdrive_accounts.sql`
   for the canonical pattern.
+
+Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
+
+- `0022` envelope documents: one row per PDF in an envelope, with its own hashes (WP-03).
+- `0023` signing order: `step_started` event, `envelope_signers.invited_at` (WP-05).
+- `0024` field meta: four new field kinds, `envelope_fields.meta`, envelope date format and timezone (WP-07).
+- `0025` reminder settings: per-envelope reminder cadence columns (WP-09).
+- `0026` signer access auth: per-signer access and action auth, `signer_otp_challenges` (WP-10).
+- `0027` signer token dispatch: signer tokens are minted at dispatch; payloads keep only an id (WP-13).
+- `0028` api keys: `api_keys`, the key credential for `/mcp` and `/api/v1` (WP-14).
+- `0029` MCP idempotency and uploads: idempotency columns and `mcp_uploads` (WP-19).
+- `0030` MCP approvals: `mcp_approvals`, confirmation tokens, `approval_decided` event (WP-21).
+- `0031` automations: data model, trigger rows, secret ciphertext, failure counter (WP-28).
+- `0032` bulk batches: `bulk_batches` and `bulk_batch_rows` (WP-36).
+- `0033` template direct links: `template_direct_links`, `envelopes.source` (WP-37).
+- `0034` automation email copy: suppression list and daily cap counters (WP-33).
+- `0035` locales: `envelopes.locale` and `envelope_signers.locale` (WP-38).
+- `0036` MCP OAuth: OAuth 2.1 grant tables (WP-27).
+- `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
+- `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
 
 ### i18n
 
@@ -384,3 +480,21 @@ When extending: any new SPA route must be added to `AppRoutes.tsx` and
 to `apps/landing/_worker.js` (`SPA_EXACT` for an exact path,
 `SPA_PREFIXES` for a prefix). The deploy workflow copies that worker.
 Do not add a `_redirects` 200 rewrite; Cloudflare turns those into 308s.
+
+Routes added by the parity work (all SPA shell, same worker rules):
+
+- `/approve` (exact) and `/approve/*`: owner approval Approve/Deny page
+  (WP-22). `/oauth/mcp/consent`: MCP OAuth consent page (WP-27, under
+  `/oauth/`). Both are served by `approveShell` in `_worker.js`
+  (`isApprovePath`): `X-Frame-Options: DENY`, `frame-ancestors 'none'`,
+  `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and no
+  cookie-consent beacon. Do not drop these headers or the beacon strip.
+- `/d/` (prefix, `SPA_PREFIXES`): template direct signing links (WP-37).
+- `/api/v1/*` is not a Pages route. It is the public REST API (WP-35) on
+  the API host, `api.seald.nromomentum.com`, behind `publicApi`. The worker
+  must not catch it.
+
+## Self-hosting
+
+Required services, env vars per enabled flag, boot-time migrations and the
+Gotenberg sidecar are in [`docs/self-hosting.md`](docs/self-hosting.md).

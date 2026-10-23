@@ -1,6 +1,6 @@
 # MCP server for Seald — technical design
 
-**Status:** proposal. This document does not change the product.
+**Status:** built dark (PR #380). Behind the `mcpServer` flag (OAuth behind `mcpOauth`); both ship `false`. The work plan and decisions are in the [documenso parity plan](./documenso-parity-plan.md). Where this text and the plan's decisions differ, the decisions win: D1 (REST v1 shares the keys, see Credential boundary), D3 (OAuth built now) and D5 (the four approval-gated actions are exposed through owner approval, so the excluded list in MCP-first rule 3 no longer applies to them).
 **Date:** 2026-09-30
 **Audience:** API and web implementers.
 **Companion:** [workflow automations](./workflow-automations.md)

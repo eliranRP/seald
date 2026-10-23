@@ -1,6 +1,6 @@
 # Workflow automations for Seald — technical design
 
-**Status:** proposal. This document does not change the product.
+**Status:** built dark (PR #380). Behind the `workflowAutomations` flag, which ships `false`; `AUTOMATIONS_DISABLED` is the request-time kill switch and `AUTOMATION_SECRETS_KEY` encrypts webhook secrets. The work plan (WP-28 to WP-34) and decisions are in the [documenso parity plan](./documenso-parity-plan.md).
 **Date:** 2026-09-30
 **Audience:** API and web implementers.
 **Companion:** [MCP server](./mcp-server.md)
