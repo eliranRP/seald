@@ -1,6 +1,6 @@
 /**
- * Feature flags shared across api + web. Default everything to `false` so
- * a new flag is dark until explicitly turned on. Reads happen at request
+ * Feature flags shared across api + web. A new flag defaults to `false` so
+ * it is dark until explicitly turned on. Reads happen at request
  * time (api) or render time (web) — flipping the const here + redeploying
  * is the activation path. There is no runtime override store today.
  */
@@ -33,45 +33,43 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
 
   /**
    * Multi-document envelopes (WP-03). Gates upload/reorder/delete of extra
-   * documents on an envelope. Dark until flipped in a later PR.
+   * documents on an envelope. On since the parity flag flip.
    */
   multiDocumentEnvelopes: true,
 
   /**
    * Sequential signing order (WP-28). Gates signer ordering and the
-   * "waiting for previous signer" flow. Dark until flipped in a later PR.
+   * "waiting for previous signer" flow. On since the parity flag flip.
    */
   signingOrder: true,
 
   /**
    * Field metadata v2 (WP-14). Gates the extended field attributes and
-   * their editor UI. Dark until flipped in a later PR.
+   * their editor UI. On since the parity flag flip.
    */
   fieldMetaV2: true,
 
   /**
    * Custom reminder schedules (WP-09). Gates per-envelope reminder cadence
-   * settings. Dark until flipped in a later PR.
+   * settings. On since the parity flag flip.
    */
   customReminders: true,
 
   /**
    * Signer access authentication (WP-16). Gates the emailed one-time code
-   * required before a signer opens the document. Dark until flipped in a
-   * later PR.
+   * required before a signer opens the document. On since the parity flag flip.
    */
   signerAccessAuth: true,
 
   /**
    * Appended certificate page (WP-01 item 3). Gates the pre-seal
-   * certificate pages rendered into the sealed PDF. Dark until flipped in
-   * a later PR.
+   * certificate pages rendered into the sealed PDF. On since the parity flag flip.
    */
   appendCertificate: true,
 
   /**
    * MCP server endpoint (WP-35 family). Gates the `/mcp` route and API key
-   * issuance for MCP clients. Dark until flipped in a later PR.
+   * issuance for MCP clients. On since the parity flag flip.
    */
   mcpServer: true,
 
@@ -86,34 +84,32 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
 
   /**
    * Workflow automations and outbound webhooks (WP-29 family). Gates the
-   * automation builder and webhook delivery. Dark until flipped in a later
-   * PR.
+   * automation builder and webhook delivery. On since the parity flag flip.
    */
   workflowAutomations: true,
 
   /**
    * Public REST API v1 (WP-35 family). Gates the `/api/v1` surface for API
-   * keys. Dark until flipped in a later PR.
+   * keys. On since the parity flag flip.
    */
   publicApi: true,
 
   /**
    * Bulk send from a template or CSV (WP-21 family). Gates the bulk-send
-   * entry point and its batch endpoints. Dark until flipped in a later PR.
+   * entry point and its batch endpoints. On since the parity flag flip.
    */
   bulkSend: true,
 
   /**
    * Direct signing links (WP-19 family). Gates shareable direct links that
-   * let a signer open a document without an invitation email. Dark until
-   * flipped in a later PR.
+   * let a signer open a document without an invitation email. On since the
+   * parity flag flip.
    */
   directLinks: true,
 
   /**
    * Internationalisation of the SPA and emails (WP-38 family). Gates the
-   * locale switcher and translated strings. Dark until flipped in a later
-   * PR.
+   * locale switcher and translated strings. On since the parity flag flip.
    */
   i18n: true,
 } as const;
