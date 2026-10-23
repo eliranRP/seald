@@ -143,6 +143,10 @@ export class AutomationsCrudPgRepository extends AutomationsCrudRepository {
       .set({
         ...(patch.name !== undefined ? { name: patch.name } : {}),
         ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+        // A8: a re-enable starts the failure streak from zero and clears the disable record.
+        ...(patch.enabled === true
+          ? { consecutive_failures: 0, disabled_at: null, disabled_reason: null }
+          : {}),
         ...(patch.scope !== undefined ? { scope: patch.scope } : {}),
         ...(patch.templateId !== undefined ? { template_id: patch.templateId } : {}),
         ...(patch.config !== undefined ? { config: JSON.stringify(patch.config) } : {}),

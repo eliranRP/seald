@@ -16,6 +16,7 @@ import {
   type AutomationActionOutcome,
 } from './automation-actions';
 import { WebhookSecretsService } from './actions/webhook/webhook-secrets.service';
+import { AutoDisableService } from './auto-disable';
 import { AutomationsPgRepository, type ClaimedAutomationJob } from './automations.repository.pg';
 import { automationsActive } from './matcher';
 
@@ -71,6 +72,8 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     @Inject(AUTOMATION_ACTION_EXECUTORS)
     executors?: AutomationActionExecutors,
     @Optional() private readonly webhookSecrets?: WebhookSecretsService,
+    // A8: turns a recipe off after a failed streak (no-op with the flag off).
+    @Optional() private readonly autoDisable?: AutoDisableService,
   ) {
     this.executors = executors ?? {};
   }
@@ -125,6 +128,7 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     if (job.attempts > job.max_attempts) {
       // A stale `running` job reclaimed after its last attempt.
       await this.repo.failRun({ ...base, slug: 'attempts_exhausted', retryable: true });
+      await this.autoDisable?.afterFailure(job.automation_id, now);
       return 'failed';
     }
     const outcome = await this.runAction(job);
@@ -139,10 +143,12 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
     const response_status = outcome.responseStatus ?? null;
     if (outcome.kind === 'permanent') {
       await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status });
+      await this.autoDisable?.afterFailure(job.automation_id, now);
       return 'failed';
     }
     if (job.attempts >= job.max_attempts) {
       await this.repo.failRun({ ...base, slug: outcome.slug, retryable: true, response_status });
+      await this.autoDisable?.afterFailure(job.automation_id, now);
       return 'failed';
     }
     const delay = Math.max(backoffMs(job.attempts), outcome.retryAfterMs ?? 0);

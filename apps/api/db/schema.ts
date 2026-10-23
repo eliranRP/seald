@@ -644,7 +644,8 @@ export type EmailKindDb =
   | 'approval_request'
   | 'approval_denied'
   | 'bulk_complete'
-  | 'automation_copy';
+  | 'automation_copy'
+  | 'automation_disabled';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

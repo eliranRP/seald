@@ -40,7 +40,8 @@ export type EmailTemplateKind =
   | 'approval_request'
   | 'approval_denied'
   | 'bulk_complete'
-  | 'automation_copy';
+  | 'automation_copy'
+  | 'automation_disabled';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -192,6 +193,7 @@ const TITLES: Record<string, string> = {
   approval_denied: 'Seald — Request denied',
   bulk_complete: 'Seald — Bulk send finished',
   automation_copy: 'Seald — Automation notice',
+  automation_disabled: 'Seald — Automation turned off',
 };
 
 function prettyTitle(kind: string): string {

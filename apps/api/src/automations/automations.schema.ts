@@ -33,6 +33,13 @@ export interface AutomationsTable {
   template_id: string | null;
   config: ColumnType<Record<string, unknown>, string, string | undefined>;
   consecutive_failures: ColumnType<number, number | undefined, number | undefined>;
+  /** Set by 0037 when the recipe is auto-disabled (A8). Null while on, and after a re-enable. */
+  disabled_at: NullableTimestamp;
+  disabled_reason: ColumnType<
+    'consecutive_failures' | null,
+    'consecutive_failures' | null | undefined,
+    'consecutive_failures' | null | undefined
+  >;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: Timestamp;
 }

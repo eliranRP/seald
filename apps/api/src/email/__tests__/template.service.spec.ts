@@ -30,10 +30,11 @@ describe('TemplateService', () => {
       'approval_denied',
       'bulk_complete',
       'automation_copy',
+      'automation_disabled',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(15);
+    expect(kinds).toHaveLength(16);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -336,6 +337,39 @@ describe('TemplateService', () => {
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
       expect(out.html).toContain('>Seald</strong>');
       expect(out.text).toContain('Revoke it now');
+    });
+
+    it('automation_disabled names the recipe, the streak and the time, links to Automations, and resolves every var', () => {
+      const out = svc.render('automation_disabled', {
+        ...vars,
+        automation_name: 'Save to Drive',
+        failure_count: 20,
+        disabled_at_readable: '2026-10-23 09:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/automations',
+      });
+      expect(out.subject).toBe('Automation "Save to Drive" was turned off on your Seald account');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('Save to Drive');
+        expect(part).toContain('20');
+        expect(part).toContain('2026-10-23 09:00 UTC');
+        expect(part).toContain('https://seald.nromomentum.com/settings/automations');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+        expect(part).not.toContain('?t=');
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
+    });
+
+    it('automation_disabled escapes a hostile recipe name in HTML', () => {
+      const out = svc.render('automation_disabled', {
+        ...vars,
+        automation_name: '<img src=x onerror=alert(1)>',
+        failure_count: 20,
+        disabled_at_readable: '2026-10-23 09:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/automations',
+      });
+      expect(out.html).not.toContain('<img src=x');
+      expect(out.html).toContain('&lt;img src=x');
     });
 
     it('access_code shows the code, says how long it lasts, and carries no signing link', () => {

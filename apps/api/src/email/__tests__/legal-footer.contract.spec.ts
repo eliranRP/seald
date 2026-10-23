@@ -9,6 +9,7 @@ import { parseEnv } from '../../config/env.schema';
 const TEMPLATES = [
   'access_code',
   'api_key_created',
+  'automation_disabled',
   'approval_denied',
   'approval_request',
   'automation_copy',

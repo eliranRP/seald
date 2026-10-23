@@ -381,6 +381,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'approval_denied',
   'bulk_complete',
   'automation_copy',
+  'automation_disabled',
 ]);
 
 /**

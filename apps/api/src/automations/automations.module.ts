@@ -9,6 +9,7 @@ import { WebhookPgRepository } from './actions/webhook/webhook.repository.pg';
 import { WebhookSecretsService } from './actions/webhook/webhook-secrets.service';
 import { AUTOMATION_ACTION_EXECUTORS, type AutomationActionExecutors } from './automation-actions';
 import { AUTOMATION_EVENT_HOOK } from './automation-event-hook';
+import { AutoDisableService, AutoDisableStore, PgAutoDisableStore } from './auto-disable';
 import { AutomationWorkerService } from './automation-worker.service';
 import { AutomationsCrudRepository } from './automations-crud.repository';
 import { AutomationsCrudPgRepository } from './automations-crud.repository.pg';
@@ -43,6 +44,8 @@ import { AutomationTestService } from './test-event/automation-test.service';
     AutomationsService,
     AutomationMatcherService,
     AutomationWorkerService,
+    { provide: AutoDisableStore, useClass: PgAutoDisableStore },
+    AutoDisableService,
     WebhookPgRepository,
     WebhookSecretsService,
     WebhookActionExecutor,

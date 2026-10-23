@@ -1,0 +1,1 @@
+Automation "{{automation_name}}" was turned off on your Seald account
