@@ -30,6 +30,7 @@ const SPA_EXACT = new Set([
   '/signup',
   '/forgot-password',
   '/check-email',
+  '/welcome',
   '/documents',
   '/signers',
   '/contacts',

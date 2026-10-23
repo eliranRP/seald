@@ -10,9 +10,6 @@ import { ContactsPage } from './ContactsPage';
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();
 }
-async function asyncSignUp(): Promise<{ readonly needsEmailConfirmation: boolean }> {
-  return { needsEmailConfirmation: false };
-}
 function noop(): void {
   /* storybook stub */
 }
@@ -22,11 +19,9 @@ const STORY_AUTH: AuthContextValue = {
   user: { id: 'u1', email: 'jamie@seald.app', name: 'Jamie Okonkwo' },
   guest: false,
   loading: false,
-  signInWithPassword: asyncNoop,
-  signUpWithPassword: asyncSignUp,
+  signInWithEmailLink: asyncNoop,
+  completeProfile: asyncNoop,
   signInWithGoogle: asyncNoop,
-  resetPassword: asyncNoop,
-  resendSignUpConfirmation: asyncNoop,
   signOut: asyncNoop,
   enterGuestMode: asyncNoop,
   exitGuestMode: noop,

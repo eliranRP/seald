@@ -12,9 +12,8 @@ import { TemplatesListPage } from './pages/TemplatesListPage';
 import { UseTemplatePage } from './pages/UseTemplatePage';
 import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
-import { SignInPage } from './pages/SignInPage';
-import { SignUpPage } from './pages/SignUpPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { AuthPage } from './pages/AuthPage';
+import { WelcomePage } from './pages/WelcomePage';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
@@ -155,11 +154,15 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<RedirectWhenAuthed />}>
-        <Route path="/signin" element={<SignInPage />} />
-        <Route path="/signup" element={<SignUpPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/signin" element={<AuthPage />} />
+        <Route path="/signup" element={<AuthPage />} />
         <Route path="/check-email" element={<CheckEmailPage />} />
       </Route>
+      {/* No passwords any more: old reset emails and bookmarks land on sign-in. */}
+      <Route path="/forgot-password" element={<Navigate to="/signin" replace />} />
+      {/* New-account step (name + terms). Needs a session, so it lives outside
+          RedirectWhenAuthed; the page sends signed-out visitors to /signin. */}
+      <Route path="/welcome" element={<WelcomePage />} />
 
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       {/* Audit C: DebugAuthPage #4 — the /debug/auth surface is gated to

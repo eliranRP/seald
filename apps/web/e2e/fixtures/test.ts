@@ -5,8 +5,7 @@ import { SeededUserFixture } from './seededUser';
 import { SignedEnvelopeFixture } from './signedEnvelope';
 import { FixedNowFixture } from './fixedNow';
 import { SignInPage } from '../pages/SignInPage';
-import { SignUpPage } from '../pages/SignUpPage';
-import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
+import { WelcomePage } from '../pages/WelcomePage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { UploadPage } from '../pages/UploadPage';
 import { MobileSendPage } from '../pages/MobileSendPage';
@@ -49,8 +48,7 @@ type Fixtures = {
   signedEnvelope: SignedEnvelopeFixture;
   fixedNow: FixedNowFixture;
   signInPage: SignInPage;
-  signUpPage: SignUpPage;
-  forgotPasswordPage: ForgotPasswordPage;
+  welcomePage: WelcomePage;
   dashboardPage: DashboardPage;
   uploadPage: UploadPage;
   mobileSendPage: MobileSendPage;
@@ -101,11 +99,8 @@ export const test = base.extend<Fixtures>({
   signInPage: async ({ page }, use) => {
     await use(new SignInPage(page));
   },
-  signUpPage: async ({ page }, use) => {
-    await use(new SignUpPage(page));
-  },
-  forgotPasswordPage: async ({ page }, use) => {
-    await use(new ForgotPasswordPage(page));
+  welcomePage: async ({ page }, use) => {
+    await use(new WelcomePage(page));
   },
   dashboardPage: async ({ page }, use) => {
     await use(new DashboardPage(page));

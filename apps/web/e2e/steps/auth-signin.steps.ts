@@ -3,53 +3,55 @@ import { test } from '../fixtures/test';
 
 const { Given, When, Then } = createBdd(test);
 
-Given('the signin API will succeed for {string}', async ({ mockedApi }, email: string) => {
-  // Real flow: SPA calls supabase.auth.signInWithPassword(), which POSTs to
-  // `<VITE_SUPABASE_URL>/auth/v1/token?grant_type=password`. Respond with a
-  // fully-shaped GoTrue token payload so the auth-js client persists the
-  // session and `RedirectWhenAuthed` flips the user into `/documents`.
-  const issuedAt = Math.floor(new Date('2026-04-25T10:00:00Z').getTime() / 1000);
-  // auth-js keeps `expires_at` from the payload when it is present
-  // (`_sessionResponse`). `issuedAt + 3600` is 2026-04-25T11:00Z, already
-  // past on the wall clock, so the next `getSession()` would refresh and
-  // the mock would 404. Same far-future instant as `SeededUserFixture`.
-  // Other token mocks only send `expires_in`, which auth-js turns into
-  // `now + expires_in`, so they do not share this absolute expiry.
-  const expiresAt = Math.floor(new Date('2099-12-31T00:00:00.000Z').getTime() / 1000);
-  mockedApi.on('POST', /\/auth\/v1\/token/, {
-    json: {
-      access_token: 'test-access-token',
-      token_type: 'bearer',
-      expires_in: expiresAt - issuedAt,
-      expires_at: expiresAt,
-      refresh_token: 'test-refresh-token',
-      user: {
-        id: '00000000-0000-4000-8000-000000000a11',
-        aud: 'authenticated',
-        role: 'authenticated',
-        email,
-        email_confirmed_at: new Date(issuedAt * 1000).toISOString(),
-        confirmed_at: new Date(issuedAt * 1000).toISOString(),
-        last_sign_in_at: new Date(issuedAt * 1000).toISOString(),
-        app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: 'Alice Example', name: 'Alice Example' },
-        identities: [],
-        created_at: new Date(issuedAt * 1000).toISOString(),
-        updated_at: new Date(issuedAt * 1000).toISOString(),
-      },
-    },
-  });
-  // Dashboard data the authed redirect will fetch.
-  mockedApi.on('GET', /\/api\/envelopes(\?|$)/, { json: { items: [] } });
+Given('the magic-link API will succeed', async ({ mockedApi }) => {
+  // SPA calls `supabase.auth.signInWithOtp()` -> POST /auth/v1/otp.
+  mockedApi.on('POST', /\/auth\/v1\/otp/, { json: {} });
 });
 
-When(
-  'the user signs in as {string} with password {string}',
-  async ({ signInPage }, email: string, password: string) => {
-    await signInPage.goto();
-    await signInPage.signIn(email, password);
-  },
-);
+Given('the magic-link API is rate limited', async ({ mockedApi }) => {
+  mockedApi.on('POST', /\/auth\/v1\/otp/, {
+    status: 429,
+    json: {
+      code: 429,
+      error_code: 'over_email_send_rate_limit',
+      msg: 'For security purposes, you can only request this after 30 seconds.',
+    },
+  });
+});
+
+When('the user asks for a sign-in link for {string}', async ({ signInPage }, email: string) => {
+  await signInPage.goto();
+  await signInPage.requestLink(email);
+});
+
+When('the user opens the sign-up page for {string}', async ({ signInPage }, email: string) => {
+  await signInPage.goto(`/signup?email=${encodeURIComponent(email)}`);
+});
+
+When('the user opens the old forgot-password link', async ({ signInPage }) => {
+  await signInPage.goto('/forgot-password');
+});
+
+Then('the check-your-email screen names {string}', async ({ signInPage }, email: string) => {
+  await signInPage.expectCheckEmailFor(email);
+});
+
+Then('an alert says {string}', async ({ signInPage }, text: string) => {
+  await signInPage.expectAlert(text);
+});
+
+Then('a status says {string}', async ({ signInPage }, text: string) => {
+  await signInPage.expectStatus(text);
+});
+
+Then('the email field holds {string}', async ({ signInPage }, email: string) => {
+  await signInPage.expectEmailValue(email);
+});
+
+Then('the sign-in screen is shown', async ({ page, signInPage }) => {
+  await page.waitForURL(/\/signin/);
+  await signInPage.expectFormVisible();
+});
 
 Then('the dashboard is shown', async ({ page }) => {
   await page.waitForURL(/\/documents/);

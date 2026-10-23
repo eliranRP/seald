@@ -10,11 +10,9 @@ const baseAuth: AuthContextValue = {
   user: null,
   guest: false,
   loading: false,
-  signInWithPassword: vi.fn(async () => undefined),
-  signUpWithPassword: vi.fn(async () => ({ needsEmailConfirmation: false })),
+  signInWithEmailLink: vi.fn(async () => undefined),
+  completeProfile: vi.fn(async () => undefined),
   signInWithGoogle: vi.fn(async () => undefined),
-  resetPassword: vi.fn(async () => undefined),
-  resendSignUpConfirmation: vi.fn(async () => undefined),
   signOut: vi.fn(async () => undefined),
   enterGuestMode: vi.fn(async () => undefined),
   exitGuestMode: vi.fn(),
@@ -41,6 +39,7 @@ function renderAt(path: string) {
         <Route element={<RedirectWhenAuthed />}>
           <Route path="/signin" element={<div>sign in form</div>} />
         </Route>
+        <Route path="/welcome" element={<div>welcome step</div>} />
         <Route path="/documents" element={<div>desktop dashboard</div>} />
         <Route path="/m/send" element={<div>mobile send page</div>} />
         <Route path="/approve/:id/review" element={<div>approval review</div>} />
@@ -70,6 +69,24 @@ describe('RedirectWhenAuthed', () => {
     mobileViewport = false;
     renderAt('/signin');
     expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
+  });
+
+  it('sends a brand-new account (no profile name yet) to /welcome first', () => {
+    authState = {
+      ...baseAuth,
+      user: { id: 'u1', email: 'a@b.co', name: 'a' },
+      session: {
+        user: {
+          id: 'u1',
+          is_anonymous: false,
+          user_metadata: {},
+          created_at: '2026-05-01T00:00:00Z',
+        },
+      } as unknown as AuthContextValue['session'],
+    };
+    mobileViewport = false;
+    renderAt('/signin');
+    expect(screen.getByText('welcome step')).toBeInTheDocument();
   });
 
   it('bounces a signed-in mobile visitor to /documents as well (no /m/send lock in v2)', () => {
