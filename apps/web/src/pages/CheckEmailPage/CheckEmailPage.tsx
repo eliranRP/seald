@@ -1,93 +1,31 @@
-import { useCallback, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MailCheck } from 'lucide-react';
-import { PASSWORD_RESET_NOTE } from 'shared';
-import { AuthShell } from '@/components/AuthShell';
-import { Icon } from '@/components/Icon';
-import { useAuth } from '@/providers/AuthProvider';
-import { Actions, Body, IconBadge, Primary, Secondary, Title, Wrap } from './CheckEmailPage.styles';
+import { useCallback } from 'react';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { AuthSplitLayout } from '@/components/AuthSplitLayout';
+import { CheckEmailPanel } from '@/components/CheckEmailPanel';
+import { useSendMagicLink } from '@/lib/auth/magicLink';
 
 /**
- * L4 page — `/check-email`. Shown after either:
- *  - forgot-password submit (`mode=reset`) — offers "Resend link"
- *  - signup with email confirmation required (`mode=signup`) — mirrors the
- *    same copy but without a resend action (Supabase sends its own).
+ * L4 page: `/check-email?email=...`. The "Check your email" state as its own
+ * route (the same panel renders inline on `/signin` right after a send), so
+ * a reload or a shared link still lands somewhere useful. Without an email
+ * there is nothing to check, so it goes back to the sign-in screen.
  */
 export function CheckEmailPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { resetPassword, resendSignUpConfirmation } = useAuth();
-  const email = params.get('email') ?? '';
-  const mode = params.get('mode') === 'signup' ? 'signup' : 'reset';
-  const [resendBusy, setResendBusy] = useState(false);
+  const sendMagicLink = useSendMagicLink();
+  const email = (params.get('email') ?? '').trim();
 
-  const handleBack = useCallback((): void => {
+  const handleResend = useCallback(() => sendMagicLink(email), [sendMagicLink, email]);
+  const handleChangeEmail = useCallback((): void => {
     navigate('/signin');
   }, [navigate]);
 
-  // Reset mode resends the password-reset link; signup mode resends the
-  // confirmation email (audit C: CheckEmail #14). Both share the busy /
-  // disabled affordance so a click while pending is a no-op.
-  const handleResend = useCallback(async (): Promise<void> => {
-    if (!email || resendBusy) return;
-    setResendBusy(true);
-    try {
-      if (mode === 'signup') {
-        await resendSignUpConfirmation(email);
-      } else {
-        await resetPassword(email);
-      }
-    } finally {
-      setResendBusy(false);
-    }
-  }, [email, mode, resendBusy, resetPassword, resendSignUpConfirmation]);
-
-  const body =
-    mode === 'signup' ? (
-      <>
-        We sent a confirmation link to <strong>{email || 'your inbox'}</strong>. Click it to
-        activate your account.
-      </>
-    ) : (
-      <>
-        We sent a password reset link to <strong>{email || 'your inbox'}</strong>.{' '}
-        {PASSWORD_RESET_NOTE}
-      </>
-    );
-
-  // Bug C fix (audit 2026-05-02): the confirmation copy is the single
-  // most important message on the page — without role=status + aria-live
-  // the user (especially on a screen reader, who only hears the new
-  // heading after the route transition) loses all context for what just
-  // happened. The aria-label is mode-specific so the role announcement
-  // is meaningful even before the body text is read.
-  const statusLabel =
-    mode === 'signup'
-      ? 'Confirmation link sent — check your email'
-      : 'Password reset link sent — check your email';
-  let resendLabel = 'Resend link';
-  if (resendBusy) resendLabel = 'Sending…';
-  else if (mode === 'signup') resendLabel = 'Resend confirmation email';
+  if (!email) return <Navigate to="/signin" replace />;
 
   return (
-    <AuthShell>
-      <Wrap>
-        <IconBadge>
-          <Icon icon={MailCheck} size={26} />
-        </IconBadge>
-        <Title>Check your email</Title>
-        <Body role="status" aria-live="polite" aria-label={statusLabel}>
-          {body}
-        </Body>
-        <Actions>
-          <Secondary type="button" onClick={handleBack}>
-            Back to sign in
-          </Secondary>
-          <Primary type="button" onClick={handleResend} disabled={resendBusy || !email}>
-            {resendLabel}
-          </Primary>
-        </Actions>
-      </Wrap>
-    </AuthShell>
+    <AuthSplitLayout>
+      <CheckEmailPanel email={email} onResend={handleResend} onChangeEmail={handleChangeEmail} />
+    </AuthSplitLayout>
   );
 }

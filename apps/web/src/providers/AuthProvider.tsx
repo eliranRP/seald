@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { setKeepSignedIn, supabase } from '../lib/supabase/supabaseClient';
+import { supabase } from '../lib/supabase/supabaseClient';
 
 export interface AuthUser {
   readonly id: string;
@@ -10,30 +10,23 @@ export interface AuthUser {
   readonly avatarUrl?: string;
 }
 
-export interface SignUpOutcome {
-  readonly needsEmailConfirmation: boolean;
-}
-
 export interface AuthContextValue {
   readonly session: Session | null;
   readonly user: AuthUser | null;
   readonly guest: boolean;
   readonly loading: boolean;
-  readonly signInWithPassword: (email: string, password: string, keep: boolean) => Promise<void>;
-  readonly signUpWithPassword: (
-    name: string,
-    email: string,
-    password: string,
-    keep: boolean,
-  ) => Promise<SignUpOutcome>;
   readonly signInWithGoogle: () => Promise<void>;
-  readonly resetPassword: (email: string) => Promise<void>;
   /**
-   * Resends the signup-confirmation email for an existing pending-confirm
-   * account (audit C: CheckEmail #14). Surfaced by `CheckEmailPage` in
-   * `mode=signup` so users can self-recover from a lost / delayed email.
+   * Passwordless magic link: one call covers sign-in and sign-up
+   * (`shouldCreateUser` stays true), so the UI never reveals whether an
+   * email already has an account.
    */
-  readonly resendSignUpConfirmation: (email: string) => Promise<void>;
+  readonly signInWithEmailLink: (email: string) => Promise<void>;
+  /**
+   * Finishes a first sign-in: stores the full name and the terms
+   * acceptance timestamp on the Supabase user metadata in one call.
+   */
+  readonly completeProfile: (fullName: string) => Promise<void>;
   readonly signOut: () => Promise<void>;
   readonly enterGuestMode: () => Promise<void>;
   readonly exitGuestMode: () => void;
@@ -171,40 +164,6 @@ export function AuthProvider(props: AuthProviderProps) {
     };
   }, []);
 
-  const signInWithPassword = useCallback(
-    async (email: string, password: string, keep: boolean): Promise<void> => {
-      setKeepSignedIn(keep);
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-    },
-    [],
-  );
-
-  const signUpWithPassword = useCallback(
-    async (
-      name: string,
-      email: string,
-      password: string,
-      keep: boolean,
-    ): Promise<SignUpOutcome> => {
-      setKeepSignedIn(keep);
-      const redirectTo =
-        typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
-      const signUpOptions: { data: { name: string }; emailRedirectTo?: string } = {
-        data: { name },
-      };
-      if (redirectTo) signUpOptions.emailRedirectTo = redirectTo;
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: signUpOptions,
-      });
-      if (error) throw error;
-      return { needsEmailConfirmation: !data.session };
-    },
-    [],
-  );
-
   const signInWithGoogle = useCallback(async (): Promise<void> => {
     const redirectTo =
       typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
@@ -214,22 +173,30 @@ export function AuthProvider(props: AuthProviderProps) {
     if (error) throw error;
   }, []);
 
-  const resetPassword = useCallback(async (email: string): Promise<void> => {
-    const redirectTo =
-      typeof window !== 'undefined' ? `${window.location.origin}/signin` : undefined;
-    const options: { redirectTo?: string } = {};
-    if (redirectTo) options.redirectTo = redirectTo;
-    const { error } = await supabase.auth.resetPasswordForEmail(email, options);
+  const signInWithEmailLink = useCallback(async (email: string): Promise<void> => {
+    const options: { emailRedirectTo?: string; shouldCreateUser: boolean } = {
+      shouldCreateUser: true,
+    };
+    if (typeof window !== 'undefined') {
+      options.emailRedirectTo = `${window.location.origin}/auth/callback`;
+    }
+    const { error } = await supabase.auth.signInWithOtp({ email, options });
     if (error) throw error;
   }, []);
 
-  const resendSignUpConfirmation = useCallback(async (email: string): Promise<void> => {
-    const redirectTo =
-      typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : undefined;
-    const options: { emailRedirectTo?: string } = {};
-    if (redirectTo) options.emailRedirectTo = redirectTo;
-    const { error } = await supabase.auth.resend({ type: 'signup', email, options });
+  const completeProfile = useCallback(async (fullName: string): Promise<void> => {
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        full_name: fullName.trim(),
+        name: fullName.trim(),
+        terms_accepted_at: new Date().toISOString(),
+      },
+    });
     if (error) throw error;
+    // updateUser does not always fire USER_UPDATED before the caller
+    // navigates; refresh the mirrored session so route guards see the name.
+    const refreshed = await supabase.auth.getSession();
+    if (refreshed.data.session) setSession(refreshed.data.session);
   }, []);
 
   const signOut = useCallback(async (): Promise<void> => {
@@ -303,11 +270,9 @@ export function AuthProvider(props: AuthProviderProps) {
       user,
       guest,
       loading,
-      signInWithPassword,
-      signUpWithPassword,
       signInWithGoogle,
-      resetPassword,
-      resendSignUpConfirmation,
+      signInWithEmailLink,
+      completeProfile,
       signOut,
       enterGuestMode,
       exitGuestMode,
@@ -317,11 +282,9 @@ export function AuthProvider(props: AuthProviderProps) {
       user,
       guest,
       loading,
-      signInWithPassword,
-      signUpWithPassword,
       signInWithGoogle,
-      resetPassword,
-      resendSignUpConfirmation,
+      signInWithEmailLink,
+      completeProfile,
       signOut,
       enterGuestMode,
       exitGuestMode,

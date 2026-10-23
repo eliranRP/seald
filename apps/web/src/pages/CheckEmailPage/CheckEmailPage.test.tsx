@@ -1,142 +1,60 @@
-import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { renderWithProviders } from '../../test/renderWithProviders';
+import { renderWithProviders } from '@/test/renderWithProviders';
+import type { AuthContextValue } from '@/providers/AuthProvider';
 import { CheckEmailPage } from './CheckEmailPage';
 
-function renderAt(
-  initialPath: string,
-  authOverride: Parameters<typeof renderWithProviders>[1] = {},
-) {
+function renderAt(entry: string, auth: Partial<AuthContextValue> = {}) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/check-email" element={<CheckEmailPage />} />
         <Route path="/signin" element={<h1>Sign-in landing</h1>} />
       </Routes>
     </MemoryRouter>,
-    authOverride,
+    { auth },
   );
 }
 
 describe('CheckEmailPage', () => {
-  it('renders the heading + reset-mode body with the user email', () => {
-    renderAt('/check-email?email=jamie%40seald.app&mode=reset');
-    expect(screen.getByRole('heading', { name: /check your email/i })).toBeInTheDocument();
-    expect(screen.getByText(/jamie@seald\.app/i)).toBeInTheDocument();
-    // Reset mode shows a "Resend link" button.
-    expect(screen.getByRole('button', { name: /resend link/i })).toBeInTheDocument();
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  // Audit C: CheckEmail #14 — signup mode also surfaces a resend button so
-  // users can self-recover from a lost / delayed confirmation email.
-  it('shows a "Resend confirmation email" CTA in signup mode alongside "Back to sign in"', () => {
-    renderAt('/check-email?email=jamie%40seald.app&mode=signup');
-    expect(screen.getByRole('button', { name: /resend confirmation email/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /back to sign in/i })).toBeInTheDocument();
-    // The reset-mode label is NOT used in signup mode.
-    expect(screen.queryByRole('button', { name: /^resend link$/i })).not.toBeInTheDocument();
-  });
-
-  it('Resend confirmation email calls resendSignUpConfirmation in signup mode', async () => {
-    const user = userEvent.setup();
-    const resendSignUpConfirmation = vi.fn(async () => undefined);
-    renderAt('/check-email?email=jamie%40seald.app&mode=signup', {
-      auth: { resendSignUpConfirmation },
-    });
-    await user.click(screen.getByRole('button', { name: /resend confirmation email/i }));
-    expect(resendSignUpConfirmation).toHaveBeenCalledWith('jamie@seald.app');
-  });
-
-  it('falls back to "your inbox" copy when no email query param is present', () => {
-    // The page intentionally tolerates a missing/blank `email` param so it
-    // still renders sensible copy if the user lands here directly.
-    renderAt('/check-email?mode=reset');
-    expect(screen.getByText(/your inbox/i)).toBeInTheDocument();
-    // Resend button is rendered but disabled — there's no email to resend to.
-    expect(screen.getByRole('button', { name: /resend link/i })).toBeDisabled();
-  });
-
-  it('uses the signup copy variant when mode=signup', () => {
-    renderAt('/check-email?email=jamie%40seald.app&mode=signup');
-    // Distinct from the reset copy, which does not state a link lifetime.
-    expect(screen.getByText(/activate your account/i)).toBeInTheDocument();
-  });
-
-  it('"Back to sign in" returns the user to /signin', async () => {
-    const user = userEvent.setup();
-    renderAt('/check-email?email=jamie%40seald.app&mode=reset');
-    await user.click(screen.getByRole('button', { name: /back to sign in/i }));
-    expect(await screen.findByRole('heading', { name: /sign-in landing/i })).toBeInTheDocument();
-  });
-
-  it('Resend link calls resetPassword and disables the button while in flight', async () => {
-    const user = userEvent.setup();
-    const deferred: { resolve?: () => void } = {};
-    const resetPassword = vi.fn(
-      () =>
-        new Promise<void>((resolve) => {
-          deferred.resolve = resolve;
-        }),
-    );
-    renderAt('/check-email?email=jamie%40seald.app&mode=reset', { auth: { resetPassword } });
-
-    const resend = screen.getByRole('button', { name: /resend link/i });
-    await user.click(resend);
-
-    // While the resend promise is pending the button shows the busy label
-    // and is disabled — second clicks are blocked by the `resendBusy` guard.
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /sending/i })).toBeDisabled();
-    });
-    expect(resetPassword).toHaveBeenCalledWith('jamie@seald.app');
-    expect(resetPassword).toHaveBeenCalledTimes(1);
-
-    // A second click while the request is still pending is a no-op.
-    await user.click(screen.getByRole('button', { name: /sending/i }));
-    expect(resetPassword).toHaveBeenCalledTimes(1);
-
-    // Resolving restores the original label so the user can resend again.
-    deferred.resolve?.();
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /resend link/i })).not.toBeDisabled();
-    });
-  });
-
-  it('does not call resetPassword when there is no email to resend to', async () => {
-    const user = userEvent.setup();
-    const resetPassword = vi.fn(async () => undefined);
-    renderAt('/check-email?mode=reset', { auth: { resetPassword } });
-    // Button is disabled — userEvent.click on a disabled button is a no-op
-    // for `pointer-events: none`, but we also assert the spy was never called.
-    const resend = screen.getByRole('button', { name: /resend link/i });
-    expect(resend).toBeDisabled();
-    await user.click(resend);
-    expect(resetPassword).not.toHaveBeenCalled();
-  });
-
-  // Bug C regression (audit 2026-05-02): the success copy that confirms
-  // a reset / signup link was sent is the page's most important message,
-  // but it was rendered as a plain paragraph with no live-region role.
-  // Screen-reader users who land here from a `navigate()` transition
-  // hear the new heading and lose all context for what just happened.
-  // Per WAI-ARIA 1.2 + WCAG 2.1 SC 4.1.3 the confirmation must be in a
-  // polite live region so AT can announce it.
-  it('exposes the success copy as a polite live-region status', () => {
-    renderAt('/check-email?email=jamie%40seald.app&mode=reset');
-    const status = screen.getByRole('status', { name: /password reset link sent/i });
-    expect(status).toBeInTheDocument();
+  it('announces the link was sent to the address in the query', () => {
+    renderAt('/check-email?email=alice%40example.com');
+    expect(screen.getByRole('heading', { name: 'Check your email' })).toBeInTheDocument();
+    const status = screen.getByRole('status', { name: /sign-in link sent/i });
     expect(status).toHaveAttribute('aria-live', 'polite');
-    // The address itself must be inside the announced region so AT
-    // reads it as part of the confirmation.
-    expect(status).toHaveTextContent(/jamie@seald\.app/);
+    expect(status).toHaveTextContent('alice@example.com');
   });
 
-  it('switches the live-region label to the signup-confirmation phrasing', () => {
-    renderAt('/check-email?email=jamie%40seald.app&mode=signup');
-    const status = screen.getByRole('status', { name: /confirmation link sent/i });
-    expect(status).toBeInTheDocument();
-    expect(status).toHaveAttribute('aria-live', 'polite');
+  it('goes back to /signin when there is no email to check', async () => {
+    renderAt('/check-email');
+    expect(await screen.findByRole('heading', { name: 'Sign-in landing' })).toBeInTheDocument();
+  });
+
+  it('"Use a different email" returns to /signin', async () => {
+    renderAt('/check-email?email=alice%40example.com');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Use a different email' }));
+    });
+    expect(await screen.findByRole('heading', { name: 'Sign-in landing' })).toBeInTheDocument();
+  });
+
+  it('resends through the magic-link call once the cooldown is over', async () => {
+    vi.useFakeTimers();
+    const signInWithEmailLink = vi.fn(async (_email: string) => undefined);
+    renderAt('/check-email?email=alice%40example.com', { signInWithEmailLink });
+    for (let i = 0; i < 30; i += 1) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+    }
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Resend link' }));
+    });
+    expect(signInWithEmailLink).toHaveBeenCalledWith('alice@example.com');
   });
 });
