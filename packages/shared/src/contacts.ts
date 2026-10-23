@@ -28,7 +28,7 @@ export function splitEmailList(text: string): string[] {
 
 /**
  * Guess a display name from an address: the local part split on `.`, `_`
- * and `-`, each word capitalised (`hannah.wills@quill.vc` becomes
+ * and `-`, each word capitalized (`hannah.wills@quill.vc` becomes
  * `Hannah Wills`; `nora@acme.co` becomes `Nora`). A local part with no
  * letters falls back to the whole address.
  */

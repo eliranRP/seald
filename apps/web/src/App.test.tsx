@@ -204,17 +204,24 @@ describe('App routing', () => {
     expect(screen.getByRole('button', { name: 'From contacts' })).toBeInTheDocument();
   });
 
-  it('Signers page lists seed contacts', async () => {
+  it('Contacts page (route /signers) lists seed contacts', async () => {
     renderApp(['/signers']);
     expect(
-      await screen.findByRole('heading', { level: 1, name: /people you send documents to/i }),
+      await screen.findByRole('heading', { level: 1, name: /^contacts$/i }),
     ).toBeInTheDocument();
     expect(await screen.findByText(/eliran@azulay.co/i)).toBeInTheDocument();
   });
 
-  it('Signers page opens the add dialog', async () => {
+  it('Contacts page opens the add dialog', async () => {
     renderApp(['/signers']);
-    fireEvent.click(await screen.findByRole('button', { name: /^add signer$/i }));
-    expect(screen.getByRole('dialog', { name: /^add signer$/i })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /^add$/i }));
+    expect(screen.getByRole('dialog', { name: /^add contacts$/i })).toBeInTheDocument();
+  });
+
+  it('/contacts redirects to /signers', async () => {
+    renderApp(['/contacts']);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /^contacts$/i }),
+    ).toBeInTheDocument();
   });
 });
