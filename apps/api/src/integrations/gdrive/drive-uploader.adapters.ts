@@ -6,11 +6,14 @@ import {
 import { RateLimitedError } from './rate-limiter';
 import {
   DriveFileNotFoundError,
+  type DriveFolderOps,
   type DriveUploadedFile,
   type DriveUploader,
 } from './drive-uploader';
 
 const UPLOAD_BASE = 'https://www.googleapis.com/upload/drive/v3/files';
+const FILES_BASE = 'https://www.googleapis.com/drive/v3/files';
+const FOLDER_MIME = 'application/vnd.google-apps.folder';
 const FIELDS = 'id,name,webViewLink';
 const PDF_MIME = 'application/pdf';
 // Multipart boundary — must not appear in either part. The metadata part
@@ -30,12 +33,18 @@ function mapNonOk(operation: string, status: number): never {
 }
 
 async function parseUploaded(res: Response, operation: string): Promise<DriveUploadedFile> {
-  let json: { id?: unknown; name?: unknown; webViewLink?: unknown };
+  let json: unknown;
   try {
-    json = (await res.json()) as typeof json;
+    json = await res.json();
   } catch {
     throw new DriveUpstreamError(`drive_${operation}_bad_json`);
   }
+  return toUploaded(json, operation);
+}
+
+function toUploaded(raw: unknown, operation: string): DriveUploadedFile {
+  const json: { id?: unknown; name?: unknown; webViewLink?: unknown } =
+    typeof raw === 'object' && raw !== null ? raw : {};
   if (typeof json.id !== 'string' || json.id.length === 0) {
     throw new DriveUpstreamError(`drive_${operation}_missing_id`);
   }
@@ -53,8 +62,70 @@ async function parseUploaded(res: Response, operation: string): Promise<DriveUpl
  * metadata part + one binary PDF part); `files.update` is a plain
  * `uploadType=media` PATCH of the raw bytes.
  */
-export function makeDriveUploader(fetchImpl: typeof fetch = fetch): DriveUploader {
+export function makeDriveUploader(fetchImpl: typeof fetch = fetch): DriveUploader & DriveFolderOps {
   return {
+    async findFileByName({
+      accessToken,
+      name,
+      parentId,
+      folder,
+      signal,
+    }): Promise<DriveUploadedFile | null> {
+      const esc = (v: string): string => v.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+      const q =
+        `name = '${esc(name)}' and '${esc(parentId)}' in parents and trashed = false` +
+        (folder === true ? ` and mimeType = '${FOLDER_MIME}'` : '');
+      const url =
+        `${FILES_BASE}?q=${encodeURIComponent(q)}&pageSize=1&supportsAllDrives=true` +
+        `&includeItemsFromAllDrives=true&fields=${encodeURIComponent(`files(${FIELDS})`)}`;
+      const init: RequestInit = {
+        method: 'GET',
+        headers: { authorization: `Bearer ${accessToken}` },
+      };
+      if (signal) init.signal = signal;
+      let res: Response;
+      try {
+        res = await fetchImpl(url, init);
+      } catch (err) {
+        throw new DriveUpstreamError(`drive_list_transport: ${(err as Error).message}`);
+      }
+      if (!res.ok) mapNonOk('list', res.status);
+      let json: { files?: unknown };
+      try {
+        json = (await res.json()) as typeof json;
+      } catch {
+        throw new DriveUpstreamError('drive_list_bad_json');
+      }
+      const first: unknown = Array.isArray(json.files) ? json.files[0] : undefined;
+      if (first === undefined) return null;
+      return toUploaded(first, 'list');
+    },
+
+    async createFolder({ accessToken, name, parentId, signal }): Promise<DriveUploadedFile> {
+      const url = `${FILES_BASE}?supportsAllDrives=true&fields=${encodeURIComponent(FIELDS)}`;
+      const init: RequestInit = {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json; charset=UTF-8',
+        },
+        body: JSON.stringify({
+          name,
+          mimeType: FOLDER_MIME,
+          ...(parentId !== undefined ? { parents: [parentId] } : {}),
+        }),
+      };
+      if (signal) init.signal = signal;
+      let res: Response;
+      try {
+        res = await fetchImpl(url, init);
+      } catch (err) {
+        throw new DriveUpstreamError(`drive_folder_transport: ${(err as Error).message}`);
+      }
+      if (!res.ok) mapNonOk('folder', res.status);
+      return parseUploaded(res, 'folder');
+    },
+
     async create({ accessToken, metadata, bytes, signal }): Promise<DriveUploadedFile> {
       const url = `${UPLOAD_BASE}?uploadType=multipart&supportsAllDrives=true&fields=${encodeURIComponent(FIELDS)}`;
       const metaJson = JSON.stringify({

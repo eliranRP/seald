@@ -41,6 +41,31 @@ export interface DriveUploader {
   }): Promise<DriveUploadedFile>;
 }
 
+/**
+ * Folder and lookup operations the automation Drive action needs (WP-32).
+ * Separate from {@link DriveUploader} so existing fakes of the upload port
+ * stay valid; the production binding implements both. Same error contract
+ * as the upload port. With `drive.file` a lookup only sees files this app
+ * created, which is exactly the set an idempotent retry cares about.
+ */
+export interface DriveFolderOps {
+  /** First non-trashed file named `name` directly under `parentId`, or null. */
+  findFileByName(args: {
+    accessToken: string;
+    name: string;
+    parentId: string;
+    folder?: boolean;
+    signal?: AbortSignal;
+  }): Promise<DriveUploadedFile | null>;
+  /** Create a folder named `name` under `parentId` (default: My Drive root). */
+  createFolder(args: {
+    accessToken: string;
+    name: string;
+    parentId?: string;
+    signal?: AbortSignal;
+  }): Promise<DriveUploadedFile>;
+}
+
 export const DRIVE_UPLOADER = Symbol('DRIVE_UPLOADER');
 
 /**

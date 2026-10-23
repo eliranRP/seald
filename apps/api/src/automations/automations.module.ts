@@ -4,9 +4,13 @@ import { EmailCopyStopController } from './actions/email/email-copy-stop.control
 import { EmailCopyActionExecutor } from './actions/email/email-copy.executor';
 import { EmailCopyRepository } from './actions/email/email-copy.repository';
 import { EmailCopyPgRepository } from './actions/email/email-copy.repository.pg';
+import { GdriveUploadActionExecutor } from './actions/gdrive/gdrive-upload.executor';
+import { GdriveUploadRepository } from './actions/gdrive/gdrive-upload.repository';
+import { GdriveUploadPgRepository } from './actions/gdrive/gdrive-upload.repository.pg';
 import { WebhookActionExecutor } from './actions/webhook/webhook.executor';
 import { WebhookPgRepository } from './actions/webhook/webhook.repository.pg';
 import { WebhookSecretsService } from './actions/webhook/webhook-secrets.service';
+import { GDriveModule } from '../integrations/gdrive/gdrive.module';
 import { AUTOMATION_ACTION_EXECUTORS, type AutomationActionExecutors } from './automation-actions';
 import { AUTOMATION_EVENT_HOOK } from './automation-event-hook';
 import { AutoDisableService, AutoDisableStore, PgAutoDisableStore } from './auto-disable';
@@ -34,11 +38,14 @@ import { AutomationTestService } from './test-event/automation-test.service';
  */
 @Global()
 @Module({
+  imports: [GDriveModule],
   controllers: [AutomationTestController, EmailCopyStopController],
   providers: [
     { provide: EmailCopyRepository, useClass: EmailCopyPgRepository },
     EmailCopyActionExecutor,
     EmailCopyLinkMinter,
+    { provide: GdriveUploadRepository, useClass: GdriveUploadPgRepository },
+    GdriveUploadActionExecutor,
     AutomationsPgRepository,
     { provide: AutomationsCrudRepository, useClass: AutomationsCrudPgRepository },
     AutomationsService,
@@ -54,8 +61,13 @@ import { AutomationTestService } from './test-event/automation-test.service';
       useFactory: (
         webhook: WebhookActionExecutor,
         emailCopy: EmailCopyActionExecutor,
-      ): AutomationActionExecutors => ({ webhook, email_copy: emailCopy }),
-      inject: [WebhookActionExecutor, EmailCopyActionExecutor],
+        gdriveUpload: GdriveUploadActionExecutor,
+      ): AutomationActionExecutors => ({
+        webhook,
+        email_copy: emailCopy,
+        gdrive_upload: gdriveUpload,
+      }),
+      inject: [WebhookActionExecutor, EmailCopyActionExecutor, GdriveUploadActionExecutor],
     },
     { provide: AUTOMATION_EVENT_HOOK, useExisting: AutomationMatcherService },
     { provide: AutomationTestRepository, useClass: AutomationTestPgRepository },

@@ -10,7 +10,7 @@ import { GDrivePgRepository } from './gdrive.repository.pg';
 import { GDRIVE_ENVELOPE_EXPORTS_REPOSITORY } from './gdrive-envelope-exports.repository';
 import { GdriveEnvelopeExportsPgRepository } from './gdrive-envelope-exports.repository.pg';
 import { GdriveExportService } from './gdrive-export.service';
-import { DRIVE_UPLOADER, type DriveUploader } from './drive-uploader';
+import { DRIVE_UPLOADER, type DriveFolderOps, type DriveUploader } from './drive-uploader';
 import { makeDriveUploader } from './drive-uploader.adapters';
 import { OAuthStateStore } from './oauth-pkce';
 import { FetchGoogleOAuthClient } from './google-oauth.client';
@@ -51,7 +51,7 @@ const GDriveFilesProxyProvider: Provider = {
 
 const DriveUploaderProvider: Provider = {
   provide: DRIVE_UPLOADER,
-  useFactory: (): DriveUploader => makeDriveUploader(),
+  useFactory: (): DriveUploader & DriveFolderOps => makeDriveUploader(),
 };
 
 /**
@@ -124,6 +124,7 @@ const DriveUploaderProvider: Provider = {
     GdriveExportService,
     GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
     GDRIVE_REPOSITORY,
+    DRIVE_UPLOADER,
   ],
 })
 export class GDriveModule {}

@@ -519,7 +519,22 @@ export class AutomationsService {
         external: await this.hasForeignRecipient(ownerId, recipients),
       };
     }
-    // `gdrive_upload` and `slack` have no recipe here until their action ships.
+    if (recipe.action === 'gdrive_upload') {
+      if (
+        input.url !== undefined ||
+        input.payloadDetail !== undefined ||
+        input.recipients !== undefined
+      ) {
+        throw new BadRequestException('validation_error');
+      }
+      // No folder is asked for: the first run creates "My Drive / Seald".
+      return {
+        config: { folder_id: null, folder_name: null, account_id: null },
+        newUrl: null,
+        external: true,
+      };
+    }
+    // `slack` has no recipe here: it never gets an action.
     throw new ConflictException('recipe_not_available');
   }
 
