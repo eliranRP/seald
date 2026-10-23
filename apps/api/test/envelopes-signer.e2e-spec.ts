@@ -228,7 +228,13 @@ describe('Signing — /sign/start (e2e)', () => {
         .post('/sign/start')
         .send({ envelope_id: envId, token: plaintextToken });
       expect(res.status).toBe(409);
-      expect(res.body).toEqual({ error: 'already_signed', reason: 'already_signed' });
+      // The signer link page also gets the sealed copy's code and the signed time.
+      expect(res.body).toEqual({
+        error: 'already_signed',
+        reason: 'already_signed',
+        short_code: expect.any(String),
+        signed_at: expect.any(String),
+      });
     });
 
     it('replay after decline: terminal envelope short-circuits to 410', async () => {

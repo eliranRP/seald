@@ -312,7 +312,7 @@ describe('VerifyController', () => {
     const SHA = 'b'.repeat(64);
     it('returns the short_code for a known sealed hash (case-insensitive)', async () => {
       repo.findShortCodeBySealedSha256.mockResolvedValueOnce('u82ZmvdxwG3CU');
-      await expect(controller.byHash(SHA.toUpperCase().replace(/B/g, 'B'))).resolves.toEqual({
+      await expect(controller.byHash(SHA.toUpperCase())).resolves.toEqual({
         short_code: 'u82ZmvdxwG3CU',
       });
       expect(repo.findShortCodeBySealedSha256).toHaveBeenCalledWith(SHA);
