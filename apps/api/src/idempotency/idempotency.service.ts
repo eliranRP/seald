@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { PassthroughTransactionRunner, TransactionRunner } from '../db/transaction-runner';
 import { canonicalJsonValue } from '../envelopes/event-hash';
 import { IdempotencyRecordsRepository } from './idempotency-records.repository';
 
@@ -55,15 +56,34 @@ export interface IdempotencyHandle {
  *   different tool under the same key): `idempotency_conflict`.
  * - TTL 24 hours. Account deletion removes the rows (`deleteByUser`).
  *
- * The key is claimed before the tool runs and completed after it, in
- * separate statements: the envelope services open their own
- * transactions, so the row cannot share the mutation's transaction. A
- * claim left by a crashed call goes stale after two minutes, and then
- * the same request runs again. See the WP-19 report.
+ * By default the key is claimed before the tool runs and completed after
+ * it, in separate statements; a claim left by a crashed call goes stale
+ * after two minutes, and then the same request runs again. A tool that
+ * must never run twice (send, remind, cancel: WP-24) runs `begin`, its
+ * write and `complete` inside {@link atomically}: one ambient database
+ * transaction that the envelope services and `appendEvent` join, so the
+ * claim and the write commit together or not at all.
  */
 @Injectable()
 export class IdempotencyService {
-  constructor(private readonly repo: IdempotencyRecordsRepository) {}
+  private readonly transactions: TransactionRunner;
+
+  constructor(
+    private readonly repo: IdempotencyRecordsRepository,
+    // Global `DbModule` provides it; unit tests over in-memory
+    // repositories run without one (there is nothing to roll back).
+    @Optional() transactions?: TransactionRunner,
+  ) {
+    this.transactions = transactions ?? new PassthroughTransactionRunner();
+  }
+
+  /**
+   * Run `fn` in one transaction with every repository on `DB_TOKEN`: the
+   * claim, the write it protects and the stored response.
+   */
+  atomically<T>(fn: () => Promise<T>): Promise<T> {
+    return this.transactions.run(fn);
+  }
 
   static requestHash(path: string, args: Readonly<Record<string, unknown>>): string {
     const { idempotency_key: _key, ...rest } = args;

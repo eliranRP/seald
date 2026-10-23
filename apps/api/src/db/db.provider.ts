@@ -4,6 +4,7 @@ import type { FactoryProvider } from '@nestjs/common';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import type { Database } from '../../db/schema';
+import { withAmbientTransactions } from './ambient-transaction';
 
 export const DB_TOKEN = Symbol('DB');
 
@@ -37,7 +38,11 @@ export function createDbProvider(): FactoryProvider<Kysely<Database>> {
         // In production the host may inject NODE_EXTRA_CA_CERTS to tighten this.
         ssl: sslDisabled ? false : { rejectUnauthorized: false },
       });
-      return new Kysely<Database>({ dialect: new PostgresDialect({ pool }) });
+      // Joins an ambient transaction when one is open (WP-24); otherwise
+      // every call goes straight to this instance, as before.
+      return withAmbientTransactions(
+        new Kysely<Database>({ dialect: new PostgresDialect({ pool }) }),
+      );
     },
   };
 }

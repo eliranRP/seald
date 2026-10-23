@@ -9,6 +9,7 @@ import type {
   EnvelopeEventsTable,
 } from '../../db/schema';
 import { isFeatureEnabled } from 'shared';
+import { isInAmbientTransaction, runAfterCommit } from '../db/ambient-transaction';
 import { DB_TOKEN } from '../db/db.provider';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
 import {
@@ -1561,6 +1562,10 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
               user_agent: input.user_agent ?? null,
               metadata: JSON.stringify(input.metadata ?? {}),
               prev_event_hash: prevHash,
+              // WP-24: inside an ambient transaction `now()` is the same for
+              // every row, which would leave the chain order to the random
+              // id. The wall clock keeps the rows in append order.
+              ...(isInAmbientTransaction() ? { created_at: sql<string>`clock_timestamp()` } : {}),
             })
             .returningAll()
             .executeTakeFirstOrThrow();
@@ -1569,7 +1574,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           return inserted;
         });
         // After commit, never awaited: a matcher error cannot fail the caller.
-        this.automationHook?.afterCommit(event);
+        // Inside an ambient transaction (WP-24) that is the outer commit.
+        runAfterCommit(() => this.automationHook?.afterCommit(event));
         return event;
       } catch (err) {
         lastErr = err;

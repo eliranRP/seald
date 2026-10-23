@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ErrorCode, McpError, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { McpToolError } from 'shared';
 import { hasScopes, type ApiKeyPrincipal } from '../api-keys/api-key-auth.service';
+import type { IdempotencyBegin } from '../idempotency/idempotency.service';
 import { findTokenShapedStrings } from './leak-scan';
 import { McpServices } from './mcp-services';
 import { findTool } from './tool-catalog';
@@ -99,14 +100,64 @@ export class McpToolRunner {
 
     // Idempotency (step 8a): `mcp:<key_id>:<client key>`, request hash over
     // the tool name and the arguments without the key.
-    const begin = await this.services.idempotency.begin({
+    const scope = {
       ownerId: principal.ownerId,
       namespace: `mcp:${principal.keyId}`,
       clientKey: String(data['idempotency_key']),
       method: 'MCP',
       path: tool.name,
       args: data,
-    });
+    };
+
+    if (tool.atomic) {
+      // WP-24: claim, write and stored response in one transaction. Any
+      // throw rolls all three back; the claim never outlives a failure.
+      try {
+        return await this.services.idempotency.atomically(async () => {
+          const begin = await this.services.idempotency.begin(scope);
+          if (begin.kind !== 'run') return this.settled(tool, begin, done);
+          let result: CallToolResult;
+          try {
+            // A savepoint around the write: on a throw it is undone, the
+            // claim is dropped, and the outer transaction rolls back too.
+            result = await this.services.idempotency.atomically(async () =>
+              this.finish(tool, await tool.invoke(data, ctx), done),
+            );
+          } catch (err) {
+            await this.services.idempotency.release(begin.handle);
+            throw err;
+          }
+          await this.services.idempotency.complete(begin.handle, this.stored(tool, result));
+          return result;
+        });
+      } catch (err) {
+        if (err instanceof McpError) throw err;
+        return fail(err);
+      }
+    }
+
+    const begin = await this.services.idempotency.begin(scope);
+    if (begin.kind !== 'run') return this.settled(tool, begin, done);
+
+    let result: CallToolResult;
+    try {
+      const raw = await tool.invoke(data, ctx);
+      result = this.finish(tool, raw, done);
+    } catch (err) {
+      await this.services.idempotency.release(begin.handle);
+      if (err instanceof McpError) throw err;
+      return fail(err);
+    }
+    await this.services.idempotency.complete(begin.handle, this.stored(tool, result));
+    return result;
+  }
+
+  /** The answer for a key that is not ours to run: conflict, still running, or a replay. */
+  private settled(
+    tool: McpTool,
+    begin: Exclude<IdempotencyBegin, { kind: 'run' }>,
+    done: (slug: string) => void,
+  ): CallToolResult {
     if (begin.kind === 'conflict') {
       done('idempotency_conflict');
       return errorResult(toolError('idempotency_conflict', { status: 409 }));
@@ -121,19 +172,16 @@ export class McpToolRunner {
         }),
       );
     }
-    if (begin.kind === 'replay') return this.finish(tool, begin.body, done, 'replay');
+    return this.finish(tool, begin.body, done, 'replay');
+  }
 
-    let result: CallToolResult;
-    try {
-      const raw = await tool.invoke(data, ctx);
-      result = this.finish(tool, raw, done);
-    } catch (err) {
-      await this.services.idempotency.release(begin.handle);
-      if (err instanceof McpError) throw err;
-      return fail(err);
-    }
-    await this.services.idempotency.complete(begin.handle, result.structuredContent);
-    return result;
+  /** The response kept for replay, minus any one-time secret the tool names. */
+  private stored(tool: McpTool, result: CallToolResult): unknown {
+    const body = result.structuredContent;
+    if (!tool.replayOmit || tool.replayOmit.length === 0 || !body) return body;
+    const kept: Record<string, unknown> = { ...body };
+    for (const key of tool.replayOmit) delete kept[key];
+    return kept;
   }
 
   /**

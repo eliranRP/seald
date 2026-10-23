@@ -34,6 +34,21 @@ interface McpToolMeta {
   readonly requiresFlags?: readonly FeatureFlag[];
   /** Top-level output keys that may hold a short-lived signed storage URL (leak scan). */
   readonly signedUrlFields?: readonly string[];
+  /**
+   * Mutating tools only (WP-24). The idempotency claim, every write the
+   * handler makes (through the envelope services and `appendEvent`) and
+   * the stored response commit in one database transaction. A crash or
+   * a thrown error anywhere before the commit leaves no claim and no
+   * write, so a retry with the same key runs the call once, and a
+   * completed call replays its stored response instead of running again.
+   */
+  readonly atomic?: boolean;
+  /**
+   * Top-level output keys left out of the stored response, so an
+   * idempotent replay never hands out a one-time secret again (the
+   * confirmation token of `envelopes_preview_send`).
+   */
+  readonly replayOmit?: readonly string[];
 }
 
 export interface McpToolDefinition<I extends z.ZodType, O extends z.ZodType> extends McpToolMeta {
