@@ -41,6 +41,9 @@ const PROTECTED_ROUTES = [
   ['GET', '/contacts/00000000-0000-0000-0000-000000000000'],
   ['PATCH', '/contacts/00000000-0000-0000-0000-000000000000'],
   ['DELETE', '/contacts/00000000-0000-0000-0000-000000000000'],
+  ['POST', '/contacts/bulk'],
+  ['POST', '/contacts/restore'],
+  ['DELETE', '/contacts'],
 ] as const;
 
 describe('Contacts — auth contract (e2e)', () => {
@@ -271,5 +274,86 @@ describe('Contacts — CRUD (e2e)', () => {
       .get(`/contacts/${created.body.id}`)
       .set(auth(tokenA));
     expect(get.status).toBe(200);
+  });
+
+  it('POST /contacts/bulk adds the new addresses and reports duplicates and invalid ones', async () => {
+    await request(app.getHttpServer())
+      .post('/contacts')
+      .set(auth(tokenA))
+      .send({ name: 'Alex', email: 'alex@quill.vc', color: '#112233' });
+    const res = await request(app.getHttpServer())
+      .post('/contacts/bulk')
+      .set(auth(tokenA))
+      .send({ emails: ['nora@acme.co', 'tom.lee@acme.co', 'alex@quill.vc', 'bad@@acme'] });
+    expect(res.status).toBe(200);
+    expect(res.body.created.map((c: { name: string }) => c.name)).toEqual(['Nora', 'Tom Lee']);
+    expect(res.body.skipped_duplicate).toEqual(['alex@quill.vc']);
+    expect(res.body.invalid).toEqual(['bad@@acme']);
+    const list = await request(app.getHttpServer()).get('/contacts').set(auth(tokenA));
+    expect(list.body).toHaveLength(3);
+    expect(list.body[0]).toMatchObject({ docs_count: 0, last_sent_at: null });
+  });
+
+  it('POST /contacts/bulk rejects an empty list and unknown fields with 400', async () => {
+    const empty = await request(app.getHttpServer())
+      .post('/contacts/bulk')
+      .set(auth(tokenA))
+      .send({ emails: [] });
+    expect(empty.status).toBe(400);
+    const extra = await request(app.getHttpServer())
+      .post('/contacts/bulk')
+      .set(auth(tokenA))
+      .send({ emails: ['a@b.co'], owner_id: USER_B });
+    expect(extra.status).toBe(400);
+  });
+
+  it('DELETE /contacts removes several, POST /contacts/restore brings them back', async () => {
+    const make = async (email: string) =>
+      (
+        await request(app.getHttpServer())
+          .post('/contacts')
+          .set(auth(tokenA))
+          .send({ name: email, email, color: '#112233' })
+      ).body.id as string;
+    const a = await make('a@x.com');
+    const b = await make('b@x.com');
+    const keep = await make('keep@x.com');
+
+    const del = await request(app.getHttpServer())
+      .delete('/contacts')
+      .set(auth(tokenA))
+      .send({ ids: [a, b] });
+    expect(del.status).toBe(200);
+    expect(del.body.deleted.sort()).toEqual([a, b].sort());
+    const after = await request(app.getHttpServer()).get('/contacts').set(auth(tokenA));
+    expect(after.body.map((c: { id: string }) => c.id)).toEqual([keep]);
+
+    const restore = await request(app.getHttpServer())
+      .post('/contacts/restore')
+      .set(auth(tokenA))
+      .send({ ids: [a, b] });
+    expect(restore.status).toBe(200);
+    expect(restore.body).toHaveLength(2);
+    const list = await request(app.getHttpServer()).get('/contacts').set(auth(tokenA));
+    expect(list.body).toHaveLength(3);
+  });
+
+  it('DELETE /contacts and restore only touch the caller rows', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/contacts')
+      .set(auth(tokenA))
+      .send({ name: 'Ada', email: 'ada@example.com', color: '#112233' });
+    const del = await request(app.getHttpServer())
+      .delete('/contacts')
+      .set(auth(tokenB))
+      .send({ ids: [created.body.id] });
+    expect(del.body.deleted).toEqual([]);
+    const bad = await request(app.getHttpServer())
+      .delete('/contacts')
+      .set(auth(tokenA))
+      .send({ ids: ['not-a-uuid'] });
+    expect(bad.status).toBe(400);
+    const list = await request(app.getHttpServer()).get('/contacts').set(auth(tokenA));
+    expect(list.body).toHaveLength(1);
   });
 });

@@ -171,6 +171,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /contacts/:id': { tool: 'contacts_get' },
   'PATCH /contacts/:id': { tool: 'contacts_update' },
   'DELETE /contacts/:id': { tool: 'contacts_delete' },
+  // Contacts redesign: paste-a-list add, bulk delete, and the Undo for a delete.
+  'POST /contacts/bulk': { tool: 'contacts_import' },
+  'DELETE /contacts': { tool: 'contacts_delete' },
+  'POST /contacts/restore': { planned: 'step-16' },
 
   // Templates (steps 13 and 15): the listing, the schema read, the draft built
   // from a template and template authoring are tools. The example PDF and the

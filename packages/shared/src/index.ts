@@ -231,3 +231,9 @@ export * from './mcp-send';
 export * from './mcp-later';
 export * from './mcp-account';
 export * from './mcp-oauth';
+export {
+  CONTACT_EMAIL_MAX,
+  guessContactName,
+  isEmailShape,
+  splitEmailList,
+} from './contacts';
