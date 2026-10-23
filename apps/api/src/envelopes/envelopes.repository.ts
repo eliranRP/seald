@@ -273,6 +273,8 @@ export interface EnvelopeListSignerSnippet {
   readonly color: string;
   readonly status: import('shared').SignerUiStatus;
   readonly signed_at: string | null;
+  /** Migration 0040: 'bounced' after a hard bounce of this signer's address. */
+  readonly delivery_status?: import('shared').SignerDeliveryStatus;
 }
 
 export interface EnvelopeListItem {
@@ -322,6 +324,7 @@ export interface EventInput {
     | 'retention_deleted'
     | 'document_added'
     | 'step_started'
+    | 'email_bounced'
     // WP-10 (migration 0026)
     | 'access_code_sent'
     | 'access_code_verified'
@@ -459,6 +462,18 @@ export abstract class EnvelopesRepository {
     readonly previous: { readonly name: string; readonly email: string };
     readonly signer: EnvelopeSigner;
   } | null>;
+
+  /**
+   * Emails redesign (migration 0040). Record a hard bounce on a signer who
+   * has not signed or declined: `delivery_status` becomes `bounced`. Null
+   * when the signer is gone, already signed or declined, or already marked
+   * bounced, so a replayed webhook records and mails nothing twice.
+   */
+  abstract markSignerBounced(
+    signer_id: string,
+    reason: string | null,
+    now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null>;
 
   /**
    * WP-26 (change expiry). New `expires_at` on an envelope that is

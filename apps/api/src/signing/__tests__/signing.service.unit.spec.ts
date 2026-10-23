@@ -842,8 +842,10 @@ describe('SigningService.submit', () => {
     await svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null);
     expect(spy.events.map((e) => e.event_type)).toEqual(['signed', 'step_started']);
     expect(spy.events[1]?.metadata).toEqual({ step: 2, signing_order: 2, signer_ids: [nextId] });
-    const invites = spy.outboundInserts.filter((i) => i.kind === 'invite');
+    const invites = spy.outboundInserts.filter((i) => i.kind === 'your_turn');
     expect(invites.map((i) => i.to_email)).toEqual(['next@example.com']);
+    // The mail says who just signed.
+    expect(invites[0]?.payload).toMatchObject({ previous_signer_name: freshSigner().name });
   });
 
   it('WP-05: a failed step start does not fail the committed signature', async () => {

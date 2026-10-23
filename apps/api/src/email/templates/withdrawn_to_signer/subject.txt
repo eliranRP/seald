@@ -1,1 +1,1 @@
-"{{envelope_title}}" no longer needs your signature
+"{{envelope_title}}" was withdrawn

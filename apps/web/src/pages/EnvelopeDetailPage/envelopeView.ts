@@ -235,6 +235,9 @@ export function activityRows(
         push(UserRoundCog, `Replaced ${from ?? 'a signer'} with ${to ?? 'someone else'}`);
         break;
       }
+      case 'email_bounced':
+        push(XCircle, `Email to ${who ?? 'signer'} bounced`, 'bad');
+        break;
       case 'expiry_changed':
         push(Clock, 'Expiry changed');
         break;

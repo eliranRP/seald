@@ -1,3 +1,5 @@
+An API key was created on your account. Revoke it now if it was not you.
+
 A new API key, {{key_name}}, was created on your Seald account.
 
 Key: {{key_prefix}}…
@@ -5,11 +7,15 @@ Access: {{scopes_readable}}
 Created: {{created_at_readable}}
 Expires: {{expires_at_readable}}
 
-An app with this key can act on your behalf with the access listed above. Signers still sign from their own link.
+An app with this key can act on your behalf with the access listed above.
+Signers still sign from their own link.
 
-Didn't create this key? Revoke it now in Settings → Developers. This email never contains the key itself.
+Didn't create this key? Revoke it now in Settings → Developers. This email
+never contains the key itself.
 
 Review your keys:
   {{settings_url}}
 
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

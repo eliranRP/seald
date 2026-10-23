@@ -12,7 +12,7 @@ behind each rule are in [`CLAUDE.md`](../CLAUDE.md).
 |---|---|---|
 | PostgreSQL 16 | Everything. Migrations run at boot. | `DATABASE_URL` (`postgres://` or `postgresql://`) |
 | Supabase (auth + storage) | Sign-in (JWTs) and envelope files | `SUPABASE_URL`, `SUPABASE_JWT_AUDIENCE` (default `authenticated`), `SUPABASE_SERVICE_ROLE_KEY`, `STORAGE_BUCKET` (default `envelopes`). Supabase Storage is the only storage adapter. |
-| Email provider | Invites, reminders, completion mail | `EMAIL_PROVIDER`: `resend` (`RESEND_API_KEY`), `smtp` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`), or `logging` (the default; writes mail to the log and sends nothing, for development only). |
+| Email provider | Invites, reminders, completion mail | `EMAIL_PROVIDER`: `resend` (`RESEND_API_KEY`; add a Resend webhook for `email.bounced` pointing at `POST /webhooks/resend` and set `RESEND_WEBHOOK_SECRET` to its `whsec_` secret so bounced signer addresses are flagged), `smtp` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`), or `logging` (the default; writes mail to the log and sends nothing, for development only). |
 | Timestamp authority (TSA) | PAdES-B-T, B-LT and B-LTA | `PDF_SIGNING_TSA_URLS` (comma-separated; rotated on failure). `PDF_SIGNING_TSA_URL` is still read. The default is a public test TSA, so set your own for production. Without a TSA the seal is PAdES-B-B only. |
 | Signing key: KMS or P12 | The CMS signature on every sealed PDF | See below. |
 | Gotenberg | Drive conversions (sidecar) | See below. |

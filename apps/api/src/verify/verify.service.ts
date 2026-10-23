@@ -88,7 +88,8 @@ export class VerifyService {
         name: s.name,
         email: s.email,
         role: s.role,
-        status: s.status,
+        // `bounced` is for the sender; the public page reports it as awaiting.
+        status: s.status === 'bounced' ? 'awaiting' : s.status,
         signed_at: s.signed_at,
         declined_at: s.declined_at,
       })),

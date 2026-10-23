@@ -20,7 +20,7 @@ import {
  * minor for an additive change; a breaking change is a new `_v2` tool
  * name, so the major is not used for that.
  */
-export const MCP_SERVER_VERSION = '0.12.0';
+export const MCP_SERVER_VERSION = '0.13.0';
 
 /**
  * Protocol revisions the server negotiates: the current one and the one

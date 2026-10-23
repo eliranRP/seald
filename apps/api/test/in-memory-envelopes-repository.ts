@@ -510,6 +510,9 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       status: 'awaiting',
       viewed_at: null,
       tc_accepted_at: null,
+      ...(patch.email !== undefined && patch.email.toLowerCase() !== before.email.toLowerCase()
+        ? { delivery_status: 'delivered' as const }
+        : {}),
     };
     this.envelopes.set(envelope_id, {
       ...env,
@@ -518,6 +521,31 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.signerTokenHashes.delete(signer_id);
     this.reminderClock.set(signer_id, { invitedAt: now.toISOString(), lastRemindedAt: null });
     return { previous: { name: before.name, email: before.email }, signer };
+  }
+
+  async markSignerBounced(
+    signer_id: string,
+    _reason: string | null,
+    _now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null> {
+    for (const env of this.envelopes.values()) {
+      const before = env.signers.find((s) => s.id === signer_id);
+      if (!before) continue;
+      if (
+        before.signed_at !== null ||
+        before.declined_at !== null ||
+        before.delivery_status === 'bounced'
+      ) {
+        return null;
+      }
+      const signer: EnvelopeSigner = { ...before, status: 'bounced', delivery_status: 'bounced' };
+      this.envelopes.set(env.id, {
+        ...env,
+        signers: env.signers.map((s) => (s.id === signer_id ? signer : s)),
+      });
+      return { envelope_id: env.id, signer };
+    }
+    return null;
   }
 
   async updateOpenExpiry(

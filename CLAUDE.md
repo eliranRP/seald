@@ -205,6 +205,10 @@ contract is in `apps/api/src/config/env.schema.ts`, and
   client must use an https client id metadata document (CIMD).
 - `MCP_OAUTH_VERIFIED_CIMD_HOSTS`. CSV of hostnames whose CIMD clients the
   consent page does not label "unverified".
+- `RESEND_WEBHOOK_SECRET`. Svix signing secret (`whsec_...`) for
+  `POST /webhooks/resend`. Unset, the route answers 503. A hard
+  `email.bounced` marks the signer `delivery_status = 'bounced'` and mails
+  the sender (`bounced_to_sender`). Migration 0040.
 - `PDF_SIGNING_ALLOW_NOOP`. Strict boolean, read only when
   `PDF_SIGNING_PROVIDER` is unset. Production refuses to seal without a CMS
   signature unless this is `true`. Staging escape hatch only (S.3).

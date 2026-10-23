@@ -1,10 +1,14 @@
-The signing request was withdrawn.
+Nothing to do. The sender withdrew this request.
 
-The signing request from {{sender_name}} for "{{envelope_title}}"
-has been withdrawn. You don't need to take any further action on this
-document.
+No signature needed anymore.
+{{sender_name}} withdrew this request.
 
-If you expected to sign this and believe this is an error, please
-contact {{sender_name}} directly.
+  {{envelope_title}}
 
+Nothing to do. If you expected to sign this, contact {{sender_name}} directly.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

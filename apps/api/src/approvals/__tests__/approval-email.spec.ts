@@ -93,10 +93,11 @@ describe('approval_request email', () => {
     const out = render(summary(), 'link');
     expect(out.html).toContain('Key 2');
     expect(out.html).toContain('Expires in 24h');
-    expect(out.html).toContain(
+    const flat = out.html.replace(/\s+/g, ' ');
+    expect(flat).toContain(
       "Only approve if you asked for this. Don't let an assistant or other software open this link.",
     );
-    expect(out.html).toContain("Didn't ask for this? Deny and revoke the key.");
+    expect(flat).toContain("Didn't ask for this? Deny and revoke the key.");
     expect(out.text).toContain('Expires in 24h');
     expect(out.html).not.toMatch(/\/sign\/[^"]*\?t=/);
     // The shared 560px shell and legal footer.

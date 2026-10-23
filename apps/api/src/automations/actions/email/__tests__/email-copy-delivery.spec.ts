@@ -54,7 +54,7 @@ describe('automation_copy delivery (dispatcher, template, stop link)', () => {
             },
           },
         },
-        { provide: EnvelopesRepository, useValue: {} },
+        { provide: EnvelopesRepository, useValue: { findByIdWithAll: async () => null } },
         { provide: APP_ENV, useValue: ENV },
       ],
     }).compile();
@@ -96,7 +96,7 @@ describe('automation_copy delivery (dispatcher, template, stop link)', () => {
     expect(msg.html).not.toContain('<script>');
     expect(msg.html).toContain('Lease &lt;script&gt;x&lt;/script&gt;');
     expect(msg.html).toContain('Seald</strong> · Chlenov 24, Tel Aviv-Yafo 6604806, Israel');
-    expect(msg.html).toContain('added you to a Seald automation');
+    expect(msg.html.replace(/\s+/g, ' ')).toContain('added you to a Seald automation');
     expect(msg.text).toContain('Seald · Chlenov 24');
     expect(msg.html).toContain('https://seald.nromomentum.com/verify/AB12CD34EF56G');
     expect(msg.html + msg.text).not.toMatch(/\/sign\/|download|attachment/i);

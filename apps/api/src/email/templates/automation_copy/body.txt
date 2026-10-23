@@ -1,16 +1,20 @@
+{{event_label}}. This notice has no signing link and no document.
+
 {{envelope_title}} {{event_phrase}}.
 
 Status: {{status_label}}
 {{signer_line_text}}Reference: {{short_code}}
 
-{{sender_name}} asked Seald to forward this notice. It carries no signing link and no document.
+{{sender_name}} asked Seald to forward this notice. It carries no signing link
+and no document.
 
 Verify the document:
   {{verify_url}}
 {{dashboard_text}}
+
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
 You are receiving this because {{sender_email}} added you to a Seald automation.
 Stop these notices:
   {{stop_url}}
-
 {{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

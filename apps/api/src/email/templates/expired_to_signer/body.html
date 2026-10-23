@@ -1,198 +1,384 @@
-<div class="wrap">
-  <div class="card">
-    <div class="accent accent-slate"></div>
-    <table
-      role="presentation"
-      class="masthead"
-      cellspacing="0"
-      cellpadding="0"
-      border="0"
-      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
-    >
-      <tr>
-        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
-          <span
-            style="
-              display: inline-block;
-              width: 28px;
-              height: 28px;
-              border-radius: 7px;
-              background: #4f46e5;
-              color: #ffffff;
-              font-family: Georgia, 'Source Serif 4', serif;
-              font-weight: 600;
-              font-size: 16px;
-              text-align: center;
-              line-height: 28px;
-              vertical-align: middle;
-              text-decoration: none;
-            "
-            >S</span
-          >
-        </td>
-        <td
-          style="
-            padding: 20px 28px 20px 10px;
-            vertical-align: middle;
-            font-family:
-              Source Serif 4,
-              Georgia,
-              serif;
-            font-weight: 500;
-            font-size: 18px;
-            color: #0b1220;
-            letter-spacing: -0.01em;
-          "
-        >
-          Seald
-        </td>
-      </tr>
-    </table>
-    <div class="body">
-      <span class="kicker kicker-slate">Signing link expired</span>
-      <h1>The signing link for <em>{{envelope_title}}</em> has expired.</h1>
-      <p>
-        <a
-          href="mailto:{{sender_email}}"
-          style="
-            display: inline-block;
-            color: inherit;
-            font-weight: inherit;
-            font-family: inherit;
-            font-size: inherit;
-            text-decoration: none;
-            pointer-events: none;
-          "
-          >{{sender_name}}</a
-        >
-        asked for your signature but the link expired on {{expired_at_readable}} before it could be
-        completed. No action is required from you right now.
-      </p>
-      <p class="muted">
-        If you still intend to sign this document, reply to
-        <a
-          href="mailto:{{sender_email}}"
-          style="
-            display: inline-block;
-            color: inherit;
-            font-weight: inherit;
-            font-family: inherit;
-            font-size: inherit;
-            text-decoration: none;
-            pointer-events: none;
-          "
-          >{{sender_name}}</a
-        >
-        and ask them to send a new invitation — they can do it with one click.
-      </p>
+<div
+  style="
+    display: none;
+    max-height: 0;
+    overflow: hidden;
+    mso-hide: all;
+    font-size: 1px;
+    line-height: 1px;
+    color: #f3f6fa;
+    opacity: 0;
+  "
+>
+  The signing link ran out. Ask for a new one in one
+  tap.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+<table
+  role="presentation"
+  width="100%"
+  cellspacing="0"
+  cellpadding="0"
+  border="0"
+  bgcolor="#f3f6fa"
+  style="width: 100%; background: #f3f6fa"
+>
+  <tr>
+    <td align="center" style="padding: 32px 16px">
       <table
         role="presentation"
-        class="doc"
+        width="560"
         cellspacing="0"
         cellpadding="0"
         border="0"
-        style="
-          margin: 22px 0 10px;
-          background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          width: 100%;
-          border-collapse: separate;
-        "
+        style="width: 100%; max-width: 560px"
       >
         <tr>
           <td
-            style="padding: 16px 0 16px 16px; width: 58px; vertical-align: middle; line-height: 0"
+            class="card"
+            bgcolor="#ffffff"
+            style="
+              padding: 32px 32px 28px;
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 16px;
+            "
           >
-            <table
-              role="presentation"
-              cellspacing="0"
-              cellpadding="0"
-              border="0"
-              style="
-                width: 44px;
-                height: 56px;
-                background: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 4px;
-                border-collapse: separate;
-              "
-            >
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
               <tr>
-                <td style="padding: 6px">
-                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 82%"></div>
-                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 70%"></div>
-                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 88%"></div>
-                  <div style="height: 2px; background: #e2e8f0; margin: 0 0 3px; width: 60%"></div>
-                  <div style="height: 2px; background: #e2e8f0; margin: 0; width: 76%"></div>
+                <td align="left" style="padding: 0 0 8px">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                      <td
+                        width="28"
+                        height="28"
+                        align="center"
+                        valign="middle"
+                        bgcolor="#4f46e5"
+                        style="
+                          width: 28px;
+                          height: 28px;
+                          border-radius: 7px;
+                          background: #4f46e5;
+                          color: #ffffff;
+                          font-family: Georgia, 'Times New Roman', serif;
+                          font-weight: 600;
+                          font-size: 16px;
+                          line-height: 28px;
+                          text-align: center;
+                        "
+                      >
+                        S
+                      </td>
+                      <td
+                        valign="middle"
+                        style="
+                          padding: 0 0 0 8px;
+                          font-family: Georgia, 'Times New Roman', serif;
+                          font-weight: 500;
+                          font-size: 18px;
+                          color: #131a2b;
+                          letter-spacing: -0.01em;
+                        "
+                      >
+                        Seald
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 16px 0 0">
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    align="center"
+                  >
+                    <tr>
+                      <td
+                        width="56"
+                        height="56"
+                        align="center"
+                        valign="middle"
+                        bgcolor="#f1f5f9"
+                        style="
+                          width: 56px;
+                          height: 56px;
+                          border-radius: 28px;
+                          background: #f1f5f9;
+                          color: #64748b;
+                          font-family: Arial, Helvetica, sans-serif;
+                          font-size: 24px;
+                          font-weight: 700;
+                          line-height: 56px;
+                          text-align: center;
+                        "
+                      >
+                        &#9719;
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 16px 0 0">
+                  <h1
+                    style="
+                      margin: 0;
+                      font-family: Georgia, 'Times New Roman', serif;
+                      font-size: 24px;
+                      line-height: 30px;
+                      font-weight: 500;
+                      color: #131a2b;
+                      text-align: center;
+                    "
+                  >
+                    This signing link expired
+                  </h1>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 8px 0 0">
+                  <p
+                    style="
+                      margin: 0;
+                      font-family:
+                        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                      font-size: 15px;
+                      line-height: 22px;
+                      color: #475569;
+                      text-align: center;
+                    "
+                  >
+                    The request from {{sender_name}} ended on {{expired_at_readable}}.
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 20px 0 0">
+                  <table
+                    role="presentation"
+                    width="100%"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    bgcolor="#f8fafc"
+                    style="
+                      background: #f8fafc;
+                      border: 1px solid #e2e8f0;
+                      border-radius: 12px;
+                      border-collapse: separate;
+                    "
+                  >
+                    <tr>
+                      <td width="40" valign="middle" style="padding: 14px 0 14px 16px; width: 40px">
+                        <table
+                          role="presentation"
+                          cellspacing="0"
+                          cellpadding="0"
+                          border="0"
+                          width="40"
+                          bgcolor="#ffffff"
+                          style="
+                            width: 40px;
+                            background: #ffffff;
+                            border: 1px solid #e2e8f0;
+                            border-radius: 4px;
+                            border-collapse: separate;
+                          "
+                        >
+                          <tr>
+                            <td height="48" style="padding: 8px 7px">
+                              <div
+                                style="
+                                  height: 2px;
+                                  background: #cbd5e1;
+                                  margin: 0 0 4px;
+                                  width: 80%;
+                                  font-size: 0;
+                                  line-height: 0;
+                                "
+                              >
+                                &nbsp;
+                              </div>
+                              <div
+                                style="
+                                  height: 2px;
+                                  background: #cbd5e1;
+                                  margin: 0 0 4px;
+                                  width: 100%;
+                                  font-size: 0;
+                                  line-height: 0;
+                                "
+                              >
+                                &nbsp;
+                              </div>
+                              <div
+                                style="
+                                  height: 2px;
+                                  background: #cbd5e1;
+                                  margin: 0 0 4px;
+                                  width: 60%;
+                                  font-size: 0;
+                                  line-height: 0;
+                                "
+                              >
+                                &nbsp;
+                              </div>
+                              <div
+                                style="
+                                  height: 2px;
+                                  background: #cbd5e1;
+                                  margin: 0;
+                                  width: 90%;
+                                  font-size: 0;
+                                  line-height: 0;
+                                "
+                              >
+                                &nbsp;
+                              </div>
+                            </td>
+                          </tr>
+                        </table>
+                      </td>
+                      <td valign="middle" style="padding: 14px 12px">
+                        <div
+                          style="
+                            font-family:
+                              -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+                              sans-serif;
+                            font-size: 15px;
+                            line-height: 21px;
+                            font-weight: 600;
+                            color: #131a2b;
+                            text-align: left;
+                            overflow-wrap: anywhere;
+                          "
+                        >
+                          {{envelope_title}}
+                        </div>
+                        <div
+                          style="
+                            font-family:
+                              -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+                              sans-serif;
+                            font-size: 12px;
+                            line-height: 18px;
+                            color: #64748b;
+                            text-align: left;
+                          "
+                        >
+                          {{doc_meta}}
+                        </div>
+                      </td>
+                      <td
+                        valign="middle"
+                        align="right"
+                        style="padding: 14px 16px 14px 0; white-space: nowrap"
+                      >
+                        {{signer_progress_dots_html}}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 24px 0 0">
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    align="center"
+                  >
+                    <tr>
+                      <td
+                        align="center"
+                        bgcolor="#4f46e5"
+                        style="border-radius: 10px; background: #4f46e5"
+                      >
+                        <a
+                          href="{{new_link_url}}"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style="
+                            display: inline-block;
+                            min-width: 144px;
+                            padding: 14px 28px;
+                            border-radius: 10px;
+                            font-family:
+                              -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial,
+                              sans-serif;
+                            font-size: 15px;
+                            font-weight: 600;
+                            line-height: 20px;
+                            color: #ffffff;
+                            text-align: center;
+                            text-decoration: none;
+                          "
+                          >Ask for a new link</a
+                        >
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td
+                  align="center"
+                  style="
+                    padding: 12px 0 0;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                    font-size: 12px;
+                    line-height: 18px;
+                    color: #64748b;
+                    text-align: center;
+                  "
+                >
+                  We will let {{sender_name}} know you asked.
                 </td>
               </tr>
             </table>
           </td>
-          <td style="padding: 16px 16px 16px 14px; vertical-align: middle">
+        </tr>
+        <tr>
+          <td align="center" style="padding: 16px 8px 0">
             <div
+              class="foot"
               style="
                 font-family:
-                  Inter,
-                  -apple-system,
-                  Segoe UI,
-                  Arial,
-                  sans-serif;
-                font-weight: 600;
-                font-size: 15px;
-                color: #0b1220;
-                line-height: 1.35;
-              "
-            >
-              {{envelope_title}}
-            </div>
-            <div
-              style="
-                font-family:
-                  JetBrains Mono,
-                  ui-monospace,
-                  monospace;
+                  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
                 font-size: 12px;
+                line-height: 18px;
                 color: #64748b;
-                margin-top: 3px;
+                text-align: center;
               "
             >
-              Ref {{short_code}}
+              Verify ·
+              <a href="{{verify_url}}" style="color: #64748b; text-decoration: underline"
+                ><span style="color: #64748b; text-decoration: none">{{short_code}}</span></a
+              ><br />
+              Simple e-signature · ESIGN/UETA ·
+              <a
+                href="{{public_url}}/legal/esign-disclosure"
+                style="color: #64748b; text-decoration: underline"
+                >Legal info</a
+              ><br />
+              <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
+              Sent via Seald ·
+              <a href="{{privacy_url}}" style="color: #64748b; text-decoration: underline"
+                >Privacy</a
+              >
+              ·
+              <a href="{{preferences_url}}" style="color: #64748b; text-decoration: underline"
+                >Questions about these emails</a
+              >
             </div>
           </td>
         </tr>
       </table>
-      <a
-        href="mailto:{{sender_email}}?subject=Re:%20{{envelope_title}}"
-        class="cta cta-primary"
-        target="_blank"
-        rel="noopener noreferrer"
-        style="
-          display: inline-block;
-          padding: 10px 18px;
-          background: #0b1220;
-          color: #ffffff !important;
-          text-decoration: none !important;
-          border: 1px solid #0b1220;
-          border-radius: 10px;
-          font-weight: 600;
-          font-size: 14px;
-          line-height: 1.2;
-          letter-spacing: -0.005em;
-          margin: 0;
-        "
-        >Reply to {{sender_name}}</a
-      >
-      <div class="verify">
-        Verify this document at any time using its reference code: <code>{{short_code}}</code><br />
-        <a href="{{verify_url}}">{{verify_url}}</a>
-      </div>
-    </div>
-    <div class="foot">
-      <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
-      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
-      <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
-      <a href="{{preferences_url}}">Questions about these emails</a>
-    </div>
-  </div>
-</div>
+    </td>
+  </tr>
+</table>

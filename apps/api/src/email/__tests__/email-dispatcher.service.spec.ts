@@ -177,6 +177,37 @@ describe('EmailDispatcherService', () => {
     expect(JSON.stringify(stored)).not.toMatch(/[?&]t=/);
   });
 
+  it('your_turn mints its own link like an invite and says who signed before', async () => {
+    await repo.insert(
+      inviteRow({
+        kind: 'your_turn',
+        payload: { ...inviteRow().payload, previous_signer_name: 'Hannah Wills' },
+      }),
+    );
+
+    expect((await dispatcher.dispatchOne())?.status).toBe('sent');
+
+    const token = tokenIn(sender.calls[0]);
+    expect(sender.calls[0]!.subject).toBe('Your turn to sign "MSA"');
+    expect(sender.calls[0]!.text).toContain('Hannah Wills just signed.');
+    expect(mintedHashes).toEqual([{ signer_id: 's-1', hash: tokens.hash(token) }]);
+    expect(sender.calls[0]!.idempotencyKey).toBe(`${repo.rows[0]!.id}:1`);
+    expect(JSON.stringify(repo.rows[0])).not.toContain(token);
+  });
+
+  it('fills the card from the envelope: progress dots and doc meta, payload first', async () => {
+    await repo.insert(inviteRow());
+
+    await dispatcher.dispatchOne();
+
+    const html = sender.calls[0]!.html;
+    // awaitingEnvelope(): three signers, none signed, the recipient is s-1.
+    expect(html).toContain('aria-label="0 of 3 signed"');
+    expect(html.match(/width="8" height="8"/g)).toHaveLength(3);
+    expect(html).toContain('bgcolor="#4F46E5"');
+    expect(html).toContain('from Eliran Azulay');
+  });
+
   it('re-mints on retry, so the link from a failed attempt is already dead', async () => {
     sender.error = new Error('network_flap');
     await repo.insert(inviteRow());
@@ -494,6 +525,19 @@ describe('EmailDispatcherService — automated reminder sign link', () => {
       signers: [
         { id: 's-0', signing_order: 1, signed_at: null, declined_at: null },
         { id: 's-1', signing_order: 2, signed_at: null, declined_at: null },
+      ] as Envelope['signers'],
+    });
+    const outcome = await dispatcher.dispatchOne();
+    expect(outcome).toMatchObject({ status: 'skipped', error: 'reminder_no_longer_due' });
+    expect(sender.calls).toHaveLength(0);
+    expect(mintedHashes).toHaveLength(0);
+  });
+
+  it('sends no reminder to a signer whose address bounced', async () => {
+    await queueReminder();
+    current = awaitingEnvelope({
+      signers: [
+        { id: 's-1', signed_at: null, declined_at: null, delivery_status: 'bounced' },
       ] as Envelope['signers'],
     });
     const outcome = await dispatcher.dispatchOne();

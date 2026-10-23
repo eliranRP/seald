@@ -47,7 +47,7 @@ function installCrashHandlers(logger: Logger): void {
 
 async function bootstrap() {
   loadDotenv();
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const env = app.get<AppEnv>(APP_ENV);
   const logger = new Logger('bootstrap');
 

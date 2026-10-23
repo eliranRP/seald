@@ -1,3 +1,5 @@
+Nothing was sent. You denied a request from {{key_name}}.
+
 You denied {{key_name}}.
 
 Nothing was sent. The request was: {{action_label}} — {{title}}.
@@ -6,4 +8,6 @@ Nothing was sent. The request was: {{action_label}} — {{title}}.
 Didn't expect this request? Revoke the key in Settings → Developers (sign-in required):
   {{settings_url}}
 
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

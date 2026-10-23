@@ -39,7 +39,7 @@ export class StepSweepPgRepository extends StepSweepRepository {
            select 1 from outbound_emails o
             where o.envelope_id = s.envelope_id
               and o.signer_id = s.id
-              and o.kind = 'invite'
+              and o.kind in ('invite', 'your_turn')
               and (o.dedupe_key = 'invite_step:' || s.envelope_id || ':' || s.id
                    or o.created_at >= s.invited_at - interval '1 minute'))
        order by s.envelope_id
@@ -71,7 +71,7 @@ export class StepSweepPgRepository extends StepSweepRepository {
            select 1 from outbound_emails o
             where o.envelope_id = s.envelope_id
               and o.signer_id = s.id
-              and o.kind = 'invite'
+              and o.kind in ('invite', 'your_turn')
               and (o.dedupe_key = 'invite_step:' || s.envelope_id || ':' || s.id
                    or o.created_at >= s.invited_at - interval '1 minute'))
       returning s.id

@@ -150,17 +150,18 @@ describe('SigningOrderService.startStep', () => {
       },
     ]);
     expect(inserts.map((i) => [i.kind, i.signer_id, i.to_email, i.source_event_id])).toEqual([
-      ['invite', B, 'b@example.com', 'ev-1'],
-      ['invite', C, 'c@example.com', 'ev-1'],
+      ['your_turn', B, 'b@example.com', 'ev-1'],
+      ['your_turn', C, 'c@example.com', 'ev-1'],
     ]);
     // Insert A: the payload never carries a link; the dispatcher mints it.
-    expect(inserts[0]?.payload).toEqual(
-      inviteEmailPayload(
+    expect(inserts[0]?.payload).toEqual({
+      ...inviteEmailPayload(
         sent,
         { email: 'owner@example.com', name: 'Owner' },
         'https://seald.example',
       ),
-    );
+      previous_signer_name: 'The previous signer',
+    });
     expect(JSON.stringify(inserts)).not.toMatch(/[?&]t=|sign_url/);
   });
 

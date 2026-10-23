@@ -40,6 +40,8 @@ export interface EnvelopeSigner {
   readonly invited_at?: string | null;
   /** 1-based signing step. Present only while `signingOrder` is on (WP-05). */
   readonly step?: number;
+  /** 'bounced' after the mail provider reported a hard bounce for this address (migration 0040). */
+  readonly delivery_status?: 'delivered' | 'bounced';
 }
 
 export interface EnvelopeField {
@@ -260,7 +262,9 @@ export type EnvelopeEventType =
   | 'signer_replaced'
   | 'expiry_changed'
   // Migration 0045
-  | 'unsent';
+  | 'unsent'
+  // Migration 0040
+  | 'email_bounced';
 
 export interface EnvelopeEvent {
   readonly id: string;

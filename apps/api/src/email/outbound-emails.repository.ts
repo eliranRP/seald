@@ -77,6 +77,24 @@ export abstract class OutboundEmailsRepository {
   ): Promise<OutboundEmailRow | null>;
 
   /**
+   * The outbox row the email provider reported on, by its provider message
+   * id (`provider_id`). Null when no row carries it.
+   */
+  abstract findByProviderId(provider_id: string): Promise<OutboundEmailRow | null>;
+
+  /**
+   * Keep a provider webhook event in `email_webhooks`, keyed by the
+   * provider message id. The MCP send guard counts bounces and complaints
+   * from it. Telemetry only.
+   */
+  abstract recordProviderEvent(
+    provider: string,
+    event_type: string,
+    provider_id: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<void>;
+
+  /**
    * Atomically claim one due email (status in pending|failed, scheduled_for
    * <= now, attempts < max_attempts). Flips status to `sending` and bumps
    * `attempts` so concurrent workers never pick the same row.
