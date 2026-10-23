@@ -41,7 +41,7 @@ describe('SignatureCapture', () => {
     expect(queryByRole('dialog')).toBeNull();
   });
 
-  it('defaults to type tab; switching tabs updates aria-selected', async () => {
+  it('defaults to type tab; switching tabs moves the selection', async () => {
     const { getByRole } = renderWithTheme(
       <SignatureCapture
         open
@@ -51,14 +51,14 @@ describe('SignatureCapture', () => {
         onApply={() => {}}
       />,
     );
-    const typeTab = getByRole('tab', { name: /type/i });
-    expect(typeTab).toHaveAttribute('aria-selected', 'true');
-    const drawTab = getByRole('tab', { name: /draw/i });
+    const typeTab = getByRole('radio', { name: /type/i });
+    expect(typeTab).toBeChecked();
+    const drawTab = getByRole('radio', { name: /draw/i });
     await userEvent.click(drawTab);
-    expect(drawTab).toHaveAttribute('aria-selected', 'true');
+    expect(drawTab).toBeChecked();
   });
 
-  it('type tab: Apply emits a typed SignatureCaptureResult', async () => {
+  it('type tab: Sign emits a typed SignatureCaptureResult', async () => {
     const onApply = vi.fn();
     const { getByRole } = renderWithTheme(
       <SignatureCapture
@@ -69,7 +69,7 @@ describe('SignatureCapture', () => {
         onApply={onApply}
       />,
     );
-    await userEvent.click(getByRole('button', { name: /apply/i }));
+    await userEvent.click(getByRole('button', { name: /^sign$/i }));
     await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
     const result = onApply.mock.calls[0]?.[0];
     expect(result.format).toBe('typed');
@@ -77,7 +77,7 @@ describe('SignatureCapture', () => {
     expect(result.blob).toBeInstanceOf(Blob);
   });
 
-  it('Apply is disabled when typed name is empty', async () => {
+  it('Sign is disabled when typed name is empty', async () => {
     const { getByRole, getByLabelText } = renderWithTheme(
       <SignatureCapture
         open
@@ -89,7 +89,7 @@ describe('SignatureCapture', () => {
     );
     const input = getByLabelText(/your full name/i);
     await userEvent.clear(input);
-    expect(getByRole('button', { name: /apply/i })).toBeDisabled();
+    expect(getByRole('button', { name: /^sign$/i })).toBeDisabled();
   });
 
   it('Escape fires onCancel', async () => {
@@ -107,9 +107,9 @@ describe('SignatureCapture', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
-  it('Cancel button fires onCancel', async () => {
+  it('the close button (Cancel) fires onCancel', async () => {
     const onCancel = vi.fn();
-    const { getAllByRole } = renderWithTheme(
+    const { getByRole } = renderWithTheme(
       <SignatureCapture
         open
         kind="signature"
@@ -118,11 +118,23 @@ describe('SignatureCapture', () => {
         onApply={() => {}}
       />,
     );
-    // Two buttons match "cancel" (the X icon close + the footer Cancel).
-    // Click the last one (footer).
-    const cancels = getAllByRole('button', { name: /^cancel$/i });
-    await userEvent.click(cancels[cancels.length - 1]!);
+    await userEvent.click(getByRole('button', { name: /^cancel$/i }));
     expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens on the signer name in script and says it is used for every signature', () => {
+    const { getByRole, getByText } = renderWithTheme(
+      <SignatureCapture
+        open
+        kind="signature"
+        defaultName="Maya Raskin"
+        onCancel={() => {}}
+        onApply={() => {}}
+      />,
+    );
+    expect(getByRole('dialog', { name: 'Your signature' })).toBeInTheDocument();
+    expect(getByText('Used for every signature in this document.')).toBeInTheDocument();
+    expect(getByRole('textbox', { name: /your full name/i })).toHaveValue('Maya Raskin');
   });
 
   it('renders without axe violations', async () => {
@@ -196,7 +208,7 @@ describe('SignatureCapture', () => {
       expect(input.value).toBe('MR');
     });
 
-    it('persists the typed value to localStorage on Apply (typed tab)', async () => {
+    it('persists the typed value to localStorage on Sign (typed tab)', async () => {
       const onApply = vi.fn();
       const { getByLabelText, getByRole } = renderWithTheme(
         <SignatureCapture
@@ -211,7 +223,7 @@ describe('SignatureCapture', () => {
       const input = getByLabelText(/your full name/i);
       await userEvent.clear(input);
       await userEvent.type(input, 'Maya Q. Raskin');
-      await userEvent.click(getByRole('button', { name: /apply/i }));
+      await userEvent.click(getByRole('button', { name: /^sign$/i }));
       await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
       const raw = window.localStorage.getItem('seald:signing:typed:v1');
       expect(raw).not.toBeNull();
@@ -231,8 +243,8 @@ describe('SignatureCapture', () => {
           onApply={() => {}}
         />,
       );
-      await userEvent.click(getByRole('tab', { name: /draw/i }));
-      // Apply is disabled until a stroke is drawn; jsdom can't render canvas
+      await userEvent.click(getByRole('radio', { name: /draw/i }));
+      // Sign is disabled until a stroke is drawn; jsdom can't render canvas
       // strokes, so the user can't actually Apply via draw here. The contract
       // we care about is: save is never called from the draw or upload paths.
       expect(saveSpy).not.toHaveBeenCalled();
@@ -251,7 +263,7 @@ describe('SignatureCapture', () => {
           onApply={onApply}
         />,
       );
-      await userEvent.click(getByRole('button', { name: /apply/i }));
+      await userEvent.click(getByRole('button', { name: /^sign$/i }));
       await vi.waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
       expect(window.localStorage.getItem('seald:signing:typed:v1')).toBeNull();
     });

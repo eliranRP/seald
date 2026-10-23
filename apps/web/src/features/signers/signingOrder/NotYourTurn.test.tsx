@@ -13,10 +13,20 @@ describe('NotYourTurn', () => {
         <NotYourTurn />
       </ThemeProvider>,
     );
-    expect(screen.getByRole('heading', { name: /not your turn to sign yet/i })).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(/email you a signing link/i);
+    expect(screen.getByRole('heading', { name: /not your turn yet/i })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('Sent');
+    expect(screen.getByText(/email you when it's your turn/i)).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('names the signer who is up', () => {
+    render(
+      <ThemeProvider theme={seald}>
+        <NotYourTurn waitingOn="Alex" senderName="Eliran Azulay" />
+      </ThemeProvider>,
+    );
+    expect(screen.getByText('Alex signs first')).toBeInTheDocument();
   });
 
   it('offers Check again when a retry is given', async () => {

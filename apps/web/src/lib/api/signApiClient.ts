@@ -29,6 +29,19 @@ export interface ApiError extends Error {
   status?: number;
   /** The API's `{ error: <slug> }` value, e.g. `access_code_invalid` (WP-11). */
   code?: string;
+  /**
+   * Machine reason on a refused signer link: `already_signed`, `declined`,
+   * `expired`, `canceled` or `not_your_turn`.
+   */
+  reason?: string;
+  /** First name of the signer who is up, on `not_your_turn`. */
+  waiting_on?: string;
+  /** The sender's display name, on a refused link. */
+  sender_name?: string;
+  /** When the signer signed, on `already_signed`. */
+  signed_at?: string;
+  /** Public verify code of the envelope, on `already_signed`. */
+  short_code?: string;
   /** `Retry-After` in whole seconds, when the response carried a usable one. */
   retryAfterSeconds?: number;
 }
@@ -53,6 +66,17 @@ signApiClient.interceptors.response.use(
       }
       const slug = (error.response?.data as { readonly error?: unknown } | undefined)?.error;
       if (typeof slug === 'string') wrapped.code = slug;
+      const data = error.response?.data as Record<string, unknown> | undefined;
+      for (const key of [
+        'reason',
+        'waiting_on',
+        'sender_name',
+        'signed_at',
+        'short_code',
+      ] as const) {
+        const value = data?.[key];
+        if (typeof value === 'string') wrapped[key] = value;
+      }
       const retryAfter = Number(error.response?.headers?.['retry-after']);
       if (Number.isInteger(retryAfter) && retryAfter > 0) wrapped.retryAfterSeconds = retryAfter;
       throw wrapped;

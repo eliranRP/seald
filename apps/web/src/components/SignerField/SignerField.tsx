@@ -3,6 +3,7 @@ import {
   Calendar,
   Check,
   CheckSquare,
+  ArrowRight,
   ChevronRight,
   ChevronsUpDown,
   CircleDot,
@@ -20,8 +21,10 @@ import type { SignerFieldKind, SignerFieldProps } from './SignerField.types';
 import type { Tone } from './SignerField.styles';
 import {
   ActiveIndicator,
+  AutoTag,
   CheckboxMark,
   EmptyLabel,
+  FieldTag,
   FilledText,
   InitialScript,
   RequiredStar,
@@ -80,6 +83,9 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
     w,
     h,
     previewNode,
+    tag,
+    auto,
+    autoLabel,
     onActivate,
     type,
     ...rest
@@ -162,7 +168,14 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
       data-active={active ? 'true' : 'false'}
       {...rest}
     >
+      {tag && active && !filled ? (
+        <FieldTag data-testid="field-tag">
+          <Icon icon={ArrowRight} size={12} />
+          {tag}
+        </FieldTag>
+      ) : null}
       {inner}
+      {auto && filled ? <AutoTag>{autoLabel ?? 'Auto'}</AutoTag> : null}
       {/* Non-color "active" indicator (audit report-B-signer.md,
           SigningFillPage [HIGH] a11y). Tone is the primary signal for
           sighted users; the chevron is a redundant cue for deutan /
@@ -171,7 +184,7 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
           "image / chevron right" chatter. Skipped for filled fields
           and checkboxes where the chevron would overlap the
           filled-value glyph. */}
-      {active && !filled && kind !== 'checkbox' ? (
+      {active && !filled && kind !== 'checkbox' && !tag ? (
         <ActiveIndicator data-active-indicator="true" aria-hidden="true">
           <Icon icon={ChevronRight} size={14} />
         </ActiveIndicator>

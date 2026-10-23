@@ -1,21 +1,21 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { isFeatureEnabled } from 'shared';
-import { ArrowDown, Check, ListChecks, MoreVertical } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+  ESIGN_DISCLOSURE_VERSION,
+  RECORD_ACCESS_ATTESTATION,
+  isFeatureEnabled,
+  maskEmail,
+} from 'shared';
+import { Ban, User, XCircle } from 'lucide-react';
+import { Banner } from '@/components/Banner';
 import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer';
-import { isReadOnly, usesMetaDrawer } from '@/features/signingFill/inputs/fieldDisplay';
-import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
-import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
-import { Icon } from '@/components/Icon';
-import { PageThumbRail } from '@/components/PageThumbRail';
-import { PageToolbar } from '@/components/PageToolbar';
-import { ProgressBar } from '@/components/ProgressBar';
-import { RecipientHeader } from '@/components/RecipientHeader';
 import { SignatureCapture } from '@/components/SignatureCapture';
+import { SignatureMark } from '@/components/SignatureMark';
 import { SignerField } from '@/components/SignerField';
 import type { SignerFieldKind } from '@/components/SignerField';
+import type { MenuEntry } from '@/components/Menu';
 import { useDownloadPdf } from '@/features/downloadPdf';
 import {
   getPdfSignedUrl,
@@ -23,61 +23,35 @@ import {
   useSigningSession,
   type SignMeField,
 } from '@/features/signing';
+import { AccessCodeForm, isAccessCodeRequiredError } from '@/features/signing/accessCode';
+import { ConfirmSheet } from '@/features/signing/ui/ConfirmSheet';
+import { ConsentBar } from '@/features/signing/ui/ConsentBar';
+import { DeclineSheet } from '@/features/signing/ui/DeclineSheet';
+import { FinishSheet } from '@/features/signing/ui/FinishSheet';
+import { SignBar } from '@/features/signing/ui/SignBar';
+import { SignHeader } from '@/features/signing/ui/SignHeader';
+import { isReadOnly, usesMetaDrawer } from '@/features/signingFill/inputs/fieldDisplay';
+import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
+import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
 import {
   DocumentRail,
+  displayDate,
   fieldIsFilled,
   fieldLabel,
-  summarizeDocuments,
   fieldValue,
+  isAutoField,
+  nextTodoField,
+  summarizeDocuments,
   toUiKind,
-  useDocumentZoomNav,
   useFieldsByPage,
+  useSignerAutofill,
   useSigningFillController,
   useSigningPdfSource,
 } from '@/features/signingFill';
-import {
-  ActionBar,
-  Center,
-  CenterScroll,
-  DeclineBtn,
-  ErrorBanner,
-  FieldsPanelBackdrop,
-  FieldsPanelItem,
-  FieldsPanelSheet,
-  FieldsPanelStatus,
-  FieldsPanelTitle,
-  FieldsToggle,
-  NextBtn,
-  OptionalDialogBackdrop,
-  OptionalDialogBody,
-  OptionalDialogCard,
-  OptionalDialogFooter,
-  OptionalDialogTitle,
-  OptionalPrimaryBtn,
-  OptionalSecondaryBtn,
-  OverflowKebab,
-  OverflowMenuBackdrop,
-  OverflowMenuDanger,
-  OverflowMenuItem,
-  OverflowMenuSheet,
-  Page,
-  PagesStack,
-  ProgressCount,
-  ProgressWrap,
-  RailSlot,
-  ReviewBtn,
-  Spacer,
-  WithdrawBtn,
-} from './SigningFillPage.styles';
-
-import {
-  CANVAS_WIDTH,
-  denormalizeCoord,
-  useCanvasHeight,
-  useCanvasWidth,
-} from '@/lib/canvas-coords';
-import { usePdfDocument } from '@/lib/pdf';
+import { denormalizeCoord, useCanvasHeight, useCanvasWidth } from '@/lib/canvas-coords';
 import { useT } from '@/lib/i18n';
+import { usePdfDocument } from '@/lib/pdf';
+import { ErrorSlot, Page, Pages, Stage } from './SigningFillPage.styles';
 
 const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   signature: 200,
@@ -104,37 +78,31 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   dropdown: 36,
 };
 
-const SUPPORT_EMAIL = 'support@seald.nromomentum.com';
-
 /**
- * Sort comparator for per-page reading order. Required first, then
- * visual top-to-bottom, then left-to-right. Stable for fields with
- * the same y by falling back to x (audit report-B-signer.md,
- * SigningFillPage [HIGH] a11y tab order).
+ * Per-page reading order: required first, then top to bottom, then left to
+ * right, so the DOM (and Tab) order is what a signer reads.
  */
 function compareFieldsForReadingOrder(a: SignMeField, b: SignMeField): number {
-  // Required-first: required fields come before optional so keyboard
-  // users hit every blocker before they get to the nice-to-have inputs.
   if (a.required !== b.required) return a.required ? -1 : 1;
   if (a.y !== b.y) return a.y - b.y;
   return a.x - b.x;
+}
+
+type Dialog = 'decline' | 'notMe' | 'withdraw' | 'finish' | null;
+
+interface ApiErrorLike extends Error {
+  status?: number;
 }
 
 function Content() {
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
   const t = useT();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const session = useSigningSession();
-  const {
-    envelope,
-    fields: allFields,
-    documents,
-    completedRequired,
-    requiredCount,
-    allRequiredFilled,
-    nextField,
-  } = session;
+  const { envelope, signer, fields: allFields, documents, allRequiredFilled } = session;
 
   // Multi-document envelopes (WP-04). Off, or one document: everything below
   // is the single-document view, untouched.
@@ -144,7 +112,7 @@ function Content() {
     ? (documents.find((d) => d.id === requestedDocumentId) ?? documents[0])
     : undefined;
   // `fields` is what the canvas shows: the active document's fields. The
-  // progress counts, "Next field" and review keep using every document.
+  // progress counts and "Next" keep using every document.
   const fields = useMemo(
     () =>
       activeDocument === undefined
@@ -153,53 +121,44 @@ function Content() {
     [allFields, activeDocument],
   );
 
+  // Consent: asked in the bar until the signer presses Start. A fresh link
+  // (flagged by the entry page) asks again even when terms were accepted
+  // in an earlier session; a refresh after Start does not.
+  const [started, setStarted] = useState(false);
+  const freshLink = (location.state as { readonly fresh?: boolean } | null)?.fresh === true;
+  const needsConsent = !started && signer !== null && (signer.tc_accepted_at === null || freshLink);
+  const [agreed, setAgreed] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
+
+  useSignerAutofill(!needsConsent);
+
   const totalPages = activeDocument?.original_pages ?? envelope?.original_pages ?? 1;
   const pdfSrc = useSigningPdfSource(envelope?.id, activeDocument?.id);
   const { doc: signingPdfDoc } = usePdfDocument(pdfSrc);
-  // Mobile canvas overflow fix (audit item 1): width is viewport-aware
-  // (`computeCanvasWidth`); height threads the same width through so the
-  // aspect ratio stays correct.
   const canvasWidth = useCanvasWidth();
   const canvasHeight = useCanvasHeight(signingPdfDoc);
-  const { fieldsByPage, fieldCountByPage } = useFieldsByPage(fields);
+  const { fieldsByPage } = useFieldsByPage(fields);
 
-  // All field interaction state + handlers (rule 1.5 — page stays thin).
   const {
-    activeFieldId,
     textDrawer,
     sigDrawer,
     error,
-    busy,
     closeTextDrawer,
     closeSigDrawer,
     handleFieldClick,
-    handleNext,
+    goTo,
     handleTextApply,
     handleMetaApply,
     drawerError,
     drawerBusy,
     handleSignatureApply,
-    handleReview,
-    handleDecline,
-    handleWithdrawConsent,
   } = useSigningFillController({
     envelopeId,
     activeDocumentId: activeDocument?.id,
     onActiveDocumentChange: multiDoc ? setRequestedDocumentId : undefined,
+    locked: needsConsent,
   });
-
-  // Zoom + scroll-spy + page rail — extracted to a reusable hook (rule 1.1).
-  const {
-    scrollAreaRef,
-    zoom,
-    currentPage,
-    zoomIn,
-    zoomOut,
-    resetZoom,
-    scrollToPage,
-    zoomInDisabled,
-    zoomOutDisabled,
-  } = useDocumentZoomNav({ totalPages, resetKey: pdfSrc });
 
   const { download: downloadPdf, busy: downloadBusy } = useDownloadPdf({
     getUrl: () =>
@@ -209,239 +168,172 @@ function Content() {
     filename: activeDocument?.title ?? envelope?.title ?? 'document',
   });
 
-  // Mobile chrome state (audit items 4 + 5).
-  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
-  const [fieldsPanelOpen, setFieldsPanelOpen] = useState(false);
+  // Progress counts the required fields the signer fills by hand; their
+  // name and the date are put in for them, and optional fields never block.
+  const handFields = useMemo(
+    () => allFields.filter((f) => f.required && !isAutoField(f)),
+    [allFields],
+  );
+  const handDone = handFields.filter(fieldIsFilled).length;
+  const optionalLeft = allFields.filter((f) => !f.required && !fieldIsFilled(f)).length;
+  const nowField = useMemo(() => nextTodoField(allFields, documents), [allFields, documents]);
 
-  // Audit item 9 — track whether the user has been prompted about
-  // unfilled optional fields. Pre-compute the optional totals from
-  // the live field list so they stay in sync with mutations.
-  const optionalStats = useMemo(() => {
-    let total = 0;
-    let filled = 0;
-    for (const f of allFields) {
-      if (f.required) continue;
-      total += 1;
-      if (fieldIsFilled(f)) filled += 1;
-    }
-    return { total, filled, remaining: total - filled };
-  }, [allFields]);
-  const [optionalPromptOpen, setOptionalPromptOpen] = useState(false);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialogBusy, setDialogBusy] = useState(false);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [needsActionCode, setNeedsActionCode] = useState(false);
+  const [intentRecorded, setIntentRecorded] = useState(false);
 
-  // Wrap handleReview so it stops to confirm when optionals are blank
-  // (audit item 9). Always allow the user to continue OR jump back to
-  // the first unfilled optional field. The hook's handleReview() is the
-  // navigation primitive; this layer adds the prompt step.
-  const handleReviewClick = useCallback(() => {
-    if (optionalStats.remaining > 0) {
-      setOptionalPromptOpen(true);
-      return;
-    }
-    handleReview();
-  }, [handleReview, optionalStats.remaining]);
+  const closeDialog = useCallback(() => {
+    if (dialogBusy) return;
+    setDialog(null);
+    setDialogError(null);
+  }, [dialogBusy]);
 
-  const handleOptionalContinue = useCallback(() => {
-    setOptionalPromptOpen(false);
-    handleReview();
-  }, [handleReview]);
+  const backToEntry = useCallback(() => {
+    navigate(`/sign/${envelopeId}`, { replace: true });
+  }, [envelopeId, navigate]);
 
-  const handleOptionalGoFill = useCallback(() => {
-    setOptionalPromptOpen(false);
-    // Jump to the first unfilled optional field — uses the same
-    // `data-r-page` scroll-spy as the rest of the navigation.
-    const firstOptionalUnfilled = allFields.find((f) => !f.required && !fieldIsFilled(f));
-    if (firstOptionalUnfilled) {
-      if (
-        multiDoc &&
-        firstOptionalUnfilled.document_id !== undefined &&
-        firstOptionalUnfilled.document_id !== activeDocument?.id
-      ) {
-        // It sits on another document: bring that one up.
-        setRequestedDocumentId(firstOptionalUnfilled.document_id);
+  const handleStart = useCallback(async () => {
+    if (!agreed || !signer) return;
+    setStartBusy(true);
+    setStartError(null);
+    try {
+      if (!signer.tc_accepted_at) {
+        await session.acceptTerms();
+      }
+      // The ESIGN disclosure acknowledgement is recorded as its own audit
+      // event each time the signer starts from a fresh session. The backend
+      // appends it idempotently, so re-sending is harmless.
+      await session.acknowledgeEsignDisclosure(ESIGN_DISCLOSURE_VERSION);
+      setStarted(true);
+      navigate(location.pathname, { replace: true, state: null });
+    } catch (err) {
+      const e = err as ApiErrorLike;
+      if (e.status === 401 || e.status === 410) {
+        backToEntry();
         return;
       }
-      const el = document.querySelector(`[data-r-page="${firstOptionalUnfilled.page}"]`);
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setStartError(e.message || t('signing.sign.consent.errorAccept'));
+    } finally {
+      setStartBusy(false);
     }
-  }, [allFields, multiDoc, activeDocument?.id]);
+  }, [agreed, backToEntry, location.pathname, navigate, session, signer, t]);
 
-  // Mobile-overflow handlers route to the same hook handlers as the
-  // desktop buttons so the audit-trail outcome is identical
-  // (decline vs withdraw consent stays distinct).
-  const handleOverflowDecline = useCallback(() => {
-    setOverflowMenuOpen(false);
-    handleDecline().catch(() => {
-      /* surfaced via error state */
-    });
-  }, [handleDecline]);
-
-  const handleOverflowWithdraw = useCallback(() => {
-    setOverflowMenuOpen(false);
-    handleWithdrawConsent().catch(() => {
-      /* surfaced via error state */
-    });
-  }, [handleWithdrawConsent]);
-
-  const handleOverflowHelp = useCallback(() => {
-    setOverflowMenuOpen(false);
-    // mailto is the existing support pattern from SigningEntryPage; no
-    // in-page help center yet. Encode the envelope id so support can
-    // jump straight to the audit chain.
-    const subject = encodeURIComponent(t('signing.fill.helpSubject', { envelopeId }));
-    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
-  }, [envelopeId, t]);
-
-  // Mobile fields panel — jump to a specific field on click.
-  const handleFieldsPanelSelect = useCallback(
-    (field: SignMeField) => {
-      setFieldsPanelOpen(false);
-      handleFieldClick(field).catch(() => {
-        /* surfaced via error state */
-      });
+  /** Runs one terminal action from a dialog and goes to its page. */
+  const runTerminal = useCallback(
+    async (action: () => Promise<void>, to: 'declined' | 'done', fallback: string) => {
+      setDialogBusy(true);
+      setDialogError(null);
+      try {
+        await action();
+        navigate(`/sign/${envelopeId}/${to}`, { replace: true });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setDialogBusy(false);
+        if (e.status === 401 || e.status === 410) {
+          backToEntry();
+          return;
+        }
+        setDialogError(e.message || fallback);
+      }
     },
-    [handleFieldClick],
+    [backToEntry, envelopeId, navigate],
   );
 
-  if (!envelope) return null;
+  const handleSign = useCallback(async () => {
+    setDialogBusy(true);
+    setDialogError(null);
+    try {
+      // Intent-to-sign lands in the audit chain BEFORE the signed event, and
+      // a failed intent call stops the submit.
+      if (!intentRecorded) {
+        await session.confirmIntentToSign();
+        setIntentRecorded(true);
+      }
+      await session.submit();
+      navigate(`/sign/${envelopeId}/done`, { replace: true });
+    } catch (err) {
+      setDialogBusy(false);
+      if (isAccessCodeRequiredError(err)) {
+        setNeedsActionCode(true);
+        return;
+      }
+      const e = err as ApiErrorLike;
+      if (e.status === 401 || e.status === 410) {
+        backToEntry();
+        return;
+      }
+      setDialogError(e.message || t('signing.sign.finish.errorSubmit'));
+    }
+  }, [backToEntry, envelopeId, intentRecorded, navigate, session, t]);
 
-  // Audit item 6 — mobile collapses the count into the bar label.
-  // The canvas-width hook already runs a resize listener that
-  // re-renders this component whenever the viewport changes class,
-  // so deriving `isMobile` from its returned width keeps both signals
-  // strictly in sync (and avoids a second resize listener).
-  const isMobile = canvasWidth < CANVAS_WIDTH;
-  const pct = requiredCount > 0 ? Math.round((completedRequired / requiredCount) * 100) : 0;
-  const progressLabel = isMobile
-    ? t('signing.fill.progressMobile', {
-        done: completedRequired,
-        total: requiredCount,
-        percent: pct,
-      })
-    : t('signing.fill.progressDesktop', { done: completedRequired, total: requiredCount });
+  const handleSubmitWithCode = useCallback(
+    async (code: string) => {
+      await session.submit(code);
+      navigate(`/sign/${envelopeId}/done`, { replace: true });
+    },
+    [envelopeId, navigate, session],
+  );
 
-  const nextFieldDocument =
-    multiDoc && nextField ? documents.find((d) => d.id === nextField.document_id) : undefined;
+  const menu = useMemo<ReadonlyArray<MenuEntry>>(
+    () => [
+      {
+        id: 'decline',
+        label: t('signing.sign.menu.decline'),
+        icon: XCircle,
+        onSelect: () => setDialog('decline'),
+      },
+      {
+        id: 'not-me',
+        label: t('signing.sign.menu.notMe'),
+        icon: User,
+        onSelect: () => setDialog('notMe'),
+      },
+      { type: 'separator', id: 'sep' },
+      {
+        id: 'withdraw',
+        label: t('signing.sign.menu.withdraw'),
+        icon: Ban,
+        danger: true,
+        onSelect: () => setDialog('withdraw'),
+      },
+    ],
+    [t],
+  );
+
+  if (!envelope || !signer) return null;
+
   const railItems = multiDoc ? summarizeDocuments(documents, allFields, fieldIsFilled) : [];
+  const signatureField = allFields.find(
+    (f) => f.kind === 'signature' && fieldIsFilled(f) && f.value_text,
+  );
+  const sigValue = signatureField?.value_text ?? signer.name;
+  const preview = /^(blob:|data:|https?:\/\/)/.test(sigValue) ? (
+    <img src={sigValue} alt={t('signing.sign.finish.signatureAlt')} />
+  ) : (
+    <SignatureMark name={sigValue} size={44} />
+  );
 
-  // Audit item 5 — mobile fields panel lists every field on the
-  // active page.
-  const activePageFields = fieldsByPage.get(currentPage) ?? [];
+  const tagFor = (kind: SignerFieldKind): string => {
+    if (kind === 'signature') return t('signing.sign.tag.sign');
+    if (kind === 'initials') return t('signing.sign.tag.initial');
+    return t('signing.sign.tag.fill');
+  };
 
   return (
     <Page>
-      <RecipientHeader
-        docTitle={envelope.title}
-        docId={envelope.short_code}
-        stepLabel={t('signing.fill.stepLabel', { done: completedRequired, total: requiredCount })}
-        downloadPdfBusy={downloadBusy}
-        onDownloadPdf={() => {
+      <SignHeader
+        title={envelope.title}
+        senderName={envelope.sender_name}
+        onDownload={() => {
           downloadPdf().catch(() => {
-            /* error surfaced via hook state; intentionally swallowed at
-               the click boundary so React's onClick doesn't see an
-               unhandled rejection (rule 4.4 — one responsibility). */
+            /* surfaced by the hook; swallowed at the click boundary */
           });
         }}
+        downloadBusy={downloadBusy}
+        menu={menu}
       />
-      <ActionBar>
-        <ProgressWrap>
-          <div style={{ flex: 1 }}>
-            <ProgressBar
-              value={completedRequired}
-              max={Math.max(1, requiredCount)}
-              tone={allRequiredFilled ? 'success' : 'indigo'}
-              label={progressLabel}
-            />
-          </div>
-          <ProgressCount>
-            {completedRequired}/{requiredCount}
-          </ProgressCount>
-        </ProgressWrap>
-        <Spacer />
-        <PageToolbar
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPrevPage={() => scrollToPage(Math.max(1, currentPage - 1))}
-          onNextPage={() => scrollToPage(Math.min(totalPages, currentPage + 1))}
-          onJumpToNextZone={nextField ? handleNext : undefined}
-          jumpLabel={t('signing.fill.jumpToNext')}
-          zoom={zoom}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onResetZoom={resetZoom}
-          zoomInDisabled={zoomInDisabled}
-          zoomOutDisabled={zoomOutDisabled}
-        />
-        {/* Audit item 5 — mobile-only Fields toggle. Rendered conditionally
-            on the JS-derived `isMobile` flag rather than via a media-query
-            `display: none` so the control is removed from the
-            accessibility tree entirely on desktop (avoids a confusing
-            "Fields" button that does nothing when no panel exists for
-            desktop). */}
-        {isMobile ? (
-          <FieldsToggle
-            type="button"
-            onClick={() => setFieldsPanelOpen(true)}
-            aria-haspopup="dialog"
-            aria-expanded={fieldsPanelOpen}
-          >
-            <Icon icon={ListChecks} size={14} />
-            {t('signing.fill.fields')}
-          </FieldsToggle>
-        ) : null}
-        <DeclineBtn type="button" onClick={handleDecline} disabled={busy}>
-          {t('signing.fill.decline')}
-        </DeclineBtn>
-        {!isMobile ? (
-          <WithdrawBtn
-            type="button"
-            onClick={handleWithdrawConsent}
-            disabled={busy}
-            title="Withdraw consent to use electronic signatures for this document"
-          >
-            Withdraw consent
-          </WithdrawBtn>
-        ) : null}
-        {/* Audit item 4 — mobile-only kebab opens an overflow sheet
-            (Decline / Withdraw consent / Need help). */}
-        {isMobile ? (
-          <OverflowKebab
-            type="button"
-            aria-label={t('signing.common.moreActions')}
-            aria-haspopup="menu"
-            aria-expanded={overflowMenuOpen}
-            onClick={() => setOverflowMenuOpen(true)}
-          >
-            <Icon icon={MoreVertical} size={18} />
-          </OverflowKebab>
-        ) : null}
-        {!allRequiredFilled && nextField ? (
-          <NextBtn
-            type="button"
-            onClick={handleNext}
-            aria-label={
-              nextFieldDocument
-                ? t('signing.fill.nextFieldAriaDocument', {
-                    label: fieldLabel(nextField, toUiKind(nextField), t),
-                    page: nextField.page,
-                    document: nextFieldDocument.title,
-                  })
-                : t('signing.fill.nextFieldAria', {
-                    label: fieldLabel(nextField, toUiKind(nextField), t),
-                    page: nextField.page,
-                  })
-            }
-          >
-            <Icon icon={ArrowDown} size={14} />
-            {t('signing.fill.nextField')}
-          </NextBtn>
-        ) : null}
-        {allRequiredFilled ? (
-          <ReviewBtn type="button" onClick={handleReviewClick}>
-            <Icon icon={Check} size={14} />
-            {t('signing.fill.review')}
-          </ReviewBtn>
-        ) : null}
-      </ActionBar>
 
       {activeDocument !== undefined ? (
         <DocumentRail
@@ -451,77 +343,101 @@ function Content() {
         />
       ) : null}
 
-      {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
+      <Stage>
+        {error ? (
+          <ErrorSlot>
+            <Banner tone="error">{error}</Banner>
+          </ErrorSlot>
+        ) : null}
 
-      <Center>
-        <CenterScroll ref={scrollAreaRef}>
-          <PagesStack $zoom={zoom}>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
-              const pageFields = fieldsByPage.get(p) ?? [];
-              // Audit item 2 — sort per-page fields by (required, y, x)
-              // so the DOM order matches reading order, which is what
-              // keyboard / AT users rely on for Tab navigation. The
-              // sort is on the rendered slice only — `fieldsByPage`
-              // and downstream state stay untouched.
-              const orderedFields = [...pageFields].sort(compareFieldsForReadingOrder);
-              return (
-                <DocumentPageCanvas
-                  key={p}
-                  pageNum={p}
-                  totalPages={totalPages}
-                  title={activeDocument?.title ?? envelope.title}
-                  pdfSrc={pdfSrc ?? undefined}
-                  width={canvasWidth}
-                >
-                  {orderedFields.map((f) => {
-                    const uiKind = toUiKind(f);
-                    const baseLabel = fieldLabel(f, uiKind, t);
-                    const label = isReadOnly(f)
-                      ? t('signing.fill.readOnly', { label: baseLabel })
-                      : baseLabel;
-                    const width = f.width
-                      ? denormalizeCoord(f.width, canvasWidth)
-                      : DEFAULT_FIELD_W[uiKind];
-                    const height = f.height
-                      ? denormalizeCoord(f.height, canvasHeight)
-                      : DEFAULT_FIELD_H[uiKind];
-                    const x = denormalizeCoord(f.x, canvasWidth);
-                    const y = denormalizeCoord(f.y, canvasHeight);
-                    return (
-                      <SignerField
-                        key={f.id}
-                        kind={uiKind}
-                        label={label}
-                        required={f.required}
-                        active={activeFieldId === f.id}
-                        filled={fieldIsFilled(f)}
-                        value={fieldValue(f)}
-                        x={x}
-                        y={y}
-                        w={width}
-                        h={height}
-                        onActivate={() => {
-                          handleFieldClick(f).catch(() => {
-                            /* surfaced via error state */
-                          });
-                        }}
-                      />
-                    );
-                  })}
-                </DocumentPageCanvas>
-              );
-            })}
-          </PagesStack>
-        </CenterScroll>
-        <RailSlot>
-          <PageThumbRail
-            totalPages={totalPages}
-            currentPage={currentPage}
-            onSelectPage={scrollToPage}
-            fieldCountByPage={fieldCountByPage}
+        {needsConsent ? (
+          <ConsentBar
+            senderName={envelope.sender_name}
+            fieldCount={handFields.length}
+            agreed={agreed}
+            onAgreedChange={setAgreed}
+            onStart={() => {
+              handleStart().catch(() => {
+                /* handled inside */
+              });
+            }}
+            busy={startBusy}
+            disclosureHref="/legal/esign-disclosure"
+            attestation={RECORD_ACCESS_ATTESTATION}
+            error={startError}
           />
-        </RailSlot>
-      </Center>
+        ) : null}
+
+        <Pages>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+            const pageFields = fieldsByPage.get(p) ?? [];
+            return (
+              <DocumentPageCanvas
+                key={p}
+                pageNum={p}
+                totalPages={totalPages}
+                title={activeDocument?.title ?? envelope.title}
+                pdfSrc={pdfSrc ?? undefined}
+                width={canvasWidth}
+              >
+                {[...pageFields].sort(compareFieldsForReadingOrder).map((f: SignMeField) => {
+                  const uiKind = toUiKind(f);
+                  const baseLabel = fieldLabel(f, uiKind, t);
+                  const label = isReadOnly(f)
+                    ? t('signing.fill.readOnly', { label: baseLabel })
+                    : baseLabel;
+                  const width = f.width
+                    ? denormalizeCoord(f.width, canvasWidth)
+                    : DEFAULT_FIELD_W[uiKind];
+                  const height = f.height
+                    ? denormalizeCoord(f.height, canvasHeight)
+                    : DEFAULT_FIELD_H[uiKind];
+                  const value = fieldValue(f);
+                  const isNow = !needsConsent && nowField?.id === f.id;
+                  return (
+                    <SignerField
+                      key={f.id}
+                      kind={uiKind}
+                      label={label}
+                      required={f.required}
+                      active={isNow}
+                      filled={fieldIsFilled(f)}
+                      value={
+                        uiKind === 'date' && typeof value === 'string' ? displayDate(value) : value
+                      }
+                      auto={isAutoField(f)}
+                      autoLabel={t('signing.sign.tag.auto')}
+                      tag={isNow ? tagFor(uiKind) : undefined}
+                      x={denormalizeCoord(f.x, canvasWidth)}
+                      y={denormalizeCoord(f.y, canvasHeight)}
+                      w={width}
+                      h={height}
+                      onActivate={() => {
+                        handleFieldClick(f).catch(() => {
+                          /* surfaced via error state */
+                        });
+                      }}
+                    />
+                  );
+                })}
+              </DocumentPageCanvas>
+            );
+          })}
+        </Pages>
+      </Stage>
+
+      {!needsConsent ? (
+        <SignBar
+          done={handDone}
+          total={handFields.length}
+          optionalLeft={optionalLeft}
+          ready={allRequiredFilled}
+          onNext={() => {
+            if (nowField) goTo(nowField);
+          }}
+          onFinish={() => setDialog('finish')}
+        />
+      ) : null}
 
       {textDrawer !== null && usesMetaDrawer(textDrawer.field) ? (
         <MetaFieldDrawer
@@ -531,9 +447,9 @@ function Content() {
           kind={textDrawer.kind as MetaInputKind}
           meta={textDrawer.field.meta}
           initialValue={textDrawer.field.value_text ?? undefined}
-          signerName={session.signer?.name}
-          dateFormat={envelope?.date_format}
-          timezone={envelope?.timezone}
+          signerName={signer.name}
+          dateFormat={envelope.date_format}
+          timezone={envelope.timezone}
           serverError={drawerError}
           busy={drawerBusy}
           onCancel={closeTextDrawer}
@@ -565,8 +481,8 @@ function Content() {
       <SignatureCapture
         open={sigDrawer !== null}
         kind={sigDrawer?.kind ?? 'signature'}
-        defaultName={session.signer?.name ?? ''}
-        email={session.signer?.email ?? ''}
+        defaultName={signer.name}
+        email={signer.email}
         onCancel={closeSigDrawer}
         onApply={(r) => {
           handleSignatureApply(r).catch(() => {
@@ -575,109 +491,101 @@ function Content() {
         }}
       />
 
-      {/* Audit item 4 — mobile overflow menu (kebab → sheet). */}
-      {overflowMenuOpen ? (
-        <OverflowMenuBackdrop onClick={() => setOverflowMenuOpen(false)}>
-          <OverflowMenuSheet
-            role="menu"
-            aria-label={t('signing.common.moreActions')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <OverflowMenuDanger type="button" role="menuitem" onClick={handleOverflowDecline}>
-              {t('signing.fill.decline')}
-            </OverflowMenuDanger>
-            <OverflowMenuItem type="button" role="menuitem" onClick={handleOverflowWithdraw}>
-              Withdraw consent
-            </OverflowMenuItem>
-            <OverflowMenuItem type="button" role="menuitem" onClick={handleOverflowHelp}>
-              {t('signing.fill.needHelp')}
-            </OverflowMenuItem>
-            <OverflowMenuItem
-              type="button"
-              role="menuitem"
-              onClick={() => setOverflowMenuOpen(false)}
-            >
-              {t('signing.common.cancel')}
-            </OverflowMenuItem>
-          </OverflowMenuSheet>
-        </OverflowMenuBackdrop>
-      ) : null}
+      <FinishSheet
+        open={dialog === 'finish'}
+        onClose={closeDialog}
+        docTitle={envelope.title}
+        signerName={signer.name}
+        signerEmail={signer.email}
+        preview={preview}
+        busy={dialogBusy}
+        error={dialogError}
+        onSign={() => {
+          handleSign().catch(() => {
+            /* handled inside */
+          });
+        }}
+        codeForm={
+          needsActionCode ? (
+            <>
+              <strong>{t('signing.sign.finish.codeTitle')}</strong>
+              <AccessCodeForm
+                purpose="action"
+                emailMasked={maskEmail(signer.email)}
+                submitLabel={t('signing.sign.finish.sign')}
+                onSubmitCode={handleSubmitWithCode}
+              />
+            </>
+          ) : undefined
+        }
+      />
 
-      {/* Audit item 5 — mobile fields panel. */}
-      {fieldsPanelOpen ? (
-        <FieldsPanelBackdrop onClick={() => setFieldsPanelOpen(false)}>
-          <FieldsPanelSheet
-            role="dialog"
-            aria-label={t('signing.common.fieldsOnPage')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <FieldsPanelTitle>{t('signing.common.fieldsOnPage')}</FieldsPanelTitle>
-            {activePageFields
-              .slice()
-              .sort(compareFieldsForReadingOrder)
-              .map((f) => {
-                const uiKind = toUiKind(f);
-                const filled = fieldIsFilled(f);
-                let tone: 'filled' | 'required' | 'optional' = 'optional';
-                if (filled) tone = 'filled';
-                else if (f.required) tone = 'required';
-                let toneLabel = t('signing.fill.toneOptional');
-                if (tone === 'filled') toneLabel = t('signing.fill.toneFilled');
-                else if (tone === 'required') toneLabel = t('signing.fill.toneRequired');
-                const label = fieldLabel(f, uiKind, t);
-                return (
-                  <FieldsPanelItem
-                    key={f.id}
-                    type="button"
-                    onClick={() => handleFieldsPanelSelect(f)}
-                  >
-                    <span>{label}</span>
-                    <FieldsPanelStatus $tone={tone}>{toneLabel}</FieldsPanelStatus>
-                  </FieldsPanelItem>
-                );
-              })}
-          </FieldsPanelSheet>
-        </FieldsPanelBackdrop>
-      ) : null}
+      <DeclineSheet
+        open={dialog === 'decline'}
+        onClose={closeDialog}
+        senderName={envelope.sender_name}
+        busy={dialogBusy}
+        error={dialogError}
+        onConfirm={(reason) => {
+          runTerminal(
+            () => session.decline(reason),
+            'declined',
+            t('signing.sign.decline.error'),
+          ).catch(() => {
+            /* handled inside */
+          });
+        }}
+      />
 
-      {/* Audit item 9 — optional-fields review prompt. */}
-      {optionalPromptOpen ? (
-        <OptionalDialogBackdrop onClick={() => setOptionalPromptOpen(false)}>
-          <OptionalDialogCard
-            role="dialog"
-            aria-label={t('signing.fill.optionalBlankTitle')}
-            aria-modal="true"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <OptionalDialogTitle>{t('signing.fill.optionalBlankTitle')}</OptionalDialogTitle>
-            <OptionalDialogBody>
-              {t(
-                optionalStats.remaining === 1
-                  ? 'signing.fill.optionalBodyOne'
-                  : 'signing.fill.optionalBodyMany',
-                { count: optionalStats.remaining },
-              )}
-            </OptionalDialogBody>
-            <OptionalDialogFooter>
-              <OptionalSecondaryBtn type="button" onClick={handleOptionalGoFill}>
-                {t('signing.fill.fillNow')}
-              </OptionalSecondaryBtn>
-              <OptionalPrimaryBtn type="button" onClick={handleOptionalContinue}>
-                {t('signing.fill.continueToReview')}
-              </OptionalPrimaryBtn>
-            </OptionalDialogFooter>
-          </OptionalDialogCard>
-        </OptionalDialogBackdrop>
-      ) : null}
+      <ConfirmSheet
+        open={dialog === 'notMe'}
+        onClose={closeDialog}
+        title={t('signing.sign.notMe.title')}
+        confirmLabel={t('signing.sign.notMe.confirm')}
+        cancelLabel={t('signing.sign.notMe.cancel')}
+        busy={dialogBusy}
+        error={dialogError}
+        onConfirm={() => {
+          runTerminal(
+            () => session.decline('not-the-recipient'),
+            'declined',
+            t('signing.sign.decline.error'),
+          ).catch(() => {
+            /* handled inside */
+          });
+        }}
+      >
+        {t('signing.sign.notMe.body')}
+      </ConfirmSheet>
+
+      <ConfirmSheet
+        open={dialog === 'withdraw'}
+        onClose={closeDialog}
+        title={t('signing.sign.withdraw.title')}
+        confirmLabel={t('signing.sign.withdraw.confirm')}
+        cancelLabel={t('signing.sign.withdraw.keep')}
+        busy={dialogBusy}
+        error={dialogError}
+        onConfirm={() => {
+          runTerminal(
+            () => session.withdrawConsent(),
+            'declined',
+            t('signing.sign.withdraw.error'),
+          ).catch(() => {
+            /* handled inside */
+          });
+        }}
+      >
+        {t('signing.sign.withdraw.body')}
+      </ConfirmSheet>
     </Page>
   );
 }
 
 /**
- * `/sign/:envelopeId/fill` — multi-page document view with absolute-positioned
- * fields the recipient taps to fill. Handles every field kind via either a
- * text drawer (text / email / date / name), signature capture sheet (signature
- * / initials), or in-place toggle (checkbox).
+ * `/sign/:envelopeId/fill` — the whole signing flow on the document: the
+ * consent bar, guided fields (Next), the signature sheet, and the Finish
+ * confirmation. Name and date are filled in for the signer.
  */
 export function SigningFillPage() {
   const params = useParams<{ readonly envelopeId: string }>();

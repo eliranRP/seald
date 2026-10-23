@@ -32,13 +32,14 @@ const SAMPLE_PDF_BYTES: Buffer = readFileSync(resolve(FIXTURES_DIR, './sample-1p
  * itself is hardcoded per shape (no `Date.now()` churn) so snapshots stay
  * deterministic.
  */
-export type SignedEnvelopeShape = 'happy' | 'declined' | 'expired' | 'burned';
+export type SignedEnvelopeShape = 'happy' | 'declined' | 'expired' | 'signed' | 'invalid';
 
 const ENVELOPE_IDS: Record<SignedEnvelopeShape, string> = {
   happy: 'env_test_happy',
   declined: 'env_test_declined',
   expired: 'env_test_expired',
-  burned: 'env_test_burned',
+  signed: 'env_test_signed',
+  invalid: 'env_test_invalid',
 };
 
 const FIXED_NOW_ISO = '2026-04-25T10:00:00Z';
@@ -54,6 +55,7 @@ function buildSignMeResponse(envelopeId: string, status: 'awaiting' | 'declined'
       expires_at: '2026-05-25T10:00:00Z',
       tc_version: 'tc-2026-04',
       privacy_version: 'pp-2026-04',
+      sender_name: 'Eliran Azulay',
     },
     signer: {
       id: 'signer_bob',
@@ -105,13 +107,15 @@ export class SignedEnvelopeFixture {
     const envelopeId = ENVELOPE_IDS[shape];
     this.activeId = envelopeId;
 
-    if (shape === 'expired' || shape === 'burned') {
-      // The entry page POSTs `/sign/start`; respond 410 to land the user on
-      // the "burned link" copy (the SPA maps 401/409/410 → "burned").
-      this.api.on('POST', /\/sign\/start$/, {
-        status: 410,
-        json: { error: shape === 'expired' ? 'expired' : 'burned' },
-      });
+    if (shape === 'expired' || shape === 'signed' || shape === 'invalid') {
+      // The entry page POSTs `/sign/start`; the refusal carries a machine
+      // `reason` that picks the link-state screen (`/sign/:id/link/:state`).
+      const refusal = {
+        expired: { status: 410, json: { error: 'envelope_terminal', reason: 'expired' } },
+        signed: { status: 409, json: { error: 'already_signed', reason: 'already_signed' } },
+        invalid: { status: 401, json: { error: 'invalid_token' } },
+      }[shape];
+      this.api.on('POST', /\/sign\/start$/, refusal);
       return envelopeId;
     }
 
@@ -127,15 +131,12 @@ export class SignedEnvelopeFixture {
       json: buildSignMeResponse(envelopeId, shape === 'declined' ? 'declined' : 'awaiting'),
     });
     this.api.on('POST', /\/sign\/accept-terms$/, { status: 204 });
-    // T-14: prep page also POSTs /sign/esign-disclosure when the user
-    // ticks the Consumer Disclosure ack + ESIGN demonstrated-ability
-    // checkboxes and clicks "Start signing".
+    // T-14: Start on the consent bar also POSTs /sign/esign-disclosure.
     this.api.on('POST', /\/sign\/esign-disclosure$/, { status: 204 });
-    // T-15: review page POSTs /sign/intent-to-sign immediately before
-    // /sign/submit when the user ticks the intent-to-sign checkbox and
-    // clicks "Sign and submit".
+    // T-15: the Finish sheet POSTs /sign/intent-to-sign immediately before
+    // /sign/submit when the user presses Sign.
     this.api.on('POST', /\/sign\/intent-to-sign$/, { status: 204 });
-    // T-16: prep page exposes a "Withdraw consent" link that POSTs
+    // T-16: the More menu exposes "Withdraw consent" that POSTs
     // /sign/withdraw-consent. Mock it so any future declined-via-
     // withdrawal scenarios don't 404 against the network filter.
     this.api.on('POST', /\/sign\/withdraw-consent$/, {

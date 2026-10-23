@@ -13,19 +13,19 @@ Feature: Recipient signs from a phone-sized viewport
     Then the signing-done page is shown
 
   @signer @smoke
-  Scenario: The bottom-sheet Apply button stays reachable on a phone
+  Scenario: The signature sheet Sign button stays reachable on a phone
     # Regression for the iOS-keyboard / safe-area bug — the bottom sheet
     # used to put its footer below the visual viewport, leaving the user
     # with no way to commit a typed value or dismiss the modal.
     Given the viewport is set to a 375x667 phone
-    When the recipient opens the signing link and lands on the prep page
-    And the recipient agrees and continues to fill
+    When the recipient opens the signing link and lands on the document
+    And the recipient agrees and starts
     And the recipient opens the signature sheet
-    Then the sheet "Apply" button is visible inside the viewport
+    Then the sheet "Sign" button is visible inside the viewport
 
   @signer @smoke @mobile
   Scenario: Mobile recipient signs a real PDF end-to-end at 375x667
-    # Proves the signer flow (entry → prep → fill → review → done) is
+    # Proves the signer flow (entry → fill → done) is
     # usable on a phone-sized viewport WITH a real parseable PDF served
     # at /pdf-fixture.pdf. Earlier the stub `%PDF-1.4...` masked any
     # canvas regression because pdf.js never reached the loaded state.

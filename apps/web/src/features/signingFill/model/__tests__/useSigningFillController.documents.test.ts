@@ -15,6 +15,8 @@ function makeField(
 
 const session: {
   fields: SignMeField[];
+  documents: Array<{ id: string; ord: number; title: string; original_pages: number }>;
+  signer: { name: string; email: string };
   nextField: SignMeField | null;
   fillField: ReturnType<typeof vi.fn>;
   setSignature: ReturnType<typeof vi.fn>;
@@ -22,6 +24,11 @@ const session: {
   withdrawConsent: ReturnType<typeof vi.fn>;
 } = {
   fields: [],
+  documents: [
+    { id: 'doc-a', ord: 0, title: 'A', original_pages: 3 },
+    { id: 'doc-b', ord: 1, title: 'B', original_pages: 3 },
+  ],
+  signer: { name: 'Maya Raskin', email: 'maya@example.com' },
   nextField: null,
   fillField: vi.fn(),
   setSignature: vi.fn(),
@@ -82,7 +89,7 @@ describe('useSigningFillController across documents', () => {
     );
 
     act(() => {
-      result.current.handleNext();
+      result.current.goTo(session.nextField!);
     });
     // The switch is requested first; no scroll happens against the wrong document.
     expect(onActiveDocumentChange).toHaveBeenCalledWith('doc-b');
@@ -109,7 +116,7 @@ describe('useSigningFillController across documents', () => {
       }),
     );
     act(() => {
-      result.current.handleNext();
+      result.current.goTo(session.nextField!);
     });
     expect(onActiveDocumentChange).not.toHaveBeenCalled();
     expect(scrolledPages).toEqual([3]);
@@ -145,7 +152,7 @@ describe('useSigningFillController across documents', () => {
     session.nextField = session.fields[0]!;
     const { result } = renderHook(() => useSigningFillController({ envelopeId: 'env-1' }));
     act(() => {
-      result.current.handleNext();
+      result.current.goTo(session.nextField!);
     });
     expect(scrolledPages).toEqual([4]);
   });

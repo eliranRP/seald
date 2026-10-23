@@ -26,6 +26,7 @@ export {
   submit,
   decline,
   getPdfSignedUrl,
+  requestNewLink,
 } from './signingApi';
 export type {
   FieldKind,
@@ -52,3 +53,13 @@ export { useSealedDownload, SEALED_DOWNLOAD_KEY } from './useSealedDownload';
 export { safeDownloadName } from './safeDownloadName';
 export { reportSignerEvent, setSignerReporter } from './telemetry';
 export type { SignerEvent, SignerReporter } from './telemetry';
+export {
+  LINK_STATE_KEYS,
+  isLinkStateKey,
+  linkStateFor,
+  stashLinkHints,
+  readLinkHints,
+  clearLinkHints,
+  hintsFromError,
+} from './linkState';
+export type { LinkHints, LinkStateKey } from './linkState';

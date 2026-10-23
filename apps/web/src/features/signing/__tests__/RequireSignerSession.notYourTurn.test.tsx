@@ -22,7 +22,7 @@ describe('RequireSignerSession (signing order)', () => {
       path: '/sign/:envelopeId/fill',
     });
     expect(
-      await screen.findByRole('heading', { name: /not your turn to sign yet/i }, { timeout: 4000 }),
+      await screen.findByRole('heading', { name: /not your turn yet/i }, { timeout: 4000 }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
   });
@@ -33,7 +33,7 @@ describe('RequireSignerSession (signing order)', () => {
       initialEntry: `/sign/${MOCK_ENVELOPE_ID}/fill`,
       path: '/sign/:envelopeId/fill',
     });
-    await screen.findByRole('heading', { name: /not your turn to sign yet/i }, { timeout: 4000 });
+    await screen.findByRole('heading', { name: /not your turn yet/i }, { timeout: 4000 });
     await new Promise((resolve) => setTimeout(resolve, 1500));
     expect(get).toHaveBeenCalledTimes(1);
   });

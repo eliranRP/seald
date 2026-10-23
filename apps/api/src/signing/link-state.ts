@@ -22,17 +22,19 @@ export function terminalReason(
 
 /** Extra fields a link-state screen shows: the sender's name, and when the signer signed. */
 function hints(
-  envelope: Pick<Envelope, 'sender_name'>,
+  envelope: Pick<Envelope, 'sender_name' | 'short_code'>,
   signer?: Pick<EnvelopeSigner, 'signed_at'>,
-): { sender_name?: string; signed_at?: string } {
+): { sender_name?: string; signed_at?: string; short_code?: string } {
   return {
     ...(envelope.sender_name ? { sender_name: envelope.sender_name } : {}),
-    ...(signer?.signed_at ? { signed_at: signer.signed_at } : {}),
+    // A signer who already signed can come back for the sealed copy: the
+    // public verify code is how the page finds it.
+    ...(signer?.signed_at ? { signed_at: signer.signed_at, short_code: envelope.short_code } : {}),
   };
 }
 
 export function terminalGone(
-  envelope: Pick<Envelope, 'status' | 'sender_name'>,
+  envelope: Pick<Envelope, 'status' | 'sender_name' | 'short_code'>,
   signer: Pick<EnvelopeSigner, 'signed_at' | 'declined_at'>,
 ): GoneException {
   return new GoneException({
@@ -44,7 +46,7 @@ export function terminalGone(
 
 /** 409 for a signer who already signed (`already_signed`) or declined (`declined`). */
 export function alreadyActed(
-  envelope: Pick<Envelope, 'sender_name'>,
+  envelope: Pick<Envelope, 'sender_name' | 'short_code'>,
   signer: Pick<EnvelopeSigner, 'signed_at' | 'declined_at'>,
 ): ConflictException {
   const signed = signer.signed_at !== null;
@@ -66,7 +68,7 @@ function waitingOn(envelope: Pick<Envelope, 'signers'>): string | undefined {
 }
 
 export function notYourTurn(
-  envelope: Pick<Envelope, 'signers' | 'sender_name'>,
+  envelope: Pick<Envelope, 'signers' | 'sender_name' | 'short_code'>,
 ): ConflictException {
   const waiting = waitingOn(envelope);
   return new ConflictException({

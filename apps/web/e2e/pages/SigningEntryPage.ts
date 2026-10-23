@@ -5,25 +5,24 @@ export class SigningEntryPage {
 
   async goto(envelopeId: string, token = 'tok_test'): Promise<void> {
     // Entry POSTs /sign/start with `{ envelope_id, token }` and redirects
-    // to /prep on success. The mock accepts any token; we just need a
+    // to /fill on success. The mock accepts any token; we just need a
     // non-empty `?t=` to avoid the "invalid" branch in the real component.
     await this.page.goto(`/sign/${envelopeId}?t=${token}`);
   }
 
   async expectVisible(): Promise<void> {
-    await expect(this.page.getByText(/opening your document|signing link/i)).toBeVisible();
+    await expect(this.page.getByText(/opening your document|link not valid/i)).toBeVisible();
   }
 
   async startSigning(): Promise<void> {
-    // Entry auto-redirects to /prep on success — no button to click.
-    await this.page.waitForURL(/\/sign\/[^/]+\/prep/);
+    // Entry auto-redirects to the document (fill) on success; the consent
+    // bar waits there. No button to click.
+    await this.page.waitForURL(/\/sign\/[^/]+\/fill/);
   }
 
-  async expectErrorState(label: RegExp): Promise<void> {
-    // Both 'expired' and 'burned' map to the "already been used" copy.
-    await expect(this.page.getByText(/already been used|signing link is invalid/i)).toBeVisible();
-    // Defensive: the test-passed regex is the one Cucumber threads
-    // through, so still respect it as a no-op match against the page.
-    void label;
+  /** A refused link lands on `/sign/:id/link/:state` with its own heading. */
+  async expectLinkState(heading: RegExp): Promise<void> {
+    await expect(this.page).toHaveURL(/\/sign\/[^/]+\/link\//);
+    await expect(this.page.getByRole('heading', { name: heading })).toBeVisible();
   }
 }

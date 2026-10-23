@@ -191,14 +191,17 @@ export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOpti
     mutationFn: (accessCode) => api.submit(accessCode),
     onSuccess: () => {
       const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
+      const others = me?.other_signers ?? [];
       writeDoneSnapshot({
         kind: 'submitted',
         envelope_id: envelopeId,
         short_code: me?.envelope.short_code ?? '',
         title: me?.envelope.title ?? '',
-        sender_name: opts.senderName,
+        sender_name: opts.senderName ?? me?.envelope.sender_name ?? null,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
+        total_count: others.length + 1,
+        signed_count: others.filter((o) => o.status === 'completed').length + 1,
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.submitted', envelope_id: envelopeId });
@@ -223,10 +226,11 @@ export function useDeclineMutation(envelopeId: string, opts: TerminalMutationOpt
         envelope_id: envelopeId,
         short_code: me?.envelope.short_code ?? '',
         title: me?.envelope.title ?? '',
-        sender_name: opts.senderName,
+        sender_name: opts.senderName ?? me?.envelope.sender_name ?? null,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
         decline_reason: declineReason,
+        ...(declineReason === 'declined' && reason ? { reason_text: reason } : {}),
       });
       qc.removeQueries({ queryKey: SIGN_ME_KEY(envelopeId) });
       reportSignerEvent({ type: 'sign.declined', envelope_id: envelopeId });
@@ -274,7 +278,7 @@ export function useWithdrawConsentMutation(envelopeId: string, opts: TerminalMut
         envelope_id: envelopeId,
         short_code: me?.envelope.short_code ?? '',
         title: me?.envelope.title ?? '',
-        sender_name: opts.senderName,
+        sender_name: opts.senderName ?? me?.envelope.sender_name ?? null,
         recipient_email: me?.signer.email ?? '',
         timestamp: new Date().toISOString(),
         // Item 23 — discriminate ESIGN §7001(c)(1) consent withdrawal

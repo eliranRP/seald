@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
@@ -63,14 +63,11 @@ const IntegrationsPage = lazy(() =>
 const SigningEntryPage = lazy(() =>
   import('./pages/SigningEntryPage').then((m) => ({ default: m.SigningEntryPage })),
 );
-const SigningPrepPage = lazy(() =>
-  import('./pages/SigningPrepPage').then((m) => ({ default: m.SigningPrepPage })),
-);
 const SigningFillPage = lazy(() =>
   import('./pages/SigningFillPage').then((m) => ({ default: m.SigningFillPage })),
 );
-const SigningReviewPage = lazy(() =>
-  import('./pages/SigningReviewPage').then((m) => ({ default: m.SigningReviewPage })),
+const SigningLinkPage = lazy(() =>
+  import('./pages/SigningLinkPage').then((m) => ({ default: m.SigningLinkPage })),
 );
 const SigningDonePage = lazy(() =>
   import('./pages/SigningDonePage').then((m) => ({ default: m.SigningDonePage })),
@@ -127,6 +124,12 @@ const MobileIntegrationsPage = lazy(() =>
  * signer-scoped error boundary. Recipients only download signing modules
  * on demand; render-time errors don't drag the sender app down with them.
  */
+/** `/sign/:id/prep` and `/review` no longer exist: send the old links to `/fill`. */
+function SigningStepRedirect() {
+  const { envelopeId } = useParams<{ readonly envelopeId: string }>();
+  return <Navigate to={`/sign/${envelopeId ?? ''}/fill`} replace />;
+}
+
 function SigningRouteRoot() {
   return (
     <SigningErrorBoundary>
@@ -242,16 +245,18 @@ export function AppRoutes() {
         />
       </Route>
 
-      {/* Public recipient signing flow. Entry, done, and declined are
-          accessible without a live session; prep / fill / review require the
-          `seald_sign` cookie set by /sign/start. */}
+      {/* Public recipient signing flow. Entry, link states, done, and declined
+          are accessible without a live session; fill requires the `seald_sign`
+          cookie set by /sign/start. The old prep and review steps are folded
+          into fill (consent bar, Finish sheet), so they redirect there. */}
       <Route element={<SigningRouteRoot />}>
         <Route path="/sign/:envelopeId" element={<SigningEntryPage />} />
         <Route element={<RequireSignerSession />}>
-          <Route path="/sign/:envelopeId/prep" element={<SigningPrepPage />} />
           <Route path="/sign/:envelopeId/fill" element={<SigningFillPage />} />
-          <Route path="/sign/:envelopeId/review" element={<SigningReviewPage />} />
         </Route>
+        <Route path="/sign/:envelopeId/prep" element={<SigningStepRedirect />} />
+        <Route path="/sign/:envelopeId/review" element={<SigningStepRedirect />} />
+        <Route path="/sign/:envelopeId/link/:state" element={<SigningLinkPage />} />
         <Route path="/sign/:envelopeId/done" element={<SigningDonePage />} />
         <Route path="/sign/:envelopeId/declined" element={<SigningDeclinedPage />} />
       </Route>
