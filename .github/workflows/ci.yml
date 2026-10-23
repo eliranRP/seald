@@ -159,6 +159,10 @@ jobs:
       - name: Lint workspace
         run: pnpm -r lint
 
+      # WP-39: every t() key exists in the en catalog and no catalog key is dead.
+      - name: i18n catalog check
+        run: pnpm i18n:check
+
   # ---------------------------------------------------------------
   # Dependency audit — fail the pipeline on any high-or-critical
   # advisory in production deps. Dev-only advisories don't block.
