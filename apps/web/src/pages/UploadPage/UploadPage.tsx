@@ -484,6 +484,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                   icon={<GDriveLogo size={20} />}
                   label="Google Drive"
                   {...(!isMobile ? { meta: onPickDrive ? 'Docs, Word' : 'Connect' } : {})}
+                  {...(onPickDrive ? {} : { action: true, 'aria-label': 'Connect Google Drive' })}
                   stacked={isMobile}
                   onClick={driveHandler}
                 />

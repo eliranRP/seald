@@ -9,4 +9,6 @@ export interface SourceTileProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   readonly selected?: boolean | undefined;
   /** Icon above the label (phones). */
   readonly stacked?: boolean | undefined;
+  /** A one-off action (e.g. "Connect Google Drive"): a plain button, not a radio. */
+  readonly action?: boolean | undefined;
 }

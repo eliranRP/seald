@@ -20,16 +20,16 @@ function renderIcon(icon: LucideIcon | ReactNode): ReactNode {
 /**
  * One choice of where a document comes from (Upload, Template, Drive).
  * A radio inside a radiogroup: the parent supplies `role="radiogroup"`.
+ * With `action`, it is a plain button that starts a one-off action.
  */
 export const SourceTile = forwardRef<HTMLButtonElement, SourceTileProps>((props, ref) => {
-  const { icon, label, meta, selected = false, stacked = false, ...rest } = props;
+  const { icon, label, meta, selected = false, stacked = false, action = false, ...rest } = props;
   return (
     <Tile
       {...rest}
       ref={ref}
       type="button"
-      role="radio"
-      aria-checked={selected}
+      {...(action ? {} : { role: 'radio', 'aria-checked': selected })}
       $selected={selected}
       $stacked={stacked}
     >

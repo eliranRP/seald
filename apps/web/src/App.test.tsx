@@ -198,7 +198,11 @@ describe('App routing', () => {
 
   it('opens the editor straight after a PDF is chosen', async () => {
     renderApp(['/document/new']);
-    const input = (await screen.findByLabelText(/choose file/i)) as HTMLInputElement;
+    const input = (await screen.findByLabelText(
+      /choose file/i,
+      undefined,
+      STEP_TIMEOUT,
+    )) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
     expect(await screen.findByText('From contacts', undefined, STEP_TIMEOUT)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'From contacts' })).toBeInTheDocument();

@@ -25,6 +25,16 @@ describe('SourceTile', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it('is a plain button when it starts an action', () => {
+    const { getByRole, queryByRole } = renderWithTheme(
+      <SourceTile icon={FileUp} label="Google Drive" action aria-label="Connect Google Drive" />,
+    );
+    expect(getByRole('button', { name: 'Connect Google Drive' })).not.toHaveAttribute(
+      'aria-checked',
+    );
+    expect(queryByRole('radio')).toBeNull();
+  });
+
   it('has no axe violations', async () => {
     const { container } = renderWithTheme(
       <div role="radiogroup" aria-label="Source">

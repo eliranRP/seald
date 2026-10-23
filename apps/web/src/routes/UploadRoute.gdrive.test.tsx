@@ -130,7 +130,7 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     mockAccounts(false);
     connectMutateMock.mockClear();
     renderRoute();
-    const cta = screen.getByRole('radio', { name: /google drive/i });
+    const cta = screen.getByRole('button', { name: /connect google drive/i });
     expect(cta).toBeEnabled();
     expect(cta.getAttribute('title')).toBeNull();
     // Not connected: the tile says "Connect" so the user is not misled
