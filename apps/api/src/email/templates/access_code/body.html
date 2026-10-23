@@ -1,0 +1,105 @@
+<div class="wrap">
+  <div class="card">
+    <div class="accent accent-indigo"></div>
+    <table
+      role="presentation"
+      class="masthead"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
+    >
+      <tr>
+        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
+          <span
+            style="
+              display: inline-block;
+              width: 28px;
+              height: 28px;
+              border-radius: 7px;
+              background: #4f46e5;
+              color: #ffffff;
+              font-family: Georgia, 'Source Serif 4', serif;
+              font-weight: 600;
+              font-size: 16px;
+              text-align: center;
+              line-height: 28px;
+              vertical-align: middle;
+              text-decoration: none;
+            "
+            >S</span
+          >
+        </td>
+        <td
+          style="
+            padding: 20px 28px 20px 10px;
+            vertical-align: middle;
+            font-family:
+              Source Serif 4,
+              Georgia,
+              serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #0b1220;
+            letter-spacing: -0.01em;
+          "
+        >
+          Seald
+        </td>
+      </tr>
+    </table>
+    <div class="body">
+      <span class="kicker">One-time code</span>
+      <h1>Your code for <em>{{envelope_title}}</em></h1>
+      <p class="from-line">
+        Sent by
+        <b style="display: inline-block; color: #0b1220; font-weight: 600; text-decoration: none"
+          >{{sender_name}}</b
+        >
+      </p>
+      <table
+        role="presentation"
+        cellspacing="0"
+        cellpadding="0"
+        border="0"
+        style="
+          margin: 22px 0 10px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 12px;
+          border-collapse: separate;
+        "
+      >
+        <tr>
+          <td style="padding: 16px 24px">
+            <span
+              style="
+                font-family: SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 30px;
+                font-weight: 600;
+                letter-spacing: 0.3em;
+                color: #0b1220;
+                text-decoration: none;
+              "
+              >{{code}}</span
+            >
+          </td>
+        </tr>
+      </table>
+      <p>
+        {{purpose_line}} The code works once and expires in
+        <span style="color: #1f2937; text-decoration: none">{{expires_minutes}}</span> minutes.
+      </p>
+      <p class="muted">
+        Didn't ask for this code? You can ignore this email. Never share the code with anyone,
+        including someone who says they work for Seald.
+      </p>
+    </div>
+    <div class="foot">
+      <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
+      <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
+      <a href="{{preferences_url}}">Questions about these emails</a>
+    </div>
+  </div>
+</div>

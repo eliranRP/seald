@@ -82,7 +82,10 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
   it('accepts minimal test env with all phase 3 defaults applied', () => {
     const env = parseEnv(minimalTest);
     expect(env.EMAIL_PROVIDER).toBe('logging');
-    expect(env.PDF_SIGNING_PROVIDER).toBe('local');
+    // No default since WP-01 (rule S.1): unset means NoopPadesSigner,
+    // which SealingModule refuses in production without the escape hatch.
+    expect(env.PDF_SIGNING_PROVIDER).toBeUndefined();
+    expect(env.PDF_SIGNING_ALLOW_NOOP).toBeUndefined();
     expect(env.STORAGE_BUCKET).toBe('envelopes');
     expect(env.TC_VERSION).toBe('2026-09-30.2');
     expect(env.PRIVACY_VERSION).toBe('2026-09-30.3');
@@ -151,6 +154,7 @@ describe('env.schema — Phase 3 envelopes extensions', () => {
         CORS_ORIGIN: 'https://seald.app',
         SIGNER_SESSION_SECRET: '0'.repeat(64),
         CRON_SECRET: '1'.repeat(64),
+        PDF_SIGNING_PROVIDER: 'local',
       }),
     ).toThrow(/PDF_SIGNING_LOCAL_P12/);
   });
@@ -242,6 +246,32 @@ describe('env.schema — WORKER_ENABLED', () => {
   it('rejects garbage with a clear message', () => {
     expect(() => parseEnv({ ...base, WORKER_ENABLED: 'yes' })).toThrow(
       /WORKER_ENABLED: must be a boolean string: "true", "false", "1", or "0"/,
+    );
+  });
+});
+
+describe('env.schema — PDF_SIGNING_ALLOW_NOOP (WP-01, rule S.1)', () => {
+  const base = {
+    NODE_ENV: 'test',
+    SUPABASE_URL: 'https://example.supabase.co',
+    SUPABASE_JWT_AUDIENCE: 'authenticated',
+    CORS_ORIGIN: 'http://localhost:5173',
+    APP_PUBLIC_URL: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://u:p@host:5432/db',
+  };
+
+  it('parses "true" / "1" as true and "false" / "0" as false', () => {
+    expect(parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: 'true' }).PDF_SIGNING_ALLOW_NOOP).toBe(true);
+    expect(parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: '1' }).PDF_SIGNING_ALLOW_NOOP).toBe(true);
+    expect(parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: 'false' }).PDF_SIGNING_ALLOW_NOOP).toBe(
+      false,
+    );
+    expect(parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: '0' }).PDF_SIGNING_ALLOW_NOOP).toBe(false);
+  });
+
+  it('rejects garbage with a clear message', () => {
+    expect(() => parseEnv({ ...base, PDF_SIGNING_ALLOW_NOOP: 'yes' })).toThrow(
+      /PDF_SIGNING_ALLOW_NOOP: must be a boolean string/,
     );
   });
 });

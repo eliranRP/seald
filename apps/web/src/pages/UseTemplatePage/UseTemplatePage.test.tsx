@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import * as sharedModule from 'shared';
 
 // Mock the templates API before the page imports it so the autosave
 // path's PATCH /templates/:id call is observable without hitting the
@@ -12,6 +13,7 @@ vi.mock('../../features/templates/templatesApi', async (importOriginal) => {
   return {
     ...actual,
     updateTemplate: vi.fn(async () => ({}) as unknown as ReturnType<typeof actual.updateTemplate>),
+    applyTemplate: vi.fn(async () => []),
   };
 });
 
@@ -23,9 +25,13 @@ import { UseTemplatePage } from './UseTemplatePage';
 import { setTemplates } from '../../features/templates';
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import { renderWithProviders } from '../../test/renderWithProviders';
-import { updateTemplate as apiUpdateTemplate } from '../../features/templates/templatesApi';
+import {
+  applyTemplate as apiApplyTemplate,
+  updateTemplate as apiUpdateTemplate,
+} from '../../features/templates/templatesApi';
 
 const updateTemplateMock = apiUpdateTemplate as unknown as ReturnType<typeof vi.fn>;
+const applyTemplateMock = apiApplyTemplate as unknown as ReturnType<typeof vi.fn>;
 
 // Production seed is empty; tests inject fixtures into the module store
 // so `findTemplateById` (called during page render) returns the right
@@ -33,6 +39,8 @@ const updateTemplateMock = apiUpdateTemplate as unknown as ReturnType<typeof vi.
 beforeEach(() => {
   setTemplates(TEMPLATES);
   updateTemplateMock.mockClear();
+  applyTemplateMock.mockReset();
+  applyTemplateMock.mockResolvedValue([]);
 });
 afterEach(() => {
   setTemplates([]);
@@ -40,7 +48,12 @@ afterEach(() => {
 
 function LocationProbe() {
   const location = useLocation();
-  return <div data-testid="probe">{`${location.pathname}${location.search}`}</div>;
+  return (
+    <>
+      <div data-testid="probe">{`${location.pathname}${location.search}`}</div>
+      <output aria-label="handoff state">{JSON.stringify(location.state ?? null)}</output>
+    </>
+  );
 }
 
 function renderAt(initialPath: string) {
@@ -107,9 +120,52 @@ describe('UseTemplatePage — Document → Signers → Editor flow', () => {
     await userEvent.type(screen.getByPlaceholderText(/search contacts/i), 'guest@example.com');
     await userEvent.click(await screen.findByRole('button', { name: /add .* as guest signer/i }));
     await userEvent.click(screen.getByRole('button', { name: /continue to fields/i }));
-    expect(screen.getByTestId('probe').textContent).toBe(
-      `/templates/${encodeURIComponent(SAMPLE.id)}/edit`,
+    await waitFor(() =>
+      expect(screen.getByTestId('probe').textContent).toBe(
+        `/templates/${encodeURIComponent(SAMPLE.id)}/edit`,
+      ),
     );
+  });
+
+  async function continueToFieldsWithGuest(): Promise<void> {
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    await userEvent.click(screen.getByRole('button', { name: /^continue$/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^add signer$/i }));
+    await userEvent.type(screen.getByPlaceholderText(/search contacts/i), 'guest@example.com');
+    await userEvent.click(await screen.findByRole('button', { name: /add .* as guest signer/i }));
+    await userEvent.click(screen.getByRole('button', { name: /continue to fields/i }));
+  }
+
+  it('Step 2 → Step 3: asks the API to expand the layout and hands the fields to the editor', async () => {
+    const expanded = [{ id: 'tpl-f1', page: 6, type: 'signature', x: 10, y: 20 }];
+    applyTemplateMock.mockResolvedValue(expanded);
+    await continueToFieldsWithGuest();
+    const state = await screen.findByRole('status', { name: /handoff state/i });
+    await waitFor(() => {
+      const handoff = JSON.parse(state.textContent ?? 'null') as {
+        templateFields?: unknown;
+        templateFieldsPages?: number;
+        templateSigners?: ReadonlyArray<{ email: string }>;
+      };
+      expect(handoff.templateFields).toEqual(expanded);
+      expect(handoff.templateFieldsPages).toBe(SAMPLE.pages);
+      expect(handoff.templateSigners?.[0]?.email).toBe('guest@example.com');
+    });
+    expect(applyTemplateMock).toHaveBeenCalledWith(SAMPLE.id, SAMPLE.pages);
+  });
+
+  it('Step 2 → Step 3: still reaches the editor, without fields, when the apply call fails', async () => {
+    applyTemplateMock.mockRejectedValue(new Error('network'));
+    await continueToFieldsWithGuest();
+    await waitFor(() =>
+      expect(screen.getByTestId('probe').textContent).toBe(
+        `/templates/${encodeURIComponent(SAMPLE.id)}/edit`,
+      ),
+    );
+    const state = screen.getByRole('status', { name: /handoff state/i });
+    const handoff = JSON.parse(state.textContent ?? 'null') as Record<string, unknown>;
+    expect(handoff.templateFields).toBeUndefined();
+    expect(handoff.templateSigners).toBeDefined();
   });
 
   it('Step 1: switching to "Upload a new one" reveals the dropzone', async () => {
@@ -309,5 +365,34 @@ describe('UseTemplatePage — debounced title autosave', () => {
     await user.type(input, 'Whatever');
     vi.advanceTimersByTime(600);
     expect(updateTemplateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('UseTemplatePage — bulk send entry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('links to bulk send for a template with a saved document while bulkSend is on', () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
+    setTemplates([{ ...SAMPLE, hasExamplePdf: true }]);
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.getByRole('link', { name: 'Send to many from a CSV' })).toHaveAttribute(
+      'href',
+      `/templates/${encodeURIComponent(SAMPLE.id)}/bulk-send`,
+    );
+  });
+
+  it('is hidden while bulkSend is off, and for a template with no saved document', () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockReturnValue(false);
+    setTemplates([{ ...SAMPLE, hasExamplePdf: true }]);
+    const first = renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.queryByRole('link', { name: 'Send to many from a CSV' })).toBeNull();
+    first.unmount();
+
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
+    setTemplates([{ ...SAMPLE, hasExamplePdf: false }]);
+    renderAt(`/templates/${encodeURIComponent(SAMPLE.id)}/use`);
+    expect(screen.queryByRole('link', { name: 'Send to many from a CSV' })).toBeNull();
   });
 });

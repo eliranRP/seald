@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { PDFDocument } from 'pdf-lib';
@@ -16,7 +17,10 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
+import { dispatchSignLinks } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -89,6 +93,8 @@ describe('Envelopes — sender auth contract (e2e)', () => {
         .useValue(tk.resolver)
         .overrideProvider(EnvelopesRepository)
         .useValue(envelopesRepo)
+        .overrideProvider(EnvelopeDocumentsRepository)
+        .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
         .overrideProvider(ContactsRepository)
         .useValue(contactsRepo)
         .overrideProvider(StorageService)
@@ -151,6 +157,8 @@ describe('Envelopes — sender draft flow (e2e)', () => {
         .useValue(tk.resolver)
         .overrideProvider(EnvelopesRepository)
         .useValue(envelopesRepo)
+        .overrideProvider(EnvelopeDocumentsRepository)
+        .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
         .overrideProvider(ContactsRepository)
         .useValue(contactsRepo)
         .overrideProvider(StorageService)
@@ -281,6 +289,109 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       .send({ title: 'Updated' });
     expect(updated.status).toBe(200);
     expect(updated.body.title).toBe('Updated');
+  });
+
+  describe('PATCH reminder cadence and expiry (WP-09, customReminders)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean): void => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { customReminders: on };
+    };
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+    const daysFromNow = (n: number): string =>
+      new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
+
+    async function newDraft(): Promise<string> {
+      const created = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Cadence' });
+      return created.body.id as string;
+    }
+
+    it('flag off: cadence keys are rejected with 400 and responses carry no cadence fields', async () => {
+      setFlag(false);
+      const id = await newDraft();
+      const rejected = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ reminder_max: 3 });
+      expect(rejected.status).toBe(400);
+
+      const ok = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ title: 'Still fine' });
+      expect(ok.status).toBe(200);
+      expect(ok.body).not.toHaveProperty('reminder_first_after_days');
+      expect(ok.body).not.toHaveProperty('reminder_interval_days');
+      expect(ok.body).not.toHaveProperty('reminder_max');
+    });
+
+    it('flag off: expires_at keeps its existing contract (no range check)', async () => {
+      setFlag(false);
+      const id = await newDraft();
+      const res = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(400) });
+      expect(res.status).toBe(200);
+    });
+
+    it('flag on: stores and returns cadence values, and the sender can read them back', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      const patched = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({
+          expires_at: daysFromNow(60),
+          reminder_first_after_days: 3,
+          reminder_interval_days: 2,
+          reminder_max: 5,
+        });
+      expect(patched.status).toBe(200);
+      expect(patched.body).toMatchObject({
+        reminder_first_after_days: 3,
+        reminder_interval_days: 2,
+        reminder_max: 5,
+      });
+
+      const fetched = await request(app.getHttpServer()).get(`/envelopes/${id}`).set(auth(tokenA));
+      expect(fetched.body).toMatchObject({ reminder_first_after_days: 3, reminder_max: 5 });
+    });
+
+    it('flag on: out-of-range cadence values are rejected', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      for (const body of [
+        { reminder_first_after_days: 0 },
+        { reminder_interval_days: 31 },
+        { reminder_max: 8 },
+      ]) {
+        const res = await request(app.getHttpServer())
+          .patch(`/envelopes/${id}`)
+          .set(auth(tokenA))
+          .send(body);
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('flag on: expiry outside one day to 90 days is rejected', async () => {
+      setFlag(true);
+      const id = await newDraft();
+      const tooFar = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(200) });
+      expect(tooFar.status).toBe(400);
+      const tooSoon = await request(app.getHttpServer())
+        .patch(`/envelopes/${id}`)
+        .set(auth(tokenA))
+        .send({ expires_at: daysFromNow(0.2) });
+      expect(tooSoon.status).toBe(400);
+    });
   });
 
   it('DELETE /envelopes/:id removes a draft; 404 for cross-owner', async () => {
@@ -620,8 +731,13 @@ describe('Envelopes — sender draft flow (e2e)', () => {
         envelope_title: 'Ready to send',
         short_code: res.body.short_code,
       });
-      // Token is NOT hashed in the payload — it's embedded in the sign_url.
-      expect(String(queued[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      // Insert A: no token or link is stored; it is minted at dispatch.
+      expect(queued[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(queued[0]!.payload)).not.toMatch(/[?&]t=/);
+      const [link] = await dispatchSignLinks(app);
+      expect(link?.envelopeId).toBe(envId);
+      expect(link?.to).toBe('ada@example.com');
+      expect(JSON.stringify(outbound.rows)).not.toContain(link?.token);
 
       // sent event present per signer.
       const eventsRes = await request(app.getHttpServer())
@@ -813,6 +929,8 @@ describe('Envelopes — sender draft flow (e2e)', () => {
 
     it('succeeds when the last invite/reminder is older than 1 hour — returns 202, enqueues reminder', async () => {
       const { envId, signerId } = await buildSentEnvelope();
+      const [invite] = await dispatchSignLinks(app);
+      expect(invite).toBeDefined();
       // Age the outbound rows by rewriting created_at — simulates "more than 1 hour ago".
       for (const row of outbound.rows) {
         (row as { created_at: string }).created_at = new Date(
@@ -829,8 +947,9 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       const reminders = outbound.rows.filter((r) => r.kind === 'reminder');
       expect(reminders).toHaveLength(1);
       expect(reminders[0]!.to_email).toBe('ada@example.com');
-      // Reminder carries a fresh token — the rotated one
-      expect(String(reminders[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      // Insert A: the stored reminder holds no token; it rotates at send.
+      expect(reminders[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(reminders[0]!.payload)).not.toMatch(/[?&]t=/);
       expect(String(reminders[0]!.payload.envelope_title)).toBe('Remind me');
       expect(String(reminders[0]!.payload.expires_at_readable)).toMatch(
         /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
@@ -843,6 +962,23 @@ describe('Envelopes — sender draft flow (e2e)', () => {
       expect(
         events.body.events.filter((e: { event_type: string }) => e.event_type === 'reminder_sent'),
       ).toHaveLength(1);
+
+      // Sending the reminder mints a new token; the invite link stops working.
+      const [reminder] = await dispatchSignLinks(app);
+      expect(reminder?.token).toBeDefined();
+      expect(reminder?.token).not.toBe(invite?.token);
+      const stale = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: envId, token: invite?.token });
+      expect(stale.status).toBe(401);
+      expect(stale.body).toEqual({ error: 'invalid_token' });
+      // The reminder's token is the one the signer row now holds.
+      const freshHash = createHash('sha256')
+        .update(reminder?.token ?? '', 'utf8')
+        .digest('hex');
+      expect((await envelopesRepo.findSignerByAccessTokenHash(freshHash))?.signer.id).toBe(
+        signerId,
+      );
     });
 
     it('409 envelope_terminal when envelope is still draft (never sent)', async () => {

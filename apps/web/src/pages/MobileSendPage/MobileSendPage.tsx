@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Send } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
@@ -59,7 +61,11 @@ import type { SendEnvelopeSignerInput } from '@/features/envelopes/useSendEnvelo
 import { useEnvelopesQuery } from '@/features/envelopes/useEnvelopes';
 import type { MWRecentEnvelope } from './screens/MWStart';
 import type { FieldPlacement } from '@/features/envelopes/envelopesApi';
-import { SIGNER_COLOR_PALETTE } from '@/lib/mockApi';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '@/features/envelopes/sendReminderSettings';
+import { seald } from '@/styles/theme';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
 
 const STEP_LABELS: Readonly<Record<MobileStep, string>> = {
@@ -114,6 +120,9 @@ export function MobileSendPage() {
   const { contacts } = useAppState();
   const { run: runSend, phase: sendPhase, error: sendError } = useSendEnvelope();
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
 
   // Slice-D §2 MEDIUM (audit fix): pull the most recent envelopes from
   // the API so MWStart can surface a "Recent" list. Gated on the user
@@ -241,6 +250,8 @@ export function MobileSendPage() {
   }, [gdriveOn, searchParams, driveAccountId, setSearchParams]);
 
   const [signers, setSigners] = useState<ReadonlyArray<MobileSigner>>([]);
+  const signingOrder = useSigningOrder(signers.map((s) => s.id));
+  const accessAuth = useAccessAuth(signers.map((s) => s.id));
   const [meIncluded, setMeIncluded] = useState(false);
 
   // Place-step state
@@ -292,7 +303,7 @@ export function MobileSendPage() {
         const fallbackName = user?.name || sessionUser.email || 'Me';
         const fallbackEmail = user?.email || sessionUser.email || '';
         const color = pickAvailableColor(
-          SIGNER_COLOR_PALETTE,
+          seald.color.signer,
           prev.map((s) => s.color),
         );
         return [
@@ -404,7 +415,7 @@ export function MobileSendPage() {
   const addSignerLocal = useCallback((input: SignerInput): void => {
     setSigners((prev) => {
       const color = pickAvailableColor(
-        SIGNER_COLOR_PALETTE,
+        seald.color.signer,
         prev.map((s) => s.color),
       );
       return [
@@ -580,6 +591,9 @@ export function MobileSendPage() {
         ...(user?.email ? { senderEmail: user.email } : {}),
         ...(user?.name ? { senderName: user.name } : {}),
         remindersEnabled,
+        reminderSettings,
+        signingOrder: signingOrder.value,
+        accessAuth: accessAuth.value,
         buildFields: (localToServer) =>
           fields.flatMap<FieldPlacement>((f) => {
             const linked = f.linkedPages.length > 0 ? f.linkedPages : [f.page];
@@ -616,7 +630,20 @@ export function MobileSendPage() {
     } finally {
       sendingRef.current = false;
     }
-  }, [pdfFile, signers, contacts, remindersEnabled, runSend, title, user, fields, canvasBounds]);
+  }, [
+    pdfFile,
+    signers,
+    contacts,
+    remindersEnabled,
+    reminderSettings,
+    signingOrder.value,
+    accessAuth.value,
+    runSend,
+    title,
+    user,
+    fields,
+    canvasBounds,
+  ]);
 
   // ---- per-step CTA ----
   const stepNum = MOBILE_STEP_ORDER.indexOf(step) + 1;
@@ -781,6 +808,12 @@ export function MobileSendPage() {
               totalPages={totalPages}
               remindersEnabled={remindersEnabled}
               onRemindersEnabledChange={setRemindersEnabled}
+              reminderSettings={reminderSettings}
+              onReminderSettingsChange={setReminderSettings}
+              signingOrder={signingOrder.value}
+              onSigningOrderChange={signingOrder.setValue}
+              accessAuth={accessAuth.value}
+              onAccessAuthChange={accessAuth.setValue}
             />
             {sendPhase === 'error' && sendError && (
               <div

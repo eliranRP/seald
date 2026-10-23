@@ -4,12 +4,13 @@ import { isFeatureEnabled } from 'shared';
 import { UploadPage } from '../pages/UploadPage';
 import { SignersStepCard } from '../components/SignersStepCard';
 import type { SignersStepSigner } from '../components/SignersStepCard';
+import type { DraftDocumentPart } from '../features/documentEditor/documents';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { SIGNER_COLOR_PALETTE } from '../lib/mockApi/data/palette';
+import { seald } from '@/styles/theme';
 import { pickAvailableColor } from '../features/signers/pickAvailableColor';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
@@ -29,6 +30,7 @@ import {
   type TemplateSummary,
 } from '../features/templates';
 import { listTemplates } from '../features/templates/templatesApi';
+import { buildDraftParts } from '../features/documentEditor/documents';
 
 const TEMPLATE_QUERY_PARAM = 'template';
 
@@ -93,7 +95,11 @@ export function UploadRoute() {
     // `location` updates or it would loop.
   }, []);
 
+  // Multi-document envelopes (WP-04, flag `multiDocumentEnvelopes`). With the
+  // flag off the dropzone takes one file and `extraFiles` is always empty.
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes');
   const [pdfFile, setPdfFile] = useState<File | null>(initialHandoff?.pendingFile ?? null);
+  const [extraFiles, setExtraFiles] = useState<ReadonlyArray<File>>([]);
   const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>(
     () => initialHandoff?.templateSigners ?? [],
   );
@@ -232,8 +238,17 @@ export function UploadRoute() {
    */
   const handoffHasSigners = (initialHandoff?.templateSigners?.length ?? 0) > 0;
 
+  const handleFilesSelected = useCallback((files: ReadonlyArray<File>) => {
+    const [first, ...rest] = files;
+    if (!first) return;
+    setPdfFile(first);
+    setExtraFiles(rest);
+    setSelectedSigners([]);
+  }, []);
+
   const handleFileSelected = useCallback((file: File) => {
     setPdfFile(file);
+    setExtraFiles([]);
     setSelectedSigners([]);
     // The "Analyzing your document" loader plays automatically while
     // the PDF parses (`pdfFile && numPages <= 0` branch in render).
@@ -261,7 +276,7 @@ export function UploadRoute() {
           id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
           name,
           email,
-          color: pickAvailableColor(SIGNER_COLOR_PALETTE, used),
+          color: pickAvailableColor(seald.color.signer, used),
         };
       };
 
@@ -295,65 +310,91 @@ export function UploadRoute() {
     setSelectedSigners((prev) => prev.filter((s) => s.id !== id));
   }, []);
 
-  const handleConfirm = useCallback(() => {
-    if (!pdfFile || selectedSigners.length === 0) return;
-    const resolvedPages = Math.max(1, numPages);
-    const id = createDocument(pdfFile, resolvedPages);
+  const confirmWith = useCallback(
+    (extraParts: ReadonlyArray<DraftDocumentPart>) => {
+      if (!pdfFile || selectedSigners.length === 0) return;
+      const resolvedPages = Math.max(1, numPages);
+      const id = createDocument(pdfFile, resolvedPages);
 
-    // Pre-populate fields when the sender came from a template. Pages
-    // that don't exist on the new PDF (e.g. layout asks for `page: 5`
-    // on a 3-page upload) are filtered out by `resolveTemplateFields`;
-    // we surface a console warning so the dropoff is observable.
-    let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
-    if (template) {
-      // Pass `lastSigners` so the resolver backfills `signerRoleId`
-      // for legacy templates — keeps the rebind stable when the user
-      // mid-list-removes a signer in the wizard.
-      const resolved = resolveTemplateFields(template.fields, resolvedPages, template.lastSigners);
-      pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
-      if (resolvedPages < template.pages) {
-        // Use console.warn so the SPA's debug build flags the gap. The
-        // banner already informs the user; this is for engineering.
-        console.warn(
-          `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
+      // Pre-populate fields when the sender came from a template. Pages
+      // that don't exist on the new PDF (e.g. layout asks for `page: 5`
+      // on a 3-page upload) are filtered out by `resolveTemplateFields`;
+      // we surface a console warning so the dropoff is observable.
+      let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
+      if (template) {
+        // Pass `lastSigners` so the resolver backfills `signerRoleId`
+        // for legacy templates — keeps the rebind stable when the user
+        // mid-list-removes a signer in the wizard.
+        const resolved = resolveTemplateFields(
+          template.fields,
+          resolvedPages,
+          template.lastSigners,
         );
+        pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
+        if (resolvedPages < template.pages) {
+          // Use console.warn so the SPA's debug build flags the gap. The
+          // banner already informs the user; this is for engineering.
+          console.warn(
+            `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
+          );
+        }
+        // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
+        // once the templates service lands. Today we just log; the local
+        // `TEMPLATES` array is read-only seed data.
+        console.info(`[templates] uses_count++ for ${template.id}`);
       }
-      // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
-      // once the templates service lands. Today we just log; the local
-      // `TEMPLATES` array is read-only seed data.
-      console.info(`[templates] uses_count++ for ${template.id}`);
-    }
 
-    // `fromTemplateId` lets the editor render the contextual banner
-    // and trigger the SendConfirmDialog when the user later sends.
-    // `fromTemplateFreshUpload` flips when the user came in via the
-    // wizard's "Upload a new one" branch (the saved layout adapted
-    // to a different doc, vs. landing on the saved example).
-    const cameFromUpload = initialHandoff?.pendingFile != null;
-    updateDocument(id, {
-      signers: selectedSigners.map((s) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email,
-        color: s.color,
-      })),
-      ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
-      ...(template ? { fromTemplateId: template.id } : {}),
-      ...(template && cameFromUpload ? { fromTemplateFreshUpload: true } : {}),
-    });
-    setPdfFile(null);
-    setSelectedSigners([]);
-    navigate(`/document/${id}`);
-  }, [
-    pdfFile,
-    selectedSigners,
-    createDocument,
-    updateDocument,
-    numPages,
-    navigate,
-    template,
-    initialHandoff?.pendingFile,
-  ]);
+      // `fromTemplateId` lets the editor render the contextual banner
+      // and trigger the SendConfirmDialog when the user later sends.
+      // `fromTemplateFreshUpload` flips when the user came in via the
+      // wizard's "Upload a new one" branch (the saved layout adapted
+      // to a different doc, vs. landing on the saved example).
+      const cameFromUpload = initialHandoff?.pendingFile != null;
+      updateDocument(id, {
+        signers: selectedSigners.map((s) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          color: s.color,
+        })),
+        ...(pendingFields.length > 0 ? { fields: pendingFields } : {}),
+        ...(template ? { fromTemplateId: template.id } : {}),
+        ...(template && cameFromUpload ? { fromTemplateFreshUpload: true } : {}),
+        ...(extraParts.length > 1 ? { documents: extraParts } : {}),
+      });
+      setPdfFile(null);
+      setExtraFiles([]);
+      setSelectedSigners([]);
+      navigate(`/document/${id}`);
+    },
+    [
+      pdfFile,
+      selectedSigners,
+      createDocument,
+      updateDocument,
+      numPages,
+      navigate,
+      template,
+      initialHandoff?.pendingFile,
+    ],
+  );
+
+  const handleConfirm = useCallback(() => {
+    if (!multiDoc || !pdfFile || extraFiles.length === 0) {
+      confirmWith([]);
+      return;
+    }
+    // Several PDFs: read each one's page count and size first, then carry
+    // them all into the draft. A file that does not parse is left out.
+    buildDraftParts([pdfFile, ...extraFiles])
+      .then(({ parts, failed }) => {
+        if (failed.length > 0) {
+          console.warn(`[upload] skipped unreadable PDFs: ${failed.join(', ')}`);
+        }
+        confirmWith(parts);
+      })
+      .catch(() => confirmWith([]));
+  }, [confirmWith, extraFiles, multiDoc, pdfFile]);
 
   /**
    * Back from the SignersStepCard — drop the picked file + signers and
@@ -362,6 +403,7 @@ export function UploadRoute() {
    */
   const handleCancelDialog = useCallback(() => {
     setPdfFile(null);
+    setExtraFiles([]);
     setSelectedSigners([]);
   }, []);
 
@@ -396,6 +438,7 @@ export function UploadRoute() {
     next.delete(TEMPLATE_QUERY_PARAM);
     setSearchParams(next, { replace: true });
     setPdfFile(null);
+    setExtraFiles([]);
     setSelectedSigners([]);
   }, [searchParams, setSearchParams]);
 
@@ -418,6 +461,7 @@ export function UploadRoute() {
       {!pdfFile || (pdfFile && numPages <= 0) ? (
         <UploadPage
           onFileSelected={handleFileSelected}
+          {...(multiDoc ? { multiple: true, onFilesSelected: handleFilesSelected } : {})}
           status={pdfFile ? 'analyzing' : 'idle'}
           {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
           {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
@@ -438,7 +482,11 @@ export function UploadRoute() {
           // ("Pick the people who will fill this template.") are
           // overridden with envelope-appropriate language.
           heading="Who needs to sign this?"
-          subtitle="Pick the people who'll fill out and sign this document."
+          subtitle={
+            extraFiles.length > 0
+              ? `Pick the people who'll fill out and sign these ${String(extraFiles.length + 1)} documents.`
+              : "Pick the people who'll fill out and sign this document."
+          }
           signers={selectedSigners.map(
             (c): SignersStepSigner => ({
               id: c.id,

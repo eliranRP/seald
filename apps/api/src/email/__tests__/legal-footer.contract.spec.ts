@@ -7,6 +7,13 @@ import { parseEnv } from '../../config/env.schema';
  * postal line. The operator's personal name stays off these templates.
  */
 const TEMPLATES = [
+  'access_code',
+  'api_key_created',
+  'automation_disabled',
+  'approval_denied',
+  'approval_request',
+  'automation_copy',
+  'bulk_complete',
   'completed',
   'declined_to_sender',
   'expired_to_sender',
@@ -14,6 +21,7 @@ const TEMPLATES = [
   'invite',
   'reminder',
   'signed_to_sender',
+  'signer_corrected',
   'withdrawn_after_sign',
   'withdrawn_to_signer',
 ] as const;
@@ -44,5 +52,32 @@ describe('legal email footer', () => {
     );
     expect(html).not.toContain('</strong>, {{legal_postal}}');
     expect(html).not.toMatch(/Azulay|Eliran/);
+  });
+
+  describe('automation_copy (WP-33)', () => {
+    const html = readFileSync(resolve(__dirname, '../templates/automation_copy/body.html'), 'utf8');
+    const text = readFileSync(resolve(__dirname, '../templates/automation_copy/body.txt'), 'utf8');
+
+    it('says who added the recipient and offers a stop link in the HTML footer', () => {
+      const foot = html.slice(html.indexOf('<div class="foot">'));
+      expect(foot).toContain('{{sender_email}}');
+      expect(foot).toContain('added you to a Seald automation');
+      expect(foot).toContain('href="{{stop_url}}"');
+      expect(foot).toContain('Stop these notices');
+    });
+
+    it('carries the same footer lines in the plain-text body', () => {
+      expect(text).toContain(
+        'You are receiving this because {{sender_email}} added you to a Seald automation.',
+      );
+      expect(text).toContain('{{stop_url}}');
+      expect(text).toContain('{{legal_entity}} · {{legal_postal}}');
+    });
+
+    it('has no signing link, download link or attachment variable', () => {
+      for (const body of [html, text]) {
+        expect(body).not.toMatch(/\{\{\s*(sign_url|sealed_url|download_url|audit_url)\s*\}\}/);
+      }
+    });
   });
 });

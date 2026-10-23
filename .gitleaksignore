@@ -1,0 +1,6 @@
+# Reviewed false positives (fingerprint = commit:path:rule:line).
+# 2026-10-22: obvious fake key 'seald_live_abc123' in a component test fixture.
+b0345a98a87f16506dc18f1cddb6ac500307c44a:apps/web/src/components/SecretOnceSheet/SecretOnceSheet.test.tsx:generic-api-key:7
+# 2026-10-22: fake API key prefix 'seald_live_AbCdEf12' in the api_key_created template test.
+e85b6fd3249c67827443bb46849eb13d85255e7c:apps/api/src/email/__tests__/template.service.spec.ts:generic-api-key:316
+e85b6fd3249c67827443bb46849eb13d85255e7c:apps/api/src/email/__tests__/template.service.spec.ts:generic-api-key:340

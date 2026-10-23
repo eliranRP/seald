@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { AlertTriangle } from 'lucide-react';
@@ -6,6 +6,7 @@ import { AuthShell } from '@/components/AuthShell';
 import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
 import { pathForAuthMode } from '@/layout/authPaths';
+import { pathWithNext, readNextParam, rememberNext, takeRememberedNext } from '@/layout/nextPath';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
@@ -63,11 +64,19 @@ export function SignInPage() {
       });
   }, [enterGuestMode, isMobile, navigate]);
 
+  const next = readNextParam(params);
+
+  // One job: park a valid `?next=` for the Google round trip, which returns
+  // through /auth/callback without the query string.
+  useEffect(() => {
+    rememberNext(next);
+  }, [next]);
+
   const handleSwitch = useCallback(
-    (next: AuthFormMode): void => {
-      navigate(pathForAuthMode(next));
+    (mode: AuthFormMode): void => {
+      navigate(pathWithNext(pathForAuthMode(mode), next));
     },
-    [navigate],
+    [navigate, next],
   );
 
   const handleForgot = useCallback((): void => {
@@ -75,15 +84,19 @@ export function SignInPage() {
   }, [navigate]);
 
   const handleAuthed = useCallback((): void => {
-    // Per product (2026-05-03, refined): the desktop dashboard at
-    // /documents — and the rest of the AppShell-hosted desktop surfaces —
+    // Signed in here, so the parked copy for the Google round trip is spent.
+    takeRememberedNext();
+    // A validated `?next=` (an approval review) wins. It is an in-app
+    // path, checked by readNextParam, so it cannot leave the app.
+    // Otherwise, per product (2026-05-03, refined): the desktop dashboard
+    // at /documents — and the rest of the AppShell-hosted desktop surfaces —
     // were not designed for a 390 px viewport (table cells overlap, hero
     // text wraps, the title char-stacks). Rather than retrofit
     // responsiveness onto every desktop page, mobile users are locked to
     // the dedicated mobile sender at /m/send. Desktop visitors still
     // land on /documents.
-    navigate(isMobile ? '/m/send' : '/documents');
-  }, [isMobile, navigate]);
+    navigate(next ?? (isMobile ? '/m/send' : '/documents'));
+  }, [isMobile, navigate, next]);
 
   return (
     <AuthShell>

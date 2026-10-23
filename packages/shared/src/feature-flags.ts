@@ -30,9 +30,110 @@ export const FEATURE_FLAGS: Record<string, boolean> = {
    * already multi-account; this flag only controls the UI affordance.
    */
   gdriveMultiAccount: false,
+
+  /**
+   * Multi-document envelopes (WP-03). Gates upload/reorder/delete of extra
+   * documents on an envelope. Dark until flipped in a later PR.
+   */
+  multiDocumentEnvelopes: false,
+
+  /**
+   * Sequential signing order (WP-28). Gates signer ordering and the
+   * "waiting for previous signer" flow. Dark until flipped in a later PR.
+   */
+  signingOrder: false,
+
+  /**
+   * Field metadata v2 (WP-14). Gates the extended field attributes and
+   * their editor UI. Dark until flipped in a later PR.
+   */
+  fieldMetaV2: false,
+
+  /**
+   * Custom reminder schedules (WP-09). Gates per-envelope reminder cadence
+   * settings. Dark until flipped in a later PR.
+   */
+  customReminders: false,
+
+  /**
+   * Signer access authentication (WP-16). Gates the emailed one-time code
+   * required before a signer opens the document. Dark until flipped in a
+   * later PR.
+   */
+  signerAccessAuth: false,
+
+  /**
+   * Appended certificate page (WP-01 item 3). Gates the pre-seal
+   * certificate pages rendered into the sealed PDF. Dark until flipped in
+   * a later PR.
+   */
+  appendCertificate: false,
+
+  /**
+   * MCP server endpoint (WP-35 family). Gates the `/mcp` route and API key
+   * issuance for MCP clients. Dark until flipped in a later PR.
+   */
+  mcpServer: false,
+
+  /**
+   * MCP OAuth 2.1 (WP-27, decision D3). Gates the authorization server
+   * (`/.well-known/oauth-*`, `/oauth/*`), the consent page, OAuth access
+   * tokens on `/mcp` and "Connected apps". Needs `mcpServer` too, so the
+   * OAuth surface stays dark until both are flipped. Off: `/mcp` accepts
+   * API keys only, exactly as before.
+   */
+  mcpOauth: false,
+
+  /**
+   * Workflow automations and outbound webhooks (WP-29 family). Gates the
+   * automation builder and webhook delivery. Dark until flipped in a later
+   * PR.
+   */
+  workflowAutomations: false,
+
+  /**
+   * Public REST API v1 (WP-35 family). Gates the `/api/v1` surface for API
+   * keys. Dark until flipped in a later PR.
+   */
+  publicApi: false,
+
+  /**
+   * Bulk send from a template or CSV (WP-21 family). Gates the bulk-send
+   * entry point and its batch endpoints. Dark until flipped in a later PR.
+   */
+  bulkSend: false,
+
+  /**
+   * Direct signing links (WP-19 family). Gates shareable direct links that
+   * let a signer open a document without an invitation email. Dark until
+   * flipped in a later PR.
+   */
+  directLinks: false,
+
+  /**
+   * Internationalisation of the SPA and emails (WP-38 family). Gates the
+   * locale switcher and translated strings. Dark until flipped in a later
+   * PR.
+   */
+  i18n: false,
 } as const;
 
-export type FeatureFlag = 'gdriveIntegration' | 'gdriveMultiAccount';
+export type FeatureFlag =
+  | 'gdriveIntegration'
+  | 'gdriveMultiAccount'
+  | 'multiDocumentEnvelopes'
+  | 'signingOrder'
+  | 'fieldMetaV2'
+  | 'customReminders'
+  | 'signerAccessAuth'
+  | 'appendCertificate'
+  | 'mcpServer'
+  | 'mcpOauth'
+  | 'workflowAutomations'
+  | 'publicApi'
+  | 'bulkSend'
+  | 'directLinks'
+  | 'i18n';
 
 /**
  * Runtime override hook for tests / local walkthroughs. Production never

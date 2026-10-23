@@ -17,7 +17,6 @@ describe('EnvelopesService.expireDue', () => {
       undefined as never,
       undefined as never,
       undefined as never,
-      undefined as never,
     );
     const now = new Date('2026-09-30T00:00:00.000Z');
 
@@ -49,7 +48,6 @@ describe('EnvelopesService.expireDue', () => {
     };
     const svc = new EnvelopesService(
       repo as unknown as EnvelopesRepository,
-      undefined as never,
       undefined as never,
       undefined as never,
       undefined as never,

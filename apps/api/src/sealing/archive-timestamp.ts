@@ -46,7 +46,6 @@
  */
 
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import { Logger } from '@nestjs/common';
 import type { TsaClient } from './tsa-client';
 
@@ -122,15 +121,23 @@ export async function appendArchiveTimestamp(input: ArchiveTimestampInput): Prom
     '>>';
   const sigWidgetObj = serializeIndirectObject(sigWidgetObjNum, 0, sigWidgetBody);
 
-  // /AcroForm dict. /SigFlags 3 = signaturesExist | appendOnly.
-  const acroFormBody = '<<\n' + `/Fields [${sigWidgetObjNum} 0 R]\n` + '/SigFlags 3\n' + '>>';
+  // /AcroForm dict. /SigFlags 3 = signaturesExist | appendOnly. The B-T
+  // signature from @signpdf/placeholder-plain already put an /AcroForm on
+  // the catalog with its own /Sig field. The new form must keep that
+  // field, or readers that take the new /AcroForm no longer list the
+  // B-T signature at all. So: prior /Fields first, then the doc
+  // timestamp widget.
+  const priorFields = readPriorAcroFormFields(pdfWithDss, priorCatalogBody);
+  const fields = [...priorFields, `${sigWidgetObjNum} 0 R`].join(' ');
+  const acroFormBody = '<<\n' + `/Fields [${fields}]\n` + '/SigFlags 3\n' + '>>';
   const acroFormObj = serializeIndirectObject(acroFormObjNum, 0, acroFormBody);
 
-  // New catalog: copy of prior + add /AcroForm. If the prior catalog
-  // already had /AcroForm we'd need to merge — for now we override,
-  // which is fine for our seal pipeline (sealed PDFs don't carry a
-  // signature form). A regression test could be added later.
-  const newCatalogBody = appendAcroFormToCatalog(priorCatalogBody, acroFormObjNum);
+  // New catalog: copy of prior with its /AcroForm reference (if any)
+  // replaced by the merged form. A dict must not carry the key twice.
+  const newCatalogBody = appendAcroFormToCatalog(
+    removeAcroFormRef(priorCatalogBody),
+    acroFormObjNum,
+  );
   const newCatalogObj = serializeIndirectObject(
     trailer.rootRef.objNum,
     trailer.rootRef.objGen,
@@ -219,15 +226,17 @@ export async function appendArchiveTimestamp(input: ArchiveTimestampInput): Prom
   }
   assembled.write(byteRangeReal, byteRangeAbsolute, 'latin1');
 
-  // ---- 7. Compute SHA-256 over the byte-ranged bytes and ask the TSA
-  // to timestamp it. Per RFC 3161 the TSA hashes our hash again
-  // (TimeStampReq.messageImprint), so we send `data = hash`.
+  // ---- 7. Ask the TSA to timestamp the byte-ranged bytes. A document
+  // timestamp's TSTInfo.messageImprint must be SHA-256(byte range)
+  // itself (ETSI EN 319 142-1 §5.4). `TsaClient.timestamp(data)` hashes
+  // `data` once to build the imprint, so we hand it the raw range. (It
+  // used to get the digest, which made the imprint a double hash that
+  // no verifier accepts.)
   const signedRange = Buffer.concat([assembled.subarray(a, a + b), assembled.subarray(c, c + d)]);
-  const messageImprint = createHash('sha256').update(signedRange).digest();
 
   let tsaTokenDer: Buffer;
   try {
-    const result = await tsa.timestamp(messageImprint);
+    const result = await tsa.timestamp(signedRange);
     tsaTokenDer = result.tokenDer;
     logger.log(`B-LTA archive timestamp granted at ${result.genTime || '(unknown)'}`);
   } catch (err) {
@@ -325,16 +334,62 @@ function findStartxref(pdf: Buffer): number {
 function readObjectBody(pdf: Buffer, ref: ObjectRef): string {
   const text = pdf.toString('latin1');
   const marker = `${ref.objNum} ${ref.objGen} obj`;
-  const objStart = text.lastIndexOf(marker);
+  // The marker must start a token: a plain lastIndexOf('2 0 obj') also
+  // hits '12 0 obj', and a DSS with a few certs and OCSP responses easily
+  // reaches object 12. Take the last match whose preceding byte is PDF
+  // whitespace (or the file start).
+  const markerRe = new RegExp(`(?:^|[\\s])${ref.objNum}\\s+${ref.objGen}\\s+obj\\b`, 'g');
+  let objStart = -1;
+  let matchLen = 0;
+  let mm: RegExpExecArray | null;
+  while ((mm = markerRe.exec(text)) !== null) {
+    objStart = mm.index;
+    matchLen = mm[0].length;
+  }
   if (objStart < 0) {
     throw new Error(`archive_timestamp: cannot locate object ${marker}`);
   }
-  const bodyStart = objStart + marker.length;
+  const bodyStart = objStart + matchLen;
   const endIdx = text.indexOf('endobj', bodyStart);
   if (endIdx < 0) {
     throw new Error(`archive_timestamp: cannot locate endobj for ${marker}`);
   }
   return text.slice(bodyStart, endIdx).trim();
+}
+
+const ACROFORM_REF_RE = /\/AcroForm\s+(\d+)\s+(\d+)\s+R/;
+
+/**
+ * The indirect refs listed in the prior catalog's /AcroForm /Fields, in
+ * order. Empty when the catalog has no /AcroForm. An inline /AcroForm
+ * dict is not something our pipeline writes, so it throws; the caller
+ * (DssInjector) then keeps the B-LT bytes.
+ */
+function readPriorAcroFormFields(pdf: Buffer, catalogBody: string): string[] {
+  const ref = ACROFORM_REF_RE.exec(catalogBody);
+  if (!ref) {
+    if (/\/AcroForm\s*<</.test(catalogBody)) {
+      throw new Error('archive_timestamp: inline /AcroForm dict on catalog is not supported');
+    }
+    return [];
+  }
+  const formBody = readObjectBody(pdf, {
+    objNum: parseInt(ref[1]!, 10),
+    objGen: parseInt(ref[2]!, 10),
+  });
+  const fieldsMatch = /\/Fields\s*\[([^\]]*)\]/.exec(formBody);
+  if (!fieldsMatch) return [];
+  const refs: string[] = [];
+  const refRe = /(\d+)\s+(\d+)\s+R/g;
+  let m: RegExpExecArray | null;
+  while ((m = refRe.exec(fieldsMatch[1] ?? '')) !== null) {
+    refs.push(`${m[1]} ${m[2]} R`);
+  }
+  return refs;
+}
+
+function removeAcroFormRef(catalogBody: string): string {
+  return catalogBody.replace(ACROFORM_REF_RE, '');
 }
 
 function appendAcroFormToCatalog(priorBody: string, acroFormObjNum: number): string {

@@ -16,6 +16,8 @@ import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -80,6 +82,8 @@ describe('Verify endpoint (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(ContactsRepository)
       .useValue(contactsRepo)
       .overrideProvider(StorageService)

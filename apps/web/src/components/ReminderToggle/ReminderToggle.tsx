@@ -1,6 +1,6 @@
 import { useId, useRef } from 'react';
 import { Bell } from 'lucide-react';
-import { MAX_AUTOMATED_REMINDERS } from 'shared';
+import { MAX_AUTOMATED_REMINDERS, reminderCadenceSummary } from 'shared';
 import { Icon } from '../Icon';
 import { Copy, CopyCol, Input, Root, Text } from './ReminderToggle.styles';
 import type { ReminderToggleProps } from './ReminderToggle.types';
@@ -14,7 +14,15 @@ export function ReminderToggle({
   onChange,
   disabled = false,
   pending = false,
+  cadence,
 }: ReminderToggleProps) {
+  // Default wording stays as it was. A custom schedule (WP-09) is described
+  // with its own numbers so the help text never disagrees with what is sent.
+  const isDefaultCadence =
+    cadence === undefined ||
+    (cadence.firstAfterDays === 1 &&
+      cadence.intervalDays === 1 &&
+      cadence.maxReminders === MAX_AUTOMATED_REMINDERS);
   const inputId = useId();
   const titleId = useId();
   const hintId = useId();
@@ -67,8 +75,17 @@ export function ReminderToggle({
           Email reminders
         </Text>
         <Copy id={hintId}>
-          Unsigned signers get up to {MAX_AUTOMATED_REMINDERS} daily reminders, about once a day,
-          until they sign or the request expires.
+          {isDefaultCadence || cadence === undefined ? (
+            <>
+              Unsigned signers get up to {MAX_AUTOMATED_REMINDERS} daily reminders, about once a
+              day, until they sign or the request expires.
+            </>
+          ) : (
+            <>
+              Unsigned signers get {reminderCadenceSummary(cadence)}, until they sign or the request
+              expires.
+            </>
+          )}
         </Copy>
       </CopyCol>
     </Root>

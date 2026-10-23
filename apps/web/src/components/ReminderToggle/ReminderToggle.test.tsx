@@ -87,4 +87,21 @@ describe('ReminderToggle', () => {
     expect(onChange).not.toHaveBeenCalled();
     expect(toggle).toBeChecked();
   });
+
+  it('describes a custom reminder schedule in its help text (WP-09)', () => {
+    render(
+      <ThemeProvider theme={seald}>
+        <ReminderToggle
+          enabled
+          onChange={() => undefined}
+          cadence={{ firstAfterDays: 3, intervalDays: 2, maxReminders: 4 }}
+        />
+      </ThemeProvider>,
+    );
+    expect(
+      screen.getByText(
+        /up to 4 automatic reminders, starting 3 days after sending and then every 2 days, until they sign or the request expires/i,
+      ),
+    ).toBeInTheDocument();
+  });
 });

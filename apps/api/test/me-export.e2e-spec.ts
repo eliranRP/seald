@@ -19,6 +19,8 @@ import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryIdempotencyRepository } from './in-memory-idempotency-repository';
 import { StubSupabaseAdminClient } from './stub-supabase-admin';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * Issue #45 — `/me/export` must stream envelopes in batches instead of
@@ -82,6 +84,8 @@ describe('/me/export streaming (issue #45) — e2e', () => {
       .useValue(new InMemoryContactsRepository())
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(TemplatesRepository)
       .useValue(new InMemoryTemplatesRepository())
       .overrideProvider(OutboundEmailsRepository)

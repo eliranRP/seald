@@ -1,4 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
+import {
+  templateDeliveryMode,
+  useSeedSigningOrderFromTemplate,
+  withTemplateSigningOrder,
+} from '@/features/templates/templateSigningOrder';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { DocumentPage } from '../pages/DocumentPage';
@@ -11,11 +18,17 @@ import { GuestSenderEmailDialog } from '../components/GuestSenderEmailDialog';
 import { SendingOverlay } from '../components/SendingOverlay';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { isFeatureEnabled, NEW_FIELD_KINDS } from 'shared';
+import { placementMeta } from '@/features/documentEditor/fieldProperties';
 import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '../features/envelopes/sendReminderSettings';
 import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
@@ -26,6 +39,8 @@ import {
   resolveTemplateFields,
   setTemplates,
   subscribeToTemplates,
+  type ResolvedField,
+  type TemplateSummary,
 } from '../features/templates';
 import {
   createTemplate,
@@ -34,11 +49,12 @@ import {
   updateTemplate,
   uploadTemplateExamplePdf,
 } from '../features/templates/templatesApi';
-import type { TemplateSummary } from '../features/templates';
 
 import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
 import { useDebouncedCallback } from '../lib/useDebouncedCallback';
 const TOAST_AUTO_DISMISS_MS = 4000;
+
+const NO_SIGNER_IDS: ReadonlyArray<string> = [];
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -49,13 +65,20 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // templates (the saved layout has no signer-specific email plumbing),
 // so we strip it out of the palette here even though the underlying
 // editor surface accepts it for the regular sign flow.
-const TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
+const LEGACY_TEMPLATE_FIELD_KINDS: ReadonlyArray<FieldKind> = [
   'signature',
   'initials',
   'date',
   'text',
   'checkbox',
 ];
+
+/** With `fieldMetaV2` on, templates also hold name, number, radio and dropdown (WP-07). */
+function templateFieldKinds(): ReadonlyArray<FieldKind> {
+  return isFeatureEnabled('fieldMetaV2')
+    ? [...LEGACY_TEMPLATE_FIELD_KINDS, ...NEW_FIELD_KINDS]
+    : LEGACY_TEMPLATE_FIELD_KINDS;
+}
 
 const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> = {
   signature: { w: 200, h: 54 },
@@ -64,12 +87,24 @@ const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> 
   text: { w: 240, h: 36 },
   email: { w: 240, h: 36 },
   checkbox: { w: 24, h: 24 },
+  name: { w: 240, h: 36 },
+  number: { w: 140, h: 36 },
+  radio: { w: 200, h: 72 },
+  dropdown: { w: 200, h: 36 },
 };
 
 interface TemplateEditorHandoffState {
   readonly pendingFile?: File;
   readonly templateSigners?: ReadonlyArray<AddSignerContact>;
   readonly templateRename?: string;
+  /**
+   * Fields the API already expanded for the saved example
+   * (`POST /templates/:id/apply`), valid only for `templateFieldsPages`
+   * pages. When the editor's resolved page count differs (or this is
+   * absent) it expands locally instead.
+   */
+  readonly templateFields?: ReadonlyArray<ResolvedField>;
+  readonly templateFieldsPages?: number;
 }
 
 /**
@@ -151,6 +186,9 @@ export function TemplateEditorRoute() {
   const { guest } = useAuth();
   const sendEnvelope = useSendEnvelope();
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
 
   const decodedId = decodeURIComponent(params.id ?? '');
   const isNewTemplate = decodedId === 'new';
@@ -194,6 +232,10 @@ export function TemplateEditorRoute() {
   // Local draft id — created lazily once we know the page count.
   const [draftId, setDraftId] = useState<string | null>(null);
   const draft = draftId ? getDocument(draftId) : undefined;
+  const signingOrder = useSigningOrder(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
+  // WP-06 gap: an envelope started from this template sends with the order it stores.
+  useSeedSigningOrderFromTemplate(sourceTemplate, signingOrder.setValue);
+  const accessAuth = useAccessAuth(draft?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   /**
    * Saved example PDF fetched from the API when the user picks a
@@ -370,11 +412,11 @@ export function TemplateEditorRoute() {
       // for legacy templates that only stored `signerIndex` — see the
       // rebinder's stable-id rules. Without it, the wizard's
       // remove-then-add path would still shift kept signers' fields.
-      const resolved = resolveTemplateFields(
-        sourceTemplate.fields,
-        resolvedPages,
-        sourceTemplate.lastSigners,
-      );
+      const resolved =
+        initialHandoff?.templateFields !== undefined &&
+        initialHandoff.templateFieldsPages === resolvedPages
+          ? initialHandoff.templateFields
+          : resolveTemplateFields(sourceTemplate.fields, resolvedPages, sourceTemplate.lastSigners);
       // Apply the user-spec signer-count rules: bind by ordinal, drop
       // fields whose owning signer was removed, fall back to signers[0]
       // only for legacy (pre-signerIndex) templates. Centralized in
@@ -400,6 +442,8 @@ export function TemplateEditorRoute() {
     createDocument,
     updateDocument,
     initialHandoff?.templateSigners,
+    initialHandoff?.templateFields,
+    initialHandoff?.templateFieldsPages,
     initialHandoff?.pendingFile,
     sourceTemplate,
     fetchedExampleFile,
@@ -527,18 +571,23 @@ export function TemplateEditorRoute() {
       // `handleSendAndUpdate`, so brand-new templates saved without
       // sending lost their roster — see UseTemplatePage's pre-fill
       // effect (reads `template.lastSigners`).
-      const lastSigners = draft.signers.map((s) => ({
-        id: s.id,
-        name: s.name,
-        email: s.email,
-        color: s.color,
-      }));
+      const lastSigners = withTemplateSigningOrder(
+        draft.signers.map((s) => ({
+          id: s.id,
+          name: s.name,
+          email: s.email,
+          color: s.color,
+        })),
+        signingOrder.value,
+      );
+      const orderPatch = templateDeliveryMode(signingOrder.value);
       let savedId: string;
       if (sourceTemplate) {
         const updated = await updateTemplate(sourceTemplate.id, {
           title,
           field_layout: fieldLayout,
           last_signers: lastSigners,
+          ...orderPatch,
         });
         setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
         savedId = updated.id;
@@ -548,6 +597,7 @@ export function TemplateEditorRoute() {
           field_layout: fieldLayout,
           cover_color: seald.color.indigo[50],
           last_signers: lastSigners,
+          ...orderPatch,
         });
         setTemplates([created, ...getTemplates()]);
         savedId = created.id;
@@ -579,7 +629,7 @@ export function TemplateEditorRoute() {
         tone: 'error',
       });
     }
-  }, [draft, renamedTitle, sourceTemplate, navigate]);
+  }, [draft, renamedTitle, sourceTemplate, navigate, signingOrder.value]);
 
   // ---- Send-to-sign (using mode primary) -------------------------------
 
@@ -638,6 +688,7 @@ export function TemplateEditorRoute() {
                     ...(normalized.width !== undefined ? { width: normalized.width } : {}),
                     ...(normalized.height !== undefined ? { height: normalized.height } : {}),
                     ...(f.linkId ? { link_id: f.linkId } : {}),
+                    ...placementMeta(f),
                   };
                   out.push(placement);
                 }
@@ -648,6 +699,9 @@ export function TemplateEditorRoute() {
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
+          reminderSettings,
+          signingOrder: signingOrder.value,
+          accessAuth: accessAuth.value,
         });
         sendDocument(draft.id);
         navigate(`/document/${result.envelope_id}/sent`);
@@ -655,7 +709,17 @@ export function TemplateEditorRoute() {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
       }
     },
-    [draft, navigate, remindersEnabled, sendDocument, sendEnvelope, toNormalized],
+    [
+      draft,
+      navigate,
+      remindersEnabled,
+      reminderSettings,
+      signingOrder.value,
+      accessAuth.value,
+      sendDocument,
+      sendEnvelope,
+      toNormalized,
+    ],
   );
 
   const handleSend = useCallback(() => {
@@ -714,9 +778,14 @@ export function TemplateEditorRoute() {
         sourceFields: sourceTemplate.fields,
         sourceLastSigners: sourceTemplate.lastSigners ?? [],
       });
+      // A reduced roster keeps the template's own roster, so it keeps its own order too.
+      const reducedRoster = draftLastSigners.length < (sourceTemplate.lastSigners ?? []).length;
       updateTemplate(sourceTemplate.id, {
         field_layout: merged.fieldLayout,
-        last_signers: merged.lastSigners,
+        last_signers: reducedRoster
+          ? merged.lastSigners
+          : withTemplateSigningOrder(merged.lastSigners, signingOrder.value),
+        ...(reducedRoster ? {} : templateDeliveryMode(signingOrder.value)),
       })
         .then((updated) => {
           setTemplates(getTemplates().map((t) => (t.id === updated.id ? updated : t)));
@@ -730,7 +799,7 @@ export function TemplateEditorRoute() {
         });
     }
     runSend().catch(() => {});
-  }, [sourceTemplate, draft, runSend]);
+  }, [sourceTemplate, draft, runSend, signingOrder.value]);
 
   // ---- Navigation guards (Back / cancel) -------------------------------
 
@@ -856,11 +925,17 @@ export function TemplateEditorRoute() {
             onAddSignerFromContact={handleAddSignerFromContact}
             onCreateSigner={handleCreateSigner}
             onRemoveSigner={handleRemoveSigner}
-            availableFieldKinds={TEMPLATE_FIELD_KINDS}
+            availableFieldKinds={templateFieldKinds()}
             {...(banner ? { banner } : {})}
             onSend={mode === 'new' ? () => {} : handleSend}
             remindersEnabled={remindersEnabled}
             onRemindersEnabledChange={setRemindersEnabled}
+            reminderSettings={reminderSettings}
+            onReminderSettingsChange={setReminderSettings}
+            signingOrder={signingOrder.value}
+            onSigningOrderChange={signingOrder.setValue}
+            accessAuth={accessAuth.value}
+            onAccessAuthChange={accessAuth.setValue}
             // Only expose Save-as-template in modes where saving is the
             // user's stated intent: authoring a new template ('new') or
             // explicitly editing an existing one ('editing'). In 'using'

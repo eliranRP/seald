@@ -2,13 +2,7 @@ import { Module, Logger, type Provider } from '@nestjs/common';
 import { APP_ENV } from '../../config/config.module';
 import type { AppEnv } from '../../config/env.schema';
 import { AuthModule } from '../../auth/auth.module';
-import {
-  GDriveController,
-  GDRIVE_CONFIG,
-  GDRIVE_FILES_PROXY,
-  type GDriveConfig,
-  type FilesProxy,
-} from './gdrive.controller';
+import { GDriveController, GDRIVE_CONFIG, type GDriveConfig } from './gdrive.controller';
 import { GDriveService, GOOGLE_OAUTH_CLIENT } from './gdrive.service';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY } from './gdrive.repository';
@@ -16,12 +10,12 @@ import { GDrivePgRepository } from './gdrive.repository.pg';
 import { GDRIVE_ENVELOPE_EXPORTS_REPOSITORY } from './gdrive-envelope-exports.repository';
 import { GdriveEnvelopeExportsPgRepository } from './gdrive-envelope-exports.repository.pg';
 import { GdriveExportService } from './gdrive-export.service';
-import { DRIVE_UPLOADER, type DriveUploader } from './drive-uploader';
+import { DRIVE_UPLOADER, type DriveFolderOps, type DriveUploader } from './drive-uploader';
 import { makeDriveUploader } from './drive-uploader.adapters';
 import { OAuthStateStore } from './oauth-pkce';
 import { FetchGoogleOAuthClient } from './google-oauth.client';
 import { GDriveRateLimiter } from './rate-limiter';
-import { makeFilesProxy } from './files-proxy';
+import { makeFilesProxy, GDRIVE_FILES_PROXY, type FilesProxy } from './files-proxy';
 
 export { GDRIVE_FILES_PROXY };
 
@@ -57,7 +51,7 @@ const GDriveFilesProxyProvider: Provider = {
 
 const DriveUploaderProvider: Provider = {
   provide: DRIVE_UPLOADER,
-  useFactory: (): DriveUploader => makeDriveUploader(),
+  useFactory: (): DriveUploader & DriveFolderOps => makeDriveUploader(),
 };
 
 /**
@@ -130,6 +124,7 @@ const DriveUploaderProvider: Provider = {
     GdriveExportService,
     GDRIVE_ENVELOPE_EXPORTS_REPOSITORY,
     GDRIVE_REPOSITORY,
+    DRIVE_UPLOADER,
   ],
 })
 export class GDriveModule {}

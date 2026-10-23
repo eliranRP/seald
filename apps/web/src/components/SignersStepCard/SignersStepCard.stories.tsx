@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { SignersStepCard } from './SignersStepCard';
 import type { SignersStepSigner } from './SignersStepCard.types';
 import type { AddSignerContact } from '../AddSignerDropdown/AddSignerDropdown.types';
+import { seald } from '../../styles/theme';
 
 const SAMPLE_CONTACTS: ReadonlyArray<AddSignerContact> = [
   { id: 'c1', name: 'Eliran Azulay', email: 'eliran@azulay.co', color: '#F472B6' },
@@ -11,7 +12,7 @@ const SAMPLE_CONTACTS: ReadonlyArray<AddSignerContact> = [
   { id: 'c4', name: 'Meilin Chen', email: 'meilin@chen.co', color: '#F59E0B' },
 ];
 
-const PALETTE = ['#F472B6', '#7DD3FC', '#FBBF24', '#A78BFA'] as const;
+const PALETTE = seald.color.signer;
 
 const meta: Meta<typeof SignersStepCard> = {
   title: 'L3/SignersStepCard',

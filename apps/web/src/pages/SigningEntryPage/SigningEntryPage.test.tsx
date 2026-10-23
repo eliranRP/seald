@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderSigningRoute } from '../../test/renderSigningRoute';
 import { MOCK_ENVELOPE_ID, createSigningApiMock } from '../../test/signingApiMock';
 
@@ -121,6 +122,18 @@ describe('SigningEntryPage', () => {
     expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
   });
 
+  // WP-06: a signer in a later step opens the link early. Friendly wait
+  // page, not the "already used" copy.
+  it('maps 409 not_your_turn to the not-your-turn page', async () => {
+    const err = Object.assign(new Error('not_your_turn'), { status: 409 });
+    post.mockRejectedValueOnce(err);
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(
+      await screen.findByRole('heading', { name: /not your turn to sign yet/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /already been used/i })).not.toBeInTheDocument();
+  });
+
   it('maps 404 to the not-found state', async () => {
     const err = Object.assign(new Error('envelope_not_found'), { status: 404 });
     post.mockRejectedValueOnce(err);
@@ -231,6 +244,113 @@ describe('SigningEntryPage', () => {
     renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
     await waitFor(() => {
       expect(post).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('emailed one-time code (WP-11)', () => {
+    const ok = (data: unknown) => ({
+      data,
+      status: 200,
+      statusText: 'OK',
+      headers: {},
+      config: {},
+    });
+
+    it('shows the code screen instead of a session, then continues to /prep after a correct code', async () => {
+      post
+        .mockResolvedValueOnce(
+          ok({
+            status: 'access_code_required',
+            envelope_id: MOCK_ENVELOPE_ID,
+            signer_id: 's1',
+            email_masked: 'm***@example.com',
+          }),
+        )
+        .mockResolvedValueOnce(
+          ok({
+            status: 'sent',
+            purpose: 'access',
+            email_masked: 'm***@example.com',
+            expires_in_seconds: 600,
+            resend_after_seconds: 60,
+          }),
+        )
+        .mockResolvedValueOnce(
+          ok({ envelope_id: MOCK_ENVELOPE_ID, signer_id: 's1', requires_tc_accept: true }),
+        );
+      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+
+      expect(
+        await screen.findByRole('heading', { name: /enter your emailed code/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByText('m***@example.com')).toBeInTheDocument();
+      // The token is scrubbed from the address bar while the code is pending.
+      expect(window.location.search).not.toContain('t=');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
+      await userEvent.type(
+        await screen.findByRole('textbox', { name: /one-time code/i }),
+        '123456',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+      expect(post).toHaveBeenCalledWith(
+        '/sign/access-code/verify',
+        { code: '123456' },
+        expect.any(Object),
+      );
+      await waitFor(() => {
+        // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
+        expect(screen.getByTestId('__pathname__').textContent).toBe(
+          `/sign/${MOCK_ENVELOPE_ID}/prep`,
+        );
+      });
+    });
+
+    it('keeps the signer on the code screen after a wrong code', async () => {
+      post
+        .mockResolvedValueOnce(
+          ok({
+            status: 'access_code_required',
+            envelope_id: MOCK_ENVELOPE_ID,
+            signer_id: 's1',
+            email_masked: 'm***@example.com',
+          }),
+        )
+        .mockResolvedValueOnce(
+          ok({
+            status: 'sent',
+            purpose: 'access',
+            email_masked: 'm***@example.com',
+            expires_in_seconds: 600,
+            resend_after_seconds: 60,
+          }),
+        )
+        .mockRejectedValueOnce(
+          Object.assign(new Error('access_code_invalid'), {
+            status: 422,
+            code: 'access_code_invalid',
+          }),
+        );
+      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+      await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+      await userEvent.type(
+        await screen.findByRole('textbox', { name: /one-time code/i }),
+        '000000',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(/not right/i);
+      expect(screen.getByRole('heading', { name: /enter your emailed code/i })).toBeInTheDocument();
+    });
+
+    it('shows the not-your-turn page for the API body { error: not_your_turn }', async () => {
+      post.mockRejectedValueOnce(
+        Object.assign(new Error('Conflict'), { status: 409, code: 'not_your_turn' }),
+      );
+      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+      expect(
+        await screen.findByRole('heading', { name: /not your turn to sign yet/i }),
+      ).toBeInTheDocument();
     });
   });
 });

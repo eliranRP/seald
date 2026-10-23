@@ -82,32 +82,37 @@ export class GdriveExportService {
     private readonly exportsRepo: GdriveEnvelopeExportsRepository,
   ) {}
 
-  async exportEnvelope(args: ExportEnvelopeArgs): Promise<ExportEnvelopeResult> {
-    // Pick the most-recently-used non-deleted account. listAccounts
-    // includes soft-deleted rows + is ordered by connected_at; we
-    // re-sort on last_used_at desc (nulls last) so the user's active
-    // account wins. `gdriveMultiAccount` is out of scope for v1 — one
-    // account, the freshest one.
-    const accounts = (await this.gdrive.listAccounts(args.userId)).filter((a) => !a.deletedAt);
-    if (accounts.length === 0) {
-      throw new GdriveNotConnectedError();
-    }
-    const sortedAccounts = [...accounts].sort((a, b) => {
+  /**
+   * Pick the account and mint a write token. `accountId` null means the
+   * most-recently-used non-deleted account (`gdriveMultiAccount` is out of
+   * scope for v1: one account, the freshest). A named account that is not
+   * the user's live account is treated as not connected. The automation
+   * Drive action (WP-32) shares this path so it never has a second token
+   * flow. `TokenExpiredError` (revoked refresh token) bubbles through.
+   */
+  async openSession(
+    userId: string,
+    accountId: string | null,
+  ): Promise<{ accountId: string; accessToken: string }> {
+    const accounts = (await this.gdrive.listAccounts(userId)).filter((a) => !a.deletedAt);
+    const candidates = accountId === null ? accounts : accounts.filter((a) => a.id === accountId);
+    const sorted = [...candidates].sort((a, b) => {
       const at = a.lastUsedAt ?? a.connectedAt;
       const bt = b.lastUsedAt ?? b.connectedAt;
       return bt.localeCompare(at);
     });
-    const account = sortedAccounts[0];
-    if (account === undefined) {
-      throw new GdriveNotConnectedError();
-    }
-
+    const account = sorted[0];
+    if (account === undefined) throw new GdriveNotConnectedError();
     // getAccessToken collapses concurrent callers onto one Google refresh
-    // and touches last_used_at on success. TokenExpiredError (revoked
-    // refresh token) bubbles straight through; the controller maps it to 409.
-    const { accessToken } = await this.gdrive.getAccessToken(account.id, args.userId);
+    // and touches last_used_at on success.
+    const { accessToken } = await this.gdrive.getAccessToken(account.id, userId);
+    return { accountId: account.id, accessToken };
+  }
 
-    const existing = await this.exportsRepo.findByEnvelopeAndAccount(args.envelopeId, account.id);
+  async exportEnvelope(args: ExportEnvelopeArgs): Promise<ExportEnvelopeResult> {
+    const { accountId, accessToken } = await this.openSession(args.userId, null);
+
+    const existing = await this.exportsRepo.findByEnvelopeAndAccount(args.envelopeId, accountId);
     // Recorded file ids are only reusable when the destination folder is
     // unchanged — a new folder means brand-new files there.
     const sameFolder = existing?.folderId === args.folderId;
@@ -159,7 +164,7 @@ export class GdriveExportService {
 
     await this.exportsRepo.upsert({
       envelopeId: args.envelopeId,
-      accountId: account.id,
+      accountId,
       folderId: args.folderId,
       folderName: args.folderName,
       sealedFileId: fileIds.sealed ?? (sameFolder ? (existing?.sealedFileId ?? null) : null),

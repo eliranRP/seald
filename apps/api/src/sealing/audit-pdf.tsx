@@ -13,8 +13,11 @@ import {
 } from '@react-pdf/renderer';
 import * as React from 'react';
 import QRCode from 'qrcode';
+import { McpEventMetadataSchema, type McpEventMetadata, maskEmail } from 'shared';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
+import { resolveContentLocale, t } from '../i18n';
+import { stepOf, stepOrders } from '../signing/signing-order';
 
 /**
  * React-PDF–based audit-trail renderer.
@@ -67,6 +70,36 @@ export interface AuditPdfInput {
   /** Public origin like "https://seald.nromomentum.com" — trailing slash
    *  is stripped. Verify URL is derived as `${publicUrl}/verify/{short_code}`. */
   readonly publicUrl: string;
+  /** Pre-seal mode (WP-01, flag `appendCertificate`). The pages are
+   *  rendered before `pades.sign` and appended inside sealed.pdf, so the
+   *  sealed SHA-256 cannot appear (it would hash itself). The signed-
+   *  document card points at audit.pdf and the verify page instead, and
+   *  a card shows the head of the audit event chain. `sealedSha256` is
+   *  ignored in this mode. Omit for the standalone audit.pdf. */
+  readonly preSeal?: PreSealInfo;
+  /** WP-03: every document of a multi-file envelope, in order. With more
+   *  than one, a "Documents" page lists each one's original and sealed
+   *  SHA-256. Omitted (or one entry) renders the single-file layout
+   *  unchanged; page 1 then describes document 1. */
+  readonly documents?: ReadonlyArray<AuditDocumentHash>;
+}
+
+/** WP-03: one row of the "Documents" page. */
+export interface AuditDocumentHash {
+  readonly ord: number;
+  readonly title: string;
+  readonly originalSha256: string | null;
+  readonly originalPages: number | null;
+  /** Null before sealing (pre-seal pages) and for audit_only jobs. */
+  readonly sealedSha256: string | null;
+  readonly sealedPages: number | null;
+}
+
+export interface PreSealInfo {
+  /** Hex SHA-256 of the canonical JSON of the last event at seal time
+   *  (the value the next event's `prev_event_hash` will carry). Null
+   *  when the envelope has no events. */
+  readonly chainHeadSha256: string | null;
 }
 
 export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
@@ -89,6 +122,8 @@ export async function buildAuditPdf(input: AuditPdfInput): Promise<Buffer> {
       cmsSealApplied={input.cmsSealApplied}
       timestampApplied={input.timestampApplied}
       sealedPages={input.sealedPages}
+      preSeal={input.preSeal ?? null}
+      documents={input.documents ?? []}
       verifyUrl={verifyUrl}
       qrDataUrl={qrDataUrl}
     />,
@@ -959,6 +994,8 @@ interface DocumentRenderProps {
   cmsSealApplied: boolean;
   timestampApplied: boolean;
   sealedPages: number | null;
+  preSeal: PreSealInfo | null;
+  documents: ReadonlyArray<AuditDocumentHash>;
   verifyUrl: string;
   qrDataUrl: string;
 }
@@ -966,6 +1003,9 @@ interface DocumentRenderProps {
 function AuditDocument(props: DocumentRenderProps): React.ReactElement {
   const detailsBySigner = new Map(props.signerDetails.map((d) => [d.signer_id, d]));
   const ctx: RenderCtx = { ...props, detailsBySigner };
+  // WP-38: section headings only; wording and legal text stay English.
+  const locale = resolveContentLocale({ envelopeLocale: props.envelope.locale });
+  const heading = (key: string): string => t(locale, `server.certificate.sections.${key}`);
   return (
     <Document
       title={`Audit trail — ${props.envelope.title}`}
@@ -976,9 +1016,9 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Certificate of Completion" />
         <Hero envelope={props.envelope} mark={sealMark(props)} />
-        <Section num="01" title="Document evidence and access" />
+        <Section num="01" title={heading('evidence')} />
         <Datagrid ctx={ctx} />
-        <Section num="02" title="Cryptographic fingerprint (SHA-256)" />
+        <Section num="02" title={heading('fingerprint')} />
         <HashCards ctx={ctx} />
         <VerifyCard
           verifyUrl={props.verifyUrl}
@@ -989,9 +1029,23 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
         <PageFooter ctx={ctx} />
       </Page>
 
+      {props.documents.length > 1 ? (
+        <Page size="LETTER" style={styles.page}>
+          <PageHeader suffix="Documents" />
+          <Section num="02" title={heading('documents')} />
+          <Text style={styles.p2Intro}>
+            This envelope holds {props.documents.length} documents. Each one was sealed on its own;
+            the fingerprints below identify every original and every sealed file. Page 1 shows
+            document 1.
+          </Text>
+          <DocumentHashList documents={props.documents} preSeal={props.preSeal !== null} />
+          <PageFooter ctx={ctx} />
+        </Page>
+      ) : null}
+
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Participants" />
-        <Section num="03" title="Participants and events" />
+        <Section num="03" title={heading('participants')} />
         <Text style={styles.p2Intro}>
           Each table below records the major events for every participant in the signing process —
           the actions they took, the IP address they took them from, and the time those actions were
@@ -1007,7 +1061,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Terms & definitions" />
-        <Section num="04" title="Terms used in this document" />
+        <Section num="04" title={heading('terms')} />
         <Text style={styles.termsIntro}>
           The following definitions explain every field and event recorded in this audit trail. This
           glossary is provided so the document can stand alone as a record of legal evidence in any
@@ -1019,7 +1073,7 @@ function AuditDocument(props: DocumentRenderProps): React.ReactElement {
 
       <Page size="LETTER" style={styles.page}>
         <PageHeader suffix="Terms & definitions (continued)" />
-        <Section num="05" title="Signature formats, events, and references" />
+        <Section num="05" title={heading('formats')} />
         <TermsGrid terms={TERMS_PAGE_4} />
         <ReferenceLinks />
         <Text style={styles.closing}>
@@ -1041,7 +1095,14 @@ interface RenderCtx extends DocumentRenderProps {
  *  SHA-256 and no CMS seal (NoopPadesSigner). `none` is audit-only. */
 type SealMark = 'cms' | 'hash-only' | 'none';
 
-function sealMark(input: { sealedSha256: string | null; cmsSealApplied: boolean }): SealMark {
+function sealMark(input: {
+  sealedSha256: string | null;
+  cmsSealApplied: boolean;
+  preSeal: PreSealInfo | null;
+}): SealMark {
+  // Pre-seal pages ship inside the file the seal is about to cover, so
+  // the mark follows the signer, not a hash that does not exist yet.
+  if (input.preSeal !== null) return input.cmsSealApplied ? 'cms' : 'hash-only';
   const sealed = input.sealedSha256 !== null && input.cmsSealApplied;
   if (sealed) return 'cms';
   if (input.sealedSha256 !== null && !input.cmsSealApplied) return 'hash-only';
@@ -1214,7 +1275,7 @@ function Section({ num, title }: { num: string; title: string }): React.ReactEle
   );
 }
 
-interface DataCellInfo {
+export interface DataCellInfo {
   label: string;
   value: string;
   mono?: boolean;
@@ -1251,8 +1312,59 @@ function Datagrid({ ctx }: { ctx: RenderCtx }): React.ReactElement {
 }
 
 function HashCards({ ctx }: { ctx: RenderCtx }): React.ReactElement {
+  const cards = ctx.preSeal !== null ? preSealHashCards(ctx, ctx.preSeal) : sealedHashCards(ctx);
+  return (
+    <View style={styles.hashBlock}>
+      {cards.map((c) => (
+        <View key={c.label} style={styles.hashCard}>
+          <View style={styles.hashRow}>
+            <View style={[styles.hashDot, c.signed ? styles.hashDotSigned : {}]} />
+            <Text style={styles.hashType}>{c.label.toUpperCase()}</Text>
+            <Text style={styles.hashFilename}>{c.filename}</Text>
+            {c.pages > 0 ? <Text style={styles.hashPages}> · {c.pages} pages</Text> : null}
+          </View>
+          <Text style={styles.hashValue}>{c.hash}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+interface HashCardInfo {
+  signed: boolean;
+  label: string;
+  filename: string;
+  pages: number;
+  hash: string;
+}
+
+/** Pre-seal (appended) pages: the sealed hash is not knowable inside the
+ *  file it covers, so point at where it is recorded, and show the event
+ *  chain head that this certificate was rendered against. */
+function preSealHashCards(ctx: RenderCtx, preSeal: PreSealInfo): HashCardInfo[] {
   const env = ctx.envelope;
-  const cards = [
+  return [
+    {
+      signed: false,
+      label: 'Original document',
+      filename: safeFilename(env.title),
+      pages: env.original_pages ?? 0,
+      hash: env.original_sha256 ?? '—',
+    },
+    {
+      // Two cards, like the sealed layout, so page 1 does not overflow.
+      signed: true,
+      label: 'Audit event chain head',
+      filename: 'sealed-file hash: on the separate audit trail',
+      pages: 0,
+      hash: preSeal.chainHeadSha256 ?? '—',
+    },
+  ];
+}
+
+function sealedHashCards(ctx: RenderCtx): HashCardInfo[] {
+  const env = ctx.envelope;
+  return [
     {
       signed: false,
       label: 'Original document',
@@ -1272,17 +1384,41 @@ function HashCards({ ctx }: { ctx: RenderCtx }): React.ReactElement {
       hash: ctx.sealedSha256 ?? '— (unsealed)',
     },
   ];
+}
+
+/** WP-03: original + sealed hash of every document, in order. */
+function DocumentHashList({
+  documents,
+  preSeal,
+}: {
+  documents: ReadonlyArray<AuditDocumentHash>;
+  preSeal: boolean;
+}): React.ReactElement {
   return (
     <View style={styles.hashBlock}>
-      {cards.map((c, i) => (
-        <View key={i} style={styles.hashCard}>
+      {documents.map((d) => (
+        <View key={d.ord} style={styles.hashCard} wrap={false}>
           <View style={styles.hashRow}>
-            <View style={[styles.hashDot, c.signed ? styles.hashDotSigned : {}]} />
-            <Text style={styles.hashType}>{c.label.toUpperCase()}</Text>
-            <Text style={styles.hashFilename}>{c.filename}</Text>
-            {c.pages > 0 ? <Text style={styles.hashPages}> · {c.pages} pages</Text> : null}
+            <View style={styles.hashDot} />
+            <Text style={styles.hashType}>{`DOCUMENT ${d.ord} · ORIGINAL`}</Text>
+            <Text style={styles.hashFilename}>{safeFilename(d.title)}</Text>
+            {d.originalPages ? (
+              <Text style={styles.hashPages}> · {d.originalPages} pages</Text>
+            ) : null}
           </View>
-          <Text style={styles.hashValue}>{c.hash}</Text>
+          <Text style={styles.hashValue}>{d.originalSha256 ?? '—'}</Text>
+          <View style={styles.hashRow}>
+            <View style={[styles.hashDot, d.sealedSha256 !== null ? styles.hashDotSigned : {}]} />
+            <Text style={styles.hashType}>{`DOCUMENT ${d.ord} · SIGNED`}</Text>
+            <Text style={styles.hashFilename}>{safeFilename(d.title, true)}</Text>
+            {d.sealedSha256 !== null && d.sealedPages ? (
+              <Text style={styles.hashPages}> · {d.sealedPages} pages</Text>
+            ) : null}
+          </View>
+          <Text style={styles.hashValue}>
+            {d.sealedSha256 ??
+              (preSeal ? 'sealed-file hash: on the separate audit trail' : '— (unsealed)')}
+          </Text>
         </View>
       ))}
     </View>
@@ -1750,6 +1886,62 @@ function ReferenceLinks(): React.ReactElement {
 // Derivation helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * WP-23: the two datagrid rows for an MCP-originated send. The rows exist
+ * only when the envelope's `sent` event carries a `metadata.mcp` that
+ * parses. Otherwise this returns nothing and the certificate is unchanged.
+ * The pair is always two cells, so the two-column grid stays aligned.
+ * The key name is the owner's own label; `client_name` is never stored or
+ * printed (docs/design/mcp-server.md).
+ */
+export function mcpCertificateCells(
+  events: ReadonlyArray<EnvelopeEvent>,
+  signers: ReadonlyArray<Pick<EnvelopeSigner, 'id' | 'name'>> = [],
+): ReadonlyArray<DataCellInfo> {
+  return [...mcpSendCells(events), ...ownerSignedCells(events, signers)];
+}
+
+function mcpSendCells(events: ReadonlyArray<EnvelopeEvent>): ReadonlyArray<DataCellInfo> {
+  const sent = events.find((e) => e.event_type === 'sent' && e.metadata['mcp'] !== undefined);
+  if (!sent) return [];
+  const parsed = McpEventMetadataSchema.safeParse(sent.metadata['mcp']);
+  if (!parsed.success) return [];
+  const mcp = parsed.data;
+  const keyName = mcp.key_name?.trim() ?? '';
+  return [
+    { label: 'Approval', value: mcpApprovalClause(mcp) },
+    { label: 'Sent via', value: keyName.length > 0 ? keyName : 'API key' },
+  ];
+}
+
+/**
+ * WP-45: the owner signed as their own signer on the approval page
+ * (`signed` rows with `metadata.via = 'mcp_approval'`). Two cells, like
+ * the send pair. The signature is the named signer's own, given on that
+ * page with a sign-in; the line says where, not that software clicked.
+ */
+function ownerSignedCells(
+  events: ReadonlyArray<EnvelopeEvent>,
+  signers: ReadonlyArray<Pick<EnvelopeSigner, 'id' | 'name'>>,
+): ReadonlyArray<DataCellInfo> {
+  const rows = events.filter(
+    (e) => e.event_type === 'signed' && e.metadata['via'] === 'mcp_approval',
+  );
+  if (rows.length === 0) return [];
+  const names = rows.map((e) => signers.find((s) => s.id === e.signer_id)?.name ?? 'Signer');
+  return [
+    { label: 'Signed via', value: 'Owner approval page (signed-in)' },
+    { label: 'Signed by owner', value: [...new Set(names)].join(', ') },
+  ];
+}
+
+function mcpApprovalClause(mcp: McpEventMetadata): string {
+  if (mcp.approval !== 'email') return 'Sent without per-send approval';
+  return mcp.approved_by_session
+    ? 'Approved by owner (signed-in)'
+    : 'Approved by owner (email link)';
+}
+
 function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
   const env = ctx.envelope;
   const proposer = deriveProposer(ctx);
@@ -1783,6 +1975,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
       ...digitalSignatureCell(mark, ctx.timestampApplied),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
+    ...mcpCertificateCells(ctx.events, env.signers),
     {
       label: 'Signers',
       value: `${signedCount} of ${signatoryCount || env.signers.length} completed`,
@@ -1833,15 +2026,9 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   const detail = ctx.detailsBySigner.get(signer.id);
   const perEvents = ctx.events.filter((e) => e.signer_id === signer.id);
   const events: ParticipantEvent[] = [];
-  const sentEvent = ctx.events.find((e) => e.event_type === 'sent');
-  if (sentEvent) {
-    events.push({
-      kind: 'envelope',
-      action: 'Sent',
-      ip: sentEvent.ip ?? '—',
-      at: formatDateTimeShort(sentEvent.created_at),
-    });
-  }
+  const invite = signerInviteRow(ctx, signer);
+  if (invite) events.push(invite);
+  events.push(...accessCodeRows(perEvents, signer));
   const viewed = perEvents.find((e) => e.event_type === 'viewed');
   if (viewed) {
     events.push({
@@ -1931,6 +2118,76 @@ function buildSignerParticipant(ctx: RenderCtx, signer: EnvelopeSigner): Partici
   };
 }
 
+/**
+ * WP-10: the emailed one-time code checks, read from the hash-chained
+ * `access_code_verified` events. The first check before opening and the
+ * last re-check before signing. Legal wording: "emailed one-time code",
+ * never "identity verified" (the signature level stays SES).
+ */
+function accessCodeRows(
+  perEvents: ReadonlyArray<EnvelopeEvent>,
+  signer: EnvelopeSigner,
+): ParticipantEvent[] {
+  const verified = perEvents.filter((e) => e.event_type === 'access_code_verified');
+  const access = verified.find((e) => e.metadata['purpose'] !== 'action');
+  const action = [...verified].reverse().find((e) => e.metadata['purpose'] === 'action');
+  const rows: ParticipantEvent[] = [];
+  for (const ev of [access, action]) {
+    if (!ev) continue;
+    const masked =
+      typeof ev.metadata['to_masked'] === 'string'
+        ? ev.metadata['to_masked']
+        : maskEmail(signer.email);
+    rows.push({
+      kind: 'consent',
+      action:
+        ev === action
+          ? `Re-checked before signing: emailed one-time code to ${masked}`
+          : `Identity check: emailed one-time code to ${masked}`,
+      ip: ev.ip ?? '—',
+      at: formatDateTimeShort(ev.created_at),
+    });
+  }
+  return rows;
+}
+
+/**
+ * The first row of a signer card: when the request reached this signer.
+ * Parallel envelopes keep the single envelope-wide "Sent" row. Sequential
+ * envelopes (WP-05) show the signer's step and the time that step was
+ * invited: the `step_started` event naming the signer, else (step 1 of an
+ * older chain) the signer's own `sent` event.
+ */
+function signerInviteRow(ctx: RenderCtx, signer: EnvelopeSigner): ParticipantEvent | null {
+  if (ctx.envelope.delivery_mode !== 'sequential') {
+    const sentEvent = ctx.events.find((e) => e.event_type === 'sent');
+    if (!sentEvent) return null;
+    return {
+      kind: 'envelope',
+      action: 'Sent',
+      ip: sentEvent.ip ?? '—',
+      at: formatDateTimeShort(sentEvent.created_at),
+    };
+  }
+  const signers = ctx.envelope.signers;
+  const step = stepOf(signers, signer.signing_order);
+  const total = stepOrders(signers).length;
+  const started = ctx.events.find(
+    (e) =>
+      e.event_type === 'step_started' &&
+      Array.isArray(e.metadata['signer_ids']) &&
+      (e.metadata['signer_ids'] as ReadonlyArray<unknown>).includes(signer.id),
+  );
+  const invitedEvent =
+    started ?? ctx.events.find((e) => e.event_type === 'sent' && e.signer_id === signer.id);
+  return {
+    kind: 'envelope',
+    action: `Invited · step ${step} of ${total}`,
+    ip: '—',
+    at: invitedEvent ? formatDateTimeShort(invitedEvent.created_at) : 'Not invited',
+  };
+}
+
 /** UUID like `a1b2c3d4-1111-2222-3333-444455556666` →
  *  `a1b2c3d4-1111-2222\n3333-444455556666` (uppercased). The forward
  *  slash isn't ambiguous because the IDENTIFIER cell is mono-text. */
@@ -2015,6 +2272,8 @@ function deriveVerificationChecks(raw: ReadonlyArray<string>): ReadonlyArray<str
   const out: string[] = [];
   if (seen.has('email') || seen.size === 0) out.push('Email');
   if (seen.has('account')) out.push('Account');
+  // WP-10: a correct emailed one-time code (not an identity check of the person).
+  if (seen.has('email_otp')) out.push('Email code');
   return out;
 }
 

@@ -1,4 +1,9 @@
-import { type ExecutionContext, GoneException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  type ExecutionContext,
+  GoneException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { AppEnv } from '../../config/env.schema';
 import type { Envelope, EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { makeEnvelope, makeSigner } from '../../../test/factories';
@@ -158,6 +163,28 @@ describe('SignerSessionGuard', () => {
     const cookie = await mintCookie(session);
     const { ctx } = makeContext({ cookie });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(GoneException);
+  });
+
+  it('WP-05: 409 not_your_turn when the signer is in a later sequential step', async () => {
+    const session = new SignerSessionService(SECRET_ENV);
+    const { guard } = buildGuard({
+      session,
+      async findByIdWithAll() {
+        return freshEnvelope({
+          delivery_mode: 'sequential',
+          signers: [
+            makeSigner({ id: 'first-step', signing_order: 1, signed_at: null }),
+            makeSigner({ id: SIGNER_ID, signing_order: 2, signed_at: null }),
+          ],
+        });
+      },
+    });
+    const cookie = await mintCookie(session);
+    const { ctx } = makeContext({ cookie });
+    await expect(guard.canActivate(ctx)).rejects.toMatchObject({
+      constructor: ConflictException,
+      message: 'not_your_turn',
+    });
   });
 
   it('happy path — attaches { envelope, signer } to req.signerSession and returns true', async () => {

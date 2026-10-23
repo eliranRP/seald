@@ -13,6 +13,7 @@ import { SupabaseAdminClient, SupabaseAdminError } from '../supabase-admin.clien
 import type { TombstonesRepository } from '../tombstones.repository';
 import type { GDriveRepository } from '../../integrations/gdrive/gdrive.repository';
 import type { GDriveService } from '../../integrations/gdrive/gdrive.service';
+import type { ApiKeysService } from '../../api-keys/api-keys.service';
 
 const USER: AuthUser = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -108,6 +109,12 @@ function makeMocks() {
       calls.push('gdrive.revokeAllBeforeAccountDeletion');
     }),
   } as unknown as GDriveService;
+  const apiKeys = {
+    deleteAllForOwner: jest.fn(async () => {
+      calls.push('apiKeys.deleteAllForOwner');
+      return 2;
+    }),
+  } as unknown as ApiKeysService;
   // Default storage stub returns a deterministic signed URL per path so
   // tests can assert wiring; failure mode is opt-in via mockRejectedValueOnce.
   const storage = {
@@ -127,6 +134,7 @@ function makeMocks() {
     tombstonesRepo,
     gdriveRepo,
     gdrive,
+    apiKeys,
   };
 }
 
@@ -142,6 +150,7 @@ function build(mocks: ReturnType<typeof makeMocks>): MeService {
     mocks.tombstonesRepo,
     mocks.gdriveRepo,
     mocks.gdrive,
+    mocks.apiKeys,
   );
 }
 
@@ -271,6 +280,7 @@ describe('MeService.deleteAccount', () => {
     //      failure still leaves a forensic breadcrumb
     //   7. supabase admin call last
     expect(mocks.calls).toEqual([
+      'apiKeys.deleteAllForOwner',
       'idempotency.deleteByUser',
       'contacts.deleteAllByOwner',
       'templates.deleteAllByOwner',
@@ -280,6 +290,7 @@ describe('MeService.deleteAccount', () => {
       'tombstones.recordDeletion',
       'supabaseAdmin.deleteUser',
     ]);
+    expect(mocks.apiKeys.deleteAllForOwner).toHaveBeenCalledWith(USER.id);
     expect(mocks.gdrive.revokeAllBeforeAccountDeletion).toHaveBeenCalledWith(USER.id);
     expect(mocks.gdriveRepo.deleteAllByUser).toHaveBeenCalledWith(USER.id);
     const revokeIdx = mocks.calls.indexOf('gdrive.revokeAllBeforeAccountDeletion');

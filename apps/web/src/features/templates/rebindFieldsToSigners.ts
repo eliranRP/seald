@@ -1,6 +1,6 @@
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
-import type { TemplateFieldType } from 'shared';
+import type { AnyTemplateFieldType } from 'shared';
 import type { ResolvedField } from './templates';
 
 /**
@@ -10,12 +10,18 @@ import type { ResolvedField } from './templates';
  * paths (TemplateEditorRoute, UploadRoute) share the mapping without
  * duplicating it across routes.
  */
-const TEMPLATE_TO_FIELD_KIND: Record<TemplateFieldType, FieldKind> = {
+// WP-07 widened the API's template types (name, number, radio, dropdown) and
+// WP-08 gave the editor those kinds, so every template type maps now.
+const TEMPLATE_TO_FIELD_KIND: Record<AnyTemplateFieldType, FieldKind> = {
   signature: 'signature',
   initial: 'initials',
   date: 'date',
   text: 'text',
   checkbox: 'checkbox',
+  name: 'name',
+  number: 'number',
+  radio: 'radio',
+  dropdown: 'dropdown',
 };
 
 /**
@@ -66,6 +72,7 @@ export function rebindFieldsToSigners(
   const signerById = new Map(signers.map((s) => [s.id, s]));
   const out: PlacedFieldValue[] = [];
   for (const rf of resolved) {
+    const kind = TEMPLATE_TO_FIELD_KIND[rf.type];
     let targetSignerId: string | undefined;
     if (rf.signerRoleId !== undefined) {
       // Stable-id path: drop when the role's owner is no longer in
@@ -86,7 +93,7 @@ export function rebindFieldsToSigners(
     out.push({
       id: rf.id,
       page: rf.page,
-      type: TEMPLATE_TO_FIELD_KIND[rf.type],
+      type: kind,
       x: rf.x,
       y: rf.y,
       signerIds: targetSignerId !== undefined ? [targetSignerId] : [],
@@ -94,6 +101,9 @@ export function rebindFieldsToSigners(
       // "delete from all pages or just this one?" dialog fires when
       // the user removes one peer of a multi-page rule.
       ...(rf.linkId !== undefined ? { linkId: rf.linkId } : {}),
+      // Field options (WP-07 meta) ride along so a reused template keeps
+      // its limits, formats and choices.
+      ...(rf.meta !== undefined ? { meta: rf.meta } : {}),
     });
   }
   return out;

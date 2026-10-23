@@ -12,7 +12,6 @@ import {
   type OutboundEmailRow,
 } from '../../email/outbound-emails.repository';
 import { makeEnvelope, makeSigner } from '../../../test/factories';
-import { SigningTokenService } from '../../signing/signing-token.service';
 import { StorageService } from '../../storage/storage.service';
 import type {
   AddSignerInput,
@@ -371,6 +370,9 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async sendDraft(): Promise<Envelope | null> {
     throw new Error('not_implemented_in_fake');
   }
+  async setSigningOrder(): Promise<Envelope | null> {
+    throw new Error('not_implemented_in_fake');
+  }
   async rotateSignerAccessToken(signer_id: string): Promise<boolean> {
     for (const env of this.envelopes.values()) {
       const signer = env.signers.find((s) => s.id === signer_id);
@@ -380,6 +382,12 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
       return true;
     }
     return false;
+  }
+  async correctSigner(): Promise<never> {
+    throw new Error('not exercised here');
+  }
+  async updateOpenExpiry(): Promise<never> {
+    throw new Error('not exercised here');
   }
   async recordSignerViewed(): Promise<EnvelopeSigner> {
     throw new Error('not_implemented_in_fake');
@@ -591,9 +599,6 @@ class FakeOutbound extends OutboundEmailsRepository {
   async markSkipped(): Promise<void> {
     /* unused by service-level tests */
   }
-  async findLatestSignUrl(): Promise<string | null> {
-    return null;
-  }
 }
 
 /** Stub storage — service-level tests don't exercise uploadOriginal. */
@@ -622,7 +627,6 @@ describe('EnvelopesService', () => {
   let contacts: FakeContactsRepo;
   let storage: FakeStorage;
   let outbound: FakeOutbound;
-  let tokens: SigningTokenService;
   let svc: EnvelopesService;
 
   beforeEach(() => {
@@ -630,13 +634,11 @@ describe('EnvelopesService', () => {
     contacts = new FakeContactsRepo();
     storage = new FakeStorage();
     outbound = new FakeOutbound();
-    tokens = new SigningTokenService();
     svc = new EnvelopesService(
       repo,
       contacts,
       storage,
       outbound,
-      tokens,
       TEST_ENV,
       fakeGdriveAccounts,
       fakeGdriveExport,

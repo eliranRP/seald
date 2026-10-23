@@ -4,6 +4,7 @@ import { AppRoutes } from './AppRoutes';
 import { AppStateProvider } from './providers/AppStateProvider';
 import { AuthProvider } from './providers/AuthProvider';
 import { queryClient } from './lib/api/queryClient';
+import { I18nProvider } from './lib/i18n';
 
 /**
  * Top-level application component. Wraps the routed app tree in
@@ -14,14 +15,16 @@ import { queryClient } from './lib/api/queryClient';
  */
 export function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <AppStateProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </AppStateProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <I18nProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <AppStateProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </AppStateProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </I18nProvider>
   );
 }

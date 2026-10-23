@@ -6,6 +6,7 @@ import type { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import type { StorageService } from '../../storage/storage.service';
 import { NoopPadesSigner } from '../pades-signer';
 import { SealingService } from '../sealing.service';
+import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 
 /**
  * Completion fan-out without the PDF pipeline. A `completed` envelope
@@ -56,6 +57,7 @@ function serviceFor(
       upgradeToBLt: async (bytes: Buffer) => bytes,
     } as unknown as import('../dss-injector').DssInjector,
     { APP_PUBLIC_URL: 'https://seald.example/' } as AppEnv,
+    new InMemoryEnvelopeDocumentsRepository(),
   );
 }
 

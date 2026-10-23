@@ -1,0 +1,16 @@
+{{envelope_title}} {{event_phrase}}.
+
+Status: {{status_label}}
+{{signer_line_text}}Reference: {{short_code}}
+
+{{sender_name}} asked Seald to forward this notice. It carries no signing link and no document.
+
+Verify the document:
+  {{verify_url}}
+{{dashboard_text}}
+You are receiving this because {{sender_email}} added you to a Seald automation.
+Stop these notices:
+  {{stop_url}}
+
+{{legal_entity}} · {{legal_postal}}
+Sent via Seald · {{public_url}}

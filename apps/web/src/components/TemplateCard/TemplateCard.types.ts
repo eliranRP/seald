@@ -9,8 +9,10 @@ import type { TemplateSummary } from '@/features/templates';
  */
 export type TemplateCardAccent = 'indigo' | 'amber' | 'emerald' | 'pink';
 
-export interface TemplateCardProps
-  extends Omit<HTMLAttributes<HTMLElement>, 'onClick' | 'children'> {
+export interface TemplateCardProps extends Omit<
+  HTMLAttributes<HTMLElement>,
+  'onClick' | 'children'
+> {
   readonly template: TemplateSummary;
   readonly onUse: (template: TemplateSummary) => void;
   readonly onEdit?: ((template: TemplateSummary) => void) | undefined;
@@ -37,4 +39,15 @@ export interface TemplateCardProps
    * hover overlay.
    */
   readonly onEditTags?: ((template: TemplateSummary) => void) | undefined;
+  /**
+   * WP-36: open bulk send (one envelope per CSV row) for this template. The
+   * host passes it only while `bulkSend` is on and the template has a saved
+   * document; when omitted no Bulk send affordance renders.
+   */
+  readonly onBulkSend?: ((template: TemplateSummary) => void) | undefined;
+  /**
+   * Open the template's direct-link settings (WP-37). The page passes it
+   * only while `directLinks` is on; without it no Link affordance shows.
+   */
+  readonly onDirectLink?: ((template: TemplateSummary) => void) | undefined;
 }

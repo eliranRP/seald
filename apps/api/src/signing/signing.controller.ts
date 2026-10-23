@@ -5,9 +5,11 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   Res,
   UploadedFile,
@@ -16,12 +18,14 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
+import { isFeatureEnabled } from 'shared';
 import { serialize as serializeCookie } from 'cookie';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-documents.service';
 import type { EnvelopeField, EnvelopeSigner } from '../envelopes/envelopes.repository';
 import { DeclineDto } from './dto/decline.dto';
 import { EsignDisclosureDto } from './dto/esign-disclosure.dto';
@@ -31,6 +35,9 @@ import { StartSessionDto } from './dto/start-session.dto';
 import { SignerSession } from './signer-session.decorator';
 import { SignerSessionGuard, type SignerSessionContext } from './signer-session.guard';
 import { SIGNER_SESSION_COOKIE, SignerSessionService } from './signer-session.service';
+import { pendingCookie } from './access-auth/access-code.controller';
+import { AccessPendingSessionService } from './access-auth/access-pending-session.service';
+import { SubmitDto } from './access-auth/dto/submit.dto';
 import { SigningService, type SignMeResponse } from './signing.service';
 
 /**
@@ -50,6 +57,9 @@ export class SigningController {
     private readonly svc: SigningService,
     private readonly session: SignerSessionService,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly documents: EnvelopeDocumentsService,
+    // WP-10: mints the pending cookie when a code is required first.
+    @Optional() private readonly pending?: AccessPendingSessionService,
   ) {}
 
   @Post('start')
@@ -61,8 +71,44 @@ export class SigningController {
   async start(
     @Body() dto: StartSessionDto,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<{ envelope_id: string; signer_id: string; requires_tc_accept: boolean }> {
+  ): Promise<
+    | { envelope_id: string; signer_id: string; requires_tc_accept: boolean }
+    | {
+        status: 'access_code_required';
+        envelope_id: string;
+        signer_id: string;
+        email_masked: string;
+      }
+  > {
     const result = await this.svc.startSession(dto.envelope_id, dto.token);
+
+    if ('status' in result) {
+      // WP-10: no signer session. A pending cookie, scoped to the
+      // access-code routes, lets the signer ask for and enter the code;
+      // any older `seald_sign` cookie is cleared.
+      if (!this.pending) throw new Error('AccessPendingSessionService missing');
+      const secure = this.env.NODE_ENV === 'production';
+      const jwt = await this.pending.mint({
+        envelope_id: result.envelope_id,
+        signer_id: result.signer_id,
+      });
+      res.setHeader('Set-Cookie', [
+        pendingCookie(jwt, secure, this.pending.cookieMaxAgeSeconds),
+        serializeCookie(SIGNER_SESSION_COOKIE, '', {
+          httpOnly: true,
+          sameSite: 'lax',
+          secure,
+          path: '/sign',
+          maxAge: 0,
+        }),
+      ]);
+      return {
+        status: 'access_code_required',
+        envelope_id: result.envelope_id,
+        signer_id: result.signer_id,
+        email_masked: result.email_masked,
+      };
+    }
 
     // HttpOnly cookie. SameSite=Lax so the email-link top-level navigation
     // includes it on subsequent fetches; Secure in production but omitted in
@@ -89,13 +135,37 @@ export class SigningController {
 
   @Get('me')
   @UseGuards(SignerSessionGuard)
-  me(@SignerSession() session: SignerSessionContext): SignMeResponse {
-    return this.svc.me(session.envelope, session.signer);
+  me(@SignerSession() session: SignerSessionContext): SignMeResponse | Promise<SignMeResponse> {
+    const base = this.svc.me(session.envelope, session.signer);
+    if (!isFeatureEnabled('multiDocumentEnvelopes')) return base;
+    // WP-03: documents in order, and the document each field sits on.
+    return this.withDocuments(session.envelope.id, base);
+  }
+
+  private async withDocuments(envelope_id: string, base: SignMeResponse): Promise<SignMeResponse> {
+    const [fields, documents] = await Promise.all([
+      this.documents.decorateFields(envelope_id, base.fields),
+      this.documents.listForEnvelope(envelope_id),
+    ]);
+    return { ...base, fields, documents };
   }
 
   @Get('pdf')
   @UseGuards(SignerSessionGuard)
-  async pdf(@SignerSession() session: SignerSessionContext): Promise<{ readonly url: string }> {
+  async pdf(
+    @SignerSession() session: SignerSessionContext,
+    @Query('document_id') documentId?: string,
+  ): Promise<{ readonly url: string }> {
+    // WP-03 (flag on): `?document_id=` picks one document of the envelope.
+    // With the flag off the param is ignored, as before.
+    if (isFeatureEnabled('multiDocumentEnvelopes') && documentId !== undefined) {
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(documentId)) {
+        throw new BadRequestException('validation_error');
+      }
+      return {
+        url: await this.documents.originalSignedUrl(session.envelope.id, documentId, 90),
+      };
+    }
     // Return the signed URL as JSON rather than 302-redirecting. pdf.js
     // fetches the document with `withCredentials: true` so it can carry
     // the signer-session cookie to /sign/pdf; but Supabase's storage
@@ -226,12 +296,15 @@ export class SigningController {
     @SignerSession() session: SignerSessionContext,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    // WP-10: `access_code` for the re-verify; rejected while the flag is off.
+    @Body() body?: SubmitDto,
   ): Promise<{ status: 'submitted'; envelope_status: string }> {
     const result = await this.svc.submit(
       session.envelope,
       session.signer,
       extractClientIp(req),
       req.headers['user-agent'] ?? null,
+      body?.access_code,
     );
     // Clear the session cookie — the session is no longer usable since the
     // signer has submitted. Any subsequent /sign/* call 401s.

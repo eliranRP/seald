@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import styled from 'styled-components';
 import { PrimaryBtn, SecondaryBtn } from '../MobileSendPage.styles';
-import { MWBottomSheet } from './MWBottomSheet';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 
 const Form = styled.form`
   display: flex;

@@ -1,5 +1,8 @@
+import { isFeatureEnabled } from 'shared';
 import { z } from 'zod';
-import { strictBooleanString } from './strict-boolean-string';
+import { parseAutomationSecretsKey } from '../automations/actions/webhook/secret-box';
+import { parsePreregisteredClients } from '../mcp/oauth/oauth-clients-env';
+import { STRICT_BOOLEAN_STRING_MESSAGE, strictBooleanString } from './strict-boolean-string';
 
 const envSchema = z
   .object({
@@ -38,10 +41,54 @@ const envSchema = z
     PRIVACY_VERSION: z.string().min(1).default('2026-09-30.3'),
 
     SIGNER_SESSION_SECRET: z.string().optional(),
+    /**
+     * WP-10 — HMAC key (pepper) for emailed signer one-time codes. Only
+     * the HMAC of a code is stored; without this key the codes in
+     * `signer_otp_challenges` cannot be tested offline. Required (>=32
+     * chars) outside tests while `signerAccessAuth` is on; unset, the
+     * access-code routes answer 503 `access_code_unavailable`.
+     */
+    SIGNER_OTP_KEY: z.string().min(32).optional(),
+    /**
+     * WP-21 — server key for the approval page's CSRF value
+     * (`HMAC(key, approval_id || nonce)`). Required (>=32 chars) in
+     * production while `mcpServer` or `publicApi` is on. Unset elsewhere,
+     * the API draws a random key per process, so a restart only makes an
+     * open Approve/Deny page reload.
+     */
+    APPROVAL_CSRF_KEY: z.string().min(32).optional(),
+    /**
+     * WP-21 — the mail provider's daily and monthly quota (Resend free
+     * tier: 100 and 3000). Approval mail stops with `approval_limit` once
+     * 80% of either is used today / this month, so signer mail keeps the
+     * headroom. Optional; those defaults apply when unset.
+     */
+    EMAIL_PROVIDER_DAILY_QUOTA: z.coerce.number().int().positive().optional(),
+    EMAIL_PROVIDER_MONTHLY_QUOTA: z.coerce.number().int().positive().optional(),
     CRON_SECRET: z.string().optional(),
 
     EMAIL_PROVIDER: z.enum(['resend', 'logging', 'smtp']).default('logging'),
-    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).default('local'),
+    /**
+     * No default (rule S.1): unset means "no CMS signer" (NoopPadesSigner),
+     * which production refuses unless PDF_SIGNING_ALLOW_NOOP=true. A set
+     * provider with missing config throws at startup in SealingModule.
+     */
+    PDF_SIGNING_PROVIDER: z.enum(['local', 'kms', 'sslcom']).optional(),
+    /**
+     * Escape hatch for a production host that may seal without a CMS
+     * signature (staging). Only read when PDF_SIGNING_PROVIDER is unset.
+     * Same strict parsing as `strictBooleanString` (the string "false"
+     * stays false), but optional with no default so existing typed env
+     * fixtures need no new key; unset reads as false.
+     */
+    PDF_SIGNING_ALLOW_NOOP: z
+      .stringbool({
+        truthy: ['true', '1'],
+        falsy: ['false', '0'],
+        case: 'sensitive',
+        error: STRICT_BOOLEAN_STRING_MESSAGE,
+      })
+      .optional(),
 
     // Email provider-specific
     RESEND_API_KEY: z.string().optional(),
@@ -107,6 +154,70 @@ const envSchema = z
      * keeping API nodes worker-disabled.
      */
     WORKER_ENABLED: strictBooleanString(false),
+
+    /**
+     * Bulk send throttle (WP-36): most envelopes the bulk worker creates and
+     * sends in any rolling minute, across all workers. Unset means 30. Each
+     * envelope queues one invite per signer, so this also bounds the mail a
+     * batch adds per minute against the email provider's quota.
+     */
+    BULK_SEND_ROWS_PER_MINUTE: z.coerce.number().int().positive().max(600).optional(),
+
+    /**
+     * Request-time kill switch for workflow automations (WP-28). `true`
+     * makes the feature behave as if `workflowAutomations` were off: no
+     * trigger rows, no matching, no worker, routes 404. No rebuild needed.
+     * Optional in the parsed type so hand-built test envs need no change;
+     * readers treat anything but `true` as "not disabled".
+     */
+    AUTOMATIONS_DISABLED: strictBooleanString(false).optional(),
+
+    /**
+     * 32-byte AES-GCM key (64 hex chars, or base64/base64url) that
+     * encrypts webhook signing secrets and webhook URLs in
+     * `automation_secrets` (WP-29, design doc § Data model). Lives only in
+     * the environment, never in the database. Startup throws when it is
+     * set but malformed, and when `workflowAutomations` is on (and not
+     * killed by AUTOMATIONS_DISABLED) while it is unset. With the flag off
+     * it is unread.
+     */
+    AUTOMATION_SECRETS_KEY: z.string().optional(),
+
+    /**
+     * Public origin of this API (no trailing slash), used for links in
+     * email that hit the API directly, today the `email_copy` stop link
+     * (WP-33). Unset: derived from APP_PUBLIC_URL (`api.` + its host, or
+     * localhost:PORT in dev). Set it explicitly when the API lives elsewhere.
+     */
+    API_PUBLIC_URL: z.string().url().optional(),
+
+    /**
+     * Incident kill switch for the MCP surface (docs/design/mcp-server.md,
+     * Transport). `true` makes `/mcp` 404 even while the `mcpServer` flag
+     * is on, and turns off the key routes that only MCP keeps alive. It is
+     * validated here at boot but read from `process.env` on every request
+     * (`mcpDisabled()` in `mcp-disabled.ts`), so flipping it needs no
+     * rebuild. Optional so hand-built test envs need no change.
+     */
+    MCP_DISABLED: strictBooleanString(false).optional(),
+
+    /**
+     * MCP OAuth 2.1 (WP-27). Unread while `mcpOauth` is off.
+     *
+     * - `MCP_OAUTH_ISSUER`: the authorization server's issuer and the base
+     *   of the `/mcp` resource identifier. Unset: the API's public origin
+     *   (API_PUBLIC_URL, else derived from APP_PUBLIC_URL).
+     * - `MCP_OAUTH_CLIENTS`: pre-registered public clients, a JSON array
+     *   of `{ "client_id", "client_name", "redirect_uris": [...] }`
+     *   (https or loopback redirect URIs only). Startup throws when it is
+     *   malformed. There is no dynamic registration; any other client must
+     *   use an https client id metadata document (CIMD).
+     * - `MCP_OAUTH_VERIFIED_CIMD_HOSTS`: CSV of hostnames whose CIMD
+     *   clients the consent page does not label "unverified".
+     */
+    MCP_OAUTH_ISSUER: z.string().url().optional(),
+    MCP_OAUTH_CLIENTS: z.string().optional(),
+    MCP_OAUTH_VERIFIED_CIMD_HOSTS: z.string().optional(),
 
     /**
      * Google Drive integration (Phase 5 of the gdrive feature). Required
@@ -195,6 +306,56 @@ const envSchema = z
           });
         }
       }
+    }
+
+    if (env.NODE_ENV !== 'test' && isFeatureEnabled('signerAccessAuth') && !env.SIGNER_OTP_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['SIGNER_OTP_KEY'],
+        message: 'SIGNER_OTP_KEY required (>=32 chars) while the signerAccessAuth flag is on',
+      });
+    }
+
+    if (
+      env.NODE_ENV === 'production' &&
+      (isFeatureEnabled('mcpServer') || isFeatureEnabled('publicApi')) &&
+      !env.APPROVAL_CSRF_KEY
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['APPROVAL_CSRF_KEY'],
+        message:
+          'APPROVAL_CSRF_KEY required (>=32 chars) in production while mcpServer or publicApi is on',
+      });
+    }
+
+    if (env.MCP_OAUTH_CLIENTS !== undefined) {
+      try {
+        parsePreregisteredClients(env.MCP_OAUTH_CLIENTS);
+      } catch (err) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MCP_OAUTH_CLIENTS'],
+          message: err instanceof Error ? err.message : 'MCP_OAUTH_CLIENTS is invalid',
+        });
+      }
+    }
+
+    if (env.AUTOMATION_SECRETS_KEY !== undefined && env.AUTOMATION_SECRETS_KEY !== '') {
+      if (!parseAutomationSecretsKey(env.AUTOMATION_SECRETS_KEY)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['AUTOMATION_SECRETS_KEY'],
+          message:
+            'AUTOMATION_SECRETS_KEY must be 32 bytes: 64 hex characters or base64 of 32 bytes',
+        });
+      }
+    } else if (isFeatureEnabled('workflowAutomations') && env.AUTOMATIONS_DISABLED !== true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['AUTOMATION_SECRETS_KEY'],
+        message: 'AUTOMATION_SECRETS_KEY required (32 bytes) when workflowAutomations is on',
+      });
     }
 
     if (env.EMAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) {

@@ -1,0 +1,1 @@
+{{code}} is your Seald code for "{{envelope_title}}"

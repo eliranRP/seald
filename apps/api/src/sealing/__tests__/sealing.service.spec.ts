@@ -10,6 +10,7 @@ import { makeEnvelope, makeField, makeSigner } from '../../../test/factories';
 import { assertSigningCertificateV2 } from '../p12-tsa-signer';
 import { NoopPadesSigner } from '../pades-signer';
 import { SealingService } from '../sealing.service';
+import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 
 /**
  * Burn-in unit tests focused on the two production bugs the user filed:
@@ -137,6 +138,7 @@ function makeService(storage: Pick<StorageService, 'download' | 'upload'>): Seal
     // disabled path.
     { upgradeToBLt: async (b: Buffer) => b } as unknown as import('../dss-injector').DssInjector,
     { APP_PUBLIC_URL: 'http://localhost' } as AppEnv,
+    new InMemoryEnvelopeDocumentsRepository(),
   );
 }
 

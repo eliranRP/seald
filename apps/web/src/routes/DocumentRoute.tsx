@@ -1,5 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSigningOrder } from '@/features/signers/signingOrder';
+import { useAccessAuth } from '@/features/signers/accessAuth';
+import { useSeedSigningOrderFromTemplate } from '@/features/templates/templateSigningOrder';
 import { useNavigate, useParams } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
 import { DocumentPage } from '../pages/DocumentPage';
 import { EnvelopeDetailPage } from '../pages/EnvelopeDetailPage';
 import { ExitConfirmDialog } from '../components/ExitConfirmDialog';
@@ -12,11 +16,16 @@ import { TemplateModeBanner } from '../components/TemplateModeBanner';
 import { Toast } from '../components/Toast';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
+import { placementMeta } from '@/features/documentEditor/fieldProperties';
 import { seald } from '@/styles/theme';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useSendEnvelope } from '../features/envelopes';
+import {
+  DEFAULT_SEND_REMINDER_SETTINGS,
+  type SendReminderSettings,
+} from '../features/envelopes/sendReminderSettings';
 import type { FieldKind, FieldPlacement, SendEnvelopeSignerInput } from '../features/envelopes';
 import {
   deriveTemplateFieldLayout,
@@ -25,9 +34,24 @@ import {
   setTemplates,
 } from '../features/templates';
 import { createTemplate, updateTemplate } from '../features/templates/templatesApi';
+import {
+  DocumentList,
+  DocumentSwitcher,
+  canvasHeightOf,
+  documentIdOf,
+  useDraftDocuments,
+} from '../features/documentEditor/documents';
+import { DriveDocumentImport } from './DriveDocumentImport';
 
-import { CANVAS_WIDTH, useCanvasHeight, normalizeCoord } from '../lib/canvas-coords';
+import {
+  CANVAS_HEIGHT_FALLBACK,
+  CANVAS_WIDTH,
+  useCanvasHeight,
+  normalizeCoord,
+} from '../lib/canvas-coords';
 const TOAST_AUTO_DISMISS_MS = 4000;
+
+const NO_SIGNER_IDS: ReadonlyArray<string> = [];
 
 // Matches an 8-4-4-4-12 hex UUID (case-insensitive). Used to tell apart
 // real contact ids from `guest-…` synthetic ids when building the
@@ -44,6 +68,10 @@ const DEFAULT_PX: Record<FieldKind, { readonly w: number; readonly h: number }> 
   text: { w: 240, h: 36 },
   email: { w: 240, h: 36 },
   checkbox: { w: 24, h: 24 },
+  name: { w: 240, h: 36 },
+  number: { w: 140, h: 36 },
+  radio: { w: 200, h: 72 },
+  dropdown: { w: 200, h: 36 },
 };
 
 function toNormalized(
@@ -121,15 +149,35 @@ export function DocumentRoute() {
   const { contacts, getDocument, updateDocument, addContact, sendDocument } = useAppState();
   const { guest } = useAuth();
   const doc = params.id ? getDocument(params.id) : undefined;
-  const { doc: pdfDoc, loading: pdfLoading } = usePdfDocument(doc?.file ?? null);
+  // Multi-document drafts (WP-04). Flag off: every value below is the
+  // single-document one and nothing extra renders.
+  const multiDocEnabled = isFeatureEnabled('multiDocumentEnvelopes');
+  const driveDocEnabled = multiDocEnabled && isFeatureEnabled('gdriveIntegration');
+  const canvasHeightRef = useRef(CANVAS_HEIGHT_FALLBACK);
+  const drafts = useDraftDocuments({
+    enabled: multiDocEnabled && doc?.status === 'draft',
+    draft: doc,
+    update: updateDocument,
+    canvasHeightRef,
+  });
+  const { doc: pdfDoc, loading: pdfLoading } = usePdfDocument(
+    drafts.activePart?.file ?? doc?.file ?? null,
+  );
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [exitOpen, setExitOpen] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [saveTplOpen, setSaveTplOpen] = useState(false);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [guestSenderOpen, setGuestSenderOpen] = useState(false);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [reminderSettings, setReminderSettings] = useState<SendReminderSettings>(
+    DEFAULT_SEND_REMINDER_SETTINGS,
+  );
   const [toast, setToast] = useState<ToastState | null>(null);
   const sendEnvelope = useSendEnvelope();
+  const signingOrder = useSigningOrder(doc?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
+  const accessAuth = useAccessAuth(doc?.signers.map((s) => s.id) ?? NO_SIGNER_IDS);
 
   // Resolve the source template (if any) so the banner copy can quote
   // the exact name/page count. Re-resolves when the module store
@@ -138,13 +186,47 @@ export function DocumentRoute() {
     () => (doc?.fromTemplateId ? findTemplateById(doc.fromTemplateId) : undefined),
     [doc?.fromTemplateId],
   );
+  // WP-06 gap: a draft started from a template sends with the order it stores.
+  useSeedSigningOrderFromTemplate(sourceTemplate, signingOrder.setValue);
 
   const handleFieldsChange = useCallback(
     (next: ReadonlyArray<PlacedFieldValue>) => {
       if (!doc) return;
+      if (multiDocEnabled) {
+        // Hands the editor's slice back as the active document's fields.
+        drafts.onFieldsChange(next);
+        return;
+      }
       updateDocument(doc.id, { fields: next });
     },
-    [doc, updateDocument],
+    [doc, drafts, multiDocEnabled, updateDocument],
+  );
+
+  const handleAddDocuments = useCallback(
+    async (files: ReadonlyArray<File>): Promise<void> => {
+      const failed = await drafts.addFiles(files);
+      if (failed.length > 0) {
+        setToast({
+          title: 'Could not read some files',
+          subtitle: `${failed.join(', ')} could not be opened as a PDF.`,
+          tone: 'error',
+        });
+      }
+    },
+    [drafts],
+  );
+
+  const handleRemoveDocument = useCallback(
+    (id: string) => {
+      // A document with placed fields asks first: the fields go with it.
+      const hasFields = (drafts.fieldCountById.get(id) ?? 0) > 0;
+      if (hasFields) {
+        setPendingRemoveId(id);
+        return;
+      }
+      drafts.remove(id);
+    },
+    [drafts],
   );
 
   const handleAddSignerFromContact = useCallback(
@@ -277,6 +359,9 @@ export function DocumentRoute() {
    * users both args are `undefined` and the server uses the JWT email.
    */
   const canvasHeight = useCanvasHeight(pdfDoc);
+  useEffect(() => {
+    canvasHeightRef.current = canvasHeight;
+  }, [canvasHeight]);
 
   const runSend = useCallback(
     async (senderEmail?: string, senderName?: string) => {
@@ -303,10 +388,24 @@ export function DocumentRoute() {
               color: s.color,
             };
           }),
-          buildFields: (contactIdToSignerId) => {
+          ...(drafts.parts.length > 0
+            ? {
+                documents: drafts.parts.map((p) => ({
+                  localId: p.id,
+                  title: p.title,
+                  file: p.file,
+                })),
+              }
+            : {}),
+          buildFields: (contactIdToSignerId, documentIdMap) => {
             const out: FieldPlacement[] = [];
             for (const f of doc.fields) {
-              const normalized = toNormalized(f, canvasHeight);
+              // Each document has its own page size, so its fields are
+              // normalized against its own canvas height.
+              const partId = documentIdOf(f, drafts.parts);
+              const part = drafts.parts.find((p) => p.id === partId);
+              const serverDocumentId = part ? documentIdMap.get(part.id) : undefined;
+              const normalized = toNormalized(f, part ? canvasHeightOf(part) : canvasHeight);
               for (const localSignerId of f.signerIds) {
                 const serverSignerId = contactIdToSignerId.get(localSignerId);
                 if (serverSignerId) {
@@ -320,6 +419,8 @@ export function DocumentRoute() {
                     ...(normalized.width !== undefined ? { width: normalized.width } : {}),
                     ...(normalized.height !== undefined ? { height: normalized.height } : {}),
                     ...(f.linkId ? { link_id: f.linkId } : {}),
+                    ...placementMeta(f),
+                    ...(serverDocumentId !== undefined ? { document_id: serverDocumentId } : {}),
                   };
                   out.push(placement);
                 }
@@ -330,6 +431,9 @@ export function DocumentRoute() {
           ...(senderEmail !== undefined ? { senderEmail } : {}),
           ...(senderName !== undefined ? { senderName } : {}),
           remindersEnabled,
+          reminderSettings,
+          signingOrder: signingOrder.value,
+          accessAuth: accessAuth.value,
         });
 
         // Persist the server envelope id back onto the local draft so the
@@ -344,7 +448,18 @@ export function DocumentRoute() {
         setSendError(friendlySendError(err));
       }
     },
-    [doc, navigate, remindersEnabled, sendDocument, sendEnvelope, canvasHeight],
+    [
+      doc,
+      drafts.parts,
+      navigate,
+      remindersEnabled,
+      reminderSettings,
+      signingOrder.value,
+      accessAuth.value,
+      sendDocument,
+      sendEnvelope,
+      canvasHeight,
+    ],
   );
 
   /**
@@ -537,13 +652,58 @@ export function DocumentRoute() {
   return (
     <>
       <DocumentPage
-        totalPages={doc.totalPages}
-        title={doc.title}
+        // Remount per document so undo history, selection and popovers
+        // never carry field ids across documents. Undefined (no key) for a
+        // single-PDF draft.
+        key={drafts.activePart?.id}
+        totalPages={drafts.activePart?.totalPages ?? doc.totalPages}
+        title={drafts.activePart?.title ?? doc.title}
         docId={doc.code}
         {...(pdfDoc ? { pdfDoc } : {})}
         pdfLoading={pdfLoading}
-        fields={doc.fields}
+        fields={multiDocEnabled ? drafts.visibleFields : doc.fields}
         onFieldsChange={handleFieldsChange}
+        {...(multiDocEnabled
+          ? {
+              documentsPanel: (
+                <DocumentList
+                  documents={drafts.listItems}
+                  activeId={drafts.activeListId}
+                  onSelect={drafts.setActiveId}
+                  onReorder={drafts.reorder}
+                  onRemove={handleRemoveDocument}
+                  onAddFiles={(files) => {
+                    handleAddDocuments(files).catch(() => {
+                      /* surfaced via setToast */
+                    });
+                  }}
+                  {...(driveDocEnabled ? { onAddFromDrive: () => setDrivePickerOpen(true) } : {})}
+                />
+              ),
+            }
+          : {})}
+        {...(drafts.multi && drafts.activePart
+          ? {
+              documentSwitcher: (
+                <DocumentSwitcher
+                  documents={drafts.parts.map((p) => {
+                    const count = drafts.fieldCountById.get(p.id) ?? 0;
+                    return {
+                      id: p.id,
+                      title: p.title,
+                      meta: `${String(count)} ${count === 1 ? 'field' : 'fields'}`,
+                    };
+                  })}
+                  activeId={drafts.activePart.id}
+                  onSelect={drafts.setActiveId}
+                />
+              ),
+              sendTotals: {
+                fieldCount: doc.fields.length,
+                signatureFieldCount: doc.fields.filter((f) => f.type === 'signature').length,
+              },
+            }
+          : {})}
         signers={doc.signers}
         contacts={contacts}
         onAddSignerFromContact={handleAddSignerFromContact}
@@ -552,11 +712,43 @@ export function DocumentRoute() {
         onSend={handleSend}
         remindersEnabled={remindersEnabled}
         onRemindersEnabledChange={setRemindersEnabled}
+        reminderSettings={reminderSettings}
+        onReminderSettingsChange={setReminderSettings}
+        signingOrder={signingOrder.value}
+        onSigningOrderChange={signingOrder.setValue}
+        accessAuth={accessAuth.value}
+        onAccessAuthChange={accessAuth.setValue}
         onSaveDraft={handleSaveDraft}
         onBack={handleBackClick}
-        onSaveAsTemplate={handleOpenSaveTemplate}
+        {...(drafts.multi ? {} : { onSaveAsTemplate: handleOpenSaveTemplate })}
         {...(banner ? { banner } : {})}
       />
+      {driveDocEnabled ? (
+        <DriveDocumentImport
+          open={drivePickerOpen}
+          onClose={() => setDrivePickerOpen(false)}
+          onRetry={() => setDrivePickerOpen(true)}
+          onFile={(file) => {
+            handleAddDocuments([file]).catch(() => {
+              /* surfaced via setToast */
+            });
+          }}
+        />
+      ) : null}
+      {multiDocEnabled ? (
+        <ExitConfirmDialog
+          open={pendingRemoveId !== null}
+          title="Remove this document?"
+          description="The fields you placed on it will be removed too. The other documents are not affected."
+          confirmLabel="Remove document"
+          cancelLabel="Keep document"
+          onConfirm={() => {
+            if (pendingRemoveId !== null) drafts.remove(pendingRemoveId);
+            setPendingRemoveId(null);
+          }}
+          onCancel={() => setPendingRemoveId(null)}
+        />
+      ) : null}
       <SaveAsTemplateDialog
         open={saveTplOpen}
         defaultTitle={doc.title}

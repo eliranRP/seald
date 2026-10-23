@@ -87,3 +87,15 @@ export const InsideRail: Story = {
   parameters: { layout: 'fullscreen' },
   render: () => <InsideRailDemo />,
 };
+
+/** `fieldMetaV2` on (WP-08): the palette gains name, number, radio and dropdown. */
+export const WithMetaKinds: Story = {
+  render: () => (
+    <div style={{ maxWidth: 280 }}>
+      <FieldPalette
+        kinds={[...FIELD_KINDS, 'name', 'number', 'radio', 'dropdown']}
+        onFieldDragStart={() => {}}
+      />
+    </div>
+  ),
+};

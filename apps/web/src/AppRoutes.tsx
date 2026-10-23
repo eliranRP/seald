@@ -1,5 +1,5 @@
 import { Suspense, lazy } from 'react';
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
@@ -10,6 +10,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TemplatesListPage } from './pages/TemplatesListPage';
 import { UseTemplatePage } from './pages/UseTemplatePage';
+import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
 import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { SignInPage } from './pages/SignInPage';
@@ -19,6 +20,15 @@ import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
 import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
+import {
+  AutomationDetailSettingsPage,
+  AutomationsSettingsPage,
+  DevelopersSettingsPage,
+  NewAutomationSettingsPage,
+  SettingsIndexPage,
+} from './pages/SettingsPage';
+import { ApproveQueuePage } from './pages/ApproveQueuePage';
+import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -74,6 +84,27 @@ const SigningDeclinedPage = lazy(() =>
 // of styled-components + lucide icons that no other route uses (rule 2.5).
 const VerifyPage = lazy(() =>
   import('./pages/VerifyPage').then((m) => ({ default: m.VerifyPage })),
+);
+
+// Public template direct link (WP-37). Lazy and unauthenticated, like verify.
+const DirectLinkPage = lazy(() =>
+  import('./pages/DirectLinkPage').then((m) => ({ default: m.DirectLinkPage })),
+);
+
+// Approvals (WP-22). The email-link page is public and tiny; the card and the
+// guided review need a signed-in owner, and the review pulls in pdfjs.
+const ApprovePage = lazy(() =>
+  import('./pages/ApprovePage').then((m) => ({ default: m.ApprovePage })),
+);
+// WP-27: MCP OAuth consent, outside AppShell (same posture as /approve).
+const OAuthConsentPage = lazy(() =>
+  import('./pages/OAuthConsentPage').then((m) => ({ default: m.OAuthConsentPage })),
+);
+const ApproveDetailPage = lazy(() =>
+  import('./pages/ApproveDetailPage').then((m) => ({ default: m.ApproveDetailPage })),
+);
+const ApproveReviewPage = lazy(() =>
+  import('./pages/ApproveReviewPage').then((m) => ({ default: m.ApproveReviewPage })),
 );
 
 // Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
@@ -143,6 +174,19 @@ export function AppRoutes() {
           apps/web/src/pages/GDriveOAuthCallbackPage/AppRoutes.gdrive-oauth-callback.test.tsx. */}
       <Route path="/oauth/gdrive/callback" element={<GDriveOAuthCallbackPage />} />
 
+      {/* MCP OAuth consent (WP-27). Outside <AppShell /> and outside RequireAuth:
+          the page itself sends a signed-out owner to /signin?next=… and keeps
+          the authorization request in sessionStorage meanwhile. Dark unless
+          `mcpServer` and `mcpOauth` are both on. */}
+      <Route
+        path="/oauth/mcp/consent"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <OAuthConsentPage />
+          </Suspense>
+        }
+      />
+
       {/* Public verify surface. Anyone with a 13-char short_code can pull
           the envelope's metadata + audit timeline. No auth gate. */}
       <Route
@@ -153,6 +197,50 @@ export function AppRoutes() {
           </Suspense>
         }
       />
+
+      {/* Public template direct link (WP-37): a name + email form that emails the
+          visitor a normal signing link. The token in the path is the credential. */}
+      <Route
+        path="/d/:token"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <DirectLinkPage />
+          </Suspense>
+        }
+      />
+
+      {/* Owner approvals (WP-22). `/approve` is the email-link page: the token
+          is in the URL fragment, never the path. The card and the review need
+          a signed-in owner and send everyone else to /signin?next=…. All three
+          live outside <AppShell /> so the ≤640px redirect never fires. */}
+      <Route
+        path="/approve"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <ApprovePage />
+          </Suspense>
+        }
+      />
+      <Route element={<RequireOwnerSession />}>
+        <Route
+          path="/approve/:id"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <ApproveDetailPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/approve/:id/review"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <ApproveReviewPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+      </Route>
 
       {/* Public recipient signing flow. Entry, done, and declined are
           accessible without a live session; prep / fill / review require the
@@ -224,6 +312,9 @@ export function AppRoutes() {
           <Route path="/signers" element={<ContactsPage />} />
           <Route path="/templates" element={<TemplatesListPage />} />
           <Route path="/templates/:id/use" element={<UseTemplatePage />} />
+          {/* WP-36: bulk CSV send. The page itself shows "not available" with
+              `bulkSend` off, so the route can stay mounted. */}
+          <Route path="/templates/:id/bulk-send/:batchId?" element={<BulkSendPage />} />
           {/* Step 3 of the templates wizard runs INSIDE AppShell so the
               global NavBar stays visible across the entire wizard.
               The TemplateFlowHeader (back / mode pill / step pills /
@@ -236,13 +327,28 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          {/* Stub Settings index — until a real Settings landing
-              page lands, `/settings` redirects to the only settings
-              surface that exists (Integrations). Audit slice C #4
-              (MEDIUM): the Integrations breadcrumb now points back to
-              `/settings`, so this route MUST exist for the link to
-              navigate anywhere useful. */}
-          <Route path="/settings" element={<Navigate to="/settings/integrations" replace />} />
+          {/* Settings index (desktop). Rows show only for features whose flag
+              is on. The Integrations breadcrumb points back here. */}
+          <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+          <Route
+            path="/settings/developers"
+            element={<DevelopersSettingsPage variant="desktop" />}
+          />
+          <Route path="/settings/approvals" element={<ApproveQueuePage variant="desktop" />} />
+          {/* WP-31: automations. The pages render "Not available" with
+              `workflowAutomations` off, so the routes can stay mounted. */}
+          <Route
+            path="/settings/automations"
+            element={<AutomationsSettingsPage variant="desktop" />}
+          />
+          <Route
+            path="/settings/automations/new"
+            element={<NewAutomationSettingsPage variant="desktop" />}
+          />
+          <Route
+            path="/settings/automations/:id"
+            element={<AutomationDetailSettingsPage variant="desktop" />}
+          />
           <Route
             path="/settings/integrations"
             element={
@@ -252,6 +358,27 @@ export function AppRoutes() {
             }
           />
         </Route>
+        {/* Mobile settings index + Developers. Outside <AppShell /> for the
+            same reason as /m/send: the phone has its own chrome. Guests are
+            sent away by RequireAuth (keys need an email on the account). */}
+        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        <Route path="/m/settings/approvals" element={<ApproveQueuePage variant="mobile" />} />
+        <Route
+          path="/m/settings/developers"
+          element={<DevelopersSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations"
+          element={<AutomationsSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations/new"
+          element={<NewAutomationSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations/:id"
+          element={<AutomationDetailSettingsPage variant="mobile" />}
+        />
       </Route>
 
       <Route index element={<RootLanding />} />

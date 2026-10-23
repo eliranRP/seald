@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { sql, type Kysely, type RawBuilder, type Selectable, type Transaction } from 'kysely';
 import { eventHash } from './event-hash';
 import type {
@@ -8,6 +8,8 @@ import type {
   EnvelopeFieldsTable,
   EnvelopeEventsTable,
 } from '../../db/schema';
+import { isFeatureEnabled } from 'shared';
+import { isInAmbientTransaction, runAfterCommit } from '../db/ambient-transaction';
 import { DB_TOKEN } from '../db/db.provider';
 import type { Envelope, EnvelopeSigner, EnvelopeField, EnvelopeEvent } from './envelope.entity';
 import {
@@ -37,9 +39,20 @@ import {
   type SignerFieldFillInput,
   type SubmitResult,
   type ReminderCandidate,
+  type SetSigningOrderInput,
   type UpdateDraftMetadataPatch,
 } from './envelopes.repository';
+import {
+  inviteNextStep,
+  setSigningOrder as setSigningOrderPg,
+  stampInitialInvites,
+} from '../signing/signing-order.repository.pg';
+import { stepOf } from '../signing/signing-order';
 import { REMINDER_INTERVAL_MS } from '../reminders/reminder-eligibility';
+import {
+  AUTOMATION_EVENT_HOOK,
+  type AutomationEventHook,
+} from '../automations/automation-event-hook';
 
 type EnvelopeRow = Selectable<EnvelopesTable>;
 type SignerRow = Selectable<EnvelopeSignersTable>;
@@ -133,6 +146,10 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     tc_accepted_at: toIso(row.tc_accepted_at),
     signed_at: toIso(row.signed_at),
     declined_at: toIso(row.declined_at),
+    // WP-05: reaches the wire only with `signingOrder` on.
+    ...(isFeatureEnabled('signingOrder') ? { invited_at: toIso(row.invited_at) } : {}),
+    // WP-38: reaches the wire only with `i18n` on.
+    ...(isFeatureEnabled('i18n') ? { locale: row.locale ?? null } : {}),
   };
 }
 
@@ -151,7 +168,17 @@ function toFieldDomain(row: FieldRow): EnvelopeField {
     value_text: row.value_text,
     value_boolean: row.value_boolean,
     filled_at: toIso(row.filled_at),
+    // WP-07: only with the flag on, so responses are unchanged while dark.
+    ...(isFeatureEnabled('fieldMetaV2') ? { meta: parseStoredMeta(row.meta) } : {}),
   };
+}
+
+/** jsonb arrives as an object; tolerate a string and anything unexpected. */
+function parseStoredMeta(raw: unknown): Record<string, unknown> {
+  const value = typeof raw === 'string' ? (JSON.parse(raw) as unknown) : raw;
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function toEnvelopeDomain(
@@ -176,9 +203,29 @@ function toEnvelopeDomain(
     expires_at: toIsoRequired(envelope.expires_at),
     tags: [...(envelope.tags ?? [])],
     reminders_enabled: envelope.reminders_enabled !== false,
+    // Cadence columns (migration 0025) reach the wire only with the flag on,
+    // so responses stay byte-identical while customReminders is dark.
+    ...(isFeatureEnabled('customReminders')
+      ? {
+          reminder_first_after_days: envelope.reminder_first_after_days,
+          reminder_interval_days: envelope.reminder_interval_days,
+          reminder_max: envelope.reminder_max,
+        }
+      : {}),
+    // Migration 0024 (WP-07): same flag-gated shape as the cadence above.
+    ...(isFeatureEnabled('fieldMetaV2')
+      ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
+      : {}),
+    // Migration 0035 (WP-38): same flag-gated shape.
+    ...(isFeatureEnabled('i18n') ? { locale: envelope.locale ?? null } : {}),
     tc_version: envelope.tc_version,
     privacy_version: envelope.privacy_version,
-    signers: signers.map(toSignerDomain),
+    signers: isFeatureEnabled('signingOrder')
+      ? signers.map((row) => ({
+          ...toSignerDomain(row),
+          step: stepOf(signers, row.signing_order),
+        }))
+      : signers.map(toSignerDomain),
     fields: fields.map(toFieldDomain),
     created_at: toIsoRequired(envelope.created_at),
     updated_at: toIsoRequired(envelope.updated_at),
@@ -237,7 +284,14 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
 
 @Injectable()
 export class EnvelopesPgRepository extends EnvelopesRepository {
-  constructor(@Inject(DB_TOKEN) private readonly db: Kysely<Database>) {
+  constructor(
+    @Inject(DB_TOKEN) private readonly db: Kysely<Database>,
+    // WP-28 declared hook: workflow automations' pending trigger row is
+    // written inside appendEvent's transaction; matching runs after commit.
+    @Optional()
+    @Inject(AUTOMATION_EVENT_HOOK)
+    private readonly automationHook?: AutomationEventHook,
+  ) {
     super();
   }
 
@@ -254,6 +308,8 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           tc_version: input.tc_version,
           privacy_version: input.privacy_version,
           expires_at: input.expires_at,
+          // WP-38: only sent when set, so pre-0035 schemas never see the key.
+          ...(input.locale !== undefined ? { locale: input.locale } : {}),
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -887,6 +943,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           name: input.name,
           color: input.color,
           role: input.role,
+          ...(input.locale !== undefined ? { locale: input.locale } : {}),
         })
         .returningAll()
         .executeTakeFirstOrThrow();
@@ -927,12 +984,25 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             height: f.height ?? null,
             required: f.required,
             link_id: f.link_id ?? null,
+            // WP-03: only sent when set, so the 0022 trigger defaults the
+            // rest to document 1 (and pre-0022 schemas never see the key).
+            ...(f.document_id !== undefined ? { document_id: f.document_id } : {}),
+            // WP-07: only sent when set, so pre-0024 schemas never see it.
+            ...(f.meta !== undefined ? { meta: JSON.stringify(f.meta) } : {}),
           })),
         )
         .returningAll()
         .execute();
       return rows.map(toFieldDomain);
     });
+  }
+
+  async setSigningOrder(
+    envelope_id: string,
+    input: SetSigningOrderInput,
+  ): Promise<Envelope | null> {
+    if (!(await setSigningOrderPg(this.db, envelope_id, input))) return null;
+    return this.findByIdWithAll(envelope_id);
   }
 
   // ---------- Send + lifecycle ----------
@@ -948,19 +1018,17 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           updated_at: now,
           sender_email: input.sender_email,
           sender_name: input.sender_name,
+          ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
         })
         .where('id', '=', input.envelope_id)
         .where('status', '=', 'draft')
+        .returning(['delivery_mode'])
         .executeTakeFirst();
-      if ((res?.numUpdatedRows ?? 0n) === 0n) return null;
-      for (const t of input.signer_tokens) {
-        await trx
-          .updateTable('envelope_signers')
-          .set({ access_token_hash: t.access_token_hash, access_token_sent_at: now })
-          .where('id', '=', t.signer_id)
-          .where('envelope_id', '=', input.envelope_id)
-          .execute();
-      }
+      if (!res) return null;
+      // WP-05: stamp invited_at on the signers this send invites.
+      await stampInitialInvites(trx, input.envelope_id, res.delivery_mode, now);
+      // Signer tokens are minted by the email dispatcher when each invite
+      // is sent (MCP Insert A); access_token_hash stays null until then.
       return this.findByIdWithAllTrx(trx, input.envelope_id);
     });
   }
@@ -1000,6 +1068,109 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         .executeTakeFirst();
       return (res?.numUpdatedRows ?? 0n) > 0n;
     });
+  }
+
+  async correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null> {
+    try {
+      return await this.db.transaction().execute(async (trx) => {
+        const envelope = await trx
+          .selectFrom('envelopes')
+          .select(['status'])
+          .where('id', '=', envelope_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!envelope || envelope.status !== 'awaiting_others') return null;
+        const before = await trx
+          .selectFrom('envelope_signers')
+          .selectAll()
+          .where('id', '=', signer_id)
+          .where('envelope_id', '=', envelope_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!before || before.signed_at !== null || before.declined_at !== null) return null;
+
+        const emailChanged =
+          patch.email !== undefined && patch.email.toLowerCase() !== before.email.toLowerCase();
+        const row = await trx
+          .updateTable('envelope_signers')
+          .set({
+            ...(patch.name !== undefined ? { name: patch.name } : {}),
+            ...(patch.email !== undefined ? { email: patch.email } : {}),
+            ...(emailChanged ? { contact_id: null } : {}),
+            // The old link no longer matches; the dispatcher mints a new
+            // token when the fresh invite goes out.
+            access_token_hash: null,
+            // What the previous holder of the link did is not the
+            // corrected signer's progress.
+            viewed_at: null,
+            tc_accepted_at: null,
+            verification_checks: '[]',
+            last_reminded_at: null,
+            invited_at: now.toISOString(),
+            signature_format: null,
+            signature_image_path: null,
+            signature_font: null,
+            signature_stroke_count: null,
+            signature_source_filename: null,
+            initials_format: null,
+            initials_image_path: null,
+          })
+          .where('id', '=', signer_id)
+          .returningAll()
+          .executeTakeFirstOrThrow();
+        await trx
+          .updateTable('envelope_fields')
+          .set({ value_text: null, value_boolean: null, filled_at: null })
+          .where('signer_id', '=', signer_id)
+          .execute();
+        await sql`update public.signer_otp_challenges
+                     set superseded_at = ${now.toISOString()}::timestamptz
+                   where signer_id = ${signer_id}::uuid
+                     and consumed_at is null
+                     and superseded_at is null`.execute(trx);
+        return {
+          previous: { name: before.name, email: before.email },
+          signer: toSignerDomain(row),
+        };
+      });
+    } catch (err) {
+      if (isSignerEmailUniqueViolation(err)) throw new EnvelopeSignerEmailTakenError();
+      throw err;
+    }
+  }
+
+  async updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null> {
+    const previous = await this.db.transaction().execute(async (trx) => {
+      const before = await trx
+        .selectFrom('envelopes')
+        .select(['status', 'expires_at'])
+        .where('id', '=', envelope_id)
+        .where('owner_id', '=', owner_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!before || before.status !== 'awaiting_others') return null;
+      await trx
+        .updateTable('envelopes')
+        .set({ expires_at, updated_at: new Date().toISOString() })
+        .where('id', '=', envelope_id)
+        .execute();
+      return toIsoRequired(before.expires_at);
+    });
+    if (previous === null) return null;
+    const envelope = await this.findByIdForOwner(owner_id, envelope_id);
+    return envelope ? { previous, envelope } : null;
   }
 
   async recordSignerViewed(
@@ -1172,6 +1343,9 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const total = Number(counts.total);
       const done = Number(counts.done);
       const all_signed = done === total;
+      // WP-05: under the row lock, start the next sequential step if this
+      // signature completed the current one.
+      const next_step = all_signed ? null : await inviteNextStep(trx, existing.envelope_id, now);
 
       let envelope_status: Envelope['status'];
       if (all_signed) {
@@ -1207,6 +1381,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
         envelope_status,
         done,
         total,
+        next_step,
       };
     });
   }
@@ -1469,7 +1644,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     let lastErr: unknown = null;
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        return await this.db.transaction().execute(async (trx) => {
+        const event = await this.db.transaction().execute(async (trx) => {
           const latest = await trx
             .selectFrom('envelope_events')
             .selectAll()
@@ -1490,11 +1665,21 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
               user_agent: input.user_agent ?? null,
               metadata: JSON.stringify(input.metadata ?? {}),
               prev_event_hash: prevHash,
+              // WP-24: inside an ambient transaction `now()` is the same for
+              // every row, which would leave the chain order to the random
+              // id. The wall clock keeps the rows in append order.
+              ...(isInAmbientTransaction() ? { created_at: sql<string>`clock_timestamp()` } : {}),
             })
             .returningAll()
             .executeTakeFirstOrThrow();
-          return toEventDomain(row);
+          const inserted = toEventDomain(row);
+          await this.automationHook?.recordTrigger(trx, inserted);
+          return inserted;
         });
+        // After commit, never awaited: a matcher error cannot fail the caller.
+        // Inside an ambient transaction (WP-24) that is the outer commit.
+        runAfterCommit(() => this.automationHook?.afterCommit(event));
+        return event;
       } catch (err) {
         lastErr = err;
         if (!isPrevHashUniqueViolation(err)) throw err;

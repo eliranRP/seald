@@ -4,6 +4,8 @@ import { VerifyController } from '../verify.controller';
 import { VerifyService } from '../verify.service';
 import { EnvelopesRepository } from '../../envelopes/envelopes.repository';
 import { StorageService } from '../../storage/storage.service';
+import { EnvelopeDocumentsRepository } from '../../envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 import type { Envelope, EnvelopeEvent } from '../../envelopes/envelope.entity';
 
 /**
@@ -98,6 +100,10 @@ describe('VerifyController', () => {
         VerifyService,
         { provide: EnvelopesRepository, useValue: repo },
         { provide: StorageService, useValue: storage },
+        {
+          provide: EnvelopeDocumentsRepository,
+          useValue: new InMemoryEnvelopeDocumentsRepository(),
+        },
       ],
     }).compile();
     controller = moduleRef.get(VerifyController);

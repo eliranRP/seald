@@ -143,6 +143,7 @@ export function usePlacement({
         y: source.y,
         signerIds: source.signerIds,
         linkId,
+        ...(source.meta !== undefined ? { meta: source.meta } : {}),
       }));
       pushUndo(fields);
       onFieldsChange([

@@ -43,10 +43,16 @@ function renderAt(path: string) {
         </Route>
         <Route path="/documents" element={<div>desktop dashboard</div>} />
         <Route path="/m/send" element={<div>mobile send page</div>} />
+        <Route path="/approve/:id/review" element={<div>approval review</div>} />
       </Routes>
     </MemoryRouter>,
   );
 }
+
+const SIGNED_IN = {
+  ...baseAuth,
+  user: { id: 'u1', email: 'a@b.co', name: 'Alex' },
+};
 
 describe('RedirectWhenAuthed', () => {
   it('renders the inverse-guarded outlet for anonymous users', () => {
@@ -81,5 +87,37 @@ describe('RedirectWhenAuthed', () => {
     mobileViewport = true;
     renderAt('/signin');
     expect(screen.getByText('mobile send page')).toBeInTheDocument();
+  });
+
+  it('returns a signed-in mobile visitor to a validated ?next= approval review, not /m/send', () => {
+    authState = SIGNED_IN;
+    mobileViewport = true;
+    renderAt('/signin?next=%2Fapprove%2Fabc%2Freview%3Fpage%3D1');
+    expect(screen.getByText('approval review')).toBeInTheDocument();
+  });
+
+  it('returns a signed-in desktop visitor to a validated ?next= approval review', () => {
+    authState = SIGNED_IN;
+    mobileViewport = false;
+    renderAt('/signin?next=%2Fapprove%2Fabc%2Freview');
+    expect(screen.getByText('approval review')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['protocol-relative', '%2F%2Fevil.com'],
+    ['absolute URL', 'https%3A%2F%2Fevil.com'],
+    ['backslash', '%2F%5Cevil.com'],
+    ['non-approve in-app path', '%2Fsettings%2Fdevelopers'],
+    ['double-encoded', '%252F%252Fevil.com'],
+  ])('ignores an unsafe ?next= (%s) and falls back to the default', (_label, encoded) => {
+    authState = SIGNED_IN;
+    mobileViewport = true;
+    const { unmount } = renderAt(`/signin?next=${encoded}`);
+    expect(screen.getByText('mobile send page')).toBeInTheDocument();
+    unmount();
+
+    mobileViewport = false;
+    renderAt(`/signin?next=${encoded}`);
+    expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
   });
 });

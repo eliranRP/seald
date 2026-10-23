@@ -18,6 +18,10 @@ export const DisabledReminders: Story = {
   args: { enabled: false },
 };
 
+export const CustomCadence: Story = {
+  args: { cadence: { firstAfterDays: 3, intervalDays: 2, maxReminders: 4 } },
+};
+
 export const Mobile: Story = {
   parameters: { chromatic: { modes: { mobile: chromaticViewportModes.mobile } } },
 };

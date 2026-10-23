@@ -1,8 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { GDriveKmsService } from './gdrive-kms.service';
 import { GDRIVE_REPOSITORY, type GDriveAccount, type GDriveRepository } from './gdrive.repository';
-import { TokenExpiredError } from './dto/error-codes';
+import { DriveUpstreamError, GDriveError, TokenExpiredError } from './dto/error-codes';
+import { assertAccountId, DriveRequestError } from './drive-request.errors';
+import {
+  GDRIVE_FILES_PROXY,
+  SUPPORTED_MIME_FILTERS,
+  type DriveFile,
+  type DriveMimeFilter,
+  type FilesProxy,
+} from './files-proxy';
+import { GDriveRateLimiter } from './rate-limiter';
 import type { GDriveTokenStatus } from './dto/account.dto';
 
 /**
@@ -66,7 +75,45 @@ export class GDriveService {
     @Inject(GDRIVE_REPOSITORY) private readonly repo: GDriveRepository,
     private readonly kms: GDriveKmsService,
     @Inject(GOOGLE_OAUTH_CLIENT) private readonly google: GoogleOAuthClient,
+    @Optional() @Inject(GDriveRateLimiter) private readonly rateLimiter?: GDriveRateLimiter,
+    @Optional() @Inject(GDRIVE_FILES_PROXY) private readonly filesProxy?: FilesProxy,
   ) {}
+
+  /**
+   * Lists the caller's Drive files through the server-side proxy.
+   *  - Per-user rate limit (key = `userId`, NEVER `accountId`, so rotating
+   *    accountIds cannot bypass the bucket).
+   *  - `mimeFilter` validated against the allow-list.
+   *  - Ownership check via {@link getAccessToken} (NotFound on mismatch).
+   * Throws domain errors only ({@link DriveRequestError},
+   * `RateLimitedError`, `TokenExpiredError`, `GDriveError`); the HTTP
+   * controller maps them to status codes. Upstream bodies are never echoed.
+   */
+  async listFiles(
+    userId: string,
+    accountId: string,
+    mimeFilter: DriveMimeFilter = 'all',
+    page: {
+      readonly nameContains?: string;
+      readonly pageSize?: number;
+      readonly pageToken?: string;
+    } = {},
+  ): Promise<{ files: ReadonlyArray<DriveFile>; nextPageToken?: string }> {
+    assertAccountId(accountId);
+    if (!SUPPORTED_MIME_FILTERS.has(mimeFilter)) {
+      throw new DriveRequestError('unsupported-mime', 'mime_filter_not_in_allow_list');
+    }
+    if (!this.rateLimiter || !this.filesProxy) {
+      throw new Error('gdrive_list_files_not_wired');
+    }
+    await this.rateLimiter.acquire(userId);
+    const { accessToken } = await this.getAccessToken(accountId, userId);
+    try {
+      return await this.filesProxy({ accessToken, mimeFilter, ...page });
+    } catch (err) {
+      throw toDriveListError(err);
+    }
+  }
 
   async getAccessToken(
     accountId: string,
@@ -304,4 +351,14 @@ function isInvalidGrant(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
   const e = err as { code?: string; message?: string };
   return e.code === 'invalid_grant' || /invalid_grant/i.test(e.message ?? '');
+}
+
+function toDriveListError(err: unknown): GDriveError {
+  if (err instanceof GDriveError) return err;
+  const m = err instanceof Error ? /drive_files_list_failed:\s*(\d{3})/.exec(err.message) : null;
+  const status = m?.[1] ? Number(m[1]) : 0;
+  if (status === 401) return new TokenExpiredError('drive_401');
+  if (status === 403) return new GDriveError('oauth-declined', 'drive_403');
+  // Opaque: never carry the upstream message or token.
+  return new DriveUpstreamError();
 }

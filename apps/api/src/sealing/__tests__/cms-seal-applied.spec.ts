@@ -8,6 +8,7 @@ import { buildAuditPdf } from '../audit-pdf';
 import type { AuditPdfInput } from '../audit-pdf';
 import { NoopPadesSigner, PadesSigner, type PadesSignResult } from '../pades-signer';
 import { SealingService } from '../sealing.service';
+import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 
 jest.mock('../audit-pdf', () => ({
   buildAuditPdf: jest.fn(async () => Buffer.from('%PDF-1.4\n')),
@@ -69,6 +70,7 @@ function serviceFor(signer: PadesSigner, original: Buffer): SealingService {
       upgradeToBLt: async (bytes: Buffer) => bytes,
     } as unknown as import('../dss-injector').DssInjector,
     { APP_PUBLIC_URL: 'https://seald.example' } as AppEnv,
+    new InMemoryEnvelopeDocumentsRepository(),
   );
 }
 

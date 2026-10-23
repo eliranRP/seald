@@ -466,30 +466,26 @@ describe('EnvelopesPgRepository — sendDraft', () => {
     await handle.close();
   });
 
-  it('transitions draft → awaiting_others and stamps tokens', async () => {
+  it('transitions draft → awaiting_others and leaves signer tokens unminted', async () => {
     const e = await repo.createDraft(draftInput(ownerId));
     const s1 = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#111111' });
-    const s2 = await repo.addSigner(e.id, { email: 'b@x.com', name: 'B', color: '#222222' });
-    const h1 = 'a'.repeat(64);
-    const h2 = 'b'.repeat(64);
+    await repo.addSigner(e.id, { email: 'b@x.com', name: 'B', color: '#222222' });
     const sent = await repo.sendDraft({
       envelope_id: e.id,
-      signer_tokens: [
-        { signer_id: s1.id, access_token_hash: h1 },
-        { signer_id: s2.id, access_token_hash: h2 },
-      ],
       sender_email: 'sender@example.com',
       sender_name: 'Sender',
     });
     expect(sent?.status).toBe('awaiting_others');
     expect(sent?.sent_at).not.toBeNull();
+    // Insert A: the email dispatcher mints the token when the invite goes
+    // out. A null hash means the link has not been sent yet.
     const s1Row = await handle.db
       .selectFrom('envelope_signers')
       .selectAll()
       .where('id', '=', s1.id)
       .executeTakeFirstOrThrow();
-    expect(s1Row.access_token_hash).toBe(h1);
-    expect(s1Row.access_token_sent_at).not.toBeNull();
+    expect(s1Row.access_token_hash).toBeNull();
+    expect(s1Row.access_token_sent_at).toBeNull();
   });
 
   it('returns null when envelope is not a draft', async () => {
@@ -501,7 +497,6 @@ describe('EnvelopesPgRepository — sendDraft', () => {
       .execute();
     const got = await repo.sendDraft({
       envelope_id: e.id,
-      signer_tokens: [],
       sender_email: 'sender@example.com',
       sender_name: 'Sender',
     });
@@ -528,10 +523,11 @@ describe('EnvelopesPgRepository — rotateSignerAccessToken', () => {
     const s = await repo.addSigner(e.id, { email: 'a@x.com', name: 'A', color: '#111111' });
     await repo.sendDraft({
       envelope_id: e.id,
-      signer_tokens: [{ signer_id: s.id, access_token_hash: 'a'.repeat(64) }],
       sender_email: 'sender@example.com',
       sender_name: 'Sender',
     });
+    // The invite dispatch mints the first token.
+    expect(await repo.rotateSignerAccessToken(s.id, 'a'.repeat(64))).toBe(true);
     return { envelopeId: e.id, signerId: s.id };
   }
 

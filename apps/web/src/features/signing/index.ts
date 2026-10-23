@@ -30,6 +30,7 @@ export {
 export type {
   FieldKind,
   FillValue,
+  SignMeDocument,
   SignMeEnvelope,
   SignMeField,
   SignMeOtherSigner,

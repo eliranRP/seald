@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 vi.mock('../envelopesApi', () => ({
@@ -8,11 +8,18 @@ vi.mock('../envelopesApi', () => ({
   placeEnvelopeFields: vi.fn(),
   sendEnvelope: vi.fn(),
   patchEnvelope: vi.fn(),
+  setEnvelopeSigningOrder: vi.fn(),
+}));
+
+vi.mock('@/features/signers/accessAuth/accessAuthApi', () => ({
+  patchEnvelopeAccessAuth: vi.fn(),
 }));
 
 import * as api from '../envelopesApi';
+import { patchEnvelopeAccessAuth } from '@/features/signers/accessAuth/accessAuthApi';
 import { useSendEnvelope } from '../useSendEnvelope';
 import type { FieldPlacement } from '../envelopesApi';
+import type { AccessAuthValue } from '@/features/signers/accessAuth/model';
 
 const createEnvelope = api.createEnvelope as unknown as ReturnType<typeof vi.fn>;
 const uploadEnvelopeFile = api.uploadEnvelopeFile as unknown as ReturnType<typeof vi.fn>;
@@ -20,14 +27,20 @@ const addEnvelopeSigner = api.addEnvelopeSigner as unknown as ReturnType<typeof 
 const placeEnvelopeFields = api.placeEnvelopeFields as unknown as ReturnType<typeof vi.fn>;
 const sendEnvelope = api.sendEnvelope as unknown as ReturnType<typeof vi.fn>;
 const patchEnvelope = api.patchEnvelope as unknown as ReturnType<typeof vi.fn>;
+const setEnvelopeSigningOrder = api.setEnvelopeSigningOrder as unknown as ReturnType<typeof vi.fn>;
+
+const patchAccessAuth = patchEnvelopeAccessAuth as unknown as ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  patchAccessAuth.mockReset();
+  patchAccessAuth.mockResolvedValue({});
   createEnvelope.mockReset();
   uploadEnvelopeFile.mockReset();
   addEnvelopeSigner.mockReset();
   placeEnvelopeFields.mockReset();
   sendEnvelope.mockReset();
   patchEnvelope.mockReset();
+  setEnvelopeSigningOrder.mockReset();
   patchEnvelope.mockResolvedValue({ id: 'env-1' });
 });
 
@@ -238,5 +251,245 @@ describe('useSendEnvelope', () => {
     expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
       uploadEnvelopeFile.mock.invocationCallOrder[0]!,
     );
+  });
+
+  describe('expiry and reminder cadence (WP-09)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { customReminders: on };
+    };
+    const runWith = async () => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [],
+          buildFields: () => [],
+          reminderSettings: {
+            expiry: { kind: 'days', days: 14 },
+            cadence: { firstAfterDays: 3, intervalDays: 2, maxReminders: 4 },
+          },
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('patches expiry and cadence before upload while customReminders is on', async () => {
+      setFlag(true);
+      const before = Date.now();
+      await runWith();
+      expect(patchEnvelope).toHaveBeenCalledTimes(1);
+      const [id, patch] = patchEnvelope.mock.calls[0] as [string, Record<string, unknown>];
+      expect(id).toBe('env-1');
+      expect(patch).toMatchObject({
+        reminder_first_after_days: 3,
+        reminder_interval_days: 2,
+        reminder_max: 4,
+      });
+      const expiresMs = Date.parse(patch['expires_at'] as string);
+      const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+      expect(expiresMs).toBeGreaterThanOrEqual(before + fourteenDays);
+      expect(expiresMs).toBeLessThanOrEqual(Date.now() + fourteenDays);
+      expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
+        uploadEnvelopeFile.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('sends no cadence or expiry fields while customReminders is off', async () => {
+      setFlag(false);
+      await runWith();
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('signing order (WP-06)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { signingOrder: on };
+    };
+    const runOrdered = async (sequential: boolean) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      addEnvelopeSigner
+        .mockResolvedValueOnce({ id: 'srv-a' })
+        .mockResolvedValueOnce({ id: 'srv-b' })
+        .mockResolvedValueOnce({ id: 'srv-c' });
+      placeEnvelopeFields.mockResolvedValueOnce([]);
+      setEnvelopeSigningOrder.mockResolvedValueOnce({ id: 'env-1' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [
+            { localId: 'a', contactId: 'a' },
+            { localId: 'b', contactId: 'b' },
+            { localId: 'c', contactId: 'c' },
+          ],
+          buildFields: () => [],
+          signingOrder: {
+            sequential,
+            rows: [
+              { id: 'a', joinsPrevious: false },
+              { id: 'b', joinsPrevious: true },
+              { id: 'c', joinsPrevious: false },
+            ],
+          },
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('sets the order with server ids after the signers exist and before send', async () => {
+      setFlag(true);
+      await runOrdered(true);
+      expect(setEnvelopeSigningOrder).toHaveBeenCalledWith('env-1', {
+        delivery_mode: 'sequential',
+        signers: [
+          { signer_id: 'srv-a', signing_order: 1 },
+          { signer_id: 'srv-b', signing_order: 1 },
+          { signer_id: 'srv-c', signing_order: 2 },
+        ],
+      });
+      const order = setEnvelopeSigningOrder.mock.invocationCallOrder[0]!;
+      expect(order).toBeGreaterThan(addEnvelopeSigner.mock.invocationCallOrder[2]!);
+      expect(order).toBeLessThan(sendEnvelope.mock.invocationCallOrder[0]!);
+    });
+
+    it('makes no signing-order call when the sender kept any order', async () => {
+      setFlag(true);
+      await runOrdered(false);
+      expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
+    });
+
+    it('makes no signing-order call while the flag is off', async () => {
+      setFlag(false);
+      await runOrdered(true);
+      expect(setEnvelopeSigningOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('emailed one-time code (WP-11)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const setFlag = (on: boolean) => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { signerAccessAuth: on };
+    };
+    const runWith = async (accessAuth: AccessAuthValue) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      addEnvelopeSigner
+        .mockResolvedValueOnce({ id: 'srv-a' })
+        .mockResolvedValueOnce({ id: 'srv-b' });
+      placeEnvelopeFields.mockResolvedValueOnce([]);
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [
+            { localId: 'a', contactId: 'a' },
+            { localId: 'b', contactId: 'b' },
+          ],
+          buildFields: () => [],
+          accessAuth,
+        });
+      });
+    };
+
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('saves the choice with server ids after the signers exist and before send', async () => {
+      setFlag(true);
+      await runWith({
+        access: true,
+        action: false,
+        overrides: { b: { access: 'off', action: 'on' } },
+      });
+      expect(patchAccessAuth).toHaveBeenCalledWith('env-1', {
+        access_auth: 'email_otp',
+        action_auth: 'none',
+        signers: [{ signer_id: 'srv-b', access_auth: 'none', action_auth: 'email_otp' }],
+      });
+      const at = patchAccessAuth.mock.invocationCallOrder[0]!;
+      expect(at).toBeGreaterThan(addEnvelopeSigner.mock.invocationCallOrder[1]!);
+      expect(at).toBeLessThan(sendEnvelope.mock.invocationCallOrder[0]!);
+    });
+
+    it('makes no call when the sender asked for nothing', async () => {
+      setFlag(true);
+      await runWith({ access: false, action: false, overrides: {} });
+      expect(patchAccessAuth).not.toHaveBeenCalled();
+    });
+
+    it('makes no call while the flag is off', async () => {
+      setFlag(false);
+      await runWith({ access: true, action: true, overrides: {} });
+      expect(patchAccessAuth).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('date format and timezone (WP-08)', () => {
+    type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+    const runWith = async (dateFormat?: string, timezone?: string) => {
+      createEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      uploadEnvelopeFile.mockResolvedValueOnce({ pages: 1, sha256: 'abc' });
+      sendEnvelope.mockResolvedValueOnce({ id: 'env-1', short_code: 'SC' });
+      const { result } = renderHook(() => useSendEnvelope());
+      await act(async () => {
+        await result.current.run({
+          title: 'x',
+          file: FILE,
+          signers: [],
+          buildFields: () => [],
+          reminderSettings: {
+            expiry: { kind: 'days', days: 30 },
+            cadence: { firstAfterDays: 1, intervalDays: 1, maxReminders: 7 },
+            ...(dateFormat !== undefined ? { dateFormat } : {}),
+            ...(timezone !== undefined ? { timezone } : {}),
+          },
+        });
+      });
+    };
+    afterEach(() => {
+      delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+    });
+
+    it('patches date_format and timezone before upload while fieldMetaV2 is on', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      await runWith('dd/MM/yyyy', 'Asia/Jerusalem');
+      expect(patchEnvelope).toHaveBeenCalledWith('env-1', {
+        date_format: 'dd/MM/yyyy',
+        timezone: 'Asia/Jerusalem',
+      });
+      expect(patchEnvelope.mock.invocationCallOrder[0]).toBeLessThan(
+        uploadEnvelopeFile.mock.invocationCallOrder[0]!,
+      );
+    });
+
+    it('sends nothing when neither is chosen', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: true };
+      await runWith();
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
+
+    it('sends nothing while fieldMetaV2 is off', async () => {
+      (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: false };
+      await runWith('dd/MM/yyyy', 'UTC');
+      expect(patchEnvelope).not.toHaveBeenCalled();
+    });
   });
 });

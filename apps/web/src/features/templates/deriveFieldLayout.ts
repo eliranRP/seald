@@ -33,17 +33,22 @@
 
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
-import type { TemplateField, TemplateFieldType, TemplatePageRule } from 'shared';
+import type { AnyTemplateFieldType, TemplateField, TemplatePageRule } from 'shared';
+import { placementMeta } from '@/features/documentEditor/fieldProperties';
 
 // `FieldKind` (editor canon: 'initials') vs `TemplateFieldType` (template
 // canon: 'initial'). The same singular/plural reconciliation as
 // UploadRoute, mirrored here so the round-trip is symmetric.
-const FIELD_KIND_TO_TEMPLATE: Partial<Record<FieldKind, TemplateFieldType>> = {
+const FIELD_KIND_TO_TEMPLATE: Partial<Record<FieldKind, AnyTemplateFieldType>> = {
   signature: 'signature',
   initials: 'initial',
   date: 'date',
   text: 'text',
   checkbox: 'checkbox',
+  name: 'name',
+  number: 'number',
+  radio: 'radio',
+  dropdown: 'dropdown',
 };
 
 /**
@@ -155,6 +160,7 @@ export function deriveTemplateFieldLayout(
         x: head.x,
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
+        ...placementMeta(head),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),
       });
@@ -171,6 +177,7 @@ export function deriveTemplateFieldLayout(
         x: head.x,
         y: head.y,
         ...(head.linkId ? { label: head.linkId } : {}),
+        ...placementMeta(head),
         ...(signerIndex !== undefined ? { signerIndex } : {}),
         ...(signerRoleId !== undefined ? { signerRoleId } : {}),
       });

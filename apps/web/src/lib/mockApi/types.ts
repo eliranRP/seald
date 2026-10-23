@@ -1,4 +1,5 @@
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
+import type { DraftDocumentPart } from '@/features/documentEditor/documents/model';
 
 /**
  * Domain types that a real server would return. Kept in the mock API package
@@ -35,6 +36,12 @@ export interface AppDocument {
   readonly file: File | null;
   /** Estimated / mocked page count. Comes from the parsed PDF when `file` is set. */
   readonly totalPages: number;
+  /**
+   * Multi-document drafts (WP-04, flag `multiDocumentEnvelopes`): the
+   * ordered PDFs of the draft. Undefined while the draft holds one PDF.
+   * `file` / `totalPages` above always mirror the first entry.
+   */
+  readonly documents?: ReadonlyArray<DraftDocumentPart> | undefined;
   /**
    * When the draft was started from a saved template, the source template
    * id is captured so the editor can:

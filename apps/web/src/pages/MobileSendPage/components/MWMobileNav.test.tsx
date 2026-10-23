@@ -6,7 +6,7 @@ import { renderWithProviders } from '@/test/renderWithProviders';
 import * as flagsModule from 'shared';
 import { MWMobileNav } from './MWMobileNav';
 
-describe('MWMobileNav — Integrations item', () => {
+describe('MWMobileNav — Settings item', () => {
   let isFeatureEnabledSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
@@ -25,21 +25,32 @@ describe('MWMobileNav — Integrations item', () => {
     );
   }
 
-  it('shows Integrations item in the menu when gdriveIntegration is on', async () => {
+  it('shows exactly one Settings row and no Integrations or Developers rows', async () => {
     const user = userEvent.setup();
     isFeatureEnabledSpy.mockReturnValue(true);
     renderNav();
 
     await user.click(screen.getByRole('button', { name: /open menu/i }));
-    expect(screen.getByRole('button', { name: /integrations/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Settings' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: /integrations/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /developers/i })).not.toBeInTheDocument();
   });
 
-  it('hides Integrations item when gdriveIntegration is off', async () => {
+  it('shows Settings when only the developer flags are on', async () => {
+    const user = userEvent.setup();
+    isFeatureEnabledSpy.mockImplementation((flag: string) => flag === 'mcpServer');
+    renderNav();
+
+    await user.click(screen.getByRole('button', { name: /open menu/i }));
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument();
+  });
+
+  it('hides Settings when every settings flag is off', async () => {
     const user = userEvent.setup();
     isFeatureEnabledSpy.mockReturnValue(false);
     renderNav();
 
     await user.click(screen.getByRole('button', { name: /open menu/i }));
-    expect(screen.queryByRole('button', { name: /integrations/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Settings' })).not.toBeInTheDocument();
   });
 });

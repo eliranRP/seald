@@ -1,0 +1,15 @@
+A new API key, {{key_name}}, was created on your Seald account.
+
+Key: {{key_prefix}}…
+Access: {{scopes_readable}}
+Created: {{created_at_readable}}
+Expires: {{expires_at_readable}}
+
+An app with this key can act on your behalf with the access listed above. Signers still sign from their own link.
+
+Didn't create this key? Revoke it now in Settings → Developers. This email never contains the key itself.
+
+Review your keys:
+  {{settings_url}}
+
+Sent via Seald · {{public_url}}

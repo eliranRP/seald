@@ -4,26 +4,8 @@ import type { AuthUser } from '../../../../auth/auth-user';
 import { ConversionController } from '../conversion.controller';
 import { ConversionGateway } from '../conversion.gateway';
 import { ConversionService } from '../conversion.service';
+import { GDriveService } from '../../gdrive.service';
 import { GDriveRateLimiter, RateLimitedError } from '../../rate-limiter';
-
-class FakeService {
-  startCalls: Array<{ accountId: string; fileId: string; mimeType: string; userId: string }> = [];
-  startImpl: (args: {
-    accountId: string;
-    fileId: string;
-    mimeType: string;
-    userId: string;
-  }) => Promise<{ jobId: string; status: 'pending' }> = async (args) => {
-    this.startCalls.push(args);
-    return { jobId: 'job-1', status: 'pending' as const };
-  };
-  start = (args: {
-    accountId: string;
-    fileId: string;
-    mimeType: string;
-    userId: string;
-  }): Promise<{ jobId: string; status: 'pending' }> => this.startImpl(args);
-}
 
 const USER_1: AuthUser = { id: 'user-1', email: 'u1@example.com', provider: 'google' };
 
@@ -32,17 +14,34 @@ const FILE_ID = '1AbCdEf-GhIj';
 
 function makeCtrl(opts?: { capacity?: number; windowMs?: number }): {
   ctrl: ConversionController;
-  svc: FakeService;
+  svc: ConversionService;
   gateway: ConversionGateway;
   limiter: GDriveRateLimiter;
 } {
-  const svc = new FakeService();
   const gateway = new ConversionGateway();
   const limiter = new GDriveRateLimiter({
     capacity: opts?.capacity ?? 30,
     windowMs: opts?.windowMs ?? 60_000,
   });
-  const ctrl = new ConversionController(svc as unknown as ConversionService, gateway, limiter);
+  // Real service so the moved validation + rate limit are exercised
+  // through the controller; network ports are stubbed.
+  const svc = new ConversionService({
+    driveFetcher: async () => ({
+      ok: true,
+      status: 200,
+      body: Buffer.from('%PDF'),
+      contentLength: 4,
+    }),
+    gotenbergClient: async () => ({ ok: true, status: 200, body: Buffer.from('%PDF') }),
+    gateway,
+    maxBytes: 1024,
+    drive: {
+      getAccessToken: async () => ({ accessToken: 'at', expiresAt: Date.now() + 3_600_000 }),
+    } as unknown as GDriveService,
+    assetWriter: async () => ({ url: 'https://signed.example/x.pdf' }),
+    rateLimiter: limiter,
+  });
+  const ctrl = new ConversionController(svc, gateway);
   return { ctrl, svc, gateway, limiter };
 }
 
@@ -79,14 +78,15 @@ describe('ConversionController', () => {
   describe('POST /conversion', () => {
     it('happy path: forwards to service, returns { jobId, status }', async () => {
       const { ctrl, svc } = makeCtrl();
+      const startSpy = jest.spyOn(svc, 'start');
       const out = await ctrl.start(USER_1, {
         accountId: ACCOUNT_ID,
         fileId: FILE_ID,
         mimeType: 'application/pdf',
       });
-      expect(out).toEqual({ jobId: 'job-1', status: 'pending' });
-      expect(svc.startCalls).toHaveLength(1);
-      expect(svc.startCalls[0]?.userId).toBe('user-1');
+      expect(out).toEqual({ jobId: expect.any(String), status: 'pending' });
+      expect(startSpy).toHaveBeenCalledTimes(1);
+      expect(startSpy.mock.calls[0]?.[0].userId).toBe('user-1');
     });
 
     it('rejects 400 when accountId is not a UUID', async () => {
@@ -146,11 +146,11 @@ describe('ConversionController', () => {
 
     it('maps service file-too-large → HTTP 413', async () => {
       const { ctrl, svc } = makeCtrl();
-      svc.startImpl = async () => {
+      jest.spyOn(svc, 'start').mockImplementation(async () => {
         const err: Error & { code?: string } = new Error('too large');
         err.code = 'file-too-large';
         throw err;
-      };
+      });
       const err = await ctrl
         .start(USER_1, { accountId: ACCOUNT_ID, fileId: FILE_ID, mimeType: 'application/pdf' })
         .catch((e: unknown) => e);
@@ -161,11 +161,11 @@ describe('ConversionController', () => {
 
     it('maps service token-expired → HTTP 401 token-expired', async () => {
       const { ctrl, svc } = makeCtrl();
-      svc.startImpl = async () => {
+      jest.spyOn(svc, 'start').mockImplementation(async () => {
         const err: Error & { code?: string } = new Error('token gone');
         err.code = 'token-expired';
         throw err;
-      };
+      });
       const err = await ctrl
         .start(USER_1, { accountId: ACCOUNT_ID, fileId: FILE_ID, mimeType: 'application/pdf' })
         .catch((e: unknown) => e);
@@ -175,9 +175,9 @@ describe('ConversionController', () => {
 
     it('does not echo access tokens or upstream errors in the response body', async () => {
       const { ctrl, svc } = makeCtrl();
-      svc.startImpl = async () => {
+      jest.spyOn(svc, 'start').mockImplementation(async () => {
         throw new Error('upstream said: at-secret-token-99');
-      };
+      });
       const err = await ctrl
         .start(USER_1, { accountId: ACCOUNT_ID, fileId: FILE_ID, mimeType: 'application/pdf' })
         .catch((e: unknown) => e);

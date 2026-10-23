@@ -1,5 +1,11 @@
 import type { AxiosRequestConfig } from 'axios';
-import type { EnvelopeListItem } from 'shared';
+import type {
+  AnyFieldKind,
+  DeliveryMode,
+  EnvelopeDocument,
+  EnvelopeListItem,
+  FieldMetaOptions,
+} from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
@@ -15,7 +21,8 @@ export type EnvelopeStatus =
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
-export type FieldKind = 'signature' | 'initials' | 'date' | 'text' | 'checkbox' | 'email';
+/** Every kind the API knows; name, number, radio and dropdown only while `fieldMetaV2` is on (WP-07). */
+export type FieldKind = AnyFieldKind;
 
 export interface EnvelopeSigner {
   readonly id: string;
@@ -29,6 +36,10 @@ export interface EnvelopeSigner {
   readonly tc_accepted_at: string | null;
   readonly signed_at: string | null;
   readonly declined_at: string | null;
+  /** When this signer's step was invited. Present only while `signingOrder` is on (WP-05). */
+  readonly invited_at?: string | null;
+  /** 1-based signing step. Present only while `signingOrder` is on (WP-05). */
+  readonly step?: number;
 }
 
 export interface EnvelopeField {
@@ -42,6 +53,10 @@ export interface EnvelopeField {
   readonly height?: number | null;
   readonly required: boolean;
   readonly link_id?: string | null;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly document_id?: string;
+  /** Per-kind options (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
 }
 
 /**
@@ -71,8 +86,21 @@ export interface Envelope {
   readonly signers: ReadonlyArray<EnvelopeSigner>;
   readonly fields: ReadonlyArray<EnvelopeField>;
   readonly tags: ReadonlyArray<string>;
+  /** `parallel` (default) or `sequential`. Meaningful to the UI only while `signingOrder` is on (WP-05). */
+  readonly delivery_mode?: DeliveryMode;
+  /** The envelope's documents in order. Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly documents?: ReadonlyArray<EnvelopeDocument>;
   /** Absent on older payloads; treat missing as on. */
   readonly reminders_enabled?: boolean;
+  /** Reminder cadence (WP-09). Present only while `customReminders` is on. */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
+  /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly date_format?: string | null;
+  readonly timezone?: string | null;
+  /** Envelope language (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
   readonly gdriveExport?: EnvelopeGdriveExportState | null;
@@ -134,6 +162,10 @@ export interface FieldPlacement {
   readonly height?: number | null;
   readonly required?: boolean;
   readonly link_id?: string | null;
+  /** Multi-document envelopes (WP-03): the document the field sits on. Omitted means document 1. */
+  readonly document_id?: string;
+  /** Per-kind options (WP-07); sent only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
 }
 
 /* ---------------- Wire functions ---------------- */
@@ -179,6 +211,15 @@ export interface PatchEnvelopeInput {
   readonly tags?: ReadonlyArray<string>;
   /** Daily unsigned-signer reminders. Omit to leave the current value. */
   readonly reminders_enabled?: boolean;
+  /** Draft only. Cadence fields are accepted while `customReminders` is on. */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
+  /** Date field rendering (WP-07); accepted only while `fieldMetaV2` is on. */
+  readonly date_format?: string;
+  readonly timezone?: string;
+  /** Envelope language (WP-38); accepted only while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export async function patchEnvelope(
@@ -211,7 +252,12 @@ export type EnvelopeEventType =
   | 'session_invalidated_by_decline'
   | 'session_invalidated_by_cancel'
   | 'job_failed'
-  | 'retention_deleted';
+  | 'retention_deleted'
+  | 'document_added'
+  | 'step_started'
+  // WP-26 (migration 0039)
+  | 'signer_corrected'
+  | 'expiry_changed';
 
 export interface EnvelopeEvent {
   readonly id: string;
@@ -244,7 +290,9 @@ export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit';
 
 export interface EnvelopeDownloadUrl {
   readonly url: string;
-  readonly kind: EnvelopeDownloadKind;
+  readonly kind: EnvelopeDownloadKind | 'zip';
+  /** Echoed by the API when `document_id` was requested (WP-03). */
+  readonly document_id?: string;
 }
 
 /**
@@ -262,9 +310,20 @@ export async function getEnvelopeDownloadUrl(
   id: string,
   kind?: EnvelopeDownloadKind,
   signal?: AbortSignal,
+  /**
+   * Multi-document envelopes (WP-03): `{ documentId }` picks one document's
+   * original or sealed PDF; `{ zip: true }` asks for the bundle of every
+   * sealed document plus the audit PDF. Ignored by the API while the flag
+   * is off, and omitted by every legacy caller.
+   */
+  multi?: { readonly documentId?: string; readonly zip?: boolean },
 ): Promise<EnvelopeDownloadUrl> {
   const base = configWithSignal(signal) ?? {};
-  const params = kind !== undefined ? { ...(base.params ?? {}), kind } : base.params;
+  const query: Record<string, string> = {};
+  if (kind !== undefined) query.kind = kind;
+  if (multi?.zip === true) query.kind = 'zip';
+  if (multi?.documentId !== undefined && multi.zip !== true) query.document_id = multi.documentId;
+  const params = Object.keys(query).length > 0 ? { ...(base.params ?? {}), ...query } : base.params;
   const config = params !== undefined ? { ...base, params } : base;
   const { data } = await apiClient.get<EnvelopeDownloadUrl>(`/envelopes/${id}/download`, config);
   return data;
@@ -391,6 +450,25 @@ export async function placeEnvelopeFields(
   const { data } = await apiClient.put<ReadonlyArray<EnvelopeField>>(
     `/envelopes/${envelopeId}/fields`,
     { fields },
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+/** `PUT /envelopes/:id/signing-order` body (WP-05, flag `signingOrder`). */
+export interface SetSigningOrderInput {
+  readonly delivery_mode: DeliveryMode;
+  readonly signers?: ReadonlyArray<{ readonly signer_id: string; readonly signing_order: number }>;
+}
+
+export async function setEnvelopeSigningOrder(
+  envelopeId: string,
+  input: SetSigningOrderInput,
+  signal?: AbortSignal,
+): Promise<Envelope> {
+  const { data } = await apiClient.put<Envelope>(
+    `/envelopes/${envelopeId}/signing-order`,
+    input,
     configWithSignal(signal),
   );
   return data;

@@ -1,0 +1,116 @@
+import { McpDryRunOutputSchema, type ApiKeyScope, type FeatureFlag } from 'shared';
+import { z } from 'zod';
+import type { McpPrincipal } from './mcp-principal';
+import type { McpServices } from './mcp-services';
+
+/**
+ * Steps of docs/design/mcp-server.md § Pull requests that ship tools, or
+ * `WP-45` (parity plan D5: the approval-gated account and key tools).
+ */
+export type McpStep = `step-${string}` | 'WP-45';
+
+export interface McpToolContext {
+  /** The verified credential. `owner_id` always comes from here, never from arguments. */
+  readonly principal: McpPrincipal;
+  readonly services: McpServices;
+  readonly now: Date;
+}
+
+export interface McpToolAnnotations {
+  readonly readOnlyHint: boolean;
+  readonly destructiveHint: boolean;
+  readonly idempotentHint: boolean;
+  readonly openWorldHint: boolean;
+}
+
+interface McpToolMeta {
+  /** `noun_verb`; never names signing (one D5 exception, `envelopes_sign_as_signer`). */
+  readonly name: string;
+  readonly title: string;
+  readonly description: string;
+  /** The pull-request step that shipped the tool (route coverage). */
+  readonly step: McpStep;
+  /** Every scope the call needs; the credential must hold all of them. */
+  readonly scopes: readonly ApiKeyScope[];
+  readonly annotations: McpToolAnnotations;
+  /** Hidden from tools/list (and not callable) unless every flag is on. */
+  readonly requiresFlags?: readonly FeatureFlag[];
+  /** Top-level output keys that may hold a short-lived signed storage URL (leak scan). */
+  readonly signedUrlFields?: readonly string[];
+  /**
+   * Mutating tools only (WP-24). The idempotency claim, every write the
+   * handler makes (through the envelope services and `appendEvent`) and
+   * the stored response commit in one database transaction. A crash or
+   * a thrown error anywhere before the commit leaves no claim and no
+   * write, so a retry with the same key runs the call once, and a
+   * completed call replays its stored response instead of running again.
+   */
+  readonly atomic?: boolean;
+  /**
+   * Top-level output keys left out of the stored response, so an
+   * idempotent replay never hands out a one-time secret again (the
+   * confirmation token of `envelopes_preview_send`).
+   */
+  readonly replayOmit?: readonly string[];
+}
+
+export interface McpToolDefinition<I extends z.ZodType, O extends z.ZodType> extends McpToolMeta {
+  /** Strict Zod object; `z.toJSONSchema` of it is the advertised `inputSchema`. */
+  readonly input: I;
+  /** Output schema; the result is parsed through it, which drops unnamed keys. */
+  readonly output: O;
+  readonly handler: (args: z.output<I>, ctx: McpToolContext) => Promise<z.input<O>>;
+}
+
+/**
+ * A mutating tool (step 8a). Its input must require `idempotency_key`
+ * and `dry_run`. `dry_run: true` calls `preview`, which validates without
+ * writing and returns what the call would do; the runner wraps it as
+ * `{ dry_run: true, would }` and stores no idempotency row. Otherwise the
+ * runner claims the idempotency key, calls `handler`, and stores its
+ * output for replay.
+ */
+export interface McpWriteToolDefinition<
+  I extends z.ZodType,
+  O extends z.ZodType,
+> extends McpToolDefinition<I, O> {
+  readonly preview: (args: z.output<I>, ctx: McpToolContext) => Promise<Record<string, unknown>>;
+}
+
+/** A registered tool with its types erased, so the catalog can hold any of them. */
+export interface McpTool extends McpToolMeta {
+  readonly input: z.ZodType;
+  /** For a mutating tool: the dry-run shape or the tool's own output. */
+  readonly output: z.ZodType;
+  /** True for tools defined with `defineWriteTool`. */
+  readonly mutating: boolean;
+  /** `args` must already have passed `input`. */
+  readonly invoke: (args: unknown, ctx: McpToolContext) => Promise<unknown>;
+  /** Mutating tools only: the dry run. */
+  readonly preview?: (args: unknown, ctx: McpToolContext) => Promise<Record<string, unknown>>;
+}
+
+export function defineTool<I extends z.ZodType, O extends z.ZodType>(
+  def: McpToolDefinition<I, O>,
+): McpTool {
+  const { handler, ...meta } = def;
+  return {
+    ...meta,
+    mutating: false,
+    invoke: (args, ctx) => handler(args as z.output<I>, ctx),
+  };
+}
+
+export function defineWriteTool<I extends z.ZodType, O extends z.ZodType>(
+  def: McpWriteToolDefinition<I, O>,
+): McpTool {
+  const { handler, preview, output, ...meta } = def;
+  return {
+    ...meta,
+    // Dry-run branch first: a real result never has `dry_run: true`.
+    output: z.union([McpDryRunOutputSchema, output]),
+    mutating: true,
+    invoke: (args, ctx) => handler(args as z.output<I>, ctx),
+    preview: (args, ctx) => preview(args as z.output<I>, ctx),
+  };
+}

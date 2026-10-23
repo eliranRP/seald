@@ -287,6 +287,14 @@ export function createPgMemDb(): PgMemHandle {
       add column if not exists last_reminded_at timestamptz;
   `);
 
+  // 0023 — per-signer invite time for signing order (WP-05). The
+  // 'step_started' event label needs no shim: pg-mem's event_type check is
+  // text-based.
+  mem.public.none(`
+    alter table public.envelope_signers
+      add column if not exists invited_at timestamptz;
+  `);
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8

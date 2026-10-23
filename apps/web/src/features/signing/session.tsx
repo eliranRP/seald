@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import { EnvelopeLocaleProvider } from '@/lib/i18n';
 import {
   useAcceptTermsMutation,
   useDeclineMutation,
@@ -13,6 +14,7 @@ import {
 } from './useSigning';
 import type {
   FillValue,
+  SignMeDocument,
   SignMeEnvelope,
   SignMeField,
   SignMeOtherSigner,
@@ -27,6 +29,8 @@ export interface SigningSessionValue {
   readonly signer: SignMeSigner | null;
   readonly fields: ReadonlyArray<SignMeField>;
   readonly otherSigners: ReadonlyArray<SignMeOtherSigner>;
+  /** The envelope's documents in order; empty unless `multiDocumentEnvelopes` is on API-side (WP-03). */
+  readonly documents: ReadonlyArray<SignMeDocument>;
   readonly completedRequired: number;
   readonly requiredCount: number;
   readonly nextField: SignMeField | null;
@@ -38,7 +42,8 @@ export interface SigningSessionValue {
   readonly acknowledgeEsignDisclosure: (version: string) => Promise<void>;
   /** T-15 — record explicit intent-to-sign before submit. */
   readonly confirmIntentToSign: () => Promise<void>;
-  readonly submit: () => Promise<void>;
+  /** `accessCode`: the fresh emailed code, when the sender asked for a re-check (WP-11). */
+  readonly submit: (accessCode?: string) => Promise<void>;
   readonly decline: (reason?: string) => Promise<void>;
   /** T-16 — withdraw consent for electronic signing. */
   readonly withdrawConsent: (reason?: string) => Promise<void>;
@@ -83,6 +88,7 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
       signer: q.data?.signer ?? null,
       fields,
       otherSigners: q.data?.other_signers ?? [],
+      documents: q.data?.documents ?? [],
       requiredCount: required.length,
       completedRequired: completed.length,
       nextField: next,
@@ -102,8 +108,8 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
       confirmIntentToSign: async () => {
         await intent.mutateAsync();
       },
-      submit: async () => {
-        await submitMut.mutateAsync();
+      submit: async (accessCode) => {
+        await submitMut.mutateAsync(accessCode);
       },
       decline: async (reason) => {
         await declineMut.mutateAsync(reason);
@@ -126,7 +132,17 @@ export function SigningSessionProvider(props: SigningSessionProviderProps) {
     withdrawMut,
   ]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  // WP-38: signer locale, then envelope locale, then the browser's.
+  return (
+    <Ctx.Provider value={value}>
+      <EnvelopeLocaleProvider
+        signerLocale={value.signer?.locale}
+        envelopeLocale={value.envelope?.locale}
+      >
+        {children}
+      </EnvelopeLocaleProvider>
+    </Ctx.Provider>
+  );
 }
 
 export function useSigningSession(): SigningSessionValue {

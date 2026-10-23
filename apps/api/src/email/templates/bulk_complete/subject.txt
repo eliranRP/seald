@@ -1,0 +1,1 @@
+Bulk send "{{template_title}}" is {{outcome_word}}: {{sent_count}} sent, {{failed_count}} failed

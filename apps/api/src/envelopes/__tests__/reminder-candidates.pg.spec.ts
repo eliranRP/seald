@@ -39,10 +39,11 @@ describe('EnvelopesPgRepository — reminder candidates', () => {
     });
     await repo.sendDraft({
       envelope_id: draft.id,
-      signer_tokens: [{ signer_id: signer.id, access_token_hash: 'a'.repeat(64) }],
       sender_email: 'sender@example.com',
       sender_name: 'Sender',
     });
+    // Insert A: the invite dispatch mints the token and stamps the send time.
+    expect(await repo.rotateSignerAccessToken(signer.id, 'a'.repeat(64))).toBe(true);
     return { envelopeId: draft.id, signerId: signer.id };
   }
 
@@ -87,6 +88,22 @@ describe('EnvelopesPgRepository — reminder candidates', () => {
       .where('id', '=', envelopeId)
       .execute();
     expect(await repo.listReminderCandidates(now, 10)).toEqual([]);
+  });
+
+  it('does not list a signer whose invite has not been dispatched yet (null hash)', async () => {
+    const draft = await repo.createDraft(draftInput(ownerId));
+    const signer = await repo.addSigner(draft.id, {
+      email: 'bea@example.com',
+      name: 'Bea',
+      color: '#112233',
+    });
+    await repo.sendDraft({
+      envelope_id: draft.id,
+      sender_email: 'sender@example.com',
+      sender_name: 'Sender',
+    });
+    expect(await repo.listReminderCandidates(new Date(Date.now() + 48 * HOUR), 10)).toEqual([]);
+    expect(await repo.tryClaimReminder(signer.id, new Date(Date.now() + 48 * HOUR))).toBe(false);
   });
 
   it('refuses the claim when the envelope is canceled', async () => {

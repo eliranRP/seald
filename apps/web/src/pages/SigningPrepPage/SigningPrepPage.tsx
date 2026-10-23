@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Trans } from 'react-i18next';
 import { ArrowRight, Mail } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import {
@@ -14,6 +15,7 @@ import { RecipientHeader } from '@/components/RecipientHeader';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
 import { ESIGN_DISCLOSURE_VERSION, RECORD_ACCESS_ATTESTATION } from 'shared';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
+import { useT } from '@/lib/i18n';
 import {
   AccountNote,
   Checkbox,
@@ -45,6 +47,7 @@ interface ApiErrorLike extends Error {
 }
 
 function Content() {
+  const t = useT();
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
@@ -83,17 +86,15 @@ function Content() {
         navigate(`/sign/${envelopeId}`, { replace: true });
         return;
       }
-      setError(apiError.message ?? 'We could not record your acceptance. Please try again.');
+      setError(apiError.message ?? t('signing.prep.errorAccept'));
       setBusy(false);
     }
-  }, [acceptTerms, acknowledgeEsignDisclosure, ready, envelope, envelopeId, navigate, signer]);
+  }, [acceptTerms, acknowledgeEsignDisclosure, ready, envelope, envelopeId, navigate, signer, t]);
 
   const handleDecline = useCallback(async () => {
     if (busy) return;
     // native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
-    const confirmed = window.confirm(
-      'Decline this signing request? The sender will be notified and the document will remain unsigned.',
-    );
+    const confirmed = window.confirm(t('signing.prep.declineConfirm'));
     if (!confirmed) return;
     setBusy(true);
     try {
@@ -102,9 +103,9 @@ function Content() {
     } catch (err) {
       setBusy(false);
       const apiError = err as ApiErrorLike;
-      setError(apiError.message ?? 'We could not decline right now. Please try again.');
+      setError(apiError.message ?? t('signing.prep.errorDecline'));
     }
-  }, [busy, decline, envelopeId, navigate]);
+  }, [busy, decline, envelopeId, navigate, t]);
 
   const openWithdrawDialog = useCallback(() => {
     if (busy) return;
@@ -128,11 +129,9 @@ function Content() {
     } catch (err) {
       setBusy(false);
       const apiError = err as ApiErrorLike;
-      setError(
-        apiError.message ?? 'We could not record your withdrawal right now. Please try again.',
-      );
+      setError(apiError.message ?? t('signing.prep.errorWithdraw'));
     }
-  }, [busy, envelopeId, navigate, withdrawConsent]);
+  }, [busy, envelopeId, navigate, withdrawConsent, t]);
 
   const handleNotMe = useCallback(() => {
     // Treat "Not me" as a decline with a specific reason. Simpler than a
@@ -146,9 +145,7 @@ function Content() {
     if (busy) return;
     // native confirm is appropriate; mirrors handleDecline above.
     const confirmed = window.confirm(
-      'Are you not the intended recipient?\n\n' +
-        "We'll let the sender know to send a fresh link to the right person. " +
-        'This is recorded in the audit trail and cannot be undone.',
+      `${t('signing.prep.notMeTitle')}\n\n${t('signing.prep.notMeBody')}`,
     );
     if (!confirmed) return;
     (async () => {
@@ -160,25 +157,33 @@ function Content() {
         setBusy(false);
       }
     })();
-  }, [busy, decline, envelopeId, navigate]);
+  }, [busy, decline, envelopeId, navigate, t]);
 
   if (!envelope || !signer) return null;
 
   return (
     <Page>
-      <RecipientHeader docTitle={envelope.title} docId={envelope.short_code} stepLabel="Identity" />
+      <RecipientHeader
+        docTitle={envelope.title}
+        docId={envelope.short_code}
+        stepLabel={t('signing.stepLabels.identity')}
+      />
       <Inner>
         <Chip>
           <Icon icon={Mail} size={12} />
-          Signature request
+          {t('signing.prep.chip')}
         </Chip>
         <Hero>
-          You&apos;ve been asked to sign <em>{envelope.title}</em>.
+          <Trans
+            i18nKey="signing.prep.hero"
+            values={{ title: envelope.title }}
+            components={{ em: <em /> }}
+          />
         </Hero>
-        <Subhero>Confirm your details below and we&apos;ll walk you through each field.</Subhero>
+        <Subhero>{t('signing.prep.subhero')}</Subhero>
 
         <IdCard>
-          <SigningAsLabel>Signing as</SigningAsLabel>
+          <SigningAsLabel>{t('signing.prep.signingAs')}</SigningAsLabel>
           <IdRow>
             <Avatar name={signer.name} size={40} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -217,7 +222,7 @@ function Content() {
         <SignatureLevelNote />
         {/* Item 10 — demoted from <Subhero> so the legal screen above stays
             the focal point. Visible but not promoted as marketing copy. */}
-        <AccountNote>No Seald account required.</AccountNote>
+        <AccountNote>{t('signing.prep.noAccount')}</AccountNote>
 
         {/* Item 5 — single subdued opt-out group below SignatureLevelNote.
             We tag the <summary> with role="button" explicitly because
@@ -225,13 +230,13 @@ function Content() {
             implicit summary→button mapping that browsers ship; the
             attribute is a no-op in real browsers (native role wins). */}
         <OptOutDetails>
-          <OptOutSummary role="button">Need to opt out?</OptOutSummary>
+          <OptOutSummary role="button">{t('signing.prep.optOutSummary')}</OptOutSummary>
           <OptOutBody>
             <DeclineLink type="button" onClick={handleNotMe} disabled={busy}>
-              Wrong recipient?
+              {t('signing.prep.wrongRecipient')}
             </DeclineLink>
             <DeclineLink type="button" onClick={handleDecline} disabled={busy}>
-              Decline this request
+              {t('signing.prep.declineRequest')}
             </DeclineLink>
             <WithdrawLink type="button" onClick={openWithdrawDialog} disabled={busy}>
               Withdraw consent to sign electronically
@@ -242,7 +247,7 @@ function Content() {
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
         <PrimaryBtn type="button" disabled={!ready || busy} onClick={handleStart}>
-          {busy ? 'One moment…' : 'Start signing'}
+          {busy ? t('signing.prep.busy') : t('signing.prep.startSigning')}
           {!busy ? <Icon icon={ArrowRight} size={16} /> : null}
         </PrimaryBtn>
 

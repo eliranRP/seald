@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SUPPORTED_LOCALES } from './locales';
 
 export const ENVELOPE_STATUSES = [
   'draft',
@@ -17,6 +18,8 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 export const SIGNER_ROLES = ['proposer', 'signatory', 'validator', 'witness'] as const;
 export type SignerRole = (typeof SIGNER_ROLES)[number];
 
+// WP-07: name / number / radio / dropdown exist on the wire only while the
+// `fieldMetaV2` flag is on; the API's request DTO rejects them otherwise.
 const FIELD_KINDS = [
   'signature',
   'initials',
@@ -24,6 +27,10 @@ const FIELD_KINDS = [
   'text',
   'checkbox',
   'email',
+  'name',
+  'number',
+  'radio',
+  'dropdown',
 ] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
@@ -54,6 +61,19 @@ export const EVENT_TYPES = [
   'session_invalidated_by_cancel',
   'job_failed',
   'retention_deleted',
+  // WP-03 (migration 0022): a document was added to a multi-file draft.
+  'document_added',
+  // WP-05 (migration 0023): a signing step was invited (sequential mode).
+  'step_started',
+  // WP-10 (migration 0026): emailed one-time code before access / submit.
+  'access_code_sent',
+  'access_code_verified',
+  'access_code_failed',
+  // WP-21 (migration 0030): the owner approved or denied an agent action.
+  'approval_decided',
+  // WP-26 (migration 0039): a sent envelope's signer was corrected, or its expiry moved.
+  'signer_corrected',
+  'expiry_changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -84,6 +104,15 @@ export const SignerSchema = z.object({
   tc_accepted_at: iso.nullable(),
   signed_at: iso.nullable(),
   declined_at: iso.nullable(),
+  // WP-05: present only while the `signingOrder` flag is on. `invited_at`
+  // is when this signer's step was invited (null until then). `step` is
+  // the 1-based position of the signer's `signing_order` among the
+  // envelope's distinct orders; signers with the same step sign together.
+  invited_at: iso.nullable().optional(),
+  step: z.number().int().min(1).optional(),
+  // WP-38 (migration 0035): per-signer locale override. Present only while
+  // the `i18n` flag is on; null inherits the envelope's locale.
+  locale: z.string().nullable().optional(),
 });
 export type Signer = z.infer<typeof SignerSchema>;
 
@@ -122,9 +151,7 @@ export const EnvelopeGdriveSaveResultSchema = z.object({
       webViewLink: z.string(),
     }),
   ),
-  error: z
-    .object({ kind: z.enum(['sealed', 'audit']), code: z.string() })
-    .optional(),
+  error: z.object({ kind: z.enum(['sealed', 'audit']), code: z.string() }).optional(),
   pushedAt: iso,
 });
 export type EnvelopeGdriveSaveResult = z.infer<typeof EnvelopeGdriveSaveResultSchema>;
@@ -149,8 +176,33 @@ export const FieldSchema = z.object({
   value_text: z.string().nullable().optional(),
   value_boolean: z.boolean().nullable().optional(),
   filled_at: iso.nullable().optional(),
+  // WP-07: per-kind options (see field-meta.ts). Present on responses only
+  // while the `fieldMetaV2` flag is on.
+  meta: z.record(z.string(), z.unknown()).optional(),
+  // WP-03: the document this field sits on. Present on responses only
+  // while the `multiDocumentEnvelopes` flag is on; `page` is 1-based
+  // within that document.
+  document_id: uuid.optional(),
 });
 export type Field = z.infer<typeof FieldSchema>;
+
+/** WP-03: most documents one envelope may hold. */
+export const MAX_ENVELOPE_DOCUMENTS = 10;
+
+/**
+ * WP-03: one PDF inside an envelope. `ord` is 1-based and dense; document
+ * 1 is the one the legacy `original_*` / `sealed_*` envelope fields
+ * mirror. Storage paths never leave the server.
+ */
+export const EnvelopeDocumentSchema = z.object({
+  id: uuid,
+  ord: z.number().int().min(1),
+  title: z.string().min(1).max(200),
+  original_pages: z.number().int().positive().nullable(),
+  original_sha256: sha256.nullable(),
+  sealed_sha256: sha256.nullable(),
+});
+export type EnvelopeDocument = z.infer<typeof EnvelopeDocumentSchema>;
 
 export const EnvelopeSchema = z.object({
   id: uuid,
@@ -184,6 +236,19 @@ export const EnvelopeSchema = z.object({
   // Daily unsigned-signer reminders. Default on; the sender can turn
   // them off per envelope while it is still a draft or awaiting others.
   reminders_enabled: z.boolean().default(true),
+  // Per-envelope reminder cadence (migration 0025). Present only when the
+  // `customReminders` flag is on; absent means today's defaults (first
+  // after 1 day, then every 1 day, at most 7).
+  reminder_first_after_days: z.number().int().optional(),
+  reminder_interval_days: z.number().int().optional(),
+  reminder_max: z.number().int().optional(),
+  // WP-07 (migration 0024): how date fields render. Present only while the
+  // `fieldMetaV2` flag is on; null means "keep what the signer sent".
+  date_format: z.string().nullable().optional(),
+  timezone: z.string().nullable().optional(),
+  // WP-38 (migration 0035): locale of the signing experience and emails.
+  // Present only while the `i18n` flag is on; null means `en`.
+  locale: z.string().nullable().optional(),
   created_at: iso,
   updated_at: iso,
   // "Save to Google Drive" state for this envelope. `null` when the
@@ -194,6 +259,9 @@ export const EnvelopeSchema = z.object({
   // uses them to seed the Picker's parent folder and the "Last saved to
   // Drive · …" meta line.
   gdriveExport: GdriveExportStateSchema.nullable().optional(),
+  // WP-03: the envelope's documents in order. Present only while the
+  // `multiDocumentEnvelopes` flag is on; a legacy envelope lists one.
+  documents: z.array(EnvelopeDocumentSchema).optional(),
 });
 export type Envelope = z.infer<typeof EnvelopeSchema>;
 
@@ -213,6 +281,8 @@ export type EnvelopeEvent = z.infer<typeof EnvelopeEventSchema>;
 // Request DTOs
 export const CreateEnvelopeRequestSchema = z.object({
   title: z.string().min(1).max(200),
+  // WP-38: accepted only while the `i18n` flag is on.
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 export type CreateEnvelopeRequest = z.infer<typeof CreateEnvelopeRequestSchema>;
 
@@ -221,6 +291,13 @@ export const PatchEnvelopeRequestSchema = z
     title: z.string().min(1).max(200).optional(),
     expires_at: iso.optional(),
     reminders_enabled: z.boolean().optional(),
+    reminder_first_after_days: z.number().int().optional(),
+    reminder_interval_days: z.number().int().optional(),
+    reminder_max: z.number().int().optional(),
+    date_format: z.string().min(1).max(40).optional(),
+    timezone: z.string().min(1).max(64).optional(),
+    // WP-38: accepted only while the `i18n` flag is on.
+    locale: z.enum(SUPPORTED_LOCALES).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'empty_patch' });
 export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
@@ -234,12 +311,15 @@ export type PatchEnvelopeRequest = z.infer<typeof PatchEnvelopeRequestSchema>;
  */
 const AddSignerContactRequestSchema = z.object({
   contact_id: uuid,
+  // WP-38: accepted only while the `i18n` flag is on.
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 
 const AddSignerAdhocRequestSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(200),
   color: hexColor.optional(),
+  locale: z.enum(SUPPORTED_LOCALES).optional(),
 });
 
 export const AddSignerRequestSchema = z.union([
@@ -258,11 +338,35 @@ const FieldPlacementInputSchema = z.object({
   height: z.number().min(0).max(1).nullable().optional(),
   required: z.boolean().default(true),
   link_id: z.string().max(100).nullable().optional(),
+  // WP-07: accepted only while `fieldMetaV2` is on.
+  meta: z.record(z.string(), z.unknown()).optional(),
+  // WP-03: accepted only while `multiDocumentEnvelopes` is on. Omitted
+  // means document 1.
+  document_id: uuid.optional(),
 });
 export const PlaceFieldsRequestSchema = z.object({
   fields: z.array(FieldPlacementInputSchema),
 });
 export type PlaceFieldsRequest = z.infer<typeof PlaceFieldsRequestSchema>;
+
+/**
+ * WP-05: `PUT /envelopes/:id/signing-order` (flag `signingOrder`, draft
+ * only). `signers`, when given, names every signer exactly once; signers
+ * with the same `signing_order` form one step.
+ */
+export const MAX_SIGNING_ORDER = 100;
+export const SetSigningOrderRequestSchema = z.object({
+  delivery_mode: z.enum(DELIVERY_MODES),
+  signers: z
+    .array(
+      z.object({
+        signer_id: uuid,
+        signing_order: z.number().int().min(1).max(MAX_SIGNING_ORDER),
+      }),
+    )
+    .optional(),
+});
+export type SetSigningOrderRequest = z.infer<typeof SetSigningOrderRequestSchema>;
 
 export const SignStartRequestSchema = z.object({
   envelope_id: uuid,
@@ -345,6 +449,34 @@ export const VerifyResponseSchema = z.object({
 });
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
 
+/** WP-03: `PUT /envelopes/:id/documents/order`. Every document id, once. */
+export const ReorderDocumentsRequestSchema = z.object({
+  document_ids: z.array(uuid).min(1).max(MAX_ENVELOPE_DOCUMENTS),
+});
+export type ReorderDocumentsRequest = z.infer<typeof ReorderDocumentsRequestSchema>;
+
+/** WP-03: `GET /envelopes/:id/documents` and the reorder response. */
+export const EnvelopeDocumentListResponseSchema = z.object({
+  documents: z.array(EnvelopeDocumentSchema),
+});
+export type EnvelopeDocumentListResponse = z.infer<typeof EnvelopeDocumentListResponseSchema>;
+
+/**
+ * WP-03: per-document entry on `GET /verify/:short_code`, present while
+ * `multiDocumentEnvelopes` is on. `sealed_url` is a 5-minute signed URL,
+ * null until the envelope is sealed.
+ */
+export const VerifyDocumentSchema = z.object({
+  id: uuid,
+  ord: z.number().int().min(1),
+  title: z.string().min(1).max(200),
+  original_pages: z.number().int().positive().nullable(),
+  original_sha256: sha256.nullable(),
+  sealed_sha256: sha256.nullable(),
+  sealed_url: z.string().nullable(),
+});
+export type VerifyDocument = z.infer<typeof VerifyDocumentSchema>;
+
 export const ErrorSlugs = [
   'envelope_not_found',
   'envelope_not_draft',
@@ -381,5 +513,14 @@ export const ErrorSlugs = [
   'validation_error',
   'invalid_cursor',
   'field_not_found',
+  // WP-03
+  'document_not_found',
+  'too_many_documents',
+  'last_document',
+  'document_order_invalid',
+  'document_not_in_envelope',
+  // WP-05
+  'not_your_turn',
+  'signing_order_invalid',
 ] as const;
 export type ErrorSlug = (typeof ErrorSlugs)[number];

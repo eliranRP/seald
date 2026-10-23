@@ -30,6 +30,15 @@ describe('NavBar', () => {
     expect(id).toBe('sign');
   });
 
+  it('renders the right slot for a signed-in user and hides it in guest mode', () => {
+    const slot = <button type="button">Slot item</button>;
+    const authed = renderWithTheme(<NavBar user={{ name: 'Jamie Okonkwo' }} rightSlot={slot} />);
+    expect(authed.getByRole('button', { name: 'Slot item' })).toBeInTheDocument();
+    authed.unmount();
+    const guest = renderWithTheme(<NavBar mode="guest" rightSlot={slot} />);
+    expect(guest.queryByRole('button', { name: 'Slot item' })).toBeNull();
+  });
+
   it('renders Avatar only when user prop is provided', () => {
     const { queryByRole, rerender } = renderWithTheme(<NavBar />);
     expect(queryByRole('img', { name: 'Jamie Okonkwo' })).toBeNull();

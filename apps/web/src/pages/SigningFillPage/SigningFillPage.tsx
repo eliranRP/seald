@@ -1,8 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
 import { ArrowDown, Check, ListChecks, MoreVertical } from 'lucide-react';
 import { DocumentPageCanvas } from '@/components/DocumentPageCanvas';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
+import type { FieldInputKind } from '@/components/FieldInputDrawer';
+import { isReadOnly, usesMetaDrawer } from '@/features/signingFill/inputs/fieldDisplay';
+import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
+import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
 import { Icon } from '@/components/Icon';
 import { PageThumbRail } from '@/components/PageThumbRail';
 import { PageToolbar } from '@/components/PageToolbar';
@@ -19,8 +24,10 @@ import {
   type SignMeField,
 } from '@/features/signing';
 import {
+  DocumentRail,
   fieldIsFilled,
   fieldLabel,
+  summarizeDocuments,
   fieldValue,
   toUiKind,
   useDocumentZoomNav,
@@ -70,6 +77,7 @@ import {
   useCanvasWidth,
 } from '@/lib/canvas-coords';
 import { usePdfDocument } from '@/lib/pdf';
+import { useT } from '@/lib/i18n';
 
 const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   signature: 200,
@@ -79,6 +87,9 @@ const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   text: 240,
   email: 240,
   checkbox: 24,
+  number: 140,
+  radio: 200,
+  dropdown: 200,
 };
 const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   signature: 54,
@@ -88,6 +99,9 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   text: 36,
   email: 36,
   checkbox: 24,
+  number: 36,
+  radio: 72,
+  dropdown: 36,
 };
 
 const SUPPORT_EMAIL = 'support@seald.nromomentum.com';
@@ -109,13 +123,38 @@ function compareFieldsForReadingOrder(a: SignMeField, b: SignMeField): number {
 function Content() {
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
+  const t = useT();
 
   const session = useSigningSession();
-  const { envelope, fields, completedRequired, requiredCount, allRequiredFilled, nextField } =
-    session;
+  const {
+    envelope,
+    fields: allFields,
+    documents,
+    completedRequired,
+    requiredCount,
+    allRequiredFilled,
+    nextField,
+  } = session;
 
-  const totalPages = envelope?.original_pages ?? 1;
-  const pdfSrc = useSigningPdfSource(envelope?.id);
+  // Multi-document envelopes (WP-04). Off, or one document: everything below
+  // is the single-document view, untouched.
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && documents.length > 1;
+  const [requestedDocumentId, setRequestedDocumentId] = useState<string | null>(null);
+  const activeDocument = multiDoc
+    ? (documents.find((d) => d.id === requestedDocumentId) ?? documents[0])
+    : undefined;
+  // `fields` is what the canvas shows: the active document's fields. The
+  // progress counts, "Next field" and review keep using every document.
+  const fields = useMemo(
+    () =>
+      activeDocument === undefined
+        ? allFields
+        : allFields.filter((f) => f.document_id === activeDocument.id),
+    [allFields, activeDocument],
+  );
+
+  const totalPages = activeDocument?.original_pages ?? envelope?.original_pages ?? 1;
+  const pdfSrc = useSigningPdfSource(envelope?.id, activeDocument?.id);
   const { doc: signingPdfDoc } = usePdfDocument(pdfSrc);
   // Mobile canvas overflow fix (audit item 1): width is viewport-aware
   // (`computeCanvasWidth`); height threads the same width through so the
@@ -136,11 +175,18 @@ function Content() {
     handleFieldClick,
     handleNext,
     handleTextApply,
+    handleMetaApply,
+    drawerError,
+    drawerBusy,
     handleSignatureApply,
     handleReview,
     handleDecline,
     handleWithdrawConsent,
-  } = useSigningFillController({ envelopeId });
+  } = useSigningFillController({
+    envelopeId,
+    activeDocumentId: activeDocument?.id,
+    onActiveDocumentChange: multiDoc ? setRequestedDocumentId : undefined,
+  });
 
   // Zoom + scroll-spy + page rail — extracted to a reusable hook (rule 1.1).
   const {
@@ -156,8 +202,11 @@ function Content() {
   } = useDocumentZoomNav({ totalPages, resetKey: pdfSrc });
 
   const { download: downloadPdf, busy: downloadBusy } = useDownloadPdf({
-    getUrl: () => getPdfSignedUrl(),
-    filename: envelope?.title ?? 'document',
+    getUrl: () =>
+      activeDocument === undefined
+        ? getPdfSignedUrl()
+        : getPdfSignedUrl(undefined, activeDocument.id),
+    filename: activeDocument?.title ?? envelope?.title ?? 'document',
   });
 
   // Mobile chrome state (audit items 4 + 5).
@@ -170,13 +219,13 @@ function Content() {
   const optionalStats = useMemo(() => {
     let total = 0;
     let filled = 0;
-    for (const f of fields) {
+    for (const f of allFields) {
       if (f.required) continue;
       total += 1;
       if (fieldIsFilled(f)) filled += 1;
     }
     return { total, filled, remaining: total - filled };
-  }, [fields]);
+  }, [allFields]);
   const [optionalPromptOpen, setOptionalPromptOpen] = useState(false);
 
   // Wrap handleReview so it stops to confirm when optionals are blank
@@ -200,12 +249,21 @@ function Content() {
     setOptionalPromptOpen(false);
     // Jump to the first unfilled optional field — uses the same
     // `data-r-page` scroll-spy as the rest of the navigation.
-    const firstOptionalUnfilled = fields.find((f) => !f.required && !fieldIsFilled(f));
+    const firstOptionalUnfilled = allFields.find((f) => !f.required && !fieldIsFilled(f));
     if (firstOptionalUnfilled) {
+      if (
+        multiDoc &&
+        firstOptionalUnfilled.document_id !== undefined &&
+        firstOptionalUnfilled.document_id !== activeDocument?.id
+      ) {
+        // It sits on another document: bring that one up.
+        setRequestedDocumentId(firstOptionalUnfilled.document_id);
+        return;
+      }
       const el = document.querySelector(`[data-r-page="${firstOptionalUnfilled.page}"]`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, [fields]);
+  }, [allFields, multiDoc, activeDocument?.id]);
 
   // Mobile-overflow handlers route to the same hook handlers as the
   // desktop buttons so the audit-trail outcome is identical
@@ -229,9 +287,9 @@ function Content() {
     // mailto is the existing support pattern from SigningEntryPage; no
     // in-page help center yet. Encode the envelope id so support can
     // jump straight to the audit chain.
-    const subject = encodeURIComponent(`Help with envelope ${envelopeId}`);
+    const subject = encodeURIComponent(t('signing.fill.helpSubject', { envelopeId }));
     window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${subject}`;
-  }, [envelopeId]);
+  }, [envelopeId, t]);
 
   // Mobile fields panel — jump to a specific field on click.
   const handleFieldsPanelSelect = useCallback(
@@ -254,8 +312,16 @@ function Content() {
   const isMobile = canvasWidth < CANVAS_WIDTH;
   const pct = requiredCount > 0 ? Math.round((completedRequired / requiredCount) * 100) : 0;
   const progressLabel = isMobile
-    ? `${completedRequired} of ${requiredCount} · ${pct}%`
-    : `${completedRequired} of ${requiredCount} fields complete`;
+    ? t('signing.fill.progressMobile', {
+        done: completedRequired,
+        total: requiredCount,
+        percent: pct,
+      })
+    : t('signing.fill.progressDesktop', { done: completedRequired, total: requiredCount });
+
+  const nextFieldDocument =
+    multiDoc && nextField ? documents.find((d) => d.id === nextField.document_id) : undefined;
+  const railItems = multiDoc ? summarizeDocuments(documents, allFields, fieldIsFilled) : [];
 
   // Audit item 5 — mobile fields panel lists every field on the
   // active page.
@@ -266,7 +332,7 @@ function Content() {
       <RecipientHeader
         docTitle={envelope.title}
         docId={envelope.short_code}
-        stepLabel={`${completedRequired} of ${requiredCount} fields`}
+        stepLabel={t('signing.fill.stepLabel', { done: completedRequired, total: requiredCount })}
         downloadPdfBusy={downloadBusy}
         onDownloadPdf={() => {
           downloadPdf().catch(() => {
@@ -297,7 +363,7 @@ function Content() {
           onPrevPage={() => scrollToPage(Math.max(1, currentPage - 1))}
           onNextPage={() => scrollToPage(Math.min(totalPages, currentPage + 1))}
           onJumpToNextZone={nextField ? handleNext : undefined}
-          jumpLabel="Jump to next required field"
+          jumpLabel={t('signing.fill.jumpToNext')}
           zoom={zoom}
           onZoomIn={zoomIn}
           onZoomOut={zoomOut}
@@ -319,11 +385,11 @@ function Content() {
             aria-expanded={fieldsPanelOpen}
           >
             <Icon icon={ListChecks} size={14} />
-            Fields
+            {t('signing.fill.fields')}
           </FieldsToggle>
         ) : null}
         <DeclineBtn type="button" onClick={handleDecline} disabled={busy}>
-          Decline
+          {t('signing.fill.decline')}
         </DeclineBtn>
         {!isMobile ? (
           <WithdrawBtn
@@ -340,7 +406,7 @@ function Content() {
         {isMobile ? (
           <OverflowKebab
             type="button"
-            aria-label="More actions"
+            aria-label={t('signing.common.moreActions')}
             aria-haspopup="menu"
             aria-expanded={overflowMenuOpen}
             onClick={() => setOverflowMenuOpen(true)}
@@ -352,21 +418,38 @@ function Content() {
           <NextBtn
             type="button"
             onClick={handleNext}
-            aria-label={`Next field: ${fieldLabel(nextField, toUiKind(nextField))} on page ${
-              nextField.page
-            }`}
+            aria-label={
+              nextFieldDocument
+                ? t('signing.fill.nextFieldAriaDocument', {
+                    label: fieldLabel(nextField, toUiKind(nextField), t),
+                    page: nextField.page,
+                    document: nextFieldDocument.title,
+                  })
+                : t('signing.fill.nextFieldAria', {
+                    label: fieldLabel(nextField, toUiKind(nextField), t),
+                    page: nextField.page,
+                  })
+            }
           >
             <Icon icon={ArrowDown} size={14} />
-            Next field
+            {t('signing.fill.nextField')}
           </NextBtn>
         ) : null}
         {allRequiredFilled ? (
           <ReviewBtn type="button" onClick={handleReviewClick}>
             <Icon icon={Check} size={14} />
-            Review &amp; finish
+            {t('signing.fill.review')}
           </ReviewBtn>
         ) : null}
       </ActionBar>
+
+      {activeDocument !== undefined ? (
+        <DocumentRail
+          documents={railItems}
+          activeId={activeDocument.id}
+          onSelect={setRequestedDocumentId}
+        />
+      ) : null}
 
       {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
@@ -386,13 +469,16 @@ function Content() {
                   key={p}
                   pageNum={p}
                   totalPages={totalPages}
-                  title={envelope.title}
+                  title={activeDocument?.title ?? envelope.title}
                   pdfSrc={pdfSrc ?? undefined}
                   width={canvasWidth}
                 >
                   {orderedFields.map((f) => {
                     const uiKind = toUiKind(f);
-                    const label = fieldLabel(f, uiKind);
+                    const baseLabel = fieldLabel(f, uiKind, t);
+                    const label = isReadOnly(f)
+                      ? t('signing.fill.readOnly', { label: baseLabel })
+                      : baseLabel;
                     const width = f.width
                       ? denormalizeCoord(f.width, canvasWidth)
                       : DEFAULT_FIELD_W[uiKind];
@@ -437,22 +523,44 @@ function Content() {
         </RailSlot>
       </Center>
 
-      <FieldInputDrawer
-        open={textDrawer !== null}
-        label={textDrawer ? fieldLabel(textDrawer.field, toUiKind(textDrawer.field)) : ''}
-        kind={textDrawer?.kind ?? 'text'}
-        initialValue={
-          textDrawer && typeof textDrawer.field.value_text === 'string'
-            ? textDrawer.field.value_text
-            : ''
-        }
-        onCancel={closeTextDrawer}
-        onApply={(v) => {
-          handleTextApply(v).catch(() => {
-            /* surfaced via error state */
-          });
-        }}
-      />
+      {textDrawer !== null && usesMetaDrawer(textDrawer.field) ? (
+        <MetaFieldDrawer
+          key={textDrawer.field.id}
+          open
+          label={fieldLabel(textDrawer.field, toUiKind(textDrawer.field), t)}
+          kind={textDrawer.kind as MetaInputKind}
+          meta={textDrawer.field.meta}
+          initialValue={textDrawer.field.value_text ?? undefined}
+          signerName={session.signer?.name}
+          dateFormat={envelope?.date_format}
+          timezone={envelope?.timezone}
+          serverError={drawerError}
+          busy={drawerBusy}
+          onCancel={closeTextDrawer}
+          onApply={(v) => {
+            handleMetaApply(v).catch(() => {
+              /* surfaced via drawerError */
+            });
+          }}
+        />
+      ) : (
+        <FieldInputDrawer
+          open={textDrawer !== null}
+          label={textDrawer ? fieldLabel(textDrawer.field, toUiKind(textDrawer.field), t) : ''}
+          kind={(textDrawer?.kind ?? 'text') as FieldInputKind}
+          initialValue={
+            textDrawer && typeof textDrawer.field.value_text === 'string'
+              ? textDrawer.field.value_text
+              : ''
+          }
+          onCancel={closeTextDrawer}
+          onApply={(v) => {
+            handleTextApply(v).catch(() => {
+              /* surfaced via error state */
+            });
+          }}
+        />
+      )}
 
       <SignatureCapture
         open={sigDrawer !== null}
@@ -472,24 +580,24 @@ function Content() {
         <OverflowMenuBackdrop onClick={() => setOverflowMenuOpen(false)}>
           <OverflowMenuSheet
             role="menu"
-            aria-label="More actions"
+            aria-label={t('signing.common.moreActions')}
             onClick={(e) => e.stopPropagation()}
           >
             <OverflowMenuDanger type="button" role="menuitem" onClick={handleOverflowDecline}>
-              Decline
+              {t('signing.fill.decline')}
             </OverflowMenuDanger>
             <OverflowMenuItem type="button" role="menuitem" onClick={handleOverflowWithdraw}>
               Withdraw consent
             </OverflowMenuItem>
             <OverflowMenuItem type="button" role="menuitem" onClick={handleOverflowHelp}>
-              Need help
+              {t('signing.fill.needHelp')}
             </OverflowMenuItem>
             <OverflowMenuItem
               type="button"
               role="menuitem"
               onClick={() => setOverflowMenuOpen(false)}
             >
-              Cancel
+              {t('signing.common.cancel')}
             </OverflowMenuItem>
           </OverflowMenuSheet>
         </OverflowMenuBackdrop>
@@ -500,10 +608,10 @@ function Content() {
         <FieldsPanelBackdrop onClick={() => setFieldsPanelOpen(false)}>
           <FieldsPanelSheet
             role="dialog"
-            aria-label="Fields on this page"
+            aria-label={t('signing.common.fieldsOnPage')}
             onClick={(e) => e.stopPropagation()}
           >
-            <FieldsPanelTitle>Fields on this page</FieldsPanelTitle>
+            <FieldsPanelTitle>{t('signing.common.fieldsOnPage')}</FieldsPanelTitle>
             {activePageFields
               .slice()
               .sort(compareFieldsForReadingOrder)
@@ -513,10 +621,10 @@ function Content() {
                 let tone: 'filled' | 'required' | 'optional' = 'optional';
                 if (filled) tone = 'filled';
                 else if (f.required) tone = 'required';
-                let toneLabel = 'Optional';
-                if (tone === 'filled') toneLabel = 'Filled';
-                else if (tone === 'required') toneLabel = 'Required';
-                const label = fieldLabel(f, uiKind);
+                let toneLabel = t('signing.fill.toneOptional');
+                if (tone === 'filled') toneLabel = t('signing.fill.toneFilled');
+                else if (tone === 'required') toneLabel = t('signing.fill.toneRequired');
+                const label = fieldLabel(f, uiKind, t);
                 return (
                   <FieldsPanelItem
                     key={f.id}
@@ -537,22 +645,25 @@ function Content() {
         <OptionalDialogBackdrop onClick={() => setOptionalPromptOpen(false)}>
           <OptionalDialogCard
             role="dialog"
-            aria-label="Optional fields blank"
+            aria-label={t('signing.fill.optionalBlankTitle')}
             aria-modal="true"
             onClick={(e) => e.stopPropagation()}
           >
-            <OptionalDialogTitle>Optional fields blank</OptionalDialogTitle>
+            <OptionalDialogTitle>{t('signing.fill.optionalBlankTitle')}</OptionalDialogTitle>
             <OptionalDialogBody>
-              You have {optionalStats.remaining} optional{' '}
-              {optionalStats.remaining === 1 ? 'field' : 'fields'} blank. Continue to review or fill
-              them now?
+              {t(
+                optionalStats.remaining === 1
+                  ? 'signing.fill.optionalBodyOne'
+                  : 'signing.fill.optionalBodyMany',
+                { count: optionalStats.remaining },
+              )}
             </OptionalDialogBody>
             <OptionalDialogFooter>
               <OptionalSecondaryBtn type="button" onClick={handleOptionalGoFill}>
-                Fill them now
+                {t('signing.fill.fillNow')}
               </OptionalSecondaryBtn>
               <OptionalPrimaryBtn type="button" onClick={handleOptionalContinue}>
-                Continue to review
+                {t('signing.fill.continueToReview')}
               </OptionalPrimaryBtn>
             </OptionalDialogFooter>
           </OptionalDialogCard>

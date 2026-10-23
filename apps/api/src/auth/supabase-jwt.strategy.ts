@@ -69,6 +69,22 @@ export class SupabaseJwtStrategy {
         ? appMetadata.provider
         : null;
 
-    return { id: sub, email, provider };
+    return { id: sub, email, provider, lastSignInAt: lastSignInAt(payload.amr) };
   }
+}
+
+/**
+ * Newest numeric `timestamp` across the `amr` entries (RFC 8176 shape as
+ * Supabase emits it: `[{ method, timestamp }]`). Anything else is null.
+ */
+export function lastSignInAt(amr: unknown): number | null {
+  if (!Array.isArray(amr)) return null;
+  let newest: number | null = null;
+  for (const entry of amr) {
+    if (!entry || typeof entry !== 'object') continue;
+    const ts = (entry as { timestamp?: unknown }).timestamp;
+    if (typeof ts !== 'number' || !Number.isFinite(ts) || ts <= 0) continue;
+    if (newest === null || ts > newest) newest = ts;
+  }
+  return newest;
 }

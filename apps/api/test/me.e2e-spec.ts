@@ -18,13 +18,17 @@ import {
   type GDriveAccount,
   type GDriveRepository,
 } from '../src/integrations/gdrive/gdrive.repository';
+import { ApiKeysRepository } from '../src/api-keys/api-keys.repository';
 import { buildTestJwks } from './test-jwks';
+import { InMemoryApiKeysRepository } from './in-memory-api-keys-repository';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryIdempotencyRepository } from './in-memory-idempotency-repository';
 import { StubSupabaseAdminClient } from './stub-supabase-admin';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * Issues #38/#43 — in-memory tombstones recorder. Captures every
@@ -148,6 +152,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
   let supabaseAdmin: StubSupabaseAdminClient;
   let tombstonesRepo: InMemoryTombstonesRepository;
   let gdriveRepo: InMemoryGDriveRepository;
+  let apiKeysRepo: InMemoryApiKeysRepository;
   let callLog: string[];
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
@@ -163,6 +168,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     supabaseAdmin = new StubSupabaseAdminClient();
     tombstonesRepo = new InMemoryTombstonesRepository();
     gdriveRepo = new InMemoryGDriveRepository();
+    apiKeysRepo = new InMemoryApiKeysRepository();
 
     callLog = [];
     // Wire ordering tracking across repos so we can assert the strict
@@ -188,6 +194,11 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       callLog.push('envelopes.purgeOwnedDataForAccountDeletion');
       return origPurge(input);
     };
+    const origKeysDelete = apiKeysRepo.deleteAllByOwner.bind(apiKeysRepo);
+    apiKeysRepo.deleteAllByOwner = async (id: string): Promise<number> => {
+      callLog.push('apiKeys.deleteAllByOwner');
+      return origKeysDelete(id);
+    };
     supabaseAdmin.callLog = callLog;
     tombstonesRepo.callLog = callLog;
     gdriveRepo.callLog = callLog;
@@ -201,6 +212,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(contactsRepo)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(TemplatesRepository)
       .useValue(templatesRepo)
       .overrideProvider(OutboundEmailsRepository)
@@ -213,6 +226,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(tombstonesRepo)
       .overrideProvider(GDRIVE_REPOSITORY)
       .useValue(gdriveRepo)
+      .overrideProvider(ApiKeysRepository)
+      .useValue(apiKeysRepo)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -239,6 +254,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     supabaseAdmin.reset();
     tombstonesRepo.reset();
     gdriveRepo.reset();
+    apiKeysRepo.reset();
     callLog.length = 0;
   });
 
@@ -377,6 +393,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
 
     it('happy path → 204 runs the full soft-delete pipeline in legal order', async () => {
       idempotencyRepo.seed(USER_A, 4);
+      apiKeysRepo.seed({ ownerId: USER_A, prefix: 'seald_live_aaaaaaaa', keyHash: 'a'.repeat(64) });
+      apiKeysRepo.seed({ ownerId: USER_B, prefix: 'seald_live_bbbbbbbb', keyHash: 'b'.repeat(64) });
 
       const res = await request(app.getHttpServer())
         .delete('/me')
@@ -385,6 +403,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
 
       expect(res.status).toBe(204);
       expect(idempotencyRepo.countFor(USER_A)).toBe(0);
+      // WP-14: the user's API keys are gone; another user's survive.
+      expect(apiKeysRepo.rows.map((r) => r.ownerId)).toEqual([USER_B]);
       expect(supabaseAdmin.deletedUserIds).toEqual([USER_A]);
       // Issues #38/#43 — strict pipeline order. Idempotency first
       // (FK doesn't cascade), then working-state hard-deletes
@@ -393,6 +413,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       // the supabase admin call last so a partial failure leaves a
       // recoverable state.
       expect(callLog).toEqual([
+        'apiKeys.deleteAllByOwner',
         'idempotency.deleteByUser',
         'contacts.deleteAllByOwner',
         'templates.deleteAllByOwner',

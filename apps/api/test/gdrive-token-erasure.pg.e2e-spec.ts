@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, randomBytes } from 'node:crypto';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { Pool } from 'pg';
@@ -16,7 +16,8 @@ import { Pool } from 'pg';
  */
 const execFileAsync = promisify(execFile);
 const databaseUrl = process.env.SUBMIT_SIGNER_DATABASE_URL;
-const DB_NAME = 'gdrive_0021_ci';
+// Unique per run: suites from parallel jobs share one Postgres server.
+const DB_NAME = `gdrive_0021_${randomBytes(4).toString('hex')}`;
 
 if (!databaseUrl && process.env.CI === 'true') {
   throw new Error(
@@ -47,6 +48,9 @@ describePg('0021 gdrive token erasure (real Postgres)', () => {
       max: 4,
       application_name: 'gdrive-0021',
     });
+    // The afterAll `drop database … with (force)` can terminate an idle
+    // client still in the pool; without a listener that error is unhandled.
+    pool.on('error', () => undefined);
     await pool.query(`
       create schema if not exists auth;
       create table if not exists auth.users (id uuid primary key);

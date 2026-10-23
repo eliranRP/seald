@@ -1,9 +1,11 @@
 import { Module } from '@nestjs/common';
+import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { AuthModule } from '../auth/auth.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { GDriveModule } from '../integrations/gdrive/gdrive.module';
 import { TemplatesModule } from '../templates/templates.module';
+import { UploadsModule } from '../uploads/uploads.module';
 import { IdempotencyRepository } from './idempotency.repository';
 import { IdempotencyPgRepository } from './idempotency.repository.pg';
 import { MeController } from './me.controller';
@@ -20,7 +22,15 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
  * don't need to import it explicitly to inject `OutboundEmailsRepository`.
  */
 @Module({
-  imports: [AuthModule, ContactsModule, EnvelopesModule, TemplatesModule, GDriveModule],
+  imports: [
+    AuthModule,
+    ApiKeysModule,
+    ContactsModule,
+    EnvelopesModule,
+    TemplatesModule,
+    GDriveModule,
+    UploadsModule,
+  ],
   controllers: [MeController],
   providers: [
     MeService,
@@ -28,5 +38,7 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
     { provide: SupabaseAdminClient, useClass: SupabaseAdminHttpClient },
     { provide: TombstonesRepository, useClass: TombstonesPgRepository },
   ],
+  // WP-45: the approved `account_delete` runs the same deletion as `DELETE /me`.
+  exports: [MeService],
 })
 export class MeModule {}

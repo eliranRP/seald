@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isFeatureEnabled } from 'shared';
 import { eventHash } from '../src/envelopes/event-hash';
 import type {
   AddSignerInput,
@@ -15,9 +16,13 @@ import type {
   SetSignerSignatureInput,
   SignerFieldFillInput,
   ReminderCandidate,
+  SetSigningOrderInput,
+  StepInvite,
   SubmitResult,
   UpdateDraftMetadataPatch,
 } from '../src/envelopes/envelopes.repository';
+import type { DeliveryMode } from 'shared';
+import { initialInvitees, nextStepInvitees, stepOf } from '../src/signing/signing-order';
 import { REMINDER_INTERVAL_MS } from '../src/reminders/reminder-eligibility';
 import {
   EnvelopeSignerEmailTakenError,
@@ -50,7 +55,50 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.sealedPaths.clear();
     this.auditPaths.clear();
     this.eventPrevHashes.clear();
+    this.originalPaths.clear();
+    this.fieldDocuments.clear();
+    this.invitedAt.clear();
   }
+
+  /** WP-05: signer id -> invited_at (the pg column), kept off the stored signer. */
+  readonly invitedAt = new Map<string, string>();
+
+  /** WP-05: what the pg adapter puts on the wire while `signingOrder` is on. */
+  private present(env: Envelope): Envelope {
+    if (!isFeatureEnabled('signingOrder')) return env;
+    return {
+      ...env,
+      signers: env.signers.map((s) => ({
+        ...s,
+        invited_at: this.invitedAt.get(s.id) ?? null,
+        step: stepOf(env.signers, s.signing_order),
+      })),
+    };
+  }
+
+  private withInvites(env: Envelope): Array<EnvelopeSigner & { invited_at: string | null }> {
+    return env.signers.map((s) => ({ ...s, invited_at: this.invitedAt.get(s.id) ?? null }));
+  }
+
+  async setSigningOrder(
+    envelope_id: string,
+    input: SetSigningOrderInput,
+  ): Promise<Envelope | null> {
+    const e = this.envelopes.get(envelope_id);
+    if (!e || e.status !== 'draft') return null;
+    const orders = new Map(input.orders.map((o) => [o.signer_id, o.signing_order]));
+    const next: Envelope = {
+      ...e,
+      delivery_mode: input.delivery_mode,
+      signers: e.signers.map((s) => ({ ...s, signing_order: orders.get(s.id) ?? s.signing_order })),
+      updated_at: new Date().toISOString(),
+    };
+    this.envelopes.set(envelope_id, next);
+    return this.present(next);
+  }
+
+  /** WP-03: field id -> document id, for fields placed with `document_id`. */
+  readonly fieldDocuments = new Map<string, string>();
 
   async createDraft(input: CreateDraftInput): Promise<Envelope> {
     if (this.shortCodes.has(input.short_code)) throw new ShortCodeCollisionError();
@@ -77,6 +125,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       fields: [],
       tags: [],
       reminders_enabled: true,
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
       created_at: now,
       updated_at: now,
     };
@@ -86,11 +135,12 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   async findByIdForOwner(owner_id: string, id: string): Promise<Envelope | null> {
     const e = this.envelopes.get(id);
-    return e && e.owner_id === owner_id ? e : null;
+    return e && e.owner_id === owner_id ? this.present(e) : null;
   }
 
   async findByIdWithAll(id: string): Promise<Envelope | null> {
-    return this.envelopes.get(id) ?? null;
+    const e = this.envelopes.get(id);
+    return e ? this.present(e) : null;
   }
 
   async findByShortCode(short_code: string): Promise<Envelope | null> {
@@ -118,8 +168,9 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     for (const [signerId, storedHash] of this.signerTokenHashes) {
       if (storedHash === hash) {
         for (const env of this.envelopes.values()) {
-          const signer = env.signers.find((s) => s.id === signerId);
-          if (signer) return { envelope: env, signer };
+          const presented = this.present(env);
+          const signer = presented.signers.find((s) => s.id === signerId);
+          if (signer) return { envelope: presented, signer };
         }
       }
     }
@@ -311,6 +362,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       updated_at: new Date().toISOString(),
     };
     this.envelopes.set(envelope_id, next);
+    this.originalPaths.set(envelope_id, input.file_path);
     return next;
   }
 
@@ -332,6 +384,7 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       tc_accepted_at: null,
       signed_at: null,
       declined_at: null,
+      ...(input.locale !== undefined ? { locale: input.locale } : {}),
     };
     this.envelopes.set(envelope_id, { ...e, signers: [...e.signers, signer] });
     return signer;
@@ -367,35 +420,45 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       value_text: null,
       value_boolean: null,
       filled_at: null,
+      // WP-07: like the pg adapter, only present with the flag on.
+      ...(isFeatureEnabled('fieldMetaV2') ? { meta: { ...(f.meta ?? {}) } } : {}),
     }));
     this.envelopes.set(envelope_id, { ...e, fields: mapped });
+    // WP-03: like the pg column, kept off the field object itself.
+    fields.forEach((f, i) => {
+      const id = mapped[i]?.id;
+      if (id !== undefined && f.document_id !== undefined)
+        this.fieldDocuments.set(id, f.document_id);
+    });
     return mapped;
   }
 
   async sendDraft(input: {
     readonly envelope_id: string;
-    readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
     readonly sender_email: string;
     readonly sender_name: string | null;
+    readonly delivery_mode?: DeliveryMode;
   }): Promise<Envelope | null> {
     const e = this.envelopes.get(input.envelope_id);
     if (!e || e.status !== 'draft') return null;
     const now = new Date().toISOString();
-    // Stamp the hashes in our side map so findSignerByAccessTokenHash resolves.
-    for (const t of input.signer_tokens) {
-      this.signerTokenHashes.set(t.signer_id, t.access_token_hash);
-      this.reminderClock.set(t.signer_id, { invitedAt: now, lastRemindedAt: null });
+    const mode = input.delivery_mode ?? e.delivery_mode;
+    for (const s of initialInvitees(mode, e.signers)) {
+      if (!this.invitedAt.has(s.id)) this.invitedAt.set(s.id, now);
     }
+    // No token hashes here: the email dispatcher mints them at send time
+    // through rotateSignerAccessToken (MCP Insert A).
     const next: Envelope = {
       ...e,
       status: 'awaiting_others',
+      delivery_mode: mode,
       sender_email: input.sender_email,
       sender_name: input.sender_name,
       sent_at: now,
       updated_at: now,
     };
     this.envelopes.set(input.envelope_id, next);
-    return next;
+    return this.present(next);
   }
   async rotateSignerAccessToken(signer_id: string, new_hash: string): Promise<boolean> {
     for (const env of this.envelopes.values()) {
@@ -412,6 +475,56 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       return true;
     }
     return false;
+  }
+
+  async correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.status !== 'awaiting_others') return null;
+    const before = env.signers.find((s) => s.id === signer_id);
+    if (!before || before.signed_at !== null || before.declined_at !== null) return null;
+    if (
+      patch.email !== undefined &&
+      env.signers.some(
+        (s) => s.id !== signer_id && s.email.toLowerCase() === patch.email?.toLowerCase(),
+      )
+    ) {
+      throw new EnvelopeSignerEmailTakenError();
+    }
+    const signer: EnvelopeSigner = {
+      ...before,
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.email !== undefined ? { email: patch.email } : {}),
+      status: 'awaiting',
+      viewed_at: null,
+      tc_accepted_at: null,
+    };
+    this.envelopes.set(envelope_id, {
+      ...env,
+      signers: env.signers.map((s) => (s.id === signer_id ? signer : s)),
+    });
+    this.signerTokenHashes.delete(signer_id);
+    this.reminderClock.set(signer_id, { invitedAt: now.toISOString(), lastRemindedAt: null });
+    return { previous: { name: before.name, email: before.email }, signer };
+  }
+
+  async updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.owner_id !== owner_id || env.status !== 'awaiting_others') return null;
+    const next = { ...env, expires_at, updated_at: new Date().toISOString() };
+    this.envelopes.set(envelope_id, next);
+    return { previous: env.expires_at, envelope: this.present(next) };
   }
 
   async recordSignerViewed(
@@ -575,12 +688,27 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       };
       this.envelopes.set(env.id, nextEnv);
 
+      // WP-05: same rule the pg submit applies under its row lock.
+      let next_step: StepInvite | null = null;
+      if (!allSigned) {
+        const next = nextStepInvitees(nextEnv.delivery_mode, this.withInvites(nextEnv));
+        if (next) {
+          for (const s of next.signers) this.invitedAt.set(s.id, now);
+          next_step = {
+            step: next.step,
+            signing_order: next.signingOrder,
+            signer_ids: next.signers.map((s) => s.id),
+          };
+        }
+      }
+
       return {
         signer: signedSigner,
         all_signed: allSigned,
         envelope_status: nextEnv.status,
         done,
         total: signers.length,
+        next_step,
       };
     }
     return null;

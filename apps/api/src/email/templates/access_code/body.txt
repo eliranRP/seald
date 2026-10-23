@@ -1,0 +1,9 @@
+Your one-time code for "{{envelope_title}}" from {{sender_name}}:
+
+  {{code}}
+
+{{purpose_line}} The code works once and expires in {{expires_minutes}} minutes.
+
+Didn't ask for this code? You can ignore this email. Never share the code with anyone, including someone who says they work for Seald.
+
+Sent via Seald · {{public_url}}

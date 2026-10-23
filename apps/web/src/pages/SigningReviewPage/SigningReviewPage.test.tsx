@@ -260,4 +260,83 @@ describe('SigningReviewPage', () => {
     );
     expect(helper).toBeInTheDocument();
   });
+
+  describe('re-check before signing (WP-11)', () => {
+    const tick = async () => {
+      await userEvent.click(
+        await screen.findByRole('checkbox', { name: /intend to sign this document/i }),
+      );
+      await userEvent.click(screen.getByRole('button', { name: /sign and submit/i }));
+    };
+    const onDone = async () => {
+      await waitFor(() => {
+        // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
+        expect(screen.getByTestId('__pathname__').textContent).toBe(
+          `/sign/${MOCK_ENVELOPE_ID}/done`,
+        );
+      });
+    };
+
+    it('asks for a fresh emailed code on 428, then submits with it and records intent once', async () => {
+      post
+        .mockResolvedValueOnce(okResponse(null, 204)) // intent-to-sign
+        .mockRejectedValueOnce(
+          Object.assign(new Error('access_code_required'), {
+            status: 428,
+            code: 'access_code_required',
+          }),
+        )
+        .mockResolvedValueOnce(
+          okResponse({
+            status: 'sent',
+            purpose: 'action',
+            email_masked: 'm***@example.com',
+            expires_in_seconds: 600,
+            resend_after_seconds: 60,
+          }),
+        )
+        .mockResolvedValueOnce(okResponse({ status: 'submitted', envelope_status: 'sealing' }));
+      renderReview();
+      await tick();
+
+      expect(
+        await screen.findByRole('region', { name: /enter a new emailed code to finish signing/i }),
+      ).toBeInTheDocument();
+      // The plain submit button is replaced by the code step.
+      expect(screen.queryByRole('button', { name: /sign and submit/i })).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Send code' }));
+      expect(post).toHaveBeenCalledWith(
+        '/sign/access-code/send',
+        { purpose: 'action' },
+        expect.any(Object),
+      );
+      await userEvent.type(
+        await screen.findByRole('textbox', { name: /one-time code/i }),
+        '654321',
+      );
+      await userEvent.click(screen.getByRole('button', { name: /sign and submit/i }));
+
+      await waitFor(() => {
+        expect(post).toHaveBeenCalledWith(
+          '/sign/submit',
+          { access_code: '654321' },
+          expect.any(Object),
+        );
+      });
+      await onDone();
+      const intentCalls = post.mock.calls.filter((c) => c[0] === '/sign/intent-to-sign');
+      expect(intentCalls).toHaveLength(1);
+    });
+
+    it('shows no code step when submit succeeds without one', async () => {
+      post
+        .mockResolvedValueOnce(okResponse(null, 204))
+        .mockResolvedValueOnce(okResponse({ status: 'submitted', envelope_status: 'sealing' }));
+      renderReview();
+      await tick();
+      await onDone();
+      expect(screen.queryByRole('region', { name: /emailed code/i })).not.toBeInTheDocument();
+    });
+  });
 });

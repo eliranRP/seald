@@ -24,10 +24,18 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'api_key_created',
+      'access_code',
+      'approval_request',
+      'approval_denied',
+      'bulk_complete',
+      'automation_copy',
+      'automation_disabled',
+      'signer_corrected',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(9);
+    expect(kinds).toHaveLength(17);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -306,6 +314,99 @@ describe('TemplateService', () => {
       expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
       expect(out.html).not.toContain('?t=');
       expect(out.text).not.toContain('?t=');
+    });
+
+    it('api_key_created names the key and prefix, links to Developers, and resolves every var', () => {
+      const out = svc.render('api_key_created', {
+        ...vars,
+        key_name: 'Key 2',
+        key_prefix: 'seald_live_AbCdEf12',
+        scopes_readable: 'envelopes:read, envelopes:send',
+        created_at_readable: '2026-10-22 12:00 UTC',
+        expires_at_readable: '2027-01-20 12:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/developers',
+      });
+      expect(out.subject).toBe('New API key "Key 2" created on your Seald account');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('Key 2');
+        expect(part).toContain('seald_live_AbCdEf12');
+        expect(part).toContain('envelopes:read, envelopes:send');
+        expect(part).toContain('2027-01-20 12:00 UTC');
+        expect(part).toContain('https://seald.nromomentum.com/settings/developers');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
+      expect(out.text).toContain('Revoke it now');
+    });
+
+    it('automation_disabled names the recipe, the streak and the time, links to Automations, and resolves every var', () => {
+      const out = svc.render('automation_disabled', {
+        ...vars,
+        automation_name: 'Save to Drive',
+        failure_count: 20,
+        disabled_at_readable: '2026-10-23 09:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/automations',
+      });
+      expect(out.subject).toBe('Automation "Save to Drive" was turned off on your Seald account');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('Save to Drive');
+        expect(part).toContain('20');
+        expect(part).toContain('2026-10-23 09:00 UTC');
+        expect(part).toContain('https://seald.nromomentum.com/settings/automations');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+        expect(part).not.toContain('?t=');
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
+    });
+
+    it('automation_disabled escapes a hostile recipe name in HTML', () => {
+      const out = svc.render('automation_disabled', {
+        ...vars,
+        automation_name: '<img src=x onerror=alert(1)>',
+        failure_count: 20,
+        disabled_at_readable: '2026-10-23 09:00 UTC',
+        settings_url: 'https://seald.nromomentum.com/settings/automations',
+      });
+      expect(out.html).not.toContain('<img src=x');
+      expect(out.html).toContain('&lt;img src=x');
+    });
+
+    it('access_code shows the code, says how long it lasts, and carries no signing link', () => {
+      const out = svc.render('access_code', {
+        ...vars,
+        code: '042917',
+        purpose_line: 'Enter it on the signing page to open the document.',
+        expires_minutes: 10,
+      });
+      expect(out.subject).toBe('042917 is your Seald code for "NDA v1"');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('042917');
+        expect(part).toContain('Enter it on the signing page to open the document.');
+        expect(part).toContain('10');
+        expect(part).not.toContain('/sign/');
+        expect(part).not.toContain('?t=');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+        // Legal wording: an emailed code, never an identity claim.
+        expect(part.toLowerCase()).not.toContain('identity verified');
+      }
+      expect(out.html.toLowerCase()).toContain('<!doctype html>');
+      expect(out.html).toContain('>Seald</strong>');
+    });
+
+    it('api_key_created escapes a hostile key name in HTML', () => {
+      const out = svc.render('api_key_created', {
+        ...vars,
+        key_name: '<img src=x onerror=alert(1)>',
+        key_prefix: 'seald_live_AbCdEf12',
+        scopes_readable: 'envelopes:read',
+        created_at_readable: '',
+        expires_at_readable: '',
+        settings_url: 'https://seald.nromomentum.com/settings/developers',
+      });
+      expect(out.html).not.toContain('<img src=x');
+      expect(out.html).toContain('&lt;img src=x');
     });
 
     it('completed body.txt keeps the verb "Sealed document:" (past-tense action label)', () => {

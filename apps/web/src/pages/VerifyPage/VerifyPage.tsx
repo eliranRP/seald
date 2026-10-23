@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
+import { isFeatureEnabled } from 'shared';
 import {
   Check,
   Clock,
@@ -185,6 +186,14 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   session_invalidated_by_cancel: 'Session invalidated (cancel)',
   job_failed: 'Sealing job failed',
   retention_deleted: 'Document retention expired',
+  document_added: 'Document added',
+  step_started: 'Signing step started',
+  access_code_sent: 'One-time code emailed',
+  access_code_verified: 'Emailed one-time code entered',
+  access_code_failed: 'Wrong one-time code entered',
+  approval_decided: 'Owner approval recorded',
+  signer_corrected: 'Signer details corrected',
+  expiry_changed: 'Expiry changed',
 };
 
 interface DerivedView {
@@ -590,6 +599,11 @@ function VerifyContent({ data }: VerifyContentProps) {
   // a second line on narrow viewports.
   const reqId = `REQ ${data.envelope.id.split('-').slice(0, 2).join('-').toUpperCase()}`;
 
+  // Multi-document envelopes (WP-04): one block per document with its own
+  // hashes and sealed download. Off, or one document: the single block below.
+  const verifyDocuments = isFeatureEnabled('multiDocumentEnvelopes') ? (data.documents ?? []) : [];
+  const multiDoc = verifyDocuments.length > 1;
+
   const chainBroken = !data.chain_intact;
   const integrityAlert = view.variant === 'failed' || chainBroken;
   return (
@@ -629,7 +643,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               </div>
             </DocMeta>
             <DocActions>
-              {data.sealed_url ? (
+              {data.sealed_url && !multiDoc ? (
                 <Btn
                   href={data.sealed_url}
                   $variant="secondary"
@@ -657,14 +671,72 @@ function VerifyContent({ data }: VerifyContentProps) {
           </CardHead>
 
           <Facts>
-            <Fact>
-              <FactKey>
-                <FileText aria-hidden />
-                Document
-              </FactKey>
-              <FactVal>{data.envelope.title}</FactVal>
-              <Tag $tone="indigo">PDF · v1</Tag>
-            </Fact>
+            {multiDoc ? null : (
+              <Fact>
+                <FactKey>
+                  <FileText aria-hidden />
+                  Document
+                </FactKey>
+                <FactVal>{data.envelope.title}</FactVal>
+                <Tag $tone="indigo">PDF · v1</Tag>
+              </Fact>
+            )}
+
+            {(multiDoc ? verifyDocuments : []).map((doc) => (
+              <Fragment key={doc.id}>
+                <Fact>
+                  <FactKey>
+                    <FileText aria-hidden />
+                    Document {doc.ord}
+                  </FactKey>
+                  <FactVal>
+                    {doc.title}
+                    {doc.original_pages !== null
+                      ? ` · ${String(doc.original_pages)} ${doc.original_pages === 1 ? 'page' : 'pages'}`
+                      : ''}
+                  </FactVal>
+                  {doc.sealed_url ? (
+                    <Btn
+                      href={doc.sealed_url}
+                      $variant="secondary"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={safeDownloadName(doc.title, '-sealed')}
+                      aria-label={`Download sealed ${doc.title}`}
+                    >
+                      <Download aria-hidden />
+                      Download
+                    </Btn>
+                  ) : (
+                    <Tag $tone="indigo">PDF · v1</Tag>
+                  )}
+                </Fact>
+                {doc.original_sha256 ? (
+                  <Fact>
+                    <FactKey>
+                      <ShieldCheck aria-hidden />
+                      Original hash · {doc.ord}
+                    </FactKey>
+                    <FactVal $hash aria-label={`Original SHA-256 hash of ${doc.title}`}>
+                      {shortHash(doc.original_sha256)}
+                    </FactVal>
+                    <Tag $tone="success">SHA-256 · original</Tag>
+                  </Fact>
+                ) : null}
+                {doc.sealed_sha256 ? (
+                  <Fact>
+                    <FactKey>
+                      <ShieldCheck aria-hidden />
+                      Sealed hash · {doc.ord}
+                    </FactKey>
+                    <FactVal $hash aria-label={`Sealed SHA-256 hash of ${doc.title}`}>
+                      {shortHash(doc.sealed_sha256)}
+                    </FactVal>
+                    <Tag $tone="success">SHA-256 · match</Tag>
+                  </Fact>
+                ) : null}
+              </Fragment>
+            ))}
 
             <SignersFact signers={data.signers} />
 
@@ -681,7 +753,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               </Tag>
             </Fact>
 
-            {data.envelope.original_sha256 ? (
+            {!multiDoc && data.envelope.original_sha256 ? (
               <Fact>
                 <FactKey>
                   <ShieldCheck aria-hidden />
@@ -694,7 +766,7 @@ function VerifyContent({ data }: VerifyContentProps) {
               </Fact>
             ) : null}
 
-            {data.envelope.sealed_sha256 ? (
+            {!multiDoc && data.envelope.sealed_sha256 ? (
               <Fact>
                 <FactKey>
                   <ShieldCheck aria-hidden />

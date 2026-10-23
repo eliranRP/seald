@@ -3,12 +3,16 @@ import type { Kysely } from 'kysely';
 import type { Database } from '../../db/schema';
 import { ConfigModule } from '../config/config.module';
 import { createDbProvider, DB_TOKEN } from './db.provider';
+import { AmbientTransactionRunner, TransactionRunner } from './transaction-runner';
 
 @Global()
 @Module({
   imports: [ConfigModule],
-  providers: [createDbProvider()],
-  exports: [DB_TOKEN],
+  providers: [
+    createDbProvider(),
+    { provide: TransactionRunner, useClass: AmbientTransactionRunner },
+  ],
+  exports: [DB_TOKEN, TransactionRunner],
 })
 export class DbModule implements OnApplicationShutdown {
   constructor(@Inject(DB_TOKEN) private readonly db: Kysely<Database>) {}

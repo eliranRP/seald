@@ -181,4 +181,30 @@ describe('rebindFieldsToSigners', () => {
     const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
     expect(out.map((f) => f.type)).toEqual(['initials', 'signature', 'date', 'text', 'checkbox']);
   });
+  // WP-08: the four WP-07 template types are no longer skipped, and their
+  // options ride along onto the editor field.
+  it('keeps name, number, radio and dropdown fields and their meta', () => {
+    const options = [
+      { label: 'Small', value: 's' },
+      { label: 'Large', value: 'l' },
+    ];
+    const resolved: ReadonlyArray<ResolvedField> = [
+      field({ id: 'n', page: 1, type: 'name', signerIndex: 0 }),
+      field({ id: 'num', page: 1, type: 'number', signerIndex: 0, meta: { min: 1, max: 9 } }),
+      field({ id: 'r', page: 1, type: 'radio', signerIndex: 0, meta: { options } }),
+      field({
+        id: 'd',
+        page: 1,
+        type: 'dropdown',
+        signerIndex: 0,
+        meta: { options, default: 's' },
+      }),
+    ];
+    const out = rebindFieldsToSigners(resolved, [{ id: 's1' }]);
+    expect(out.map((f) => f.type)).toEqual(['name', 'number', 'radio', 'dropdown']);
+    expect(out[1]?.meta).toEqual({ min: 1, max: 9 });
+    expect(out[2]?.meta).toEqual({ options });
+    expect(out[3]?.meta).toEqual({ options, default: 's' });
+    expect(out[0]).not.toHaveProperty('meta');
+  });
 });

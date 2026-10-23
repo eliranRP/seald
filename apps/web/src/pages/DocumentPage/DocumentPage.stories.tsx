@@ -5,6 +5,8 @@ import { DocumentPage } from './DocumentPage';
 import type { DocumentPageSigner } from './DocumentPage.types';
 import type { AddSignerContact } from '../../components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '../../components/PlacedField/PlacedField.types';
+import { seald } from '../../styles/theme';
+import { DocumentList, DocumentSwitcher } from '../../features/documentEditor/documents';
 
 const INITIAL_SIGNERS: ReadonlyArray<DocumentPageSigner> = [
   { id: 's1', name: 'Eliran Azulay', email: 'eliran@azulay.co', color: '#F472B6' },
@@ -24,7 +26,7 @@ const CONTACTS: ReadonlyArray<AddSignerContact> = [
   { id: 'c5', name: 'Priya Kapoor', email: 'priya@kapoor.com', color: '#818CF8' },
 ];
 
-const PALETTE = ['#F472B6', '#7DD3FC', '#10B981', '#F59E0B', '#818CF8'] as const;
+const PALETTE = seald.color.signer;
 
 const meta: Meta<typeof DocumentPage> = {
   title: 'L4/DocumentPage',
@@ -117,4 +119,70 @@ export const WithSaveAsTemplate: Story = {
   // appears in the right rail above the Send footer.
   name: 'Save-as-template affordance',
   render: () => <InteractiveDemo withSaveAsTemplate />,
+};
+
+const MULTI_DOCS = [
+  { id: 'd1', title: 'Master services agreement', pages: 4 },
+  { id: 'd2', title: 'Side letter', pages: 1 },
+];
+
+function MultiDocumentDemo() {
+  const [active, setActive] = useState('d1');
+  const [fieldsByDoc, setFieldsByDoc] = useState<Record<string, ReadonlyArray<PlacedFieldValue>>>({
+    d1: INITIAL_FIELDS,
+    d2: [],
+  });
+  const total = Object.values(fieldsByDoc).reduce((n, list) => n + list.length, 0);
+  const pages = MULTI_DOCS.find((d) => d.id === active)?.pages ?? 1;
+  return (
+    <DocumentPage
+      // Remount per document, as the route does.
+      key={active}
+      totalPages={pages}
+      initialPage={1}
+      title={MULTI_DOCS.find((d) => d.id === active)?.title}
+      signers={INITIAL_SIGNERS}
+      contacts={CONTACTS}
+      fields={fieldsByDoc[active] ?? []}
+      onFieldsChange={(next) => setFieldsByDoc((prev) => ({ ...prev, [active]: next }))}
+      onSend={() => {}}
+      onBack={() => {}}
+      sendTotals={{
+        fieldCount: total,
+        signatureFieldCount: Object.values(fieldsByDoc)
+          .flat()
+          .filter((f) => f.type === 'signature').length,
+      }}
+      documentSwitcher={
+        <DocumentSwitcher
+          documents={MULTI_DOCS.map((d) => ({
+            id: d.id,
+            title: d.title,
+            meta: `${String(fieldsByDoc[d.id]?.length ?? 0)} fields`,
+          }))}
+          activeId={active}
+          onSelect={setActive}
+        />
+      }
+      documentsPanel={
+        <DocumentList
+          documents={MULTI_DOCS}
+          activeId={active}
+          onSelect={setActive}
+          onReorder={() => {}}
+          onRemove={() => {}}
+          onAddFiles={() => {}}
+        />
+      }
+    />
+  );
+}
+
+/**
+ * Flag `multiDocumentEnvelopes` on: a switcher above the canvas and the
+ * document list in the right rail. Fields belong to the document on
+ * screen; the send gate counts every document.
+ */
+export const MultipleDocuments: Story = {
+  render: () => <MultiDocumentDemo />,
 };

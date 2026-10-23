@@ -144,6 +144,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
     onExportData,
     onDeleteAccount,
     onOpenIntegrations,
+    rightSlot,
     isExporting = false,
     isDeleting = false,
     ...rest
@@ -202,6 +203,7 @@ export const NavBar = forwardRef<HTMLElement, NavBarProps>((props, ref) => {
       )}
       <Spacer />
       <RightCluster>
+        {isGuest ? null : rightSlot}
         {renderRightCluster({
           isGuest,
           user,

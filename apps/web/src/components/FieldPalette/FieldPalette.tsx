@@ -3,15 +3,19 @@ import type { DragEvent, KeyboardEvent, ReactNode } from 'react';
 import {
   Calendar,
   CheckSquare,
+  ChevronsUpDown,
+  CircleDot,
   GripVertical,
+  Hash,
   Mail,
   PenTool,
   TextCursorInput,
   Type,
+  User,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { seald } from '@/styles/theme';
-import { FIELD_KINDS } from '@/types/sealdTypes';
+import { paletteFieldKinds } from '@/features/documentEditor/fieldProperties/paletteFieldKinds';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { FieldPaletteProps } from './FieldPalette.types';
 import {
@@ -31,6 +35,10 @@ const FIELD_META: Record<FieldKind, { readonly label: string; readonly icon: Luc
   text: { label: 'Text', icon: TextCursorInput },
   checkbox: { label: 'Checkbox', icon: CheckSquare },
   email: { label: 'Email', icon: Mail },
+  name: { label: 'Name', icon: User },
+  number: { label: 'Number', icon: Hash },
+  radio: { label: 'Radio', icon: CircleDot },
+  dropdown: { label: 'Dropdown', icon: ChevronsUpDown },
 };
 
 const DEFAULT_REQUIRED: ReadonlyArray<FieldKind> = ['signature', 'initials'];
@@ -38,7 +46,7 @@ const DEFAULT_HINT = "Drag a field onto the page. You'll pick which signers fill
 
 export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props, ref) => {
   const {
-    kinds = FIELD_KINDS,
+    kinds = paletteFieldKinds(),
     requiredKinds = DEFAULT_REQUIRED,
     onFieldDragStart,
     onFieldDragEnd,

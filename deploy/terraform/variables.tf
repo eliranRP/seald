@@ -111,6 +111,31 @@ variable "sealing_api_role_name" {
   default     = null
 }
 
+# ---------- Instance metadata (IMDSv2) ----------
+
+variable "imds_hop_limit" {
+  description = <<-EOT
+    IMDSv2 PUT response hop limit on the API instance (WP-29). The
+    workflow-automations design (docs/design/workflow-automations.md,
+    SSRF production notes) targets 1, so a request that reaches the
+    metadata service from a second network hop gets no token. The API
+    container uses Docker bridge networking and reads its instance-role
+    credentials from IMDS (entrypoint.sh Secrets Manager fetch, KMS
+    sealing), which needs 2: setting 1 today stops the container from
+    booting. Keep 2 until the container gets credentials another way
+    (host networking for the api service, or an IMDS-free credential
+    path), then set 1. Webhook SSRF protection is enforced in the app and
+    does not depend on this value.
+  EOT
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = contains([1, 2], var.imds_hop_limit)
+    error_message = "imds_hop_limit must be 1 or 2."
+  }
+}
+
 # ---------- Google Drive token KMS (envelope encryption for refresh tokens) ----------
 
 variable "enable_gdrive_token_kms" {

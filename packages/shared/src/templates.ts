@@ -11,6 +11,8 @@
  * `field_layout` jsonb column.
  */
 
+import type { DeliveryMode } from './envelope-contract';
+
 export const TEMPLATE_FIELD_TYPES = [
   'signature',
   'initial',
@@ -18,7 +20,21 @@ export const TEMPLATE_FIELD_TYPES = [
   'text',
   'checkbox',
 ] as const;
+
+/**
+ * WP-07: kinds a template may also hold while `fieldMetaV2` is on. Kept
+ * out of {@link TEMPLATE_FIELD_TYPES} so the flag-off allow-list (and its
+ * validation message) does not change.
+ */
+export const TEMPLATE_FIELD_TYPES_V2 = [
+  ...TEMPLATE_FIELD_TYPES,
+  'name',
+  'number',
+  'radio',
+  'dropdown',
+] as const;
 export type TemplateFieldType = (typeof TEMPLATE_FIELD_TYPES)[number];
+export type AnyTemplateFieldType = (typeof TEMPLATE_FIELD_TYPES_V2)[number];
 
 /**
  * Where a saved field lands when the template is applied to a target document.
@@ -37,12 +53,17 @@ export type TemplatePageRule =
   | number;
 
 export interface TemplateField {
-  readonly type: TemplateFieldType;
+  readonly type: AnyTemplateFieldType;
   readonly pageRule: TemplatePageRule;
   /** PDF point coordinate, top-left origin. */
   readonly x: number;
   readonly y: number;
   readonly label?: string;
+  /**
+   * WP-07: per-kind options (see field-meta.ts), same shape as a placed
+   * field's `meta`. Only accepted while `fieldMetaV2` is on.
+   */
+  readonly meta?: Readonly<Record<string, unknown>>;
   /**
    * Zero-based index into the signer roster active when the template was
    * saved. Kept for legacy templates predating `signerRoleId`; new saves
@@ -77,6 +98,12 @@ export interface TemplateLastSigner {
   readonly name: string;
   readonly email: string;
   readonly color: string;
+  /**
+   * WP-06 gap. 1-based signing step of this slot; slots with the same
+   * number sign together. Meaningful when the template's `delivery_mode`
+   * is `sequential`. Only stored and returned while `signingOrder` is on.
+   */
+  readonly signing_order?: number;
 }
 
 /**
@@ -97,6 +124,12 @@ export interface Template {
    * the first "Send and update template" persists it.
    */
   readonly last_signers: ReadonlyArray<TemplateLastSigner>;
+  /**
+   * WP-06 gap. `sequential` makes envelopes made from this template sign in
+   * the order given by each slot's `signing_order`. Present only while
+   * `signingOrder` is on; absent means parallel.
+   */
+  readonly delivery_mode?: DeliveryMode;
   /**
    * `true` when an example PDF has been uploaded for this template
    * (via `POST /templates/:id/example`). The SPA uses this to decide
@@ -119,6 +152,7 @@ export interface CreateTemplateInput {
   readonly field_layout: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  readonly delivery_mode?: DeliveryMode;
 }
 
 export interface UpdateTemplateInput {
@@ -128,4 +162,86 @@ export interface UpdateTemplateInput {
   readonly field_layout?: ReadonlyArray<TemplateField>;
   readonly tags?: ReadonlyArray<string>;
   readonly last_signers?: ReadonlyArray<TemplateLastSigner>;
+  readonly delivery_mode?: DeliveryMode;
+}
+
+/**
+ * One concrete field produced by applying a template layout to a document
+ * of a known page count.
+ */
+export interface ResolvedTemplateField {
+  readonly id: string;
+  readonly page: number;
+  readonly type: AnyTemplateFieldType;
+  readonly x: number;
+  readonly y: number;
+  readonly label?: string;
+  /** Mirrors `TemplateField.meta`. */
+  readonly meta?: Readonly<Record<string, unknown>>;
+  /** Mirrors `TemplateField.signerIndex` (legacy binder). */
+  readonly signerIndex?: number;
+  /**
+   * Mirrors `TemplateField.signerRoleId`; backfilled from
+   * `lastSigners[signerIndex].id` when the stored record only has an
+   * ordinal, so legacy templates pick up the stable-id binding.
+   */
+  readonly signerRoleId?: string;
+  /**
+   * Shared by every copy expanded from one multi-page rule (`'all'`,
+   * `'allButLast'`). Lets the editor ask "delete from all pages or just
+   * this one?". Undefined for single-page rules.
+   */
+  readonly linkId?: string;
+}
+
+/**
+ * Expand a template's saved field layout onto a target document with
+ * `totalPages` pages. Pure and deterministic: ids are `tpl-f1…`, link ids
+ * `tpl-link-1…`. Pages outside the target (numeric rule beyond the end)
+ * are dropped. Used by both the API (`TemplateApplyService`) and the SPA
+ * offline fallback so the two cannot drift.
+ */
+export function expandTemplateFields(
+  fields: ReadonlyArray<TemplateField>,
+  totalPages: number,
+  lastSigners?: ReadonlyArray<{ readonly id: string }>,
+): ReadonlyArray<ResolvedTemplateField> {
+  const out: ResolvedTemplateField[] = [];
+  let id = 1;
+  let linkSeq = 1;
+  for (const tf of fields) {
+    let pages: number[] = [];
+    if (tf.pageRule === 'all') {
+      pages = Array.from({ length: totalPages }, (_, i) => i + 1);
+    } else if (tf.pageRule === 'allButLast') {
+      pages = Array.from({ length: Math.max(0, totalPages - 1) }, (_, i) => i + 1);
+    } else if (tf.pageRule === 'last') {
+      pages = totalPages > 0 ? [totalPages] : [];
+    } else if (tf.pageRule === 'first') {
+      pages = totalPages > 0 ? [1] : [];
+    } else if (typeof tf.pageRule === 'number') {
+      pages = tf.pageRule >= 1 && tf.pageRule <= totalPages ? [tf.pageRule] : [];
+    }
+    // Only multi-page expansions get a linkId.
+    const linkId = pages.length > 1 ? `tpl-link-${linkSeq++}` : undefined;
+    let signerRoleId: string | undefined = tf.signerRoleId;
+    if (signerRoleId === undefined && tf.signerIndex !== undefined && lastSigners) {
+      signerRoleId = lastSigners[tf.signerIndex]?.id;
+    }
+    for (const p of pages) {
+      out.push({
+        id: `tpl-f${id++}`,
+        page: p,
+        type: tf.type,
+        x: tf.x,
+        y: tf.y,
+        ...(tf.label !== undefined ? { label: tf.label } : {}),
+        ...(tf.meta !== undefined ? { meta: tf.meta } : {}),
+        ...(tf.signerIndex !== undefined ? { signerIndex: tf.signerIndex } : {}),
+        ...(signerRoleId !== undefined ? { signerRoleId } : {}),
+        ...(linkId !== undefined ? { linkId } : {}),
+      });
+    }
+  }
+  return out;
 }

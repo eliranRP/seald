@@ -13,10 +13,15 @@ import {
 } from '@nestjs/common';
 import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
-import { CURRENT_SIGNER_AUTH_TIER, ESIGN_DISCLOSURE_VERSION } from 'shared';
+import {
+  CURRENT_SIGNER_AUTH_TIER,
+  ESIGN_DISCLOSURE_VERSION,
+  isFeatureEnabled,
+  maskEmail,
+} from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
-import { Inject } from '@nestjs/common';
+import { Inject, Optional } from '@nestjs/common';
 import { insertOutboundEmailIdempotent, sameMailbox } from '../email/insert-idempotent';
 import { OutboundEmailsRepository } from '../email/outbound-emails.repository';
 import { buildTimelineHtml, type TimelineEventFragment } from '../email/template-fragments';
@@ -29,8 +34,12 @@ import type {
 } from '../envelopes/envelopes.repository';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
+import { AccessAuthService } from './access-auth/access-auth.service';
+import { validateFieldFill } from './field-value-validator';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
+import { isSignersTurn } from './signing-order';
+import { SigningOrderService } from './signing-order.service';
 import { SigningTokenService } from './signing-token.service';
 
 const MAX_SIGNATURE_BYTES = 512 * 1024; // 512 KB
@@ -47,6 +56,17 @@ export interface StartSessionResult {
   readonly session_jwt: string;
 }
 
+/**
+ * WP-10: the link token was valid, but this signer must enter an emailed
+ * code first. No signer session is issued.
+ */
+export interface StartSessionAccessCodeRequired {
+  readonly status: 'access_code_required';
+  readonly envelope_id: string;
+  readonly signer_id: string;
+  readonly email_masked: string;
+}
+
 export interface SignMeResponse {
   readonly envelope: {
     readonly id: string;
@@ -57,6 +77,11 @@ export interface SignMeResponse {
     readonly expires_at: string;
     readonly tc_version: string;
     readonly privacy_version: string;
+    /** WP-07: how date fields render; only while `fieldMetaV2` is on. */
+    readonly date_format?: string | null;
+    readonly timezone?: string | null;
+    /** WP-38: envelope language; only while `i18n` is on. */
+    readonly locale?: string | null;
   };
   readonly signer: {
     readonly id: string;
@@ -69,9 +94,14 @@ export interface SignMeResponse {
     readonly tc_accepted_at: string | null;
     readonly signed_at: string | null;
     readonly declined_at: string | null;
+    /** WP-38: signer language override; only while `i18n` is on. */
+    readonly locale?: string | null;
   };
   /** Fields the caller should fill. Only fields belonging to THIS signer. */
   readonly fields: ReadonlyArray<EnvelopeField>;
+  /** WP-03: the envelope's documents, while `multiDocumentEnvelopes` is on.
+   *  Each field then carries `document_id`. */
+  readonly documents?: ReadonlyArray<import('shared').EnvelopeDocument>;
   /** Other signers — status only, emails + names masked. */
   readonly other_signers: ReadonlyArray<{
     readonly id: string;
@@ -97,9 +127,17 @@ export class SigningService {
     private readonly storage: StorageService,
     private readonly outboundEmails: OutboundEmailsRepository,
     @Inject(APP_ENV) private readonly env: AppEnv,
+    private readonly signingOrder: SigningOrderService,
+    // WP-10 (flag `signerAccessAuth`): access code before the session and
+    // the optional re-verify at submit. Optional so unit specs that build
+    // the service by hand keep working.
+    @Optional() private readonly accessAuth?: AccessAuthService,
   ) {}
 
-  async startSession(envelope_id: string, token: string): Promise<StartSessionResult> {
+  async startSession(
+    envelope_id: string,
+    token: string,
+  ): Promise<StartSessionResult | StartSessionAccessCodeRequired> {
     // Hash at the boundary; plaintext never persists.
     const hash = this.tokens.hash(token);
     const found = await this.repo.findSignerByAccessTokenHash(hash);
@@ -115,6 +153,17 @@ export class SigningService {
     }
 
     assertStillSignable(envelope, signer);
+    assertSignersTurn(envelope, signer);
+
+    // WP-10: the token is proven, but the session waits for the code.
+    if (this.accessAuth && (await this.accessAuth.requires(envelope, signer, 'access'))) {
+      return {
+        status: 'access_code_required',
+        envelope_id: envelope.id,
+        signer_id: signer.id,
+        email_masked: maskEmail(signer.email),
+      };
+    }
 
     const session_jwt = await this.session.mint({
       envelope_id: envelope.id,
@@ -157,6 +206,10 @@ export class SigningService {
         expires_at: envelope.expires_at,
         tc_version: envelope.tc_version,
         privacy_version: envelope.privacy_version,
+        ...(isFeatureEnabled('fieldMetaV2')
+          ? { date_format: envelope.date_format ?? null, timezone: envelope.timezone ?? null }
+          : {}),
+        ...(isFeatureEnabled('i18n') ? { locale: envelope.locale ?? null } : {}),
       },
       signer: {
         id: signer.id,
@@ -169,6 +222,7 @@ export class SigningService {
         tc_accepted_at: signer.tc_accepted_at,
         signed_at: signer.signed_at,
         declined_at: signer.declined_at,
+        ...(isFeatureEnabled('i18n') ? { locale: signer.locale ?? null } : {}),
       },
       fields: myFields,
       other_signers: others,
@@ -194,6 +248,8 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    // WP-45: `{ via: 'mcp_approval' }` when the owner signs on the approval page.
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.acceptTerms(signer.id);
     await this.repo.recordSignerViewed(signer.id, ip, userAgent);
@@ -217,6 +273,7 @@ export class SigningService {
           privacy_version: envelope.privacy_version,
           esign_disclosure_version: ESIGN_DISCLOSURE_VERSION,
           signer_auth_tier: CURRENT_SIGNER_AUTH_TIER,
+          ...extraMetadata,
         },
       });
     }
@@ -228,7 +285,7 @@ export class SigningService {
         event_type: 'viewed',
         ip,
         user_agent: userAgent,
-        metadata: {},
+        metadata: { ...extraMetadata },
       });
     }
   }
@@ -253,6 +310,7 @@ export class SigningService {
     disclosureVersion: string,
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -264,6 +322,7 @@ export class SigningService {
       metadata: {
         esign_disclosure_version: disclosureVersion,
         demonstrated_ability: true,
+        ...extraMetadata,
       },
     });
   }
@@ -280,6 +339,7 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -288,7 +348,7 @@ export class SigningService {
       event_type: 'intent_to_sign_confirmed',
       ip,
       user_agent: userAgent,
-      metadata: {},
+      metadata: { ...extraMetadata },
     });
   }
 
@@ -345,6 +405,7 @@ export class SigningService {
     body: { value_text?: string; value_boolean?: boolean },
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<EnvelopeField> {
     const field = envelope.fields.find((f) => f.id === field_id);
     if (!field) throw new NotFoundException('field_not_found');
@@ -363,9 +424,24 @@ export class SigningService {
       throw new BadRequestException('wrong_field_kind');
     }
 
+    // WP-07: kind + meta validation (flag on only; flag off keeps the
+    // legacy "store what was sent" behaviour).
+    const checked = isFeatureEnabled('fieldMetaV2')
+      ? validateFieldFill(
+          {
+            kind: field.kind,
+            meta: field.meta ?? {},
+            signerName: signer.name,
+            dateFormat: envelope.date_format,
+            timezone: envelope.timezone,
+          },
+          body,
+        )
+      : body;
+
     const updated = await this.repo.fillField(field_id, signer.id, {
-      value_text: body.value_text ?? null,
-      value_boolean: body.value_boolean ?? null,
+      value_text: checked.value_text ?? null,
+      value_boolean: checked.value_boolean ?? null,
     });
     if (!updated) throw new NotFoundException('field_not_found');
 
@@ -376,7 +452,7 @@ export class SigningService {
       event_type: 'field_filled',
       ip,
       user_agent: userAgent,
-      metadata: { field_id, kind: field.kind },
+      metadata: { field_id, kind: field.kind, ...extraMetadata },
     });
 
     return updated;
@@ -402,6 +478,9 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    accessCode?: string,
+    // WP-45: `{ via: 'mcp_approval', approval_id }` on the owner's own `signed` row.
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<{ status: 'submitted'; envelope_status: Envelope['status'] }> {
     if (signer.tc_accepted_at === null) {
       throw new PreconditionFailedException('tc_required');
@@ -420,6 +499,13 @@ export class SigningService {
     );
     if (unfilledRequired.length > 0) {
       throw new UnprocessableEntityException('missing_fields');
+    }
+
+    // WP-10: with `action_auth = email_otp` the whole submission (every
+    // field, not only signatures) needs a fresh emailed code. Checked
+    // last, so a request that fails the checks above spends no attempt.
+    if (this.accessAuth) {
+      await this.accessAuth.assertActionCode(envelope, signer, accessCode, ip, userAgent);
     }
 
     const submitted = await this.repo.submitSigner(signer.id, ip, userAgent);
@@ -443,8 +529,23 @@ export class SigningService {
       event_type: 'signed',
       ip,
       user_agent: userAgent,
-      metadata: {},
+      metadata: { ...extraMetadata },
     });
+
+    // WP-05: this signature completed a sequential step, and the submit
+    // transaction stamped the next step's invited_at (once, under the
+    // envelope row lock). Record it and queue that step's invites. Like
+    // the mail below, a failure must not fail the committed signature.
+    if (submitted.next_step) {
+      try {
+        await this.signingOrder.startStep(envelope, submitted.next_step);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'unknown';
+        this.logger.error(
+          `step_started failed envelope=${envelope.id} step=${submitted.next_step.step}: ${message}`,
+        );
+      }
+    }
 
     // Progress mail is only for a signature that leaves someone still
     // waiting. The completion mail covers the last signature, and a
@@ -703,6 +804,17 @@ export class SigningService {
       signature_source_filename: meta.source_filename ?? null,
     };
     return this.repo.setSignerSignature(signer.id, input);
+  }
+}
+
+/**
+ * WP-05: in a sequential envelope only the active step may open or sign.
+ * Later steps get no link until their step starts, so this is a guard
+ * against a link reaching them some other way.
+ */
+export function assertSignersTurn(envelope: Envelope, signer: EnvelopeSigner): void {
+  if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
+    throw new ConflictException('not_your_turn');
   }
 }
 

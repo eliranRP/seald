@@ -7,8 +7,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
-import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
+import { ENVELOPE_STATUSES, isExpiryWithinBounds, isFeatureEnabled } from 'shared';
+import type {
+  Envelope as WireEnvelope,
+  EnvelopeGdriveSaveResult,
+  GdriveExportState,
+  McpEventMetadata,
+} from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import {
@@ -27,7 +32,7 @@ import {
   buildTimelineHtml,
   type TimelineEventFragment,
 } from '../email/template-fragments';
-import { SigningTokenService } from '../signing/signing-token.service';
+import { declinedPdfPath } from '../sealing/declined-pdf-path';
 import { StorageService } from '../storage/storage.service';
 import type {
   CreateFieldInput,
@@ -51,7 +56,10 @@ import {
   InvalidCursorError,
   ShortCodeCollisionError,
 } from './envelopes.repository';
+import { initialInvitees, isSignersTurn, stepOrders } from '../signing/signing-order';
+import { inviteEmailPayload } from '../signing/signing-order.service';
 import { generateShortCode } from './short-code';
+import { assertNoMetaV2, validatePlacementMeta } from './field-placement.service';
 import { inspectPdfBytes } from './pdf-inspection';
 
 export type { ListResult };
@@ -60,7 +68,34 @@ type Envelope = WireEnvelope;
 type EnvelopeStatus = Envelope['status'];
 
 const DEFAULT_EXPIRY_DAYS = 30;
+const REMIND_THROTTLE_MS = 60 * 60 * 1000;
+
+/**
+ * Who caused an action, for its audit rows (MCP attribution, WP-24):
+ * `metadata.mcp` on every event the call writes. SPA controllers pass
+ * nothing, so their events keep `metadata` exactly as before.
+ */
+export interface EventAttribution {
+  readonly mcp: McpEventMetadata;
+  /** Send only: lower-cased addresses that were new (not known) when it went out. */
+  readonly newRecipientEmails?: ReadonlySet<string>;
+}
+
+function withMcp(
+  metadata: Record<string, unknown>,
+  mcp: McpEventMetadata | undefined,
+): Record<string, unknown> {
+  return mcp ? { ...metadata, mcp } : metadata;
+}
 const MAX_SHORT_CODE_RETRIES = 5;
+
+function hasCadenceKeys(patch: UpdateDraftMetadataPatch): boolean {
+  return (
+    patch.reminder_first_after_days !== undefined ||
+    patch.reminder_interval_days !== undefined ||
+    patch.reminder_max !== undefined
+  );
+}
 
 /**
  * Sender-side orchestration for envelope drafts: create, read, list, patch,
@@ -72,6 +107,9 @@ const MAX_SHORT_CODE_RETRIES = 5;
  * their own services. This service is exclusively for the authenticated
  * sender surface.
  */
+/** Artifacts `GET /envelopes/:id/download?kind=` can hand out. */
+export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit' | 'declined';
+
 @Injectable()
 export class EnvelopesService {
   constructor(
@@ -79,7 +117,6 @@ export class EnvelopesService {
     private readonly contactsRepo: ContactsRepository,
     private readonly storage: StorageService,
     private readonly outboundEmails: OutboundEmailsRepository,
-    private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) private readonly env: AppEnv,
     private readonly gdriveAccounts: GDriveService,
     private readonly gdriveExport: GdriveExportService,
@@ -89,7 +126,7 @@ export class EnvelopesService {
 
   async createDraft(
     owner_id: string,
-    dto: { title: string },
+    dto: { title: string; locale?: string },
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
   ): Promise<Envelope> {
     const expires_at = new Date(
@@ -101,6 +138,8 @@ export class EnvelopesService {
       tc_version: this.env.TC_VERSION,
       privacy_version: this.env.PRIVACY_VERSION,
       expires_at,
+      // WP-38: the DTO rejects `locale` while `i18n` is off; guard anyway.
+      ...(isFeatureEnabled('i18n') && dto.locale !== undefined ? { locale: dto.locale } : {}),
     });
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -323,6 +362,23 @@ export class EnvelopesService {
     const sanitized = Object.fromEntries(
       Object.entries(patch).filter(([, v]) => v !== undefined),
     ) as UpdateDraftMetadataPatch;
+    // Reminder cadence is WP-09 behind `customReminders`. While the flag is
+    // dark the field is not accepted, which is the same 400 an unknown
+    // property gets before the flag existed.
+    if (!isFeatureEnabled('customReminders') && hasCadenceKeys(sanitized)) {
+      throw new BadRequestException('validation_error');
+    }
+    // Date format / timezone are WP-07 behind `fieldMetaV2`; same rule.
+    if (
+      !isFeatureEnabled('fieldMetaV2') &&
+      (sanitized.date_format !== undefined || sanitized.timezone !== undefined)
+    ) {
+      throw new BadRequestException('validation_error');
+    }
+    // Locale is WP-38 behind `i18n`; same rule.
+    if (!isFeatureEnabled('i18n') && sanitized.locale !== undefined) {
+      throw new BadRequestException('validation_error');
+    }
     if (Object.keys(sanitized).length === 0) {
       throw new BadRequestException('validation_error');
     }
@@ -370,6 +426,9 @@ export class EnvelopesService {
    *   - `'sealed'`   — the sealed artifact. 404 if the envelope isn't complete.
    *   - `'original'` — the uploaded PDF.
    *   - `'audit'`    — the audit-trail PDF produced by the sealing job.
+   *   - `'declined'` — the stamped, PAdES-sealed copy the `audit_only`
+   *                    job writes for a declined, expired or canceled
+   *                    envelope (WP-01).
    *
    * Throws `file_not_ready` when the requested artifact isn't on the
    * envelope yet (e.g. asking for the audit PDF before sealing ran).
@@ -377,16 +436,26 @@ export class EnvelopesService {
   async getDownloadUrl(
     owner_id: string,
     id: string,
-    kind?: 'sealed' | 'original' | 'audit',
-  ): Promise<{ readonly url: string; readonly kind: 'sealed' | 'original' | 'audit' }> {
+    kind?: EnvelopeDownloadKind,
+  ): Promise<{ readonly url: string; readonly kind: EnvelopeDownloadKind }> {
     const envelope = await this.repo.findByIdForOwner(owner_id, id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     const paths = await this.repo.getFilePaths(id);
     if (!paths) throw new NotFoundException('envelope_not_found');
 
-    let resolvedKind: 'sealed' | 'original' | 'audit';
+    let resolvedKind: EnvelopeDownloadKind;
     let path: string | null;
-    if (kind === 'audit') {
+    if (kind === 'declined') {
+      // No column for it: the path is fixed and only exists once the
+      // audit_only job ran for a terminal, unsigned envelope.
+      resolvedKind = 'declined';
+      const candidate = declinedPdfPath(id);
+      const terminal =
+        envelope.status === 'declined' ||
+        envelope.status === 'expired' ||
+        envelope.status === 'canceled';
+      path = terminal && (await this.storage.exists(candidate)) ? candidate : null;
+    } else if (kind === 'audit') {
       resolvedKind = 'audit';
       path = paths.audit_file_path;
     } else if (kind === 'original') {
@@ -531,7 +600,7 @@ export class EnvelopesService {
   async addSigner(
     owner_id: string,
     envelope_id: string,
-    dto: { contact_id?: string; email?: string; name?: string; color?: string },
+    dto: { contact_id?: string; email?: string; name?: string; color?: string; locale?: string },
   ): Promise<EnvelopeSigner> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -543,6 +612,7 @@ export class EnvelopesService {
       name: string;
       color: string;
       role: 'signatory';
+      locale?: string;
     };
 
     if (dto.contact_id) {
@@ -570,6 +640,10 @@ export class EnvelopesService {
       };
     }
 
+    if (isFeatureEnabled('i18n') && dto.locale !== undefined) {
+      signerInput = { ...signerInput, locale: dto.locale };
+    }
+
     try {
       return await this.repo.addSigner(envelope_id, signerInput);
     } catch (err) {
@@ -589,10 +663,16 @@ export class EnvelopesService {
     if (!removed) throw new NotFoundException('envelope_not_found');
   }
 
+  /**
+   * `validate` (WP-03) runs after the owner, draft and signer checks and
+   * before the write; the controller passes the document check while
+   * `multiDocumentEnvelopes` is on.
+   */
   async replaceFields(
     owner_id: string,
     envelope_id: string,
     fields: readonly CreateFieldInput[],
+    validate?: (fields: readonly CreateFieldInput[]) => Promise<void>,
   ): Promise<readonly EnvelopeField[]> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -604,7 +684,14 @@ export class EnvelopesService {
         throw new BadRequestException('signer_not_in_envelope');
       }
     }
+    if (validate) await validate(fields);
 
+    // WP-07: meta is validated per kind while `fieldMetaV2` is on; while it
+    // is off a caller that skipped the DTO still cannot sneak it in.
+    if (isFeatureEnabled('fieldMetaV2')) {
+      return this.repo.replaceFields(envelope_id, validatePlacementMeta(fields));
+    }
+    assertNoMetaV2(fields);
     return this.repo.replaceFields(envelope_id, fields);
   }
 
@@ -615,8 +702,13 @@ export class EnvelopesService {
   }
 
   /**
-   * Transition an envelope from `draft` to `awaiting_others`, generate +
-   * hash per-signer tokens, write `sent` events, and enqueue `invite` emails.
+   * Transition an envelope from `draft` to `awaiting_others`, write `sent`
+   * events, and enqueue `invite` emails.
+   *
+   * No signer token is minted here (MCP Insert A). Each invite row holds
+   * the signer id only; `EmailDispatcherService` mints the token when it
+   * sends the mail and stores its hash. Until then `access_token_hash` is
+   * null, which means the link has not been sent yet.
    *
    * The four writes are sequenced (not one DB transaction). The
    * `repo.sendDraft` call is atomic and row-conditional, so the status flip
@@ -634,12 +726,111 @@ export class EnvelopesService {
     envelope_id: string,
     sender: { readonly email: string; readonly name?: string | null },
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
   ): Promise<Envelope> {
+    const envelope = await this.checkSend(owner_id, envelope_id);
+
+    // Atomic status flip. Sender identity is persisted here so the
+    // decline/withdrawal flow can email the sender without a privileged
+    // auth.users lookup.
+    // WP-05: sequential order applies only while `signingOrder` is on; with
+    // it off every send is parallel, as before. The mode in force is
+    // stamped on the row, and the same transaction sets invited_at on the
+    // signers invited now.
+    const deliveryMode = isFeatureEnabled('signingOrder') ? envelope.delivery_mode : 'parallel';
+    const sent = await this.repo.sendDraft({
+      envelope_id,
+      sender_email: sender.email,
+      sender_name: sender.name ?? null,
+      delivery_mode: deliveryMode,
+    });
+    if (!sent) {
+      // Lost the race — another concurrent call transitioned status.
+      throw new ConflictException('envelope_not_draft');
+    }
+
+    // Audit events + outbound emails. Best-effort — per-signer independent.
+    // Sequential: only step 1 is invited now; later steps are invited by
+    // the submit that completes the step before them.
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const invitees = initialInvitees(deliveryMode, envelope.signers);
+    // MCP attribution: `metadata.mcp` exactly as WP-23 reads it, plus a
+    // top-level count of recipients that were new, for the daily cap.
+    const mcp = attribution?.mcp;
+    const sendFacts: Record<string, unknown> = attribution
+      ? {
+          new_recipient_count: envelope.signers.filter((s) =>
+            attribution.newRecipientEmails?.has(s.email.trim().toLowerCase()),
+          ).length,
+        }
+      : {};
+    if (deliveryMode === 'sequential') {
+      await this.repo.appendEvent({
+        envelope_id,
+        actor_kind: 'system',
+        event_type: 'step_started',
+        metadata: withMcp(
+          {
+            step: 1,
+            signing_order: stepOrders(envelope.signers)[0] ?? 1,
+            signer_ids: invitees.map((s) => s.id),
+            ...sendFacts,
+          },
+          mcp,
+        ),
+      });
+    }
+    for (const signer of invitees) {
+      // Append the `sent` event first so its id can be the source_event_id.
+      const event = await this.repo.appendEvent({
+        envelope_id,
+        signer_id: signer.id,
+        actor_kind: 'system',
+        event_type: 'sent',
+        ip: audit.ip,
+        user_agent: audit.user_agent,
+        metadata: withMcp({ ...sendFacts }, mcp),
+      });
+
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id: signer.id,
+          kind: 'invite',
+          to_email: signer.email,
+          to_name: signer.name,
+          source_event_id: event.id,
+          payload: inviteEmailPayload(
+            envelope,
+            { email: sender.email, name: sender.name ?? null },
+            publicUrl,
+          ),
+        });
+      } catch (err) {
+        if (err instanceof DuplicateOutboundEmailError) {
+          // Idempotent — the row already existed for this (envelope, signer,
+          // invite, source_event_id). Treat as success.
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    return sent;
+  }
+
+  /**
+   * The checks `send` runs before the status flip, without writing: the
+   * envelope is the owner's draft, has a file, at least one signer and
+   * one field, and every signer has a required signature or initials
+   * field. `envelopes_preview_send` runs them on their own (WP-24).
+   */
+  async checkSend(owner_id: string, envelope_id: string): Promise<Envelope> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
 
-    // Invariants — fail before we generate tokens.
+    // Invariants — fail before the status flip.
     if (!envelope.original_sha256 || !envelope.original_pages) {
       throw new BadRequestException('file_required');
     }
@@ -660,83 +851,7 @@ export class EnvelopesService {
         throw new BadRequestException('signer_without_signature_field');
       }
     }
-
-    // Generate one plaintext token per signer + its hash. Plaintext is held
-    // in memory for the email enqueue step; only the hash persists in DB.
-    const signerTokens = envelope.signers.map((s) => {
-      const token = this.tokens.generate();
-      return {
-        signer_id: s.id,
-        signer_email: s.email,
-        signer_name: s.name,
-        plaintext_token: token,
-        access_token_hash: this.tokens.hash(token),
-      };
-    });
-
-    // Atomic status flip + per-signer hash stamping. Sender identity is
-    // persisted here so the decline/withdrawal flow can email the sender
-    // without a privileged auth.users lookup.
-    const sent = await this.repo.sendDraft({
-      envelope_id,
-      signer_tokens: signerTokens.map((t) => ({
-        signer_id: t.signer_id,
-        access_token_hash: t.access_token_hash,
-      })),
-      sender_email: sender.email,
-      sender_name: sender.name ?? null,
-    });
-    if (!sent) {
-      // Lost the race — another concurrent call transitioned status.
-      throw new ConflictException('envelope_not_draft');
-    }
-
-    // Audit events + outbound emails. Best-effort — per-signer independent.
-    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    for (const t of signerTokens) {
-      // Append the `sent` event first so its id can be the source_event_id.
-      const event = await this.repo.appendEvent({
-        envelope_id,
-        signer_id: t.signer_id,
-        actor_kind: 'system',
-        event_type: 'sent',
-        ip: audit.ip,
-        user_agent: audit.user_agent,
-        metadata: {},
-      });
-
-      const signUrl = `${publicUrl}/sign/${envelope_id}?t=${t.plaintext_token}`;
-      // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
-      const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
-      try {
-        await this.outboundEmails.insert({
-          envelope_id,
-          signer_id: t.signer_id,
-          kind: 'invite',
-          to_email: t.signer_email,
-          to_name: t.signer_name,
-          source_event_id: event.id,
-          payload: {
-            sender_name: sender.name ?? sender.email,
-            sender_email: sender.email,
-            envelope_title: envelope.title,
-            sign_url: signUrl,
-            verify_url: verifyUrl,
-            short_code: envelope.short_code,
-            public_url: publicUrl,
-          },
-        });
-      } catch (err) {
-        if (err instanceof DuplicateOutboundEmailError) {
-          // Idempotent — the row already existed for this (envelope, signer,
-          // invite, source_event_id). Treat as success.
-          continue;
-        }
-        throw err;
-      }
-    }
-
-    return sent;
+    return envelope;
   }
 
   /**
@@ -756,6 +871,7 @@ export class EnvelopesService {
     owner_id: string,
     envelope_id: string,
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
   ): Promise<{ readonly status: 'canceled'; readonly envelope_status: 'canceled' }> {
     const result = await this.repo.cancelEnvelope(envelope_id, owner_id);
     if (!result) {
@@ -777,10 +893,13 @@ export class EnvelopesService {
       event_type: 'canceled',
       ip: audit.ip,
       user_agent: audit.user_agent,
-      metadata: {
-        notified_signer_count: notifiedSignerIds.length,
-        already_signed_signer_count: alreadySignedSignerIds.length,
-      },
+      metadata: withMcp(
+        {
+          notified_signer_count: notifiedSignerIds.length,
+          already_signed_signer_count: alreadySignedSignerIds.length,
+        },
+        attribution?.mcp,
+      ),
     });
 
     // Pre-render a single timeline for the `withdrawn_after_sign` kind:
@@ -817,7 +936,7 @@ export class EnvelopesService {
         signer_id: signerId,
         actor_kind: 'system',
         event_type: 'session_invalidated_by_cancel',
-        metadata: {},
+        metadata: withMcp({}, attribution?.mcp),
       });
 
       try {
@@ -882,10 +1001,62 @@ export class EnvelopesService {
   }
 
   /**
-   * Manually re-send the signing invite to a single signer. Rotates the
-   * signer's access_token_hash so the new email carries a fresh token —
-   * any prior link is dead the moment this succeeds. Throttled to at most
-   * 1 reminder per signer per hour via the outbound_emails audit trail.
+   * Every check `remindSigner` runs before it writes, without writing:
+   * the envelope is the owner's and out for signature, the signer has not
+   * signed or declined, it is that signer's turn (WP-05), and the signer
+   * was not reminded by hand in the last hour (`remind_throttled`, with
+   * `retryAfter` in seconds). The MCP remind tool and its approval call
+   * it at request and at decision time (WP-24).
+   */
+  async checkRemind(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+  ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') {
+      throw new ConflictException('envelope_terminal');
+    }
+
+    const signer = envelope.signers.find((s) => s.id === signer_id);
+    if (!signer) throw new NotFoundException('envelope_not_found');
+    if (signer.signed_at !== null) throw new ConflictException('already_signed');
+    if (signer.declined_at !== null) throw new ConflictException('already_declined');
+    // WP-05: a later sequential step has no link yet; a reminder would
+    // hand it one before its turn.
+    if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
+      throw new ConflictException('not_your_turn');
+    }
+
+    // Throttle: 1 manual invite or reminder per hour. Automated daily
+    // reminders do not consume this limit.
+    const recent = await this.outboundEmails.findLastInviteOrReminder(envelope_id, signer_id, {
+      excludeAutomated: true,
+    });
+    if (recent) {
+      const ageMs = Date.now() - new Date(recent.created_at).getTime();
+      if (ageMs < REMIND_THROTTLE_MS) {
+        throw new HttpException(
+          {
+            message: 'remind_throttled',
+            retryAfter: Math.max(1, Math.ceil((REMIND_THROTTLE_MS - ageMs) / 1000)),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+    return { envelope, signer };
+  }
+
+  /**
+   * Manually re-send the signing invite to a single signer. Throttled to
+   * at most 1 reminder per signer per hour via the outbound_emails audit
+   * trail.
+   *
+   * The token rotates at send time (MCP Insert A): the queued row holds
+   * the signer id only, and `EmailDispatcherService` mints a fresh token
+   * when the mail goes out. Every earlier link stops working then.
    *
    * Sender identity (name/email) is pulled from the JWT and threaded into
    * the reminder template, same shape as the original invite. Controller
@@ -897,45 +1068,9 @@ export class EnvelopesService {
     envelope_id: string,
     signer_id: string,
     sender: { readonly email: string; readonly name?: string | null },
+    attribution?: EventAttribution,
   ): Promise<void> {
-    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
-    if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'awaiting_others') {
-      throw new ConflictException('envelope_terminal');
-    }
-
-    const signer = envelope.signers.find((s) => s.id === signer_id);
-    if (!signer) throw new NotFoundException('envelope_not_found');
-    if (signer.signed_at !== null) throw new ConflictException('already_signed');
-    if (signer.declined_at !== null) throw new ConflictException('already_declined');
-
-    // Throttle: 1 manual invite or reminder per hour. Automated daily
-    // reminders do not consume this limit.
-    const recent = await this.outboundEmails.findLastInviteOrReminder(envelope_id, signer_id, {
-      excludeAutomated: true,
-    });
-    if (recent) {
-      const ageMs = Date.now() - new Date(recent.created_at).getTime();
-      if (ageMs < 60 * 60 * 1000) {
-        throw new HttpException('remind_throttled', HttpStatus.TOO_MANY_REQUESTS);
-      }
-    }
-
-    // Rotate the token atomically. If rotation fails (e.g., a concurrent
-    // sign/decline landed), map to the right 4xx.
-    const token = this.tokens.generate();
-    const rotated = await this.repo.rotateSignerAccessToken(signer_id, this.tokens.hash(token));
-    if (!rotated) {
-      // Re-read to differentiate what race we lost.
-      const fresh = await this.repo.findByIdForOwner(owner_id, envelope_id);
-      const freshSigner = fresh?.signers.find((s) => s.id === signer_id);
-      if (!fresh || fresh.status !== 'awaiting_others') {
-        throw new ConflictException('envelope_terminal');
-      }
-      if (freshSigner?.signed_at) throw new ConflictException('already_signed');
-      if (freshSigner?.declined_at) throw new ConflictException('already_declined');
-      throw new ConflictException('envelope_terminal');
-    }
+    const { envelope, signer } = await this.checkRemind(owner_id, envelope_id, signer_id);
 
     // Audit event first so its id anchors the outbound_emails row.
     const event = await this.repo.appendEvent({
@@ -943,11 +1078,10 @@ export class EnvelopesService {
       signer_id,
       actor_kind: 'sender',
       event_type: 'reminder_sent',
-      metadata: {},
+      metadata: withMcp({}, attribution?.mcp),
     });
 
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    const signUrl = `${publicUrl}/sign/${envelope_id}?t=${token}`;
     // Canonical verify route is `/verify/<short_code>` — matches the SPA + audit-pdf QR.
     const verifyUrl = `${publicUrl}/verify/${envelope.short_code}`;
     // Pre-render the per-signer roster block — the template engine is
@@ -969,7 +1103,6 @@ export class EnvelopesService {
         sender_name: sender.name ?? sender.email,
         sender_email: sender.email,
         envelope_title: envelope.title,
-        sign_url: signUrl,
         verify_url: verifyUrl,
         short_code: envelope.short_code,
         expires_at_readable: formatExpiresAt(envelope.expires_at),
@@ -978,6 +1111,192 @@ export class EnvelopesService {
         reminder_cadence: '',
       },
     });
+  }
+
+  /**
+   * Every check `fixSigner` runs before it writes (WP-26): the envelope is
+   * the owner's and out for signature, the signer exists and has neither
+   * signed nor declined, the patch changes something, and a new email is
+   * not already another signer's on this envelope.
+   */
+  async checkFixSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string | undefined; readonly email?: string | undefined },
+  ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    const signer = envelope.signers.find((s) => s.id === signer_id);
+    if (!signer) throw new NotFoundException('signer_not_found');
+    if (signer.signed_at !== null) throw new ConflictException('signer_already_signed');
+    if (signer.declined_at !== null) throw new ConflictException('already_declined');
+    const nameChanged = patch.name !== undefined && patch.name !== signer.name;
+    const emailChanged =
+      patch.email !== undefined && patch.email.toLowerCase() !== signer.email.toLowerCase();
+    // A pure re-casing of the address is still a change worth writing.
+    const caseChanged = patch.email !== undefined && patch.email !== signer.email;
+    if (!nameChanged && !emailChanged && !caseChanged) {
+      throw new BadRequestException('signer_unchanged');
+    }
+    if (
+      emailChanged &&
+      envelope.signers.some(
+        (s) => s.id !== signer_id && s.email.toLowerCase() === patch.email?.toLowerCase(),
+      )
+    ) {
+      throw new ConflictException('signer_email_taken');
+    }
+    return { envelope, signer };
+  }
+
+  /**
+   * Correct a signer's name or email on an envelope that is out for
+   * signature, and re-invite (WP-26, MCP step 15; through owner approval
+   * when an agent asks). The previous link stops working at once: the
+   * corrected signer gets a new invite whose token the dispatcher mints
+   * when it sends. An address that stops being a recipient gets a short
+   * note. The change is one hash-chained `signer_corrected` event.
+   *
+   * Sequential order: the invite goes out only when it is that signer's
+   * turn, as a reminder would; a later step is invited when its turn comes.
+   */
+  async fixSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string | undefined; readonly email?: string | undefined },
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
+    now: Date = new Date(),
+  ): Promise<{ readonly signer: EnvelopeSigner; readonly email_changed: boolean }> {
+    await this.checkFixSigner(owner_id, envelope_id, signer_id, patch);
+    const cleanPatch = {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.email !== undefined ? { email: patch.email } : {}),
+    };
+    const done = await this.repo.correctSigner(envelope_id, signer_id, cleanPatch, now);
+    if (!done) {
+      // Lost a race with a signature, a decline or a terminal status: say which.
+      await this.checkFixSigner(owner_id, envelope_id, signer_id, patch);
+      throw new ConflictException('envelope_terminal');
+    }
+    const emailChanged = done.previous.email.toLowerCase() !== done.signer.email.toLowerCase();
+    const event = await this.repo.appendEvent({
+      envelope_id,
+      signer_id,
+      actor_kind: 'sender',
+      event_type: 'signer_corrected',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: withMcp(
+        {
+          previous_name: done.previous.name,
+          new_name: done.signer.name,
+          previous_email: done.previous.email,
+          new_email: done.signer.email,
+          email_changed: emailChanged,
+        },
+        attribution?.mcp,
+      ),
+    });
+
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const sender = {
+      email: envelope.sender_email ?? '',
+      name: envelope.sender_name ?? null,
+    };
+    if (isSignersTurn(envelope.delivery_mode, envelope.signers, signer_id)) {
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id,
+          kind: 'invite',
+          to_email: done.signer.email,
+          to_name: done.signer.name,
+          source_event_id: event.id,
+          payload: inviteEmailPayload(envelope, sender, publicUrl),
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+      }
+    }
+    if (emailChanged) {
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id,
+          kind: 'signer_corrected',
+          to_email: done.previous.email,
+          to_name: done.previous.name,
+          source_event_id: event.id,
+          payload: {
+            sender_name: sender.name ?? sender.email,
+            sender_email: sender.email,
+            envelope_title: envelope.title,
+            short_code: envelope.short_code,
+            verify_url: `${publicUrl}/verify/${envelope.short_code}`,
+            public_url: publicUrl,
+          },
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+      }
+    }
+    return { signer: done.signer, email_changed: emailChanged };
+  }
+
+  /**
+   * Every check `changeExpiry` runs before it writes (WP-26): the envelope
+   * is the owner's and out for signature, and the new time is a real
+   * change inside the bounds the send controls enforce (a day from now to
+   * the end of the UTC day 90 days out).
+   */
+  async checkChangeExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+    now: Date,
+  ): Promise<Envelope> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'awaiting_others') throw new ConflictException('envelope_terminal');
+    const at = Date.parse(expires_at);
+    if (!isExpiryWithinBounds(at, now.getTime())) {
+      throw new BadRequestException('expiry_out_of_range');
+    }
+    if (at === Date.parse(envelope.expires_at)) throw new BadRequestException('expiry_unchanged');
+    return envelope;
+  }
+
+  /** New `expires_at` on a sent envelope (WP-26). One hash-chained `expiry_changed` event. */
+  async changeExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
+    now: Date = new Date(),
+  ): Promise<{ readonly previous_expires_at: string; readonly expires_at: string }> {
+    await this.checkChangeExpiry(owner_id, envelope_id, expires_at, now);
+    const normalized = new Date(expires_at).toISOString();
+    const done = await this.repo.updateOpenExpiry(owner_id, envelope_id, normalized);
+    if (!done) throw new ConflictException('envelope_terminal');
+    await this.repo.appendEvent({
+      envelope_id,
+      actor_kind: 'sender',
+      event_type: 'expiry_changed',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: withMcp(
+        { previous_expires_at: done.previous, expires_at: normalized },
+        attribution?.mcp,
+      ),
+    });
+    return { previous_expires_at: done.previous, expires_at: normalized };
   }
 
   /**

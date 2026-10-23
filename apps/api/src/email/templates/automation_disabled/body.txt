@@ -1,0 +1,12 @@
+Your automation, {{automation_name}}, was turned off on your Seald account.
+
+It failed {{failure_count}} runs in a row, so Seald stopped starting new runs for it. Runs that were already queued still finish. Nothing on your documents was changed.
+
+Turned off: {{disabled_at_readable}}
+
+Fix the destination, for example a server that is back up or a Drive connection you reconnected, then turn the automation back on. It starts counting from zero again.
+
+Review automations:
+  {{settings_url}}
+
+Sent via Seald · {{public_url}}

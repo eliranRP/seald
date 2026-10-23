@@ -37,6 +37,8 @@
   "words": [
     "Seald",
     "seald",
+    "xact",
+    "cimd",
     "Sealed",
     "gapi",
     "Gapi",
@@ -510,7 +512,8 @@
     "HSTS",
     "hsts",
     "deutan",
-    "protan"
+    "protan",
+    "describedby"
   ],
   "ignoreRegExpList": [
     "Base64",

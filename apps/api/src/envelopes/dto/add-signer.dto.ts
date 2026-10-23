@@ -8,6 +8,8 @@ import {
   Length,
   ValidateIf,
 } from 'class-validator';
+import { isSupportedLocale, SUPPORTED_LOCALES } from 'shared';
+import { FlagGatedProperty } from '../../common/flag-gated.validators';
 
 /**
  * AddSignerDto accepts one of two payload shapes:
@@ -42,4 +44,12 @@ export class AddSignerDto {
   @IsOptional()
   @IsHexColor()
   readonly color?: string;
+
+  /** Per-signer locale override (WP-38). Flag off: rejected like an unknown property. */
+  @FlagGatedProperty(
+    'i18n',
+    (v) => typeof v === 'string' && isSupportedLocale(v),
+    (p) => `${p} must be one of the following values: ${SUPPORTED_LOCALES.join(', ')}`,
+  )
+  readonly locale?: string;
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import * as sharedModule from 'shared';
 import { TemplatesListPage } from './TemplatesListPage';
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../../test/templateFixtures';
 import { renderWithProviders } from '../../test/renderWithProviders';
@@ -245,5 +246,44 @@ describe('TemplatesListPage — tag edits persist to the server', () => {
       // Initial mount fetch + the recovery refetch after the patch failed.
       expect(listSpy.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
+  });
+});
+
+describe('TemplatesListPage bulk send entry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const WITH_PDF: TemplateSummary = { ...TEMPLATES[0]!, hasExamplePdf: true };
+  const WITHOUT_PDF: TemplateSummary = { ...TEMPLATES[1]!, hasExamplePdf: false };
+
+  function renderBulk() {
+    return renderWithProviders(
+      <MemoryRouter initialEntries={['/templates']}>
+        <Routes>
+          <Route
+            path="/templates"
+            element={<TemplatesListPage initialTemplates={[WITH_PDF, WITHOUT_PDF]} />}
+          />
+          <Route path="/templates/:id/bulk-send" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it('is hidden while the bulkSend flag is off', () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockReturnValue(false);
+    renderBulk();
+    expect(screen.queryByRole('button', { name: /^bulk send /i })).toBeNull();
+  });
+
+  it('shows for a template with a saved document only, and opens the bulk send page', async () => {
+    vi.spyOn(sharedModule, 'isFeatureEnabled').mockImplementation((flag) => flag === 'bulkSend');
+    renderBulk();
+    expect(screen.queryByRole('button', { name: `Bulk send ${WITHOUT_PDF.name}` })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: `Bulk send ${WITH_PDF.name}` }));
+    expect(screen.getByTestId('probe').textContent).toBe(
+      `/templates/${encodeURIComponent(WITH_PDF.id)}/bulk-send`,
+    );
   });
 });

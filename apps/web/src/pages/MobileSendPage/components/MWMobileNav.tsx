@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Cloud, Menu, X } from 'lucide-react';
+import { Menu, Settings, X } from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { useAuth } from '@/providers/AuthProvider';
 import { NAV_ITEMS, matchNavId } from '@/layout/navItems';
-import { MWBottomSheet } from './MWBottomSheet';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 
 // Per product (2026-05-03, refined): mobile users are locked to /m/send;
 // every desktop AppShell route bounces back here. The hamburger drawer
@@ -287,12 +287,17 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
     onDownloadOriginalPdf();
   }, [onDownloadOriginalPdf]);
 
-  const handleOpenIntegrations = useCallback((): void => {
+  const handleOpenSettings = useCallback((): void => {
     setOpen(false);
-    navigate('/m/send/settings');
+    navigate('/m/settings');
   }, [navigate]);
 
-  const gdriveOn = isFeatureEnabled('gdriveIntegration');
+  // One Settings row. Integrations and Developers live on the /m/settings
+  // index, not as extra drawer rows. Shown when any of them is on.
+  const settingsOn =
+    isFeatureEnabled('gdriveIntegration') ||
+    isFeatureEnabled('mcpServer') ||
+    isFeatureEnabled('publicApi');
   const activeId = matchNavId(location.pathname);
   const displayName = user?.name?.trim() || user?.email?.split('@')[0] || 'You';
   const displayEmail = user?.email ?? '';
@@ -361,10 +366,10 @@ export function MWMobileNav(props: MWMobileNavProps): ReactNode {
               Download original PDF
             </SheetItem>
           ) : null}
-          {gdriveOn && (
-            <SheetItem type="button" onClick={handleOpenIntegrations}>
-              <Cloud size={20} aria-hidden />
-              Integrations
+          {settingsOn && (
+            <SheetItem type="button" onClick={handleOpenSettings}>
+              <Settings size={20} aria-hidden />
+              Settings
             </SheetItem>
           )}
           <SheetItem type="button" onClick={handleSignOut}>

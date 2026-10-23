@@ -1,0 +1,1 @@
+Seald notice for {{sender_name}}: "{{envelope_title}}" {{event_phrase}}

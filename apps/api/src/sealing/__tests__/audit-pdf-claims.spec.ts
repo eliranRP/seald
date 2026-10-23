@@ -126,6 +126,37 @@ describe('audit PDF rendered claims', () => {
     expect(unsealedText).toContain('This file has no digital seal.');
   });
 
+  it('pre-seal pages (WP-01) omit the sealed hash and show the chain head', async () => {
+    const chainHead = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+    const base = makeInput({ sealed: true, senderName: null });
+    const preSeal = await buildAuditPdf({
+      ...base,
+      envelope: { ...base.envelope, status: 'sealing', completed_at: null, sealed_sha256: null },
+      sealedSha256: null,
+      sealedPages: null,
+      preSeal: { chainHeadSha256: chainHead },
+    });
+    const text = normalizePdfText(extractPdfText(preSeal));
+    const flat = text.replace(/\s+/g, '');
+    expect(text).toContain('This document is sealed');
+    expect(text).toContain('sealed-file hash: on the separate audit trail');
+    expect(flat.toUpperCase()).toContain('AUDITEVENTCHAINHEAD');
+    expect(flat).toContain(chainHead);
+    expect(flat).toContain('b'.repeat(64)); // original hash still shown
+    expect(flat).not.toContain('a'.repeat(64)); // no sealed hash
+    expect(text).not.toContain('— (unsealed)');
+    for (const claim of RETIRED_RENDERED_CLAIMS) {
+      expect(text).not.toContain(claim);
+    }
+    // Same page count as the standalone certificate: nothing overflows.
+    const { PDFDocument } = await import('pdf-lib');
+    const pages = (await PDFDocument.load(preSeal)).getPageCount();
+    const standard = (
+      await PDFDocument.load(await buildAuditPdf(makeInput({ sealed: true, senderName: null })))
+    ).getPageCount();
+    expect(pages).toBe(standard);
+  }, 120_000);
+
   it('does not call a completed noop-signer file sealed or verified', () => {
     expect(noopText).toContain('not sealed');
     expect(noopText).not.toContain('Verified');

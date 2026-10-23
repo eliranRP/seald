@@ -8,9 +8,10 @@ import type {
   SignMeSigner,
   SignatureInput,
   StartSessionInput,
-  StartSessionResponse,
+  StartSessionResult,
   SubmitResponse,
 } from './signingApi';
+import { isNotYourTurnError } from '@/features/signers/signingOrder';
 import { writeDoneSnapshot } from './doneSnapshot';
 import { reportSignerEvent } from './telemetry';
 
@@ -26,12 +27,14 @@ export function useSignMeQuery(envelopeId: string, enabled: boolean) {
     queryKey: SIGN_ME_KEY(envelopeId),
     queryFn: ({ signal }) => api.getMe(signal),
     enabled: enabled && Boolean(envelopeId),
-    retry: 1,
+    // `not_your_turn` is a definite answer, not a transient failure: a
+    // silent retry would let the session in without "Check again".
+    retry: (failureCount, error) => failureCount < 1 && !isNotYourTurnError(error),
   });
 }
 
 export function useStartSessionMutation() {
-  return useMutation<StartSessionResponse, Error, StartSessionInput>({
+  return useMutation<StartSessionResult, Error, StartSessionInput>({
     mutationFn: (input) => api.startSession(input),
     onSuccess: (_, input) => {
       reportSignerEvent({ type: 'sign.session.started', envelope_id: input.envelope_id });
@@ -184,8 +187,8 @@ export interface TerminalMutationOptions {
 
 export function useSubmitMutation(envelopeId: string, opts: TerminalMutationOptions) {
   const qc = useQueryClient();
-  return useMutation<SubmitResponse, Error, void>({
-    mutationFn: () => api.submit(),
+  return useMutation<SubmitResponse, Error, string | undefined>({
+    mutationFn: (accessCode) => api.submit(accessCode),
     onSuccess: () => {
       const me = qc.getQueryData<SignMeResponse>(SIGN_ME_KEY(envelopeId));
       writeDoneSnapshot({

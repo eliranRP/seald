@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import {
+  assertNoSignerToken,
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
-  signUrlFromPayload,
   type OutboundEmailRow,
 } from '../src/email/outbound-emails.repository';
 
@@ -21,17 +21,23 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
   }
 
   async insert(input: InsertOutboundEmailInput): Promise<OutboundEmailRow> {
+    assertNoSignerToken(input.payload);
     const dedupeKey = input.dedupe_key ?? randomUUID();
     const dupByKey = input.dedupe_key
       ? this.rows.find((r) => r.dedupe_key === input.dedupe_key)
       : undefined;
-    const dupByTuple = this.rows.find(
-      (r) =>
-        r.envelope_id === (input.envelope_id ?? null) &&
-        r.signer_id === (input.signer_id ?? null) &&
-        r.kind === input.kind &&
-        r.source_event_id === (input.source_event_id ?? null),
-    );
+    // Postgres treats nulls as distinct in a unique index, so a row with no
+    // signer (sender- and recipient-addressed mail) never clashes on the tuple.
+    const dupByTuple =
+      (input.signer_id ?? null) === null
+        ? undefined
+        : this.rows.find(
+            (r) =>
+              r.envelope_id === (input.envelope_id ?? null) &&
+              r.signer_id === (input.signer_id ?? null) &&
+              r.kind === input.kind &&
+              r.source_event_id === (input.source_event_id ?? null),
+          );
     if (dupByKey || dupByTuple) throw new DuplicateOutboundEmailError();
     const now = new Date().toISOString();
     const row: OutboundEmailRow = {
@@ -86,25 +92,6 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
     return match[0] ?? null;
-  }
-
-  async findLatestSignUrl(
-    envelope_id: string,
-    signer_id: string,
-    excludeId?: string,
-  ): Promise<string | null> {
-    const match = this.rows
-      .filter(
-        (r) =>
-          r.id !== excludeId &&
-          r.envelope_id === envelope_id &&
-          r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder') &&
-          signUrlFromPayload(r.payload) !== null,
-      )
-      .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
-    const row = match[0];
-    return row ? signUrlFromPayload(row.payload) : null;
   }
 
   async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {

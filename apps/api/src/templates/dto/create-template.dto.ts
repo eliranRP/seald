@@ -3,7 +3,6 @@ import {
   ArrayMaxSize,
   IsArray,
   IsEmail,
-  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -17,7 +16,20 @@ import {
   type ValidationArguments,
   type ValidationOptions,
 } from 'class-validator';
-import { TEMPLATE_FIELD_TYPES, type TemplatePageRule } from 'shared';
+import {
+  DELIVERY_MODES,
+  MAX_SIGNING_ORDER,
+  TEMPLATE_FIELD_TYPES,
+  TEMPLATE_FIELD_TYPES_V2,
+  type AnyTemplateFieldType,
+  type DeliveryMode,
+  type TemplatePageRule,
+} from 'shared';
+import {
+  FlagGatedProperty,
+  IsInWhenEnabled,
+  isPlainObject,
+} from '../../common/flag-gated.validators';
 
 const PAGE_RULE_LITERALS = ['all', 'allButLast', 'first', 'last'] as const;
 
@@ -58,8 +70,10 @@ function IsPageRule(options?: ValidationOptions): PropertyDecorator {
  */
 export class TemplateFieldDto {
   @IsString()
-  @IsIn([...TEMPLATE_FIELD_TYPES])
-  readonly type!: (typeof TEMPLATE_FIELD_TYPES)[number];
+  // WP-07: four more types while `fieldMetaV2` is on; flag off is the
+  // legacy list and message.
+  @IsInWhenEnabled('fieldMetaV2', TEMPLATE_FIELD_TYPES, TEMPLATE_FIELD_TYPES_V2)
+  readonly type!: AnyTemplateFieldType;
 
   @IsPageRule()
   readonly pageRule!: TemplatePageRule;
@@ -74,6 +88,10 @@ export class TemplateFieldDto {
   @IsString()
   @MaxLength(100)
   readonly label?: string;
+
+  /** WP-07. Per-kind options; validated by `validateTemplateMeta`. */
+  @FlagGatedProperty('fieldMetaV2', isPlainObject, (p) => `${p} must be an object`)
+  readonly meta?: Record<string, unknown>;
 
   /**
    * Zero-based ordinal of the signer this field belongs to in the
@@ -125,6 +143,17 @@ export class TemplateLastSignerDto {
     message: 'color must be a 6-digit hex like #RRGGBB',
   })
   readonly color!: string;
+
+  /**
+   * WP-06 gap. 1-based signing step of this slot (slots with the same number
+   * sign together). Accepted only while `signingOrder` is on.
+   */
+  @FlagGatedProperty(
+    'signingOrder',
+    (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= MAX_SIGNING_ORDER,
+    (p) => `${p} must be an integer between 1 and ${MAX_SIGNING_ORDER}`,
+  )
+  readonly signing_order?: number;
 }
 
 export class CreateTemplateDto {
@@ -181,4 +210,12 @@ export class CreateTemplateDto {
   @ValidateNested({ each: true })
   @Type(() => TemplateLastSignerDto)
   readonly last_signers?: ReadonlyArray<TemplateLastSignerDto>;
+
+  /** WP-06 gap. Accepted only while `signingOrder` is on. */
+  @FlagGatedProperty(
+    'signingOrder',
+    (v) => (DELIVERY_MODES as ReadonlyArray<unknown>).includes(v),
+    (p) => `${p} must be one of the following values: ${DELIVERY_MODES.join(', ')}`,
+  )
+  readonly delivery_mode?: DeliveryMode;
 }

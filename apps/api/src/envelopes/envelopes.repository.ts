@@ -19,6 +19,8 @@ export interface CreateDraftInput {
   readonly tc_version: string;
   readonly privacy_version: string;
   readonly expires_at: string; // ISO
+  /** WP-38. Only sent while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export interface UpdateDraftMetadataPatch {
@@ -35,6 +37,21 @@ export interface UpdateDraftMetadataPatch {
    * `awaiting_others`. Omitted means "leave the column alone".
    */
   readonly reminders_enabled?: boolean;
+  /**
+   * Reminder cadence (migration 0025). Draft only. The service only
+   * forwards these while `customReminders` is on.
+   */
+  readonly reminder_first_after_days?: number;
+  readonly reminder_interval_days?: number;
+  readonly reminder_max?: number;
+  /**
+   * WP-07 (migration 0024). Draft only. The service only forwards these
+   * while `fieldMetaV2` is on.
+   */
+  readonly date_format?: string;
+  readonly timezone?: string;
+  /** WP-38 (migration 0035). Draft only. Only forwarded while `i18n` is on. */
+  readonly locale?: string;
 }
 
 /** One unsigned signer the reminder sweep may queue mail for. */
@@ -58,6 +75,8 @@ export interface AddSignerInput {
   readonly name: string;
   readonly color: string;
   readonly role?: SignerRole;
+  /** WP-38. Only sent while `i18n` is on. */
+  readonly locale?: string;
 }
 
 export interface CreateFieldInput {
@@ -70,15 +89,44 @@ export interface CreateFieldInput {
   readonly height?: number | null;
   readonly required?: boolean;
   readonly link_id?: string | null;
+  /** WP-03. Omitted means document 1 (the DB trigger fills it in). */
+  readonly document_id?: string;
+  /** WP-07. Validated options; only sent while `fieldMetaV2` is on. */
+  readonly meta?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * No signer tokens: since MCP Insert A (0027) the email dispatcher mints
+ * each signer's token when the invite goes out. `access_token_hash` stays
+ * null until then.
+ */
 export interface SendDraftInput {
   readonly envelope_id: string;
-  readonly signer_tokens: ReadonlyArray<{ signer_id: string; access_token_hash: string }>;
   /** Persisted on the envelope row so SigningService.decline can enqueue
    *  the withdrawal email to the sender without an auth.users lookup. */
   readonly sender_email: string;
   readonly sender_name: string | null;
+  /**
+   * WP-05: the delivery mode in force for this send, stamped on the row.
+   * The same transaction sets `invited_at` on the signers it invites:
+   * everyone for 'parallel', step 1 for 'sequential'. Omitted keeps the
+   * stored mode.
+   */
+  readonly delivery_mode?: import('shared').DeliveryMode;
+}
+
+/** WP-05: a signing step whose signers were just invited. */
+export interface StepInvite {
+  /** 1-based step number. */
+  readonly step: number;
+  readonly signing_order: number;
+  readonly signer_ids: ReadonlyArray<string>;
+}
+
+/** WP-05: `PUT /envelopes/:id/signing-order` input (draft only). */
+export interface SetSigningOrderInput {
+  readonly delivery_mode: import('shared').DeliveryMode;
+  readonly orders: ReadonlyArray<{ readonly signer_id: string; readonly signing_order: number }>;
 }
 
 export interface SignerFieldFillInput {
@@ -113,6 +161,12 @@ export interface SubmitResult {
   readonly done: number;
   /** Signers on the envelope, counted inside the submit transaction. */
   readonly total: number;
+  /**
+   * WP-05: the sequential step this submit started, if any. Set inside the
+   * submit transaction under the envelope row lock, so concurrent submits
+   * report a step at most once. Absent or null means nobody new to invite.
+   */
+  readonly next_step?: StepInvite | null;
 }
 
 export interface ClaimedJob {
@@ -265,7 +319,18 @@ export interface EventInput {
     | 'session_invalidated_by_decline'
     | 'session_invalidated_by_cancel'
     | 'job_failed'
-    | 'retention_deleted';
+    | 'retention_deleted'
+    | 'document_added'
+    | 'step_started'
+    // WP-10 (migration 0026)
+    | 'access_code_sent'
+    | 'access_code_verified'
+    | 'access_code_failed'
+    // WP-21 (migration 0030)
+    | 'approval_decided'
+    // WP-26 (migration 0039)
+    | 'signer_corrected'
+    | 'expiry_changed';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;
@@ -331,20 +396,63 @@ export abstract class EnvelopesRepository {
     fields: ReadonlyArray<CreateFieldInput>,
   ): Promise<ReadonlyArray<EnvelopeField>>;
 
+  /**
+   * WP-05: set the delivery mode and each signer's `signing_order` on a
+   * draft, in one transaction. Returns null when the envelope is missing
+   * or no longer a draft.
+   */
+  abstract setSigningOrder(
+    envelope_id: string,
+    input: SetSigningOrderInput,
+  ): Promise<Envelope | null>;
+
   // Send + lifecycle
   abstract sendDraft(input: SendDraftInput): Promise<Envelope | null>;
 
   /**
-   * Rotate a signer's access_token_hash (reminder path). Guards at the SQL
-   * level: only updates when the parent envelope is `awaiting_others` AND
-   * the signer has neither signed nor declined yet. Returns false when any
-   * of those preconditions are violated — the service maps to an
-   * appropriate 4xx response.
+   * Store a newly minted signer token hash and stamp `access_token_sent_at`.
+   * Called by `EmailDispatcherService` for every invite and reminder it
+   * sends (MCP Insert A), so the previous link stops working. Guards at the
+   * SQL level: only updates when the parent envelope is `awaiting_others`
+   * AND the signer has neither signed nor declined yet. Returns false when
+   * any of those preconditions are violated; the dispatcher then skips the
+   * mail.
    */
   abstract rotateSignerAccessToken(
     signer_id: string,
     new_access_token_hash: string,
   ): Promise<boolean>;
+  /**
+   * WP-26 (fix a signer). Correct the name and/or email of a signer who has
+   * not signed or declined, on an envelope that is `awaiting_others`, in one
+   * transaction: the old signing link stops matching (`access_token_hash`
+   * back to null, so the dispatcher mints a new one), partial progress is
+   * cleared (viewed, accepted terms, field values, drawn signature, open
+   * access codes), the contact link is dropped when the email changes, and
+   * the reminder clock restarts. Throws {@link EnvelopeSignerEmailTakenError}
+   * when another signer already uses the new email. Null when the envelope
+   * or signer is gone or no longer eligible (a race with a signature).
+   */
+  abstract correctSigner(
+    envelope_id: string,
+    signer_id: string,
+    patch: { readonly name?: string; readonly email?: string },
+    now: Date,
+  ): Promise<{
+    readonly previous: { readonly name: string; readonly email: string };
+    readonly signer: EnvelopeSigner;
+  } | null>;
+
+  /**
+   * WP-26 (change expiry). New `expires_at` on an envelope that is
+   * `awaiting_others`. Null when it is not the owner's or no longer open.
+   */
+  abstract updateOpenExpiry(
+    owner_id: string,
+    envelope_id: string,
+    expires_at: string,
+  ): Promise<{ readonly previous: string; readonly envelope: Envelope } | null>;
+
   abstract recordSignerViewed(
     signer_id: string,
     ip: string | null,

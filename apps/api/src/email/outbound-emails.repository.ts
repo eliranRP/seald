@@ -44,6 +44,10 @@ export interface InsertOutboundEmailInput {
  * envelopes service at send/remind time; the read+claim side is used by the
  * worker's email-drain loop (Phase 3e).
  *
+ * Insert A: invite and reminder rows store the signer id only. No payload
+ * may hold a signing token or a `?t=` link (`assertNoSignerToken`); the
+ * dispatcher mints a fresh token per attempt and renders the link.
+ *
  * Uniqueness is enforced at the DB by `(envelope_id, signer_id, kind,
  * source_event_id)` and by `dedupe_key` (migration 0019). The tuple does
  * not cover sender-addressed rows (`signer_id` is null — Postgres treats
@@ -71,19 +75,6 @@ export abstract class OutboundEmailsRepository {
     signer_id: string,
     options?: { readonly excludeAutomated?: boolean },
   ): Promise<OutboundEmailRow | null>;
-
-  /**
-   * Newest non-empty `sign_url` on an invite or reminder for this signer.
-   * The lookup is filtered in SQL (no fixed row window). Automated
-   * reminder rows omit the token; the dispatcher reads it from an earlier
-   * row at render time and does not write it back.
-   * `excludeId` skips the row currently being rendered.
-   */
-  abstract findLatestSignUrl(
-    envelope_id: string,
-    signer_id: string,
-    excludeId?: string,
-  ): Promise<string | null>;
 
   /**
    * Atomically claim one due email (status in pending|failed, scheduled_for
@@ -123,10 +114,96 @@ export abstract class OutboundEmailsRepository {
   abstract markSkipped(id: string, reason: string): Promise<void>;
 }
 
-/** Plaintext signing link stored on older invite/reminder payloads, if present. */
-export function signUrlFromPayload(payload: Readonly<Record<string, unknown>>): string | null {
-  const url = payload['sign_url'];
-  return typeof url === 'string' && url.length > 0 ? url : null;
+/**
+ * Payload keys that held a plaintext signing link before Insert A
+ * (migration 0027). The migration scrubs them from stored rows; the
+ * dispatcher still drops them defensively and mints a new token instead.
+ */
+export const LEGACY_SIGNER_LINK_KEYS: readonly string[] = ['sign_url'];
+
+/**
+ * A signing link that carries a token-shaped value: `/sign/…?t=<32+
+ * base64url chars>` (real tokens are 43). Scoped to `/sign/` and a long
+ * value so user text such as a title "Lease?t=final" never matches. Kept
+ * in step with the 0027 check constraint.
+ *
+ * Hand-written single pass instead of a regex: payloads include user text,
+ * and `/\/sign\/[^"\s]*[?&]t=…/` backtracks in polynomial time on input that
+ * repeats `/sign/` (CodeQL js/polynomial-redos). Each `/sign/` run up to
+ * the next quote or whitespace is scanned once, then skipped.
+ */
+const SIGN_PATH = '/sign/';
+const MIN_TOKEN_CHARS = 32;
+const BASE64URL_CHAR = /[A-Za-z0-9_-]/;
+
+function isLinkTerminator(ch: string): boolean {
+  return ch === '"' || /\s/.test(ch);
+}
+
+export function containsSigningLinkWithToken(text: string): boolean {
+  let from = 0;
+  for (;;) {
+    const start = text.indexOf(SIGN_PATH, from);
+    if (start === -1) return false;
+    let end = start + SIGN_PATH.length;
+    while (end < text.length && !isLinkTerminator(text.charAt(end))) end += 1;
+    for (let i = start + SIGN_PATH.length; i + 2 < end; i += 1) {
+      const sep = text.charAt(i);
+      if (
+        (sep === '?' || sep === '&') &&
+        text.charAt(i + 1) === 't' &&
+        text.charAt(i + 2) === '='
+      ) {
+        let run = 0;
+        let j = i + 3;
+        while (j < end && BASE64URL_CHAR.test(text.charAt(j))) {
+          run += 1;
+          j += 1;
+        }
+        if (run >= MIN_TOKEN_CHARS) return true;
+      }
+    }
+    from = end;
+  }
+}
+
+/**
+ * Insert A: an outbound payload holds ids only, never a signer token or a
+ * `/sign/…?t=` link. The worker mints the token at dispatch. Returns a short
+ * reason when `payload` breaks that rule, else null. Checked on every
+ * insert and enforced again by the 0027 check constraint.
+ */
+export function findSignerTokenInPayload(
+  payload: Readonly<Record<string, unknown>>,
+): string | null {
+  for (const key of LEGACY_SIGNER_LINK_KEYS) {
+    if (key in payload) return `payload_key:${key}`;
+  }
+  if (containsSigningLinkWithToken(JSON.stringify(payload))) return 'payload_signing_link';
+  return null;
+}
+
+/** Payload with any legacy plaintext signing link removed. */
+export function withoutSignerLink(
+  payload: Readonly<Record<string, unknown>>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...payload };
+  for (const key of LEGACY_SIGNER_LINK_KEYS) delete out[key];
+  return out;
+}
+
+/** Thrown when a caller tries to store a signer token in the outbox. */
+export class SignerTokenInPayloadError extends Error {
+  constructor(reason: string) {
+    super(`signer_token_in_outbound_payload:${reason}`);
+    this.name = 'SignerTokenInPayloadError';
+  }
+}
+
+/** Throw {@link SignerTokenInPayloadError} if `payload` carries a signer token. */
+export function assertNoSignerToken(payload: Readonly<Record<string, unknown>>): void {
+  const reason = findSignerTokenInPayload(payload);
+  if (reason) throw new SignerTokenInPayloadError(reason);
 }
 
 /**

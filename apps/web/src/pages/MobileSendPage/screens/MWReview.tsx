@@ -1,5 +1,14 @@
 import { FileText, Pencil } from 'lucide-react';
+import { isFeatureEnabled } from 'shared';
+import { SigningOrderEditor } from '@/features/signers/signingOrder';
+import type { SigningOrderValue } from '@/features/signers/signingOrder';
+import { AccessAuthEditor } from '@/features/signers/accessAuth';
+import type { AccessAuthValue } from '@/features/signers/accessAuth';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { DateFormatSettings } from '@/components/DateFormatSettings';
+import { LocaleSettings } from '@/components/LocaleSettings';
+import { SendSettings } from '@/components/SendSettings';
+import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
 import styled from 'styled-components';
 import type { MobilePlacedField, MobileSigner } from '../types';
 
@@ -160,6 +169,15 @@ export interface MWReviewProps {
   readonly totalPages: number;
   readonly remindersEnabled: boolean;
   readonly onRemindersEnabledChange: (enabled: boolean) => void;
+  /** Expiry and reminder cadence (WP-09). Omitted hides the controls. */
+  readonly reminderSettings?: SendReminderSettings | undefined;
+  readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
+  /** Signing order (WP-06). Omitted, or flag `signingOrder` off, hides the control. */
+  readonly signingOrder?: SigningOrderValue | undefined;
+  readonly onSigningOrderChange?: ((next: SigningOrderValue) => void) | undefined;
+  /** Emailed one-time code choice (WP-11). Omitted, or flag `signerAccessAuth` off, hides the control. */
+  readonly accessAuth?: AccessAuthValue | undefined;
+  readonly onAccessAuthChange?: ((next: AccessAuthValue) => void) | undefined;
 }
 
 export function MWReview(props: MWReviewProps) {
@@ -172,6 +190,12 @@ export function MWReview(props: MWReviewProps) {
     totalPages,
     remindersEnabled,
     onRemindersEnabledChange,
+    reminderSettings,
+    onReminderSettingsChange,
+    signingOrder,
+    onSigningOrderChange,
+    accessAuth,
+    onAccessAuthChange,
   } = props;
   const counts = new Map<string, number>();
   signers.forEach((s) => counts.set(s.id, 0));
@@ -230,8 +254,38 @@ export function MWReview(props: MWReviewProps) {
           </SignerRow>
         ))}
       </Card>
+      {signingOrder &&
+      onSigningOrderChange &&
+      signers.length > 1 &&
+      isFeatureEnabled('signingOrder') ? (
+        <Card>
+          <SigningOrderEditor
+            signers={signers}
+            value={signingOrder}
+            onChange={onSigningOrderChange}
+          />
+        </Card>
+      ) : null}
+      {accessAuth && onAccessAuthChange && isFeatureEnabled('signerAccessAuth') ? (
+        <Card>
+          <AccessAuthEditor signers={signers} value={accessAuth} onChange={onAccessAuthChange} />
+        </Card>
+      ) : null}
       <Card>
-        <ReminderToggle enabled={remindersEnabled} onChange={onRemindersEnabledChange} />
+        {reminderSettings && onReminderSettingsChange ? (
+          <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+        ) : null}
+        {reminderSettings && onReminderSettingsChange ? (
+          <DateFormatSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+        ) : null}
+        {reminderSettings && onReminderSettingsChange ? (
+          <LocaleSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+        ) : null}
+        <ReminderToggle
+          enabled={remindersEnabled}
+          onChange={onRemindersEnabledChange}
+          cadence={reminderSettings?.cadence}
+        />
       </Card>
     </Wrap>
   );

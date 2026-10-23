@@ -20,7 +20,6 @@ import {
   OutboundEmailsRepository,
   type OutboundEmailRow,
 } from '../../email/outbound-emails.repository';
-import { SigningTokenService } from '../../signing/signing-token.service';
 import { StorageService } from '../../storage/storage.service';
 import type {
   AddSignerInput,
@@ -191,9 +190,6 @@ class FakeOutbound extends OutboundEmailsRepository {
   async markSkipped() {
     /* unused */
   }
-  async findLatestSignUrl(): Promise<string | null> {
-    return null;
-  }
 }
 
 class FakeStorage extends StorageService {
@@ -215,8 +211,9 @@ class FakeStorage extends StorageService {
     }
     return `https://example.invalid/signed/${encodeURIComponent(path)}?ttl=${ttl}`;
   }
-  async exists() {
-    return false;
+  existing = new Set<string>();
+  async exists(path: string) {
+    return this.existing.has(path);
   }
 }
 
@@ -413,6 +410,9 @@ class FakeRepo extends EnvelopesRepository {
     this.envelopes.set(envelope_id, { ...e, fields: mapped } as Envelope);
     return mapped;
   }
+  async setSigningOrder(): Promise<Envelope | null> {
+    throw new Error('not_implemented_in_fake');
+  }
   async sendDraft(input: SendDraftInput): Promise<Envelope | null> {
     if (this.failNextSendDraft) {
       this.failNextSendDraft = false;
@@ -421,16 +421,13 @@ class FakeRepo extends EnvelopesRepository {
     const e = this.envelopes.get(input.envelope_id);
     if (!e || e.status !== 'draft') return null;
     const now = new Date().toISOString();
-    const tokenByName = new Map(input.signer_tokens.map((t) => [t.signer_id, t.access_token_hash]));
     const next: Envelope = {
       ...e,
       status: 'awaiting_others',
       sent_at: now,
       sender_email: input.sender_email,
       sender_name: input.sender_name,
-      signers: e.signers.map((s) =>
-        tokenByName.has(s.id) ? { ...s, status: 'awaiting' as const } : s,
-      ),
+      signers: e.signers.map((s) => ({ ...s, status: 'awaiting' as const })),
       updated_at: now,
     } as Envelope;
     this.envelopes.set(input.envelope_id, next);
@@ -450,6 +447,12 @@ class FakeRepo extends EnvelopesRepository {
       return true;
     }
     return false;
+  }
+  async correctSigner(): Promise<never> {
+    throw new Error('not exercised here');
+  }
+  async updateOpenExpiry(): Promise<never> {
+    throw new Error('not exercised here');
   }
   async recordSignerViewed(): Promise<EnvelopeSigner> {
     throw new Error('not_implemented');
@@ -572,7 +575,6 @@ describe('EnvelopesService — flow coverage', () => {
   let contacts: FakeContactsRepo;
   let storage: FakeStorage;
   let outbound: FakeOutbound;
-  let tokens: SigningTokenService;
   let svc: EnvelopesService;
 
   beforeEach(() => {
@@ -580,13 +582,11 @@ describe('EnvelopesService — flow coverage', () => {
     contacts = new FakeContactsRepo();
     storage = new FakeStorage();
     outbound = new FakeOutbound();
-    tokens = new SigningTokenService();
     svc = new EnvelopesService(
       repo,
       contacts,
       storage,
       outbound,
-      tokens,
       TEST_ENV,
       fakeGdriveAccounts,
       fakeGdriveExport,
@@ -678,7 +678,7 @@ describe('EnvelopesService — flow coverage', () => {
   });
 
   describe('send', () => {
-    it('happy path — flips draft → awaiting_others, generates a token per signer, enqueues invites, writes sent events', async () => {
+    it('happy path — flips draft → awaiting_others, enqueues token-free invites, writes sent events', async () => {
       const { envId, signerId } = await buildReadyDraft();
       const result = await svc.send(OWNER, envId, { email: 'sender@example.com', name: 'Sender' });
 
@@ -691,8 +691,10 @@ describe('EnvelopesService — flow coverage', () => {
       expect(invites).toHaveLength(1);
       expect(invites[0]!.signer_id).toBe(signerId);
       expect(invites[0]!.to_email).toBe('ada@example.com');
-      // Sign URL includes a 43-char token per the SigningTokenService contract.
-      expect(String(invites[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      // Insert A: no token or link is stored; the dispatcher mints it at send.
+      expect(invites[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(invites[0]!.payload)).not.toMatch(/[?&]t=/);
+      expect(repo.rotateLog).toHaveLength(0);
       // Verify URL uses /verify/<short_code> not /verify/<id>.
       const env = await svc.getById(OWNER, envId);
       expect(String(invites[0]!.payload.verify_url)).toBe(
@@ -845,6 +847,33 @@ describe('EnvelopesService — flow coverage', () => {
       });
     });
 
+    it('kind=declined returns declined.pdf for a terminal unsigned envelope', async () => {
+      const envId = await setupSentEnvelope();
+      for (const status of ['declined', 'expired', 'canceled'] as const) {
+        repo.envelopes.set(envId, { ...repo.envelopes.get(envId)!, status });
+        storage.existing.add(`${envId}/declined.pdf`);
+        const out = await svc.getDownloadUrl(OWNER, envId, 'declined');
+        expect(out.kind).toBe('declined');
+        expect(out.url).toContain(encodeURIComponent(`${envId}/declined.pdf`));
+      }
+    });
+
+    it('kind=declined throws file_not_ready before the audit_only job wrote it', async () => {
+      const envId = await setupSentEnvelope();
+      repo.envelopes.set(envId, { ...repo.envelopes.get(envId)!, status: 'declined' });
+      await expect(svc.getDownloadUrl(OWNER, envId, 'declined')).rejects.toMatchObject({
+        message: 'file_not_ready',
+      });
+    });
+
+    it('kind=declined throws file_not_ready for a non-terminal envelope', async () => {
+      const envId = await setupSentEnvelope();
+      storage.existing.add(`${envId}/declined.pdf`);
+      await expect(svc.getDownloadUrl(OWNER, envId, 'declined')).rejects.toMatchObject({
+        message: 'file_not_ready',
+      });
+    });
+
     it('404 for non-existent envelope', async () => {
       await expect(svc.getDownloadUrl(OWNER, 'missing')).rejects.toBeInstanceOf(NotFoundException);
     });
@@ -904,7 +933,7 @@ describe('EnvelopesService — flow coverage', () => {
       }
     });
 
-    it('happy path — past throttle window, rotates token, writes reminder_sent event, enqueues reminder', async () => {
+    it('happy path — past throttle window, writes reminder_sent event, enqueues a token-free reminder', async () => {
       const { envId, signerId } = await setupSentEnvelope();
       // Age the existing invite to before the throttle window.
       for (const row of outbound.rows) {
@@ -920,7 +949,8 @@ describe('EnvelopesService — flow coverage', () => {
       const reminders = outbound.rows.filter((r) => r.kind === 'reminder');
       expect(reminders).toHaveLength(1);
       expect(reminders[0]!.to_email).toBe('ada@example.com');
-      expect(String(reminders[0]!.payload.sign_url)).toMatch(/\?t=[A-Za-z0-9_-]{43}$/);
+      expect(reminders[0]!.payload).not.toHaveProperty('sign_url');
+      expect(JSON.stringify(reminders[0]!.payload)).not.toMatch(/[?&]t=/);
       expect(String(reminders[0]!.payload.expires_at_readable)).toMatch(
         /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/,
       );
@@ -928,8 +958,8 @@ describe('EnvelopesService — flow coverage', () => {
       expect(reminders[0]!.payload.automated).toBeUndefined();
       expect(reminders[0]!.payload.reminder_cadence).toBe('');
 
-      // Token rotation actually persisted a fresh hash.
-      expect(repo.rotateLog).toHaveLength(1);
+      // The token rotates at send time (EmailDispatcherService), not here.
+      expect(repo.rotateLog).toHaveLength(0);
 
       const remindEvents = repo.events.filter((e) => e.event_type === 'reminder_sent');
       expect(remindEvents).toHaveLength(1);
@@ -1032,25 +1062,6 @@ describe('EnvelopesService — flow coverage', () => {
       await expect(
         svc.remindSigner(OWNER, envId, signerId, { email: 'a@b.com' }),
       ).rejects.toMatchObject({ message: 'already_declined' });
-    });
-
-    it('409 envelope_terminal when token rotation loses the race even though pre-checks passed', async () => {
-      const { envId, signerId } = await setupSentEnvelope();
-      // Past the throttle window so we reach the rotate call.
-      for (const row of outbound.rows) {
-        (row as { created_at: string }).created_at = new Date(
-          Date.now() - 2 * 60 * 60 * 1000,
-        ).toISOString();
-      }
-      // Simulate a concurrent action that flipped the envelope between the
-      // service's read and rotateSignerAccessToken's atomic update.
-      repo.failNextRotate = true;
-      // Then mutate the envelope underfoot so the re-read disambiguates.
-      const env = repo.envelopes.get(envId)!;
-      repo.envelopes.set(envId, { ...env, status: 'completed' } as Envelope);
-      await expect(
-        svc.remindSigner(OWNER, envId, signerId, { email: 'a@b.com' }),
-      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

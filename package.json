@@ -14,7 +14,8 @@
     "dev:landing": "pnpm --filter landing dev",
     "build": "pnpm -r build",
     "build:landing": "pnpm --filter landing build",
-    "lint": "pnpm -r lint",
+    "lint": "pnpm -r lint && pnpm i18n:check",
+    "i18n:check": "node scripts/i18n-check.mjs",
     "lint:workflows": "actionlint",
     "lint:gherkin": "gherkin-lint 'apps/web/e2e/features/**/*.feature'",
     "lint:spelling": "cspell lint --no-progress --no-must-find-files --no-gitignore '.github/workflows/**/*.yml' 'apps/web/e2e/features/**/*.feature' 'apps/web/src/**/*.{ts,tsx}' 'apps/api/src/**/*.ts' 'packages/shared/src/**/*.ts'",
@@ -64,15 +65,33 @@
       "form-data@>=4.0.0 <4.0.6": "4.0.6",
       "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
       "multer@>=2.0.0 <2.4.0": "2.4.0",
-      "smol-toml@<=1.7.0": "1.7.1",
-      "vite@>=8.0.0 <8.0.16": "8.0.16",
       "@types/react": "^19",
       "@types/react-dom": "^19",
       "lodash": "^4.18.0",
-      "protobufjs": "^7.5.5",
+      "protobufjs": "^7.6.1",
       "uuid": "^14.0.0",
       "tmp": "^0.2.4",
-      "devalue@>=5.6.3 <=5.8.0": ">=5.8.1"
+      "vite@>=8.0.0 <8.1.6": "^8.1.6",
+      "devalue@>=5.0.0 <5.9.3": "^5.9.3",
+      "smol-toml@<1.9.0": "^1.9.1",
+      "proxy-addr@<2.0.8": "^2.0.8",
+      "source-map-js@>=1.0.0 <1.2.2": "^1.2.2",
+      "follow-redirects@<1.16.1": "^1.16.1",
+      "dompurify@<3.4.17": "^3.4.17",
+      "http-cache-semantics@<4.3.0": "^4.3.0",
+      "qs@<6.16.0": "^6.16.1",
+      "body-parser@<1.20.6": "^1.20.6",
+      "body-parser@>=2.0.0 <2.3.0": "^2.3.0",
+      "fflate@>=0.8.0 <0.8.3": "^0.8.3",
+      "moment@>=2.29.2 <2.31.0": "^2.31.0",
+      "ws@>=8.0.0 <8.21.0": "^8.21.0",
+      "brace-expansion@<1.1.20": "^1.1.20",
+      "brace-expansion@>=2.0.0 <2.1.6": "^2.1.6",
+      "brace-expansion@>=5.0.0 <5.0.11": "^5.0.11",
+      "js-yaml@>=3.0.0 <3.15.2": "^3.15.2",
+      "browserslist@<4.28.7": "^4.28.7",
+      "immutable@>=4.0.0-beta.1 <4.3.9": "^4.3.9",
+      "handlebars@<4.7.10": "^4.7.10"
     },
     "auditConfig": {
       "ignoreCves": [
@@ -83,7 +102,8 @@
         "GHSA-wrwg-2hg8-v723",
         "GHSA-xf7r-hgr6-v32p",
         "GHSA-v52c-386h-88mc",
-        "GHSA-5528-5vmv-3xc2"
+        "GHSA-5528-5vmv-3xc2",
+        "GHSA-86w9-cpqp-85rv"
       ]
     },
     "patchedDependencies": {

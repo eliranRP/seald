@@ -4,6 +4,8 @@ import styled from 'styled-components';
 import { XCircle } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readDoneSnapshot } from '@/features/signing';
+import { useT } from '@/lib/i18n';
+import type { TFn } from '@/lib/i18n';
 
 const Page = styled.div`
   min-height: 100vh;
@@ -84,8 +86,12 @@ const ExitBtn = styled.button`
 function bodyCopyFor(
   reason: string | undefined,
   senderName: string | null,
+  t: TFn,
 ): { readonly heading: string; readonly body: string } {
-  const senderClause = senderName ? `We've let ${senderName} know.` : "We've let the sender know.";
+  const senderClause = senderName
+    ? t('signing.declined.letSender', { sender: senderName })
+    : t('signing.declined.letSenderAnonymous');
+  // The consent-withdrawn copy is ESIGN wording (D2b): it stays English.
   if (reason === 'consent-withdrawn') {
     return {
       heading: 'You withdrew consent to sign electronically.',
@@ -94,13 +100,13 @@ function bodyCopyFor(
   }
   if (reason === 'not-the-recipient') {
     return {
-      heading: 'Thanks — we marked this link as the wrong recipient.',
-      body: `${senderClause} They can send a fresh link to the right person.`,
+      heading: t('signing.declined.headingWrongRecipient'),
+      body: t('signing.declined.bodyWrongRecipient', { clause: senderClause }),
     };
   }
   return {
-    heading: 'You declined this request.',
-    body: `${senderClause} No further action needed.`,
+    heading: t('signing.declined.headingDeclined'),
+    body: t('signing.declined.bodyDeclined', { clause: senderClause }),
   };
 }
 
@@ -109,6 +115,7 @@ function bodyCopyFor(
  * Reads the sessionStorage snapshot; missing → route to entry.
  */
 export function SigningDeclinedPage() {
+  const t = useT();
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
@@ -118,7 +125,7 @@ export function SigningDeclinedPage() {
     return <Navigate to={`/sign/${envelopeId}`} replace />;
   }
 
-  const copy = bodyCopyFor(snap.decline_reason, snap.sender_name);
+  const copy = bodyCopyFor(snap.decline_reason, snap.sender_name, t);
 
   return (
     <Page>
@@ -128,9 +135,9 @@ export function SigningDeclinedPage() {
         </IconBadge>
         <Hero>{copy.heading}</Hero>
         <Body>{copy.body}</Body>
-        <Finality>This decision is final. The sender has been notified.</Finality>
+        <Finality>{t('signing.declined.final')}</Finality>
         <ExitBtn type="button" onClick={() => navigate('/')}>
-          Take me out
+          {t('signing.declined.takeMeOut')}
         </ExitBtn>
       </Inner>
     </Page>

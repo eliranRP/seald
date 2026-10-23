@@ -27,10 +27,15 @@ import {
   subscribeToTemplates,
   type TemplateSummary,
 } from '@/features/templates';
+import { isBulkSendEnabled } from '@/features/bulkSend';
 import { pickAvailableColor } from '@/features/signers/pickAvailableColor';
-import { updateTemplate as apiUpdateTemplate } from '@/features/templates/templatesApi';
+import {
+  applyTemplate,
+  updateTemplate as apiUpdateTemplate,
+} from '@/features/templates/templatesApi';
 import { useDebouncedCallback } from '@/lib/useDebouncedCallback';
 import { useAppState } from '@/providers/AppStateProvider';
+import { seald } from '@/styles/theme';
 import {
   DocumentTitle,
   DocumentTitleRow,
@@ -55,15 +60,8 @@ import {
   StepInner,
   TooltipBubble,
   TooltipWrap,
+  BulkSendLink,
 } from './UseTemplatePage.styles';
-
-/**
- * Stable color palette for guest signers (typed-in emails). Cycles
- * after 6 — matches the Design-Guide's SignersDropdown palette so the
- * step 1 chip and the editor's PlacedField swatch agree on color
- * assignment for the same signer.
- */
-const SIGNER_COLORS = ['#F472B6', '#7DD3FC', '#FBBF24', '#A78BFA', '#34D399', '#FB7185'] as const;
 
 /**
  * Project the API's `last_signers` (camelCased to `lastSigners` on
@@ -170,6 +168,7 @@ export function UseTemplatePage() {
    * store update can't overwrite the user's edits.
    */
   const userTouchedSignersRef = useRef(false);
+  const continuingRef = useRef(false);
   useEffect(() => {
     if (userTouchedSignersRef.current) return;
     if (signers.length > 0) return;
@@ -263,9 +262,24 @@ export function UseTemplatePage() {
     // (the actual signed envelope's example PDF lives server-side
     // once /templates/:id/example lands).
     if (docChoice === 'saved' && template) {
-      navigate(`/templates/${encodeURIComponent(template.id)}/edit`, {
-        state: { templateSigners: handoffSigners },
-      });
+      // The API expands the saved layout onto the example's page count.
+      // If it is unreachable the editor expands locally, so a failure
+      // here never blocks the hand-off.
+      if (continuingRef.current) return;
+      continuingRef.current = true;
+      const target = `/templates/${encodeURIComponent(template.id)}/edit`;
+      void applyTemplate(template.id, Math.max(1, template.pages))
+        .then(
+          (templateFields) => ({
+            templateFields,
+            templateFieldsPages: Math.max(1, template.pages),
+          }),
+          () => ({}),
+        )
+        .then((expanded) => {
+          continuingRef.current = false;
+          navigate(target, { state: { templateSigners: handoffSigners, ...expanded } });
+        });
       return;
     }
 
@@ -301,7 +315,7 @@ export function UseTemplatePage() {
       // a single envelope to render in a unique color.
       const used = prev.map((s) => s.color);
       const color = used.includes(contact.color)
-        ? pickAvailableColor(SIGNER_COLORS, used)
+        ? pickAvailableColor(seald.color.signer, used)
         : contact.color;
       return [
         ...prev,
@@ -323,7 +337,7 @@ export function UseTemplatePage() {
         return prev;
       }
       const color = pickAvailableColor(
-        SIGNER_COLORS,
+        seald.color.signer,
         prev.map((s) => s.color),
       );
       return [
@@ -442,6 +456,11 @@ export function UseTemplatePage() {
                     </TooltipBubble>
                   ) : null}
                 </TooltipWrap>
+                {isBulkSendEnabled() && template?.hasExamplePdf ? (
+                  <BulkSendLink to={`/templates/${encodeURIComponent(template.id)}/bulk-send`}>
+                    Send to many from a CSV
+                  </BulkSendLink>
+                ) : null}
               </DocumentTitleRow>
             ) : null}
 

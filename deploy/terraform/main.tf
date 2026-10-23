@@ -256,9 +256,17 @@ resource "aws_instance" "api" {
     encrypted             = true
   }
 
+  # IMDSv2 only. The hop limit is `var.imds_hop_limit` (see its
+  # description): the workflow-automations design wants 1 so a confused
+  # outbound request cannot reach IMDS from a second hop, but the API runs
+  # in a bridge-networked Docker container that gets its instance-role
+  # credentials (entrypoint Secrets Manager fetch, KMS sealing) through
+  # IMDS, which needs 2. Webhook SSRF defence does not rely on this: the
+  # app blocks 169.254.0.0/16, fd00:ec2::254 and every mapped/encoded form,
+  # and webhooks only ever send POST, never the PUT that IMDSv2 tokens need.
   metadata_options {
     http_tokens                 = "required" # IMDSv2
-    http_put_response_hop_limit = 2
+    http_put_response_hop_limit = var.imds_hop_limit
   }
 
   tags        = merge(local.common_tags, { Name = "${var.project}-api" })

@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBanner as SharedErrorBanner } from '@/components/shared/ErrorBanner';
-import { INTENT_TO_SIGN_NOTE } from 'shared';
+import { INTENT_TO_SIGN_NOTE, isFeatureEnabled, maskEmail } from 'shared';
 import { Info, PenTool } from 'lucide-react';
 import { FieldInputDrawer } from '@/components/FieldInputDrawer';
 import type { FieldInputKind } from '@/components/FieldInputDrawer/FieldInputDrawer.types';
@@ -14,6 +14,18 @@ import { SignatureCapture } from '@/components/SignatureCapture';
 import type { SignatureCaptureKind, SignatureCaptureResult } from '@/components/SignatureCapture';
 import { SignatureMark } from '@/components/SignatureMark';
 import { SigningSessionProvider, useSigningSession } from '@/features/signing';
+import { AccessCodeForm, isAccessCodeRequiredError } from '@/features/signing/accessCode';
+import {
+  displayText,
+  isReadOnly,
+  metaLabel,
+  usesMetaDrawer,
+} from '@/features/signingFill/inputs/fieldDisplay';
+import { fillErrorMessage } from '@/features/signingFill/inputs/fillErrors';
+import { useT } from '@/lib/i18n';
+import type { CommonKey, TFn } from '@/lib/i18n';
+import { MetaFieldDrawer } from '@/features/signingFill/inputs/MetaFieldDrawer';
+import type { MetaInputKind } from '@/features/signingFill/inputs/MetaFieldDrawer';
 import type { SignMeField } from '@/features/signing';
 
 const Page = styled.div`
@@ -94,6 +106,23 @@ const Actions = styled.div`
   gap: 10px;
 `;
 
+const CodePanel = styled.section`
+  margin-top: ${({ theme }) => theme.space[5]};
+  padding: ${({ theme }) => theme.space[4]};
+  display: grid;
+  gap: ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+`;
+
+const CodePanelTitle = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
 const BackBtn = styled.button`
   flex: 1;
   height: 48px;
@@ -163,18 +192,18 @@ function toUiKind(f: SignMeField): ReviewFieldKind {
   return f.kind;
 }
 
-function defaultLabel(kind: ReviewFieldKind): string {
-  const m: Record<ReviewFieldKind, string> = {
-    signature: 'Signature',
-    initials: 'Initials',
-    name: 'Name',
-    date: 'Date',
-    text: 'Text',
-    email: 'Email',
-    checkbox: 'Checkbox',
-  };
-  return m[kind];
-}
+const DEFAULT_LABEL_KEY: Record<ReviewFieldKind, CommonKey> = {
+  signature: 'signing.reviewLabel.signature',
+  initials: 'signing.reviewLabel.initials',
+  name: 'signing.reviewLabel.name',
+  date: 'signing.reviewLabel.date',
+  text: 'signing.reviewLabel.text',
+  email: 'signing.reviewLabel.email',
+  checkbox: 'signing.reviewLabel.checkbox',
+  number: 'signing.reviewLabel.number',
+  radio: 'signing.reviewLabel.radio',
+  dropdown: 'signing.reviewLabel.dropdown',
+};
 
 /** True when the string looks like a URL that should render as an image
  *  rather than be displayed as text. Covers the three shapes we use:
@@ -185,12 +214,13 @@ function looksLikeUrl(s: string): boolean {
   return s.startsWith('blob:') || s.startsWith('data:') || /^https?:\/\//.test(s);
 }
 
-function toReviewItem(f: SignMeField): ReviewItem {
+function toReviewItem(f: SignMeField, t: TFn): ReviewItem {
   const kind = toUiKind(f);
-  const label = f.link_id && f.link_id !== 'name' ? f.link_id : defaultLabel(kind);
+  const label =
+    metaLabel(f) ?? (f.link_id && f.link_id !== 'name' ? f.link_id : t(DEFAULT_LABEL_KEY[kind]));
   let preview: React.ReactNode = '—';
   if (kind === 'checkbox') {
-    preview = f.value_boolean ? '✓ Checked' : '—';
+    preview = f.value_boolean ? t('signing.review.checked') : '—';
   } else if (kind === 'signature' || kind === 'initials') {
     // value_text for signature/initials fields carries either a blob URL
     // (optimistic preview from uploadSignature.onMutate) or the typed
@@ -201,7 +231,7 @@ function toReviewItem(f: SignMeField): ReviewItem {
       preview = (
         <img
           src={f.value_text}
-          alt="Signature"
+          alt={t('signing.review.signatureAlt')}
           style={{ height: 32, maxWidth: 180, objectFit: 'contain' }}
         />
       );
@@ -209,7 +239,8 @@ function toReviewItem(f: SignMeField): ReviewItem {
       preview = <SignatureMark name={f.value_text} size={22} />;
     }
   } else if (typeof f.value_text === 'string') {
-    preview = f.value_text;
+    // Numbers in their format and choices by label (flag `fieldMetaV2`).
+    preview = displayText(f) ?? f.value_text;
   }
   return { id: f.id, kind, label, page: f.page, valuePreview: preview };
 }
@@ -220,8 +251,14 @@ function fieldIsFilled(f: SignMeField): boolean {
 }
 
 /** Item 11 — bridge between SignMeField.kind and FieldInputDrawer.kind. */
-function inputKindFor(kind: ReviewFieldKind): FieldInputKind | null {
+function inputKindFor(kind: ReviewFieldKind): FieldInputKind | MetaInputKind | null {
   if (kind === 'text' || kind === 'email' || kind === 'date' || kind === 'name') return kind;
+  if (
+    isFeatureEnabled('fieldMetaV2') &&
+    (kind === 'number' || kind === 'radio' || kind === 'dropdown')
+  ) {
+    return kind;
+  }
   return null;
 }
 
@@ -241,12 +278,14 @@ function IntentCopy() {
 
 function Content() {
   const navigate = useNavigate();
+  const t = useT();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
   const {
     envelope,
     signer,
     fields,
+    documents,
     submit,
     confirmIntentToSign,
     withdrawConsent,
@@ -259,14 +298,21 @@ function Content() {
   // the user's affirmation is a discrete, dateable act distinct from
   // clicking the Submit button.
   const [intentChecked, setIntentChecked] = useState(false);
+  // WP-11: the sender asked for a fresh emailed code before submit. The
+  // API says so with 428 on the first submit; intent-to-sign is already on
+  // record by then, so the retry skips it.
+  const [needsActionCode, setNeedsActionCode] = useState(false);
+  const intentRecorded = useRef(false);
 
   // Item 11 — inline-edit state. One slot for the FieldInputDrawer and one
   // for SignatureCapture; both reuse the same components the fill page
   // mounts so values land through the same mutations and audit events.
   const [textEdit, setTextEdit] = useState<{
     readonly field: SignMeField;
-    readonly kind: FieldInputKind;
+    readonly kind: FieldInputKind | MetaInputKind;
   } | null>(null);
+  // Meta-aware editor (flag `fieldMetaV2`): the API's refusal, shown inline.
+  const [editError, setEditError] = useState<string | null>(null);
   const [sigEdit, setSigEdit] = useState<{
     readonly field: SignMeField;
     readonly kind: SignatureCaptureKind;
@@ -283,18 +329,38 @@ function Content() {
     }
   }, []);
 
-  const items = useMemo<ReadonlyArray<ReviewItem>>(
-    () =>
-      fields.filter(fieldIsFilled).map((f) => {
-        const base = toReviewItem(f);
-        const uiKind = toUiKind(f);
-        // Checkboxes aren't editable on the review page — re-toggle is
-        // confusing once already affirmed; "Back to fields" remains the
-        // path for that edge case.
-        if (uiKind === 'checkbox') return base;
-        return { ...base, onEdit: () => handleEdit(f, uiKind) };
-      }),
-    [fields, handleEdit],
+  // Multi-document envelopes (WP-04): rows are grouped by document, in
+  // document order, and name the document. Off, or one document: untouched.
+  const multiDoc = isFeatureEnabled('multiDocumentEnvelopes') && documents.length > 1;
+  const items = useMemo<ReadonlyArray<ReviewItem>>(() => {
+    const titleById = new Map(documents.map((d) => [d.id, d.title] as const));
+    const orderById = new Map(documents.map((d, i) => [d.id, i] as const));
+    const filled = fields.filter(fieldIsFilled);
+    const ordered = multiDoc
+      ? [...filled].sort(
+          (a, b) =>
+            (orderById.get(a.document_id ?? '') ?? 0) - (orderById.get(b.document_id ?? '') ?? 0),
+        )
+      : filled;
+    return ordered.map((f) => {
+      const base = multiDoc
+        ? { ...toReviewItem(f, t), documentTitle: titleById.get(f.document_id ?? '') }
+        : toReviewItem(f, t);
+      const uiKind = toUiKind(f);
+      // Checkboxes aren't editable on the review page — re-toggle is
+      // confusing once already affirmed; "Back to fields" remains the
+      // path for that edge case.
+      if (uiKind === 'checkbox' || isReadOnly(f)) return base;
+      return { ...base, onEdit: () => handleEdit(f, uiKind) };
+    });
+  }, [fields, documents, multiDoc, handleEdit, t]);
+
+  const handleSubmitWithCode = useCallback(
+    async (code: string) => {
+      await submit(code);
+      navigate(`/sign/${envelopeId}/done`, { replace: true });
+    },
+    [envelopeId, navigate, submit],
   );
 
   const handleBack = useCallback(
@@ -322,9 +388,9 @@ function Content() {
     } catch (err) {
       setBusy(false);
       const e = err as ApiErrorLike;
-      setError(e.message ?? 'We could not record your withdrawal right now. Please try again.');
+      setError(e.message ?? t('signing.review.errorWithdraw'));
     }
-  }, [busy, envelopeId, navigate, withdrawConsent]);
+  }, [busy, envelopeId, navigate, withdrawConsent, t]);
 
   const handleSubmit = useCallback(async () => {
     if (!intentChecked) return;
@@ -335,26 +401,37 @@ function Content() {
       // event in the chain. The audit PDF reads in chain order; the
       // intent affirmation must precede the signature event for the
       // narrative to be correct.
-      await confirmIntentToSign();
+      if (!intentRecorded.current) {
+        await confirmIntentToSign();
+        intentRecorded.current = true;
+      }
       await submit();
       navigate(`/sign/${envelopeId}/done`, { replace: true });
     } catch (err) {
+      if (isAccessCodeRequiredError(err)) {
+        setNeedsActionCode(true);
+        setBusy(false);
+        return;
+      }
       const e = err as ApiErrorLike;
       if (e.status === 401 || e.status === 410) {
         navigate(`/sign/${envelopeId}`, { replace: true });
         return;
       }
-      setError(e.message ?? 'We could not submit right now. Please try again.');
+      setError(e.message ?? t('signing.review.errorSubmit'));
       setBusy(false);
     }
-  }, [confirmIntentToSign, envelopeId, intentChecked, navigate, submit]);
+  }, [confirmIntentToSign, envelopeId, intentChecked, navigate, submit, t]);
 
   // Item 11 — inline editor handlers. Declared BEFORE the early-return so
   // hook order stays stable across renders. We funnel both kinds of edit
   // through the same mutations the fill page uses (fillField /
   // setSignature) so the audit chain order is identical regardless of
   // where the edit was initiated.
-  const closeTextEdit = useCallback(() => setTextEdit(null), []);
+  const closeTextEdit = useCallback(() => {
+    setTextEdit(null);
+    setEditError(null);
+  }, []);
   const closeSigEdit = useCallback(() => setSigEdit(null), []);
 
   const applyTextEdit = useCallback(
@@ -366,10 +443,29 @@ function Content() {
         await fillField(fieldId, { value_text: value });
       } catch (err) {
         const e = err as ApiErrorLike;
-        setError(e.message ?? 'We could not update this field. Please try again.');
+        setError(e.message ?? t('signing.review.errorField'));
       }
     },
-    [fillField, textEdit?.field.id],
+    [fillField, textEdit?.field.id, t],
+  );
+
+  const applyMetaEdit = useCallback(
+    async (value: string) => {
+      const field = textEdit?.field;
+      if (!field) return;
+      try {
+        await fillField(field.id, { value_text: value });
+      } catch (err) {
+        const e = err as ApiErrorLike;
+        setEditError(
+          fillErrorMessage(e.message ?? '', field.meta, t) || t('signing.review.errorField'),
+        );
+        return;
+      }
+      setEditError(null);
+      setTextEdit(null);
+    },
+    [fillField, textEdit?.field, t],
   );
 
   const applySigEdit = useCallback(
@@ -390,22 +486,26 @@ function Content() {
         });
       } catch (err) {
         const e = err as ApiErrorLike;
-        setError(e.message ?? 'We could not update this signature. Please try again.');
+        setError(e.message ?? t('signing.review.errorSignature'));
       }
     },
-    [setSignature, sigEdit],
+    [setSignature, sigEdit, t],
   );
 
   if (!envelope) return null;
 
   return (
     <Page>
-      <RecipientHeader docTitle={envelope.title} docId={envelope.short_code} stepLabel="Review" />
+      <RecipientHeader
+        docTitle={envelope.title}
+        docId={envelope.short_code}
+        stepLabel={t('signing.stepLabels.review')}
+      />
       <Inner>
-        <Heading>Everything look right?</Heading>
+        <Heading>{t('signing.review.heading')}</Heading>
         <Helper>
           {/* Item 16 — softer/clearer terminal-action copy. */}
-          Once everyone has signed, we seal the document and email each signer a link to it.
+          {t('signing.review.helper')}
         </Helper>
         <ReviewList items={items} />
 
@@ -434,14 +534,28 @@ function Content() {
 
         {error ? <ErrorBanner role="alert">{error}</ErrorBanner> : null}
 
+        {needsActionCode && signer ? (
+          <CodePanel aria-labelledby="action-code-title">
+            <CodePanelTitle id="action-code-title">{t('signing.review.codeTitle')}</CodePanelTitle>
+            <AccessCodeForm
+              purpose="action"
+              emailMasked={maskEmail(signer.email)}
+              submitLabel={t('signing.review.signAndSubmit')}
+              onSubmitCode={handleSubmitWithCode}
+            />
+          </CodePanel>
+        ) : null}
+
         <Actions>
           <BackBtn type="button" onClick={handleBack} disabled={busy}>
-            Back to fields
+            {t('signing.review.backToFields')}
           </BackBtn>
-          <SubmitBtn type="button" onClick={handleSubmit} disabled={busy || !intentChecked}>
-            <Icon icon={PenTool} size={16} />
-            {busy ? 'Submitting…' : 'Sign and submit'}
-          </SubmitBtn>
+          {needsActionCode ? null : (
+            <SubmitBtn type="button" onClick={handleSubmit} disabled={busy || !intentChecked}>
+              <Icon icon={PenTool} size={16} />
+              {busy ? t('signing.review.submitting') : t('signing.review.signAndSubmit')}
+            </SubmitBtn>
+          )}
         </Actions>
 
         <WithdrawLink type="button" onClick={handleWithdrawConsent} disabled={busy}>
@@ -450,22 +564,43 @@ function Content() {
 
         {/* Item 11 — inline editors. Both stay mounted so React Query
             invalidation / focus management is identical to the fill page. */}
-        <FieldInputDrawer
-          open={textEdit !== null}
-          label={textEdit ? (textEdit.field.link_id ?? textEdit.kind) : ''}
-          kind={textEdit?.kind ?? 'text'}
-          initialValue={
-            textEdit && typeof textEdit.field.value_text === 'string'
-              ? textEdit.field.value_text
-              : ''
-          }
-          onCancel={closeTextEdit}
-          onApply={(v) => {
-            applyTextEdit(v).catch(() => {
-              /* surfaced via error state */
-            });
-          }}
-        />
+        {textEdit !== null && usesMetaDrawer(textEdit.field) ? (
+          <MetaFieldDrawer
+            key={textEdit.field.id}
+            open
+            label={metaLabel(textEdit.field) ?? textEdit.field.link_id ?? textEdit.kind}
+            kind={textEdit.kind as MetaInputKind}
+            meta={textEdit.field.meta}
+            initialValue={textEdit.field.value_text ?? undefined}
+            signerName={signer?.name}
+            dateFormat={envelope?.date_format}
+            timezone={envelope?.timezone}
+            serverError={editError}
+            onCancel={closeTextEdit}
+            onApply={(v) => {
+              applyMetaEdit(v).catch(() => {
+                /* surfaced via editError */
+              });
+            }}
+          />
+        ) : (
+          <FieldInputDrawer
+            open={textEdit !== null}
+            label={textEdit ? (textEdit.field.link_id ?? textEdit.kind) : ''}
+            kind={(textEdit?.kind ?? 'text') as FieldInputKind}
+            initialValue={
+              textEdit && typeof textEdit.field.value_text === 'string'
+                ? textEdit.field.value_text
+                : ''
+            }
+            onCancel={closeTextEdit}
+            onApply={(v) => {
+              applyTextEdit(v).catch(() => {
+                /* surfaced via error state */
+              });
+            }}
+          />
+        )}
 
         <SignatureCapture
           open={sigEdit !== null}

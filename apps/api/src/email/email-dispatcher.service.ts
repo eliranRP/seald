@@ -1,11 +1,18 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
+import { EmailCopyLinkMinter } from '../automations/actions/email/email-copy-link-minter.service';
+import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
+import { resolveContentLocale } from '../i18n';
+import { AccessCodeMinter } from '../signing/access-auth/access-code-minter.service';
+import { isSignersTurn } from '../signing/signing-order';
+import { SigningTokenService } from '../signing/signing-token.service';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
 import {
   OutboundEmailsRepository,
-  signUrlFromPayload,
+  withoutSignerLink,
   type OutboundEmailRow,
 } from './outbound-emails.repository';
 import { TemplateService, type EmailTemplateKind } from './template.service';
@@ -37,6 +44,14 @@ export interface FlushResult {
  * Retry policy: exponential backoff (2^n minutes, capped at 6 hours). After
  * `max_attempts` (default 8) a permanent `failed` state stops retries.
  *
+ * Signer links (MCP Insert A, migration 0027): `invite` and `reminder`
+ * rows store the signer id only. Each dispatch attempt mints a new
+ * 256-bit token, writes its hash to `envelope_signers.access_token_hash`
+ * (replacing the previous one, so every older link stops working) and
+ * renders `/sign/<envelope>?t=<token>` into this one message. The token
+ * is never written back to the outbox. A retry re-mints. Nothing rebuilds
+ * a link from a hash.
+ *
  * The service is deliberately small — the in-process worker loop, the cron
  * endpoint, and the one-shot dev script all call {@link flushOnce}.
  */
@@ -51,14 +66,22 @@ export class EmailDispatcherService {
   // on every commercial email. We inject these once here so individual
   // templates don't have to know which vars exist.
   private readonly legalFooterVars: Readonly<Record<string, string>>;
+  private readonly publicUrl: string;
 
   constructor(
     private readonly repo: OutboundEmailsRepository,
     private readonly sender: EmailSender,
     private readonly templates: TemplateService,
     private readonly envelopes: EnvelopesRepository,
+    private readonly tokens: SigningTokenService,
     @Inject(APP_ENV) env: AppEnv,
+    // WP-10: mints the one-time code of an `access_code` row at dispatch.
+    @Optional() private readonly accessCodes?: AccessCodeMinter,
+    // WP-21: mints the link token of an `approval_request` row at dispatch.
+    @Optional() private readonly approvalLinks?: ApprovalLinkMinter,
+    @Optional() private readonly copyLinks?: EmailCopyLinkMinter,
   ) {
+    this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
     this.fromName = env.EMAIL_FROM_NAME;
     this.legalFooterVars = Object.freeze({
@@ -111,7 +134,6 @@ export class EmailDispatcherService {
     if (!claimed) return null;
 
     try {
-      const payload = await this.resolvePayload(claimed);
       if (claimed.kind === 'reminder' && !(await this.reminderStillDue(claimed))) {
         this.log.warn(
           `reminder skipped reminder_no_longer_due envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
@@ -119,17 +141,58 @@ export class EmailDispatcherService {
         await this.repo.markSkipped(claimed.id, 'reminder_no_longer_due');
         return { id: claimed.id, status: 'skipped', error: 'reminder_no_longer_due' };
       }
-      if (claimed.kind === 'reminder' && !signUrlFromPayload(payload)) {
-        this.log.warn(
-          `reminder skipped missing_sign_url envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
-        );
-        await this.repo.markFailed(claimed.id, {
-          error: 'missing_sign_url',
-          final: true,
-        });
-        return { id: claimed.id, status: 'failed', error: 'missing_sign_url' };
+      // Rows queued before 0027 may still carry a plaintext link. It is
+      // never used: the link is minted below for this attempt only.
+      let payload: Record<string, unknown> = withoutSignerLink(claimed.payload);
+      if (SIGNER_LINK_KINDS.has(claimed.kind)) {
+        const signUrl = await this.mintSignUrl(claimed);
+        if (!signUrl) {
+          // Canceled, expired, signed or declined since the row was queued.
+          // Rotating now would only revoke a link; nothing is sent.
+          this.log.warn(
+            `${claimed.kind} skipped signer_not_pending envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+          );
+          await this.repo.markSkipped(claimed.id, 'signer_not_pending');
+          return { id: claimed.id, status: 'skipped', error: 'signer_not_pending' };
+        }
+        payload = { ...payload, sign_url: signUrl };
       }
-      const rendered = this.render(claimed, payload);
+      if (claimed.kind === 'access_code') {
+        // WP-10: the code exists only in this message; its HMAC is stored.
+        const minted = this.accessCodes ? await this.accessCodes.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(
+            `access_code skipped challenge_not_open envelope=${claimed.envelope_id ?? ''} signer=${claimed.signer_id ?? ''}`,
+          );
+          await this.repo.markSkipped(claimed.id, 'challenge_not_open');
+          return { id: claimed.id, status: 'skipped', error: 'challenge_not_open' };
+        }
+        payload = { ...payload, ...minted };
+      }
+      if (claimed.kind === 'approval_request') {
+        // WP-21: the approval link token exists only in this message; its
+        // hash is stored on the approval. Null: the approval was decided,
+        // expired, or superseded by a newer email.
+        const minted = this.approvalLinks ? await this.approvalLinks.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(`approval_request skipped approval_not_pending outbound=${claimed.id}`);
+          await this.repo.markSkipped(claimed.id, 'approval_not_pending');
+          return { id: claimed.id, status: 'skipped', error: 'approval_not_pending' };
+        }
+        payload = { ...payload, ...minted };
+      }
+      if (claimed.kind === 'automation_copy') {
+        // WP-33: the stop link token exists only in this message; its hash is
+        // stored. Null: the address already stopped these notices.
+        const minted = this.copyLinks ? await this.copyLinks.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(`automation_copy skipped recipient_stopped outbound=${claimed.id}`);
+          await this.repo.markSkipped(claimed.id, 'recipient_stopped');
+          return { id: claimed.id, status: 'skipped', error: 'recipient_stopped' };
+        }
+        payload = { ...payload, ...minted };
+      }
+      const rendered = this.render(claimed, payload, await this.localeFor(claimed));
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
@@ -144,7 +207,12 @@ export class EmailDispatcherService {
         subject: rendered.subject,
         html: rendered.html,
         text: rendered.text,
-        idempotencyKey: claimed.id,
+        // A link-bearing body changes on every attempt (fresh token), so
+        // each attempt gets its own provider idempotency key. Reusing the
+        // row id would make the provider replay or reject the earlier body.
+        idempotencyKey: PER_ATTEMPT_BODY_KINDS.has(claimed.kind)
+          ? `${claimed.id}:${claimed.attempts}`
+          : claimed.id,
       };
 
       const result = await this.sender.send(message);
@@ -192,27 +260,52 @@ export class EmailDispatcherService {
     if (envelope.status !== 'awaiting_others') return false;
     if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
     if (signer.signed_at !== null || signer.declined_at !== null) return false;
+    // WP-05: never hand a later sequential step its link early.
+    if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) return false;
     if (row.payload['automated'] === true && !envelope.reminders_enabled) return false;
     return true;
   }
 
   /**
-   * Automated reminders persist no signing token. Copy the link from the
-   * newest prior invite/reminder into the render vars only — the outbox
-   * row is left unchanged.
+   * Mint the signer token for this dispatch attempt and return the link.
+   * `rotateSignerAccessToken` stores only the hash and is guarded in SQL:
+   * the envelope must be `awaiting_others` and the signer must not have
+   * signed or declined. Returns null when that guard refuses.
    */
-  private async resolvePayload(row: OutboundEmailRow): Promise<Record<string, unknown>> {
-    const payload: Record<string, unknown> = { ...row.payload };
-    if (row.kind !== 'reminder' || signUrlFromPayload(payload)) return payload;
-    if (!row.envelope_id || !row.signer_id) return payload;
-    const signUrl = await this.repo.findLatestSignUrl(row.envelope_id, row.signer_id, row.id);
-    if (!signUrl) return payload;
-    return { ...payload, sign_url: signUrl };
+  private async mintSignUrl(row: OutboundEmailRow): Promise<string | null> {
+    if (!row.envelope_id || !row.signer_id) return null;
+    const token = this.tokens.generate();
+    const minted = await this.envelopes.rotateSignerAccessToken(
+      row.signer_id,
+      this.tokens.hash(token),
+    );
+    if (!minted) return null;
+    return `${this.publicUrl}/sign/${row.envelope_id}?t=${token}`;
+  }
+
+  /**
+   * WP-38: signer-facing mail uses signer.locale ?? envelope.locale ?? 'en';
+   * sender-facing mail (`*_to_sender`, or any row with no signer) uses
+   * envelope.locale ?? 'en'. Flag `i18n` off: always `en`, no lookup.
+   */
+  private async localeFor(row: OutboundEmailRow): Promise<string> {
+    if (!isFeatureEnabled('i18n') || !row.envelope_id) return DEFAULT_LOCALE;
+    const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
+    if (!envelope) return DEFAULT_LOCALE;
+    const signerFacing = row.signer_id !== null && !row.kind.endsWith('_to_sender');
+    const signer = signerFacing
+      ? envelope.signers.find((item) => item.id === row.signer_id)
+      : undefined;
+    return resolveContentLocale({
+      envelopeLocale: envelope.locale,
+      signerLocale: signer?.locale,
+    });
   }
 
   private render(
     row: OutboundEmailRow,
-    payload: Readonly<Record<string, unknown>> = row.payload,
+    payload: Readonly<Record<string, unknown>>,
+    locale: string,
   ): ReturnType<TemplateService['render']> | null {
     if (!TEMPLATE_KINDS.has(row.kind)) return null;
     // The payload is a JSON blob; TemplateService expects a flat map of
@@ -226,7 +319,7 @@ export class EmailDispatcherService {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);
     }
-    return this.templates.render(row.kind as EmailTemplateKind, vars);
+    return this.templates.render(row.kind as EmailTemplateKind, vars, locale);
   }
 
   private async handleSendError(row: OutboundEmailRow, err: unknown): Promise<DispatchOutcome> {
@@ -261,6 +354,17 @@ export class EmailDispatcherService {
   }
 }
 
+/** Kinds whose email carries the signer's `/sign/…?t=` link. */
+const SIGNER_LINK_KINDS = new Set<string>(['invite', 'reminder']);
+
+/** Kinds whose body is minted per attempt (a link token or a one-time code). */
+const PER_ATTEMPT_BODY_KINDS = new Set<string>([
+  ...SIGNER_LINK_KINDS,
+  'access_code',
+  'approval_request',
+  'automation_copy',
+]);
+
 const TEMPLATE_KINDS = new Set<string>([
   'invite',
   'reminder',
@@ -271,6 +375,14 @@ const TEMPLATE_KINDS = new Set<string>([
   'expired_to_sender',
   'expired_to_signer',
   'signed_to_sender',
+  'api_key_created',
+  'access_code',
+  'approval_request',
+  'approval_denied',
+  'bulk_complete',
+  'automation_copy',
+  'automation_disabled',
+  'signer_corrected',
 ]);
 
 /**

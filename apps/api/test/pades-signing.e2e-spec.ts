@@ -22,7 +22,10 @@ import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
+import { dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 /**
  * End-to-end exercise of the P12PadesSigner path.
@@ -161,6 +164,8 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(ContactsRepository)
       .useValue(contactsRepo)
       .overrideProvider(StorageService)
@@ -297,7 +302,7 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
 
     // Extract invite token, start session, fill, submit.
     const invite = outbound.rows.find((r) => r.kind === 'invite')!;
-    const token = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url))![1]!;
+    const token = await dispatchSignToken(app, invite.to_email);
     const started = await request(app.getHttpServer())
       .post('/sign/start')
       .send({ envelope_id: env.body.id, token });

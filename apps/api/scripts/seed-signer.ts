@@ -174,7 +174,9 @@ async function main(): Promise<void> {
 
     // 6. Enqueue the invite email so `pnpm flush:emails` has something to
     //    push through Resend. Mirrors the payload schema EnvelopesService
-    //    uses at real send time; the unique key
+    //    uses at real send time: no `sign_url` (MCP Insert A, 0027). The
+    //    dispatcher mints a new token when it sends the invite, which
+    //    replaces the one printed below. The unique key
     //    `(envelope_id, signer_id, kind, source_event_id)` is satisfied
     //    because every seed has a fresh event id.
     await client.query(
@@ -190,7 +192,6 @@ async function main(): Promise<void> {
           sender_name: 'Eliran Azulay',
           sender_email: 'sender@seald.dev',
           envelope_title: 'SEED test envelope',
-          sign_url: signerUrl,
           verify_url: verifyUrl,
           short_code: shortCode,
           public_url: publicUrl,
@@ -208,6 +209,7 @@ async function main(): Promise<void> {
     console.log('=============================================\n');
     console.log('Paste the signer URL into a browser to walk the recipient flow.');
     console.log('The token is single-use — a fresh seed is required after submit/decline.');
+    console.log('Flushing the queued invite mints a new token: use the emailed link after that.');
   } finally {
     await client.end();
   }

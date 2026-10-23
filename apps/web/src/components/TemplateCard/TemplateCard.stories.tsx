@@ -30,6 +30,11 @@ type Story = StoryObj<typeof TemplateCard>;
 
 export const Default: Story = {};
 
+export const WithBulkSend: Story = {
+  name: 'Bulk send enabled',
+  args: { onBulkSend: noop },
+};
+
 export const NoTags: Story = {
   name: 'No tags attached',
   args: { template: TEMPLATES[1]! },
@@ -40,6 +45,11 @@ export const ManyTags: Story = {
   args: {
     template: { ...TEMPLATES[2]!, tags: ['Legal', 'HR', 'Construction', 'Sales'] },
   },
+};
+
+export const WithDirectLink: Story = {
+  name: 'Direct link action (directLinks on)',
+  args: { onDirectLink: noop },
 };
 
 export const UseOnly: Story = {

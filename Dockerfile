@@ -68,6 +68,7 @@ COPY --from=prune --chown=seald:seald /app/node_modules ./node_modules
 COPY --from=prune --chown=seald:seald /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=prune --chown=seald:seald /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=build --chown=seald:seald /app/packages/shared/dist ./packages/shared/dist
+COPY --from=build --chown=seald:seald /app/packages/shared/locales ./packages/shared/locales
 COPY --from=build --chown=seald:seald /app/packages/shared/package.json ./packages/shared/package.json
 COPY --from=build --chown=seald:seald /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=seald:seald /app/apps/api/package.json ./apps/api/package.json

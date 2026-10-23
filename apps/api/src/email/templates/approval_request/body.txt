@@ -1,0 +1,14 @@
+{{updated_text}}Approval needed: {{action_label}}?
+
+Document: {{title}}
+Pages: {{page_count_readable}}
+Asked by: {{key_name}}
+Approver: {{approver_email}}
+{{destination_text}}
+{{recipients_text}}
+{{actions_text}}
+Expires in 24h.
+
+Only approve if you asked for this. Don't let an assistant or other software open this link. Didn't ask for this? Deny and revoke the key.
+
+Sent via Seald · {{public_url}}

@@ -1,6 +1,8 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Plus, Search, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { isFeatureEnabled } from 'shared';
+import { DirectLinkDialog } from '@/features/directLinks';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { PageHeader } from '@/components/PageHeader';
@@ -19,6 +21,7 @@ import {
   updateTemplate as apiUpdateTemplate,
 } from '@/features/templates/templatesApi';
 import type { TemplateSummary } from '@/features/templates';
+import { isBulkSendEnabled } from '@/features/bulkSend';
 import { TagFilterMenu } from '@/components/TagFilterMenu';
 import {
   ActiveTagOverflow,
@@ -132,6 +135,9 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
   const [groupByTag, setGroupByTag] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<TemplateSummary | null>(null);
   const [editTagsFor, setEditTagsFor] = useState<TemplateSummary | null>(null);
+  const [directLinkFor, setDirectLinkFor] = useState<TemplateSummary | null>(null);
+  // WP-37: the Link action exists only while `directLinks` is on.
+  const onDirectLink = isFeatureEnabled('directLinks') ? setDirectLinkFor : undefined;
 
   // Derived sets ---------------------------------------------------------
 
@@ -196,6 +202,14 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
   const handleEdit = useCallback(
     (template: TemplateSummary): void => {
       navigate(`/templates/${encodeURIComponent(template.id)}/use?mode=edit`);
+    },
+    [navigate],
+  );
+
+  const bulkOn = isBulkSendEnabled();
+  const handleBulkSend = useCallback(
+    (template: TemplateSummary): void => {
+      navigate(`/templates/${encodeURIComponent(template.id)}/bulk-send`);
     },
     [navigate],
   );
@@ -454,6 +468,8 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                             onDuplicate={handleDuplicate}
                             onTagClick={(tag) => toggleActiveTag(tag)}
                             onEditTags={(tpl) => setEditTagsFor(tpl)}
+                            onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
+                            onDirectLink={onDirectLink}
                           />
                         ))}
                       </Grid>
@@ -475,6 +491,8 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
                       onDuplicate={handleDuplicate}
                       onTagClick={(tag) => toggleActiveTag(tag)}
                       onEditTags={(tpl) => setEditTagsFor(tpl)}
+                      onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
+                      onDirectLink={onDirectLink}
                     />
                   ))}
                 </Grid>
@@ -527,6 +545,19 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
             </ModalFooter>
           </ModalCard>
         </ModalBackdrop>
+      ) : null}
+
+      {directLinkFor ? (
+        <DirectLinkDialog
+          open
+          template={{
+            id: directLinkFor.id,
+            name: directLinkFor.name,
+            hasExamplePdf: directLinkFor.hasExamplePdf ?? false,
+            lastSigners: directLinkFor.lastSigners ?? [],
+          }}
+          onClose={() => setDirectLinkFor(null)}
+        />
       ) : null}
 
       <TagEditorPopover

@@ -1,0 +1,147 @@
+<div class="wrap">
+  <div class="card">
+    <div class="accent accent-amber"></div>
+    <table
+      role="presentation"
+      class="masthead"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
+    >
+      <tr>
+        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
+          <span
+            style="
+              display: inline-block;
+              width: 28px;
+              height: 28px;
+              border-radius: 7px;
+              background: #4f46e5;
+              color: #ffffff;
+              font-family: Georgia, 'Source Serif 4', serif;
+              font-weight: 600;
+              font-size: 16px;
+              text-align: center;
+              line-height: 28px;
+              vertical-align: middle;
+              text-decoration: none;
+            "
+            >S</span
+          >
+        </td>
+        <td
+          style="
+            padding: 20px 28px 20px 10px;
+            vertical-align: middle;
+            font-family:
+              Source Serif 4,
+              Georgia,
+              serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #0b1220;
+            letter-spacing: -0.01em;
+          "
+        >
+          Seald
+        </td>
+      </tr>
+    </table>
+    <div class="body">
+      <span class="kicker kicker-amber">Security · New API key</span>
+      <h1>
+        A new API key,
+        <b style="display: inline-block; color: #0b1220; font-weight: 600; text-decoration: none"
+          >{{key_name}}</b
+        >, was created on your account.
+      </h1>
+      <table
+        role="presentation"
+        cellspacing="0"
+        cellpadding="0"
+        border="0"
+        style="margin-top: 8px; border-collapse: collapse; font-size: 14px; color: #1f2937"
+      >
+        <tr>
+          <td style="padding: 4px 16px 4px 0; color: #64748b">Key</td>
+          <td style="padding: 4px 0">
+            <code
+              style="
+                font-family: SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 13px;
+                color: #0b1220;
+                text-decoration: none;
+              "
+              >{{key_prefix}}…</code
+            >
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 16px 4px 0; color: #64748b">Access</td>
+          <td style="padding: 4px 0">{{scopes_readable}}</td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 16px 4px 0; color: #64748b">Created</td>
+          <td style="padding: 4px 0">
+            <span style="color: #1f2937; text-decoration: none">{{created_at_readable}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 4px 16px 4px 0; color: #64748b">Expires</td>
+          <td style="padding: 4px 0">
+            <span style="color: #1f2937; text-decoration: none">{{expires_at_readable}}</span>
+          </td>
+        </tr>
+      </table>
+      <p>
+        An app with this key can act on your behalf with the access listed above. Signers still sign
+        from their own link.
+      </p>
+      <p class="muted">
+        Didn't create this key? Revoke it now in Settings → Developers. This email never contains
+        the key itself.
+      </p>
+
+      <table
+        role="presentation"
+        cellspacing="0"
+        cellpadding="0"
+        border="0"
+        style="margin-top: 18px; border-collapse: separate"
+      >
+        <tr>
+          <td>
+            <a
+              href="{{settings_url}}"
+              class="cta cta-primary"
+              target="_blank"
+              rel="noopener noreferrer"
+              style="
+                display: inline-block;
+                padding: 10px 18px;
+                background: #0b1220;
+                color: #ffffff !important;
+                text-decoration: none !important;
+                border: 1px solid #0b1220;
+                border-radius: 10px;
+                font-weight: 600;
+                font-size: 14px;
+                line-height: 1.2;
+                letter-spacing: -0.005em;
+                margin: 0;
+              "
+              >Review your keys</a
+            >
+          </td>
+        </tr>
+      </table>
+    </div>
+    <div class="foot">
+      <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
+      <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
+      <a href="{{preferences_url}}">Questions about these emails</a>
+    </div>
+  </div>
+</div>

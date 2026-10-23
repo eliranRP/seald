@@ -1,11 +1,13 @@
 import type { AxiosRequestConfig } from 'axios';
+import type { AnyFieldKind, FieldMetaOptions } from 'shared';
 import { signApiClient } from '@/lib/api/signApiClient';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
-export type FieldKind = 'signature' | 'initials' | 'date' | 'text' | 'checkbox' | 'email';
+/** Every kind the API knows; the four new ones only while `fieldMetaV2` is on (WP-07). */
+export type FieldKind = AnyFieldKind;
 export type SignatureFormat = 'drawn' | 'typed' | 'upload';
 
 export interface SignMeEnvelope {
@@ -17,6 +19,11 @@ export interface SignMeEnvelope {
   readonly expires_at: string;
   readonly tc_version: string;
   readonly privacy_version: string;
+  /** How date fields render (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly date_format?: string | null;
+  readonly timezone?: string | null;
+  /** Envelope language (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
 }
 export interface SignMeSigner {
   readonly id: string;
@@ -29,6 +36,8 @@ export interface SignMeSigner {
   readonly tc_accepted_at: string | null;
   readonly signed_at: string | null;
   readonly declined_at: string | null;
+  /** This signer's language override (WP-38). Present only while `i18n` is on. */
+  readonly locale?: string | null;
 }
 export interface SignMeField {
   readonly id: string;
@@ -44,6 +53,17 @@ export interface SignMeField {
   readonly value_text?: string | null;
   readonly value_boolean?: boolean | null;
   readonly filled_at?: string | null;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). `page` is 1-based within that document. */
+  readonly document_id?: string;
+  /** Per-kind options (WP-07). Present only while `fieldMetaV2` is on. */
+  readonly meta?: FieldMetaOptions;
+}
+/** One PDF of the envelope, as the signer sees it (WP-03; no hashes or paths). */
+export interface SignMeDocument {
+  readonly id: string;
+  readonly ord: number;
+  readonly title: string;
+  readonly original_pages: number | null;
 }
 export interface SignMeOtherSigner {
   readonly id: string;
@@ -55,6 +75,8 @@ export interface SignMeResponse {
   readonly signer: SignMeSigner;
   readonly fields: ReadonlyArray<SignMeField>;
   readonly other_signers: ReadonlyArray<SignMeOtherSigner>;
+  /** Present only while `multiDocumentEnvelopes` is on (WP-03). */
+  readonly documents?: ReadonlyArray<SignMeDocument>;
 }
 
 export interface StartSessionInput {
@@ -65,6 +87,23 @@ export interface StartSessionResponse {
   readonly envelope_id: string;
   readonly signer_id: string;
   readonly requires_tc_accept: boolean;
+}
+
+/**
+ * `POST /sign/start` when the sender asked for an emailed one-time code
+ * (WP-10, flag `signerAccessAuth`). No session exists yet: the signer asks
+ * for and enters the code first. Never returned while the flag is off.
+ */
+export interface StartSessionAccessCodeRequired {
+  readonly status: 'access_code_required';
+  readonly envelope_id: string;
+  readonly signer_id: string;
+  readonly email_masked: string;
+}
+export type StartSessionResult = StartSessionResponse | StartSessionAccessCodeRequired;
+
+export function isAccessCodeRequired(r: StartSessionResult): r is StartSessionAccessCodeRequired {
+  return 'status' in r && r.status === 'access_code_required';
 }
 
 export type FillValue = { readonly value_text: string } | { readonly value_boolean: boolean };
@@ -104,8 +143,8 @@ function configWithSignal(signal?: AbortSignal): AxiosRequestConfig {
 export async function startSession(
   input: StartSessionInput,
   signal?: AbortSignal,
-): Promise<StartSessionResponse> {
-  const { data } = await signApiClient.post<StartSessionResponse>(
+): Promise<StartSessionResult> {
+  const { data } = await signApiClient.post<StartSessionResult>(
     '/sign/start',
     input,
     configWithSignal(signal),
@@ -199,10 +238,15 @@ export async function uploadSignature(
   return data;
 }
 
-export async function submit(signal?: AbortSignal): Promise<SubmitResponse> {
+/**
+ * `accessCode` is the fresh emailed code when the sender asked for a
+ * re-check before signing (WP-10). Without it the request has no body, as
+ * it always did.
+ */
+export async function submit(accessCode?: string, signal?: AbortSignal): Promise<SubmitResponse> {
   const { data } = await signApiClient.post<SubmitResponse>(
     '/sign/submit',
-    undefined,
+    accessCode !== undefined ? { access_code: accessCode } : undefined,
     configWithSignal(signal),
   );
   return data;
@@ -225,10 +269,13 @@ export async function decline(reason?: string, signal?: AbortSignal): Promise<De
  * Supabase storage doesn't emit `Access-Control-Allow-Credentials`, so
  * an unnecessary credentials flag would trip browser CORS.
  */
-export async function getPdfSignedUrl(signal?: AbortSignal): Promise<string> {
-  const { data } = await signApiClient.get<{ readonly url: string }>(
-    '/sign/pdf',
-    configWithSignal(signal),
-  );
+export async function getPdfSignedUrl(signal?: AbortSignal, documentId?: string): Promise<string> {
+  // `document_id` picks one document of a multi-document envelope (WP-03);
+  // omitted, the API serves document 1 exactly as before.
+  const config: AxiosRequestConfig =
+    documentId !== undefined
+      ? { ...configWithSignal(signal), params: { document_id: documentId } }
+      : configWithSignal(signal);
+  const { data } = await signApiClient.get<{ readonly url: string }>('/sign/pdf', config);
   return data.url;
 }

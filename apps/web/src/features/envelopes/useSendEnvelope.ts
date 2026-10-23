@@ -1,13 +1,64 @@
 import { useCallback, useState } from 'react';
+import { isFeatureEnabled, resolveExpiresAt } from 'shared';
 import {
   addEnvelopeSigner,
   createEnvelope,
   placeEnvelopeFields,
   sendEnvelope,
+  setEnvelopeSigningOrder,
   patchEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
-import type { FieldPlacement } from './envelopesApi';
+import { addEnvelopeDocument } from '@/features/documentEditor/documents/documentsApi';
+import type { FieldPlacement, PatchEnvelopeInput } from './envelopesApi';
+import { toSigningOrderRequest } from '@/features/signers/signingOrder/model';
+import type { SigningOrderValue } from '@/features/signers/signingOrder/model';
+import { patchEnvelopeAccessAuth } from '@/features/signers/accessAuth/accessAuthApi';
+import { toAccessAuthRequest } from '@/features/signers/accessAuth/model';
+import type { AccessAuthValue } from '@/features/signers/accessAuth/model';
+import type { SendReminderSettings } from './sendReminderSettings';
+
+/**
+ * Builds the one draft PATCH that runs before upload. Returns null when
+ * there is nothing to change, so the default send makes no extra request.
+ */
+function buildDraftPatch(input: SendEnvelopeInput): PatchEnvelopeInput | null {
+  const patch: {
+    date_format?: string;
+    timezone?: string;
+    locale?: string;
+    reminders_enabled?: boolean;
+    expires_at?: string;
+    reminder_first_after_days?: number;
+    reminder_interval_days?: number;
+    reminder_max?: number;
+  } = {};
+  if (input.remindersEnabled === false) patch.reminders_enabled = false;
+  const settings = input.reminderSettings;
+  if (settings !== undefined && isFeatureEnabled('customReminders')) {
+    patch.expires_at = resolveExpiresAt(settings.expiry, Date.now());
+    patch.reminder_first_after_days = settings.cadence.firstAfterDays;
+    patch.reminder_interval_days = settings.cadence.intervalDays;
+    patch.reminder_max = settings.cadence.maxReminders;
+  }
+  if (settings !== undefined && isFeatureEnabled('fieldMetaV2')) {
+    if (settings.dateFormat !== undefined && settings.dateFormat !== '') {
+      patch.date_format = settings.dateFormat;
+    }
+    if (settings.timezone !== undefined && settings.timezone !== '') {
+      patch.timezone = settings.timezone;
+    }
+  }
+  if (
+    settings !== undefined &&
+    isFeatureEnabled('i18n') &&
+    settings.locale !== undefined &&
+    settings.locale !== ''
+  ) {
+    patch.locale = settings.locale;
+  }
+  return Object.keys(patch).length > 0 ? patch : null;
+}
 
 /**
  * One entry in `SendEnvelopeInput.signers`. Two shapes (mirrors the API DTO
@@ -33,6 +84,13 @@ export type SendEnvelopeSignerInput =
       readonly color?: string;
     };
 
+export interface SendEnvelopeDocumentInput {
+  /** Id the editor uses on `PlacedFieldValue.documentId`. */
+  readonly localId: string;
+  readonly title: string;
+  readonly file: File | Blob;
+}
+
 /**
  * Input snapshot for the "send this draft" orchestration. The sender editor
  * keeps everything in local state while the user is placing fields. When
@@ -50,7 +108,18 @@ export interface SendEnvelopeInput {
   readonly buildFields: (
     /** Map: local signer id → server signer id returned by addSigner. */
     localSignerIdToServerSignerId: ReadonlyMap<string, string>,
+    /**
+     * Map: local document id → server document id. Empty unless `documents`
+     * was passed (multi-document draft, flag `multiDocumentEnvelopes`).
+     */
+    localDocumentIdToServerDocumentId: ReadonlyMap<string, string>,
   ) => ReadonlyArray<FieldPlacement>;
+  /**
+   * Multi-document drafts (WP-04, flag `multiDocumentEnvelopes`): every PDF
+   * in order. When present, each is added through `POST /envelopes/:id/documents`
+   * in this order instead of the single legacy upload of `file`.
+   */
+  readonly documents?: ReadonlyArray<SendEnvelopeDocumentInput>;
   /**
    * Optional sender identity for the final POST /envelopes/:id/send.
    * Used by guest mode (anonymous Supabase session, JWT has no email);
@@ -63,6 +132,24 @@ export interface SendEnvelopeInput {
    * send. Omitted or true keeps the server default (reminders on).
    */
   readonly remindersEnabled?: boolean;
+  /**
+   * Expiry and reminder cadence chosen in the send controls (WP-09). Sent
+   * with the draft patch only while `customReminders` is on.
+   */
+  readonly reminderSettings?: SendReminderSettings;
+  /**
+   * Signing order chosen in the recipient editor (WP-06). Used only while
+   * `signingOrder` is on and the sender chose "in order": the order is set
+   * through `PUT /envelopes/:id/signing-order` after the signers exist and
+   * before send. Rows are keyed by the same local ids as `signers`.
+   */
+  readonly signingOrder?: SigningOrderValue;
+  /**
+   * Emailed one-time code choice (WP-11). Used only while `signerAccessAuth`
+   * is on: saved through `PATCH /envelopes/:id/access-auth` after the signers
+   * exist and before send. Rows are keyed by the same local ids as `signers`.
+   */
+  readonly accessAuth?: AccessAuthValue;
 }
 
 export interface SendEnvelopeResult {
@@ -95,6 +182,8 @@ export interface UseSendEnvelope {
  *   2. POST /envelopes/:id/upload   (multipart file)
  *   3. POST /envelopes/:id/signers  (per contact)
  *   4. PUT  /envelopes/:id/fields   (all fields, normalized coords)
+ *      PUT  /envelopes/:id/signing-order (only when `signingOrder` is on and ordered)
+ *      PATCH /envelopes/:id/access-auth (only when `signerAccessAuth` is on and a code is asked for)
  *   5. POST /envelopes/:id/send
  *
  * The hook is not a `useMutation` because we want progressive `phase` state
@@ -114,12 +203,23 @@ export function useSendEnvelope(): UseSendEnvelope {
     try {
       setPhase('creating');
       const envelope = await createEnvelope({ title: input.title });
-      if (input.remindersEnabled === false) {
-        await patchEnvelope(envelope.id, { reminders_enabled: false });
+      const draftPatch = buildDraftPatch(input);
+      if (draftPatch !== null) {
+        await patchEnvelope(envelope.id, draftPatch);
       }
 
       setPhase('uploading');
-      await uploadEnvelopeFile(envelope.id, input.file);
+      const localDocumentIdToServerDocumentId = new Map<string, string>();
+      if (input.documents !== undefined && input.documents.length > 0) {
+        // Sequential: the server assigns `ord` by arrival, so call order is
+        // the order the sender arranged.
+        for (const d of input.documents) {
+          const added = await addEnvelopeDocument(envelope.id, d.file, d.title);
+          localDocumentIdToServerDocumentId.set(d.localId, added.id);
+        }
+      } else {
+        await uploadEnvelopeFile(envelope.id, input.file);
+      }
 
       setPhase('adding-signers');
       const localSignerIdToServerSignerId = new Map<string, string>();
@@ -139,9 +239,22 @@ export function useSendEnvelope(): UseSendEnvelope {
       }
 
       setPhase('placing-fields');
-      const fields = input.buildFields(localSignerIdToServerSignerId);
+      const fields = input.buildFields(
+        localSignerIdToServerSignerId,
+        localDocumentIdToServerDocumentId,
+      );
       if (fields.length > 0) {
         await placeEnvelopeFields(envelope.id, fields);
+      }
+
+      if (input.signingOrder !== undefined && isFeatureEnabled('signingOrder')) {
+        const order = toSigningOrderRequest(input.signingOrder, localSignerIdToServerSignerId);
+        if (order !== null) await setEnvelopeSigningOrder(envelope.id, order);
+      }
+
+      if (input.accessAuth !== undefined && isFeatureEnabled('signerAccessAuth')) {
+        const body = toAccessAuthRequest(input.accessAuth, localSignerIdToServerSignerId);
+        if (body !== null) await patchEnvelopeAccessAuth(envelope.id, body);
       }
 
       setPhase('sending');

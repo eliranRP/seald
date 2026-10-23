@@ -4,6 +4,9 @@ import {
   Check,
   CheckSquare,
   ChevronRight,
+  ChevronsUpDown,
+  CircleDot,
+  Hash,
   Mail,
   PenTool,
   TextCursorInput,
@@ -33,6 +36,9 @@ const KIND_ICON: Record<SignerFieldKind, LucideIcon> = {
   checkbox: CheckSquare,
   email: Mail,
   name: User,
+  number: Hash,
+  radio: CircleDot,
+  dropdown: ChevronsUpDown,
 };
 
 function deriveTone(filled: boolean, active: boolean, required: boolean): Tone {

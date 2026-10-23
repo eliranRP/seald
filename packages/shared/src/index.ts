@@ -1,6 +1,21 @@
 export * from './signer';
+export * from './signer-access-auth';
 export { FEATURE_FLAGS, isFeatureEnabled } from './feature-flags';
-export { MAX_AUTOMATED_REMINDERS } from './reminders';
+export {
+  DEFAULT_REMINDER_CADENCE,
+  EXPIRY_MAX_DAYS,
+  EXPIRY_MIN_DAYS,
+  EXPIRY_PRESET_DAYS,
+  MAX_AUTOMATED_REMINDERS,
+  REMINDER_CADENCE_BOUNDS,
+  expiryDateBounds,
+  expiryMaxMs,
+  isExpiryWithinBounds,
+  isReminderCadenceValid,
+  reminderCadenceSummary,
+  resolveExpiresAt,
+} from './reminders';
+export type { ExpirySelection, ReminderCadence } from './reminders';
 export type { FeatureFlag } from './feature-flags';
 export {
   ESIGN_DISCLOSURE_VERSION,
@@ -12,6 +27,7 @@ export {
 export {
   SIGNATURE_LEVEL_NOTE,
   INTENT_TO_SIGN_NOTE,
+  INTENT_TO_SIGN_MCP_NOTE,
   RECORD_ACCESS_ATTESTATION,
   AGE_CONSENT_PREFIX,
   AGE_CONSENT_ARIA_LABEL,
@@ -27,11 +43,13 @@ export {
   SEAL_DOWNLOAD_ERROR,
 } from './product-claims';
 export type { EsignExcludedCategory, SignerAuthTier } from './compliance';
-export { TEMPLATE_FIELD_TYPES } from './templates';
+export { TEMPLATE_FIELD_TYPES, TEMPLATE_FIELD_TYPES_V2, expandTemplateFields } from './templates';
 export type {
+  ResolvedTemplateField,
   Template,
   TemplateField,
   TemplateFieldType,
+  AnyTemplateFieldType,
   TemplatePageRule,
   TemplateLastSigner,
   CreateTemplateInput,
@@ -68,6 +86,13 @@ export {
   EnvelopeListResponseSchema,
   VerifyResponseSchema,
   ErrorSlugs,
+  MAX_ENVELOPE_DOCUMENTS,
+  EnvelopeDocumentSchema,
+  ReorderDocumentsRequestSchema,
+  EnvelopeDocumentListResponseSchema,
+  VerifyDocumentSchema,
+  MAX_SIGNING_ORDER,
+  SetSigningOrderRequestSchema,
 } from './envelope-contract';
 export type {
   EnvelopeStatus,
@@ -95,4 +120,114 @@ export type {
   EnvelopeListResponse,
   VerifyResponse,
   ErrorSlug,
+  EnvelopeDocument,
+  ReorderDocumentsRequest,
+  EnvelopeDocumentListResponse,
+  VerifyDocument,
+  SetSigningOrderRequest,
 } from './envelope-contract';
+export * from './locales';
+export * from './direct-links';
+export {
+  ALL_FIELD_KINDS,
+  NEW_FIELD_KINDS,
+  FIELD_FONT_SIZE,
+  FIELD_OPTIONS_MAX,
+  FIELD_VALUE_MAX_CHARS,
+  NUMBER_FORMATS,
+  FieldMetaSchema,
+  FieldMetaWireSchema,
+  isNewFieldKind,
+  parseFieldMeta,
+  isValidEmailValue,
+  parseNumberValue,
+  formatNumberValue,
+  validateTextValue,
+} from './field-meta';
+export type {
+  AnyFieldKind,
+  NewFieldKind,
+  NumberFormat,
+  FieldOption,
+  FieldMeta,
+  FieldMetaOptions,
+  FieldMetaIssue,
+  ParseFieldMetaResult,
+  FieldValueError,
+} from './field-meta';
+export {
+  DATE_FORMATS,
+  isDateFormat,
+  isValidTimeZone,
+  isRealCalendarDate,
+  calendarDateInZone,
+  formatCalendarDate,
+  parseDateValue,
+  renderDateValue,
+} from './date-format';
+export type { DateFormat, CalendarDate } from './date-format';
+export {
+  AUTOMATION_SCOPES,
+  AUTOMATION_TRIGGERS,
+  AUTOMATION_ACTIONS,
+  AUTOMATION_RUN_STATUSES,
+  AUTOMATION_TRIGGER_BY_EVENT_TYPE,
+  AUTOMATION_RECIPE_IDS,
+  AUTOMATION_RECIPES,
+  MAX_AUTOMATIONS_PER_OWNER,
+  MAX_AUTOMATION_EMAIL_RECIPIENTS,
+  AUTOMATION_MAX_ATTEMPTS,
+  AUTOMATION_TEST_PER_RECIPE_PER_MINUTE,
+  AUTOMATION_TEST_PER_OWNER_PER_MINUTE,
+  automationTriggerForEvent,
+} from './automations';
+export type {
+  AutomationScope,
+  AutomationTrigger,
+  AutomationAction,
+  AutomationRunStatus,
+  AutomationRecipeId,
+  AutomationRecipe,
+  AutomationTestResult,
+} from './automations';
+export {
+  API_KEY_PREFIX,
+  API_KEY_PREFIX_SECRET_CHARS,
+  API_KEY_MAX_LIVE,
+  API_KEY_DEFAULT_TTL_DAYS,
+  API_KEY_MAX_TTL_DAYS,
+  API_KEY_TTL_CHOICES_DAYS,
+  API_KEY_NAME_MAX,
+  API_KEY_SCOPES,
+  API_KEY_DEFAULT_SCOPES,
+  API_KEY_FRESH_LOGIN_SCOPES,
+  API_KEY_FRESH_LOGIN_MAX_AGE_SECONDS,
+  API_KEY_STATUSES,
+  isApiKeyScope,
+  requiresFreshLogin,
+  ApiKeySchema,
+  ApiKeyListResponseSchema,
+  CreateApiKeyRequestSchema,
+  CreateApiKeyResponseSchema,
+  RevokeApiKeyResponseSchema,
+} from './api-keys';
+export type {
+  ApiKeyScope,
+  ApiKeyStatus,
+  ApiKey,
+  ApiKeyListResponse,
+  CreateApiKeyRequest,
+  CreateApiKeyResponse,
+  RevokeApiKeyResponse,
+} from './api-keys';
+export * from './mcp';
+export * from './mcp-write';
+export * from './mcp-automations';
+export * from './automations-api';
+export * from './mcp-contacts-templates';
+export * from './approvals';
+export * from './bulk-send';
+export * from './mcp-send';
+export * from './mcp-later';
+export * from './mcp-account';
+export * from './mcp-oauth';

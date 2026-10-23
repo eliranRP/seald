@@ -7,10 +7,15 @@ export type SignerFieldKind =
   | 'text'
   | 'checkbox'
   | 'email'
-  | 'name';
+  | 'name'
+  | 'number'
+  | 'radio'
+  | 'dropdown';
 
-export interface SignerFieldProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'value'> {
+export interface SignerFieldProps extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  'children' | 'value'
+> {
   readonly kind: SignerFieldKind;
   readonly label: string;
   readonly required: boolean;

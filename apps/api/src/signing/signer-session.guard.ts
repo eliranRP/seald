@@ -1,5 +1,6 @@
 import {
   type CanActivate,
+  ConflictException,
   type ExecutionContext,
   GoneException,
   Injectable,
@@ -14,6 +15,7 @@ import {
   SignerSessionService,
   SignerSessionVerifyError,
 } from './signer-session.service';
+import { isSignersTurn } from './signing-order';
 
 /**
  * Shape attached to `req` after successful authentication. Signer endpoints
@@ -40,6 +42,7 @@ export interface RequestWithSignerSession extends Request {
  *   claims reference missing rows   → 401 invalid_signer_session
  *   envelope now terminal           → 410 envelope_terminal
  *   signer already signed/declined  → 410 envelope_terminal
+ *   sequential step not active yet  → 409 not_your_turn (WP-05)
  */
 @Injectable()
 export class SignerSessionGuard implements CanActivate {
@@ -83,6 +86,10 @@ export class SignerSessionGuard implements CanActivate {
     }
     if (signer.signed_at !== null || signer.declined_at !== null) {
       throw new GoneException('envelope_terminal');
+    }
+    // WP-05: a later sequential step cannot act before its turn.
+    if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
+      throw new ConflictException('not_your_turn');
     }
 
     req.signerSession = { envelope, signer };

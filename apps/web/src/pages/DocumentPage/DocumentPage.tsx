@@ -24,6 +24,11 @@ import { PlacedField } from '@/components/PlacedField';
 import { RemoveLinkedCopiesDialog } from '@/components/RemoveLinkedCopiesDialog';
 import { SelectSignersPopover } from '@/components/SelectSignersPopover';
 import { ReminderToggle } from '@/components/ReminderToggle';
+import { DateFormatSettings } from '@/components/DateFormatSettings';
+import { LocaleSettings } from '@/components/LocaleSettings';
+import { SendSettings } from '@/components/SendSettings';
+import { SigningOrderEditor } from '@/features/signers/signingOrder';
+import { AccessAuthEditor } from '@/features/signers/accessAuth';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { SendPanelFooter } from '@/components/SendPanelFooter';
 import { SignersPanel } from '@/components/SignersPanel';
@@ -45,6 +50,11 @@ import {
   usePlacement,
   useUndoStack,
 } from '@/features/documentEditor';
+import {
+  FieldPropertiesPanel,
+  hasSettingsPanel,
+  type FieldPropertiesChange,
+} from '@/features/documentEditor/fieldProperties';
 import type { DocumentPageProps } from './DocumentPage.types';
 import {
   Body,
@@ -109,10 +119,19 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     onSend,
     remindersEnabled,
     onRemindersEnabledChange,
+    reminderSettings,
+    onReminderSettingsChange,
+    signingOrder,
+    onSigningOrderChange,
+    accessAuth,
+    onAccessAuthChange,
     onSaveDraft,
     onBack,
     onSaveAsTemplate,
     banner,
+    documentSwitcher,
+    documentsPanel,
+    sendTotals,
     sendLabel,
     templateMode,
     templateName,
@@ -299,6 +318,30 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
     resetZoom,
   });
 
+  // ------------------------------------------------------- field settings (WP-08)
+  // Flag `fieldMetaV2`: the panel shows for one selected field of a kind with
+  // settings. An edit applies to the field and its linked copies, so a
+  // field repeated on every page stays consistent.
+  const settingsField =
+    singleSelectedId !== null ? fields.find((f) => f.id === singleSelectedId) : undefined;
+  const applyFieldProperties = useCallback(
+    (id: string, patch: FieldPropertiesChange): void => {
+      const source = fields.find((f) => f.id === id);
+      if (!source) return;
+      onFieldsChange(
+        fields.map((f) => {
+          if (f.id !== id && (source.linkId === undefined || f.linkId !== source.linkId)) return f;
+          return {
+            ...f,
+            ...(patch.required !== undefined ? { required: patch.required } : {}),
+            ...('meta' in patch ? { meta: patch.meta } : {}),
+          };
+        }),
+      );
+    },
+    [fields, onFieldsChange],
+  );
+
   // ------------------------------------------------------------------ signer
   const handlePickContact = useCallback(
     (contact: AddSignerContact): void => {
@@ -366,6 +409,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               </CenterHeader>
             </CenterTop>
 
+            {documentSwitcher ?? null}
             {banner ? <BannerSlot>{banner}</BannerSlot> : null}
 
             <CanvasScroll ref={canvasScrollRef}>
@@ -576,6 +620,7 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
           >
             <RightRailInner>
               <RightRailScroll>
+                {documentsPanel ?? null}
                 {isTemplateAuthoring ? (
                   // Template-authoring mode: explanatory summary card
                   // sits where the Signers panel would. Signers are
@@ -611,8 +656,29 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                       onRequestAdd={() => setAddSignerOpen((v) => !v)}
                       {...(onRemoveSigner ? { onRemoveSigner } : {})}
                     />
+                    {signingOrder && onSigningOrderChange ? (
+                      <SigningOrderEditor
+                        signers={signers}
+                        value={signingOrder}
+                        onChange={onSigningOrderChange}
+                      />
+                    ) : null}
+                    {accessAuth && onAccessAuthChange ? (
+                      <AccessAuthEditor
+                        signers={signers}
+                        value={accessAuth}
+                        onChange={onAccessAuthChange}
+                      />
+                    ) : null}
                   </>
                 )}
+                {settingsField !== undefined && hasSettingsPanel(settingsField.type) ? (
+                  <FieldPropertiesPanel
+                    key={settingsField.id}
+                    field={settingsField}
+                    onChange={(patch) => applyFieldProperties(settingsField.id, patch)}
+                  />
+                ) : null}
                 <FieldsPlacedList
                   fields={fieldsSummary}
                   signers={placedFieldSigners}
@@ -659,14 +725,30 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
               ) : (
                 <RightRailFooter>
                   <ReminderSlot>
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <SendSettings value={reminderSettings} onChange={onReminderSettingsChange} />
+                    ) : null}
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <DateFormatSettings
+                        value={reminderSettings}
+                        onChange={onReminderSettingsChange}
+                      />
+                    ) : null}
+                    {reminderSettings && onReminderSettingsChange ? (
+                      <LocaleSettings
+                        value={reminderSettings}
+                        onChange={onReminderSettingsChange}
+                      />
+                    ) : null}
                     <ReminderToggle
                       enabled={reminders.enabled}
                       pending={reminders.pending}
                       onChange={reminders.onChange}
+                      cadence={reminderSettings?.cadence}
                     />
                   </ReminderSlot>
                   <SendPanelFooter
-                    fieldCount={fields.length}
+                    fieldCount={sendTotals?.fieldCount ?? fields.length}
                     /* The seald API rejects envelopes without a signature
                        (`signer_without_signature_field`). Surface the
                        constraint as a UI gate: count placed signatures
@@ -674,7 +756,10 @@ export const DocumentPage = forwardRef<HTMLDivElement, DocumentPageProps>((props
                        Templates flow doesn't go through this branch
                        (uses TemplatePrimaryFooter above) so this only
                        applies to the regular envelope flow. */
-                    signatureFieldCount={fields.filter((f) => f.type === 'signature').length}
+                    signatureFieldCount={
+                      sendTotals?.signatureFieldCount ??
+                      fields.filter((f) => f.type === 'signature').length
+                    }
                     signerCount={signers.length}
                     onSend={onSend}
                     {...(onSaveDraft ? { onSaveDraft } : {})}

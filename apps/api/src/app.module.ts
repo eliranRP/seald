@@ -2,18 +2,23 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
+import { AutomationsModule } from './automations/automations.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ConfigModule } from './config/config.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { DbModule } from './db/db.module';
+import { DirectLinksModule } from './direct-links/direct-links.module';
 import { GDriveModule } from './integrations/gdrive/gdrive.module';
 import { ConversionModule } from './integrations/gdrive/conversion/conversion.module';
 import { EmailModule } from './email/email.module';
 import { CronModule } from './cron/cron.module';
 import { EnvelopesModule } from './envelopes/envelopes.module';
 import { HealthModule } from './health/health.module';
+import { McpModule } from './mcp/mcp.module';
 import { MeModule } from './me/me.module';
+import { PublicApiModule } from './public-api/public-api.module';
 import { SealingModule } from './sealing/sealing.module';
+import { BulkModule } from './bulk/bulk.module';
 import { TemplatesModule } from './templates/templates.module';
 import { VerifyModule } from './verify/verify.module';
 import { SigningModule } from './signing/signing.module';
@@ -48,12 +53,21 @@ import { StorageModule } from './storage/storage.module';
     ContactsModule,
     EnvelopesModule,
     TemplatesModule,
+    // WP-36: bulk CSV send from a template, dark behind `bulkSend`.
+    BulkModule,
     MeModule,
     SealingModule,
     VerifyModule,
     CronModule,
     GDriveModule,
     ConversionModule,
+    AutomationsModule,
+    // WP-17: POST /mcp, dark behind `mcpServer` + MCP_DISABLED.
+    McpModule,
+    // WP-35: /api/v1, dark behind `publicApi`.
+    PublicApiModule,
+    // WP-37: /templates/:id/direct-link and /direct-links/:token, dark behind `directLinks`.
+    DirectLinksModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

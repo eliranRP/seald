@@ -61,6 +61,31 @@ describe('apiClient response interceptor', () => {
     );
   });
 
+  it("carries the API's `{ error: '<slug>' }` as `code`, and a `code` field wins", async () => {
+    const reject =
+      (data: unknown): AxiosAdapter =>
+      (config) => {
+        const response = { data, status: 409, statusText: 'Conflict', headers: {}, config };
+        return Promise.reject(
+          new AxiosError(
+            'Request failed with status code 409',
+            'ERR_BAD_REQUEST',
+            config,
+            null,
+            response as unknown as AxiosResponse,
+          ),
+        );
+      };
+    await expect(
+      withAdapter(reject({ error: 'automation_limit_reached' }), () => apiClient.post('/x', {})),
+    ).rejects.toMatchObject({ status: 409, code: 'automation_limit_reached' });
+    await expect(
+      withAdapter(reject({ code: 'token-expired', error: 'other' }), () =>
+        apiClient.post('/x', {}),
+      ),
+    ).rejects.toMatchObject({ code: 'token-expired' });
+  });
+
   it('joins array messages from class-validator into a single string', async () => {
     const adapter: AxiosAdapter = (config) => {
       const response = {
@@ -82,6 +107,29 @@ describe('apiClient response interceptor', () => {
     await expect(withAdapter(adapter, () => apiClient.post('/envelopes', {}))).rejects.toThrow(
       /title must be a string, title should not be empty/,
     );
+  });
+
+  it('keeps the API error slug from `{ error }` bodies as `code`', async () => {
+    const adapter: AxiosAdapter = (config) => {
+      const response = {
+        data: { error: 'fresh_login_required' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+      };
+      const err = new AxiosError(
+        'Request failed with status code 403',
+        'ERR_BAD_REQUEST',
+        config,
+        null,
+        response as unknown as AxiosResponse,
+      );
+      return Promise.reject(err);
+    };
+    await expect(
+      withAdapter(adapter, () => apiClient.post('/approvals/x/approve', {})),
+    ).rejects.toMatchObject({ status: 403, code: 'fresh_login_required' });
   });
 
   // Bug C regression (2026-05-03): users hitting Send while the API was

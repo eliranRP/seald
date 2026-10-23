@@ -94,4 +94,11 @@ describe('isAutomatedReminderDue', () => {
   it('skips a signer who was never invited', () => {
     expect(isAutomatedReminderDue(clock({ invitedAtMs: null }), NOW)).toBe(false);
   });
+
+  it('WP-05: skips a signer whose sequential step has not started', () => {
+    expect(isAutomatedReminderDue(clock({ stepActive: false }), NOW)).toBe(false);
+    expect(isAutomatedReminderDue(clock({ stepActive: true }), NOW)).toBe(true);
+    // Omitted (parallel, or a pre-WP-05 caller) keeps today's answer.
+    expect(isAutomatedReminderDue(clock(), NOW)).toBe(true);
+  });
 });

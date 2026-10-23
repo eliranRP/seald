@@ -21,6 +21,9 @@ const DEFAULT_FIELD_W: Record<SignerFieldKind, number> = {
   text: 240,
   email: 240,
   checkbox: 24,
+  number: 140,
+  radio: 200,
+  dropdown: 200,
 };
 
 const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
@@ -31,6 +34,9 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   text: 36,
   email: 36,
   checkbox: 24,
+  number: 36,
+  radio: 72,
+  dropdown: 36,
 };
 
 /* ------------------------------------------------------------------ */

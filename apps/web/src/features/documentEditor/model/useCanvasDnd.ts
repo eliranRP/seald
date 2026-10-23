@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import type { DragEvent, MouseEvent as ReactMouseEvent } from 'react';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { FieldKind } from '@/types/sealdTypes';
+import { defaultFieldMeta } from '../fieldProperties/fieldMetaForm';
 import type { DocumentPageSigner } from '@/pages/DocumentPage/DocumentPage.types';
 import {
   FIELD_HEIGHT,
@@ -113,6 +114,7 @@ export function useCanvasDnd({
       // way to say "this single field is for just one of the
       // signers" without first deleting the auto-generated extras.
       const signerIds = signers.map((s) => s.id);
+      const defaultMeta = defaultFieldMeta(kind);
       const dropped: PlacedFieldValue = {
         id: makeId(),
         page: dropPage,
@@ -122,6 +124,7 @@ export function useCanvasDnd({
         width: fw,
         height: fh,
         signerIds,
+        ...(defaultMeta !== undefined ? { meta: defaultMeta } : {}),
       };
       pushUndo(fields);
       onFieldsChange([...fields, dropped]);

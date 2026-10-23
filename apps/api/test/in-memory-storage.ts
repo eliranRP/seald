@@ -1,4 +1,4 @@
-import { StorageService } from '../src/storage/storage.service';
+import { StorageService, type SignedUpload } from '../src/storage/storage.service';
 
 /**
  * In-memory StorageService used by the envelopes e2e. Tracks uploaded bytes
@@ -32,6 +32,21 @@ export class InMemoryStorageService extends StorageService {
   async exists(path: string): Promise<boolean> {
     return this.objects.has(path);
   }
+
+  /** Tests write the bytes with `upload(path, …)`, as the client's PUT would. */
+  override async createSignedUploadUrl(
+    path: string,
+    _expiresInSeconds: number,
+  ): Promise<SignedUpload> {
+    this.signedUploads.push(path);
+    return {
+      url: `https://test.invalid/upload/${encodeURIComponent(path)}?token=test`,
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/pdf' },
+    };
+  }
+
+  readonly signedUploads: string[] = [];
 
   // Test-only helpers
   allPaths(): string[] {

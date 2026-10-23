@@ -16,6 +16,7 @@ import { RateLimitedError } from '../../integrations/gdrive/rate-limiter';
 import { EnvelopesController } from '../envelopes.controller';
 import type { EnvelopesService } from '../envelopes.service';
 import type { Envelope } from '../envelopes.repository';
+import type { EnvelopeDocumentsService } from '../documents/envelope-documents.service';
 
 /**
  * Pure controller-level coverage. Every route is invoked directly with a
@@ -59,7 +60,7 @@ describe('EnvelopesController', () => {
       getDownloadUrl: jest.fn(),
       saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
-    controller = new EnvelopesController(svc);
+    controller = new EnvelopesController(svc, {} as EnvelopeDocumentsService);
   });
 
   function makeRequest(opts?: {
@@ -472,12 +473,15 @@ describe('EnvelopesController', () => {
       expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', undefined);
     });
 
-    it.each(['sealed', 'original', 'audit'] as const)('forwards kind=%s verbatim', async (kind) => {
-      svc.getDownloadUrl.mockResolvedValue({ ...reply, kind });
-      const out = await controller.download(USER, 'env-1', kind);
-      expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', kind);
-      expect(out.kind).toBe(kind);
-    });
+    it.each(['sealed', 'original', 'audit', 'declined'] as const)(
+      'forwards kind=%s verbatim',
+      async (kind) => {
+        svc.getDownloadUrl.mockResolvedValue({ ...reply, kind });
+        const out = await controller.download(USER, 'env-1', kind);
+        expect(svc.getDownloadUrl).toHaveBeenCalledWith(USER.id, 'env-1', kind);
+        expect(out.kind).toBe(kind);
+      },
+    );
 
     it('400 invalid_kind on unsupported kind', () => {
       expect(() => controller.download(USER, 'env-1', 'evil')).toThrow(BadRequestException);

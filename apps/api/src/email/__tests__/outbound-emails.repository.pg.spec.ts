@@ -62,7 +62,7 @@ describe('OutboundEmailsPgRepository', () => {
         kind: 'invite',
         to_email: 'ada@example.com',
         to_name: 'Ada',
-        payload: { sign_url: 'https://x/sign?t=abc' },
+        payload: { envelope_title: 'MSA' },
         source_event_id: eventId,
       });
       expect(row.id).toMatch(/^[0-9a-f-]{36}$/i);
@@ -70,8 +70,61 @@ describe('OutboundEmailsPgRepository', () => {
       expect(row.status).toBe('pending');
       expect(row.attempts).toBe(0);
       expect(row.max_attempts).toBe(8);
-      expect(row.payload).toEqual({ sign_url: 'https://x/sign?t=abc' });
+      expect(row.payload).toEqual({ envelope_title: 'MSA' });
       expect(row.sent_at).toBeNull();
+    });
+
+    it('refuses a payload that carries a signing link (Insert A)', async () => {
+      const { envelopeId, signerId, eventId } = await seedEnvelopeAndSigner(handle, ownerId);
+      for (const payload of [
+        { sign_url: 'https://x/sign/e' },
+        {
+          cta: 'https://x/sign/3f0c2a9e-5b1d-4c7e-9a2b-1d2e3f4a5b6c?t=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        },
+        {
+          cta: 'https://x/sign/3f0c2a9e-5b1d-4c7e-9a2b-1d2e3f4a5b6c?a=1&t=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        },
+      ]) {
+        await expect(
+          repo.insert({
+            envelope_id: envelopeId,
+            signer_id: signerId,
+            kind: 'invite',
+            to_email: 'ada@example.com',
+            to_name: 'Ada',
+            payload,
+            source_event_id: eventId,
+          }),
+        ).rejects.toThrow(/signer_token_in_outbound_payload/);
+        await expect(
+          repo.insertMany([
+            {
+              envelope_id: envelopeId,
+              signer_id: signerId,
+              kind: 'invite',
+              to_email: 'ada@example.com',
+              to_name: 'Ada',
+              payload,
+            },
+          ]),
+        ).rejects.toThrow(/signer_token_in_outbound_payload/);
+      }
+      expect(await repo.listByEnvelope(envelopeId)).toHaveLength(0);
+
+      // A user-controlled title that only looks like a query param is kept.
+      for (const title of ['Lease?t=final', 'Q&t=2 plan', 'see /sign/here?t=short']) {
+        const row = await repo.insertMany([
+          {
+            envelope_id: envelopeId,
+            signer_id: signerId,
+            kind: 'invite',
+            to_email: 'ada@example.com',
+            to_name: 'Ada',
+            payload: { envelope_title: title },
+          },
+        ]);
+        expect(row[0]?.payload).toEqual({ envelope_title: title });
+      }
     });
 
     it('allows independent rows for the same signer when source_event_id differs', async () => {

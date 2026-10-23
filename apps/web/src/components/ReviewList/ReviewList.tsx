@@ -2,6 +2,9 @@ import { forwardRef } from 'react';
 import {
   Calendar,
   CheckSquare,
+  ChevronsUpDown,
+  CircleDot,
+  Hash,
   Mail,
   PenTool,
   TextCursorInput,
@@ -30,6 +33,9 @@ const KIND_ICON: Record<ReviewFieldKind, LucideIcon> = {
   checkbox: CheckSquare,
   email: Mail,
   name: User,
+  number: Hash,
+  radio: CircleDot,
+  dropdown: ChevronsUpDown,
 };
 
 /**
@@ -49,11 +55,22 @@ export const ReviewList = forwardRef<HTMLDivElement, ReviewListProps>((props, re
           </IconBadge>
           <LabelStack>
             <LabelText>{item.label}</LabelText>
-            <PageText>Page {item.page}</PageText>
+            <PageText>
+              Page {item.page}
+              {item.documentTitle !== undefined ? ` · ${item.documentTitle}` : null}
+            </PageText>
           </LabelStack>
           <ValueSlot>{item.valuePreview}</ValueSlot>
           {item.onEdit ? (
-            <EditBtn type="button" onClick={item.onEdit} aria-label={`Edit ${item.label}`}>
+            <EditBtn
+              type="button"
+              onClick={item.onEdit}
+              aria-label={
+                item.documentTitle !== undefined
+                  ? `Edit ${item.label} in ${item.documentTitle}`
+                  : `Edit ${item.label}`
+              }
+            >
               Edit
             </EditBtn>
           ) : null}

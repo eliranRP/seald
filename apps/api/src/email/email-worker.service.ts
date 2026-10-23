@@ -17,6 +17,11 @@ import { EmailDispatcherService } from './email-dispatcher.service';
  *
  * The cron endpoint `POST /internal/cron/flush-emails` remains available
  * for operators who want external scheduling or a manual kick.
+ *
+ * Signer links are minted inside the drain, not at enqueue (MCP Insert A):
+ * each invite or reminder send stores a new token hash on the signer and
+ * renders the link into that message only. With this worker off and no
+ * cron flush, queued invites carry no working link anywhere.
  */
 @Injectable()
 export class EmailWorkerService implements OnModuleInit, OnModuleDestroy {

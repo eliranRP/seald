@@ -4,6 +4,8 @@ import type { AppEnv } from '../../../config/env.schema';
 import { StorageService } from '../../../storage/storage.service';
 import { GDriveModule } from '../gdrive.module';
 import { GDriveService } from '../gdrive.service';
+import { GDriveRateLimiter } from '../rate-limiter';
+import { DriveImportService } from './drive-import.service';
 import { ConversionController } from './conversion.controller';
 import { ConversionGateway } from './conversion.gateway';
 import { makeDriveFetcher, makeGotenbergClient } from './conversion.adapters';
@@ -11,6 +13,7 @@ import {
   CONVERSION_ASSET_WRITER,
   CONVERSION_MAX_BYTES,
   ConversionService,
+  conversionAssetPath,
   DRIVE_FETCHER,
   GOTENBERG_CLIENT,
   type ConversionAssetWriter,
@@ -47,7 +50,7 @@ const ConversionAssetWriterProvider: Provider = {
   inject: [StorageService],
   useFactory: (storage: StorageService): ConversionAssetWriter => {
     return async ({ userId, jobId, bytes }): Promise<{ url: string }> => {
-      const path = `gdrive-conversions/${userId}/${jobId}.pdf`;
+      const path = conversionAssetPath(userId, jobId);
       await storage.upload(path, bytes, 'application/pdf');
       const url = await storage.createSignedUrl(path, 60 * 60);
       return { url };
@@ -64,6 +67,7 @@ const ConversionServiceProvider: Provider = {
     GOTENBERG_CLIENT,
     CONVERSION_MAX_BYTES,
     CONVERSION_ASSET_WRITER,
+    GDriveRateLimiter,
   ],
   useFactory: (
     drive: GDriveService,
@@ -72,8 +76,9 @@ const ConversionServiceProvider: Provider = {
     gotenberg: GotenbergClient,
     maxBytes: number,
     writer: ConversionAssetWriter,
+    limiter: GDriveRateLimiter,
   ): ConversionService =>
-    new ConversionService(drive, gateway, fetcher, gotenberg, maxBytes, writer),
+    new ConversionService(drive, gateway, fetcher, gotenberg, maxBytes, writer, limiter),
 };
 
 /**
@@ -96,11 +101,14 @@ const ConversionServiceProvider: Provider = {
     ConversionMaxBytesProvider,
     ConversionAssetWriterProvider,
     ConversionServiceProvider,
+    DriveImportService,
     // GDriveRateLimiter comes from `imports: [GDriveModule]` (re-exported
     // there). Re-binding it here would double it and let a user bypass
     // /files rate limiting by hammering /conversion — DO NOT add a
     // GDriveRateLimiterFactoryProvider line.
   ],
-  exports: [ConversionService, ConversionGateway],
+  // GOTENBERG_CLIENT: the MCP upload path (WP-19) converts a local .docx
+  // with the same network-isolated sidecar.
+  exports: [ConversionService, ConversionGateway, DriveImportService, GOTENBERG_CLIENT],
 })
 export class ConversionModule {}

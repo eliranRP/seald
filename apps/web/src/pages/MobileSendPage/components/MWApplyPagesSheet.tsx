@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { PrimaryBtn, SecondaryBtn } from '../MobileSendPage.styles';
 import { parseCustomPages, type MobileApplyMode } from '../types';
-import { MWBottomSheet } from './MWBottomSheet';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 
 const List = styled.div`
   display: flex;

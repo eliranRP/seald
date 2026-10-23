@@ -7,13 +7,21 @@ export type ReviewFieldKind =
   | 'text'
   | 'checkbox'
   | 'email'
-  | 'name';
+  | 'name'
+  | 'number'
+  | 'radio'
+  | 'dropdown';
 
 export interface ReviewItem {
   readonly id: string;
   readonly kind: ReviewFieldKind;
   readonly label: string;
   readonly page: number;
+  /**
+   * Multi-document envelopes (WP-04): title of the document the field sits
+   * on. Shown after the page number; omitted for a single-document envelope.
+   */
+  readonly documentTitle?: string | undefined;
   /**
    * The preview rendered on the right side of the row. For signatures the
    * caller passes a <SignatureMark/>; for checkboxes a string like "Checked";

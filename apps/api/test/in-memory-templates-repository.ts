@@ -34,6 +34,7 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
       field_layout: input.field_layout,
       tags: input.tags ?? [],
       last_signers: input.last_signers ?? [],
+      ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
       has_example_pdf: false,
       uses_count: 0,
       last_used_at: null,

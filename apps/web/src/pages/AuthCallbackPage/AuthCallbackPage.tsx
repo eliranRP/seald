@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthLoadingScreen } from '@/layout/AuthLoadingScreen';
+import { takeRememberedNext } from '@/layout/nextPath';
 import { useAuth } from '@/providers/AuthProvider';
 
 /**
@@ -24,6 +25,7 @@ export function AuthCallbackPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user, loading } = useAuth();
+  const landed = useRef(false);
 
   useEffect(() => {
     // Defence in depth: when the provider returns an error AND a stale
@@ -35,8 +37,13 @@ export function AuthCallbackPage() {
       navigate('/signin?error=oauth', { replace: true });
       return;
     }
-    if (!loading && user) {
-      navigate('/documents', { replace: true });
+    if (!loading && user && !landed.current) {
+      // A parked `?next=` (an approval review the owner started from) wins
+      // over the dashboard. It is validated again when taken. The ref keeps
+      // a repeated effect run from taking an already-emptied slot and
+      // overriding it with the dashboard.
+      landed.current = true;
+      navigate(takeRememberedNext() ?? '/documents', { replace: true });
     }
   }, [params, loading, user, navigate]);
 

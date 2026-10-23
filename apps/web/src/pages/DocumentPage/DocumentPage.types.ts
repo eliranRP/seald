@@ -2,6 +2,9 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 import type { PlacePagesMode } from '@/components/PlaceOnPagesPopover/PlaceOnPagesPopover.types';
+import type { SendReminderSettings } from '@/features/envelopes/sendReminderSettings';
+import type { SigningOrderValue } from '@/features/signers/signingOrder';
+import type { AccessAuthValue } from '@/features/signers/accessAuth';
 import type { FieldKind } from '@/types/sealdTypes';
 import type { PDFDocumentProxy } from '@/lib/pdf';
 
@@ -65,6 +68,15 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    */
   readonly remindersEnabled?: boolean | undefined;
   readonly onRemindersEnabledChange?: ((enabled: boolean) => void) | undefined;
+  /** Expiry and reminder cadence for this send (WP-09). Omitted hides the controls. */
+  readonly reminderSettings?: SendReminderSettings | undefined;
+  readonly onReminderSettingsChange?: ((next: SendReminderSettings) => void) | undefined;
+  /** Signing order for this send (WP-06). Omitted, or flag `signingOrder` off, hides the control. */
+  readonly signingOrder?: SigningOrderValue | undefined;
+  readonly onSigningOrderChange?: ((next: SigningOrderValue) => void) | undefined;
+  /** Emailed one-time code choice (WP-11). Omitted, or flag `signerAccessAuth` off, hides the control. */
+  readonly accessAuth?: AccessAuthValue | undefined;
+  readonly onAccessAuthChange?: ((next: AccessAuthValue) => void) | undefined;
   readonly onSaveDraft?: (() => void) | undefined;
   readonly onBack?: (() => void) | undefined;
   /**
@@ -82,6 +94,26 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    * presence of this slot does not change layout when omitted.
    */
   readonly banner?: ReactNode | undefined;
+  /**
+   * Multi-document drafts (WP-04, flag `multiDocumentEnvelopes`): strip
+   * above the canvas that switches the document being edited. Omitted
+   * (the default) renders nothing, so single-document drafts are unchanged.
+   */
+  readonly documentSwitcher?: ReactNode | undefined;
+  /**
+   * Multi-document drafts (WP-04): the document list (reorder / remove /
+   * add), rendered at the top of the right rail. Omitted renders nothing.
+   */
+  readonly documentsPanel?: ReactNode | undefined;
+  /**
+   * Multi-document drafts (WP-04): field totals across every document for
+   * the send gate. `fields` only holds the document on screen, so without
+   * this the gate would count that one document alone. Omitted falls back
+   * to counting `fields`.
+   */
+  readonly sendTotals?:
+    | { readonly fieldCount: number; readonly signatureFieldCount: number }
+    | undefined;
   /**
    * Override the right-rail send button copy + icon. Defaults stay as
    * `Send to sign`. Templates flip this to `Save as template` when the

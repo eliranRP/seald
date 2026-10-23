@@ -24,36 +24,55 @@ import type { Envelope, EnvelopeGdriveSaveResult } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { extractClientIp } from '../common/extract-client-ip';
+import { FlaggedBodyPipe } from '../common/flagged-body.pipe';
+import { EnvelopeDocumentsService } from './documents/envelope-documents.service';
 import { AddSignerDto } from './dto/add-signer.dto';
 import { CreateEnvelopeDto } from './dto/create-envelope.dto';
 import { PatchEnvelopeDto } from './dto/patch-envelope.dto';
-import { PlaceFieldsDto } from './dto/place-fields.dto';
+import { MultiDocumentPlaceFieldsDto, PlaceFieldsDto } from './dto/place-fields.dto';
 import { SaveToGdriveDto } from './dto/save-to-gdrive.dto';
 import { SendEnvelopeDto } from './dto/send-envelope.dto';
 import type { EnvelopeEvent, EnvelopeField, EnvelopeSigner } from './envelope.entity';
-import { EnvelopesService, type ListResult } from './envelopes.service';
+import { EnvelopesService, type EnvelopeDownloadKind, type ListResult } from './envelopes.service';
 import { normalizeFieldPlacements } from './field-placement.service';
 import { mapGdriveSaveError } from './gdrive-save-error.http-errors';
 import { resolveSenderIdentity } from './sender-identity';
 
 type EnvelopeStatus = Envelope['status'];
 
+const MULTI_DOC = 'multiDocumentEnvelopes' as const;
+
 // AuthGuard is registered globally as APP_GUARD in AuthModule (rule 5.1).
 // Every route here authenticates by default unless tagged with `@Public()`.
 @Controller('envelopes')
 export class EnvelopesController {
-  constructor(private readonly svc: EnvelopesService) {}
+  constructor(
+    private readonly svc: EnvelopesService,
+    private readonly documents: EnvelopeDocumentsService,
+  ) {}
+
+  /**
+   * WP-03: with `multiDocumentEnvelopes` on, envelope responses carry
+   * `documents[]` and each field's `document_id`. With it off they are
+   * returned exactly as before.
+   */
+  private withDocuments(envelope: Envelope): Promise<Envelope> {
+    return isFeatureEnabled(MULTI_DOC)
+      ? this.documents.decorateEnvelope(envelope)
+      : Promise.resolve(envelope);
+  }
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: AuthUser,
     @Body() dto: CreateEnvelopeDto,
     @Req() req: Request,
   ): Promise<Envelope> {
-    return this.svc.createDraft(user.id, dto, {
+    const envelope = await this.svc.createDraft(user.id, dto, {
       ip: extractClientIp(req),
       user_agent: req.headers['user-agent'] ?? null,
     });
+    return this.withDocuments(envelope);
   }
 
   @Get()
@@ -88,17 +107,20 @@ export class EnvelopesController {
   }
 
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string): Promise<Envelope> {
-    return this.svc.getById(user.id, id);
+  async get(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Envelope> {
+    return this.withDocuments(await this.svc.getById(user.id, id));
   }
 
   @Patch(':id')
-  patch(
+  async patch(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: PatchEnvelopeDto,
   ): Promise<Envelope> {
-    return this.svc.patchDraft(user.id, id, dto);
+    return this.withDocuments(await this.svc.patchDraft(user.id, id, dto));
   }
 
   @Delete(':id')
@@ -124,7 +146,11 @@ export class EnvelopesController {
     if (!file || !file.buffer || file.buffer.length === 0) {
       throw new BadRequestException('file_required');
     }
-    const envelope = await this.svc.uploadOriginal(user.id, id, file.buffer);
+    // WP-03: replaces document 1 at its own storage path (a reorder can
+    // have moved a non-legacy path into slot 1).
+    const envelope = isFeatureEnabled(MULTI_DOC)
+      ? await this.documents.replacePrimary(user.id, id, file.buffer)
+      : await this.svc.uploadOriginal(user.id, id, file.buffer);
     return {
       pages: envelope.original_pages ?? 0,
       sha256: envelope.original_sha256 ?? '',
@@ -138,10 +164,13 @@ export class EnvelopesController {
     @Req() req: Request,
     @Body() dto: SendEnvelopeDto = {},
   ): Promise<Envelope> {
-    return this.svc.send(user.id, id, resolveSenderIdentity(user, dto), {
-      ip: extractClientIp(req),
-      user_agent: req.headers['user-agent'] ?? null,
-    });
+    // Not async: a missing sender email still throws synchronously, as before.
+    return this.svc
+      .send(user.id, id, resolveSenderIdentity(user, dto), {
+        ip: extractClientIp(req),
+        user_agent: req.headers['user-agent'] ?? null,
+      })
+      .then((envelope) => this.withDocuments(envelope));
   }
 
   /**
@@ -193,15 +222,28 @@ export class EnvelopesController {
     return this.svc.removeSigner(user.id, id, signer_id);
   }
 
+  /**
+   * The body is validated by FlaggedBodyPipe, not the global pipe (hence
+   * the `object` parameter type): with `multiDocumentEnvelopes` off it is
+   * the legacy PlaceFieldsDto, so `document_id` is rejected exactly as
+   * before; with it on, fields may name their document.
+   */
   @Put(':id/fields')
-  placeFields(
+  async placeFields(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: PlaceFieldsDto,
+    @Body(new FlaggedBodyPipe(MULTI_DOC, MultiDocumentPlaceFieldsDto, PlaceFieldsDto))
+    body: object,
   ): Promise<{ fields: ReadonlyArray<EnvelopeField> }> {
-    return this.svc
-      .replaceFields(user.id, id, normalizeFieldPlacements(dto.fields))
-      .then((fields) => ({ fields }));
+    const dto = body as MultiDocumentPlaceFieldsDto;
+    const placements = normalizeFieldPlacements(dto.fields);
+    if (!isFeatureEnabled(MULTI_DOC)) {
+      return { fields: await this.svc.replaceFields(user.id, id, placements) };
+    }
+    const fields = await this.svc.replaceFields(user.id, id, placements, (input) =>
+      this.documents.assertFieldDocuments(id, input),
+    );
+    return { fields: await this.documents.decorateFields(id, fields) };
   }
 
   @Get(':id/events')
@@ -215,7 +257,7 @@ export class EnvelopesController {
   /**
    * Short-lived signed URL for downloading an envelope artifact.
    *
-   * `?kind=sealed|original|audit` picks which file. When the query is
+   * `?kind=sealed|original|audit|declined` picks which file. When the query is
    * omitted the service falls back to "sealed if available, else
    * original" — the sensible default for a generic "Download PDF" CTA.
    *
@@ -227,9 +269,25 @@ export class EnvelopesController {
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Query('kind') kind?: string,
-  ): Promise<{ url: string; kind: 'sealed' | 'original' | 'audit' }> {
-    let resolved: 'sealed' | 'original' | 'audit' | undefined;
-    if (kind === 'sealed' || kind === 'original' || kind === 'audit') {
+    @Query('document_id') documentId?: string,
+  ): Promise<{ url: string; kind: EnvelopeDownloadKind | 'zip'; document_id?: string }> {
+    // WP-03 (flag on): `?document_id=` picks one document's original or
+    // sealed PDF, `?kind=zip` bundles every sealed document + audit.pdf.
+    // With the flag off both are ignored, as unknown params always were.
+    if (isFeatureEnabled(MULTI_DOC) && (documentId !== undefined || kind === 'zip')) {
+      if (documentId !== undefined && !UUID_RE.test(documentId)) {
+        throw new BadRequestException('validation_error');
+      }
+      if (kind !== undefined && kind !== 'original' && kind !== 'sealed' && kind !== 'zip') {
+        throw new BadRequestException('invalid_kind');
+      }
+      return this.documents.downloadUrl(user.id, id, {
+        ...(documentId !== undefined && kind !== 'zip' ? { document_id: documentId } : {}),
+        ...(kind !== undefined ? { kind } : {}),
+      });
+    }
+    let resolved: EnvelopeDownloadKind | undefined;
+    if (kind === 'sealed' || kind === 'original' || kind === 'audit' || kind === 'declined') {
       resolved = kind;
     } else if (kind !== undefined) {
       throw new BadRequestException('invalid_kind');
@@ -285,6 +343,7 @@ export class EnvelopesController {
 }
 
 const STATUS_SET = new Set<string>(ENVELOPE_STATUSES);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function parseStatuses(raw: string | undefined): EnvelopeStatus[] | undefined {
   if (!raw) return undefined;

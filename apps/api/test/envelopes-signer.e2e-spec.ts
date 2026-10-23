@@ -16,7 +16,10 @@ import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
+import { dispatchSignLinks, dispatchSignToken } from './dispatched-sign-links';
 import { buildTestJwks } from './test-jwks';
+import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
+import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 
 const TEST_ENV: AppEnv = {
   NODE_ENV: 'test',
@@ -71,6 +74,8 @@ describe('Signing — /sign/start (e2e)', () => {
       .useValue(tk.resolver)
       .overrideProvider(EnvelopesRepository)
       .useValue(envelopesRepo)
+      .overrideProvider(EnvelopeDocumentsRepository)
+      .useValue(new InMemoryEnvelopeDocumentsRepository(envelopesRepo))
       .overrideProvider(ContactsRepository)
       .useValue(contactsRepo)
       .overrideProvider(StorageService)
@@ -140,12 +145,12 @@ describe('Signing — /sign/start (e2e)', () => {
       });
     await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
 
-    // Extract the plaintext token from the queued invite email's sign_url.
+    // Insert A: the token is minted when the invite is dispatched, so read
+    // it from the sent message rather than the stored payload.
     const invite = outbound.rows.find((r) => r.kind === 'invite');
     if (!invite) throw new Error('expected an invite to be enqueued');
-    const match = /\?t=([A-Za-z0-9_-]{43})/.exec(String(invite.payload.sign_url));
-    if (!match) throw new Error('could not parse token from sign_url');
-    return { envId: env.body.id, signerId: signer.body.id, plaintextToken: match[1]! };
+    const plaintextToken = await dispatchSignToken(app, 'ada@example.com');
+    return { envId: env.body.id, signerId: signer.body.id, plaintextToken };
   }
 
   describe('POST /sign/start', () => {
@@ -713,11 +718,9 @@ describe('Signing — /sign/start (e2e)', () => {
         });
       await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth);
 
-      const invites = outbound.rows.filter((r) => r.kind === 'invite');
-      const inviteA = invites.find((r) => r.signer_id === sA.body.id)!;
-      const inviteB = invites.find((r) => r.signer_id === sB.body.id)!;
-      const tokA = /\?t=([A-Za-z0-9_-]{43})/.exec(String(inviteA.payload.sign_url))![1]!;
-      const tokB = /\?t=([A-Za-z0-9_-]{43})/.exec(String(inviteB.payload.sign_url))![1]!;
+      const links = await dispatchSignLinks(app);
+      const tokA = links.find((l) => l.to === 'ada@example.com')!.token;
+      const tokB = links.find((l) => l.to === 'bob@example.com')!.token;
 
       const startedA = await request(app.getHttpServer())
         .post('/sign/start')

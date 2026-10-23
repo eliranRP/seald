@@ -1,6 +1,17 @@
 import { forwardRef } from 'react';
 import type { KeyboardEvent } from 'react';
-import { Check, PenTool, Calendar, Type, Square, Mail } from 'lucide-react';
+import {
+  Check,
+  PenTool,
+  Calendar,
+  Type,
+  Square,
+  Mail,
+  Hash,
+  User,
+  CircleDot,
+  ChevronsUpDown,
+} from 'lucide-react';
 import type { FieldKind } from '@/types/sealdTypes';
 import { Icon } from '../Icon';
 import type { SignatureFieldProps } from './SignatureField.types';
@@ -13,6 +24,10 @@ const KIND_LABEL: Record<FieldKind, string> = {
   text: 'Text',
   checkbox: 'Checkbox',
   email: 'Email',
+  name: 'Name',
+  number: 'Number',
+  radio: 'Radio',
+  dropdown: 'Dropdown',
 };
 
 const KIND_ICON = {
@@ -22,6 +37,10 @@ const KIND_ICON = {
   text: Type,
   checkbox: Square,
   email: Mail,
+  name: User,
+  number: Hash,
+  radio: CircleDot,
+  dropdown: ChevronsUpDown,
 } as const;
 
 export const SignatureField = forwardRef<HTMLDivElement, SignatureFieldProps>((props, ref) => {

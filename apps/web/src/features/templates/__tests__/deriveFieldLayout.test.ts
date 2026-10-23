@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { deriveTemplateFieldLayout, inferPageRule } from '../deriveFieldLayout';
 import type { PlacedFieldValue } from '@/components/PlacedField/PlacedField.types';
 
@@ -203,5 +203,51 @@ describe('deriveTemplateFieldLayout', () => {
       { type: 'text', pageRule: 'last', x: 10, y: 10 },
       { type: 'text', pageRule: 'last', x: 20, y: 20 },
     ]);
+  });
+});
+
+// WP-08: the four new kinds save as template types and keep their meta,
+// but only while `fieldMetaV2` is on (a flag-off layout never carries meta).
+describe('deriveTemplateFieldLayout with field meta', () => {
+  type FlagHost = { __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> };
+  const setFlag = (on: boolean): void => {
+    (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { fieldMetaV2: on };
+  };
+  afterEach(() => {
+    delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
+  });
+
+  const options = [
+    { label: 'Yes', value: 'y' },
+    { label: 'No', value: 'n' },
+  ];
+  const placed = (): ReadonlyArray<PlacedFieldValue> => [
+    {
+      id: 'a',
+      page: 1,
+      type: 'radio',
+      x: 10,
+      y: 10,
+      signerIds: ['s1'],
+      meta: { options, default: 'y' },
+    },
+    { id: 'b', page: 1, type: 'number', x: 20, y: 20, signerIds: ['s1'], meta: { min: 1 } },
+    { id: 'c', page: 1, type: 'name', x: 30, y: 30, signerIds: ['s1'] },
+  ];
+
+  it('saves the new types with their meta when the flag is on', () => {
+    setFlag(true);
+    const out = deriveTemplateFieldLayout(placed(), 1);
+    expect(out).toEqual([
+      { type: 'radio', pageRule: 'last', x: 10, y: 10, meta: { options, default: 'y' } },
+      { type: 'number', pageRule: 'last', x: 20, y: 20, meta: { min: 1 } },
+      { type: 'name', pageRule: 'last', x: 30, y: 30 },
+    ]);
+  });
+
+  it('leaves meta out when the flag is off', () => {
+    setFlag(false);
+    const out = deriveTemplateFieldLayout(placed(), 1);
+    expect(out.every((f) => !('meta' in f))).toBe(true);
   });
 });

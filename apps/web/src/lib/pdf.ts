@@ -145,3 +145,28 @@ export function usePdfDocument(source: File | string | null | undefined): UsePdf
 
   return { doc, numPages: doc?.numPages ?? 0, loading, error };
 }
+
+export interface PdfInfo {
+  readonly pages: number;
+  /** Height / width of page 1; the editor sizes its canvas from it. */
+  readonly aspect: number;
+}
+
+/**
+ * Reads a PDF's page count and first-page aspect ratio without keeping the
+ * document open. Used when a file is added to a draft (the multi-document
+ * list needs both for every PDF, not only the one on screen). Rejects when
+ * the file does not parse as a PDF.
+ */
+export async function readPdfInfo(file: File): Promise<PdfInfo> {
+  const bytes = await file.arrayBuffer();
+  const task = getDocument({ data: new Uint8Array(bytes) });
+  try {
+    const pdf = await task.promise;
+    const first = await pdf.getPage(1);
+    const vp = first.getViewport({ scale: 1 });
+    return { pages: pdf.numPages, aspect: vp.height / vp.width };
+  } finally {
+    task.destroy().catch(() => {});
+  }
+}

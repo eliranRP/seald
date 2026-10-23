@@ -7,9 +7,11 @@ import { NavBar } from '../components/NavBar';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
 import { useAccountActions } from '@/features/account';
+import { ApprovalsBell, isApprovalsEnabled } from '@/features/approvals';
 import { useGDriveOAuthMessageListener } from '@/routes/settings/integrations/useGDriveAccounts';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { NAV_ITEMS, matchNavId } from './navItems';
+import { isMobileRedirectExempt } from './mobileRedirect';
 
 const Shell = styled.div`
   display: flex;
@@ -189,7 +191,7 @@ export function AppShell() {
   // (mirroring the desktop UploadRoute), so unauthed visitors land on
   // the mobile screens we built rather than the desktop chrome that
   // doesn't fit the viewport.
-  if (isMobile) {
+  if (isMobile && !isMobileRedirectExempt(location.pathname)) {
     return <Navigate to="/m/send" replace />;
   }
 
@@ -207,6 +209,7 @@ export function AppShell() {
         onExportData={mode === 'authed' ? account.exportData : undefined}
         onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
         onOpenIntegrations={onOpenIntegrations}
+        rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
         isExporting={account.isExporting}
         isDeleting={account.isDeleting}
       />

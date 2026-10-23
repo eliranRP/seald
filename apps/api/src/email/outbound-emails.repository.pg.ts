@@ -3,10 +3,10 @@ import { type Kysely, sql } from 'kysely';
 import type { Database } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
 import {
+  assertNoSignerToken,
   DuplicateOutboundEmailError,
   type InsertOutboundEmailInput,
   OutboundEmailsRepository,
-  signUrlFromPayload,
   type OutboundEmailRow,
 } from './outbound-emails.repository';
 
@@ -36,24 +36,6 @@ function toDomain(row: Record<string, unknown>): OutboundEmailRow {
   };
 }
 
-function parsePayload(value: unknown): Record<string, unknown> {
-  if (typeof value === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      return {};
-    }
-    return {};
-  }
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return {};
-}
-
 /**
  * Detect 23505 unique violation on outbound_emails's (envelope_id, signer_id,
  * kind, source_event_id) index. Real Postgres exposes `constraint` with the
@@ -77,6 +59,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
   }
 
   async insert(input: InsertOutboundEmailInput): Promise<OutboundEmailRow> {
+    assertNoSignerToken(input.payload);
     try {
       // DO NOTHING so a duplicate unique key does not abort a surrounding
       // transaction the way a caught 23505 would. No row means the notice
@@ -111,6 +94,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     inputs: readonly InsertOutboundEmailInput[],
   ): Promise<readonly OutboundEmailRow[]> {
     if (inputs.length === 0) return [];
+    for (const input of inputs) assertNoSignerToken(input.payload);
     try {
       const rows = await this.db
         .insertInto('outbound_emails')
@@ -163,26 +147,6 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     }
     const row = await query.orderBy('created_at', 'desc').limit(1).executeTakeFirst();
     return row ? toDomain(rowRecord(row)) : null;
-  }
-
-  async findLatestSignUrl(
-    envelope_id: string,
-    signer_id: string,
-    excludeId?: string,
-  ): Promise<string | null> {
-    let query = this.db
-      .selectFrom('outbound_emails')
-      .select(['payload'])
-      .where('envelope_id', '=', envelope_id)
-      .where('signer_id', '=', signer_id)
-      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]))
-      .where(sql<boolean>`nullif(payload->>'sign_url', '') is not null`)
-      .orderBy('created_at', 'desc')
-      .limit(1);
-    if (excludeId) query = query.where('id', '!=', excludeId);
-    const row = await query.executeTakeFirst();
-    if (!row) return null;
-    return signUrlFromPayload(parsePayload(row.payload));
   }
 
   async claimNext(now: Date, envelopeIds?: readonly string[]): Promise<OutboundEmailRow | null> {
