@@ -24,7 +24,8 @@ import { listTools } from './tool-catalog';
  * - a sender route is missing from `ROUTE_COVERAGE`;
  * - a registry entry names no route (stale);
  * - a `tool` is absent from tools/list with every flag on;
- * - a `planned` step has already shipped, or is not `step-N` / `WP-45`;
+ * - a `planned` step has already shipped, or is not `step-N` / `step-aN`
+ *   (WP-45 has shipped: no route may wait on it);
  * - an `excluded` reason is outside the D5 list (plus `owner_in_app_only`, WP-26).
  *
  * `@Public()` routes (signer links, verify, cron, health, OAuth callback,
@@ -170,14 +171,38 @@ describe('MCP route coverage (contract)', () => {
   });
 
   // `step-aN` is an automations-track PR (workflow-automations.md § Pull requests).
-  it('plans only unshipped steps (MCP step-N or automations step-aN) or WP-45', () => {
+  it('plans only unshipped steps (MCP step-N or automations step-aN)', () => {
     for (const [key, cov] of Object.entries(ROUTE_COVERAGE)) {
       if (!('planned' in cov)) continue;
       expect({ key, planned: cov.planned }).toEqual({
         key,
-        planned: expect.stringMatching(/^(step-a?\d+[a-z]?|WP-45)$/),
+        planned: expect.stringMatching(/^step-a?\d+[a-z]?$/),
       });
       expect(SHIPPED_STEPS as readonly string[]).not.toContain(cov.planned);
+    }
+  });
+
+  it('leaves no route on WP-45: the D5 account, key and automation routes are tools (WP-45)', () => {
+    expect(SHIPPED_STEPS).toContain('WP-45');
+    for (const key of [
+      'GET /me/export',
+      'DELETE /me',
+      'GET /me/api-keys',
+      'POST /me/api-keys',
+      'POST /me/api-keys/:id/revoke',
+      'DELETE /automations/:id',
+      'POST /automations/:id/rotate-secret',
+    ]) {
+      expect({ key, cov: ROUTE_COVERAGE[key] }).toEqual({
+        key,
+        cov: { tool: expect.any(String) },
+      });
+    }
+    // D5: `excluded` only for routes with no user-facing action.
+    for (const [key, cov] of Object.entries(ROUTE_COVERAGE)) {
+      if ('excluded' in cov && cov.excluded !== 'owner_in_app_only') {
+        expect(key).toMatch(/^(GET|POST) \/(approvals|integrations|oauth)\//);
+      }
     }
   });
 
@@ -198,13 +223,15 @@ describe('MCP route coverage (contract)', () => {
     }
   });
 
-  it('gives require_owner_approval no tool, and no tool decides an approval', () => {
+  it('gives require_owner_approval only the approval-gated setter, and no tool decides an approval', () => {
     for (const tool of listTools()) {
       expect(tool.name).not.toMatch(
         /require_owner_approval|approvals_(approve|deny|decide|refresh)/,
       );
+      // WP-45 (D5): approvals_set_required turns approval off only through
+      // an approval the owner decides; it never decides one.
       if (/approval/.test(tool.name))
-        expect(['approvals_get', 'approvals_list']).toContain(tool.name);
+        expect(['approvals_get', 'approvals_list', 'approvals_set_required']).toContain(tool.name);
     }
   });
 });

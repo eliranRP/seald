@@ -101,10 +101,10 @@ describe('automation_external_destination approval kind', () => {
       register: (h: ApprovalKindHandler) => registered.push(h),
     } as unknown as ApprovalKindRegistry;
     new AutomationApprovalRegistrar(registry, w.service as AutomationsService).onModuleInit();
-    expect(registered).toHaveLength(1);
-    expect(registered[0]).toMatchObject({
-      kind: 'automation_external_destination',
-      ready: true,
-    });
+    // WP-30's kind, and WP-45's webhook secret rotation.
+    expect(registered.map((h) => [h.kind, h.ready])).toEqual([
+      ['automation_external_destination', true],
+      ['automation_rotate_secret', true],
+    ]);
   });
 });

@@ -53,7 +53,17 @@ export const automationExternalDestinationKind = stub({
   args: z.strictObject({ automation_id: uuid }),
 });
 
-/** WP-45: `DELETE /me`. The page repeats the irreversible-deletion warning. */
+// ---------------------------------------------------------------------------
+// WP-45 (D5). These stubs hold each kind's place until boot: the real
+// handlers need MeService, ApiKeysService and AutomationsService, whose
+// modules the approvals module does not import, so the registrars in
+// `src/mcp/tools/{account,api-keys,automations}` replace them through
+// `ApprovalKindRegistry.register()` on module init. A unit spec that
+// builds the registry by hand still sees `approval_kind_not_ready`.
+// `envelope_sign_as_signer` is built in the registry itself.
+// ---------------------------------------------------------------------------
+
+/** `DELETE /me`. The page repeats the irreversible-deletion warning. */
 export const accountDeleteKind = stub({
   kind: 'account_delete',
   tool: 'account_delete',
@@ -61,7 +71,15 @@ export const accountDeleteKind = stub({
   args: z.strictObject({}),
 });
 
-/** WP-45: the key is shown once on the approval page only, never in a tool result. */
+/** `GET /me/export`: the owner downloads the export from the approval page. */
+export const accountExportKind = stub({
+  kind: 'account_export',
+  tool: 'account_export',
+  actionLabel: 'Export your Seald data',
+  args: z.strictObject({}),
+});
+
+/** The key is shown once on the approval page only, never in a tool result. */
 export const apiKeyCreateKind = stub({
   kind: 'api_key_create',
   tool: 'api_keys_create',
@@ -69,11 +87,11 @@ export const apiKeyCreateKind = stub({
   args: z.strictObject({
     name: z.string().trim().min(1).max(80).optional(),
     scopes: z.array(z.enum(API_KEY_SCOPES)).min(1),
-    expires_at: z.string().datetime({ offset: true }).optional(),
+    expires_in_days: z.number().int().min(1).max(365),
   }),
 });
 
-/** WP-45: revoke one of the owner's keys. */
+/** Revoke one of the owner's keys. */
 export const apiKeyRevokeKind = stub({
   kind: 'api_key_revoke',
   tool: 'api_keys_revoke',
@@ -81,7 +99,7 @@ export const apiKeyRevokeKind = stub({
   args: z.strictObject({ api_key_id: uuid }),
 });
 
-/** WP-45: turning `require_owner_approval` off always needs approval; on applies at once. */
+/** Turning `require_owner_approval` off always needs approval; on applies at once. */
 export const approvalRequiredToggleKind = stub({
   kind: 'approval_required_toggle',
   tool: 'approvals_set_required',
@@ -89,13 +107,18 @@ export const approvalRequiredToggleKind = stub({
   args: z.strictObject({ api_key_id: uuid, require_owner_approval: z.literal(false) }),
 });
 
-/**
- * WP-45: the owner signs as a signer of their own envelope. The approval
- * page is the signer's consent; never applies to another signer.
- */
-export const envelopeSignAsSignerKind = stub({
-  kind: 'envelope_sign_as_signer',
-  tool: 'envelopes_sign_as_signer',
-  actionLabel: 'Sign as yourself',
-  args: z.strictObject({ envelope_id: uuid, signer_id: uuid }),
+/** `POST /me/connected-apps/:id/revoke`: revoke one OAuth grant (WP-27's connected apps). */
+export const oauthGrantRevokeKind = stub({
+  kind: 'oauth_grant_revoke',
+  tool: 'connected_apps_revoke',
+  actionLabel: 'Disconnect an app',
+  args: z.strictObject({ connected_app_id: uuid }),
+});
+
+/** `POST /automations/:id/rotate-secret`: the new secret is shown once on the approval page. */
+export const automationRotateSecretKind = stub({
+  kind: 'automation_rotate_secret',
+  tool: 'automations_rotate_secret',
+  actionLabel: 'Rotate a webhook signing secret',
+  args: z.strictObject({ automation_id: uuid }),
 });

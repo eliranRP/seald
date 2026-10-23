@@ -248,6 +248,8 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    // WP-45: `{ via: 'mcp_approval' }` when the owner signs on the approval page.
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.acceptTerms(signer.id);
     await this.repo.recordSignerViewed(signer.id, ip, userAgent);
@@ -271,6 +273,7 @@ export class SigningService {
           privacy_version: envelope.privacy_version,
           esign_disclosure_version: ESIGN_DISCLOSURE_VERSION,
           signer_auth_tier: CURRENT_SIGNER_AUTH_TIER,
+          ...extraMetadata,
         },
       });
     }
@@ -282,7 +285,7 @@ export class SigningService {
         event_type: 'viewed',
         ip,
         user_agent: userAgent,
-        metadata: {},
+        metadata: { ...extraMetadata },
       });
     }
   }
@@ -307,6 +310,7 @@ export class SigningService {
     disclosureVersion: string,
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -318,6 +322,7 @@ export class SigningService {
       metadata: {
         esign_disclosure_version: disclosureVersion,
         demonstrated_ability: true,
+        ...extraMetadata,
       },
     });
   }
@@ -334,6 +339,7 @@ export class SigningService {
     signer: EnvelopeSigner,
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<void> {
     await this.repo.appendEvent({
       envelope_id: envelope.id,
@@ -342,7 +348,7 @@ export class SigningService {
       event_type: 'intent_to_sign_confirmed',
       ip,
       user_agent: userAgent,
-      metadata: {},
+      metadata: { ...extraMetadata },
     });
   }
 
@@ -399,6 +405,7 @@ export class SigningService {
     body: { value_text?: string; value_boolean?: boolean },
     ip: string | null,
     userAgent: string | null,
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<EnvelopeField> {
     const field = envelope.fields.find((f) => f.id === field_id);
     if (!field) throw new NotFoundException('field_not_found');
@@ -445,7 +452,7 @@ export class SigningService {
       event_type: 'field_filled',
       ip,
       user_agent: userAgent,
-      metadata: { field_id, kind: field.kind },
+      metadata: { field_id, kind: field.kind, ...extraMetadata },
     });
 
     return updated;
@@ -472,6 +479,8 @@ export class SigningService {
     ip: string | null,
     userAgent: string | null,
     accessCode?: string,
+    // WP-45: `{ via: 'mcp_approval', approval_id }` on the owner's own `signed` row.
+    extraMetadata: Readonly<Record<string, unknown>> = {},
   ): Promise<{ status: 'submitted'; envelope_status: Envelope['status'] }> {
     if (signer.tc_accepted_at === null) {
       throw new PreconditionFailedException('tc_required');
@@ -520,7 +529,7 @@ export class SigningService {
       event_type: 'signed',
       ip,
       user_agent: userAgent,
-      metadata: {},
+      metadata: { ...extraMetadata },
     });
 
     // WP-05: this signature completed a sequential step, and the submit

@@ -78,6 +78,25 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('Expires in 23h')).toBeInTheDocument();
   });
 
+  it('lists the facts of a request with no document (WP-45)', async () => {
+    const facts = [
+      { label: 'Name', value: 'Zapier' },
+      { label: 'Scopes', value: 'envelopes:read' },
+    ];
+    const { container } = renderWithTheme(
+      <ApprovalCard
+        summary={fakeSummary({ title: null, recipients: [], page_count: null, facts })}
+      />,
+    );
+    expect(screen.getAllByRole('term').map((t) => t.textContent)).toEqual(['Name', 'Scopes']);
+    expect(screen.getAllByRole('definition').map((d) => d.textContent)).toEqual([
+      'Zapier',
+      'envelopes:read',
+    ]);
+    expect(screen.queryByRole('list', { name: 'Recipients' })).not.toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+  });
+
   it('has no axe violations', async () => {
     const { container } = renderWithTheme(
       <ApprovalCard summary={fakeSummary({ recipients: MANY_RECIPIENTS })} />,

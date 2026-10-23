@@ -50,7 +50,7 @@ export function fieldsOf(envelope: Envelope): SubjectField[] {
  * field move changes `subject_hash`.
  */
 export async function envelopeFacts(
-  svc: EnvelopeKindServices,
+  svc: Pick<EnvelopeKindServices, 'envelopes' | 'documents'>,
   ownerId: string,
   envelopeId: string,
 ): Promise<{ envelope: Envelope; files: string[]; pageCount: number | null }> {

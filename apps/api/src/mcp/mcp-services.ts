@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { AccountDirectoryService } from '../accounts/account-directory.service';
+import { ApiKeysService } from '../api-keys/api-keys.service';
+import { ConnectedAppsService } from './oauth/connected-apps.service';
 import { AgentEnvelopeActionsService } from '../approvals/agent-envelope-actions.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AutomationsService } from '../automations/automations.service';
@@ -48,5 +50,9 @@ export class McpServices {
     // WP-26 (step 15): signer access codes (WP-10) and bulk send (WP-36).
     readonly accessAuth: AccessAuthService,
     readonly agentBulk: AgentBulkService,
+    // WP-45 (D5): api_keys_list and turning owner approval back on.
+    readonly apiKeys: ApiKeysService,
+    // WP-45: connected apps (WP-27's OAuth grants).
+    readonly connectedApps: ConnectedAppsService,
   ) {}
 }

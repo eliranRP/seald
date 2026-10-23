@@ -120,6 +120,25 @@ describe('mcpCertificateCells (WP-23)', () => {
     }
   });
 
+  it('WP-45: names the owner who signed on the approval page, as a pair of cells', () => {
+    const events = plainEvents().map((e) =>
+      e.event_type === 'signed'
+        ? { ...e, metadata: { via: 'mcp_approval', approval_id: 'appr-1' } }
+        : e,
+    );
+    expect(mcpCertificateCells(events, [{ id: SIGNER_ID, name: 'Maya Owner' }])).toEqual([
+      { label: 'Signed via', value: 'Owner approval page (signed-in)' },
+      { label: 'Signed by owner', value: 'Maya Owner' },
+    ]);
+    // With an MCP send too: four cells, the send pair first.
+    const both = events.map((e) =>
+      e.event_type === 'sent' ? sentEvent({ mcp: mcpMetadata() }) : e,
+    );
+    expect(mcpCertificateCells(both, [])).toHaveLength(4);
+    // A plain signature adds nothing.
+    expect(mcpCertificateCells(plainEvents(), [{ id: SIGNER_ID, name: 'Maya' }])).toEqual([]);
+  });
+
   it('always returns two cells so the two-column grid stays aligned', () => {
     const variants = [
       mcpMetadata(),
@@ -178,6 +197,19 @@ describe('audit PDF certificate with metadata.mcp (WP-23)', () => {
     expect(flat).toContain('SENTVIAAPI');
     expect(flat).not.toContain('KEY2');
   });
+
+  it('WP-45: prints where the owner signed when the signed row says via=mcp_approval', async () => {
+    const events = plainEvents().map((e) =>
+      e.event_type === 'signed' ? { ...e, metadata: { via: 'mcp_approval' } } : e,
+    );
+    const flat = flatUpper(
+      normalizePdfText(extractPdfText(await buildAuditPdf(makeInput(events)))),
+    );
+    // The body font's lowercase g extracts as 1 (see above).
+    expect(flat).toContain('SIGNEDVIAOWNERAPPROVALPA1E(SI1NED-IN)');
+    expect(flat).toContain('SIGNEDBYOWNER');
+    expect(flatUpper(withoutMcp)).not.toContain('OWNERAPPROVALPAGE');
+  }, 120_000);
 
   it('never prints a client name, even if one was smuggled into metadata', async () => {
     const events = plainEvents().map((e) =>

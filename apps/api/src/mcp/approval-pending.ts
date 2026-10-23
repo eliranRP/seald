@@ -29,3 +29,26 @@ export function requestApproval(
     now: ctx.now,
   });
 }
+
+/**
+ * WP-45: the dry run of an approval-gated tool. The same checks as
+ * `requestApproval` (key live, verified mailbox, the kind's describe and
+ * the scope ceiling) without opening an approval or sending mail.
+ */
+export async function previewApproval(
+  ctx: McpToolContext,
+  kind: ApprovalKind,
+  args: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const subject = await ctx.services.approvals.subjectForAgent({
+    requester: requesterOf(ctx.principal),
+    kind,
+    args,
+    now: ctx.now,
+  });
+  return {
+    requires: 'owner_approval',
+    approve_requires: subject.approveRequires,
+    summary: subject.summary,
+  };
+}

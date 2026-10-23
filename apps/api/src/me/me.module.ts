@@ -38,5 +38,7 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
     { provide: SupabaseAdminClient, useClass: SupabaseAdminHttpClient },
     { provide: TombstonesRepository, useClass: TombstonesPgRepository },
   ],
+  // WP-45: the approved `account_delete` runs the same deletion as `DELETE /me`.
+  exports: [MeService],
 })
 export class MeModule {}

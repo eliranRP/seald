@@ -1,5 +1,5 @@
 {
-  "server_version": "0.9.0",
+  "server_version": "0.10.0",
   "variants": {
     "all_flags_on": [
       {
@@ -6177,7 +6177,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -6250,6 +6253,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -6503,7 +6527,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -6576,6 +6603,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -7159,6 +7207,302 @@
           "destructiveHint": false,
           "idempotentHint": true,
           "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["automations:write"]
+        }
+      },
+      {
+        "name": "automations_delete",
+        "title": "Delete an automation",
+        "description": "Deletes one automation with its run history and queued runs. Nothing it would have sent goes out afterwards. It cannot be undone; to pause instead, use automations_set_enabled with enabled false. An unknown id is automation_not_found. Needs automations:write. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "automation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["automation_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "deleted": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "automation_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                }
+              },
+              "required": ["deleted", "automation_id"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Delete an automation",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["automations:write"]
+        }
+      },
+      {
+        "name": "automations_rotate_secret",
+        "title": "Rotate a webhook signing secret (owner approves)",
+        "description": "Asks the account owner to replace the signing secret of a webhook automation. The new secret is never returned to this tool: the owner sees it once on the approval page and puts it in the receiving app. The old secret keeps verifying for 24 hours. A recipe that is not a webhook fails with not_a_webhook. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs automations:write. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "automation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["automation_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Rotate a webhook signing secret (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
         },
         "_meta": {
           "seald/scopes": ["automations:write"]
@@ -8554,7 +8898,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -8627,6 +8974,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -8761,7 +9129,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -8834,6 +9205,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -9138,7 +9530,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -9211,6 +9606,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -9466,7 +9882,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -9539,6 +9958,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -9664,7 +10104,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -9737,6 +10180,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -9875,7 +10339,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -9948,6 +10415,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -10078,7 +10566,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -10151,6 +10642,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -10315,7 +10827,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -10388,6 +10903,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -11351,6 +11887,1847 @@
         },
         "_meta": {
           "seald/scopes": ["templates:write"]
+        }
+      },
+      {
+        "name": "account_delete",
+        "title": "Delete the Seald account (owner approves)",
+        "description": "Asks the account owner to delete their Seald account for good: drafts, contacts, templates, keys and Drive connections are removed, and this key stops working. It cannot be undone. On the approval page the owner reads the warning and types the account email. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs account:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Delete the Seald account (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["account:admin"]
+        }
+      },
+      {
+        "name": "account_export",
+        "title": "Export the account data (owner approves)",
+        "description": "Asks the account owner to download a copy of their Seald data (a JSON file). The file is never returned to this tool: after the owner approves, the download is on the approval page. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs account:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Export the account data (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["account:admin"]
+        }
+      },
+      {
+        "name": "api_keys_list",
+        "title": "List API keys",
+        "description": "Lists the account's API keys that are not revoked (at most 10 live, so one page): name, the eight characters that tell keys apart (key_hint), scopes, status, expiry and whether the owner approves each send. is_this_key marks the key making this call. A key's secret is never shown. Needs keys:admin.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "api_key_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "key_hint": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "envelopes:read",
+                        "envelopes:write",
+                        "documents:write",
+                        "envelopes:send",
+                        "contacts:read",
+                        "contacts:write",
+                        "templates:read",
+                        "templates:write",
+                        "gdrive:read",
+                        "gdrive:write",
+                        "automations:read",
+                        "automations:write",
+                        "account:admin",
+                        "keys:admin",
+                        "envelopes:sign"
+                      ]
+                    }
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["active", "expired", "revoked"]
+                  },
+                  "require_owner_approval": {
+                    "type": "boolean"
+                  },
+                  "always_require_signin": {
+                    "type": "boolean"
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "last_used_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expires_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "is_this_key": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "api_key_id",
+                  "name",
+                  "key_hint",
+                  "scopes",
+                  "status",
+                  "require_owner_approval",
+                  "always_require_signin",
+                  "created_at",
+                  "last_used_at",
+                  "expires_at",
+                  "is_this_key"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "List API keys",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "api_keys_create",
+        "title": "Create an API key (owner approves)",
+        "description": "Asks the account owner to create a new API key with the given scopes and expiry (30, 90 or 365 days after Approve; default 90). Every scope must also be on this key: a wider request fails with scope_exceeds_key. The new key's secret is never returned to this tool: the owner sees it once on the approval page and gives it to the app that needs it. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "scopes": {
+              "minItems": 1,
+              "maxItems": 15,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "envelopes:read",
+                  "envelopes:write",
+                  "documents:write",
+                  "envelopes:send",
+                  "contacts:read",
+                  "contacts:write",
+                  "templates:read",
+                  "templates:write",
+                  "gdrive:read",
+                  "gdrive:write",
+                  "automations:read",
+                  "automations:write",
+                  "account:admin",
+                  "keys:admin",
+                  "envelopes:sign"
+                ]
+              }
+            },
+            "expires_in_days": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 30
+                },
+                {
+                  "type": "number",
+                  "const": 90
+                },
+                {
+                  "type": "number",
+                  "const": 365
+                }
+              ]
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["scopes", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Create an API key (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "api_keys_revoke",
+        "title": "Revoke an API key (owner approves)",
+        "description": "Asks the account owner to revoke one API key (api_key_id from api_keys_list). A revoked key stops working at once and its pending approvals expire. Revoking the key that makes this call is allowed. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "api_key_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["api_key_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Revoke an API key (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "approvals_set_required",
+        "title": "Ask before each send, on or off",
+        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Even with approval off, a send to a recipient the owner has not sent to before still waits for approval. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "api_key_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "require_owner_approval": {
+              "type": "boolean"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["require_owner_approval", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "applied"
+                },
+                "api_key_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "require_owner_approval": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["status", "api_key_id", "require_owner_approval"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Ask before each send, on or off",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "envelopes_sign_as_signer",
+        "title": "Ask the owner to sign as themselves",
+        "description": "For an envelope that is out for signature and lists the account owner's own email as a signer, asks the owner to sign it. The agent does not sign and never passes a signature: the owner reviews the fields, reads the electronic-signature disclosure, confirms intent and adopts a signature on the approval page. It never applies to any other signer (signer_not_account_owner). Fields that need the signer's own answer, or an emailed access code, make it fail; the owner then signs from their link. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs envelopes:sign. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Ask the owner to sign as themselves",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:sign"]
+        }
+      },
+      {
+        "name": "connected_apps_list",
+        "title": "List connected apps",
+        "description": "Lists the apps connected to this Seald account through sign-in with Seald (OAuth): app name, website, scopes, and when each was connected and last used. is_this_app marks the app making this call. Needs keys:admin.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "connected_app_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "client_name": {
+                    "type": "string"
+                  },
+                  "client_host": {
+                    "type": "string"
+                  },
+                  "unverified": {
+                    "type": "boolean"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "envelopes:read",
+                        "envelopes:write",
+                        "documents:write",
+                        "envelopes:send",
+                        "contacts:read",
+                        "contacts:write",
+                        "templates:read",
+                        "templates:write",
+                        "gdrive:read",
+                        "gdrive:write",
+                        "automations:read",
+                        "automations:write",
+                        "account:admin",
+                        "keys:admin",
+                        "envelopes:sign"
+                      ]
+                    }
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "last_used_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "is_this_app": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "connected_app_id",
+                  "client_name",
+                  "client_host",
+                  "unverified",
+                  "scopes",
+                  "created_at",
+                  "last_used_at",
+                  "is_this_app"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "List connected apps",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "connected_apps_revoke",
+        "title": "Disconnect an app (owner approves)",
+        "description": "Asks the account owner to disconnect one connected app (connected_app_id from connected_apps_list). Its access stops at once and its pending approvals expire. Disconnecting the app making this call is allowed. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connected_app_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["connected_app_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Disconnect an app (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
         }
       }
     ],
@@ -16869,7 +19246,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -16942,6 +19322,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -17195,7 +19596,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -17268,6 +19672,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -17851,6 +20276,302 @@
           "destructiveHint": false,
           "idempotentHint": true,
           "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["automations:write"]
+        }
+      },
+      {
+        "name": "automations_delete",
+        "title": "Delete an automation",
+        "description": "Deletes one automation with its run history and queued runs. Nothing it would have sent goes out afterwards. It cannot be undone; to pause instead, use automations_set_enabled with enabled false. An unknown id is automation_not_found. Needs automations:write. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "automation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["automation_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "deleted": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "automation_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                }
+              },
+              "required": ["deleted", "automation_id"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Delete an automation",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["automations:write"]
+        }
+      },
+      {
+        "name": "automations_rotate_secret",
+        "title": "Rotate a webhook signing secret (owner approves)",
+        "description": "Asks the account owner to replace the signing secret of a webhook automation. The new secret is never returned to this tool: the owner sees it once on the approval page and puts it in the receiving app. The old secret keeps verifying for 24 hours. A recipe that is not a webhook fails with not_a_webhook. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs automations:write. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "automation_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["automation_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Rotate a webhook signing secret (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
         },
         "_meta": {
           "seald/scopes": ["automations:write"]
@@ -19425,7 +22146,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -19498,6 +22222,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -19753,7 +22498,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -19826,6 +22574,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -19951,7 +22720,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -20024,6 +22796,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -20162,7 +22955,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -20235,6 +23031,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -20365,7 +23182,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -20438,6 +23258,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -20602,7 +23443,10 @@
                         "api_key_create",
                         "api_key_revoke",
                         "approval_required_toggle",
-                        "envelope_sign_as_signer"
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
                       ]
                     },
                     "action_label": {
@@ -20675,6 +23519,27 @@
                           "type": "null"
                         }
                       ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
                     }
                   },
                   "required": [
@@ -21638,6 +24503,1847 @@
         },
         "_meta": {
           "seald/scopes": ["templates:write"]
+        }
+      },
+      {
+        "name": "account_delete",
+        "title": "Delete the Seald account (owner approves)",
+        "description": "Asks the account owner to delete their Seald account for good: drafts, contacts, templates, keys and Drive connections are removed, and this key stops working. It cannot be undone. On the approval page the owner reads the warning and types the account email. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs account:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Delete the Seald account (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["account:admin"]
+        }
+      },
+      {
+        "name": "account_export",
+        "title": "Export the account data (owner approves)",
+        "description": "Asks the account owner to download a copy of their Seald data (a JSON file). The file is never returned to this tool: after the owner approves, the download is on the approval page. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs account:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Export the account data (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["account:admin"]
+        }
+      },
+      {
+        "name": "api_keys_list",
+        "title": "List API keys",
+        "description": "Lists the account's API keys that are not revoked (at most 10 live, so one page): name, the eight characters that tell keys apart (key_hint), scopes, status, expiry and whether the owner approves each send. is_this_key marks the key making this call. A key's secret is never shown. Needs keys:admin.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "api_key_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "key_hint": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "envelopes:read",
+                        "envelopes:write",
+                        "documents:write",
+                        "envelopes:send",
+                        "contacts:read",
+                        "contacts:write",
+                        "templates:read",
+                        "templates:write",
+                        "gdrive:read",
+                        "gdrive:write",
+                        "automations:read",
+                        "automations:write",
+                        "account:admin",
+                        "keys:admin",
+                        "envelopes:sign"
+                      ]
+                    }
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["active", "expired", "revoked"]
+                  },
+                  "require_owner_approval": {
+                    "type": "boolean"
+                  },
+                  "always_require_signin": {
+                    "type": "boolean"
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "last_used_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "expires_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "is_this_key": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "api_key_id",
+                  "name",
+                  "key_hint",
+                  "scopes",
+                  "status",
+                  "require_owner_approval",
+                  "always_require_signin",
+                  "created_at",
+                  "last_used_at",
+                  "expires_at",
+                  "is_this_key"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "List API keys",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "api_keys_create",
+        "title": "Create an API key (owner approves)",
+        "description": "Asks the account owner to create a new API key with the given scopes and expiry (30, 90 or 365 days after Approve; default 90). Every scope must also be on this key: a wider request fails with scope_exceeds_key. The new key's secret is never returned to this tool: the owner sees it once on the approval page and gives it to the app that needs it. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "scopes": {
+              "minItems": 1,
+              "maxItems": 15,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "envelopes:read",
+                  "envelopes:write",
+                  "documents:write",
+                  "envelopes:send",
+                  "contacts:read",
+                  "contacts:write",
+                  "templates:read",
+                  "templates:write",
+                  "gdrive:read",
+                  "gdrive:write",
+                  "automations:read",
+                  "automations:write",
+                  "account:admin",
+                  "keys:admin",
+                  "envelopes:sign"
+                ]
+              }
+            },
+            "expires_in_days": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "const": 30
+                },
+                {
+                  "type": "number",
+                  "const": 90
+                },
+                {
+                  "type": "number",
+                  "const": 365
+                }
+              ]
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["scopes", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Create an API key (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "api_keys_revoke",
+        "title": "Revoke an API key (owner approves)",
+        "description": "Asks the account owner to revoke one API key (api_key_id from api_keys_list). A revoked key stops working at once and its pending approvals expire. Revoking the key that makes this call is allowed. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "api_key_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["api_key_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Revoke an API key (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "approvals_set_required",
+        "title": "Ask before each send, on or off",
+        "description": "Sets whether the account owner approves each send made with an API key (api_key_id, default this key). true turns approval back on at once and returns status applied. false asks the owner to stop approving each send for that key: the result is approval_pending and nothing changes until the owner approves. Even with approval off, a send to a recipient the owner has not sent to before still waits for approval. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "api_key_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "require_owner_approval": {
+              "type": "boolean"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["require_owner_approval", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "applied"
+                },
+                "api_key_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "require_owner_approval": {
+                  "type": "boolean",
+                  "const": true
+                }
+              },
+              "required": ["status", "api_key_id", "require_owner_approval"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Ask before each send, on or off",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "envelopes_sign_as_signer",
+        "title": "Ask the owner to sign as themselves",
+        "description": "For an envelope that is out for signature and lists the account owner's own email as a signer, asks the owner to sign it. The agent does not sign and never passes a signature: the owner reviews the fields, reads the electronic-signature disclosure, confirms intent and adopts a signature on the approval page. It never applies to any other signer (signer_not_account_owner). Fields that need the signer's own answer, or an emailed access code, make it fail; the owner then signs from their link. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs envelopes:sign. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Ask the owner to sign as themselves",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:sign"]
+        }
+      },
+      {
+        "name": "connected_apps_list",
+        "title": "List connected apps",
+        "description": "Lists the apps connected to this Seald account through sign-in with Seald (OAuth): app name, website, scopes, and when each was connected and last used. is_this_app marks the app making this call. Needs keys:admin.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "connected_app_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                  },
+                  "client_name": {
+                    "type": "string"
+                  },
+                  "client_host": {
+                    "type": "string"
+                  },
+                  "unverified": {
+                    "type": "boolean"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "envelopes:read",
+                        "envelopes:write",
+                        "documents:write",
+                        "envelopes:send",
+                        "contacts:read",
+                        "contacts:write",
+                        "templates:read",
+                        "templates:write",
+                        "gdrive:read",
+                        "gdrive:write",
+                        "automations:read",
+                        "automations:write",
+                        "account:admin",
+                        "keys:admin",
+                        "envelopes:sign"
+                      ]
+                    }
+                  },
+                  "created_at": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  "last_used_at": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "is_this_app": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "connected_app_id",
+                  "client_name",
+                  "client_host",
+                  "unverified",
+                  "scopes",
+                  "created_at",
+                  "last_used_at",
+                  "is_this_app"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["items"],
+          "additionalProperties": false
+        },
+        "annotations": {
+          "title": "List connected apps",
+          "readOnlyHint": true,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
+        }
+      },
+      {
+        "name": "connected_apps_revoke",
+        "title": "Disconnect an app (owner approves)",
+        "description": "Asks the account owner to disconnect one connected app (connected_app_id from connected_apps_list). Its access stops at once and its pending approvals expire. Disconnecting the app making this call is allowed. Nothing happens until the account owner approves in Seald: the result is approval_pending with approve_requires session, and Approve needs a sign-in from the last 10 minutes. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Needs keys:admin. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "connected_app_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["connected_app_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "envelope_fix_signer",
+                        "envelope_change_expiry",
+                        "bulk_send",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer",
+                        "account_export",
+                        "automation_rotate_secret",
+                        "oauth_grant_revoke"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "facts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "value": {
+                            "type": "string"
+                          }
+                        },
+                        "required": ["label", "value"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "signer_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Disconnect an app (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["keys:admin"]
         }
       }
     ]

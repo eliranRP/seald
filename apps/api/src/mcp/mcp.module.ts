@@ -8,9 +8,11 @@ import { ContactsModule } from '../contacts/contacts.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { EnvelopeQueriesModule } from '../envelopes/queries/envelope-queries.module';
 import { IdempotencyModule } from '../idempotency/idempotency.module';
+import { MeModule } from '../me/me.module';
 import { TemplatesModule } from '../templates/templates.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { McpAuthGuard, McpFlagGuard } from './mcp-auth.guard';
+import { AccountApprovalRegistrar } from './tools/account/account-approval.registrar';
 import { AutomationApprovalRegistrar } from './tools/automations/automation-approval.registrar';
 import { AgentBulkService } from './tools/later/agent-bulk.service';
 import { LaterApprovalRegistrar } from './tools/later/later-approval.registrar';
@@ -44,6 +46,8 @@ import { McpToolRunner } from './tool-runner';
     BulkModule,
     // WP-26: `GET /agent-activity`, mounted here so app.module.ts stays untouched.
     AgentActivityModule,
+    // WP-45: MeService, for the approved `account_delete`.
+    MeModule,
     // WP-27: OAuth 2.1 authorization server + access-token verifier,
     // dark behind `mcpOauth`; mounted here, not in app.module.ts.
     McpOAuthModule,
@@ -61,6 +65,8 @@ import { McpToolRunner } from './tool-runner';
     // WP-26: bulk send over one approval, and the registrar for its kind.
     AgentBulkService,
     LaterApprovalRegistrar,
+    // WP-45: the account and key approval kinds' real handlers.
+    AccountApprovalRegistrar,
   ],
 })
 export class McpModule {}

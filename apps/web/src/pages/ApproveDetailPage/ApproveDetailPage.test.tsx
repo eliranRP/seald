@@ -20,6 +20,8 @@ vi.mock('@/lib/api/apiClient', () => ({
 }));
 
 import { ApproveDetailPage } from './ApproveDetailPage';
+import { ApproveReviewPage } from '../ApproveReviewPage';
+import { FAKE_KEY_SECRET, fakeOwnerDetail } from '@/features/approvals/owner/fixtures';
 
 function Where() {
   const loc = useLocation();
@@ -179,5 +181,88 @@ describe('ApproveDetailPage', () => {
     const { container } = renderCard();
     await screen.findByRole('button', { name: 'Approve' });
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  describe('WP-45 owner actions', () => {
+    it('account deletion posts the typed email; a mismatch is explained and nothing more', async () => {
+      const user = userEvent.setup();
+      getMock.mockResolvedValue({ data: fakeOwnerDetail('account_delete') });
+      postMock.mockRejectedValueOnce(httpError(400, 'confirmation_mismatch'));
+      renderCard();
+
+      expect(
+        await screen.findByRole('heading', { name: 'Delete your Seald account' }),
+      ).toBeVisible();
+      expect(screen.queryByRole('button', { name: 'Review fields' })).not.toBeInTheDocument();
+      await user.type(
+        screen.getByRole('textbox', { name: 'Type your account email to confirm' }),
+        'owner@example.test',
+      );
+      await user.click(screen.getByRole('button', { name: 'Delete my account' }));
+      expect(postMock).toHaveBeenCalledWith(`/approvals/${APPROVAL_ID}/approve`, {
+        confirm_email: 'owner@example.test',
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent('not your account email');
+    });
+
+    it('an approved deletion signs out and leaves for sign-in', async () => {
+      const user = userEvent.setup();
+      const signOut = vi.fn(() => Promise.resolve());
+      getMock.mockResolvedValueOnce({ data: fakeOwnerDetail('account_delete') });
+      getMock.mockResolvedValue({ data: fakeOwnerDetail('account_delete', { status: 'done' }) });
+      postMock.mockResolvedValue({ data: fakeOwnerDetail('account_delete', { status: 'done' }) });
+      renderCard(undefined, { auth: { signOut } });
+      await user.type(
+        await screen.findByRole('textbox', { name: 'Type your account email to confirm' }),
+        'owner@example.test',
+      );
+      await user.click(screen.getByRole('button', { name: 'Delete my account' }));
+      await waitFor(() => {
+        expect(signOut).toHaveBeenCalled();
+      });
+      expect(await screen.findByTestId('where')).toHaveTextContent('/signin');
+    });
+
+    it('a new key is shown once from the Approve response, and not after a reload', async () => {
+      const user = userEvent.setup();
+      getMock.mockResolvedValueOnce({ data: fakeOwnerDetail('api_key_create') });
+      getMock.mockResolvedValue({ data: fakeOwnerDetail('api_key_create', { status: 'done' }) });
+      postMock.mockResolvedValue({
+        data: fakeOwnerDetail('api_key_create', {
+          status: 'done',
+          reveal: { api_key_secret: FAKE_KEY_SECRET },
+        }),
+      });
+      renderCard();
+      await user.click(await screen.findByRole('button', { name: 'Approve' }));
+      expect(postMock).toHaveBeenCalledWith(`/approvals/${APPROVAL_ID}/approve`);
+      expect(await screen.findByText(FAKE_KEY_SECRET)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByText(FAKE_KEY_SECRET)).not.toBeInTheDocument();
+    });
+
+    it('asks for a sign-in from the last 10 minutes', async () => {
+      const user = userEvent.setup();
+      getMock.mockResolvedValue({ data: fakeOwnerDetail('api_key_revoke') });
+      postMock.mockRejectedValue(httpError(403, 'fresh_login_required'));
+      renderCard();
+      await user.click(await screen.findByRole('button', { name: 'Approve' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'sign-in from the last 10 minutes',
+      );
+    });
+
+    it('the review route of an owner action goes back to the card', async () => {
+      getMock.mockResolvedValue({ data: fakeOwnerDetail('account_export') });
+      renderWithProviders(
+        <MemoryRouter initialEntries={[`/approve/${APPROVAL_ID}/review`]}>
+          <Routes>
+            <Route path="/approve/:id/review" element={<ApproveReviewPage />} />
+            <Route path="/approve/:id" element={<Where />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      expect(await screen.findByTestId('where')).toHaveTextContent(`/approve/${APPROVAL_ID}`);
+    });
   });
 });

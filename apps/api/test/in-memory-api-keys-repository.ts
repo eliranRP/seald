@@ -112,6 +112,22 @@ export class InMemoryApiKeysRepository extends ApiKeysRepository {
     return 'revoked';
   }
 
+  async findOwned(ownerId: string, id: string): Promise<ApiKeyRecord | null> {
+    const row = this.rows.find((r) => r.id === id && r.ownerId === ownerId);
+    return row ? { ...row } : null;
+  }
+
+  async setRequireOwnerApproval(
+    ownerId: string,
+    id: string,
+    value: boolean,
+  ): Promise<ApiKeyRecord | null> {
+    const row = this.rows.find((r) => r.id === id && r.ownerId === ownerId && r.revokedAt === null);
+    if (!row) return null;
+    row.requireOwnerApproval = value;
+    return { ...row };
+  }
+
   async touchLastUsed(id: string, now: Date): Promise<void> {
     this.touchCalls += 1;
     const row = this.rows.find((r) => r.id === id);

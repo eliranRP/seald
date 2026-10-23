@@ -779,7 +779,7 @@ describePg('owner approvals (e2e, real Postgres)', () => {
   });
 
   describe('guards on the request hook', () => {
-    it('refuses an account whose email is not verified, and a stub kind, writing nothing', async () => {
+    it('refuses an account whose email is not verified, and bad arguments, writing nothing', async () => {
       const before = await q(`select count(*)::int as n from mcp_approvals`);
       await expect(
         svc.request({
@@ -788,7 +788,8 @@ describePg('owner approvals (e2e, real Postgres)', () => {
           args: { envelope_id: randomUUID() },
         }),
       ).rejects.toThrow('email_not_verified');
-      await expect(ask('account_delete', {})).rejects.toThrow('approval_kind_not_ready');
+      // WP-45 replaced every stub kind at boot; bad arguments still write nothing.
+      await expect(ask('account_delete', { extra: true })).rejects.toThrow('validation_error');
       const after = await q(`select count(*)::int as n from mcp_approvals`);
       expect(after.rows[0]).toEqual(before.rows[0]);
     });

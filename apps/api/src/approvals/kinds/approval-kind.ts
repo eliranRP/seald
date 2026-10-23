@@ -1,4 +1,10 @@
-import type { ApprovalDestination, ApprovalKind, McpEventMetadata } from 'shared';
+import type {
+  ApprovalApproveBody,
+  ApprovalDestination,
+  ApprovalFact,
+  ApprovalKind,
+  McpEventMetadata,
+} from 'shared';
 import type { z } from 'zod';
 import type { SubjectField } from '../subject-hash';
 
@@ -10,6 +16,8 @@ export interface ApprovalKindContext {
   readonly now: Date;
   /** The key that asked (null for an OAuth grant, WP-27). Always set by ApprovalsService. */
   readonly apiKeyId?: string | null;
+  /** WP-45: the OAuth grant that asked (WP-27), or null for a key. */
+  readonly oauthGrantId?: string | null;
 }
 
 /** What `checkLimits` sees: the context plus the recomputed New flags. */
@@ -39,6 +47,19 @@ export interface DescribedSubject {
   readonly extra?: Readonly<Record<string, unknown>>;
   /** Rows of a batch; 1 for a single action. */
   readonly batchSize?: number;
+  /**
+   * WP-45: what the card lists for a kind with no document (the key a
+   * request would create). Fixed labels; shown, and hashed with `extra`.
+   */
+  readonly facts?: readonly ApprovalFact[];
+  /** WP-45 `envelope_sign_as_signer`: the signer row, for the approval page. */
+  readonly signerId?: string;
+}
+
+/** A secret an action minted, handed to the Approve response once and never stored. */
+export interface ApprovalReveal {
+  readonly api_key_secret?: string;
+  readonly automation_secret?: string;
 }
 
 export interface ApprovalExecuteContext extends ApprovalKindContext {
@@ -53,6 +74,16 @@ export interface ApprovalExecuteContext extends ApprovalKindContext {
   readonly mcp?: McpEventMetadata;
   /** Lower-cased recipient addresses that were New at decision time. */
   readonly newRecipientEmails?: ReadonlySet<string>;
+  /**
+   * WP-45: the Approve body, after the kind's `checkApproveBody` passed
+   * (the typed email, the signer's consent and images).
+   */
+  readonly body?: ApprovalApproveBody;
+  /**
+   * WP-45: hand a minted secret to this Approve's response. It is not
+   * written to `result`, a log or an event, so it is shown once.
+   */
+  readonly revealOnce?: (reveal: ApprovalReveal) => void;
 }
 
 /**
@@ -81,6 +112,31 @@ export interface ApprovalKindHandler<A extends Record<string, unknown> = Record<
    * disconnect, a non-default Drive folder, every WP-45 action).
    */
   highRisk(args: A): boolean;
+  /**
+   * WP-45: Approve needs a session whose newest `amr[].timestamp` is
+   * within this many seconds (the 10-minute window of key creation),
+   * instead of the default 12 hours. Only the in-app Approve can meet
+   * it; such a kind is also `highRisk`, so the email link never approves.
+   */
+  readonly freshSignInSeconds?: number;
+  /**
+   * WP-45: checks the Approve body before anything is recorded (the
+   * typed account email, the signer's consent). Throws a 4xx slug, which
+   * the page shows; the approval stays pending.
+   */
+  checkApproveBody?(
+    args: A,
+    body: ApprovalApproveBody,
+    ctx: ApprovalKindContext,
+  ): void | Promise<void>;
+  /**
+   * WP-45: false runs `execute` after the decision commits, outside its
+   * transaction. Only for an action that calls a service which must see
+   * the decision's rows unlocked (account deletion asks Supabase to
+   * delete the auth user, whose cascade would wait on this transaction's
+   * row locks). Defaults to true.
+   */
+  readonly transactional?: boolean;
   describe(args: A, ctx: ApprovalKindContext): Promise<DescribedSubject>;
   /**
    * Optional per-owner limits (the send caps, WP-24), checked after

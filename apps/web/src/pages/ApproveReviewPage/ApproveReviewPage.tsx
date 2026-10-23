@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/Button';
 import { ApprovalFrame } from '@/features/approvals/ApprovalFrame';
@@ -10,7 +10,12 @@ import {
   useApprovalAction,
   useApprovalDetail,
 } from '@/features/approvals/approvalsApi';
-import { approvalPath, reviewPath } from '@/features/approvals/model';
+import {
+  approvalPath,
+  freshSignInCopy,
+  isOwnerActionKind,
+  reviewPath,
+} from '@/features/approvals/model';
 import { ApprovalReview } from '@/features/approvals/review/ApprovalReview';
 import { useDocumentTitle } from '@/features/approvals/useDocumentTitle';
 import { useReauth } from '@/features/approvals/useReauth';
@@ -72,6 +77,8 @@ export function ApproveReviewPage() {
   if (detail.isError && isNotFound(detail.error)) return <ApprovalsNotFound />;
 
   const data = detail.data;
+  // WP-45: the owner actions have no field review; their page is the card.
+  if (data && isOwnerActionKind(data.kind)) return <Navigate to={approvalPath(id)} replace />;
   const backToCard = (): void => {
     navigate(approvalPath(id));
   };
@@ -130,7 +137,7 @@ export function ApproveReviewPage() {
   if (needsFresh) {
     notice = (
       <>
-        Approving needs a sign-in from the last 12 hours.
+        {freshSignInCopy(data.kind)}
         <Button
           variant="secondary"
           size="lg"

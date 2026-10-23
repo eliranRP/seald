@@ -232,11 +232,15 @@ const AMR_FUTURE_SKEW_SECONDS = 60;
  * In-app and review Approve: the session's newest `amr[].timestamp` must
  * be within the last 12 hours. `iat` is not the check (a refresh renews it).
  */
-export function isFreshForApproval(lastSignInAt: number | null | undefined, now: Date): boolean {
+export function isFreshForApproval(
+  lastSignInAt: number | null | undefined,
+  now: Date,
+  windowSeconds: number = APPROVAL_POLICY.freshSignInSeconds,
+): boolean {
   if (lastSignInAt === null || lastSignInAt === undefined) return false;
   const nowSeconds = now.getTime() / 1000;
   if (lastSignInAt > nowSeconds + AMR_FUTURE_SKEW_SECONDS) return false;
-  return nowSeconds - lastSignInAt <= APPROVAL_POLICY.freshSignInSeconds;
+  return nowSeconds - lastSignInAt <= windowSeconds;
 }
 
 /** Recipients with New first, then in the order given. */

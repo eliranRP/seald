@@ -18,6 +18,7 @@ import { SendGuardService } from '../send-guard.service';
 import { ApprovalsService } from '../approvals.service';
 import { ConfirmationsService } from '../confirmations.service';
 import { ApprovalKindRegistry } from '../kinds/approval-kind.registry';
+import type { SigningService } from '../../signing/signing.service';
 
 const OWNER = '00000000-0000-4000-8000-0000000000a1';
 const OTHER = '00000000-0000-4000-8000-0000000000b2';
@@ -218,7 +219,14 @@ function setup(): World {
   const accessAuth = {
     effectiveFor: async () => ({ access: 'none', action: 'none' }),
   } as unknown as AccessAuthService;
-  const registry = new ApprovalKindRegistry(envelopes, documents, gdrive, guard, accessAuth);
+  const registry = new ApprovalKindRegistry(
+    envelopes,
+    documents,
+    gdrive,
+    guard,
+    accessAuth,
+    {} as unknown as SigningService,
+  );
   w.svc = new ApprovalsService(
     repo,
     registry,
@@ -291,6 +299,29 @@ function user(lastSignInAgoHours: number, id = OWNER): AuthUser {
     lastSignInAt: NOW.getTime() / 1000 - lastSignInAgoHours * 3600,
   };
 }
+
+// The link minter stamps `new Date()`; pin the clock to NOW (file-wide) so
+// the fixture's 24-hour links do not expire once the wall clock passes them.
+beforeEach(() => {
+  jest.useFakeTimers({
+    now: NOW,
+    doNotFake: [
+      'nextTick',
+      'setImmediate',
+      'clearImmediate',
+      'setTimeout',
+      'clearTimeout',
+      'setInterval',
+      'clearInterval',
+      'queueMicrotask',
+      'hrtime',
+      'performance',
+    ],
+  });
+});
+afterEach(() => {
+  jest.useRealTimers();
+});
 
 describe('ApprovalsService', () => {
   describe('request (the hook)', () => {

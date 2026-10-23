@@ -4,19 +4,23 @@ import { EnvelopeDocumentsService } from '../../envelopes/documents/envelope-doc
 import { EnvelopesService } from '../../envelopes/envelopes.service';
 import { GDriveService } from '../../integrations/gdrive/gdrive.service';
 import { AccessAuthService } from '../../signing/access-auth/access-auth.service';
+import { SigningService } from '../../signing/signing.service';
 import { SendGuardService } from '../send-guard.service';
 import type { ApprovalKindHandler } from './approval-kind';
 import { envelopeCancelKind, envelopeRemindKind, envelopeSendKind } from './envelope-kinds';
 import { envelopeSaveToDriveKind, gdriveDisconnectKind } from './gdrive-kinds';
 import { envelopeChangeExpiryKind, envelopeFixSignerKind } from './later-kinds';
+import { envelopeSignAsSignerKind } from './sign-as-signer-kind';
 import {
   accountDeleteKind,
+  accountExportKind,
   apiKeyCreateKind,
   apiKeyRevokeKind,
   approvalRequiredToggleKind,
   automationExternalDestinationKind,
   bulkSendKind,
-  envelopeSignAsSignerKind,
+  automationRotateSecretKind,
+  oauthGrantRevokeKind,
 } from './stub-kinds';
 
 type AnyHandler = ApprovalKindHandler<Record<string, unknown>>;
@@ -29,7 +33,9 @@ type AnyHandler = ApprovalKindHandler<Record<string, unknown>>;
  * A work package that ships a stubbed action replaces its entry with
  * `register()` from its own module (WP-45 for the account and key
  * actions, WP-30 for automations), so it does not need to edit this file
- * or make this module import its module.
+ * or make this module import its module. `envelope_sign_as_signer`
+ * (WP-45) is built here: it runs the signing service, which the global
+ * SigningModule provides and `src/mcp` may not import.
  */
 @Injectable()
 export class ApprovalKindRegistry {
@@ -41,6 +47,8 @@ export class ApprovalKindRegistry {
     gdrive: GDriveService,
     guard: SendGuardService,
     accessAuth: AccessAuthService,
+    // WP-45: the owner signs as their own signer through `/sign/*`'s service.
+    signing: SigningService,
   ) {
     const env = { envelopes, documents, guard, accessAuth };
     const drive = { gdrive, envelopes };
@@ -56,10 +64,15 @@ export class ApprovalKindRegistry {
       bulk_send: erase(bulkSendKind),
       automation_external_destination: erase(automationExternalDestinationKind),
       account_delete: erase(accountDeleteKind),
+      account_export: erase(accountExportKind),
       api_key_create: erase(apiKeyCreateKind),
       api_key_revoke: erase(apiKeyRevokeKind),
       approval_required_toggle: erase(approvalRequiredToggleKind),
-      envelope_sign_as_signer: erase(envelopeSignAsSignerKind),
+      automation_rotate_secret: erase(automationRotateSecretKind),
+      oauth_grant_revoke: erase(oauthGrantRevokeKind),
+      envelope_sign_as_signer: erase(
+        envelopeSignAsSignerKind({ envelopes, documents, accessAuth, signing }),
+      ),
     };
   }
 

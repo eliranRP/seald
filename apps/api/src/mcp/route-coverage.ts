@@ -5,9 +5,8 @@
  *
  * - `{ tool }`: the shipped tool that covers it;
  * - `{ planned }`: the pull-request step (`step-N`, or `step-aN` for the
- *   automations track in workflow-automations.md) or work package
- *   (`WP-45`, the approval-gated account and key actions) that will ship
- *   its tool;
+ *   automations track in workflow-automations.md) that will ship its
+ *   tool (`WP-45`, the approval-gated account and key actions, shipped);
  * - `{ excluded }`: only for a route with no agent-facing action (a
  *   signer-link, verify, cron or OAuth browser redirect route), the
  *   owner's own Approve / Deny / review re-mint (the human side of an
@@ -42,6 +41,8 @@ export const SHIPPED_STEPS = [
   'step-11',
   // WP-26: the "Later" list.
   'step-15',
+  // WP-45 (D5): the approval-gated account, key and owner-signing tools.
+  'WP-45',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -77,15 +78,15 @@ export type RouteCoverage =
 export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // Account
   'GET /me': { tool: 'me_get' },
-  'GET /me/export': { planned: 'WP-45' },
-  'DELETE /me': { planned: 'WP-45' },
-  'GET /me/api-keys': { planned: 'WP-45' },
-  'POST /me/api-keys': { planned: 'WP-45' },
-  'POST /me/api-keys/:id/revoke': { planned: 'WP-45' },
-  // WP-27: connected apps (OAuth grants) sit next to keys: credential
-  // management, so the same approval-gated WP-45 track.
-  'GET /me/connected-apps': { planned: 'WP-45' },
-  'POST /me/connected-apps/:id/revoke': { planned: 'WP-45' },
+  // WP-45 (D5): each acts only after the owner approves with a fresh sign-in.
+  'GET /me/export': { tool: 'account_export' },
+  'DELETE /me': { tool: 'account_delete' },
+  'GET /me/api-keys': { tool: 'api_keys_list' },
+  'POST /me/api-keys': { tool: 'api_keys_create' },
+  'POST /me/api-keys/:id/revoke': { tool: 'api_keys_revoke' },
+  // WP-27 connected apps (OAuth grants), next to keys (WP-45): revoke waits on the owner.
+  'GET /me/connected-apps': { tool: 'connected_apps_list' },
+  'POST /me/connected-apps/:id/revoke': { tool: 'connected_apps_revoke' },
   // WP-27: the OAuth consent page's API. The owner's browser approves an
   // app; an agent calling it would grant itself access.
   'POST /oauth/consent/describe': {
@@ -146,15 +147,15 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
 
   // Automations. The owner routes (WP-31) call the same AutomationsService as
   // the A3 tools. `automations_test_webhook` ships with A2b's MCP half over
-  // the same `AutomationTestService.sendTest`. Deleting a recipe and rotating
-  // its webhook secret have no tool: an agent changing or revealing a signing
-  // secret is an approval-gated key action (WP-45).
+  // the same `AutomationTestService.sendTest`. WP-45: deleting a recipe is a
+  // plain write; rotating its webhook secret waits on the owner, and the new
+  // secret is shown once on the approval page, never to the agent.
   'GET /automations': { tool: 'automations_list' },
   'POST /automations': { tool: 'automations_upsert_recipe' },
   'GET /automations/:id': { tool: 'automations_list' },
   'PATCH /automations/:id': { tool: 'automations_upsert_recipe' },
-  'DELETE /automations/:id': { planned: 'WP-45' },
-  'POST /automations/:id/rotate-secret': { planned: 'WP-45' },
+  'DELETE /automations/:id': { tool: 'automations_delete' },
+  'POST /automations/:id/rotate-secret': { tool: 'automations_rotate_secret' },
   'GET /automations/:id/runs': { tool: 'automations_list_runs' },
   'GET /automations/runs/:runId': { tool: 'automations_get_run' },
   'POST /automations/:id/runs/:runId/retry': { tool: 'automations_retry_run' },

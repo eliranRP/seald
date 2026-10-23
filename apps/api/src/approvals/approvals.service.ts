@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   APPROVAL_POLICY,
+  type ApprovalApproveBody,
   type ApprovalCard,
   type ApprovalDetail,
   type ApprovalKind,
@@ -53,7 +54,7 @@ import {
 import { hashApprovalToken, looksLikeApprovalToken } from './approval-token';
 import { ApprovalsLifecycleService } from './approvals-lifecycle.service';
 import { ApprovalsRepository, type ApprovalKeyFacts } from './approvals.repository';
-import type { ApprovalKindHandler, DescribedSubject } from './kinds/approval-kind';
+import type { ApprovalKindHandler, ApprovalReveal, DescribedSubject } from './kinds/approval-kind';
 import { ApprovalKindRegistry } from './kinds/approval-kind.registry';
 import { ApprovalKindNotReadyError } from './kinds/stub-kinds';
 import { computeSubjectHash } from './subject-hash';
@@ -78,6 +79,26 @@ export interface ApprovalRequestInput {
 export interface DecisionAudit {
   readonly ip: string | null;
   readonly userAgent: string | null;
+}
+
+/** What one decision recorded, and a secret the action minted (WP-45, Approve response only). */
+interface DecisionOutcome {
+  readonly record: ApprovalRecord;
+  readonly decided: boolean;
+  readonly reveal?: ApprovalReveal;
+}
+
+/** The decision a caller asked for. */
+interface DecisionRequest {
+  readonly decision: 'approve' | 'deny';
+  readonly via: 'email' | 'app';
+  readonly signedIn: boolean;
+  readonly tokenHash: string | null;
+  readonly ownerId: string | null;
+  readonly audit: DecisionAudit;
+  readonly now: Date;
+  /** WP-45: the in-app Approve body. */
+  readonly body?: ApprovalApproveBody;
 }
 
 interface Evaluated {
@@ -346,11 +367,17 @@ export class ApprovalsService {
     id: string,
     audit: DecisionAudit,
     now: Date = new Date(),
+    body: ApprovalApproveBody = {},
   ): Promise<ApprovalDetail> {
     if (!isFreshForApproval(user.lastSignInAt ?? null, now)) {
       throw new ForbiddenException('fresh_login_required');
     }
     const record = await this.ownedRecord(user.id, id);
+    // WP-45: the account and key actions need a sign-in from the last 10 minutes.
+    const window = this.registry.get(record.kind).freshSignInSeconds;
+    if (window !== undefined && !isFreshForApproval(user.lastSignInAt ?? null, now, window)) {
+      throw new ForbiddenException('fresh_login_required');
+    }
     const outcome = await this.decide(record, {
       decision: 'approve',
       via: 'app',
@@ -359,8 +386,10 @@ export class ApprovalsService {
       ownerId: user.id,
       audit,
       now,
+      body,
     });
-    return this.detail(outcome.record, now);
+    const detail = this.detail(outcome.record, now);
+    return outcome.reveal ? { ...detail, reveal: outcome.reveal } : detail;
   }
 
   /** In-app Deny: a session, no freshness window. */
@@ -460,18 +489,7 @@ export class ApprovalsService {
   // Decision core
   // -------------------------------------------------------------------------
 
-  private async decide(
-    record: ApprovalRecord,
-    d: {
-      readonly decision: 'approve' | 'deny';
-      readonly via: 'email' | 'app';
-      readonly signedIn: boolean;
-      readonly tokenHash: string | null;
-      readonly ownerId: string | null;
-      readonly audit: DecisionAudit;
-      readonly now: Date;
-    },
-  ): Promise<{ readonly record: ApprovalRecord; readonly decided: boolean }> {
+  private async decide(record: ApprovalRecord, d: DecisionRequest): Promise<DecisionOutcome> {
     if (!isPendingUndecided(record, d.now)) return { record, decided: false };
     const handler = this.registry.get(record.kind);
     const key = await this.credentialFacts(record);
@@ -511,6 +529,18 @@ export class ApprovalsService {
       if (evaluated.approveRequires === 'session' && !d.signedIn) {
         throw new ForbiddenException('session_required');
       }
+      // WP-45: the page's part of the Approve (typed email, the signer's
+      // consent). A 4xx here records nothing; the approval stays pending.
+      if (handler.checkApproveBody) {
+        if (!d.signedIn) throw new ForbiddenException('session_required');
+        await handler.checkApproveBody(args, d.body ?? {}, {
+          ownerId: record.ownerId,
+          ownerEmail,
+          now: d.now,
+          apiKeyId: record.apiKeyId,
+          oauthGrantId: record.oauthGrantId,
+        });
+      }
       if (key && key.revokedAt !== null) {
         const failed = await this.repo.markFailedUndecided(record.id, revokedSlug(record), meta);
         return failed ? { record: failed, decided: false } : unchanged();
@@ -528,29 +558,39 @@ export class ApprovalsService {
     // leaves the row pending and nothing sent, so the owner's next click
     // runs the action exactly once. An action that fails rolls back to
     // its savepoint and the row records Failed, with the decision kept.
-    return this.transactions.run(() =>
-      this.decideAndRun(record, d, handler, args, key, ownerEmail, newRecipientEmails, unchanged),
-    );
+    const action = { handler, args, key, ownerEmail, newRecipientEmails };
+    if (handler.transactional === false && d.decision === 'approve') {
+      // WP-45 (account deletion): the decision and its audit row commit
+      // first; the action then runs on its own, outside any transaction.
+      // A crash in between leaves an approved row that reads Failed
+      // (`execution_interrupted`) after 10 minutes, and nothing deleted.
+      const phase = await this.transactions.run(() =>
+        this.claimPhase(record, d, action, unchanged),
+      );
+      return 'claimed' in phase ? this.actionPhase(phase.claimed, d, action, false) : phase;
+    }
+    return this.transactions.run(async () => {
+      const phase = await this.claimPhase(record, d, action, unchanged);
+      return 'claimed' in phase ? this.actionPhase(phase.claimed, d, action, true) : phase;
+    });
   }
 
-  private async decideAndRun(
+  /**
+   * The conditional update and `approval_decided`. Returns the claimed
+   * row when the action should run, or the final outcome (a lost race, a
+   * Deny, or a failed audit write).
+   */
+  private async claimPhase(
     record: ApprovalRecord,
-    d: {
-      readonly decision: 'approve' | 'deny';
-      readonly via: 'email' | 'app';
-      readonly signedIn: boolean;
-      readonly tokenHash: string | null;
-      readonly ownerId: string | null;
-      readonly audit: DecisionAudit;
-      readonly now: Date;
+    d: DecisionRequest,
+    action: {
+      readonly handler: AnyHandler;
+      readonly key: ApprovalKeyFacts | null;
+      readonly ownerEmail: string;
     },
-    handler: AnyHandler,
-    args: Record<string, unknown>,
-    key: ApprovalKeyFacts | null,
-    ownerEmail: string,
-    newRecipientEmails: ReadonlySet<string>,
     unchanged: () => Promise<{ record: ApprovalRecord; decided: false }>,
-  ): Promise<{ readonly record: ApprovalRecord; readonly decided: boolean }> {
+  ): Promise<DecisionOutcome | { readonly claimed: ApprovalRecord }> {
+    const { key, ownerEmail } = action;
     const claimed = await this.repo.claimDecision({
       id: record.id,
       decision: d.decision,
@@ -580,6 +620,27 @@ export class ApprovalsService {
       );
       return { record: failed ?? claimed, decided: true };
     }
+    return { claimed };
+  }
+
+  /**
+   * Runs the approved action and records Done or Failed. In a
+   * transaction (the default) the action gets its own savepoint, so a
+   * failure leaves the decision standing.
+   */
+  private async actionPhase(
+    claimed: ApprovalRecord,
+    d: DecisionRequest,
+    action: {
+      readonly handler: AnyHandler;
+      readonly args: Record<string, unknown>;
+      readonly key: ApprovalKeyFacts | null;
+      readonly ownerEmail: string;
+      readonly newRecipientEmails: ReadonlySet<string>;
+    },
+    inTransaction: boolean,
+  ): Promise<DecisionOutcome> {
+    const { handler, args, key, ownerEmail, newRecipientEmails } = action;
     const oauth = claimed.apiKeyId === null && claimed.oauthGrantId !== null;
     const mcp: McpEventMetadata = {
       auth: oauth ? 'oauth' : 'api_key',
@@ -595,20 +656,26 @@ export class ApprovalsService {
       approved_by_session: d.signedIn,
     };
     let result: Record<string, unknown>;
+    let reveal: ApprovalReveal | undefined;
+    const run = (): Promise<Record<string, unknown>> =>
+      handler.execute(args, {
+        ownerId: claimed.ownerId,
+        ownerEmail,
+        now: d.now,
+        apiKeyId: claimed.apiKeyId,
+        oauthGrantId: claimed.oauthGrantId,
+        approvalId: claimed.id,
+        audit: { ip: d.audit.ip, user_agent: d.audit.userAgent },
+        mcp,
+        newRecipientEmails,
+        ...(d.body ? { body: d.body } : {}),
+        revealOnce: (value) => {
+          reveal = value;
+        },
+      });
     try {
       // Its own savepoint: a failed action leaves the decision standing.
-      result = await this.transactions.run(() =>
-        handler.execute(args, {
-          ownerId: claimed.ownerId,
-          ownerEmail,
-          now: d.now,
-          apiKeyId: claimed.apiKeyId,
-          approvalId: claimed.id,
-          audit: { ip: d.audit.ip, user_agent: d.audit.userAgent },
-          mcp,
-          newRecipientEmails,
-        }),
-      );
+      result = inTransaction ? await this.transactions.run(run) : await run();
     } catch (err) {
       const slug = slugOf(err);
       this.log.warn(`approval action failed id=${claimed.id} kind=${claimed.kind} slug=${slug}`);
@@ -616,8 +683,12 @@ export class ApprovalsService {
       return { record: failed ?? claimed, decided: true };
     }
     // Not caught: if recording Done fails, the whole decision rolls back.
-    const done = await this.repo.markCompleted(claimed.id, result, new Date());
-    return { record: done ?? claimed, decided: true };
+    const completedAt = new Date();
+    const done = await this.repo.markCompleted(claimed.id, result, completedAt);
+    // An action that removes the row itself (account deletion) still
+    // answers Done to the page that approved it.
+    const record = done ?? { ...claimed, completedAt: completedAt.toISOString(), result };
+    return reveal ? { record, decided: true, reveal } : { record, decided: true };
   }
 
   /** `approval_decided` before any `sent` row (rule S.6: through appendEvent). */
@@ -724,6 +795,7 @@ export class ApprovalsService {
       ownerEmail,
       now,
       apiKeyId: key.credential === 'oauth' ? null : key.id,
+      oauthGrantId: key.credential === 'oauth' ? key.id : null,
     };
     const described = await handler.describe(args, kindCtx);
     const known = await this.repo.findKnownRecipients(
@@ -753,7 +825,14 @@ export class ApprovalsService {
       key_name: keyName,
       approver_email: ownerEmail,
       destination: described.destination,
+      ...(described.facts ? { facts: [...described.facts] } : {}),
+      ...(described.signerId ? { signer_id: described.signerId } : {}),
     };
+    // WP-45: the facts a card lists are part of what the owner agrees to.
+    const extra =
+      described.facts && described.facts.length > 0
+        ? { ...(described.extra ?? {}), facts: described.facts }
+        : described.extra;
     const subjectHash = computeSubjectHash({
       kind: handler.kind,
       recipients: described.recipients,
@@ -763,7 +842,7 @@ export class ApprovalsService {
       destination: described.destination,
       files: described.files,
       fields: described.fields,
-      ...(described.extra ? { extra: described.extra } : {}),
+      ...(extra ? { extra } : {}),
     });
     return {
       described,

@@ -31,6 +31,9 @@ import type { InsertOutboundEmailInput } from '../email/outbound-emails.reposito
 import { generateApiKey } from './api-key-secret';
 import { ApiKeysRepository, type ApiKeyRecord } from './api-keys.repository';
 
+/** WP-45: the row shape the MCP key tools read through this service (src/mcp may not import a repository). */
+export type { ApiKeyRecord };
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Client clocks drift; a 365-day choice computed client-side must pass. */
 const EXPIRY_SKEW_MS = 5 * 60 * 1000;
@@ -95,23 +98,95 @@ export class ApiKeysService {
       throw new ForbiddenException('fresh_login_required');
     }
 
-    const ownerEmail = user.email;
+    return this.mint({
+      ownerId: user.id,
+      ownerEmail: user.email,
+      name: req.name ?? null,
+      scopes,
+      expiresAt,
+      alwaysRequireSignin: req.always_require_signin ?? false,
+      now,
+    });
+  }
+
+  /**
+   * WP-45 `api_key_create`, after the owner approved on the approval page
+   * with a sign-in from the last 10 minutes (the same freshness `create`
+   * asks for an elevated scope). The scope ceiling (never wider than the
+   * key that asked) is the approval kind's to check. The secret goes back
+   * to the approval page once; the owner is emailed as for any key.
+   */
+  async createOnApproval(input: {
+    readonly ownerId: string;
+    readonly ownerEmail: string;
+    readonly name: string | null;
+    readonly scopes: readonly ApiKeyScope[];
+    readonly expiresInDays: number;
+    readonly now: Date;
+  }): Promise<CreateApiKeyResponse> {
+    const days = Math.min(Math.max(input.expiresInDays, 1), API_KEY_MAX_TTL_DAYS);
+    return this.mint({
+      ownerId: input.ownerId,
+      ownerEmail: input.ownerEmail,
+      name: input.name,
+      scopes: dedupe(input.scopes),
+      expiresAt: new Date(input.now.getTime() + days * DAY_MS),
+      alwaysRequireSignin: false,
+      now: input.now,
+    });
+  }
+
+  /** WP-45: the owner's keys (live and expired), for `api_keys_list` and the ceiling check. */
+  listForOwner(ownerId: string): Promise<readonly ApiKeyRecord[]> {
+    return this.repo.listLive(ownerId);
+  }
+
+  /** WP-45: one of the owner's keys in any state, or null. */
+  findOwned(ownerId: string, id: string): Promise<ApiKeyRecord | null> {
+    return this.repo.findOwned(ownerId, id);
+  }
+
+  /**
+   * WP-45 `approvals_set_required`. `true` applies at once from the tool;
+   * `false` only from the approved `approval_required_toggle`.
+   */
+  async setRequireOwnerApproval(
+    ownerId: string,
+    id: string,
+    value: boolean,
+  ): Promise<ApiKeyRecord> {
+    const row = await this.repo.setRequireOwnerApproval(ownerId, id, value);
+    if (!row) throw new NotFoundException('api_key_not_found');
+    this.log.log(`api key require_owner_approval=${String(value)} id=${id} owner=${ownerId}`);
+    return row;
+  }
+
+  private async mint(input: {
+    readonly ownerId: string;
+    readonly ownerEmail: string;
+    readonly name: string | null;
+    readonly scopes: readonly ApiKeyScope[];
+    readonly expiresAt: Date;
+    readonly alwaysRequireSignin: boolean;
+    readonly now: Date;
+  }): Promise<CreateApiKeyResponse> {
+    const { ownerId, ownerEmail, now } = input;
     for (let attempt = 0; attempt < PREFIX_ATTEMPTS; attempt += 1) {
       const generated = generateApiKey();
       const result = await this.repo.createWithinCap({
-        ownerId: user.id,
-        name: req.name ?? null,
+        ownerId,
+        name: input.name,
         prefix: generated.prefix,
         keyHash: generated.keyHash,
-        scopes,
-        expiresAt: expiresAt.toISOString(),
-        alwaysRequireSignin: req.always_require_signin ?? false,
+        scopes: input.scopes,
+        expiresAt: input.expiresAt.toISOString(),
+        alwaysRequireSignin: input.alwaysRequireSignin,
         cap: API_KEY_MAX_LIVE,
         notification: (key) => this.creationEmail(ownerEmail, key),
       });
       if (result.ok) {
         this.log.log(
-          `api key created id=${result.key.id} prefix=${result.key.prefix} owner=${user.id}`,
+          `api key created id=${result.key.id} prefix=${result.key.prefix} owner=${ownerId}`,
         );
         return { key: toWire(result.key, now), secret: generated.token };
       }
@@ -122,11 +197,20 @@ export class ApiKeysService {
     throw new ConflictException('api_key_prefix_collision');
   }
 
-  async revoke(user: AuthUser, id: string, now: Date = new Date()): Promise<RevokeApiKeyResponse> {
-    const result = await this.repo.revoke(user.id, id, now);
+  revoke(user: AuthUser, id: string, now: Date = new Date()): Promise<RevokeApiKeyResponse> {
+    return this.revokeForOwner(user.id, id, now);
+  }
+
+  /** `POST /me/api-keys/:id/revoke`, and the approved `api_key_revoke` (WP-45). */
+  async revokeForOwner(
+    ownerId: string,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<RevokeApiKeyResponse> {
+    const result = await this.repo.revoke(ownerId, id, now);
     if (result === 'not_found') throw new NotFoundException('api_key_not_found');
     if (result === 'revoked') {
-      this.log.log(`api key revoked id=${id} owner=${user.id}`);
+      this.log.log(`api key revoked id=${id} owner=${ownerId}`);
       // Revoking also expires that key's pending approvals (WP-21). Run on
       // a repeat revoke too, so a failed first pass is retried. A failure
       // here does not undo the revoke: an Approve still finds the key

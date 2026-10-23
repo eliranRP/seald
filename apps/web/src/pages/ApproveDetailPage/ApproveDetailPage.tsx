@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ApprovalApproveBody, ApprovalDetail } from 'shared';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { Button } from '@/components/Button';
@@ -12,9 +13,27 @@ import {
   useApprovalAction,
   useApprovalDetail,
 } from '@/features/approvals/approvalsApi';
-import { approvalPath, reviewPath } from '@/features/approvals/model';
+import {
+  approvalPath,
+  freshSignInCopy,
+  isOwnerActionKind,
+  reviewPath,
+} from '@/features/approvals/model';
+import { OwnerActionDone } from '@/features/approvals/owner/OwnerActionDone';
+import { OwnerActionPanel } from '@/features/approvals/owner/OwnerActionPanel';
 import { useReauth } from '@/features/approvals/useReauth';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
+import { useAuth } from '@/providers/AuthProvider';
+
+/** Sentences for the WP-45 Approve refusals that record nothing (the owner can fix and retry). */
+const APPROVE_REFUSALS: Readonly<Record<string, string>> = {
+  confirmation_mismatch: 'That is not your account email. Type it exactly to delete the account.',
+  consent_required: 'Tick each box to give your consent before you sign.',
+  signature_required: 'Adopt your signature before you approve.',
+  initials_required: 'Adopt your initials before you approve.',
+  image_not_png_or_jpeg: 'That signature image could not be read. Adopt it again.',
+  image_too_large: 'That signature image is too large. Adopt it again.',
+};
 
 const Notice = styled.div`
   display: flex;
@@ -63,8 +82,18 @@ export function ApproveDetailPage() {
   const act = useApprovalAction();
   const reauth = useReauth(approvalPath(id));
   const [needsFresh, setNeedsFresh] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  // WP-45: the Approve response, which alone carries a minted secret.
+  const [approved, setApproved] = useState<ApprovalDetail | null>(null);
   const reauthRequested = params.get('reauth') === '1';
+  const { signOut } = useAuth();
+  const onAccountDeleted = useCallback((): void => {
+    signOut()
+      .catch(() => undefined)
+      .finally(() => {
+        navigate('/signin', { replace: true });
+      });
+  }, [navigate, signOut]);
 
   // One job: honour `?reauth=1` from the queue by starting a fresh sign-in.
   useEffect(() => {
@@ -75,15 +104,21 @@ export function ApproveDetailPage() {
 
   const queuePath = isMobile ? '/m/settings/approvals' : '/settings/approvals';
 
-  const decide = (action: 'approve' | 'deny'): void => {
+  const decide = (action: 'approve' | 'deny', body?: ApprovalApproveBody): void => {
     setNeedsFresh(false);
-    setFailed(false);
+    setFailed(null);
     act.mutate(
-      { id, action },
+      { id, action, ...(body ? { body } : {}) },
       {
+        onSuccess: (detail) => {
+          if (action === 'approve') setApproved(detail);
+        },
         onError: (err) => {
           if (err.code === 'fresh_login_required') setNeedsFresh(true);
-          else setFailed(true);
+          else
+            setFailed(
+              APPROVE_REFUSALS[err.code ?? ''] ?? 'That did not go through. Please try again.',
+            );
         },
       },
     );
@@ -109,7 +144,7 @@ export function ApproveDetailPage() {
             <>
               {needsFresh ? (
                 <Notice role="alert">
-                  Approving needs a sign-in from the last 12 hours.
+                  {freshSignInCopy(data.kind)}
                   <Button
                     variant="secondary"
                     size="lg"
@@ -121,29 +156,50 @@ export function ApproveDetailPage() {
                   </Button>
                 </Notice>
               ) : null}
-              {failed ? (
-                <Notice role="alert">That did not go through. Please try again.</Notice>
-              ) : null}
-              <ApprovalActions
-                approveRequires="link"
-                busy={busy === 'approve' || busy === 'deny' ? busy : null}
-                onApprove={() => {
-                  decide('approve');
-                }}
-                onDeny={() => {
-                  decide('deny');
-                }}
-                onReview={
-                  data.envelope_id !== null
-                    ? () => {
-                        navigate(reviewPath(data.id));
-                      }
-                    : undefined
-                }
-              />
+              {failed ? <Notice role="alert">{failed}</Notice> : null}
+              {isOwnerActionKind(data.kind) ? (
+                <OwnerActionPanel
+                  detail={data}
+                  busy={busy === 'approve' || busy === 'deny' ? busy : null}
+                  onApprove={(body) => {
+                    decide('approve', body);
+                  }}
+                  onDeny={() => {
+                    decide('deny');
+                  }}
+                />
+              ) : (
+                <ApprovalActions
+                  approveRequires="link"
+                  busy={busy === 'approve' || busy === 'deny' ? busy : null}
+                  onApprove={() => {
+                    decide('approve');
+                  }}
+                  onDeny={() => {
+                    decide('deny');
+                  }}
+                  onReview={
+                    data.envelope_id !== null
+                      ? () => {
+                          navigate(reviewPath(data.id));
+                        }
+                      : undefined
+                  }
+                />
+              )}
             </>
           ) : (
-            <ApprovalOutcome state={data.status} resultSlug={data.result_slug} />
+            <>
+              <ApprovalOutcome state={data.status} resultSlug={data.result_slug} />
+              {data.status === 'done' && isOwnerActionKind(data.kind) ? (
+                <OwnerActionDone
+                  // Remount when the Approve response (with its one-time secret) lands.
+                  key={approved?.reveal ? 'revealed' : 'plain'}
+                  detail={approved?.id === data.id ? approved : data}
+                  onAccountDeleted={onAccountDeleted}
+                />
+              ) : null}
+            </>
           )}
           <BackLink to={queuePath}>All approvals</BackLink>
         </>

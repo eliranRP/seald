@@ -141,6 +141,25 @@ const MESSAGES: Readonly<Record<string, string>> = {
   template_has_too_many_signers: 'The template has more signers than a bulk send supports.',
   template_signer_without_signature_field:
     'Every signer slot of the template needs a signature or initials field.',
+  // WP-45 (D5): the approval-gated account, key and owner-signing tools.
+  scope_exceeds_key: 'The new key would have a scope this key does not hold.',
+  api_key_not_found: 'No API key with this id was found for this account.',
+  api_key_already_revoked: 'This API key is already revoked.',
+  api_key_limit_reached: 'This account already has 10 live API keys. Revoke one first.',
+  approval_already_off: 'This key already sends without asking before each send.',
+  signer_not_account_owner:
+    'That signer is not the account owner. An agent can only ask the owner to sign as themselves.',
+  owner_not_a_signer: 'The account email is not a signer on this envelope.',
+  signer_id_required:
+    'The account email is on more than one signer of this envelope. Pass signer_id.',
+  signer_access_code_required:
+    'This signer must enter an emailed code, so the owner signs from their own link instead.',
+  sign_as_signer_needs_input:
+    'A required field needs an answer only the signer can give, so the owner signs from their own link instead.',
+  signature_required: 'This signer has no signature or initials field to sign.',
+  not_a_webhook: 'Only a webhook automation has a signing secret.',
+  api_key_id_required: 'A connected app has no key of its own. Pass api_key_id.',
+  connected_app_not_found: 'No connected app with this id was found for this account.',
 };
 
 function messageFor(slug: string, status: number): string {

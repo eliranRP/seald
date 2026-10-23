@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import type { ApprovalSummary } from 'shared';
 import { Avatar } from '@/components/Avatar';
 import { Badge } from '@/components/Badge';
@@ -6,6 +6,7 @@ import { expiresInLabel, fieldsUpdatedLabel, keyLine, splitRecipients } from './
 import {
   BadgeRow,
   DocTitle,
+  FactList,
   Heading,
   Meta,
   MoreButton,
@@ -95,6 +96,17 @@ export function ApprovalCard({
             </MoreButton>
           ) : null}
         </>
+      ) : null}
+
+      {summary.facts && summary.facts.length > 0 ? (
+        <FactList aria-label="Request details">
+          {summary.facts.map((f) => (
+            <Fragment key={`${f.label}:${f.value}`}>
+              <dt>{f.label}</dt>
+              <dd>{f.value}</dd>
+            </Fragment>
+          ))}
+        </FactList>
       ) : null}
 
       {summary.destination !== null ? <Meta>Destination: {summary.destination.label}</Meta> : null}

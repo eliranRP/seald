@@ -28,6 +28,10 @@ import { iso, uuid } from './envelope-contract';
  * - `envelope_fix_signer`, `envelope_change_expiry`, `bulk_send`: MCP step 15 (WP-26).
  * - `account_delete`, `api_key_create`, `api_key_revoke`,
  *   `approval_required_toggle`, `envelope_sign_as_signer`: WP-45 (D5).
+ * - `account_export`, `automation_rotate_secret`, `oauth_grant_revoke`:
+ *   WP-45, the D5 parity routes `GET /me/export`,
+ *   `POST /automations/:id/rotate-secret` and
+ *   `POST /me/connected-apps/:id/revoke` (WP-27's connected apps).
  */
 export const APPROVAL_KINDS = [
   'envelope_send',
@@ -44,6 +48,9 @@ export const APPROVAL_KINDS = [
   'api_key_revoke',
   'approval_required_toggle',
   'envelope_sign_as_signer',
+  'account_export',
+  'automation_rotate_secret',
+  'oauth_grant_revoke',
 ] as const;
 export type ApprovalKind = (typeof APPROVAL_KINDS)[number];
 
@@ -120,6 +127,17 @@ export const ApprovalDestinationSchema = z.object({
 });
 export type ApprovalDestination = z.infer<typeof ApprovalDestinationSchema>;
 
+/**
+ * One fixed label and its value, for a kind with no document (the key a
+ * request would create: name, scopes, expiry). Labels are fixed strings;
+ * values are data, never instructions.
+ */
+export const ApprovalFactSchema = z.object({
+  label: z.string(),
+  value: z.string(),
+});
+export type ApprovalFact = z.infer<typeof ApprovalFactSchema>;
+
 export const ApprovalSummarySchema = z.object({
   kind: z.enum(APPROVAL_KINDS),
   /** Fixed sentence for the action ("Send for signature"). */
@@ -133,6 +151,10 @@ export const ApprovalSummarySchema = z.object({
   key_name: z.string(),
   approver_email: z.string(),
   destination: ApprovalDestinationSchema.nullable(),
+  /** WP-45: the facts of a kind with no document (key name, scopes, expiry). */
+  facts: z.array(ApprovalFactSchema).optional(),
+  /** WP-45 `envelope_sign_as_signer`: the signer row the owner signs as. */
+  signer_id: uuid.optional(),
 });
 export type ApprovalSummary = z.infer<typeof ApprovalSummarySchema>;
 
@@ -208,8 +230,57 @@ export const ApprovalDetailSchema = z.object({
   result_slug: z.string().nullable(),
   /** Output of the action after a successful Approve. */
   result: z.record(z.string(), z.unknown()).nullable(),
+  /**
+   * WP-45: a secret the action minted, only in the response of the
+   * Approve that created it and never stored (the new API key, a rotated
+   * webhook secret). Shown once on the approval page; never in a tool result.
+   */
+  reveal: z
+    .object({
+      api_key_secret: z.string().optional(),
+      automation_secret: z.string().optional(),
+    })
+    .optional(),
 });
 export type ApprovalDetail = z.infer<typeof ApprovalDetailSchema>;
+
+/**
+ * WP-45: a signature or initials image the owner adopts on the approval
+ * page of `envelope_sign_as_signer`. A PNG or JPEG, base64, applied only
+ * on Approve. 300 KB decoded keeps two images under the 1 MB JSON limit.
+ */
+export const APPROVAL_SIGNATURE_MAX_BYTES = 300 * 1024;
+const signatureImage = z.strictObject({
+  image_base64: z
+    .string()
+    .min(8)
+    .max(Math.ceil(APPROVAL_SIGNATURE_MAX_BYTES / 3) * 4)
+    .regex(/^[A-Za-z0-9+/]+={0,2}$/),
+  format: z.enum(['drawn', 'typed', 'upload']),
+  font: z.string().trim().min(1).max(80).optional(),
+  stroke_count: z.number().int().min(0).max(100_000).optional(),
+});
+export type ApprovalSignatureImage = z.infer<typeof signatureImage>;
+
+/**
+ * `POST /approvals/:id/approve` body (session JWT only). Empty for every
+ * kind before WP-45. The WP-45 kinds read their part and refuse the
+ * Approve, without recording anything, when it is missing or wrong:
+ *
+ * - `account_delete`: `confirm_email`, the account email typed by hand.
+ * - `envelope_sign_as_signer`: the signer's own consent on this page
+ *   (`esign_disclosure_version`, `record_access`, `intent_to_sign`) and
+ *   the images for the signature and initials fields.
+ */
+export const ApprovalApproveBodySchema = z.strictObject({
+  confirm_email: z.string().trim().min(3).max(320).optional(),
+  esign_disclosure_version: z.string().min(1).max(40).optional(),
+  record_access: z.literal(true).optional(),
+  intent_to_sign: z.literal(true).optional(),
+  signature: signatureImage.optional(),
+  initials: signatureImage.optional(),
+});
+export type ApprovalApproveBody = z.infer<typeof ApprovalApproveBodySchema>;
 
 export const ApprovalListResponseSchema = z.object({
   items: z.array(ApprovalDetailSchema),

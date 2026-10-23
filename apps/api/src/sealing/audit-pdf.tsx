@@ -1896,7 +1896,12 @@ function ReferenceLinks(): React.ReactElement {
  */
 export function mcpCertificateCells(
   events: ReadonlyArray<EnvelopeEvent>,
+  signers: ReadonlyArray<Pick<EnvelopeSigner, 'id' | 'name'>> = [],
 ): ReadonlyArray<DataCellInfo> {
+  return [...mcpSendCells(events), ...ownerSignedCells(events, signers)];
+}
+
+function mcpSendCells(events: ReadonlyArray<EnvelopeEvent>): ReadonlyArray<DataCellInfo> {
   const sent = events.find((e) => e.event_type === 'sent' && e.metadata['mcp'] !== undefined);
   if (!sent) return [];
   const parsed = McpEventMetadataSchema.safeParse(sent.metadata['mcp']);
@@ -1906,6 +1911,27 @@ export function mcpCertificateCells(
   return [
     { label: 'Approval', value: mcpApprovalClause(mcp) },
     { label: 'Sent via', value: keyName.length > 0 ? keyName : 'API key' },
+  ];
+}
+
+/**
+ * WP-45: the owner signed as their own signer on the approval page
+ * (`signed` rows with `metadata.via = 'mcp_approval'`). Two cells, like
+ * the send pair. The signature is the named signer's own, given on that
+ * page with a sign-in; the line says where, not that software clicked.
+ */
+function ownerSignedCells(
+  events: ReadonlyArray<EnvelopeEvent>,
+  signers: ReadonlyArray<Pick<EnvelopeSigner, 'id' | 'name'>>,
+): ReadonlyArray<DataCellInfo> {
+  const rows = events.filter(
+    (e) => e.event_type === 'signed' && e.metadata['via'] === 'mcp_approval',
+  );
+  if (rows.length === 0) return [];
+  const names = rows.map((e) => signers.find((s) => s.id === e.signer_id)?.name ?? 'Signer');
+  return [
+    { label: 'Signed via', value: 'Owner approval page (signed-in)' },
+    { label: 'Signed by owner', value: [...new Set(names)].join(', ') },
   ];
 }
 
@@ -1949,7 +1975,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
       ...digitalSignatureCell(mark, ctx.timestampApplied),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
-    ...mcpCertificateCells(ctx.events),
+    ...mcpCertificateCells(ctx.events, env.signers),
     {
       label: 'Signers',
       value: `${signedCount} of ${signatoryCount || env.signers.length} completed`,

@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   ConnectedAppListResponseSchema,
+  type ConnectedApp,
   type ConnectedAppListResponse,
   type RevokeConnectedAppResponse,
 } from 'shared';
@@ -33,23 +34,44 @@ export class ConnectedAppsService {
     return ConnectedAppListResponseSchema.parse({ items: grants.map((g) => this.toApp(g)) });
   }
 
-  async revoke(
-    user: AuthUser,
+  revoke(user: AuthUser, id: string, now: Date = new Date()): Promise<RevokeConnectedAppResponse> {
+    return this.revokeForOwner(user.id, id, now);
+  }
+
+  /** WP-45: the owner's connected apps, for `connected_apps_list`. */
+  async listForOwner(ownerId: string): Promise<ConnectedAppListResponse> {
+    const grants = await this.repo.listLiveGrants(ownerId);
+    return ConnectedAppListResponseSchema.parse({ items: grants.map((g) => this.toApp(g)) });
+  }
+
+  /**
+   * WP-45: one live grant of the owner as a connected app (its card facts),
+   * or null. Another owner's grant reads as none.
+   */
+  async findLive(ownerId: string, id: string): Promise<ConnectedApp | null> {
+    const grant = await this.repo.findGrant(id);
+    if (!grant || grant.ownerId !== ownerId || grant.revokedAt !== null) return null;
+    return this.toApp(grant);
+  }
+
+  /** `POST /me/connected-apps/:id/revoke`, and the approved `oauth_grant_revoke` (WP-45). */
+  async revokeForOwner(
+    ownerId: string,
     id: string,
     now: Date = new Date(),
   ): Promise<RevokeConnectedAppResponse> {
     const grant = await this.repo.findGrant(id);
     // Another owner's grant reads as none.
-    if (!grant || grant.ownerId !== user.id || grant.revokedAt !== null) {
+    if (!grant || grant.ownerId !== ownerId || grant.revokedAt !== null) {
       throw new NotFoundException('connected_app_not_found');
     }
     await this.repo.revokeGrant(grant.id, 'owner_revoked', now);
     await this.lifecycle.expireForRevokedGrant(grant.id, now);
-    this.log.log(`connected app revoked grant=${grant.id} owner=${user.id}`);
+    this.log.log(`connected app revoked grant=${grant.id} owner=${ownerId}`);
     return { revoked: true };
   }
 
-  private toApp(g: OAuthGrantRecord) {
+  private toApp(g: OAuthGrantRecord): ConnectedApp {
     const cimd = g.client.kind === 'cimd';
     return {
       id: g.id,

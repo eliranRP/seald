@@ -229,4 +229,5 @@ export * from './approvals';
 export * from './bulk-send';
 export * from './mcp-send';
 export * from './mcp-later';
+export * from './mcp-account';
 export * from './mcp-oauth';

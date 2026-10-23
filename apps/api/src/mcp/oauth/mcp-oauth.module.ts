@@ -46,7 +46,8 @@ import { OAuthTokenService } from './oauth-token.service';
     OAuthAccessTokenService,
     ConnectedAppsService,
   ],
-  exports: [OAuthAccessTokenService, MCP_OAUTH_CONFIG],
+  // WP-45: ConnectedAppsService for the connected-apps tools and the grant-revoke approval.
+  exports: [OAuthAccessTokenService, MCP_OAUTH_CONFIG, ConnectedAppsService],
 })
 export class McpOAuthModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

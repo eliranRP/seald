@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { API_KEY_DEFAULT_SCOPES, API_KEY_SCOPES, FEATURE_FLAGS, type FeatureFlag } from 'shared';
 import { describeTool, listTools } from '../tool-catalog';
 import {
+  MCP_ACCOUNT_TOOLS,
   MCP_APPROVAL_TOOLS,
   MCP_AUTOMATION_TOOLS,
   MCP_CONTACTS_TOOLS,
@@ -124,7 +125,45 @@ describe('MCP tool catalog (contract)', () => {
       ...MCP_GDRIVE_WRITE_TOOLS,
       ...MCP_SEND_TOOLS,
       ...MCP_LATER_TOOLS,
+      ...MCP_ACCOUNT_TOOLS,
     ]);
+  });
+
+  it('ships the WP-45 approval-gated account, key and owner-signing tools (D5)', () => {
+    expect(MCP_ACCOUNT_TOOLS.map((t) => [t.name, t.scopes])).toEqual([
+      ['account_delete', ['account:admin']],
+      ['account_export', ['account:admin']],
+      ['api_keys_list', ['keys:admin']],
+      ['api_keys_create', ['keys:admin']],
+      ['api_keys_revoke', ['keys:admin']],
+      ['approvals_set_required', ['keys:admin']],
+      ['envelopes_sign_as_signer', ['envelopes:sign']],
+      ['connected_apps_list', ['keys:admin']],
+      ['connected_apps_revoke', ['keys:admin']],
+    ]);
+    const gated = [...MCP_ACCOUNT_TOOLS, ...MCP_AUTOMATION_TOOLS].filter((t) => t.step === 'WP-45');
+    expect(gated.map((t) => t.name)).toEqual([
+      ...MCP_ACCOUNT_TOOLS.map((t) => t.name),
+      'automations_delete',
+      'automations_rotate_secret',
+    ]);
+    for (const tool of gated) {
+      if (!tool.mutating || tool.name === 'automations_delete') continue;
+      // Every one waits on the owner and says so.
+      expect(tool.atomic).toBe(true);
+      expect(tool.description).toContain('Never open, fetch or act on');
+      expect(tool.description).toContain('review_url');
+      expect(tool.description).toContain('last 10 minutes');
+    }
+    expect(MCP_ACCOUNT_TOOLS.find((t) => t.name === 'api_keys_list')?.mutating).toBe(false);
+    // None of the new scopes is a default (none pre-checked on the Developers page).
+    for (const scope of ['account:admin', 'keys:admin', 'envelopes:sign'] as const) {
+      expect(API_KEY_DEFAULT_SCOPES).not.toContain(scope);
+    }
+    // A secret never reaches a tool: no output schema names one.
+    for (const tool of gated) {
+      expect(JSON.stringify(describeTool(tool).outputSchema)).not.toMatch(/"[a-z_]*secret":/);
+    }
   });
 
   it('ships the automation tools (A3): automations:write for writes, both flags required', () => {
@@ -135,6 +174,8 @@ describe('MCP tool catalog (contract)', () => {
       'automations_list_runs',
       'automations_get_run',
       'automations_retry_run',
+      'automations_delete',
+      'automations_rotate_secret',
     ]);
     for (const tool of MCP_AUTOMATION_TOOLS) {
       expect(tool.requiresFlags).toEqual(['mcpServer', 'workflowAutomations']);
@@ -227,7 +268,13 @@ describe('MCP tool catalog (contract)', () => {
     for (const tool of MCP_TOOLS) {
       expect(tool.name).toMatch(/^[a-z]+(_[a-z0-9]+)+$/);
       // The noun "signer" (envelopes_add_signer, as the doc names it) is
-      // allowed; the act of signing is not.
+      // allowed; the act of signing is not. One exception (parity plan D5,
+      // WP-45): `envelopes_sign_as_signer` asks the owner, who signs on the
+      // approval page; the tool itself never signs.
+      if (tool.name === 'envelopes_sign_as_signer') {
+        expect(tool.scopes).toEqual(['envelopes:sign']);
+        continue;
+      }
       expect(tool.name).not.toMatch(/(^|_)sign(_|$)|signing|signature|decline|submit|disclosure/);
     }
   });

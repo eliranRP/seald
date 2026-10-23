@@ -9,6 +9,7 @@ import {
   ApprovalCardSchema,
   ApprovalDetailSchema,
   ApprovalListResponseSchema,
+  type ApprovalApproveBody,
   type ApprovalCard,
   type ApprovalDetail,
   type ApprovalListResponse,
@@ -123,20 +124,35 @@ export function useApprovalDetail(id: string) {
 
 export type ApprovalAction = 'approve' | 'deny' | 'refresh';
 
-/** `POST /approvals/:id/{approve,deny,refresh}`. Every result is the new detail. */
+/**
+ * `POST /approvals/:id/{approve,deny,refresh}`. Every result is the new
+ * detail. `body` is the WP-45 Approve body (the typed account email, the
+ * signer's consent and images). A `reveal` (a key minted on Approve) is in
+ * the mutation result only: it is stripped before the detail is cached.
+ */
 export function useApprovalAction() {
   const qc = useQueryClient();
   return useMutation<
     ApprovalDetail,
     ApiError,
-    { readonly id: string; readonly action: ApprovalAction }
+    {
+      readonly id: string;
+      readonly action: ApprovalAction;
+      readonly body?: ApprovalApproveBody | undefined;
+    }
   >({
-    mutationFn: async ({ id, action }) => {
-      const res = await apiClient.post<unknown>(`/approvals/${encodeURIComponent(id)}/${action}`);
+    mutationFn: async ({ id, action, body }) => {
+      const url = `/approvals/${encodeURIComponent(id)}/${action}`;
+      const res = await (body === undefined
+        ? apiClient.post<unknown>(url)
+        : apiClient.post<unknown>(url, body));
       return ApprovalDetailSchema.parse(res.data);
     },
     onSuccess: async (detail) => {
-      qc.setQueryData(approvalKeys.detail(detail.id), detail);
+      // Never cache a one-time secret: the cached detail outlives this page.
+      const cached: ApprovalDetail = { ...detail };
+      delete cached.reveal;
+      qc.setQueryData(approvalKeys.detail(detail.id), cached);
       await qc.invalidateQueries({ queryKey: approvalKeys.all });
     },
   });

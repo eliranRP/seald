@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Get,
   HttpCode,
@@ -11,7 +12,12 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { APPROVAL_STATUSES, type ApprovalDetail, type ApprovalListResponse } from 'shared';
+import {
+  APPROVAL_STATUSES,
+  ApprovalApproveBodySchema,
+  type ApprovalDetail,
+  type ApprovalListResponse,
+} from 'shared';
 import { z } from 'zod';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -68,15 +74,23 @@ export class ApprovalsController {
     return this.svc.get(user, id);
   }
 
-  /** In-app (and guided-review) Approve. Needs a sign-in within 12 hours. */
+  /**
+   * In-app (and guided-review) Approve. Needs a sign-in within 12 hours
+   * (10 minutes for the WP-45 account and key actions). The body is empty
+   * except for the WP-45 kinds: the typed account email, or the signer's
+   * consent and signature images (`ApprovalApproveBodySchema`).
+   */
   @Post(':id/approve')
   @HttpCode(200)
   approve(
     @CurrentUser() user: AuthUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Req() req: Request,
+    @Body() body: unknown,
   ): Promise<ApprovalDetail> {
-    return this.svc.approveInApp(user, id, decisionAudit(req));
+    const parsed = ApprovalApproveBodySchema.safeParse(body ?? {});
+    if (!parsed.success) throw new BadRequestException('validation_error');
+    return this.svc.approveInApp(user, id, decisionAudit(req), new Date(), parsed.data);
   }
 
   /** In-app Deny. A session, no freshness window. */

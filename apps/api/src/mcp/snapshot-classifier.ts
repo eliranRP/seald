@@ -104,6 +104,21 @@ function compareSchema(
     compareSchema(oldS['items'], newS['items'], `${path}[]`, io, out);
   }
 
+  // A union with the same branches in the same order is compared branch
+  // by branch (WP-45: a new approval kind adds an enum value inside the
+  // dry-run union of every approval-gated tool's output). Any other change
+  // to the branch list is breaking.
+  for (const key of ['anyOf', 'oneOf']) {
+    const a = oldS[key];
+    const b = newS[key];
+    if (stableStringify(a) === stableStringify(b)) continue;
+    if (Array.isArray(a) && Array.isArray(b) && a.length === b.length) {
+      a.forEach((branch, i) => compareSchema(branch, b[i], `${path}.${key}[${i}]`, io, out));
+    } else {
+      out.breaking.push(`${path}: ${key} changed`);
+    }
+  }
+
   if (Array.isArray(oldS['enum']) || Array.isArray(newS['enum'])) {
     const before = new Set((oldS['enum'] as unknown[] | undefined) ?? []);
     const after = new Set((newS['enum'] as unknown[] | undefined) ?? []);

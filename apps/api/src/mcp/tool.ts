@@ -3,8 +3,11 @@ import { z } from 'zod';
 import type { McpPrincipal } from './mcp-principal';
 import type { McpServices } from './mcp-services';
 
-/** Steps of docs/design/mcp-server.md § Pull requests that ship tools. */
-export type McpStep = `step-${string}`;
+/**
+ * Steps of docs/design/mcp-server.md § Pull requests that ship tools, or
+ * `WP-45` (parity plan D5: the approval-gated account and key tools).
+ */
+export type McpStep = `step-${string}` | 'WP-45';
 
 export interface McpToolContext {
   /** The verified credential. `owner_id` always comes from here, never from arguments. */
@@ -21,7 +24,7 @@ export interface McpToolAnnotations {
 }
 
 interface McpToolMeta {
-  /** `noun_verb`; never contains `sign`. */
+  /** `noun_verb`; never names signing (one D5 exception, `envelopes_sign_as_signer`). */
   readonly name: string;
   readonly title: string;
   readonly description: string;

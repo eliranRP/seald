@@ -150,6 +150,32 @@ export class ApiKeysPgRepository extends ApiKeysRepository {
     return existing ? 'already_revoked' : 'not_found';
   }
 
+  async findOwned(ownerId: string, id: string): Promise<ApiKeyRecord | null> {
+    const row = await this.db
+      .selectFrom('api_keys')
+      .selectAll()
+      .where('id', '=', id)
+      .where('owner_id', '=', ownerId)
+      .executeTakeFirst();
+    return row ? toRecord(row) : null;
+  }
+
+  async setRequireOwnerApproval(
+    ownerId: string,
+    id: string,
+    value: boolean,
+  ): Promise<ApiKeyRecord | null> {
+    const row = await this.db
+      .updateTable('api_keys')
+      .set({ require_owner_approval: value })
+      .where('id', '=', id)
+      .where('owner_id', '=', ownerId)
+      .where('revoked_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toRecord(row) : null;
+  }
+
   async touchLastUsed(id: string, now: Date): Promise<void> {
     const threshold = new Date(now.getTime() - LAST_USED_RESOLUTION_MS);
     await this.db

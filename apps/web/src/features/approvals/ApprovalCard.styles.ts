@@ -15,6 +15,25 @@ export const Root = styled.section`
   font-family: ${({ theme }) => theme.font.sans};
 `;
 
+/** WP-45: the facts of a request with no document (a key's name, scopes, expiry). */
+export const FactList = styled.dl`
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr);
+  gap: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+
+  dt {
+    color: ${({ theme }) => theme.color.fg[3]};
+  }
+
+  dd {
+    margin: 0;
+    color: ${({ theme }) => theme.color.fg[1]};
+    overflow-wrap: anywhere;
+  }
+`;
+
 export const BadgeRow = styled.div`
   display: flex;
   flex-wrap: wrap;

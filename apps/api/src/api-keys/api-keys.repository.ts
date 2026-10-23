@@ -63,6 +63,19 @@ export abstract class ApiKeysRepository {
   /** Set `revoked_at`. The row is kept (audit snapshots point at it). */
   abstract revoke(ownerId: string, id: string, now: Date): Promise<RevokeApiKeyResult>;
 
+  /** WP-45: one of the owner's keys, in any state. Another owner's id is null. */
+  abstract findOwned(ownerId: string, id: string): Promise<ApiKeyRecord | null>;
+
+  /**
+   * WP-45: set `require_owner_approval` on one of the owner's keys that is
+   * not revoked. Null when no such key exists.
+   */
+  abstract setRequireOwnerApproval(
+    ownerId: string,
+    id: string,
+    value: boolean,
+  ): Promise<ApiKeyRecord | null>;
+
   /** Bump `last_used_at`, at most once a minute per key. */
   abstract touchLastUsed(id: string, now: Date): Promise<void>;
 
