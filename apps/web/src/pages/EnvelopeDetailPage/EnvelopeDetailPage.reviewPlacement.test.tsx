@@ -136,7 +136,7 @@ describe('EnvelopeDetailPage: Review placement (MCP "Later")', () => {
     mockEnvelope('awaiting_others');
     renderAt('env-1');
 
-    expect(await screen.findByRole('button', { name: /Withdraw/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'More' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review placement' })).not.toBeInTheDocument();
   });
 
@@ -145,7 +145,7 @@ describe('EnvelopeDetailPage: Review placement (MCP "Later")', () => {
     mockEnvelope('draft');
     renderAt('env-1');
 
-    expect(await screen.findByRole('button', { name: /Withdraw/ })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'More' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Review placement' })).not.toBeInTheDocument();
   });
 });

@@ -148,12 +148,9 @@ When('the sender opens the recent envelope detail', async ({ page }) => {
 });
 
 When('the sender chooses the {string} download bundle', async ({ page }, _label: string) => {
-  // Open the split-button dropdown via its aria-label, then pick the
-  // bundle row by its accessible role + visible name. The visible
-  // title is "Full package" — matching loosely here so a copy tweak
-  // doesn't make the BDD brittle.
-  await page.getByRole('button', { name: /show all download options/i }).click();
-  await page.getByRole('menuitem', { name: /full package/i }).click();
+  // On a sealed envelope the main Download button is the bundle: the sealed
+  // PDF in one tab plus the audit trail as a download.
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
   // Allow the bundle path to fire its anchors + listeners to enqueue.
   await page.waitForTimeout(300);
 });

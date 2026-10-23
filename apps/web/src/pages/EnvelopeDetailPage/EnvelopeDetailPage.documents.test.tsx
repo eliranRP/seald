@@ -173,9 +173,9 @@ describe('EnvelopeDetailPage with several documents', () => {
     renderAt('env-1');
     await screen.findByRole('region', { name: 'Documents in this envelope' });
 
-    await userEvent.click(screen.getByRole('button', { name: /show all download options/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download options' }));
     const menu = await screen.findByRole('menu');
-    expect(within(menu).getByText('All documents (zip)')).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'All documents (zip)' })).toBeInTheDocument();
     expect(within(menu).queryByText('Original PDF')).not.toBeInTheDocument();
     expect(within(menu).queryByText('Full package')).not.toBeInTheDocument();
   });
