@@ -27,14 +27,12 @@ Playwright, API e2e, and the PAdES verifier skip a docs-only diff.
 push to `main` skips `ci.yml` (`paths-ignore` on `push` only).
 
 The same ignore list skips `playwright.yml`, `security.yml`, and
-`lint-meta.yml`. Chromatic uses a `paths:` allow-list, so a docs-only
-PR does not start that job either. CodeQL can still run. This doc does
+`lint-meta.yml`. CodeQL can still run. This doc does
 not assert that `ci-success` is a required check. Treat the checks
 that never start as absent, not failed and not passed.
 
 When CI does run, `ci-success` is the aggregate. `playwright.yml` runs
-the rest of the browser suite. Chromatic uploads visual diffs and exits
-0 even when snapshots change (`--exit-zero-on-changes`).
+the rest of the browser suite. Chromatic does not run in CI.
 
 Merging is the release. There is no staging environment in these
 workflows.
