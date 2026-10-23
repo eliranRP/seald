@@ -561,6 +561,18 @@ Where a wave has more than about 6 parallel WPs, the orchestrator caps concurren
 - **Goal:** make Security Scan (Trivy fs, CRITICAL/HIGH, `.trivyignore`) and every `pnpm audit --prod --audit-level=high` job green against the final lockfile, including deps added by earlier WPs. Patch through root `pnpm.overrides` or direct bumps, lockfile regenerated with `pnpm install`. Packages with no fix (e.g. node-forge, used by sealing) get an ignore entry with a dated justification only after checking the vulnerable API is unreachable from `apps/api/src/sealing`; if it is reachable, escalate to opus and the owner.
 - **Owns:** root `package.json` overrides, `pnpm-lock.yaml`, `.trivyignore`, `apps/landing/package.json` bumps.
 - **Acceptance:** Security Scan and CI audit green; full gate, landing build and `pades-verify` green.
+- **As built (2026-10-23):**
+  - Dependencies: root `pnpm.overrides` plus direct bumps (storybook 10.6.3, web vite 8.3.5 and vitest 4.1.12, api faker 10.5, landing astro ~7.3.8, since 7.4 needs node ≥22.23.4). `pnpm audit --prod --audit-level=high` exits 0. The full audit, dev dependencies included, has no critical findings left.
+  - Ignored, dated in `.trivyignore` and `pnpm.auditConfig.ignoreGhsas`: node-forge GHSA-86w9-cpqp-85rv / CVE-2026-85393. No fix exists. The flaw is in RSA signature verification, and nothing under `apps/api/src` calls a forge verify. Sealing only builds and parses CMS. The one verify call is `scripts/verify-pades.ts`, which runs in CI on our own output.
+  - Accepted, dev-only, no fix: braces GHSA-vfj7-8cjw-p6xm (lint-staged, playwright-bdd glob matching). Two low advisories remain: esbuild dev server on Windows, and @babel/core via stryker.
+  - CodeQL: `js/polynomial-redos` in `field-meta.ts` is fixed (linear number pattern). `js/clear-text-storage` in `consentModel.ts` now stores only the public query string, under a neutral key. Expired or bad entries are dropped. `js/insufficient-password-hash` stays with the owner to dismiss (D11).
+  - The pg `Pool` now has an `'error'` listener (`attachPoolErrorListener`, which logs the code and a redacted message).
+  - Terraform: IMDSv2 `http_tokens = "required"`, and the hop limit stays 2 (documented on `var.imds_hop_limit`). No change.
+  - Accepted risks, follow-ups:
+    - `/oauth/token` and `/oauth/revoke` follow the global CORS allow-list. Browser-only MCP clients cannot reach them, but server-side clients can.
+    - Rate limiters are in-process. That is fine on the single API instance; they need a shared store before scaling out.
+    - The direct-link per-IP limit trusts the first `X-Forwarded-For`. That is safe because Caddy 2.8 with no `trusted_proxies` overwrites client-sent XFF, and the API port is not published.
+    - Expired `oauth_*` code and token rows are never purged. They are refused on use, so this is only table growth. `automation_copy_stop_tokens` rows have no expiry, so unsubscribe links keep working, and they are not purged either. A cron purge of the expired OAuth rows is a follow-up.
 - **D8 — direct links (2026-10-23):** keep the emailed signing link as proof of email control; the emailed access code is layered on only when `signerAccessAuth` is on (WP-37 as built).
 - **D9 — certificate wording (2026-10-23):** keep "Approved by owner (email link)", "Approved by owner (signed-in)" and "Sent without per-send approval" (WP-23 as built).
 - **D10 — email-copy recipients (2026-10-23):** until recipient confirmation ships, the API (owner routes and MCP) refuses any address but the owner's own mailbox with `recipient_not_confirmed`.
