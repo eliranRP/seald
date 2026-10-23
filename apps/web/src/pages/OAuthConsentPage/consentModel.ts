@@ -42,18 +42,36 @@ export function authorizeErrorFromSearch(search: string): string | null {
   return new URLSearchParams(search).get('error');
 }
 
-const STASH_KEY = 'seald.oauth.consent';
+const STASH_KEY = 'seald.consent.pending';
 const STASH_MAX_AGE_MS = 10 * 60 * 1000;
+
+/** The request as the query string `/oauth/authorize` forwarded, known keys only. */
+function toQuery(req: OAuthAuthorizationRequest): string {
+  const params = new URLSearchParams();
+  for (const key of KEYS) {
+    const value = req[key];
+    if (typeof value === 'string') params.set(key, value);
+  }
+  return params.toString();
+}
 
 /**
  * Sign-in returns to `/oauth/mcp/consent` without the query (the `?next=`
  * validator allows only that exact path), so the request waits in this
  * tab's `sessionStorage` for ten minutes. Storage can be blocked; then the
  * owner starts again from the app.
+ *
+ * What is stored is the same public query string this tab already had in
+ * its address bar and history, limited to the known keys: client_id,
+ * redirect_uri, scope, resource, state (the client's own CSRF nonce) and
+ * the PKCE challenge (a SHA-256 hash; the verifier never leaves the
+ * client). It holds no secret, token, code or Seald session data, and the
+ * API validates all of it again on describe and on decide (WP-46,
+ * CodeQL js/clear-text-storage reviewed).
  */
 export function stashRequest(req: OAuthAuthorizationRequest, now: number = Date.now()): void {
   try {
-    window.sessionStorage.setItem(STASH_KEY, JSON.stringify({ req, at: now }));
+    window.sessionStorage.setItem(STASH_KEY, JSON.stringify({ q: toQuery(req), at: now }));
   } catch {
     /* storage blocked */
   }
@@ -63,13 +81,15 @@ export function readStashedRequest(now: number = Date.now()): OAuthAuthorization
   try {
     const raw = window.sessionStorage.getItem(STASH_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as { req?: unknown; at?: unknown };
-    if (typeof parsed.at !== 'number' || now - parsed.at > STASH_MAX_AGE_MS) return null;
-    if (typeof parsed.req !== 'object' || parsed.req === null) return null;
-    return requestFromSearch(
-      `?${new URLSearchParams(parsed.req as Record<string, string>).toString()}`,
-    );
+    const parsed = JSON.parse(raw) as { q?: unknown; at?: unknown };
+    const fresh = typeof parsed.at === 'number' && now - parsed.at <= STASH_MAX_AGE_MS;
+    const request =
+      fresh && typeof parsed.q === 'string' ? requestFromSearch(`?${parsed.q}`) : null;
+    // Drop an expired or unreadable entry instead of leaving it behind.
+    if (request === null) clearStashedRequest();
+    return request;
   } catch {
+    clearStashedRequest();
     return null;
   }
 }
