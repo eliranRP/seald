@@ -1,12 +1,20 @@
 import { Component } from 'react';
 import type { ErrorInfo, JSX, ReactNode } from 'react';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/Button';
+import { StatePage } from '@/components/StatePage';
+import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
+import { generateErrorId } from '@/lib/system/errorId';
 import { reportError } from '@/lib/observability';
-import { Actions, Message, Panel, Shell, Title } from './ErrorBoundary.styles';
+import { ErrorId, IdRow, Shell } from './ErrorBoundary.styles';
 
 export type ErrorBoundaryFallback =
   | ReactNode
-  | ((props: { readonly error: Error; readonly reset: () => void }) => ReactNode);
+  | ((props: {
+      readonly error: Error;
+      readonly reset: () => void;
+      readonly errorId: string;
+    }) => ReactNode);
 
 export interface ErrorBoundaryProps {
   readonly children: ReactNode;
@@ -16,33 +24,41 @@ export interface ErrorBoundaryProps {
 
 interface State {
   readonly error: Error | null;
+  readonly errorId: string;
 }
 
 interface DefaultFallbackProps {
   readonly reset: () => void;
+  readonly errorId: string;
 }
 
 /**
- * Default "Something went wrong" panel. Used when no custom fallback prop is
- * supplied. Mirrors the app's design tokens via styled-components and exposes
- * `role="alert"` plus a labelled "Try again" button so accessibility tests
- * (rule 4.6) can reach it by role/name.
+ * Default "Something broke" page: alert icon, one title, Try again and a
+ * quiet Copy error ID with the mono id (design System.dc, `error`). It never
+ * shows the message or the stack; the id is what support asks for. Exposes
+ * `role="alert"` so accessibility tests (rule 4.6) reach it by role/name.
  */
-function DefaultFallback({ reset }: DefaultFallbackProps): JSX.Element {
+function DefaultFallback({ reset, errorId }: DefaultFallbackProps): JSX.Element {
+  const { copied, copy } = useCopyToClipboard();
   return (
     <Shell role="alert">
-      <Panel>
-        <Title>Something went wrong</Title>
-        <Message>
-          We hit an unexpected error loading this page. Try again — if the problem persists, reload
-          the page.
-        </Message>
-        <Actions>
-          <Button variant="primary" size="md" onClick={reset} aria-label="Try again">
-            Try again
+      <StatePage icon={AlertTriangle} tone="bad" title="Something broke">
+        <Button variant="primary" size="md" iconLeft={RefreshCw} onClick={reset}>
+          Try again
+        </Button>
+        <IdRow>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              void copy(errorId);
+            }}
+          >
+            {copied ? 'Copied' : 'Copy error ID'}
           </Button>
-        </Actions>
-      </Panel>
+          <ErrorId>{errorId}</ErrorId>
+        </IdRow>
+      </StatePage>
     </Shell>
   );
 }
@@ -61,35 +77,36 @@ function DefaultFallback({ reset }: DefaultFallbackProps): JSX.Element {
 export class ErrorBoundary extends Component<ErrorBoundaryProps, State> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = { error: null };
+    this.state = { error: null, errorId: '' };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error, errorId: generateErrorId() };
   }
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     const { onError } = this.props;
-    reportError(error, { componentStack: info.componentStack ?? null });
+    const { errorId } = this.state;
+    reportError(error, { componentStack: info.componentStack ?? null, errorId });
     onError?.(error);
   }
 
   private readonly reset = (): void => {
-    this.setState({ error: null });
+    this.setState({ error: null, errorId: '' });
   };
 
   override render(): ReactNode {
-    const { error } = this.state;
+    const { error, errorId } = this.state;
     const { children, fallback } = this.props;
 
     if (!error) return children;
 
     if (typeof fallback === 'function') {
-      return fallback({ error, reset: this.reset });
+      return fallback({ error, reset: this.reset, errorId });
     }
     if (fallback !== undefined) {
       return fallback;
     }
-    return <DefaultFallback reset={this.reset} />;
+    return <DefaultFallback reset={this.reset} errorId={errorId} />;
   }
 }

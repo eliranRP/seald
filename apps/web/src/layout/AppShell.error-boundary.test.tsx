@@ -58,7 +58,7 @@ describe('AppShell error boundary (route-crash containment)', () => {
 
     // Boundary surfaces the recoverable fallback inside <Content>.
     expect(getByRole('alert')).toBeInTheDocument();
-    expect(getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument();
+    expect(getByRole('heading', { name: /something broke/i })).toBeInTheDocument();
     expect(getByRole('button', { name: /try again/i })).toBeInTheDocument();
 
     // NavBar still rendered above the boundary — the user can still click
