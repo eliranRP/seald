@@ -1,0 +1,188 @@
+name: Go-live parity prep (disk + required keys)
+
+# One-shot operator workflow for production go-live of PR #380/#382.
+# Manual trigger only — never on push. Do not merge this branch to main
+# until the run has succeeded; the branch is disposable after that.
+#
+# What it does on the EC2 host:
+#   1. Report disk usage; prune docker builder cache + unused images
+#      (never touches running containers/volumes).
+#   2. Fail if free space on / is still under 5 GB.
+#   3. Confirm PDF_SIGNING_* key names; append PDF_SIGNING_PROVIDER=kms
+#      if missing.
+#   4. Idempotently append SIGNER_OTP_KEY, APPROVAL_CSRF_KEY,
+#      AUTOMATION_SECRETS_KEY (openssl rand -hex 32 generated ON the host)
+#      and API_PUBLIC_URL if missing. Backs up .env first.
+#   5. Force-recreate api and print last 50 log lines with values redacted.
+#   6. Sync the updated host .env into the PROD_API_ENV GitHub Actions
+#      secret (via SEALD_OPS_TOKEN) so prod-restore keeps the new keys.
+#
+# Never prints secret values — only key names and success/fail.
+
+on:
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  prep:
+    name: Disk prune + required env keys + sync PROD_API_ENV
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: SSH disk prune + env keys + api recreate
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: 22
+          command_timeout: 15m
+          script: |
+            set -euo pipefail
+
+            echo '=== Disk before prune ==='
+            df -h / /opt || df -h /
+            echo
+            echo '=== docker system df ==='
+            sudo docker system df || true
+
+            echo
+            echo '=== Prune builder cache + unused images (containers/volumes untouched) ==='
+            sudo docker builder prune -af
+            sudo docker image prune -af
+
+            echo
+            echo '=== Disk after prune ==='
+            df -h /
+            # Require at least 5GB free on /
+            avail_kb=$(df -Pk / | awk 'NR==2 {print $4}')
+            avail_gb=$((avail_kb / 1024 / 1024))
+            echo "Free on /: ${avail_gb} GB (${avail_kb} KB)"
+            if [ "$avail_kb" -lt $((5 * 1024 * 1024)) ]; then
+              echo "ERROR: need >=5GB free on /; got ${avail_gb} GB" >&2
+              exit 1
+            fi
+
+            ENV_FILE=/opt/seald/apps/api/.env
+            if [ ! -f "$ENV_FILE" ]; then
+              echo "ERROR: $ENV_FILE missing" >&2
+              exit 1
+            fi
+
+            echo
+            echo '=== PDF_SIGNING_* key names (no values) ==='
+            sudo grep -oE '^PDF_SIGNING_[A-Z_]+=' "$ENV_FILE" || echo '(none)'
+
+            echo
+            echo '=== Backup .env ==='
+            sudo cp "$ENV_FILE" "${ENV_FILE}.bak.$(date +%s)"
+            sudo chmod 0600 "${ENV_FILE}.bak."* 2>/dev/null || true
+
+            # Append PDF_SIGNING_PROVIDER=kms if missing
+            if ! sudo grep -qE '^PDF_SIGNING_PROVIDER=' "$ENV_FILE"; then
+              echo 'Appending PDF_SIGNING_PROVIDER=kms'
+              printf 'PDF_SIGNING_PROVIDER=kms\n' | sudo tee -a "$ENV_FILE" >/dev/null
+            else
+              echo 'PDF_SIGNING_PROVIDER already present'
+            fi
+
+            # Append API_PUBLIC_URL if missing (idempotent)
+            if ! sudo grep -qE '^API_PUBLIC_URL=' "$ENV_FILE"; then
+              echo 'Appending API_PUBLIC_URL'
+              printf 'API_PUBLIC_URL=https://api.seald.nromomentum.com\n' | sudo tee -a "$ENV_FILE" >/dev/null
+            else
+              echo 'API_PUBLIC_URL already present'
+            fi
+
+            # Required keys: generate on host only if missing. Never echo values.
+            for KEY in SIGNER_OTP_KEY APPROVAL_CSRF_KEY AUTOMATION_SECRETS_KEY; do
+              if sudo grep -qE "^${KEY}=" "$ENV_FILE"; then
+                echo "${KEY}: already present"
+              else
+                echo "${KEY}: generating on host and appending"
+                VAL=$(openssl rand -hex 32)
+                # Write via printf to avoid shell history / accidental echo
+                printf '%s=%s\n' "$KEY" "$VAL" | sudo tee -a "$ENV_FILE" >/dev/null
+                unset VAL
+              fi
+            done
+
+            sudo chmod 0600 "$ENV_FILE"
+
+            echo
+            echo '=== Required key count (expect 3) ==='
+            COUNT=$(sudo grep -cE '^(SIGNER_OTP_KEY|APPROVAL_CSRF_KEY|AUTOMATION_SECRETS_KEY)=' "$ENV_FILE" || true)
+            echo "count=${COUNT}"
+            if [ "$COUNT" -ne 3 ]; then
+              echo "ERROR: expected 3 required keys, got ${COUNT}" >&2
+              exit 1
+            fi
+
+            echo
+            echo '=== PDF_SIGNING_* key names after update ==='
+            sudo grep -oE '^PDF_SIGNING_[A-Z_]+=' "$ENV_FILE" || echo '(none)'
+
+            echo
+            echo '=== Force-recreate api ==='
+            cd /opt/seald
+            sudo docker compose up -d --force-recreate api
+
+            echo
+            echo '=== Wait briefly then last 50 api log lines (values redacted) ==='
+            sleep 8
+            # Redact anything that looks like KEY=value assignment payloads
+            sudo docker compose logs --tail=50 api 2>&1 \
+              | sed -E 's/(SIGNER_OTP_KEY|APPROVAL_CSRF_KEY|AUTOMATION_SECRETS_KEY|PDF_SIGNING_[A-Z_]+|API_PUBLIC_URL|DATABASE_URL|JWT_SECRET|RESEND_API_KEY|SUPABASE_[A-Z_]+|AWS_[A-Z_]+|SECRET|PASSWORD|TOKEN|KEY)=[^[:space:]]+/\1=<redacted>/g' \
+              || true
+
+            # Fail if Invalid environment appears
+            if sudo docker compose logs --tail=80 api 2>&1 | grep -qiE 'Invalid environment|env validation|ZodError'; then
+              echo 'ERROR: api logs show Invalid environment / validation failure' >&2
+              exit 1
+            fi
+
+            echo
+            echo '=== Prep SSH steps OK ==='
+
+      - name: Sync host .env into PROD_API_ENV secret
+        env:
+          DEPLOY_SSH_HOST: ${{ secrets.DEPLOY_SSH_HOST }}
+          DEPLOY_SSH_USER: ${{ secrets.DEPLOY_SSH_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          SEALD_OPS_TOKEN: ${{ secrets.SEALD_OPS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SEALD_OPS_TOKEN:-}" ]; then
+            echo "ERROR: SEALD_OPS_TOKEN secret is empty — cannot sync PROD_API_ENV" >&2
+            exit 1
+          fi
+          umask 077
+          KEYFILE=$(mktemp)
+          ENVFILE=$(mktemp)
+          trap 'rm -f "$KEYFILE" "$ENVFILE"' EXIT
+          printf '%s\n' "$DEPLOY_SSH_KEY" > "$KEYFILE"
+          chmod 0600 "$KEYFILE"
+          # Fetch .env privately (stdout redirected to file — not logged)
+          ssh -i "$KEYFILE" \
+            -o StrictHostKeyChecking=accept-new \
+            -o UserKnownHostsFile=/tmp/seald_known_hosts \
+            "${DEPLOY_SSH_USER}@${DEPLOY_SSH_HOST}" \
+            'sudo cat /opt/seald/apps/api/.env' > "$ENVFILE"
+          # Sanity: file non-empty and has the three keys (names only)
+          bytes=$(wc -c < "$ENVFILE")
+          echo "Fetched host .env: ${bytes} bytes"
+          if [ "$bytes" -lt 50 ]; then
+            echo "ERROR: fetched .env looks empty" >&2
+            exit 1
+          fi
+          count=$(grep -cE '^(SIGNER_OTP_KEY|APPROVAL_CSRF_KEY|AUTOMATION_SECRETS_KEY)=' "$ENVFILE" || true)
+          echo "Required keys in fetched .env: count=${count} (expect 3)"
+          if [ "$count" -ne 3 ]; then
+            echo "ERROR: fetched .env missing required keys" >&2
+            exit 1
+          fi
+          # Update PROD_API_ENV; never cat the file
+          GH_TOKEN="$SEALD_OPS_TOKEN" gh secret set PROD_API_ENV \
+            --repo eliranRP/seald < "$ENVFILE"
+          echo "PROD_API_ENV secret updated successfully"
