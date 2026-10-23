@@ -8,6 +8,7 @@ import { automationsRetryRunTool } from './automations/automations-retry-run.too
 import { automationsSetEnabledTool } from './automations/automations-set-enabled.tool';
 import { automationsUpsertRecipeTool } from './automations/automations-upsert-recipe.tool';
 import { MCP_CONTACTS_TOOLS } from './contacts';
+import { envelopesCancelTool } from './cancel/envelopes-cancel.tool';
 import { documentsUploadCompleteTool } from './documents/documents-upload-complete.tool';
 import { documentsUploadStartTool } from './documents/documents-upload-start.tool';
 import { documentsUploadTool } from './documents/documents-upload.tool';
@@ -40,6 +41,10 @@ import { envelopesSetRecipientOrderTool } from './prepare/envelopes-set-recipien
 import { envelopesSuggestFieldsTool } from './prepare/envelopes-suggest-fields.tool';
 import { envelopesUpdateTool } from './prepare/envelopes-update.tool';
 import { MCP_TEMPLATES_TOOLS } from './templates';
+import { envelopesPreviewRemindTool } from './remind/envelopes-preview-remind.tool';
+import { envelopesRemindTool } from './remind/envelopes-remind.tool';
+import { envelopesPreviewSendTool } from './send/envelopes-preview-send.tool';
+import { envelopesSendTool } from './send/envelopes-send.tool';
 
 /** Read tools (WP-17, steps 4–6). */
 export const MCP_READ_TOOLS: readonly McpTool[] = [
@@ -105,6 +110,19 @@ export const MCP_AUTOMATION_TOOLS: readonly McpTool[] = [
 ];
 
 /**
+ * Send, remind and cancel (WP-24, steps 10 and 11), scope
+ * `envelopes:send`. Each asks the owner and returns `approval_pending`;
+ * only the unattended same-turn send acts without an Approve.
+ */
+export const MCP_SEND_TOOLS: readonly McpTool[] = [
+  envelopesPreviewSendTool,
+  envelopesSendTool,
+  envelopesPreviewRemindTool,
+  envelopesRemindTool,
+  envelopesCancelTool,
+];
+
+/**
  * Every shipped tool. A tool that is not shipped is absent, not stubbed.
  * Order is the `tools/list` order.
  */
@@ -117,4 +135,5 @@ export const MCP_TOOLS: readonly McpTool[] = [
   ...MCP_CONTACTS_TOOLS,
   ...MCP_TEMPLATES_TOOLS,
   ...MCP_GDRIVE_WRITE_TOOLS,
+  ...MCP_SEND_TOOLS,
 ];

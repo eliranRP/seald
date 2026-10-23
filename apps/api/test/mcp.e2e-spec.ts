@@ -492,8 +492,13 @@ describePg('MCP server (e2e, real Postgres)', () => {
           );
         }
       }
-      // Nothing sends, reminds or cancels before the approval steps.
-      expect(tools.filter((t) => /send|remind/.test(t.name))).toEqual([]);
+      // Send, remind and cancel exist only as the approval-gated tools (WP-24).
+      expect(tools.filter((t) => /send|remind/.test(t.name)).map((t) => t.name)).toEqual([
+        'envelopes_preview_send',
+        'envelopes_send',
+        'envelopes_preview_remind',
+        'envelopes_remind',
+      ]);
     });
 
     it('me_get returns the account behind the key', async () => {

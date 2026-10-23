@@ -332,7 +332,13 @@ describePg('MCP draft tools (e2e, real Postgres)', () => {
     ]) {
       expect(names).toContain(name);
     }
-    expect(names.filter((n) => /send|remind/.test(n))).toEqual([]);
+    // Only the approval-gated tools of steps 10 and 11 (WP-24) send or remind.
+    expect(names.filter((n) => /send|remind/.test(n))).toEqual([
+      'envelopes_preview_send',
+      'envelopes_send',
+      'envelopes_preview_remind',
+      'envelopes_remind',
+    ]);
   });
 
   it('create → upload 2 PDFs → add signers → place fields → set order → status', async () => {

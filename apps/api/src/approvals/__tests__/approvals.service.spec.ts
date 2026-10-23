@@ -12,6 +12,9 @@ import { ApprovalCsrf } from '../approval-csrf';
 import { ApprovalLinkMinter } from '../approval-link-minter.service';
 import { ApprovalMailBreaker } from '../approval-mail-breaker';
 import { ApprovalsLifecycleService } from '../approvals-lifecycle.service';
+import { PassthroughTransactionRunner } from '../../db/transaction-runner';
+import type { AccessAuthService } from '../../signing/access-auth/access-auth.service';
+import { SendGuardService } from '../send-guard.service';
 import { ApprovalsService } from '../approvals.service';
 import { ConfirmationsService } from '../confirmations.service';
 import { ApprovalKindRegistry } from '../kinds/approval-kind.registry';
@@ -174,8 +177,20 @@ function setup(): World {
       return { id: 'evt' };
     },
   } as unknown as EnvelopesRepository;
-  const registry = new ApprovalKindRegistry(envelopes, documents, gdrive);
   w.lifecycle = new ApprovalsLifecycleService(repo);
+  const guard = new SendGuardService(
+    {
+      lockOwner: async () => undefined,
+      lockEnvelope: async () => undefined,
+      usageSince: async () => ({ sends: 0, newRecipients: 0 }),
+      deliveryHealthSince: async () => ({ sent: 0, bounced: 0, complaints: 0 }),
+    },
+    w.lifecycle,
+  );
+  const accessAuth = {
+    effectiveFor: async () => ({ access: 'none', action: 'none' }),
+  } as unknown as AccessAuthService;
+  const registry = new ApprovalKindRegistry(envelopes, documents, gdrive, guard, accessAuth);
   w.svc = new ApprovalsService(
     repo,
     registry,
@@ -185,6 +200,7 @@ function setup(): World {
     outbox,
     envelopesRepo,
     env,
+    new PassthroughTransactionRunner(),
   );
   w.minter = new ApprovalLinkMinter(repo, env);
   w.confirmations = new ConfirmationsService(repo);

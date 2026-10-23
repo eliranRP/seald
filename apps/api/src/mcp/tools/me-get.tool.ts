@@ -21,17 +21,20 @@ export const meGetTool = defineTool({
   },
   input: MeGetInputSchema,
   output: MeGetOutputSchema,
-  handler: async (_args, { principal, services }) => ({
-    id: principal.ownerId,
-    email: await services.accounts.email(principal.ownerId),
-    scopes: [...principal.scopes],
-    require_owner_approval: principal.requireOwnerApproval,
-    // No MCP tool can send yet (step 10 adds the counters), so the whole
-    // daily allowance is left.
-    quotas: {
-      sends_remaining: MCP_DAILY_CAPS.sends,
-      new_recipients_remaining: MCP_DAILY_CAPS.new_recipients,
-      email_copies_remaining: MCP_DAILY_CAPS.email_copies,
-    },
-  }),
+  handler: async (_args, { principal, services, now }) => {
+    // Step 10: today's MCP sends and new recipients, per owner (UTC day).
+    const left = await services.envelopeActions.remaining(principal.ownerId, now);
+    return {
+      id: principal.ownerId,
+      email: await services.accounts.email(principal.ownerId),
+      scopes: [...principal.scopes],
+      require_owner_approval: principal.requireOwnerApproval,
+      quotas: {
+        sends_remaining: left.sends,
+        new_recipients_remaining: left.newRecipients,
+        // The email-copy counter belongs to automations A7 (WP-33).
+        email_copies_remaining: MCP_DAILY_CAPS.email_copies,
+      },
+    };
+  },
 });

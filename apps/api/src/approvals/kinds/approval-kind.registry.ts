@@ -3,6 +3,8 @@ import type { ApprovalKind } from 'shared';
 import { EnvelopeDocumentsService } from '../../envelopes/documents/envelope-documents.service';
 import { EnvelopesService } from '../../envelopes/envelopes.service';
 import { GDriveService } from '../../integrations/gdrive/gdrive.service';
+import { AccessAuthService } from '../../signing/access-auth/access-auth.service';
+import { SendGuardService } from '../send-guard.service';
 import type { ApprovalKindHandler } from './approval-kind';
 import { envelopeCancelKind, envelopeRemindKind, envelopeSendKind } from './envelope-kinds';
 import { envelopeSaveToDriveKind, gdriveDisconnectKind } from './gdrive-kinds';
@@ -35,8 +37,10 @@ export class ApprovalKindRegistry {
     envelopes: EnvelopesService,
     documents: EnvelopeDocumentsService,
     gdrive: GDriveService,
+    guard: SendGuardService,
+    accessAuth: AccessAuthService,
   ) {
-    const env = { envelopes, documents };
+    const env = { envelopes, documents, guard, accessAuth };
     const drive = { gdrive, envelopes };
     this.handlers = {
       envelope_send: erase(envelopeSendKind(env)),

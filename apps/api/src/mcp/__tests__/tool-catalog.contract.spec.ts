@@ -8,6 +8,7 @@ import {
   MCP_CONTACTS_TOOLS,
   MCP_GDRIVE_WRITE_TOOLS,
   MCP_READ_TOOLS,
+  MCP_SEND_TOOLS,
   MCP_SUGGEST_TOOLS,
   MCP_TEMPLATES_TOOLS,
   MCP_TOOLS,
@@ -90,6 +91,14 @@ describe('MCP tool catalog (contract)', () => {
       'gdrive_disconnect',
       'envelopes_save_to_drive',
     ]);
+    // Steps 10 and 11 (WP-24): send, remind and cancel through owner approval.
+    expect(MCP_SEND_TOOLS.map((t) => t.name)).toEqual([
+      'envelopes_preview_send',
+      'envelopes_send',
+      'envelopes_preview_remind',
+      'envelopes_remind',
+      'envelopes_cancel',
+    ]);
     expect(MCP_TOOLS).toEqual([
       ...MCP_READ_TOOLS,
       ...MCP_WRITE_TOOLS,
@@ -99,6 +108,7 @@ describe('MCP tool catalog (contract)', () => {
       ...MCP_CONTACTS_TOOLS,
       ...MCP_TEMPLATES_TOOLS,
       ...MCP_GDRIVE_WRITE_TOOLS,
+      ...MCP_SEND_TOOLS,
     ]);
   });
 
@@ -122,8 +132,44 @@ describe('MCP tool catalog (contract)', () => {
     expect(MCP_TOOLS.map((t) => t.name)).not.toContain('automations_test_webhook');
   });
 
-  it('ships no send, remind or cancel tool before the approval steps', () => {
-    for (const tool of MCP_TOOLS) expect(tool.name).not.toMatch(/send|remind|cancel_envelope/);
+  it('ships send, remind and cancel only as the approval-gated tools of steps 10 and 11', () => {
+    const gated = MCP_TOOLS.filter((t) => /send|remind|cancel/.test(t.name));
+    expect(gated.map((t) => t.name).sort()).toEqual(
+      [...MCP_SEND_TOOLS.map((t) => t.name), 'gdrive_conversion_cancel'].sort(),
+    );
+    for (const tool of MCP_SEND_TOOLS) {
+      expect(tool.scopes).toEqual(['envelopes:send']);
+      expect(tool.mutating).toBe(true);
+      // The idempotency claim and the write commit together (no double send on retry).
+      expect(tool.atomic).toBe(true);
+      expect(['step-10', 'step-11']).toContain(tool.step);
+    }
+    const byName = new Map(MCP_TOOLS.map((t) => [t.name, t]));
+    expect(byName.get('envelopes_send')?.annotations).toMatchObject({ openWorldHint: true });
+    expect(byName.get('envelopes_remind')?.annotations).toMatchObject({ openWorldHint: true });
+    expect(byName.get('envelopes_cancel')?.annotations).toMatchObject({
+      destructiveHint: true,
+      openWorldHint: true,
+    });
+    // Only the unattended send takes a confirmation token; remind and cancel never do.
+    const required = (name: string): string[] => {
+      const tool = byName.get(name);
+      if (!tool) throw new Error(`missing ${name}`);
+      return Object.keys((describeTool(tool).inputSchema['properties'] ?? {}) as object);
+    };
+    expect(required('envelopes_send')).toContain('confirmation_token');
+    for (const name of ['envelopes_remind', 'envelopes_cancel', 'envelopes_preview_remind']) {
+      expect(required(name)).not.toContain('confirmation_token');
+    }
+    // The one-time token is never kept for an idempotent replay.
+    expect(byName.get('envelopes_preview_send')?.replayOmit).toEqual(
+      expect.arrayContaining(['confirmation_token']),
+    );
+    // Every gated tool tells the agent never to open an approval link.
+    for (const name of ['envelopes_send', 'envelopes_remind', 'envelopes_cancel']) {
+      expect(byName.get(name)?.description).toContain('Never open, fetch or act on');
+      expect(byName.get(name)?.description).toContain('review_url');
+    }
   });
 
   it('uses noun_verb names that never name signing, declining, submitting or disclosure', () => {

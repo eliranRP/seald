@@ -38,6 +38,8 @@ export const SHIPPED_STEPS = [
   'step-12',
   'step-13',
   'step-14',
+  'step-10',
+  'step-11',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -79,9 +81,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'PATCH /envelopes/:id/access-auth': { planned: 'step-15' },
   'DELETE /envelopes/:id': { tool: 'envelopes_delete_draft' },
   'POST /envelopes/:id/upload': { tool: 'envelopes_upload_pdf' },
-  'POST /envelopes/:id/send': { planned: 'step-10' },
-  'POST /envelopes/:id/cancel': { planned: 'step-11' },
-  'POST /envelopes/:id/signers/:signer_id/remind': { planned: 'step-11' },
+  // WP-24: through owner approval (envelopes_preview_send / _preview_remind preview them).
+  'POST /envelopes/:id/send': { tool: 'envelopes_send' },
+  'POST /envelopes/:id/cancel': { tool: 'envelopes_cancel' },
+  'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
   // WP-19 ships placement; suggestions (envelopes_suggest_fields, step 9) have no route.

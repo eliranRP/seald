@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AccountDirectoryService } from '../accounts/account-directory.service';
+import { AgentEnvelopeActionsService } from '../approvals/agent-envelope-actions.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AutomationsService } from '../automations/automations.service';
 import { ContactsService } from '../contacts/contacts.service';
@@ -40,5 +41,7 @@ export class McpServices {
     readonly contacts: ContactsService,
     readonly templates: TemplatesService,
     readonly templateApply: TemplateApplyService,
+    // WP-24 (steps 10–11): send, remind and cancel through owner approval.
+    readonly envelopeActions: AgentEnvelopeActionsService,
   ) {}
 }

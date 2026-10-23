@@ -21,10 +21,12 @@ import {
   type ApproveRequires,
   type ApprovalsGetOutput,
   type ApprovalsListOutput,
+  type McpEventMetadata,
 } from 'shared';
 import type { AuthUser } from '../auth/auth-user';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import { TransactionRunner } from '../db/transaction-runner';
 import { insertOutboundEmailIdempotent } from '../email/insert-idempotent';
 import {
   OutboundEmailsRepository,
@@ -85,6 +87,21 @@ interface Evaluated {
   readonly approveRequires: ApproveRequires;
 }
 
+/**
+ * The subject as the agent's credential would ask for it now (WP-24's
+ * unattended send path): the key, the verified mailbox, the card summary
+ * with New flags, `subject_hash`, and whether Approve would need a session.
+ */
+export interface AgentSubject {
+  readonly key: ApprovalKeyFacts;
+  readonly ownerEmail: string;
+  readonly summary: ApprovalSummary;
+  readonly subjectHash: string;
+  readonly approveRequires: ApproveRequires;
+  /** Lower-cased recipient addresses that are not known. */
+  readonly newRecipientEmails: ReadonlySet<string>;
+}
+
 type AnyHandler = ApprovalKindHandler<Record<string, unknown>>;
 
 const LIST_LIMIT_DEFAULT = 20;
@@ -122,6 +139,8 @@ export class ApprovalsService {
     private readonly outbox: OutboundEmailsRepository,
     private readonly envelopes: EnvelopesRepository,
     @Inject(APP_ENV) env: AppEnv,
+    // WP-24: the decision and the action it runs commit together.
+    private readonly transactions: TransactionRunner,
   ) {
     this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
     this.appOrigin = new URL(env.APP_PUBLIC_URL).origin;
@@ -133,33 +152,8 @@ export class ApprovalsService {
 
   async request(input: ApprovalRequestInput): Promise<ApprovalPendingResult> {
     const now = input.now ?? new Date();
-    const handler = this.registry.get(input.kind);
-    if (!handler.ready) throw new ApprovalKindNotReadyError();
-    const parsed = handler.args.safeParse(input.args);
-    if (!parsed.success) throw new BadRequestException('validation_error');
-    const args = parsed.data;
-
+    const { handler, args, key, ownerEmail, evaluated } = await this.prepare(input, now);
     const { ownerId } = input.requester;
-    if (input.requester.apiKeyId === null) {
-      // OAuth grants (WP-27) bring their own key-equivalent settings.
-      throw new ConflictException('approval_credential_unsupported');
-    }
-    const key = await this.repo.findKeyFacts(input.requester.apiKeyId);
-    if (!key || key.ownerId !== ownerId || key.revokedAt !== null) {
-      throw new ForbiddenException('api_key_revoked');
-    }
-    if (key.expiresAt === null || Date.parse(key.expiresAt) <= now.getTime()) {
-      throw new ForbiddenException('api_key_expired');
-    }
-
-    // Mail goes only to the account's verified address, never one from arguments.
-    const mailbox = await this.repo.findOwnerMailbox(ownerId);
-    if (!mailbox || mailbox.email === null || !mailbox.verified) {
-      throw new ForbiddenException('email_not_verified');
-    }
-    const ownerEmail = mailbox.email;
-
-    const evaluated = await this.evaluate(handler, args, ownerId, ownerEmail, key, now);
     const notify = key.approvalNotify;
     if (notify === 'email' && !(await this.breaker.allows(now))) throw approvalLimit();
 
@@ -197,6 +191,66 @@ export class ApprovalsService {
       review_url: reviewUrlFor(this.publicUrl, opened.record.id),
       approve_requires: opened.record.approveRequires,
     };
+  }
+
+  /**
+   * Describe the subject the credential would ask about, without opening
+   * an approval: the same key, mailbox, describe and limit checks as
+   * `request`. The unattended send (WP-24) uses it to decide between the
+   * same-turn path and the approval fallback and to bind its token.
+   */
+  async subjectForAgent(input: ApprovalRequestInput): Promise<AgentSubject> {
+    const now = input.now ?? new Date();
+    const { key, ownerEmail, evaluated } = await this.prepare(input, now);
+    return {
+      key,
+      ownerEmail,
+      summary: evaluated.summary,
+      subjectHash: evaluated.subjectHash,
+      approveRequires: evaluated.approveRequires,
+      newRecipientEmails: newRecipientsOf(evaluated.summary),
+    };
+  }
+
+  /** The checks every ask runs: kind ready, arguments, key live, mailbox verified, subject. */
+  private async prepare(
+    input: ApprovalRequestInput,
+    now: Date,
+  ): Promise<{
+    readonly handler: AnyHandler;
+    readonly args: Record<string, unknown>;
+    readonly key: ApprovalKeyFacts;
+    readonly ownerEmail: string;
+    readonly evaluated: Evaluated;
+  }> {
+    const handler = this.registry.get(input.kind);
+    if (!handler.ready) throw new ApprovalKindNotReadyError();
+    const parsed = handler.args.safeParse(input.args);
+    if (!parsed.success) throw new BadRequestException('validation_error');
+    const args = parsed.data;
+
+    const { ownerId } = input.requester;
+    if (input.requester.apiKeyId === null) {
+      // OAuth grants (WP-27) bring their own key-equivalent settings.
+      throw new ConflictException('approval_credential_unsupported');
+    }
+    const key = await this.repo.findKeyFacts(input.requester.apiKeyId);
+    if (!key || key.ownerId !== ownerId || key.revokedAt !== null) {
+      throw new ForbiddenException('api_key_revoked');
+    }
+    if (key.expiresAt === null || Date.parse(key.expiresAt) <= now.getTime()) {
+      throw new ForbiddenException('api_key_expired');
+    }
+
+    // Mail goes only to the account's verified address, never one from arguments.
+    const mailbox = await this.repo.findOwnerMailbox(ownerId);
+    if (!mailbox || mailbox.email === null || !mailbox.verified) {
+      throw new ForbiddenException('email_not_verified');
+    }
+    const ownerEmail = mailbox.email;
+
+    const evaluated = await this.evaluate(handler, args, ownerId, ownerEmail, key, now);
+    return { handler, args, key, ownerEmail, evaluated };
   }
 
   // -------------------------------------------------------------------------
@@ -435,6 +489,7 @@ export class ApprovalsService {
     });
 
     let args: Record<string, unknown> = {};
+    let newRecipientEmails: ReadonlySet<string> = new Set();
     if (d.decision === 'approve') {
       // Decision-time re-checks, under the conditional update below.
       let evaluated: Evaluated;
@@ -463,8 +518,38 @@ export class ApprovalsService {
         const failed = await this.repo.markFailedUndecided(record.id, 'api_key_expired', meta);
         return failed ? { record: failed, decided: false } : unchanged();
       }
+      newRecipientEmails = newRecipientsOf(evaluated.summary);
     }
 
+    // One transaction from the decision to the action (WP-24): the
+    // conditional update, `approval_decided`, the action and the
+    // completion commit together. A crash anywhere before the commit
+    // leaves the row pending and nothing sent, so the owner's next click
+    // runs the action exactly once. An action that fails rolls back to
+    // its savepoint and the row records Failed, with the decision kept.
+    return this.transactions.run(() =>
+      this.decideAndRun(record, d, handler, args, key, ownerEmail, newRecipientEmails, unchanged),
+    );
+  }
+
+  private async decideAndRun(
+    record: ApprovalRecord,
+    d: {
+      readonly decision: 'approve' | 'deny';
+      readonly via: 'email' | 'app';
+      readonly signedIn: boolean;
+      readonly tokenHash: string | null;
+      readonly ownerId: string | null;
+      readonly audit: DecisionAudit;
+      readonly now: Date;
+    },
+    handler: AnyHandler,
+    args: Record<string, unknown>,
+    key: ApprovalKeyFacts | null,
+    ownerEmail: string,
+    newRecipientEmails: ReadonlySet<string>,
+    unchanged: () => Promise<{ record: ApprovalRecord; decided: false }>,
+  ): Promise<{ readonly record: ApprovalRecord; readonly decided: boolean }> {
     const claimed = await this.repo.claimDecision({
       id: record.id,
       decision: d.decision,
@@ -494,22 +579,43 @@ export class ApprovalsService {
       );
       return { record: failed ?? claimed, decided: true };
     }
+    const mcp: McpEventMetadata = {
+      auth: 'api_key',
+      key_id: key?.id ?? claimed.apiKeyId,
+      key_prefix: key?.prefix ?? null,
+      key_name: key?.name ?? claimed.summary.key_name,
+      oauth_client_id: null,
+      oauth_grant_id: claimed.oauthGrantId,
+      acting_for_user_id: claimed.ownerId,
+      acting_for_email: ownerEmail,
+      tool: claimed.tool ?? handler.tool,
+      approval: 'email',
+      approved_by_session: d.signedIn,
+    };
+    let result: Record<string, unknown>;
     try {
-      const result = await handler.execute(args, {
-        ownerId: claimed.ownerId,
-        ownerEmail,
-        now: d.now,
-        approvalId: claimed.id,
-        audit: { ip: d.audit.ip, user_agent: d.audit.userAgent },
-      });
-      const done = await this.repo.markCompleted(claimed.id, result, new Date());
-      return { record: done ?? claimed, decided: true };
+      // Its own savepoint: a failed action leaves the decision standing.
+      result = await this.transactions.run(() =>
+        handler.execute(args, {
+          ownerId: claimed.ownerId,
+          ownerEmail,
+          now: d.now,
+          apiKeyId: claimed.apiKeyId,
+          approvalId: claimed.id,
+          audit: { ip: d.audit.ip, user_agent: d.audit.userAgent },
+          mcp,
+          newRecipientEmails,
+        }),
+      );
     } catch (err) {
       const slug = slugOf(err);
       this.log.warn(`approval action failed id=${claimed.id} kind=${claimed.kind} slug=${slug}`);
       const failed = await this.repo.markFailedAfterApprove(claimed.id, slug, new Date());
       return { record: failed ?? claimed, decided: true };
     }
+    // Not caught: if recording Done fails, the whole decision rolls back.
+    const done = await this.repo.markCompleted(claimed.id, result, new Date());
+    return { record: done ?? claimed, decided: true };
   }
 
   /** `approval_decided` before any `sent` row (rule S.6: through appendEvent). */
@@ -554,31 +660,40 @@ export class ApprovalsService {
   /** Deny: a short email to the owner, and the third denial in 24 hours suspends the key's sends. */
   private async notifyDenied(record: ApprovalRecord, ownerEmail: string, now: Date): Promise<void> {
     try {
-      const suspended = record.apiKeyId
-        ? await this.lifecycle.isSendSuspended(record.apiKeyId, now)
-        : false;
-      if (suspended) this.log.warn(`key send suspended after denials key=${record.apiKeyId ?? ''}`);
-      if (!(await this.breaker.allows(now))) return;
-      await insertOutboundEmailIdempotent(this.outbox, {
-        kind: 'approval_denied',
-        to_email: ownerEmail,
-        to_name: '',
-        dedupe_key: `approval_denied:${record.id}`,
-        payload: {
-          approval_id: record.id,
-          ...buildApprovalDeniedVars({
-            summary: record.summary,
-            publicUrl: this.publicUrl,
-            suspended,
-          }),
-        },
-      });
+      // A savepoint, so a failure here cannot poison the decision's transaction.
+      await this.transactions.run(() => this.queueDeniedMail(record, ownerEmail, now));
     } catch (err) {
       // The decision is recorded; a lost notice must not undo it.
       this.log.error(
         `approval_denied mail failed id=${record.id}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
+  }
+
+  private async queueDeniedMail(
+    record: ApprovalRecord,
+    ownerEmail: string,
+    now: Date,
+  ): Promise<void> {
+    const suspended = record.apiKeyId
+      ? await this.lifecycle.isSendSuspended(record.apiKeyId, now)
+      : false;
+    if (suspended) this.log.warn(`key send suspended after denials key=${record.apiKeyId ?? ''}`);
+    if (!(await this.breaker.allows(now))) return;
+    await insertOutboundEmailIdempotent(this.outbox, {
+      kind: 'approval_denied',
+      to_email: ownerEmail,
+      to_name: '',
+      dedupe_key: `approval_denied:${record.id}`,
+      payload: {
+        approval_id: record.id,
+        ...buildApprovalDeniedVars({
+          summary: record.summary,
+          publicUrl: this.publicUrl,
+          suspended,
+        }),
+      },
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -598,7 +713,8 @@ export class ApprovalsService {
     key: ApprovalKeyFacts,
     now: Date,
   ): Promise<Evaluated> {
-    const described = await handler.describe(args, { ownerId, ownerEmail, now });
+    const kindCtx = { ownerId, ownerEmail, now, apiKeyId: key.id };
+    const described = await handler.describe(args, kindCtx);
     const known = await this.repo.findKnownRecipients(
       ownerId,
       described.recipients.map((r) => r.email),
@@ -610,6 +726,12 @@ export class ApprovalsService {
         is_new: !known.has(r.email.trim().toLowerCase()),
       })),
     );
+    if (handler.checkLimits) {
+      await handler.checkLimits(args, {
+        ...kindCtx,
+        newRecipients: recipients.filter((r) => r.is_new).length,
+      });
+    }
     const keyName = displayKeyName(key.name);
     const summary: ApprovalSummary = {
       kind: handler.kind,
@@ -737,6 +859,13 @@ export class ApprovalsService {
 
 function isPendingUndecided(record: ApprovalRecord, now: Date): boolean {
   return hasNoOutcome(record) && approvalStatus(record, now).status === 'pending';
+}
+
+/** Lower-cased addresses the card flags New. */
+function newRecipientsOf(summary: ApprovalSummary): ReadonlySet<string> {
+  return new Set(
+    summary.recipients.filter((r) => r.is_new).map((r) => r.email.trim().toLowerCase()),
+  );
 }
 
 function approvalLimit(): HttpException {

@@ -121,6 +121,7 @@ export const READ_METHODS = new Set([
   'queries.remindAvailableAt',
   'queries.listEvents',
   'accounts.email',
+  'envelopeActions.remaining',
 ]);
 
 export interface FakeWorld {
@@ -130,6 +131,8 @@ export interface FakeWorld {
   email: string | null;
   downloadUrl: string;
   calls: string[];
+  /** What `me_get` reports left today (WP-24). */
+  remaining: { sends: number; newRecipients: number };
 }
 
 export function world(): FakeWorld {
@@ -164,6 +167,7 @@ export function world(): FakeWorld {
     // A Supabase-style signed URL: the token is a JWT in the query string.
     downloadUrl: `https://storage.test/object/sign/envelopes/x?token=${FAKE_JWT}`,
     calls: [],
+    remaining: { sends: 20, newRecipients: 25 },
   };
 }
 
@@ -257,6 +261,9 @@ export function fakeServices(w: FakeWorld): McpServices {
     accounts: {
       email: async () => w.email,
     },
+    envelopeActions: {
+      remaining: async () => w.remaining,
+    },
   };
   const record = (group: string) =>
     new Proxy(impl[group] ?? {}, {
@@ -272,6 +279,7 @@ export function fakeServices(w: FakeWorld): McpServices {
     documents: record('documents'),
     queries: record('queries'),
     accounts: record('accounts'),
+    envelopeActions: record('envelopeActions'),
   } as unknown as McpServices;
 }
 

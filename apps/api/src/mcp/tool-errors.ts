@@ -97,6 +97,30 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'This run failed for a reason a retry cannot fix. Edit the automation instead.',
   webhook_url_required: 'A webhook recipe needs a url.',
   webhook_url_blocked: 'Seald does not send to that address. Use a public https address.',
+  // WP-24 (steps 10–11): send, remind and cancel through owner approval.
+  confirmation_required:
+    'This key sends without per-send approval: call envelopes_preview_send and pass its confirmation_token.',
+  confirmation_invalid:
+    'The confirmation token is used, expired, for another key, or the draft changed since the preview. Preview again.',
+  send_daily_cap: 'This account reached its daily limit of 20 agent sends.',
+  recipient_daily_cap: 'This account reached its daily limit of 25 new recipients for agent sends.',
+  send_suspended:
+    'Sending from agents is suspended for this account after bounces or spam complaints. The owner reviews it in Seald.',
+  key_send_suspended:
+    'This key was denied three times in 24 hours, so it cannot send until the owner reviews it in Seald.',
+  signer_is_account_owner:
+    'The account email is a signer on this envelope. The owner sends this one from Seald.',
+  email_not_verified: 'The account email is not verified, so the owner cannot be asked to approve.',
+  approval_limit:
+    'Too many approvals are waiting for the owner. Wait for a decision, then try again.',
+  envelope_terminal: 'The envelope is not out for signature, so this cannot be done.',
+  already_signed: 'This signer has already signed.',
+  already_declined: 'This signer declined.',
+  not_your_turn: "It is not this signer's turn yet in the signing order.",
+  file_required: 'A document is required first.',
+  no_signers: 'The draft has no signers yet.',
+  no_fields: 'The draft has no fields yet.',
+  signer_without_signature_field: 'Every signer needs a required signature or initials field.',
 };
 
 function messageFor(slug: string, status: number): string {

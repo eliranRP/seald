@@ -1,9 +1,11 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { uuid, type Envelope } from 'shared';
+import { isFeatureEnabled, uuid, type Envelope } from 'shared';
 import { z } from 'zod';
 import type { EnvelopeDocumentsService } from '../../envelopes/documents/envelope-documents.service';
 import type { EnvelopesService } from '../../envelopes/envelopes.service';
 import { sameMailbox } from '../../email/insert-idempotent';
+import type { AccessAuthService } from '../../signing/access-auth/access-auth.service';
+import type { SendGuardService } from '../send-guard.service';
 import type { SubjectField } from '../subject-hash';
 import type {
   ApprovalExecuteContext,
@@ -16,6 +18,10 @@ import type {
 export interface EnvelopeKindServices {
   readonly envelopes: EnvelopesService;
   readonly documents: EnvelopeDocumentsService;
+  /** WP-24: per-owner daily caps. */
+  readonly guard: SendGuardService;
+  /** WP-24: who must enter an emailed code (WP-10), bound into the send subject. */
+  readonly accessAuth: AccessAuthService;
 }
 
 const EnvelopeArgs = z.strictObject({ envelope_id: uuid });
@@ -80,13 +86,40 @@ function audit(ctx: ApprovalExecuteContext): { ip: string | null; user_agent: st
 }
 
 /**
+ * Send facts beyond recipients, files and fields that change what the
+ * signers get (hashed into `subject_hash`): the delivery order in force
+ * (WP-05/06) and each signer's emailed-code requirement (WP-10). The
+ * owner approves exactly who is invited first and who must enter a code;
+ * changing either after the request expires the approval.
+ */
+async function sendFacts(
+  svc: EnvelopeKindServices,
+  envelope: Envelope,
+): Promise<Record<string, unknown>> {
+  const signers = [...envelope.signers].sort((a, b) => a.id.localeCompare(b.id));
+  const access = [];
+  for (const s of signers) {
+    const eff = await svc.accessAuth.effectiveFor(envelope.id, s.id);
+    access.push({ signer_id: s.id, access: eff.access, action: eff.action });
+  }
+  return {
+    delivery_mode: isFeatureEnabled('signingOrder') ? envelope.delivery_mode : 'parallel',
+    signing_order: signers.map((s) => ({ signer_id: s.id, signing_order: s.signing_order })),
+    access_auth: access,
+  };
+}
+
+/**
  * `envelope_send` (MCP step 10). Bound to the draft as it is now: every
- * recipient, the files and the fields. Approve runs the same
- * `EnvelopesService.send` the SPA route runs, from the account mailbox.
+ * recipient, the files, the fields, the delivery order and the access
+ * codes. Approve runs the same `EnvelopesService.send` the SPA route
+ * runs, from the account mailbox, so sequential order only invites the
+ * first step and access codes apply at `/sign/start` as for any send.
  *
- * TODO(WP-24): the per-owner daily caps (20 sends, 25 new recipients)
- * under `pg_advisory_xact_lock`, and `metadata.mcp` on the events, are
- * the send tool's work and land with it.
+ * The per-owner daily caps (20 sends, 25 new recipients) are checked at
+ * request and decision time, and again under `pg_advisory_xact_lock` in
+ * `execute`, inside the decision's transaction. Every event the send
+ * writes carries `metadata.mcp`.
  */
 export function envelopeSendKind(svc: EnvelopeKindServices): ApprovalKindHandler<EnvelopeArgs> {
   return {
@@ -113,14 +146,23 @@ export function envelopeSendKind(svc: EnvelopeKindServices): ApprovalKindHandler
         destination: null,
         files,
         fields: fieldsOf(envelope),
+        extra: await sendFacts(svc, envelope),
       };
     },
+    async checkLimits(_args, ctx) {
+      await svc.guard.assertCaps(ctx.ownerId, ctx.newRecipients, ctx.now);
+    },
     async execute(args, ctx) {
+      // Under the owner lock, inside the decision's transaction: two
+      // approvals racing at the cap give one send and one Failed.
+      const newRecipientEmails = ctx.newRecipientEmails ?? new Set<string>();
+      await svc.guard.assertCapsLocked(ctx.ownerId, newRecipientEmails.size, ctx.now);
       const sent = await svc.envelopes.send(
         ctx.ownerId,
         args.envelope_id,
         { email: ctx.ownerEmail, name: null },
         audit(ctx),
+        ctx.mcp ? { mcp: ctx.mcp, newRecipientEmails } : undefined,
       );
       return { status: sent.status, envelope_id: sent.id };
     },
@@ -160,10 +202,15 @@ export function envelopeRemindKind(svc: EnvelopeKindServices): ApprovalKindHandl
       };
     },
     async execute(args, ctx) {
-      await svc.envelopes.remindSigner(ctx.ownerId, args.envelope_id, args.signer_id, {
-        email: ctx.ownerEmail,
-        name: null,
-      });
+      // The hourly throttle and the signing-order turn are re-checked
+      // here; a failure records Failed with its slug and sends nothing.
+      await svc.envelopes.remindSigner(
+        ctx.ownerId,
+        args.envelope_id,
+        args.signer_id,
+        { email: ctx.ownerEmail, name: null },
+        ctx.mcp ? { mcp: ctx.mcp } : undefined,
+      );
       return { status: 'queued' };
     },
   };
@@ -202,7 +249,12 @@ export function envelopeCancelKind(svc: EnvelopeKindServices): ApprovalKindHandl
       };
     },
     async execute(args, ctx) {
-      const result = await svc.envelopes.cancel(ctx.ownerId, args.envelope_id, audit(ctx));
+      const result = await svc.envelopes.cancel(
+        ctx.ownerId,
+        args.envelope_id,
+        audit(ctx),
+        ctx.mcp ? { mcp: ctx.mcp } : undefined,
+      );
       return { status: result.status };
     },
   };

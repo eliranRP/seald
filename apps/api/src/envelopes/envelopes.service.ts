@@ -8,7 +8,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ENVELOPE_STATUSES, isFeatureEnabled } from 'shared';
-import type { Envelope as WireEnvelope, EnvelopeGdriveSaveResult, GdriveExportState } from 'shared';
+import type {
+  Envelope as WireEnvelope,
+  EnvelopeGdriveSaveResult,
+  GdriveExportState,
+  McpEventMetadata,
+} from 'shared';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
 import {
@@ -63,6 +68,25 @@ type Envelope = WireEnvelope;
 type EnvelopeStatus = Envelope['status'];
 
 const DEFAULT_EXPIRY_DAYS = 30;
+const REMIND_THROTTLE_MS = 60 * 60 * 1000;
+
+/**
+ * Who caused an action, for its audit rows (MCP attribution, WP-24):
+ * `metadata.mcp` on every event the call writes. SPA controllers pass
+ * nothing, so their events keep `metadata` exactly as before.
+ */
+export interface EventAttribution {
+  readonly mcp: McpEventMetadata;
+  /** Send only: lower-cased addresses that were new (not known) when it went out. */
+  readonly newRecipientEmails?: ReadonlySet<string>;
+}
+
+function withMcp(
+  metadata: Record<string, unknown>,
+  mcp: McpEventMetadata | undefined,
+): Record<string, unknown> {
+  return mcp ? { ...metadata, mcp } : metadata;
+}
 const MAX_SHORT_CODE_RETRIES = 5;
 
 function hasCadenceKeys(patch: UpdateDraftMetadataPatch): boolean {
@@ -702,32 +726,9 @@ export class EnvelopesService {
     envelope_id: string,
     sender: { readonly email: string; readonly name?: string | null },
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
   ): Promise<Envelope> {
-    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
-    if (!envelope) throw new NotFoundException('envelope_not_found');
-    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
-
-    // Invariants — fail before the status flip.
-    if (!envelope.original_sha256 || !envelope.original_pages) {
-      throw new BadRequestException('file_required');
-    }
-    if (envelope.signers.length === 0) {
-      throw new BadRequestException('no_signers');
-    }
-    if (envelope.fields.length === 0) {
-      throw new BadRequestException('no_fields');
-    }
-    const signersWithSigField = new Set<string>();
-    for (const f of envelope.fields) {
-      if ((f.kind === 'signature' || f.kind === 'initials') && f.required) {
-        signersWithSigField.add(f.signer_id);
-      }
-    }
-    for (const s of envelope.signers) {
-      if (!signersWithSigField.has(s.id)) {
-        throw new BadRequestException('signer_without_signature_field');
-      }
-    }
+    const envelope = await this.checkSend(owner_id, envelope_id);
 
     // Atomic status flip. Sender identity is persisted here so the
     // decline/withdrawal flow can email the sender without a privileged
@@ -753,16 +754,30 @@ export class EnvelopesService {
     // the submit that completes the step before them.
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
     const invitees = initialInvitees(deliveryMode, envelope.signers);
+    // MCP attribution: `metadata.mcp` exactly as WP-23 reads it, plus a
+    // top-level count of recipients that were new, for the daily cap.
+    const mcp = attribution?.mcp;
+    const sendFacts: Record<string, unknown> = attribution
+      ? {
+          new_recipient_count: envelope.signers.filter((s) =>
+            attribution.newRecipientEmails?.has(s.email.trim().toLowerCase()),
+          ).length,
+        }
+      : {};
     if (deliveryMode === 'sequential') {
       await this.repo.appendEvent({
         envelope_id,
         actor_kind: 'system',
         event_type: 'step_started',
-        metadata: {
-          step: 1,
-          signing_order: stepOrders(envelope.signers)[0] ?? 1,
-          signer_ids: invitees.map((s) => s.id),
-        },
+        metadata: withMcp(
+          {
+            step: 1,
+            signing_order: stepOrders(envelope.signers)[0] ?? 1,
+            signer_ids: invitees.map((s) => s.id),
+            ...sendFacts,
+          },
+          mcp,
+        ),
       });
     }
     for (const signer of invitees) {
@@ -774,7 +789,7 @@ export class EnvelopesService {
         event_type: 'sent',
         ip: audit.ip,
         user_agent: audit.user_agent,
-        metadata: {},
+        metadata: withMcp({ ...sendFacts }, mcp),
       });
 
       try {
@@ -805,6 +820,41 @@ export class EnvelopesService {
   }
 
   /**
+   * The checks `send` runs before the status flip, without writing: the
+   * envelope is the owner's draft, has a file, at least one signer and
+   * one field, and every signer has a required signature or initials
+   * field. `envelopes_preview_send` runs them on their own (WP-24).
+   */
+  async checkSend(owner_id: string, envelope_id: string): Promise<Envelope> {
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    if (envelope.status !== 'draft') throw new ConflictException('envelope_not_draft');
+
+    // Invariants — fail before the status flip.
+    if (!envelope.original_sha256 || !envelope.original_pages) {
+      throw new BadRequestException('file_required');
+    }
+    if (envelope.signers.length === 0) {
+      throw new BadRequestException('no_signers');
+    }
+    if (envelope.fields.length === 0) {
+      throw new BadRequestException('no_fields');
+    }
+    const signersWithSigField = new Set<string>();
+    for (const f of envelope.fields) {
+      if ((f.kind === 'signature' || f.kind === 'initials') && f.required) {
+        signersWithSigField.add(f.signer_id);
+      }
+    }
+    for (const s of envelope.signers) {
+      if (!signersWithSigField.has(s.id)) {
+        throw new BadRequestException('signer_without_signature_field');
+      }
+    }
+    return envelope;
+  }
+
+  /**
    * Sender-initiated cancel ("withdraw") of a sent envelope. Mirrors
    * SigningService.decline on the sender side: atomically flip the
    * envelope to `canceled`, revoke pending access tokens, fan out the
@@ -821,6 +871,7 @@ export class EnvelopesService {
     owner_id: string,
     envelope_id: string,
     audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    attribution?: EventAttribution,
   ): Promise<{ readonly status: 'canceled'; readonly envelope_status: 'canceled' }> {
     const result = await this.repo.cancelEnvelope(envelope_id, owner_id);
     if (!result) {
@@ -842,10 +893,13 @@ export class EnvelopesService {
       event_type: 'canceled',
       ip: audit.ip,
       user_agent: audit.user_agent,
-      metadata: {
-        notified_signer_count: notifiedSignerIds.length,
-        already_signed_signer_count: alreadySignedSignerIds.length,
-      },
+      metadata: withMcp(
+        {
+          notified_signer_count: notifiedSignerIds.length,
+          already_signed_signer_count: alreadySignedSignerIds.length,
+        },
+        attribution?.mcp,
+      ),
     });
 
     // Pre-render a single timeline for the `withdrawn_after_sign` kind:
@@ -882,7 +936,7 @@ export class EnvelopesService {
         signer_id: signerId,
         actor_kind: 'system',
         event_type: 'session_invalidated_by_cancel',
-        metadata: {},
+        metadata: withMcp({}, attribution?.mcp),
       });
 
       try {
@@ -947,25 +1001,18 @@ export class EnvelopesService {
   }
 
   /**
-   * Manually re-send the signing invite to a single signer. Throttled to
-   * at most 1 reminder per signer per hour via the outbound_emails audit
-   * trail.
-   *
-   * The token rotates at send time (MCP Insert A): the queued row holds
-   * the signer id only, and `EmailDispatcherService` mints a fresh token
-   * when the mail goes out. Every earlier link stops working then.
-   *
-   * Sender identity (name/email) is pulled from the JWT and threaded into
-   * the reminder template, same shape as the original invite. Controller
-   * returns 202 Accepted (asynchronous in nature — email delivery is the
-   * worker's job).
+   * Every check `remindSigner` runs before it writes, without writing:
+   * the envelope is the owner's and out for signature, the signer has not
+   * signed or declined, it is that signer's turn (WP-05), and the signer
+   * was not reminded by hand in the last hour (`remind_throttled`, with
+   * `retryAfter` in seconds). The MCP remind tool and its approval call
+   * it at request and at decision time (WP-24).
    */
-  async remindSigner(
+  async checkRemind(
     owner_id: string,
     envelope_id: string,
     signer_id: string,
-    sender: { readonly email: string; readonly name?: string | null },
-  ): Promise<void> {
+  ): Promise<{ readonly envelope: Envelope; readonly signer: EnvelopeSigner }> {
     const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status !== 'awaiting_others') {
@@ -989,10 +1036,41 @@ export class EnvelopesService {
     });
     if (recent) {
       const ageMs = Date.now() - new Date(recent.created_at).getTime();
-      if (ageMs < 60 * 60 * 1000) {
-        throw new HttpException('remind_throttled', HttpStatus.TOO_MANY_REQUESTS);
+      if (ageMs < REMIND_THROTTLE_MS) {
+        throw new HttpException(
+          {
+            message: 'remind_throttled',
+            retryAfter: Math.max(1, Math.ceil((REMIND_THROTTLE_MS - ageMs) / 1000)),
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
     }
+    return { envelope, signer };
+  }
+
+  /**
+   * Manually re-send the signing invite to a single signer. Throttled to
+   * at most 1 reminder per signer per hour via the outbound_emails audit
+   * trail.
+   *
+   * The token rotates at send time (MCP Insert A): the queued row holds
+   * the signer id only, and `EmailDispatcherService` mints a fresh token
+   * when the mail goes out. Every earlier link stops working then.
+   *
+   * Sender identity (name/email) is pulled from the JWT and threaded into
+   * the reminder template, same shape as the original invite. Controller
+   * returns 202 Accepted (asynchronous in nature — email delivery is the
+   * worker's job).
+   */
+  async remindSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    sender: { readonly email: string; readonly name?: string | null },
+    attribution?: EventAttribution,
+  ): Promise<void> {
+    const { envelope, signer } = await this.checkRemind(owner_id, envelope_id, signer_id);
 
     // Audit event first so its id anchors the outbound_emails row.
     const event = await this.repo.appendEvent({
@@ -1000,7 +1078,7 @@ export class EnvelopesService {
       signer_id,
       actor_kind: 'sender',
       event_type: 'reminder_sent',
-      metadata: {},
+      metadata: withMcp({}, attribution?.mcp),
     });
 
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');

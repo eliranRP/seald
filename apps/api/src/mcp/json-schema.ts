@@ -17,6 +17,9 @@ export function toToolJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Jso
   // A mutating tool's output is a union of objects (dry run | result).
   // MCP wants `type: "object"` at the root; with every branch an object
   // that is the same set of values.
+  // A tool whose own result is a union (send: approval_pending | sent)
+  // nests one anyOf inside the dry-run union; flatten it to one level.
+  if (Array.isArray(rest['anyOf'])) rest['anyOf'] = flattenAnyOf(rest['anyOf'] as unknown[]);
   const branches = rest['anyOf'];
   if (
     rest['type'] === undefined &&
@@ -32,4 +35,13 @@ export function toToolJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Jso
     throw new Error('MCP tool schemas must be JSON objects at the root');
   }
   return rest as JsonSchemaObject;
+}
+
+/** `anyOf: [a, { anyOf: [b, c] }]` → `anyOf: [a, b, c]` (a bare nested union only). */
+function flattenAnyOf(branches: readonly unknown[]): unknown[] {
+  return branches.flatMap((b) => {
+    if (typeof b !== 'object' || b === null) return [b];
+    const inner = (b as { anyOf?: unknown }).anyOf;
+    return Object.keys(b).length === 1 && Array.isArray(inner) ? flattenAnyOf(inner) : [b];
+  });
 }

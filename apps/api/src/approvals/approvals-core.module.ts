@@ -5,6 +5,9 @@ import { ApprovalsLifecycleService } from './approvals-lifecycle.service';
 import { ApprovalsRepository } from './approvals.repository';
 import { ApprovalsPgRepository } from './approvals.repository.pg';
 import { ConfirmationsService } from './confirmations.service';
+import { SendGuardRepository } from './send-guard.repository';
+import { SendGuardPgRepository } from './send-guard.repository.pg';
+import { SendGuardService } from './send-guard.service';
 
 /**
  * The approval pieces other modules need without the envelope and Drive
@@ -24,6 +27,9 @@ import { ConfirmationsService } from './confirmations.service';
     ApprovalLinkMinter,
     ConfirmationsService,
     ApprovalMailBreaker,
+    // WP-24: per-owner send caps and suspension.
+    { provide: SendGuardRepository, useClass: SendGuardPgRepository },
+    SendGuardService,
   ],
   exports: [
     ApprovalsRepository,
@@ -31,6 +37,7 @@ import { ConfirmationsService } from './confirmations.service';
     ApprovalLinkMinter,
     ConfirmationsService,
     ApprovalMailBreaker,
+    SendGuardService,
   ],
 })
 export class ApprovalsCoreModule {}

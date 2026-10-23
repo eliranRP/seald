@@ -36,9 +36,10 @@ export function isSupportedMcpProtocolVersion(value: unknown): value is McpProto
 }
 
 /**
- * Daily caps from the doc's rate-limit table. Enforcement ships with the
- * send path (step 10); until then no MCP tool can spend them, so
- * `me_get` reports the full allowance.
+ * Daily caps from the doc's rate-limit table, per owner per UTC day.
+ * Sends and new recipients are enforced by the send path (step 10,
+ * WP-24) and `me_get` reports what is left; the email-copy counter
+ * belongs to automations A7.
  */
 export const MCP_DAILY_CAPS = {
   sends: 20,
@@ -311,7 +312,7 @@ export type McpToolError = z.infer<typeof McpToolErrorSchema>;
 
 // ---------------------------------------------------------------------------
 // `envelope_events.metadata.mcp` (docs/design/mcp-server.md, "Attribution on
-// MCP-originated events"). The send path writes it (WP-24, not yet wired);
+// MCP-originated events"). The send path writes it (WP-24: send, remind, cancel);
 // the audit certificate reads it (`apps/api/src/sealing/audit-pdf.tsx`).
 // It never carries `client_name`, a header-supplied name, or
 // `client_name_source`. Signer events never carry it.

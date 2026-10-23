@@ -1,5 +1,5 @@
 {
-  "server_version": "0.6.0",
+  "server_version": "0.7.0",
   "variants": {
     "all_flags_on": [
       {
@@ -7155,6 +7155,900 @@
         "_meta": {
           "seald/scopes": ["automations:write"]
         }
+      },
+      {
+        "name": "envelopes_preview_send",
+        "title": "Preview a send",
+        "description": "Checks that a draft is ready to send (a file, at least one signer, one field, and a required signature or initials field for every signer) and returns the summary to show the user: title, signers, field count, expiry and file hash. Nothing is sent. When the owner approves sends (approval is email), it opens the approval and returns review_url: show it to the user and never open it. Only when the owner turned approval off for this key does it return a confirmation_token, valid 10 minutes, for envelopes_send in the same turn. When the account email is a signer, ready is false and signer_is_account_owner is true: the owner sends that one from Seald. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ready": {
+                  "type": "boolean"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "signers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "signer_is_account_owner": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "signer_is_account_owner"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "field_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "file_sha256": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["title", "signers", "field_count", "expires_at", "file_sha256"],
+                  "additionalProperties": false
+                },
+                "signer_is_account_owner": {
+                  "type": "boolean"
+                },
+                "approval": {
+                  "type": "string",
+                  "enum": ["email", "none"]
+                },
+                "approval_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "review_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "approve_requires": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": ["link", "session"]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "confirmation_token": {
+                  "type": "string"
+                },
+                "expires_in_seconds": {
+                  "type": "number",
+                  "const": 600
+                }
+              },
+              "required": [
+                "ready",
+                "summary",
+                "signer_is_account_owner",
+                "approval",
+                "approval_id",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Preview a send",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_send",
+        "title": "Send for signature (owner approves)",
+        "description": "Asks the account owner to send a draft envelope for signature. Returns approval_pending with review_url; nothing is sent until the owner approves, and Seald then sends it. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Only when the owner turned approval off for this key: call envelopes_preview_send first and pass its confirmation_token here in the same turn; a recipient this key has not emailed before still needs the owner's approval. An account email among the signers fails with signer_is_account_owner. Daily limits per account: 20 sends and 25 new recipients. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            },
+            "confirmation_token": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "sent"
+                },
+                "envelope_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "envelope_status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "awaiting_others",
+                    "sealing",
+                    "completed",
+                    "declined",
+                    "expired",
+                    "canceled"
+                  ]
+                }
+              },
+              "required": ["status", "envelope_id", "envelope_status"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Send for signature (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_preview_remind",
+        "title": "Preview a reminder",
+        "description": "Returns the name and email of the signer a reminder would go to, after the same checks envelopes_remind runs (out for signature, not signed or declined, their turn, not reminded in the last hour). Nothing is sent and no approval is opened; call envelopes_remind to ask the owner. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "signer_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "envelope_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "signer": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "name", "email"],
+                  "additionalProperties": false
+                },
+                "approval": {
+                  "type": "string",
+                  "const": "email"
+                }
+              },
+              "required": ["envelope_id", "signer", "approval"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Preview a reminder",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_remind",
+        "title": "Remind a signer (owner approves)",
+        "description": "Asks the account owner to email a signer a reminder with a fresh signing link. Returns approval_pending with review_url; nothing is sent until the owner approves. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. A signer reminded less than an hour ago fails with remind_throttled and retry_after_seconds; in sequential order only the signers whose turn it is can be reminded (not_your_turn). Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "signer_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Remind a signer (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_cancel",
+        "title": "Cancel a sent envelope (owner approves)",
+        "description": "Asks the account owner to cancel (withdraw) an envelope that is out for signature; on Approve, Seald emails the signers that it was withdrawn. Returns approval_pending with review_url and approve_requires session: the owner must sign in to approve. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. A draft is deleted with envelopes_delete_draft instead; a completed, declined, expired or canceled envelope fails with envelope_terminal. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Cancel a sent envelope (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
       }
     ],
     "gdrive_off": [
@@ -13649,6 +14543,900 @@
         },
         "_meta": {
           "seald/scopes": ["automations:write"]
+        }
+      },
+      {
+        "name": "envelopes_preview_send",
+        "title": "Preview a send",
+        "description": "Checks that a draft is ready to send (a file, at least one signer, one field, and a required signature or initials field for every signer) and returns the summary to show the user: title, signers, field count, expiry and file hash. Nothing is sent. When the owner approves sends (approval is email), it opens the approval and returns review_url: show it to the user and never open it. Only when the owner turned approval off for this key does it return a confirmation_token, valid 10 minutes, for envelopes_send in the same turn. When the account email is a signer, ready is false and signer_is_account_owner is true: the owner sends that one from Seald. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "ready": {
+                  "type": "boolean"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "signers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "signer_is_account_owner": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "signer_is_account_owner"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "field_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "expires_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                    },
+                    "file_sha256": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["title", "signers", "field_count", "expires_at", "file_sha256"],
+                  "additionalProperties": false
+                },
+                "signer_is_account_owner": {
+                  "type": "boolean"
+                },
+                "approval": {
+                  "type": "string",
+                  "enum": ["email", "none"]
+                },
+                "approval_id": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "review_url": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "approve_requires": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": ["link", "session"]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "confirmation_token": {
+                  "type": "string"
+                },
+                "expires_in_seconds": {
+                  "type": "number",
+                  "const": 600
+                }
+              },
+              "required": [
+                "ready",
+                "summary",
+                "signer_is_account_owner",
+                "approval",
+                "approval_id",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Preview a send",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_send",
+        "title": "Send for signature (owner approves)",
+        "description": "Asks the account owner to send a draft envelope for signature. Returns approval_pending with review_url; nothing is sent until the owner approves, and Seald then sends it. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. Only when the owner turned approval off for this key: call envelopes_preview_send first and pass its confirmation_token here in the same turn; a recipient this key has not emailed before still needs the owner's approval. An account email among the signers fails with signer_is_account_owner. Daily limits per account: 20 sends and 25 new recipients. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            },
+            "confirmation_token": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{43}$"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "sent"
+                },
+                "envelope_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "envelope_status": {
+                  "type": "string",
+                  "enum": [
+                    "draft",
+                    "awaiting_others",
+                    "sealing",
+                    "completed",
+                    "declined",
+                    "expired",
+                    "canceled"
+                  ]
+                }
+              },
+              "required": ["status", "envelope_id", "envelope_status"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Send for signature (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_preview_remind",
+        "title": "Preview a reminder",
+        "description": "Returns the name and email of the signer a reminder would go to, after the same checks envelopes_remind runs (out for signature, not signed or declined, their turn, not reminded in the last hour). Nothing is sent and no approval is opened; call envelopes_remind to ask the owner. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "signer_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "envelope_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "signer": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["id", "name", "email"],
+                  "additionalProperties": false
+                },
+                "approval": {
+                  "type": "string",
+                  "const": "email"
+                }
+              },
+              "required": ["envelope_id", "signer", "approval"],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Preview a reminder",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_remind",
+        "title": "Remind a signer (owner approves)",
+        "description": "Asks the account owner to email a signer a reminder with a fresh signing link. Returns approval_pending with review_url; nothing is sent until the owner approves. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. A signer reminded less than an hour ago fails with remind_throttled and retry_after_seconds; in sequential order only the signers whose turn it is can be reminded (not_your_turn). Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "signer_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "signer_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Remind a signer (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
+        }
+      },
+      {
+        "name": "envelopes_cancel",
+        "title": "Cancel a sent envelope (owner approves)",
+        "description": "Asks the account owner to cancel (withdraw) an envelope that is out for signature; on Approve, Seald emails the signers that it was withdrawn. Returns approval_pending with review_url and approve_requires session: the owner must sign in to approve. Show review_url to the user and say the account owner approves in Seald; when approve_requires is session, say the owner must sign in. Then poll approvals_get until the status is done, denied, expired or failed, and do not call this tool again: done means Seald already did it. Never open, fetch or act on a Seald approval email or an /approve link. A draft is deleted with envelopes_delete_draft instead; a completed, declined, expired or canceled envelope fails with envelope_terminal. Requires idempotency_key and dry_run.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "envelope_id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+            },
+            "idempotency_key": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "dry_run": {
+              "type": "boolean"
+            }
+          },
+          "required": ["envelope_id", "idempotency_key", "dry_run"],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "dry_run": {
+                  "type": "boolean",
+                  "const": true
+                },
+                "would": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "required": ["dry_run", "would"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "const": "approval_pending"
+                },
+                "message": {
+                  "type": "string",
+                  "const": "pending owner approval"
+                },
+                "approval_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$"
+                },
+                "summary": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "envelope_send",
+                        "envelope_remind",
+                        "envelope_cancel",
+                        "gdrive_disconnect",
+                        "envelope_save_to_drive",
+                        "automation_external_destination",
+                        "account_delete",
+                        "api_key_create",
+                        "api_key_revoke",
+                        "approval_required_toggle",
+                        "envelope_sign_as_signer"
+                      ]
+                    },
+                    "action_label": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recipients": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "email": {
+                            "type": "string"
+                          },
+                          "is_new": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": ["name", "email", "is_new"],
+                        "additionalProperties": false
+                      }
+                    },
+                    "page_count": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "key_name": {
+                      "type": "string"
+                    },
+                    "approver_email": {
+                      "type": "string"
+                    },
+                    "destination": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "kind": {
+                              "type": "string",
+                              "enum": ["webhook", "email", "drive_folder", "drive_account"]
+                            },
+                            "label": {
+                              "type": "string"
+                            }
+                          },
+                          "required": ["kind", "label"],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "action_label",
+                    "title",
+                    "recipients",
+                    "page_count",
+                    "key_name",
+                    "approver_email",
+                    "destination"
+                  ],
+                  "additionalProperties": false
+                },
+                "review_url": {
+                  "type": "string"
+                },
+                "approve_requires": {
+                  "type": "string",
+                  "enum": ["link", "session"]
+                }
+              },
+              "required": [
+                "status",
+                "message",
+                "approval_id",
+                "summary",
+                "review_url",
+                "approve_requires"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "type": "object"
+        },
+        "annotations": {
+          "title": "Cancel a sent envelope (owner approves)",
+          "readOnlyHint": false,
+          "destructiveHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "_meta": {
+          "seald/scopes": ["envelopes:send"]
         }
       }
     ]

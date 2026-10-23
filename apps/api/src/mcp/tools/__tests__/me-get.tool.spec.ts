@@ -17,6 +17,17 @@ describe('me_get', () => {
     expect(findTokenShapedStrings(out)).toEqual([]);
   });
 
+  it("reports what is left of today's sends and new recipients (step 10)", async () => {
+    const w = world();
+    w.remaining = { sends: 3, newRecipients: 0 };
+    const out = okOf(await call(w, 'me_get', {}));
+    expect(out['quotas']).toEqual({
+      sends_remaining: 3,
+      new_recipients_remaining: 0,
+      email_copies_remaining: 50,
+    });
+  });
+
   it('needs no scope beyond a valid credential', async () => {
     const w = world();
     const out = okOf(await call(w, 'me_get', {}, []));
@@ -38,7 +49,7 @@ describe('me_get', () => {
   it('only calls read methods, and never takes the owner from arguments', async () => {
     const w = world();
     await call(w, 'me_get', {});
-    expect(w.calls).toEqual(['accounts.email']);
+    expect(w.calls).toEqual(['envelopeActions.remaining', 'accounts.email']);
     for (const c of w.calls) expect(READ_METHODS).toContain(c);
   });
 });

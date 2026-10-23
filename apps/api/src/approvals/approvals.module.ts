@@ -2,6 +2,7 @@ import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common
 import { ApiKeysFlagMiddleware } from '../api-keys/api-keys-flag.middleware';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { GDriveModule } from '../integrations/gdrive/gdrive.module';
+import { AgentEnvelopeActionsService } from './agent-envelope-actions.service';
 import { ApprovalCsrf } from './approval-csrf';
 import { ApprovalRateLimiter } from './approval-rate-limiter';
 import { ApprovalsCoreModule } from './approvals-core.module';
@@ -26,8 +27,15 @@ import { ApprovalKindRegistry } from './kinds/approval-kind.registry';
 @Module({
   imports: [ApprovalsCoreModule, EnvelopesModule, GDriveModule],
   controllers: [ApprovalsController, ApprovalsEmailController],
-  providers: [ApprovalsService, ApprovalKindRegistry, ApprovalCsrf, ApprovalRateLimiter],
-  exports: [ApprovalsService, ApprovalKindRegistry],
+  providers: [
+    ApprovalsService,
+    ApprovalKindRegistry,
+    ApprovalCsrf,
+    ApprovalRateLimiter,
+    // WP-24: send / remind / cancel for an agent credential (MCP steps 10–11).
+    AgentEnvelopeActionsService,
+  ],
+  exports: [ApprovalsService, ApprovalKindRegistry, AgentEnvelopeActionsService],
 })
 export class ApprovalsModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

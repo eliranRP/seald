@@ -226,3 +226,4 @@ export * from './mcp-automations';
 export * from './mcp-contacts-templates';
 export * from './approvals';
 export * from './bulk-send';
+export * from './mcp-send';
