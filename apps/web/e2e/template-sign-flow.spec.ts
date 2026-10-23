@@ -231,6 +231,30 @@ async function installMocks(page: Page): Promise<ApiCallLog> {
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
   });
+  // With customReminders on, the send flow PATCHes the draft's expiry and
+  // reminder cadence before upload (WP-09).
+  await page.route(`**/api/envelopes/${ENVELOPE_ID}`, async (route: Route) => {
+    if (route.request().method() !== 'PATCH') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...makeBaseEnvelope(),
+        status: 'draft',
+        owner_id: 'guest',
+        sent_at: null,
+        completed_at: null,
+        signers: [],
+        fields: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        ...(route.request().postDataJSON() as Record<string, unknown>),
+      }),
+    });
+  });
   await page.route(`**/api/envelopes/${ENVELOPE_ID}/upload`, async (route: Route) => {
     await route.fulfill({
       status: 200,

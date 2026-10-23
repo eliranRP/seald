@@ -95,6 +95,11 @@ When('the sender visits {string}', async ({ page }, url: string) => {
     // mount), then SPA-navigate so the store survives.
     await page.goto('/templates');
     await expect(page.getByRole('heading', { name: /templates/i }).first()).toBeVisible();
+    // Wait for the list to hydrate the store: the heading renders before
+    // the fetch lands, and navigating away first aborts it.
+    if (seededTemplateTitle !== null) {
+      await expect(page.getByText(seededTemplateTitle).first()).toBeVisible();
+    }
     await page.evaluate((target) => {
       window.history.pushState({}, '', target);
       window.dispatchEvent(new PopStateEvent('popstate'));
@@ -109,7 +114,10 @@ When('the sender selects the {string} document source', async ({ page }, label: 
   await page.getByRole('radio', { name: new RegExp(`^${label}$`, 'i') }).click();
 });
 
+let seededTemplateTitle: string | null = null;
+
 Given('a template with id {string} exists', async ({ mockedApi }, id: string) => {
+  seededTemplateTitle = 'Sample template for gdrive disabled-cta scenario';
   // Mirrors the Nest TemplatesController's ApiTemplate wire shape. The
   // hydrating list page (TemplatesListPage) maps `title` → summary.name.
   mockedApi.on('GET', /\/api\/templates(\?|$)/, {
@@ -117,7 +125,7 @@ Given('a template with id {string} exists', async ({ mockedApi }, id: string) =>
       {
         id,
         owner_id: '00000000-0000-4000-8000-000000000a11',
-        title: 'Sample template for gdrive disabled-cta scenario',
+        title: seededTemplateTitle,
         description: '',
         cover_color: '#EEF2FF',
         field_layout: [],
