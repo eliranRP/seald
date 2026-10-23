@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { renderWithTheme } from '../../test/renderWithTheme';
+import { reportError } from '../../lib/observability';
 import { ErrorBoundary } from './ErrorBoundary';
 
 vi.mock('../../lib/observability', () => ({
@@ -65,10 +66,38 @@ describe('ErrorBoundary', () => {
     );
     const alert = screen.getByRole('alert');
     expect(alert).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /something broke/i })).toBeInTheDocument();
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
     expect((onError.mock.calls[0]?.[0] as Error).message).toBe('Kaboom');
+  });
+
+  it('shows a generated error id and copies it on request', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    renderWithTheme(
+      <ErrorBoundary>
+        <Boom shouldThrow />
+      </ErrorBoundary>,
+    );
+    const id = screen.getByText(/^err_[0-9A-Z]{5}$/);
+    await user.click(screen.getByRole('button', { name: /copy error id/i }));
+    expect(writeText).toHaveBeenCalledWith(id.textContent);
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+  });
+
+  it('sends the error id with the error report', () => {
+    renderWithTheme(
+      <ErrorBoundary>
+        <Boom shouldThrow />
+      </ErrorBoundary>,
+    );
+    const id = screen.getByText(/^err_[0-9A-Z]{5}$/).textContent;
+    expect(vi.mocked(reportError)).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ errorId: id }),
+    );
   });
 
   it('renders a labelled "Try again" button by accessible role + name', () => {

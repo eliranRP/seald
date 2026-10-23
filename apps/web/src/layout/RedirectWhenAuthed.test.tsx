@@ -120,7 +120,7 @@ describe('RedirectWhenAuthed', () => {
     ['protocol-relative', '%2F%2Fevil.com'],
     ['absolute URL', 'https%3A%2F%2Fevil.com'],
     ['backslash', '%2F%5Cevil.com'],
-    ['non-approve in-app path', '%2Fsettings%2Fdevelopers'],
+    ['in-app path outside the allow-list', '%2Fm%2Fsend'],
     ['double-encoded', '%252F%252Fevil.com'],
   ])('ignores an unsafe ?next= (%s) and falls back to the default', (_label, encoded) => {
     authState = SIGNED_IN;

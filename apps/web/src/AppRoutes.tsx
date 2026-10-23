@@ -30,6 +30,7 @@ import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotFoundRoute } from './pages/NotFoundPage';
 
 // Code-split the authoring routes — they pull in pdfjs-dist via usePdfDocument
 // + the editor canvas, which dwarfs every other chunk. Pushing them behind
@@ -397,7 +398,8 @@ export function AppRoutes() {
       </Route>
 
       <Route index element={<RootLanding />} />
-      <Route path="*" element={<RootLanding />} />
+      {/* Unknown URLs get a real 404 (inside the shell when signed in). */}
+      <Route path="*" element={<NotFoundRoute />} />
     </Routes>
   );
 }
