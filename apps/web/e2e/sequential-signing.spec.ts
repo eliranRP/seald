@@ -108,8 +108,13 @@ test.describe('sequential signing, two steps', () => {
     await page.goto(`/sign/${ENVELOPE.id}/prep`);
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toBeVisible();
 
-    // Still step 1's turn: checking again keeps the wait page.
+    // Still step 1's turn: checking again keeps the wait page. Wait for that
+    // check's answer before signer 1 finishes, so the two cannot overlap.
+    const stillWaiting = page.waitForResponse(
+      (res) => res.url().endsWith('/sign/me') && res.status() === 409,
+    );
     await page.getByRole('button', { name: 'Check again' }).click();
+    await stillWaiting;
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toBeVisible();
 
     // Signer 1 finishes elsewhere; the next check opens the prep page.

@@ -26,4 +26,15 @@ describe('RequireSignerSession (signing order)', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Check again' })).toBeInTheDocument();
   });
+
+  it('does not retry not_your_turn on its own, so only Check again asks again', async () => {
+    get.mockRejectedValue(Object.assign(new Error('not_your_turn'), { status: 409 }));
+    renderSigningRoute(<RequireSignerSession />, {
+      initialEntry: `/sign/${MOCK_ENVELOPE_ID}/fill`,
+      path: '/sign/:envelopeId/fill',
+    });
+    await screen.findByRole('heading', { name: /not your turn to sign yet/i }, { timeout: 4000 });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    expect(get).toHaveBeenCalledTimes(1);
+  });
 });
