@@ -14,5 +14,232 @@
         "formats": "Signature formats, events, and references"
       }
     }
+  },
+  "signing": {
+    "common": {
+      "cancel": "Cancel",
+      "apply": "Apply",
+      "moreActions": "More actions",
+      "fieldsOnPage": "Fields on this page"
+    },
+    "stepLabels": {
+      "identity": "Identity",
+      "review": "Review"
+    },
+    "rail": {
+      "documentsToSign": "Documents to sign",
+      "nothingToFill": "Nothing to fill",
+      "done": "Done",
+      "left": "{{count}} left",
+      "itemAria": "{{title}}, document {{index}} of {{total}}, {{status}}"
+    },
+    "errorBoundary": {
+      "title": "Something went wrong",
+      "body": "We couldn't complete that action. Reloading the page usually resolves it.",
+      "reload": "Reload"
+    },
+    "notYourTurn": {
+      "title": "It's not your turn to sign yet",
+      "body": "The sender asked for this document to be signed in order. Someone ahead of you still needs to sign first.",
+      "nothingToDo": "There is nothing you need to do right now. We'll email you a signing link as soon as it's your turn.",
+      "checkAgain": "Check again"
+    },
+    "entry": {
+      "loading": {
+        "title": "Opening your document…",
+        "body": "One moment while we set up your signing session."
+      },
+      "invalid": {
+        "title": "This signing link is invalid",
+        "body": "The link appears to be malformed. Ask the sender to send a fresh link to your email."
+      },
+      "burned": {
+        "title": "This signing link has already been used",
+        "body": "If you still need to sign, ask the sender to resend the invite — we'll issue a new link."
+      },
+      "notFound": {
+        "title": "We couldn't find this signing request",
+        "body": "Double-check the link in your email, or ask the sender to resend it."
+      },
+      "notYourTurn": {
+        "title": "It's not your turn to sign yet",
+        "body": "We'll email you a signing link as soon as it's your turn."
+      },
+      "rateLimit": {
+        "title": "Too many attempts",
+        "body": "Please wait a moment and try the link again."
+      },
+      "generic": {
+        "title": "Something went wrong",
+        "body": "We couldn't open this document right now. Try again, or ask the sender for a fresh link."
+      },
+      "tryAgain": "Try again",
+      "contactSupport": "Contact support",
+      "helpSubject": "Signing help for envelope {{envelopeId}}"
+    },
+    "declined": {
+      "headingWrongRecipient": "Thanks — we marked this link as the wrong recipient.",
+      "headingDeclined": "You declined this request.",
+      "letSender": "We've let {{sender}} know.",
+      "letSenderAnonymous": "We've let the sender know.",
+      "bodyWrongRecipient": "{{clause}} They can send a fresh link to the right person.",
+      "bodyDeclined": "{{clause}} No further action needed.",
+      "final": "This decision is final. The sender has been notified.",
+      "takeMeOut": "Take me out"
+    },
+    "done": {
+      "heading": "Signed.",
+      "body": "Your signature has been recorded. When everyone has signed, we'll email you a link to the sealed PDF.",
+      "downloadPdf": "Download signed PDF (.pdf)",
+      "preparing": "Preparing signed PDF…",
+      "sealingHint": "We're finalizing the seal. This usually takes a few seconds.",
+      "freeBeta": "Free during beta",
+      "saveTitle": "Create your free Seald account to save this.",
+      "saveAria": "Create your free Seald account",
+      "saveBody": "Save this document, request signatures from others, and access your full signing history.",
+      "emailLabel": "Your email",
+      "emailPlaceholder": "you@company.com",
+      "saveButton": "Save to my Seald account",
+      "noThanks": "No thanks, take me out",
+      "errorEmpty": "Please enter an email address.",
+      "errorInvalid": "Please enter a valid email address."
+    },
+    "prep": {
+      "chip": "Signature request",
+      "hero": "You've been asked to sign <em>{{title}}</em>.",
+      "subhero": "Confirm your details below and we'll walk you through each field.",
+      "signingAs": "Signing as",
+      "noAccount": "No Seald account required.",
+      "optOutSummary": "Need to opt out?",
+      "wrongRecipient": "Wrong recipient?",
+      "declineRequest": "Decline this request",
+      "busy": "One moment…",
+      "startSigning": "Start signing",
+      "declineConfirm": "Decline this signing request? The sender will be notified and the document will remain unsigned.",
+      "notMeTitle": "Are you not the intended recipient?",
+      "notMeBody": "We'll let the sender know to send a fresh link to the right person. This is recorded in the audit trail and cannot be undone.",
+      "errorAccept": "We could not record your acceptance. Please try again.",
+      "errorDecline": "We could not decline right now. Please try again.",
+      "errorWithdraw": "We could not record your withdrawal right now. Please try again."
+    },
+    "fill": {
+      "stepLabel": "{{done}} of {{total}} fields",
+      "progressMobile": "{{done}} of {{total}} · {{percent}}%",
+      "progressDesktop": "{{done}} of {{total}} fields complete",
+      "jumpToNext": "Jump to next required field",
+      "fields": "Fields",
+      "decline": "Decline",
+      "nextField": "Next field",
+      "nextFieldAria": "Next field: {{label}} on page {{page}}",
+      "nextFieldAriaDocument": "Next field: {{label}} on page {{page}} of {{document}}",
+      "review": "Review & finish",
+      "readOnly": "{{label}} (read-only)",
+      "optionalBlankTitle": "Optional fields blank",
+      "optionalBodyOne": "You have {{count}} optional field blank. Continue to review or fill them now?",
+      "optionalBodyMany": "You have {{count}} optional fields blank. Continue to review or fill them now?",
+      "fillNow": "Fill them now",
+      "continueToReview": "Continue to review",
+      "needHelp": "Need help",
+      "helpSubject": "Help with envelope {{envelopeId}}",
+      "toneFilled": "Filled",
+      "toneRequired": "Required",
+      "toneOptional": "Optional",
+      "errorCheckbox": "Could not save that change. Please try again.",
+      "errorField": "Could not save that field. Please try again.",
+      "errorSignature": "Could not apply your signature. Please try again.",
+      "errorSignatureSave": "Could not save your signature. Please try again.",
+      "signatureTooLarge": "That signature image is too large (max 512 KB). Please try a smaller image.",
+      "declineConfirm": "Decline this signing request? The sender will be notified and the document will remain unsigned."
+    },
+    "fieldLabel": {
+      "signature": "Sign here",
+      "initials": "Initials",
+      "name": "Print name",
+      "date": "Date",
+      "text": "Text",
+      "email": "Email",
+      "checkbox": "Checkbox",
+      "number": "Number",
+      "radio": "Choose one",
+      "dropdown": "Select"
+    },
+    "reviewLabel": {
+      "signature": "Signature",
+      "initials": "Initials",
+      "name": "Name",
+      "date": "Date",
+      "text": "Text",
+      "email": "Email",
+      "checkbox": "Checkbox",
+      "number": "Number",
+      "radio": "Choice",
+      "dropdown": "Selection"
+    },
+    "fillError": {
+      "tooLong": "Use at most {{limit}} characters.",
+      "tooLongGeneric": "That entry is too long.",
+      "notNumber": "Enter a number, for example 1234.5.",
+      "rangeBoth": "Enter a number from {{min}} to {{max}}.",
+      "rangeMin": "Enter a number of at least {{min}}.",
+      "rangeMax": "Enter a number of at most {{max}}.",
+      "rangeGeneric": "That number is out of range.",
+      "notInOptions": "Choose one of the listed options.",
+      "invalidEmail": "Enter a valid email address, like name@example.com.",
+      "invalidDate": "Enter a valid date.",
+      "empty": "This field cannot be empty.",
+      "readOnly": "This field is read-only and cannot be changed."
+    },
+    "meta": {
+      "upTo": "Up to {{limit}} characters.",
+      "numberBetween": "A number from {{min}} to {{max}}.",
+      "numberAtLeast": "A number of at least {{min}}.",
+      "numberAtMost": "A number of at most {{max}}.",
+      "chooseOption": "Choose an option.",
+      "required": "This field is required.",
+      "selectOption": "Select an option"
+    },
+    "review": {
+      "heading": "Everything look right?",
+      "helper": "Once everyone has signed, we seal the document and email each signer a link to it.",
+      "checked": "✓ Checked",
+      "signatureAlt": "Signature",
+      "signAndSubmit": "Sign and submit",
+      "submitting": "Submitting…",
+      "codeTitle": "Enter a new emailed code to finish signing",
+      "backToFields": "Back to fields",
+      "errorSubmit": "We could not submit right now. Please try again.",
+      "errorField": "We could not update this field. Please try again.",
+      "errorSignature": "We could not update this signature. Please try again.",
+      "errorWithdraw": "We could not record your withdrawal right now. Please try again."
+    },
+    "accessCode": {
+      "title": "Enter your emailed code",
+      "formLabel": "Emailed one-time code",
+      "leadSent": "We emailed a one-time code to <email>{{email}}</email>. Enter the 6 digits below.",
+      "leadWillSend": "We will email a one-time code to <email>{{email}}</email>.",
+      "purposeAction": "The sender asked for a fresh code before you sign.",
+      "purposeAccess": "The sender asked for a code before you can open this document.",
+      "inputLabel": "One-time code",
+      "hint": "The code has {{digits}} digits and works for {{minutes}} minutes.",
+      "sendCode": "Send code",
+      "resendCode": "Resend code",
+      "sendNewCode": "Send a new code",
+      "inSeconds": "{{label}} in {{seconds}}s",
+      "sent": "A code was emailed to {{email}}.",
+      "continue": "Continue",
+      "error": {
+        "locked": "Too many incorrect codes. This code no longer works, and after {{maxAttempts}} tries a new one is needed. Send a new code to try again.",
+        "expired": "This code has expired. Send a new code to continue.",
+        "notRequested": "There is no active code. Send a new code, then enter it here.",
+        "invalid": "That code is not right. Check the email and enter the 6 digits again.",
+        "rateLimited": "Too many codes were requested. Try again in {{wait}}.",
+        "minuteOne": "about a minute",
+        "minutesMany": "about {{minutes}} minutes",
+        "cooldown": "A code was just sent. Check your email, or wait to request another one.",
+        "unavailable": "Emailed codes are not available right now. Try again later, or ask the sender.",
+        "session": "This page timed out. Open the signing link in your email again.",
+        "generic": "Something went wrong. Try again in a moment."
+      }
+    }
   }
 }

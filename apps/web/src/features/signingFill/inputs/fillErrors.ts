@@ -4,6 +4,8 @@
  * with `validateTextValue`. One place so a client-side and a server-side
  * rejection read the same.
  */
+import { translate } from '@/lib/i18n/useT';
+import type { TFn } from '@/lib/i18n/useT';
 
 export const FILL_ERROR_SLUGS = [
   'field_value_too_long',
@@ -25,13 +27,13 @@ function num(v: unknown): number | undefined {
   return typeof v === 'number' ? v : undefined;
 }
 
-function rangeMessage(min: number | undefined, max: number | undefined): string {
+function rangeMessage(min: number | undefined, max: number | undefined, t: TFn): string {
   if (min !== undefined && max !== undefined) {
-    return `Enter a number from ${String(min)} to ${String(max)}.`;
+    return t('signing.fillError.rangeBoth', { min, max });
   }
-  if (min !== undefined) return `Enter a number of at least ${String(min)}.`;
-  if (max !== undefined) return `Enter a number of at most ${String(max)}.`;
-  return 'That number is out of range.';
+  if (min !== undefined) return t('signing.fillError.rangeMin', { min });
+  if (max !== undefined) return t('signing.fillError.rangeMax', { max });
+  return t('signing.fillError.rangeGeneric');
 }
 
 /**
@@ -42,6 +44,7 @@ function rangeMessage(min: number | undefined, max: number | undefined): string 
 export function fillErrorMessage(
   slug: string,
   meta: Readonly<Record<string, unknown>> | undefined,
+  t: TFn = translate,
 ): string {
   if (!isFillErrorSlug(slug)) return slug;
   const m = meta ?? {};
@@ -49,22 +52,22 @@ export function fillErrorMessage(
     case 'field_value_too_long': {
       const limit = num(m['char_limit']);
       return limit !== undefined
-        ? `Use at most ${String(limit)} characters.`
-        : 'That entry is too long.';
+        ? t('signing.fillError.tooLong', { limit })
+        : t('signing.fillError.tooLongGeneric');
     }
     case 'field_value_not_a_number':
-      return 'Enter a number, for example 1234.5.';
+      return t('signing.fillError.notNumber');
     case 'field_value_out_of_range':
-      return rangeMessage(num(m['min']), num(m['max']));
+      return rangeMessage(num(m['min']), num(m['max']), t);
     case 'field_value_not_in_options':
-      return 'Choose one of the listed options.';
+      return t('signing.fillError.notInOptions');
     case 'field_value_invalid_email':
-      return 'Enter a valid email address, like name@example.com.';
+      return t('signing.fillError.invalidEmail');
     case 'field_value_invalid_date':
-      return 'Enter a valid date.';
+      return t('signing.fillError.invalidDate');
     case 'field_value_empty':
-      return 'This field cannot be empty.';
+      return t('signing.fillError.empty');
     case 'field_read_only':
-      return 'This field is read-only and cannot be changed.';
+      return t('signing.fillError.readOnly');
   }
 }

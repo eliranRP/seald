@@ -9,6 +9,7 @@ import { RetentionNotice } from '@/components/RetentionNotice';
 import { SignatureLevelNote } from '@/components/SignatureLevelNote';
 import { Spinner } from '@/components/shared/Spinner';
 import { readDoneSnapshot, safeDownloadName, useSealedDownload } from '@/features/signing';
+import { useT } from '@/lib/i18n';
 
 const Page = styled.div`
   min-height: 100vh;
@@ -292,6 +293,7 @@ export function SigningDonePage() {
   const navigate = useNavigate();
   const params = useParams<{ readonly envelopeId: string }>();
   const envelopeId = params.envelopeId ?? '';
+  const t = useT();
   const snap = useMemo(() => readDoneSnapshot(envelopeId), [envelopeId]);
   const [email, setEmail] = useState(snap?.recipient_email ?? '');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -320,11 +322,11 @@ export function SigningDonePage() {
     // far from the field that produced it. Validate locally and surface
     // an inline alert so the failure point matches the field.
     if (!trimmed) {
-      setSaveError('Please enter an email address.');
+      setSaveError(t('signing.done.errorEmpty'));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-      setSaveError('Please enter a valid email address.');
+      setSaveError(t('signing.done.errorInvalid'));
       return;
     }
     setSaveError(null);
@@ -340,11 +342,8 @@ export function SigningDonePage() {
         {/* Item 17 — verb-led affirmation. The IconBadge above already
             carries the brand check mark; the previous "Seald." was
             redundant chrome for a legal completion screen. */}
-        <Hero>Signed.</Hero>
-        <Body>
-          Your signature has been recorded. When everyone has signed, we&apos;ll email you a link to
-          the sealed PDF.
-        </Body>
+        <Hero>{t('signing.done.heading')}</Hero>
+        <Body>{t('signing.done.body')}</Body>
 
         <Actions>
           {sealedUrl ? (
@@ -355,7 +354,7 @@ export function SigningDonePage() {
               rel="noopener noreferrer"
             >
               <Icon icon={Download} size={16} />
-              Download signed PDF (.pdf)
+              {t('signing.done.downloadPdf')}
             </PrimaryDownloadLink>
           ) : (
             <PrimaryDownloadBtn type="button" disabled aria-busy={isSealing}>
@@ -369,14 +368,10 @@ export function SigningDonePage() {
               ) : (
                 <Icon icon={Download} size={16} />
               )}
-              {isSealing ? 'Preparing signed PDF…' : 'Download signed PDF (.pdf)'}
+              {isSealing ? t('signing.done.preparing') : t('signing.done.downloadPdf')}
             </PrimaryDownloadBtn>
           )}
-          {isSealing ? (
-            <DownloadHint>
-              We&apos;re finalizing the seal. This usually takes a few seconds.
-            </DownloadHint>
-          ) : null}
+          {isSealing ? <DownloadHint>{t('signing.done.sealingHint')}</DownloadHint> : null}
           {verify.isError && !sealedUrl ? (
             <DownloadError role="alert">{SEAL_DOWNLOAD_ERROR}</DownloadError>
           ) : null}
@@ -389,29 +384,26 @@ export function SigningDonePage() {
 
         <SignatureLevelNote />
 
-        <Upsell aria-label="Create your free Seald account">
+        <Upsell aria-label={t('signing.done.saveAria')}>
           <UpsellChip>
             <Icon icon={Sparkles} size={11} />
-            Free during beta
+            {t('signing.done.freeBeta')}
           </UpsellChip>
           {/* Item 18 — CTA copy disambiguates from "send another copy"
               and surfaces the signup intent up front. */}
-          <UpsellTitle>Create your free Seald account to save this.</UpsellTitle>
-          <UpsellBody>
-            Save this document, request signatures from others, and access your full signing
-            history.
-          </UpsellBody>
+          <UpsellTitle>{t('signing.done.saveTitle')}</UpsellTitle>
+          <UpsellBody>{t('signing.done.saveBody')}</UpsellBody>
           <UpsellForm onSubmit={handleSave} noValidate>
             <UpsellInput
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com"
+              placeholder={t('signing.done.emailPlaceholder')}
               type="email"
-              aria-label="Your email"
+              aria-label={t('signing.done.emailLabel')}
             />
             <SaveSlot>
               <Button fullWidth type="submit" variant="secondary" size="lg">
-                Save to my Seald account
+                {t('signing.done.saveButton')}
               </Button>
             </SaveSlot>
           </UpsellForm>
@@ -419,7 +411,7 @@ export function SigningDonePage() {
         </Upsell>
 
         <ExitLink type="button" onClick={() => navigate('/')}>
-          No thanks, take me out
+          {t('signing.done.noThanks')}
         </ExitLink>
       </Inner>
     </Page>

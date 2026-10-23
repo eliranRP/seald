@@ -3,6 +3,7 @@ import type { HTMLAttributes } from 'react';
 import { Check } from 'lucide-react';
 import styled from 'styled-components';
 import type { SignMeDocument, SignMeField } from '@/features/signing';
+import { useT } from '@/lib/i18n';
 
 export interface DocumentRailItem {
   readonly id: string;
@@ -103,22 +104,28 @@ export function summarizeDocuments(
  */
 export const DocumentRail = forwardRef<HTMLElement, DocumentRailProps>((props, ref) => {
   const { documents, activeId, onSelect, ...rest } = props;
+  const t = useT();
   return (
-    <Nav {...rest} ref={ref} aria-label="Documents to sign">
+    <Nav {...rest} ref={ref} aria-label={t('signing.rail.documentsToSign')}>
       {documents.map((doc, index) => {
         const active = doc.id === activeId;
         const done = doc.total > 0 && doc.remaining === 0;
         let status = '';
-        if (doc.total === 0) status = 'Nothing to fill';
-        else if (done) status = 'Done';
-        else status = `${String(doc.remaining)} left`;
+        if (doc.total === 0) status = t('signing.rail.nothingToFill');
+        else if (done) status = t('signing.rail.done');
+        else status = t('signing.rail.left', { count: doc.remaining });
         return (
           <Item
             key={doc.id}
             type="button"
             $active={active}
             aria-current={active ? 'true' : undefined}
-            aria-label={`${doc.title}, document ${String(index + 1)} of ${String(documents.length)}, ${status}`}
+            aria-label={t('signing.rail.itemAria', {
+              title: doc.title,
+              index: index + 1,
+              total: documents.length,
+              status,
+            })}
             onClick={() => onSelect(doc.id)}
           >
             <Title>

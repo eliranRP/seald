@@ -4,6 +4,8 @@ import { reportSignerEvent } from '@/features/signing';
 import { isNotYourTurnError, NotYourTurn } from '@/features/signers/signingOrder';
 import * as api from '@/features/signing/signingApi';
 import { AccessCodeScreen } from '@/features/signing/accessCode';
+import { useT } from '@/lib/i18n';
+import type { CommonKey } from '@/lib/i18n';
 import {
   Body,
   Card,
@@ -73,35 +75,18 @@ function mapError(err: ApiErrorLike): EntryState {
   return 'generic';
 }
 
-const COPY: Record<EntryState, { readonly title: string; readonly body: string }> = {
-  loading: {
-    title: 'Opening your document…',
-    body: 'One moment while we set up your signing session.',
-  },
-  invalid: {
-    title: 'This signing link is invalid',
-    body: 'The link appears to be malformed. Ask the sender to send a fresh link to your email.',
-  },
-  burned: {
-    title: 'This signing link has already been used',
-    body: "If you still need to sign, ask the sender to resend the invite — we'll issue a new link.",
-  },
-  'not-found': {
-    title: "We couldn't find this signing request",
-    body: 'Double-check the link in your email, or ask the sender to resend it.',
-  },
+/** Catalog keys for each entry state's title and body (`signing.entry.*`). */
+const COPY_KEYS: Record<EntryState, { readonly title: CommonKey; readonly body: CommonKey }> = {
+  loading: { title: 'signing.entry.loading.title', body: 'signing.entry.loading.body' },
+  invalid: { title: 'signing.entry.invalid.title', body: 'signing.entry.invalid.body' },
+  burned: { title: 'signing.entry.burned.title', body: 'signing.entry.burned.body' },
+  'not-found': { title: 'signing.entry.notFound.title', body: 'signing.entry.notFound.body' },
   'not-your-turn': {
-    title: "It's not your turn to sign yet",
-    body: "We'll email you a signing link as soon as it's your turn.",
+    title: 'signing.entry.notYourTurn.title',
+    body: 'signing.entry.notYourTurn.body',
   },
-  'rate-limit': {
-    title: 'Too many attempts',
-    body: 'Please wait a moment and try the link again.',
-  },
-  generic: {
-    title: 'Something went wrong',
-    body: "We couldn't open this document right now. Try again, or ask the sender for a fresh link.",
-  },
+  'rate-limit': { title: 'signing.entry.rateLimit.title', body: 'signing.entry.rateLimit.body' },
+  generic: { title: 'signing.entry.generic.title', body: 'signing.entry.generic.body' },
 };
 
 /**
@@ -115,6 +100,7 @@ const COPY: Record<EntryState, { readonly title: string; readonly body: string }
  * `inflight` above) is robust to remounts AND dedupes automatically.
  */
 export function SigningEntryPage() {
+  const t = useT();
   const params = useParams<{ readonly envelopeId: string }>();
   const [search] = useSearchParams();
   const navigate = useNavigate();
@@ -219,7 +205,7 @@ export function SigningEntryPage() {
     );
   }
 
-  const copy = COPY[state];
+  const copy = { title: t(COPY_KEYS[state].title), body: t(COPY_KEYS[state].body) };
   // Item 1 — only the two recoverable error states get a retry CTA. The
   // burned/invalid/not-found terminals are intentionally one-shot and the
   // retry would just immediately re-fail; mailto stays as the path forward.
@@ -229,7 +215,7 @@ export function SigningEntryPage() {
   // that decode it for display.
   const mailtoHref =
     `mailto:support@seald.nromomentum.com` +
-    `?subject=${encodeURIComponent(`Signing help for envelope ${envelopeId}`)}`;
+    `?subject=${encodeURIComponent(t('signing.entry.helpSubject', { envelopeId }))}`;
 
   // Item 2 — wrap loading + terminal-error branches in landmarks that the
   // accessibility tree exposes. `role="status"` with `aria-live="polite"`
@@ -251,11 +237,11 @@ export function SigningEntryPage() {
           <Body>{copy.body}</Body>
           {canRetry ? (
             <TryAgainBtn type="button" onClick={handleRetry}>
-              Try again
+              {t('signing.entry.tryAgain')}
             </TryAgainBtn>
           ) : null}
           <MailtoLink href={mailtoHref} rel="noreferrer">
-            Contact support
+            {t('signing.entry.contactSupport')}
           </MailtoLink>
         </Card>
       )}

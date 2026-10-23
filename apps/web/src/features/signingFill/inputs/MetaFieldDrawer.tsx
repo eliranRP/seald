@@ -8,6 +8,8 @@ import {
   type AnyFieldKind,
 } from 'shared';
 import { Icon } from '@/components/Icon';
+import { useT } from '@/lib/i18n';
+import type { TFn } from '@/lib/i18n';
 import { dateToInputValue, metaOptions } from './fieldDisplay';
 import { fillErrorMessage } from './fillErrors';
 import {
@@ -73,19 +75,23 @@ function startingValue(props: MetaFieldDrawerProps): string {
   return '';
 }
 
-function hintFor(kind: MetaInputKind, meta: Readonly<Record<string, unknown>> | undefined): string {
+function hintFor(
+  kind: MetaInputKind,
+  meta: Readonly<Record<string, unknown>> | undefined,
+  t: TFn,
+): string {
   if (kind === 'text') {
     const limit = meta?.['char_limit'];
-    return typeof limit === 'number' ? `Up to ${String(limit)} characters.` : '';
+    return typeof limit === 'number' ? t('signing.meta.upTo', { limit }) : '';
   }
   if (kind === 'number') {
     const min = meta?.['min'];
     const max = meta?.['max'];
     if (typeof min === 'number' && typeof max === 'number') {
-      return `A number from ${String(min)} to ${String(max)}.`;
+      return t('signing.meta.numberBetween', { min, max });
     }
-    if (typeof min === 'number') return `A number of at least ${String(min)}.`;
-    if (typeof max === 'number') return `A number of at most ${String(max)}.`;
+    if (typeof min === 'number') return t('signing.meta.numberAtLeast', { min });
+    if (typeof max === 'number') return t('signing.meta.numberAtMost', { max });
   }
   return '';
 }
@@ -120,6 +126,7 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
   const errorId = useId();
   const hintId = useId();
   const radioName = useId();
+  const t = useT();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -168,30 +175,31 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
     const trimmed = value.trim();
     if (kind === 'name') {
       return trimmed === '' && (signerName ?? '').trim() === ''
-        ? fillErrorMessage('field_value_empty', meta)
+        ? fillErrorMessage('field_value_empty', meta, t)
         : null;
     }
     if (trimmed === '') {
       return kind === 'radio' || kind === 'dropdown'
-        ? 'Choose an option.'
-        : 'This field is required.';
+        ? t('signing.meta.chooseOption')
+        : t('signing.meta.required');
     }
     if (kind === 'date') {
       const parsed = parseDateValue(trimmed, {
         format: isDateFormat(dateFormat) ? dateFormat : null,
         timeZone: typeof timezone === 'string' && isValidTimeZone(timezone) ? timezone : null,
       });
-      return parsed === null ? fillErrorMessage('field_value_invalid_date', meta) : null;
+      return parsed === null ? fillErrorMessage('field_value_invalid_date', meta, t) : null;
     }
     const slug = validateTextValue(kind as AnyFieldKind, meta ?? {}, value);
-    return slug === null ? null : fillErrorMessage(slug, meta);
+    return slug === null ? null : fillErrorMessage(slug, meta, t);
   }
 
   const clientError = check();
   const shown = touched ? clientError : null;
   const error = shown ?? (!edited && typeof serverError === 'string' ? serverError : null);
+  const hint = hintFor(kind, meta, t);
   const describedBy =
-    [error !== null ? errorId : undefined, hintFor(kind, meta) !== '' ? hintId : undefined]
+    [error !== null ? errorId : undefined, hint !== '' ? hintId : undefined]
       .filter((id): id is string => id !== undefined)
       .join(' ') || undefined;
 
@@ -210,7 +218,6 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
   }
 
   const placeholder = str(meta?.['placeholder']) ?? label;
-  const hint = hintFor(kind, meta);
 
   let control: React.ReactNode;
   if (kind === 'radio') {
@@ -244,7 +251,9 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
         onChange={(e) => change(e.target.value)}
         onBlur={() => setTouched(true)}
       >
-        <option value="">{placeholder === label ? 'Select an option' : placeholder}</option>
+        <option value="">
+          {placeholder === label ? t('signing.meta.selectOption') : placeholder}
+        </option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
@@ -298,7 +307,7 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
       <Sheet onClick={(e) => e.stopPropagation()} ref={sheetRef}>
         <HeaderRow>
           <Title>{label}</Title>
-          <CloseBtn type="button" onClick={onCancel} aria-label="Cancel">
+          <CloseBtn type="button" onClick={onCancel} aria-label={t('signing.common.cancel')}>
             <Icon icon={XIcon} size={16} />
           </CloseBtn>
         </HeaderRow>
@@ -311,10 +320,10 @@ export function MetaFieldDrawer(props: MetaFieldDrawerProps) {
         ) : null}
         <Footer>
           <CancelBtn type="button" onClick={onCancel}>
-            Cancel
+            {t('signing.common.cancel')}
           </CancelBtn>
           <ApplyBtn type="button" onClick={apply} disabled={busy}>
-            Apply
+            {t('signing.common.apply')}
           </ApplyBtn>
         </Footer>
       </Sheet>

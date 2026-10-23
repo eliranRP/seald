@@ -1,3 +1,4 @@
+import { useT } from '@/lib/i18n';
 import { Body, Card, Page, RetryButton, Title } from './NotYourTurn.styles';
 
 export interface NotYourTurnProps {
@@ -11,21 +12,16 @@ export interface NotYourTurnProps {
  * not an error: nothing is wrong and the signer has nothing to do yet.
  */
 export function NotYourTurn({ onRetry }: NotYourTurnProps) {
+  const t = useT();
   return (
     <Page>
       <Card role="status" aria-live="polite">
-        <Title>It&apos;s not your turn to sign yet</Title>
-        <Body>
-          The sender asked for this document to be signed in order. Someone ahead of you still needs
-          to sign first.
-        </Body>
-        <Body>
-          There is nothing you need to do right now. We&apos;ll email you a signing link as soon as
-          it&apos;s your turn.
-        </Body>
+        <Title>{t('signing.notYourTurn.title')}</Title>
+        <Body>{t('signing.notYourTurn.body')}</Body>
+        <Body>{t('signing.notYourTurn.nothingToDo')}</Body>
         {onRetry ? (
           <RetryButton type="button" onClick={onRetry}>
-            Check again
+            {t('signing.notYourTurn.checkAgain')}
           </RetryButton>
         ) : null}
       </Card>

@@ -1,4 +1,6 @@
 import { ACCESS_CODE_POLICY } from 'shared';
+import { translate } from '@/lib/i18n/useT';
+import type { TFn } from '@/lib/i18n/useT';
 
 /** What the form does about an access-code failure. */
 export type AccessCodeFailureKind =
@@ -35,9 +37,11 @@ export function isAccessCodeRequiredError(err: unknown): boolean {
   return status === 428 || code === 'access_code_required';
 }
 
-function minutesText(seconds: number): string {
+function minutesText(seconds: number, t: TFn): string {
   const minutes = Math.max(1, Math.ceil(seconds / 60));
-  return minutes === 1 ? 'about a minute' : `about ${String(minutes)} minutes`;
+  return minutes === 1
+    ? t('signing.accessCode.error.minuteOne')
+    : t('signing.accessCode.error.minutesMany', { minutes });
 }
 
 /**
@@ -46,35 +50,37 @@ function minutesText(seconds: number): string {
  * The wording says "emailed one-time code"; it never claims the signer's
  * identity was verified.
  */
-export function describeAccessCodeError(err: unknown): AccessCodeFailure {
+export function describeAccessCodeError(err: unknown, t: TFn = translate): AccessCodeFailure {
   const { status, code, retryAfterSeconds } = asApiError(err);
   const retry = typeof retryAfterSeconds === 'number' ? retryAfterSeconds : null;
 
   if (code === 'access_code_locked' || status === 423) {
     return {
       kind: 'locked',
-      message: `Too many incorrect codes. This code no longer works, and after ${String(ACCESS_CODE_POLICY.maxAttempts)} tries a new one is needed. Send a new code to try again.`,
+      message: t('signing.accessCode.error.locked', {
+        maxAttempts: ACCESS_CODE_POLICY.maxAttempts,
+      }),
       retryAfterSeconds: null,
     };
   }
   if (code === 'access_code_expired') {
     return {
       kind: 'expired',
-      message: 'This code has expired. Send a new code to continue.',
+      message: t('signing.accessCode.error.expired'),
       retryAfterSeconds: null,
     };
   }
   if (code === 'access_code_not_requested' || (status === 409 && code === undefined)) {
     return {
       kind: 'not-requested',
-      message: 'There is no active code. Send a new code, then enter it here.',
+      message: t('signing.accessCode.error.notRequested'),
       retryAfterSeconds: null,
     };
   }
   if (code === 'access_code_invalid' || status === 422) {
     return {
       kind: 'invalid',
-      message: 'That code is not right. Check the email and enter the 6 digits again.',
+      message: t('signing.accessCode.error.invalid'),
       retryAfterSeconds: null,
     };
   }
@@ -82,7 +88,7 @@ export function describeAccessCodeError(err: unknown): AccessCodeFailure {
     const wait = retry ?? 3600;
     return {
       kind: 'rate-limited',
-      message: `Too many codes were requested. Try again in ${minutesText(wait)}.`,
+      message: t('signing.accessCode.error.rateLimited', { wait: minutesText(wait, t) }),
       retryAfterSeconds: wait,
     };
   }
@@ -90,27 +96,27 @@ export function describeAccessCodeError(err: unknown): AccessCodeFailure {
     const wait = retry ?? ACCESS_CODE_POLICY.resendCooldownSeconds;
     return {
       kind: 'cooldown',
-      message: 'A code was just sent. Check your email, or wait to request another one.',
+      message: t('signing.accessCode.error.cooldown'),
       retryAfterSeconds: wait,
     };
   }
   if (code === 'access_code_unavailable' || status === 503) {
     return {
       kind: 'unavailable',
-      message: 'Emailed codes are not available right now. Try again later, or ask the sender.',
+      message: t('signing.accessCode.error.unavailable'),
       retryAfterSeconds: null,
     };
   }
   if (status === 401) {
     return {
       kind: 'session',
-      message: 'This page timed out. Open the signing link in your email again.',
+      message: t('signing.accessCode.error.session'),
       retryAfterSeconds: null,
     };
   }
   return {
     kind: 'generic',
-    message: 'Something went wrong. Try again in a moment.',
+    message: t('signing.accessCode.error.generic'),
     retryAfterSeconds: null,
   };
 }

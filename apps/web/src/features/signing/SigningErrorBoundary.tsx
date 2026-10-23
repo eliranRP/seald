@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
 import { seald } from '@/styles/theme';
+import { translate } from '@/lib/i18n/useT';
 import { reportSignerEvent } from './telemetry';
 
 interface Props {
@@ -67,10 +68,10 @@ export class SigningErrorBoundary extends Component<Props, State> {
           }}
         >
           <h1 style={{ fontSize: 22, margin: 0, color: seald.color.ink[900] }}>
-            Something went wrong
+            {translate('signing.errorBoundary.title')}
           </h1>
           <p style={{ fontSize: 13, color: seald.color.ink[500], marginTop: 12, lineHeight: 1.6 }}>
-            We couldn&apos;t complete that action. Reloading the page usually resolves it.
+            {translate('signing.errorBoundary.body')}
           </p>
           <button
             type="button"
@@ -88,7 +89,7 @@ export class SigningErrorBoundary extends Component<Props, State> {
               cursor: 'pointer',
             }}
           >
-            Reload
+            {translate('signing.errorBoundary.reload')}
           </button>
         </div>
       </div>

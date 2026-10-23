@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 // i18n key check (WP-39). Fails when:
-//   - a `t('key')` literal used in apps/web/src or apps/api/src has no entry in
-//     the English catalog (packages/shared/locales/en/common.json), or
-//   - the English catalog has a leaf key that no scanned source uses.
-// Template-literal keys (`t(\`prefix.${x}\`)`) cannot be checked statically;
-// they mark every catalog key under their literal prefix as used.
+//   - a `t('key')` call (or `i18nKey="key"` on <Trans>) used in apps/web/src or
+//     apps/api/src names a key missing from the English catalog
+//     (packages/shared/locales/en/common.json), or
+//   - the English catalog has a leaf key that no scanned source mentions.
+// A key counts as used when it appears as a quoted string anywhere in the
+// sources, so keys held in lookup tables (`{ signature: 'signing.x.y' }`)
+// are covered. Template-literal keys (`t(\`prefix.${x}\`)`) cannot be checked
+// statically; they mark every catalog key under their literal prefix as used.
+// Tests and stories may name keys on purpose, so they count as usage only.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +18,17 @@ const catalogPath = join(root, 'packages/shared/locales/en/common.json');
 const scanRoots = [join(root, 'apps/web/src'), join(root, 'apps/api/src')];
 const SOURCE_EXT = /\.(ts|tsx)$/;
 const SKIP_DIRS = new Set(['node_modules', 'dist', 'coverage']);
+const TEST_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/;
+
+// `t(` at a word boundary (so `it(`, `split(` do not match), with an optional
+// leading locale argument (`t(locale, 'key')` in the API; an identifier or a
+// quoted literal), then a quoted string or template literal.
+const CALL = /\bt\(\s*(?:(?:[\w$.]+|'[^'\n]*'|"[^"\n]*")\s*,\s*)?(['"`])((?:(?!\1).)*?)\1/g;
+// react-i18next <Trans i18nKey="..."> / i18nKey={'...'}.
+const TRANS = /i18nKey=\{?\s*(['"])([^'"\n]+)\1/g;
+// Any quoted token that could be a key.
+const QUOTED = /(['"`])([A-Za-z][\w.:-]*)\1/g;
+const KEY_SHAPE = /^[A-Za-z][\w.-]*(?::[A-Za-z][\w.-]*(?:\.[\w-]+)*)?$/;
 
 /** @returns {string[]} dotted leaf paths of a nested catalog object */
 function leafPaths(node, prefix = '') {
@@ -36,46 +51,47 @@ function walk(dir, files = []) {
   return files;
 }
 
-// `t(` at a word boundary (so `it(`, `split(` do not match), with an optional
-// leading locale argument (`t(locale, 'key')` in the API; an identifier or a
-// quoted literal), then a quoted string or template literal.
-const CALL = /\bt\(\s*(?:(?:[\w$.]+|'[^'\n]*'|"[^"\n]*")\s*,\s*)?(['"`])((?:(?!\1).)*?)\1/g;
-// Tests and stories may use keys on purpose (e.g. to check a miss), so they
-// count as usage but are never reported as missing.
-const TEST_FILE = /\.(test|spec|stories)\.[cm]?[jt]sx?$/;
-const KEY_SHAPE = /^[A-Za-z][\w.-]*(?::[A-Za-z][\w.-]*(?:\.[\w-]+)*)?$/;
-
 const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'));
 const catalogKeys = new Set(leafPaths(catalog));
+const commonPath = (key) => (key.includes(':') ? null : key);
 
-const usedKeys = new Map(); // key -> first "file:line"
+const usedKeys = new Set();
 const dynamicPrefixes = new Set();
 const missing = [];
 
 for (const dir of scanRoots) {
   for (const file of walk(dir)) {
     const text = readFileSync(file, 'utf8');
-    CALL.lastIndex = 0;
-    let match;
-    while ((match = CALL.exec(text)) !== null) {
+    const isTest = TEST_FILE.test(file);
+    const where = (index) => `${relative(root, file)}:${text.slice(0, index).split('\n').length}`;
+
+    for (const quoted of text.matchAll(QUOTED)) {
+      const path = commonPath(quoted[2]);
+      if (path !== null && catalogKeys.has(path)) usedKeys.add(path);
+    }
+
+    const checkKey = (literal, index) => {
+      if (!KEY_SHAPE.test(literal)) return;
+      const path = commonPath(literal);
+      if (path === null) return; // other namespaces are not catalogued here
+      usedKeys.add(path);
+      if (!catalogKeys.has(path) && !isTest) missing.push({ key: path, where: where(index) });
+    };
+
+    for (const match of text.matchAll(CALL)) {
       const [, quote, literal] = match;
-      const where = `${relative(root, file)}:${text.slice(0, match.index).split('\n').length}`;
       if (quote === '`') {
         if (literal.includes('${')) {
           const prefix = literal.slice(0, literal.indexOf('${'));
           if (prefix) dynamicPrefixes.add(prefix);
-        } else if (KEY_SHAPE.test(literal)) {
-          usedKeys.set(literal, usedKeys.get(literal) ?? where);
+        } else {
+          checkKey(literal, match.index);
         }
         continue;
       }
-      if (!KEY_SHAPE.test(literal)) continue;
-      const path = literal.includes(':') ? literal.slice(literal.indexOf(':') + 1) : literal;
-      const ns = literal.includes(':') ? literal.slice(0, literal.indexOf(':')) : 'common';
-      if (ns !== 'common') continue; // only the common namespace exists today
-      usedKeys.set(path, usedKeys.get(path) ?? where);
-      if (!catalogKeys.has(path) && !TEST_FILE.test(file)) missing.push({ key: path, where });
+      checkKey(literal, match.index);
     }
+    for (const match of text.matchAll(TRANS)) checkKey(match[2], match.index);
   }
 }
 
@@ -99,6 +115,6 @@ if (failed) {
   process.exit(1);
 }
 console.log(
-  `i18n:check ok: ${catalogKeys.size} catalog keys, ${usedKeys.size} literal keys used` +
+  `i18n:check ok: ${catalogKeys.size} catalog keys, ${usedKeys.size} referenced` +
     (dynamicPrefixes.size > 0 ? `, dynamic prefixes: ${[...dynamicPrefixes].join(', ')}` : ''),
 );

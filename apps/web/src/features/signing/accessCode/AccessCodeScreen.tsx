@@ -2,6 +2,7 @@ import type { AccessCodeSendResponse, AccessCodePurpose } from 'shared';
 import styled from 'styled-components';
 import { verifyAccessCode } from './accessCodeApi';
 import type { AccessCodeVerifyResponse } from './accessCodeApi';
+import { useT } from '@/lib/i18n';
 import { AccessCodeForm } from './AccessCodeForm';
 
 const Page = styled.div`
@@ -56,14 +57,15 @@ export function AccessCodeScreen({
   sendCode,
   verifyCode = verifyAccessCode,
 }: AccessCodeScreenProps) {
+  const t = useT();
   return (
     <Page>
       <Card aria-labelledby="access-code-title">
-        <Title id="access-code-title">Enter your emailed code</Title>
+        <Title id="access-code-title">{t('signing.accessCode.title')}</Title>
         <AccessCodeForm
           purpose="access"
           emailMasked={emailMasked}
-          submitLabel="Continue"
+          submitLabel={t('signing.accessCode.continue')}
           sendCode={sendCode}
           onSessionLost={onSessionLost}
           onSubmitCode={async (code) => {

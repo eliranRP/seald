@@ -6,6 +6,9 @@ import type { SignerFieldKind } from '@/components/SignerField';
 import { isFeatureEnabled } from 'shared';
 import { useSigningSession } from '@/features/signing';
 import type { SignMeField } from '@/features/signing';
+import { useT } from '@/lib/i18n';
+import type { CommonKey, TFn } from '@/lib/i18n';
+import { translate } from '@/lib/i18n/useT';
 import {
   displayText,
   isReadOnly,
@@ -51,23 +54,23 @@ export function fieldValue(f: SignMeField): string | boolean | null {
   return displayText(f) ?? f.value_text ?? null;
 }
 
-const FIELD_LABEL_BY_KIND: Record<SignerFieldKind, string> = {
-  signature: 'Sign here',
-  initials: 'Initials',
-  name: 'Print name',
-  date: 'Date',
-  text: 'Text',
-  email: 'Email',
-  checkbox: 'Checkbox',
-  number: 'Number',
-  radio: 'Choose one',
-  dropdown: 'Select',
+const FIELD_LABEL_KEY: Record<SignerFieldKind, CommonKey> = {
+  signature: 'signing.fieldLabel.signature',
+  initials: 'signing.fieldLabel.initials',
+  name: 'signing.fieldLabel.name',
+  date: 'signing.fieldLabel.date',
+  text: 'signing.fieldLabel.text',
+  email: 'signing.fieldLabel.email',
+  checkbox: 'signing.fieldLabel.checkbox',
+  number: 'signing.fieldLabel.number',
+  radio: 'signing.fieldLabel.radio',
+  dropdown: 'signing.fieldLabel.dropdown',
 };
 
-export function fieldLabel(f: SignMeField, uiKind: SignerFieldKind): string {
+export function fieldLabel(f: SignMeField, uiKind: SignerFieldKind, t: TFn = translate): string {
   const custom = metaLabel(f);
   if (custom !== undefined) return custom;
-  return f.link_id && f.link_id !== 'name' ? f.link_id : FIELD_LABEL_BY_KIND[uiKind];
+  return f.link_id && f.link_id !== 'name' ? f.link_id : t(FIELD_LABEL_KEY[uiKind]);
 }
 
 function scrollToField(field: SignMeField): void {
@@ -130,6 +133,7 @@ export function useSigningFillController({
   onActiveDocumentChange,
 }: UseSigningFillControllerArgs): UseSigningFillControllerReturn {
   const navigate = useNavigate();
+  const t = useT();
   const { fillField, setSignature, decline, nextField, fields, withdrawConsent } =
     useSigningSession();
   const [drawerError, setDrawerError] = useState<string | null>(null);
@@ -193,10 +197,10 @@ export function useSigningFillController({
       autoFilledRef.current.add(f.id);
       fillFieldRef.current(f.id, { value_text: def }).catch((err: unknown) => {
         autoFilledRef.current.delete(f.id);
-        setError(fillErrorMessage((err as ApiErrorLike).message ?? '', f.meta));
+        setError(fillErrorMessage((err as ApiErrorLike).message ?? '', f.meta, t));
       });
     }
-  }, [fields]);
+  }, [fields, t]);
 
   const closeTextDrawer = useCallback(() => {
     setTextDrawer(null);
@@ -252,7 +256,7 @@ export function useSigningFillController({
             navigate(`/sign/${envelopeId}`, { replace: true });
             return;
           }
-          setError(e.message ?? 'Could not save that change. Please try again.');
+          setError(e.message ?? t('signing.fill.errorCheckbox'));
           return;
         }
         if (willBeFilled) advanceTo(findNextAfter(field.id));
@@ -292,7 +296,7 @@ export function useSigningFillController({
               navigate(`/sign/${envelopeId}`, { replace: true });
               return;
             }
-            setError(e.message ?? 'Could not apply your signature. Please try again.');
+            setError(e.message ?? t('signing.fill.errorSignature'));
             return;
           }
           advanceTo(findNextAfter(field.id));
@@ -321,6 +325,7 @@ export function useSigningFillController({
       fields,
       activeDocumentId,
       onActiveDocumentChange,
+      t,
     ],
   );
 
@@ -348,14 +353,23 @@ export function useSigningFillController({
           navigate(`/sign/${envelopeId}`, { replace: true });
           return;
         }
-        setError(e.message ?? 'Could not save that field. Please try again.');
+        setError(e.message ?? t('signing.fill.errorField'));
         return;
       }
       // Auto-advance after a successful text fill.
       advanceTo(findNextAfter(id));
     },
     // `advanceTo`/`findNextAfter` are inline helpers that close over `fields`; that closure is refreshed on every render so we don't list them.
-    [envelopeId, fillField, navigate, textDrawer, fields, activeDocumentId, onActiveDocumentChange],
+    [
+      envelopeId,
+      fillField,
+      navigate,
+      textDrawer,
+      fields,
+      activeDocumentId,
+      onActiveDocumentChange,
+      t,
+    ],
   );
 
   const handleMetaApply = useCallback(
@@ -373,8 +387,7 @@ export function useSigningFillController({
           return;
         }
         setDrawerError(
-          fillErrorMessage(e.message ?? '', field.meta) ||
-            'Could not save that field. Please try again.',
+          fillErrorMessage(e.message ?? '', field.meta, t) || t('signing.fill.errorField'),
         );
         return;
       }
@@ -393,6 +406,7 @@ export function useSigningFillController({
       fields,
       activeDocumentId,
       onActiveDocumentChange,
+      t,
     ],
   );
 
@@ -428,10 +442,10 @@ export function useSigningFillController({
           return;
         }
         if (e.status === 413) {
-          setError('That signature image is too large (max 512 KB). Please try a smaller image.');
+          setError(t('signing.fill.signatureTooLarge'));
           return;
         }
-        setError(e.message ?? 'Could not save your signature. Please try again.');
+        setError(e.message ?? t('signing.fill.errorSignatureSave'));
         return;
       }
       // Auto-advance after a successful signature/initials apply.
@@ -446,6 +460,7 @@ export function useSigningFillController({
       fields,
       activeDocumentId,
       onActiveDocumentChange,
+      t,
     ],
   );
 
@@ -456,9 +471,7 @@ export function useSigningFillController({
   const handleDecline = useCallback(async (): Promise<void> => {
     if (busy) return;
     // native confirm is appropriate here; a custom dialog is over-engineering for a destructive signer action.
-    const confirmed = window.confirm(
-      'Decline this signing request? The sender will be notified and the document will remain unsigned.',
-    );
+    const confirmed = window.confirm(t('signing.fill.declineConfirm'));
     if (!confirmed) return;
     setBusy(true);
     try {
@@ -467,7 +480,7 @@ export function useSigningFillController({
     } catch {
       setBusy(false);
     }
-  }, [busy, decline, envelopeId, navigate]);
+  }, [busy, decline, envelopeId, navigate, t]);
 
   const handleWithdrawConsent = useCallback(async (): Promise<void> => {
     if (busy) return;

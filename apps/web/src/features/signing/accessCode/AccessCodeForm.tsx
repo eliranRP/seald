@@ -2,7 +2,10 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { ACCESS_CODE_PATTERN, ACCESS_CODE_POLICY } from 'shared';
 import type { AccessCodePurpose, AccessCodeSendResponse } from 'shared';
+import { Trans } from 'react-i18next';
 import { Button } from '@/components/Button';
+import { useT } from '@/lib/i18n';
+import type { CommonKey } from '@/lib/i18n';
 import { sendAccessCode } from './accessCodeApi';
 import { describeAccessCodeError } from './accessCodeErrors';
 import type { AccessCodeFailure } from './accessCodeErrors';
@@ -39,11 +42,11 @@ export interface AccessCodeFormProps {
 
 type Phase = 'idle' | 'sending' | 'ready' | 'needs-new';
 
-const SEND_LABELS: Record<Phase, string> = {
-  idle: 'Send code',
-  sending: 'Send code',
-  ready: 'Resend code',
-  'needs-new': 'Send a new code',
+const SEND_LABEL_KEYS: Record<Phase, CommonKey> = {
+  idle: 'signing.accessCode.sendCode',
+  sending: 'signing.accessCode.sendCode',
+  ready: 'signing.accessCode.resendCode',
+  'needs-new': 'signing.accessCode.sendNewCode',
 };
 
 /** Keeps digits only and caps at the code length, so a pasted "123 456" works. */
@@ -67,6 +70,7 @@ export function AccessCodeForm({
   sendCode = sendAccessCode,
   onSessionLost,
 }: AccessCodeFormProps) {
+  const t = useT();
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
@@ -106,13 +110,13 @@ export function AccessCodeForm({
 
   const handleFailure = useCallback(
     (err: unknown): AccessCodeFailure => {
-      const f = describeAccessCodeError(err);
+      const f = describeAccessCodeError(err, t);
       setFailure(f);
       if (f.retryAfterSeconds !== null) startCooldown(f.retryAfterSeconds);
       if (f.kind === 'session') onSessionLost?.();
       return f;
     },
-    [onSessionLost, startCooldown],
+    [onSessionLost, startCooldown, t],
   );
 
   const handleSend = useCallback(async () => {
@@ -125,7 +129,7 @@ export function AccessCodeForm({
       startCooldown(sent.resend_after_seconds);
       setCode('');
       setPhase('ready');
-      setAnnouncement(`A code was emailed to ${sent.email_masked}.`);
+      setAnnouncement(t('signing.accessCode.sent', { email: sent.email_masked }));
     } catch (err) {
       const f = handleFailure(err);
       // A recent code may still be live; let the signer type it.
@@ -133,7 +137,7 @@ export function AccessCodeForm({
     } finally {
       setBusy(false);
     }
-  }, [busy, handleFailure, purpose, secondsLeft, sendCode, startCooldown]);
+  }, [busy, handleFailure, purpose, secondsLeft, sendCode, startCooldown, t]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -162,28 +166,33 @@ export function AccessCodeForm({
     setCode(normalizeCodeInput(event.target.value));
   };
 
-  const email = <Email>{emailMasked}</Email>;
   const showInput = phase === 'ready';
-  const sendLabel = SEND_LABELS[phase];
+  const sendLabel = t(SEND_LABEL_KEYS[phase]);
   const waiting = secondsLeft > 0;
-  const sendText = waiting ? `${sendLabel} in ${String(secondsLeft)}s` : sendLabel;
+  const sendText = waiting
+    ? t('signing.accessCode.inSeconds', { label: sendLabel, seconds: secondsLeft })
+    : sendLabel;
 
   return (
-    <Root onSubmit={(e) => void handleSubmit(e)} noValidate aria-label="Emailed one-time code">
+    <Root
+      onSubmit={(e) => void handleSubmit(e)}
+      noValidate
+      aria-label={t('signing.accessCode.formLabel')}
+    >
       <Lead>
-        {showInput ? (
-          <>We emailed a one-time code to {email}. Enter the 6 digits below.</>
-        ) : (
-          <>We will email a one-time code to {email}.</>
-        )}{' '}
+        <Trans
+          i18nKey={showInput ? 'signing.accessCode.leadSent' : 'signing.accessCode.leadWillSend'}
+          values={{ email: emailMasked }}
+          components={{ email: <Email /> }}
+        />{' '}
         {purpose === 'action'
-          ? 'The sender asked for a fresh code before you sign.'
-          : 'The sender asked for a code before you can open this document.'}
+          ? t('signing.accessCode.purposeAction')
+          : t('signing.accessCode.purposeAccess')}
       </Lead>
 
       {showInput ? (
         <Field>
-          <Label htmlFor={inputId}>One-time code</Label>
+          <Label htmlFor={inputId}>{t('signing.accessCode.inputLabel')}</Label>
           <CodeInput
             id={inputId}
             ref={inputRef}
@@ -200,8 +209,10 @@ export function AccessCodeForm({
             aria-describedby={failure ? `${hintId} ${errorId}` : hintId}
           />
           <Hint id={hintId}>
-            The code has {String(ACCESS_CODE_POLICY.length)} digits and works for{' '}
-            {String(ACCESS_CODE_POLICY.ttlSeconds / 60)} minutes.
+            {t('signing.accessCode.hint', {
+              digits: ACCESS_CODE_POLICY.length,
+              minutes: ACCESS_CODE_POLICY.ttlSeconds / 60,
+            })}
           </Hint>
         </Field>
       ) : null}
