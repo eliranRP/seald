@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { isFeatureEnabled, type VerifyDocument } from 'shared';
 import { EnvelopeDocumentsRepository } from '../envelopes/documents/envelope-documents.repository';
-import type { EnvelopeEvent } from '../envelopes/envelope.entity';
+import type { Envelope, EnvelopeEvent } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { isValidShortCode } from '../envelopes/short-code';
 import { StorageService } from '../storage/storage.service';
@@ -19,6 +19,14 @@ export class VerifyService {
     private readonly storage: StorageService,
     private readonly documents: EnvelopeDocumentsRepository,
   ) {}
+
+  /** `GET /verify/by-hash/:sha256` — 404 for malformed input and for no match. */
+  async findByHash(sha256: string): Promise<{ readonly short_code: string }> {
+    if (!/^[0-9a-f]{64}$/i.test(sha256)) throw new NotFoundException('envelope_not_found');
+    const short_code = await this.repo.findShortCodeBySealedSha256(sha256.toLowerCase());
+    if (!short_code) throw new NotFoundException('envelope_not_found');
+    return { short_code };
+  }
 
   async verify(short_code: string): Promise<VerifyResponse> {
     // Validate short_code format before hitting the database — rejects
@@ -70,6 +78,10 @@ export class VerifyService {
         sent_at: envelope.sent_at,
         completed_at: envelope.completed_at,
         expires_at: envelope.expires_at,
+        sealed_at: envelope.status === 'completed' ? sealedAt(envelope, events) : null,
+        // The TSA that stamped the seal is not persisted per envelope yet.
+        tsa_name: null,
+        event_count: events.length,
       },
       signers: envelope.signers.map((s) => ({
         id: s.id,
@@ -109,6 +121,14 @@ export class VerifyService {
   }
 }
 
+function sealedAt(envelope: Envelope, events: ReadonlyArray<EnvelopeEvent>): string | null {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const ev = events[i];
+    if (ev?.event_type === 'sealed') return ev.created_at;
+  }
+  return envelope.completed_at;
+}
+
 function redactEvent(ev: EnvelopeEvent): RedactedEvent {
   return {
     id: ev.id,
@@ -141,6 +161,12 @@ export interface VerifyResponse {
     readonly sent_at: string | null;
     readonly completed_at: string | null;
     readonly expires_at: string;
+    /** When the PDF was sealed (the `sealed` event, else completed_at). Null until sealed. */
+    readonly sealed_at: string | null;
+    /** Timestamp authority behind the seal, when recorded. Not stored yet, so null. */
+    readonly tsa_name: string | null;
+    /** Number of audit events on the chain. */
+    readonly event_count: number;
   };
   readonly signers: ReadonlyArray<{
     readonly id: string;

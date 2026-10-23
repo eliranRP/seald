@@ -162,6 +162,10 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
     return this.envelopes.get(id) ?? null;
   }
 
+  async findShortCodeBySealedSha256(sha256: string) {
+    return [...this.envelopes.values()].find((e) => e.sealed_sha256 === sha256)?.short_code ?? null;
+  }
+
   async findByShortCode(short_code: string) {
     return [...this.envelopes.values()].find((e) => e.short_code === short_code) ?? null;
   }

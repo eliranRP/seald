@@ -1,137 +1,82 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { EVENT_TYPES } from 'shared';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { seald } from '../../styles/theme';
 
 vi.mock('../../lib/api/verifyApiClient', () => ({
-  verifyApiClient: {
-    get: vi.fn(),
-  },
+  verifyApiClient: { get: vi.fn() },
 }));
+
+const hashFile = vi.hoisted(() => vi.fn<(file: Blob) => Promise<string>>());
+vi.mock('../../features/verify/model/sha256', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return { ...actual, sha256Hex: hashFile };
+});
 
 import { verifyApiClient } from '../../lib/api/verifyApiClient';
 import { VerifyPage } from './VerifyPage';
+import type { MatchedFile } from './FileCompare';
 import type { VerifyResponse } from '../../features/verify';
 
 const get = verifyApiClient.get as unknown as ReturnType<typeof vi.fn>;
+const CODE = 'u82ZmvdxwG3CU';
+const SEALED_HASH = 'cafebabedeadbeef1234567890abcdef1234567890abcdef1234567890abcdef';
 
-/**
- * styled-components writes the token into a stylesheet. jsdom does not
- * apply `@media` to `getComputedStyle`, so this walks the CSSOM and
- * keeps the font-size that would win at `width`.
- */
-function fontSizeAt(el: Element, width: number): string {
-  const classes = new Set(el.classList);
-  let size = '';
-  for (const sheet of Array.from(document.styleSheets)) {
-    let rules: CSSRuleList;
-    try {
-      rules = sheet.cssRules;
-    } catch {
-      continue;
-    }
-    size = fontSizeFromRules(rules, classes, width, size);
-  }
-  return size;
+function LocationProbe() {
+  const loc = useLocation();
+  return <div data-testid="probe">{loc.pathname}</div>;
 }
 
-function fontSizeFromRules(
-  rules: CSSRuleList,
-  classes: Set<string>,
-  width: number,
-  size: string,
-): string {
-  for (const rule of Array.from(rules)) {
-    if (rule instanceof CSSStyleRule) {
-      const fontSize = rule.style.getPropertyValue('font-size');
-      if (
-        typeof fontSize === 'string' &&
-        fontSize.length > 0 &&
-        selectorMatches(rule.selectorText, classes)
-      ) {
-        size = fontSize;
-      }
-      continue;
-    }
-    if (rule instanceof CSSMediaRule && mediaMatchesWidth(rule.conditionText, width)) {
-      size = fontSizeFromRules(rule.cssRules, classes, width, size);
-    }
-  }
-  return size;
-}
-
-function selectorMatches(selector: string, classes: Set<string>): boolean {
-  return selector.split(',').some((part) => {
-    const head = part.trim().split(/[\s>+~]/)[0] ?? '';
-    if (!head.startsWith('.')) return false;
-    const names = head
-      .slice(1)
-      .split('.')
-      .map((token) => token.split(/[:#[]/)[0] ?? '')
-      .filter((name) => name.length > 0);
-    return names.length > 0 && names.every((name) => classes.has(name));
-  });
-}
-
-function mediaMatchesWidth(condition: string, width: number): boolean {
-  if (/prefers-|hover|pointer|orientation|resolution/.test(condition)) return false;
-  const mins = [...condition.matchAll(/min-width:\s*(\d+(?:\.\d+)?)px/g)].map((match) =>
-    Number(match[1]),
-  );
-  const maxes = [...condition.matchAll(/max-width:\s*(\d+(?:\.\d+)?)px/g)].map((match) =>
-    Number(match[1]),
-  );
-  if (mins.length === 0 && maxes.length === 0) return false;
-  return mins.every((min) => width >= min) && maxes.every((max) => width <= max);
-}
-
-function wrap(initialEntry: string) {
+function renderAt(path: string, state?: { matchedFile: MatchedFile }) {
   const qc = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false, gcTime: 0, staleTime: 0 },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false, gcTime: 0, staleTime: 0 } },
   });
+  const entry = state ? { pathname: path, state } : path;
   function Wrapper({ children }: { readonly children: ReactNode }) {
     return (
       <ThemeProvider theme={seald}>
         <QueryClientProvider client={qc}>
-          <MemoryRouter initialEntries={[initialEntry]}>
+          <MemoryRouter initialEntries={[entry]}>
             <Routes>
+              <Route path="/verify" element={children as React.ReactElement} />
               <Route path="/verify/:shortCode" element={children as React.ReactElement} />
             </Routes>
+            <LocationProbe />
           </MemoryRouter>
         </QueryClientProvider>
       </ThemeProvider>
     );
   }
-  return Wrapper;
+  return render(<VerifyPage />, { wrapper: Wrapper });
 }
 
-const SIGNED_PAYLOAD: VerifyResponse = {
+const SIGNED: VerifyResponse = {
   envelope: {
     id: '804a6c00-2ad9-4590-9269-de3e13f61e62',
-    title: 'Unconditional Final Waiver and Release',
-    short_code: 'u82ZmvdxwG3CU',
+    title: 'NDA — Quill Capital',
+    short_code: CODE,
     status: 'completed',
     original_pages: 4,
     original_sha256: '7a8afa33b5b077e0486f08fc301e6865caf7b8ea0ea256505df80ea6034c1261',
-    sealed_sha256: 'cafebabedeadbeef1234567890abcdef1234567890abcdef1234567890abcdef',
+    sealed_sha256: SEALED_HASH,
     tc_version: '1',
     privacy_version: '1',
     sent_at: '2026-04-25T21:20:50Z',
     completed_at: '2026-04-25T21:21:08Z',
     expires_at: '2026-05-25T21:20:50Z',
+    sealed_at: '2026-04-25T21:21:07Z',
+    tsa_name: 'DigiCert TSA',
+    event_count: 11,
   },
   signers: [
     {
       id: 's1',
-      name: 'Ops Ops',
-      email: 'ops@nromomentum.com',
+      name: 'Eliran Azulay',
+      email: 'e@example.com',
       role: 'signer',
       status: 'completed',
       signed_at: '2026-04-25T21:20:55Z',
@@ -139,8 +84,8 @@ const SIGNED_PAYLOAD: VerifyResponse = {
     },
     {
       id: 's2',
-      name: 'Maya Johansson',
-      email: 'maya@harriswesthold.com',
+      name: 'Hannah Wills',
+      email: 'h@example.com',
       role: 'signer',
       status: 'completed',
       signed_at: '2026-04-25T21:21:05Z',
@@ -155,788 +100,390 @@ const SIGNED_PAYLOAD: VerifyResponse = {
       signer_id: null,
       created_at: '2026-04-25T21:20:50Z',
     },
-    {
-      id: 'e2',
-      actor_kind: 'system',
-      event_type: 'sealed',
-      signer_id: null,
-      created_at: '2026-04-25T21:21:08Z',
-    },
   ],
   chain_intact: true,
   sealed_url: 'https://signed.example/sealed.pdf',
   audit_url: 'https://signed.example/audit.pdf',
 };
 
-const DECLINED_PAYLOAD: VerifyResponse = {
-  ...SIGNED_PAYLOAD,
-  envelope: { ...SIGNED_PAYLOAD.envelope, status: 'declined', completed_at: null },
-  signers: [
-    {
-      ...SIGNED_PAYLOAD.signers[0]!,
-      status: 'declined',
-      signed_at: null,
-      declined_at: '2026-04-25T21:21:00Z',
-    },
-    SIGNED_PAYLOAD.signers[1]!,
-  ],
-  sealed_url: null,
-  audit_url: 'https://signed.example/audit.pdf',
-};
+function withEnvelope(patch: Partial<VerifyResponse['envelope']>): VerifyResponse {
+  return { ...SIGNED, envelope: { ...SIGNED.envelope, ...patch } };
+}
+
+function pdf(name = 'copy.pdf', size = 2048): File {
+  const file = new File(['%PDF-1.7'], name, { type: 'application/pdf' });
+  Object.defineProperty(file, 'size', { value: size });
+  return file;
+}
 
 beforeEach(() => {
   get.mockReset();
+  hashFile.mockReset();
 });
 
-describe('VerifyPage', () => {
-  it('shows a loading state while the query resolves', () => {
-    get.mockReturnValue(new Promise(() => {})); // never resolves
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(screen.getByLabelText(/loading verification/i)).toBeInTheDocument();
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('VerifyPage result', () => {
+  it('shows the Authentic verdict, signers, chips and a collapsed details card', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'NDA — Quill Capital' })).toBeInTheDocument();
+    expect(screen.getByText('2 of 2 signed · Sealed Apr 25, 2026')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Eliran Azulay' })).toBeInTheDocument();
+    expect(screen.getByText(/Unchanged since seal/)).toBeInTheDocument();
+    expect(screen.getByText(/Audit chain intact/)).toBeInTheDocument();
+    expect(screen.getByText(/PAdES B-LT/)).toBeInTheDocument();
+    expect(screen.getByText(/Timestamped/)).toBeInTheDocument();
+    expect(screen.getByText('Verification by Seald')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /technical details/i })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    expect(screen.queryByLabelText('Sealed SHA-256 hash')).not.toBeInTheDocument();
   });
 
-  it('renders the envelope title heading on success', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
-    ).toBeInTheDocument();
-    // doc title (h2) is also rendered
-    expect(
-      await screen.findAllByRole('heading', {
-        level: 2,
-        name: /unconditional final waiver/i,
-      }),
-    ).not.toHaveLength(0);
+  it('opens the technical details with full hashes, timestamp and event count', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+    const toggle = await screen.findByRole('button', { name: /technical details/i });
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByLabelText('Sealed SHA-256 hash')).toHaveTextContent(SEALED_HASH);
+    expect(screen.getByLabelText('Original SHA-256 hash')).toHaveTextContent(
+      SIGNED.envelope.original_sha256 ?? '',
+    );
+    expect(screen.getByText('Apr 25, 2026 21:21:07 UTC · DigiCert TSA')).toBeInTheDocument();
+    expect(screen.getByText('11 · hash-chained')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /audit trail pdf/i })).toHaveAttribute(
+      'href',
+      'https://signed.example/audit.pdf',
+    );
+    expect(screen.getByRole('link', { name: /sealed pdf/i })).toHaveAttribute(
+      'href',
+      'https://signed.example/sealed.pdf',
+    );
   });
 
-  // Regression for the prod blank-page bug: the API emits `tc_accepted`,
-  // `field_filled`, `all_signed`, `reminder_sent` event types. The FE's
-  // EVENT_LABEL map was missing these; describeEvent then crashed on
-  // `EVENT_LABEL[ev.event_type].toLowerCase()` and React un-mounted the
-  // entire VerifyPage tree. Asserting the heading still renders catches
-  // any future drift between canonical EVENT_TYPES and the FE map.
-  it('renders without crashing when the timeline includes every canonical event type', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      events: [
-        {
-          id: 'e1',
-          actor_kind: 'sender',
-          event_type: 'created',
-          signer_id: null,
-          created_at: '2026-04-25T21:20:50Z',
-        },
-        {
-          id: 'e2',
-          actor_kind: 'system',
-          event_type: 'sent',
-          signer_id: 's1',
-          created_at: '2026-04-25T21:20:51Z',
-        },
-        {
-          id: 'e3',
-          actor_kind: 'signer',
-          event_type: 'viewed',
-          signer_id: 's1',
-          created_at: '2026-04-25T21:20:52Z',
-        },
-        {
-          id: 'e4',
-          actor_kind: 'signer',
-          event_type: 'tc_accepted',
-          signer_id: 's1',
-          created_at: '2026-04-25T21:20:53Z',
-        },
-        {
-          id: 'e5',
-          actor_kind: 'signer',
-          event_type: 'field_filled',
-          signer_id: 's1',
-          created_at: '2026-04-25T21:20:54Z',
-        },
-        {
-          id: 'e6',
-          actor_kind: 'signer',
-          event_type: 'signed',
-          signer_id: 's1',
-          created_at: '2026-04-25T21:20:55Z',
-        },
-        {
-          id: 'e7',
-          actor_kind: 'system',
-          event_type: 'all_signed',
-          signer_id: null,
-          created_at: '2026-04-25T21:21:05Z',
-        },
-        {
-          id: 'e8',
-          actor_kind: 'system',
-          event_type: 'sealed',
-          signer_id: null,
-          created_at: '2026-04-25T21:21:08Z',
-        },
-        {
-          id: 'e9',
-          actor_kind: 'system',
-          event_type: 'reminder_sent',
-          signer_id: 's2',
-          created_at: '2026-04-25T21:21:10Z',
-        },
-      ],
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
-    ).toBeInTheDocument();
+  it('copies a hash and flashes a "Copied" toast', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+    fireEvent.click(await screen.findByRole('button', { name: /technical details/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy sealed hash' }));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(SEALED_HASH));
+    expect(await screen.findByText('Copied')).toBeInTheDocument();
   });
 
-  // Drift-proof variant of the test above. The hand-curated event list
-  // missed three event types (`esign_disclosure_acknowledged`,
-  // `intent_to_sign_confirmed`, `consent_withdrawn`) added to the API
-  // after this test was written, so a real `/verify/:code` request
-  // crashed the page with `Cannot read properties of undefined (reading
-  // 'toLowerCase')` inside `describeEvent`. Iterating the canonical
-  // `EVENT_TYPES` from `shared` makes the test fail the moment the
-  // FE label/tone maps fall behind the source of truth.
-  it.each(EVENT_TYPES.map((t) => [t]))(
-    'renders without crashing for canonical event_type %s',
-    async (eventType) => {
-      const payload: VerifyResponse = {
-        ...SIGNED_PAYLOAD,
-        events: [
-          {
-            id: `e-${eventType}`,
-            actor_kind: 'system',
-            event_type: eventType as VerifyResponse['events'][number]['event_type'],
-            signer_id: null,
-            created_at: '2026-04-25T21:21:08Z',
-          },
+  it('copies the public link from the header', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+
+    fireEvent.click(await screen.findByRole('button', { name: /copy link/i }));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(`https://seald.nromomentum.com/verify/${CODE}`),
+    );
+    expect(await screen.findByText('Link copied')).toBeInTheDocument();
+  });
+
+  it('does not throw and shows no toast when the clipboard is unavailable', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+    fireEvent.click(await screen.findByRole('button', { name: /copy link/i }));
+    await act(async () => {});
+    expect(screen.queryByText('Link copied')).not.toBeInTheDocument();
+  });
+
+  it('shows Tampered with the details open when the audit chain is broken', async () => {
+    get.mockResolvedValueOnce({ data: { ...SIGNED, chain_intact: false } });
+    renderAt(`/verify/${CODE}`);
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Tampered' })).toBeInTheDocument();
+    expect(screen.getByText('The audit trail was changed after sealing.')).toBeInTheDocument();
+    expect(screen.getByText(/Audit chain broken/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /technical details/i })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByTestId('verify-dropzone')).toBeInTheDocument();
+  });
+
+  it('shows In progress with who is awaited and no compare card', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        ...withEnvelope({ status: 'awaiting_others', completed_at: null, sealed_sha256: null }),
+        signers: [
+          SIGNED.signers[0]!,
+          { ...SIGNED.signers[1]!, status: 'awaiting', signed_at: null },
         ],
-      };
-      get.mockResolvedValueOnce({ data: payload });
-      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-      render(<VerifyPage />, { wrapper: Wrapper });
-      expect(
-        await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
-      ).toBeInTheDocument();
-    },
-  );
-
-  it('renders all signer names and emails', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText('Ops Ops')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Maya Johansson')).toBeInTheDocument();
-    expect(screen.getByText('ops@nromomentum.com')).toBeInTheDocument();
-    expect(screen.getByText('maya@harriswesthold.com')).toBeInTheDocument();
-  });
-
-  // Regression for the "0 of 1 signed" prod bug. The API emits the
-  // canonical signer status `'completed'` (per SIGNER_UI_STATUSES in
-  // shared), but the FE used to filter for the legacy `'signed'`
-  // string — so the count always rendered 0 even when every signer
-  // had finished. Asserting the rendered text catches future drift.
-  it('counts canonical "completed" signers in the X of Y badge', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText('2 of 2 signed')).toBeInTheDocument();
-    });
-  });
-
-  it('renders both SHA-256 hashes via accessible labels', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByLabelText(/original sha-256 hash/i)).toBeInTheDocument();
-    });
-    expect(screen.getByLabelText(/sealed sha-256 hash/i)).toBeInTheDocument();
-    // The hash text itself is rendered (split visually but still searchable
-    // by partial substring).
-    expect(screen.getByLabelText(/original sha-256 hash/i).textContent).toContain(
-      '7a8afa33b5b077e0486f08fc301e6865',
-    );
-  });
-
-  it('renders the declined badge when the envelope is declined', async () => {
-    get.mockResolvedValueOnce({ data: DECLINED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /signer declined; not sealed/i }),
-    ).toBeInTheDocument();
-    // The envelope status pill in the "Last activity" row uses the literal
-    // status string.
-    expect(screen.getAllByText(/declined/i).length).toBeGreaterThan(0);
-  });
-
-  it('shows a not-found message when the API returns 404', async () => {
-    const err = Object.assign(new Error('envelope_not_found'), { status: 404 });
-    get.mockRejectedValueOnce(err);
-    const Wrapper = wrap('/verify/missing');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { name: /couldn't find this envelope/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('shows a generic error for non-404 failures', async () => {
-    const err = Object.assign(new Error('boom'), { status: 500 });
-    get.mockRejectedValueOnce(err);
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { name: /something went wrong/i }),
-    ).toBeInTheDocument();
-  });
-
-  // Verdict-hero variants — `deriveView` has one branch per envelope
-  // status. Without these the FE can render the wrong eyebrow/heading
-  // for terminal-but-not-completed envelopes (expired / canceled) and
-  // for the in-progress fallback. The strings are part of the public
-  // verify contract per Design-Guide/project/verify-flow.html so a
-  // copy regression is a real bug, not a cosmetic test.
-  it('renders the expired verdict for an expired envelope', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'expired', completed_at: null },
-      sealed_url: null,
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /expired; not sealed/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/expired · not sealed/i)).toBeInTheDocument();
-  });
-
-  it('renders the canceled verdict for a canceled envelope', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'canceled', completed_at: null },
-      sealed_url: null,
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /canceled; not sealed/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/canceled · not sealed/i)).toBeInTheDocument();
-  });
-
-  // Falls through `deriveView` for every status that isn't completed /
-  // declined / expired / canceled (draft, awaiting_others, sealing).
-  // The integrity copy on this branch is "X of Y signatures recorded"
-  // — historically the place we got the "0 of N" prod bug.
-  it('renders the in-progress verdict and "X of Y signatures recorded" copy for awaiting_others', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: {
-        ...SIGNED_PAYLOAD.envelope,
-        status: 'awaiting_others',
-        completed_at: null,
+        sealed_url: null,
       },
-      signers: [
-        { ...SIGNED_PAYLOAD.signers[0]! },
-        {
-          ...SIGNED_PAYLOAD.signers[1]!,
-          status: 'awaiting',
-          signed_at: null,
-        },
-      ],
-      sealed_url: null,
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
+    });
+    renderAt(`/verify/${CODE}`);
+
     expect(
-      await screen.findByRole('heading', { level: 1, name: /awaiting signatures/i }),
+      await screen.findByRole('heading', { level: 1, name: 'In progress' }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/in progress/i)).toBeInTheDocument();
-    // "1 of 2 signatures recorded." — the IntegrityCopy in-progress branch
-    // composes "{done} of {all} signatures recorded." across two nodes.
-    expect(screen.getByText(/1 of 2 signatures recorded/i)).toBeInTheDocument();
-    // No download button when the envelope isn't sealed yet.
-    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
+    expect(screen.getByText('1 of 2 signed · not sealed yet')).toBeInTheDocument();
+    expect(screen.getByText(/Waiting on Hannah/)).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-dropzone')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /technical details/i }));
+    expect(screen.getByText('Envelope ID')).toBeInTheDocument();
+    expect(screen.queryByText('Sealed SHA-256')).not.toBeInTheDocument();
   });
 
-  // Awaiting / viewing signers must render no status icon (the spec only
-  // shows an icon for `completed` and `declined`). Without this branch
-  // covered, the SVG-rendering helper SignerStatusIcon could regress
-  // and start rendering an empty <svg> for awaiting signers (visible
-  // empty circle on the page).
-  it('renders no signer status icon for awaiting signers', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: { ...SIGNED_PAYLOAD.envelope, status: 'awaiting_others', completed_at: null },
-      signers: [
-        {
-          ...SIGNED_PAYLOAD.signers[0]!,
-          status: 'awaiting',
-          signed_at: null,
-        },
-      ],
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    const { container } = render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText('Ops Ops')).toBeInTheDocument();
+  it.each([
+    [
+      'declined',
+      { status: 'declined', completed_at: null, sealed_sha256: null },
+      'Declined by Eliran · Apr 25, 2026',
+      'Declined',
+    ],
+    [
+      'expired',
+      { status: 'expired', completed_at: null, sealed_sha256: null },
+      'Expired May 25, 2026',
+      'Expired',
+    ],
+    [
+      'canceled',
+      { status: 'canceled', completed_at: null, sealed_sha256: null },
+      'Withdrawn by sender',
+      'Withdrawn',
+    ],
+  ] as const)('shows Not sealed for a %s envelope', async (_name, patch, meta, chip) => {
+    const data = withEnvelope(patch);
+    get.mockResolvedValueOnce({
+      data: {
+        ...data,
+        signers: [
+          { ...data.signers[0]!, status: 'declined', declined_at: '2026-04-25T21:21:00Z' },
+          data.signers[1]!,
+        ],
+        sealed_url: null,
+      },
     });
-    // Aria-hidden checkmark/x SVGs only exist for completed/declined.
-    // For awaiting, the SignerCheck is rendered empty.
-    const polylines = container.querySelectorAll('polyline');
-    // The verdict mark is a polyline only on the success/in-progress
-    // branch; in-progress uses a circle+path (clock), so no polyline
-    // should leak in for an awaiting signer row.
-    expect(polylines.length).toBe(0);
-  });
+    renderAt(`/verify/${CODE}`);
 
-  // actorLabel fallback — when the API emits an actor_kind we don't
-  // explicitly handle (only 'sender'/'signer'/'system' are valid today,
-  // but the union may grow), the function returns the literal "Signer".
-  // Covering the fallback protects against silent label drift.
-  it('labels a system event with no signer_id as "Seald system" in the timeline', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      events: [
-        {
-          id: 'sys-1',
-          actor_kind: 'system',
-          event_type: 'sealed',
-          signer_id: null,
-          created_at: '2026-04-25T21:21:08Z',
-        },
-      ],
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText(/seald system/i)).toBeInTheDocument();
-    });
-  });
-
-  it('falls back to "Signer" actor label when a signer_id has no matching roster entry', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      // signer_id points to a roster row that no longer exists (e.g.
-      // signer was hard-deleted by retention but the event row remains).
-      events: [
-        {
-          id: 'orphan-1',
-          actor_kind: 'signer',
-          event_type: 'viewed',
-          signer_id: 'ghost-id',
-          created_at: '2026-04-25T21:20:55Z',
-        },
-      ],
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      // The actor column on the orphaned row falls back to "Signer".
-      // The signer roster also renders names; "Signer" alone (not in a
-      // signer-name row) is the actor cell text.
-      const matches = screen.getAllByText(/^signer$/i);
-      expect(matches.length).toBeGreaterThan(0);
-    });
-  });
-
-  // Ensures the warn-tone branch in `toneFor` is exercised (declined /
-  // expired / canceled / job_failed / retention_deleted /
-  // session_invalidated_by_decline). Without this, a CSS regression
-  // could ship a missing warning style for terminal failure events.
-  it('renders job_failed and retention_deleted events without crashing (warn-tone branch)', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      events: [
-        {
-          id: 'jf',
-          actor_kind: 'system',
-          event_type: 'job_failed',
-          signer_id: null,
-          created_at: '2026-04-25T21:21:00Z',
-        },
-        {
-          id: 'rd',
-          actor_kind: 'system',
-          event_type: 'retention_deleted',
-          signer_id: null,
-          created_at: '2026-04-25T21:22:00Z',
-        },
-        {
-          id: 'sid',
-          actor_kind: 'system',
-          event_type: 'session_invalidated_by_decline',
-          signer_id: null,
-          created_at: '2026-04-25T21:23:00Z',
-        },
-        {
-          id: 'sic',
-          actor_kind: 'system',
-          event_type: 'session_invalidated_by_cancel',
-          signer_id: null,
-          created_at: '2026-04-25T21:24:00Z',
-        },
-      ],
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
     expect(
-      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
+      await screen.findByRole('heading', { level: 1, name: 'Not sealed' }),
     ).toBeInTheDocument();
-    // Each event renders the label twice (timeline title + describe line),
-    // so we assert at-least-one match rather than uniqueness.
-    expect(screen.getAllByText(/sealing job failed/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/document retention expired/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/^session invalidated$/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/session invalidated \(cancel\)/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(meta)).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Checks')).getByText(new RegExp(chip))).toBeInTheDocument();
+    expect(screen.queryByTestId('verify-dropzone')).not.toBeInTheDocument();
+  });
+});
+
+describe('VerifyPage compare a copy', () => {
+  async function openCompare() {
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`);
+    await screen.findByTestId('verify-dropzone');
+    return screen.getByLabelText('Choose a PDF to compare');
+  }
+
+  it('says the file matches when its SHA-256 equals the sealed hash', async () => {
+    hashFile.mockResolvedValueOnce(SEALED_HASH);
+    const input = await openCompare();
+
+    await userEvent.upload(input, pdf('NDA-signed.pdf', 290_816));
+
+    expect(await screen.findByText(/Matches the sealed copy/)).toBeInTheDocument();
+    expect(screen.getByText('NDA-signed.pdf · 284 KB')).toBeInTheDocument();
+    // The verdict above is untouched.
+    expect(screen.getByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Check another' }));
+    expect(screen.getByTestId('verify-dropzone')).toBeInTheDocument();
   });
 
-  // Loading state must announce itself to assistive tech via aria-busy
-  // + role=polite. The skill spec lists this as the loading-state
-  // accessibility contract.
-  it('marks the loading skeleton with aria-busy for assistive tech', () => {
+  it("says it doesn't match when the hash differs", async () => {
+    hashFile.mockResolvedValueOnce('0'.repeat(64));
+    const input = await openCompare();
+
+    await userEvent.upload(input, pdf());
+
+    expect(await screen.findByText(/Doesn't match/)).toBeInTheDocument();
+    expect(
+      screen.getByText("This file was changed after sealing, or it's a different document."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+  });
+
+  it('shows a progress row while the file is being hashed', async () => {
+    let finish: (hash: string) => void = () => {};
+    hashFile.mockReturnValueOnce(new Promise<string>((resolve) => (finish = resolve)));
+    const input = await openCompare();
+
+    await userEvent.upload(input, pdf('slow.pdf'));
+
+    expect(await screen.findByText('Checking slow.pdf…')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    await act(async () => finish(SEALED_HASH));
+    expect(await screen.findByText(/Matches the sealed copy/)).toBeInTheDocument();
+  });
+
+  it('refuses a non-PDF without hashing it', async () => {
+    const input = await openCompare();
+
+    fireEvent.change(input, {
+      target: { files: [new File(['x'], 'notes.txt', { type: 'text/plain' })] },
+    });
+
+    expect(await screen.findByText(/not a PDF/i)).toBeInTheDocument();
+    expect(hashFile).not.toHaveBeenCalled();
+  });
+
+  it('refuses a file over 25 MB without hashing it', async () => {
+    const input = await openCompare();
+
+    fireEvent.change(input, { target: { files: [pdf('big.pdf', 26 * 1024 * 1024)] } });
+
+    expect(await screen.findByText(/over 25 MB/i)).toBeInTheDocument();
+    expect(hashFile).not.toHaveBeenCalled();
+  });
+
+  it('compares a dropped file and highlights the zone while dragging', async () => {
+    hashFile.mockResolvedValueOnce(SEALED_HASH);
+    await openCompare();
+    const zone = screen.getByTestId('verify-dropzone');
+
+    fireEvent.dragOver(zone);
+    expect(within(zone).getByText('Drop to compare')).toBeInTheDocument();
+    fireEvent.drop(zone, { dataTransfer: { files: [pdf()] } });
+
+    expect(await screen.findByText(/Matches the sealed copy/)).toBeInTheDocument();
+  });
+
+  it('shows the match row on arrival from the entry page', async () => {
+    get.mockResolvedValueOnce({ data: SIGNED });
+    renderAt(`/verify/${CODE}`, { matchedFile: { name: 'from-entry.pdf', size: 4096 } });
+
+    expect(await screen.findByText(/Matches the sealed copy/)).toBeInTheDocument();
+    expect(screen.getByText('from-entry.pdf · 4 KB')).toBeInTheDocument();
+  });
+});
+
+describe('VerifyPage entry', () => {
+  it('renders the entry page with no code and enables Verify at 13 characters', async () => {
+    renderAt('/verify');
+
+    expect(screen.getByRole('heading', { name: 'Verify a document' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /copy link/i })).not.toBeInTheDocument();
+    const verify = screen.getByRole('button', { name: 'Verify' });
+    expect(verify).toBeDisabled();
+
+    const field = screen.getByLabelText('Verification code');
+    fireEvent.change(field, { target: { value: CODE.slice(0, 12) } });
+    expect(verify).toBeDisabled();
+    fireEvent.change(field, { target: { value: CODE } });
+    expect(verify).toBeEnabled();
+    expect(get).not.toHaveBeenCalled();
+  });
+
+  it('keeps the code case and strips spaces from a pasted code', () => {
+    renderAt('/verify');
+    const field = screen.getByLabelText('Verification code');
+    fireEvent.paste(field, { clipboardData: { getData: () => ` ${CODE} ` } });
+    expect(field).toHaveValue(CODE);
+  });
+
+  it('goes to the result page when the code is submitted', async () => {
+    get.mockResolvedValue({ data: SIGNED });
+    renderAt('/verify');
+    fireEvent.change(screen.getByLabelText('Verification code'), { target: { value: CODE } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+    expect(screen.getByTestId('probe')).toHaveTextContent(`/verify/${CODE}`);
+  });
+
+  it('finds the envelope by the hash of a dropped PDF and shows it matched', async () => {
+    hashFile.mockResolvedValue(SEALED_HASH);
+    get.mockImplementation((url: string) =>
+      Promise.resolve({
+        data: url.startsWith('/verify/by-hash/') ? { short_code: CODE } : SIGNED,
+      }),
+    );
+    renderAt('/verify');
+
+    await userEvent.upload(screen.getByLabelText('Choose the sealed PDF'), pdf('sealed.pdf', 4096));
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith(`/verify/by-hash/${SEALED_HASH}`, undefined);
+    expect(await screen.findByText(/Matches the sealed copy/)).toBeInTheDocument();
+    expect(screen.getByText('sealed.pdf · 4 KB')).toBeInTheDocument();
+  });
+
+  it('says so when no sealed document has the dropped file hash', async () => {
+    hashFile.mockResolvedValue('1'.repeat(64));
+    get.mockRejectedValue(Object.assign(new Error('envelope_not_found'), { status: 404 }));
+    renderAt('/verify');
+
+    await userEvent.upload(screen.getByLabelText('Choose the sealed PDF'), pdf());
+
+    expect(await screen.findByText('No sealed document matches this file.')).toBeInTheDocument();
+  });
+
+  it('lands on the entry page with the field marked when the code is unknown', async () => {
+    get.mockRejectedValueOnce(Object.assign(new Error('envelope_not_found'), { status: 404 }));
+    renderAt('/verify/missingcode01');
+
+    expect(await screen.findByText('No document with this code')).toBeInTheDocument();
+    const field = screen.getByLabelText('Verification code');
+    expect(field).toHaveValue('missingcode01');
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+
+    fireEvent.change(field, { target: { value: 'missingcode0' } });
+    expect(screen.queryByText('No document with this code')).not.toBeInTheDocument();
+  });
+});
+
+describe('VerifyPage loading and errors', () => {
+  it('marks the loading skeleton busy for assistive tech', () => {
     get.mockReturnValue(new Promise(() => {}));
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const region = screen.getByLabelText(/loading verification/i);
-    expect(region).toHaveAttribute('aria-busy');
+    renderAt(`/verify/${CODE}`);
+    expect(screen.getByLabelText(/loading verification/i)).toHaveAttribute('aria-busy', 'true');
   });
 
-  // Error-render branch when the thrown error has a message but no
-  // `status` (e.g. a network failure surfaces "Network Error" with no
-  // HTTP response). The page should fall back to the generic heading
-  // and use the error message as the body copy.
-  //
-  // `useVerifyEnvelope` retries network-level failures once (no `status`
-  // means transient network blip), so we use `mockRejectedValue` to keep
-  // failing on both attempts before the error panel renders.
-  it('renders the generic error heading with the error message when status is missing', async () => {
-    const err = new Error('Network down — connection lost');
-    get.mockRejectedValue(err);
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { name: /something went wrong/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/network down — connection lost/i)).toBeInTheDocument();
+  it('shows a generic error with the message for non-404 failures', async () => {
+    get.mockRejectedValueOnce(Object.assign(new Error('boom'), { status: 500 }));
+    renderAt(`/verify/${CODE}`);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong');
+    expect(screen.getByText('boom')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /try again/i })).toBeInTheDocument();
   });
 
-  // Error path with neither a status nor a message — should still render
-  // the generic error panel with default copy. Guards against a blank
-  // page if the API ever throws a bare `Error()` without context.
-  // See the test above for why `mockRejectedValue` (not Once).
-  it('renders the default error copy when the error has no status and no message', async () => {
-    const err = new Error('');
-    get.mockRejectedValue(err);
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { name: /something went wrong/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/try again in a moment/i)).toBeInTheDocument();
+  it('shows the default error copy when the failure has no message', async () => {
+    get.mockRejectedValueOnce(Object.assign(new Error(''), { status: 500 }));
+    renderAt(`/verify/${CODE}`);
+    expect(await screen.findByText(/Try again in a moment/)).toBeInTheDocument();
   });
 
-  // Page-count copy: "1 page" vs "N pages". Both branches matter for
-  // the doc subtitle line (rendered only when original_pages !== null).
-  it('renders singular "page" when the document has exactly one page', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: { ...SIGNED_PAYLOAD.envelope, original_pages: 1 },
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText(/^1 page$/i)).toBeInTheDocument();
-    });
-  });
-
-  // The download button must only render when a sealed_url is present.
-  // Sealed-but-no-URL (presigner failure / retention deletion) should
-  // hide it cleanly rather than rendering an empty link.
-  it('hides the Download button when sealed_url is null', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      sealed_url: null,
-      audit_url: null,
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(
-        screen.getByRole('heading', { level: 1, name: /sealed and intact/i }),
-      ).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('link', { name: /download/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /audit pdf/i })).not.toBeInTheDocument();
-  });
-
-  // Both pre-signed URL buttons render with `target="_blank"` +
-  // `rel="noopener noreferrer"` — losing rel=noopener on a link to a
-  // signed S3 URL is a tab-jacking vector, so it gets a regression test.
-  it('opens the Download and Audit PDF links in a new tab with rel=noopener noreferrer', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const dl = await screen.findByRole('link', { name: /download/i });
-    expect(dl).toHaveAttribute('href', SIGNED_PAYLOAD.sealed_url!);
-    expect(dl).toHaveAttribute('target', '_blank');
-    expect(dl).toHaveAttribute('rel', 'noopener noreferrer');
-    const audit = screen.getByRole('link', { name: /audit pdf/i });
-    expect(audit).toHaveAttribute('href', SIGNED_PAYLOAD.audit_url!);
-    expect(audit).toHaveAttribute('rel', 'noopener noreferrer');
-  });
-
-  // Defensive: a sealed envelope with NO recorded events (e.g. retention
-  // wiped them, or an old envelope from before the audit-chain landed)
-  // must still render the verdict + card without crashing on the timeline
-  // mapping. Without this, an upstream bug that returns events:[] could
-  // render a missing "Activity · 0 events" header.
-  it('renders the timeline header as "0 events" when the events array is empty', async () => {
-    const payload: VerifyResponse = { ...SIGNED_PAYLOAD, events: [] };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    expect(
-      await screen.findByRole('heading', { level: 1, name: /sealed and intact/i }),
-    ).toBeInTheDocument();
-    // The Timeline header copy includes a singular/plural branch on the
-    // event count; the zero case must use the plural "events" form per
-    // the design guide ("0 events", not "0 event").
-    expect(screen.getByText(/activity · 0 events/i)).toBeInTheDocument();
-  });
-
-  // Defensive: a SignersFact rendered with zero signers historically
-  // crashed because the badge ("X of Y signed") divided by zero in a
-  // previous prototype. The current code computes `signed = filter().length`
-  // and `signers.length` so the math is safe; this test pins that contract.
-  it('renders "0 of 0 signed" without crashing for an envelope with no signers', async () => {
-    const payload: VerifyResponse = { ...SIGNED_PAYLOAD, signers: [] };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText(/0 of 0 signed/i)).toBeInTheDocument();
-    });
-  });
-
-  // The public verify payload has no seal or timestamp flag. The page
-  // names the SHA-256 audit chain and does not claim a timestamp.
-  it('shows the SHA-256 audit chain for the real verify payload and does not claim a timestamp', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText(/sha-256 audit chain/i)).toBeInTheDocument();
-    });
-    expect(screen.getByText(/^verification by seald$/i)).toBeInTheDocument();
-    expect(screen.getByText(/^seald$/i)).toBeInTheDocument();
-    expect(screen.queryByText(/aes-256 at rest/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/pades-lt/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/pades seal/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/rfc 3161/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/rsa-4096/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/seald, inc/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/single byte/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/trust ledger/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/not been altered since it was signed/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /the sha-256 stored for the sealed pdf is on this page, and the audit chain is intact/i,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/the document and signers are unchanged since the seal/i),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/and timestamp are unchanged/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/rfc 3161 timestamp/i)).not.toBeInTheDocument();
-    expect(screen.getByRole('main')).toHaveAttribute('data-variant', 'success');
-    expect(
-      screen.getByTestId('integrity-icon').querySelector('.lucide-shield-check'),
-    ).not.toBeNull();
-    expect(screen.getByRole('contentinfo').querySelector('.lucide-check')).not.toBeNull();
-    expect(document.querySelector('.lucide-shield-alert')).toBeNull();
-    const intactHeading = screen.getByRole('heading', { name: 'Sealed and intact' });
-    expect(intactHeading.querySelector('em')).not.toHaveClass('danger');
-    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
-      'title',
-      SIGNED_PAYLOAD.envelope.title,
-    );
-  });
-
-  // Verification URL is rendered in the facts panel using the literal
-  // `seald.nromomentum.com/verify/{short_code}` string (used by the QR
-  // code on the audit PDF). A regression where the wrong domain or path
-  // shipped would silently break the QR loop.
-  it('renders the public verification URL using the canonical seald.nromomentum.com domain', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByText('seald.nromomentum.com/verify/u82ZmvdxwG3CU')).toBeInTheDocument();
-    });
-  });
-
-  // The "REQ ABCD-EFGH" header pulls the first two UUID groups from the
-  // envelope id and uppercases them. Regressing the slice or the case
-  // would silently break the design guide spec at line 586.
-  it('renders the REQ id as the first two UUID groups, uppercased', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      // SIGNED_PAYLOAD.envelope.id = '804a6c00-2ad9-4590-…'
-      expect(screen.getByText('REQ 804A6C00-2AD9')).toBeInTheDocument();
-    });
-  });
-
-  // ---- Audit-chain badge (regression: API has returned `chain_intact`
-  // since Sprint 3 / PR #10 but the FE never surfaced it; the prompt's
-  // bug-floor calls this out explicitly. The verdict copy claims the
-  // seal is intact, but a tampered audit log is a separate trust
-  // failure — the user must see both checks). ------------------------
-
-  it('renders an audit-chain "intact" badge when chain_intact=true', async () => {
-    get.mockResolvedValueOnce({ data: { ...SIGNED_PAYLOAD, chain_intact: true } });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      expect(screen.getByLabelText(/audit chain status/i)).toBeInTheDocument();
-    });
-    const badge = screen.getByLabelText(/audit chain status/i);
-    expect(badge).toHaveTextContent(/intact/i);
-  });
-
-  it('renders an audit-chain "broken" warning when chain_intact=false', async () => {
-    get.mockResolvedValueOnce({ data: { ...SIGNED_PAYLOAD, chain_intact: false } });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      const badge = screen.getByLabelText(/audit chain status/i);
-      expect(badge).toHaveTextContent(/broken|tamper/i);
-    });
-    expect(
-      screen.getByText(
-        /the sha-256 stored for the sealed pdf is on this page\. the audit chain is not intact/i,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText('Sealed · audit chain broken')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Sealed; audit chain broken' })).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'The audit chain for this document is broken. Contact the sender before relying on it.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/seal intact/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/unchanged since the seal/i)).not.toBeInTheDocument();
-    const page = screen.getByRole('main');
-    expect(page).toHaveAttribute('data-variant', 'failed');
-    const brokenHeading = screen.getByRole('heading', { name: 'Sealed; audit chain broken' });
-    const emphasis = brokenHeading.querySelector('em');
-    expect(emphasis).toHaveClass('danger');
-    expect(emphasis).toHaveStyle({ color: seald.color.danger[700] });
-    const verdictMark = page.querySelector('.lucide-shield-alert')?.parentElement;
-    expect(verdictMark).toHaveStyle({
-      backgroundColor: seald.color.danger[50],
-      color: seald.color.danger[700],
-    });
-    const integrityIcon = screen.getByTestId('integrity-icon');
-    expect(integrityIcon.querySelector('.lucide-shield-alert')).not.toBeNull();
-    expect(integrityIcon.querySelector('.lucide-shield-check')).toBeNull();
-    const footer = screen.getByRole('contentinfo');
-    expect(footer.querySelector('.lucide-shield-alert')).not.toBeNull();
-    expect(footer.querySelector('.lucide-check')).toBeNull();
-    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute(
-      'title',
-      SIGNED_PAYLOAD.envelope.title,
-    );
-  });
-
-  // ---- Download attribute (regression: prompt's bug-floor list says
-  // "Sealed-PDF download button no `download` attribute (opens in tab
-  // instead of saving)". The button copy says "Download" so users
-  // expect their browser to save the file with a friendly name —
-  // without `download`, browsers open the PDF inline and the file
-  // gets saved as the S3 presigned-URL path which is unreadable.) -----
-
-  it('sets a download attribute on the sealed-PDF Download link so browsers save instead of opening in a tab', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const dl = await screen.findByRole('link', { name: /^download$/i });
-    expect(dl).toHaveAttribute('download');
-    // The download filename should be a friendly, hash-free name derived
-    // from the envelope title (with a .pdf extension), not the raw S3
-    // presigned-URL path which contains opaque query strings.
-    const dlFilename = dl.getAttribute('download');
-    expect(dlFilename).toMatch(/\.pdf$/i);
-    expect(dlFilename).not.toMatch(/^https?:/);
-  });
-
-  it('sets a download attribute on the Audit PDF link', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const audit = await screen.findByRole('link', { name: /audit pdf/i });
-    expect(audit).toHaveAttribute('download');
-    const auditFilename = audit.getAttribute('download');
-    expect(auditFilename).toMatch(/audit/i);
-    expect(auditFilename).toMatch(/\.pdf$/i);
-  });
-
-  // When the API omits `original_pages` (legacy envelope, sealing failure)
-  // the doc subtitle should render an em dash placeholder + the
-  // singular/plural branch should default to "pages" (plural).
-  it('renders "— pages" when original_pages is null', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: { ...SIGNED_PAYLOAD.envelope, original_pages: null },
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await waitFor(() => {
-      // The DocSub renders the "— pages" segment; assert by partial match
-      // since the element splits the value across spans.
-      expect(screen.getByText(/—\s*pages/i)).toBeInTheDocument();
-    });
-  });
-
-  // ---- Loading timeout / retry (PR-5 item #1, [HIGH] interaction) ---------
-  // Without progressive copy + a manual retry, a stuck verify request leaves
-  // users staring at shimmer forever. After 5s we soften the subtitle, after
-  // 15s we offer a retry button that re-attempts the fetch.
-  describe('Loading timeout + retry', () => {
+  describe('timeouts', () => {
     beforeEach(() => {
       vi.useFakeTimers({ shouldAdvanceTime: false });
     });
-
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('switches the loading subtitle to "Still working…" after 5 seconds', async () => {
+    it('switches to "Still working…" after 5 seconds', async () => {
       get.mockReturnValue(new Promise(() => {}));
-      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-      render(<VerifyPage />, { wrapper: Wrapper });
+      renderAt(`/verify/${CODE}`);
       expect(screen.queryByText(/still working/i)).not.toBeInTheDocument();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5_000);
@@ -944,201 +491,18 @@ describe('VerifyPage', () => {
       expect(screen.getByText(/still working/i)).toBeInTheDocument();
     });
 
-    it('renders a manual Retry button after 15 seconds and re-attempts the fetch on click', async () => {
-      // Distinct never-resolving promise per call — if we reused a single
-      // pending promise, React Query would dedupe the second fetch.
+    it('offers Retry after 15 seconds and refetches on click', async () => {
       get.mockImplementation(() => new Promise(() => {}));
-      const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-      render(<VerifyPage />, { wrapper: Wrapper });
+      renderAt(`/verify/${CODE}`);
       expect(screen.queryByRole('button', { name: /retry/i })).not.toBeInTheDocument();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(15_000);
       });
       const retry = screen.getByRole('button', { name: /retry/i });
-      expect(retry).toBeInTheDocument();
-      // First call is the original mount.
       expect(get).toHaveBeenCalledTimes(1);
-      // Switch back to real timers so React Query's internal microtask
-      // scheduler (which sometimes uses setTimeout(0) for transitions)
-      // can flush naturally inside waitFor.
       vi.useRealTimers();
       fireEvent.click(retry);
-      // Click re-invokes the query's `refetch()`. waitFor polls until the
-      // second `get` call lands.
-      await waitFor(() => {
-        expect(get).toHaveBeenCalledTimes(2);
-      });
+      await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
     });
-  });
-
-  // ---- prefers-reduced-motion guard (PR-5 item #2, [HIGH] a11y) ----------
-  // Two long-running keyframe animations: the verdict mark's pulsing ring
-  // (`pulse`) and the loading skeleton (`skeleton-shimmer`). Both must be
-  // disabled inside `@media (prefers-reduced-motion: reduce)`.
-  it('disables the verdict pulse + skeleton shimmer animations under prefers-reduced-motion', async () => {
-    // Render the completed/sealed view first so VerdictMark (which owns the
-    // `pulse` animation + reduce guard) is registered with styled-components.
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const SealedWrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: SealedWrapper });
-    await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
-
-    // Then render the loading view so SkeletonBlock (which owns the
-    // `skeleton-shimmer` animation + reduce guard) is also registered.
-    get.mockReturnValueOnce(new Promise(() => {}));
-    const LoadingWrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: LoadingWrapper });
-
-    // styled-components serialises every <style> block it has injected.
-    const collected = Array.from(document.querySelectorAll('style'))
-      .map((s) => s.textContent ?? '')
-      .join('\n');
-    expect(collected).toMatch(/prefers-reduced-motion:\s*reduce/i);
-    // Each animated rule must be neutralised inside the reduce guard.
-    const reduceBlocks = collected.match(
-      /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*{[^}]*animation:\s*none/gi,
-    );
-    expect(reduceBlocks).not.toBeNull();
-    // Two animated surfaces: VerdictMark::before + SkeletonBlock.
-    expect((reduceBlocks ?? []).length).toBeGreaterThanOrEqual(2);
-  });
-
-  // ---- Mobile cookie-banner safe-zone (PR-5 item #3, [HIGH] layout) ------
-  // The cookie banner is global (apps/landing/public/scripts/cookie-consent.js).
-  // Until dismissed it overlays the verify card's primary actions on mobile.
-  // The Container must reserve 80px of bottom padding on ≤640px viewports.
-  it("reserves 80px bottom padding on mobile so the cookie banner can't overlay primary actions", async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
-    const collected = Array.from(document.querySelectorAll('style'))
-      .map((s) => s.textContent ?? '')
-      .join('\n');
-    // Container @media (max-width: 640px) block must include 80px as the
-    // bottom value (cookie-banner safe-zone). styled-components serialises
-    // the rule as the `padding` shorthand `padding:32px 20px 80px;` so we
-    // assert the 640px-breakpoint rule contains `80px` at the end of a
-    // padding shorthand.
-    expect(collected).toMatch(/@media[^{]*max-width:\s*640px[^{]*{[^}]*padding:[^;]*80px/i);
-  });
-
-  // ---- Verdict aria-label per variant (PR-5 item #5, [MEDIUM] a11y) ------
-  // The verdict <h1> currently relies on color + italic emphasis. Screen
-  // readers must hear the full semantic verdict.
-  it('exposes an aria-label "Sealed and intact" on the verdict heading for completed envelopes', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const heading = await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
-    expect(heading).toHaveAttribute('aria-label', 'Sealed and intact');
-  });
-
-  it('exposes an aria-label "Signer declined; not sealed" on the verdict heading for declined envelopes', async () => {
-    get.mockResolvedValueOnce({ data: DECLINED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const heading = await screen.findByRole('heading', {
-      level: 1,
-      name: /signer declined; not sealed/i,
-    });
-    expect(heading).toHaveAttribute('aria-label', 'Signer declined; not sealed');
-  });
-
-  it('exposes an aria-label "Awaiting signatures" on the verdict heading while in progress', async () => {
-    const payload: VerifyResponse = {
-      ...SIGNED_PAYLOAD,
-      envelope: {
-        ...SIGNED_PAYLOAD.envelope,
-        status: 'awaiting_others',
-        completed_at: null,
-      },
-      sealed_url: null,
-    };
-    get.mockResolvedValueOnce({ data: payload });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const heading = await screen.findByRole('heading', {
-      level: 1,
-      name: /awaiting signatures/i,
-    });
-    expect(heading).toHaveAttribute('aria-label', 'Awaiting signatures');
-  });
-
-  // ---- Mobile tap-target (PR-5 item #6, [MEDIUM] a11y) -------------------
-  // `<Btn>` must hit the iOS 44×44 minimum on narrow viewports. Verified by
-  // inspecting the serialised styled-component CSS for a `min-height: 44px`
-  // rule inside a `(max-width: 640px)` media query.
-  it('bumps DocActions buttons to a 44px tap target on mobile', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    await screen.findByRole('link', { name: /download/i });
-    const collected = Array.from(document.querySelectorAll('style'))
-      .map((s) => s.textContent ?? '')
-      .join('\n');
-    // A `min-height: 44px` rule must live inside a `(max-width: 640px)`
-    // media query (Btn styled-component override).
-    expect(collected).toMatch(/@media[^{]*max-width:\s*640px[^{]*{[^}]*min-height:\s*44px/i);
-  });
-
-  // Verdict and document headings use theme.font.size. The phone verdict
-  // is h3, the desktop verdict (min-width 641px, the complement of the
-  // page's 640px breakpoint) is h1, and the card title is h5 at both widths.
-  it('uses type-scale tokens for the verdict and document headings at 390 and 1440', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const verdict = await screen.findByRole('heading', { level: 1, name: /sealed and intact/i });
-    const title = screen.getByRole('heading', {
-      level: 2,
-      name: SIGNED_PAYLOAD.envelope.title,
-    });
-
-    expect(fontSizeAt(verdict, 390)).toBe(seald.font.size.h3);
-    expect(fontSizeAt(verdict, 1440)).toBe(seald.font.size.h1);
-    expect(fontSizeAt(title, 390)).toBe(seald.font.size.h5);
-    expect(fontSizeAt(title, 1440)).toBe(seald.font.size.h5);
-
-    const verdictMobile = Number.parseFloat(fontSizeAt(verdict, 390));
-    const verdictDesktop = Number.parseFloat(fontSizeAt(verdict, 1440));
-    const titleSize = Number.parseFloat(fontSizeAt(title, 390));
-    expect(verdictDesktop).toBeGreaterThan(verdictMobile);
-    expect(verdictMobile).toBeGreaterThan(titleSize);
-  });
-
-  // ---- Verification URL "Copy share link" affordance (PR-5 item #11) -----
-  // Users who arrived via the verify URL can re-share it; the affordance
-  // closes the loop. Implementation copies the full `seald.nromomentum.com/
-  // verify/{short_code}` URL via the Clipboard API.
-  it('renders a "Copy share link" button next to the Verification URL fact and copies the full URL on click', async () => {
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    // jsdom doesn't ship navigator.clipboard; install a writable stub.
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText },
-      configurable: true,
-    });
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const copyBtn = await screen.findByRole('button', { name: /copy share link/i });
-    expect(copyBtn).toBeInTheDocument();
-    fireEvent.click(copyBtn);
-    await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith('seald.nromomentum.com/verify/u82ZmvdxwG3CU');
-    });
-  });
-
-  // ---- shortHash regression (PR-5 item #10, [LOW] interaction) -----------
-  // Dropping the manual `\n` lets the user copy the hash as a single string.
-  // Test pins the contract by asserting the rendered hash content has no
-  // literal newline character.
-  it('renders SHA-256 hashes as a single uninterrupted string (no manual line break)', async () => {
-    get.mockResolvedValueOnce({ data: SIGNED_PAYLOAD });
-    const Wrapper = wrap('/verify/u82ZmvdxwG3CU');
-    render(<VerifyPage />, { wrapper: Wrapper });
-    const node = await screen.findByLabelText(/original sha-256 hash/i);
-    expect(node.textContent ?? '').toBe(SIGNED_PAYLOAD.envelope.original_sha256);
-    expect(node.textContent ?? '').not.toMatch(/\n/);
   });
 });

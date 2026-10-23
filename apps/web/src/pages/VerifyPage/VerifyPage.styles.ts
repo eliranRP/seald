@@ -1,897 +1,524 @@
-import styled, { css, keyframes } from 'styled-components';
-import type { DefaultTheme } from 'styled-components';
-
-type VerdictVariant = 'success' | 'failed' | 'neutral';
-
-function verdictBg(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[50];
-  if (v === 'neutral') return theme.color.ink[100];
-  return theme.color.success[50];
-}
-function verdictFg(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[700];
-  if (v === 'neutral') return theme.color.fg[3];
-  return theme.color.success[700];
-}
-function verdictBorder(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[500];
-  if (v === 'neutral') return theme.color.border[2];
-  return theme.color.success[500];
-}
-function verdictRingBorder(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[500];
-  if (v === 'neutral') return theme.color.border[1];
-  return theme.color.success[500];
-}
-function eyebrowFg(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[700];
-  if (v === 'neutral') return theme.color.fg[3];
-  return theme.color.success[700];
-}
-function eyebrowDot(theme: DefaultTheme, v: VerdictVariant): string {
-  if (v === 'failed') return theme.color.danger[500];
-  if (v === 'neutral') return theme.color.ink[400];
-  return theme.color.success[500];
-}
-function dotBorderFor(theme: DefaultTheme, tone: 'success' | 'indigo' | 'warn'): string {
-  if (tone === 'success') return theme.color.success[500];
-  if (tone === 'warn') return theme.color.warn[500];
-  return theme.color.indigo[500];
-}
+import styled, { css } from 'styled-components';
+import { fadeIn, pop, rise, spring } from '@/styles/motion';
 
 /**
- * VerifyPage styles — mirror `Design-Guide/project/verify-flow.html`.
- *
- * Token discipline (CLAUDE.md, rule 3.7):
- *  - All colors come from theme tokens; literal hex banned by lint.
- *  - Spacing uses theme.space (4px increments).
- *  - Border-radii use theme.radius; pill where present in the design.
- *  - Typography (font-family, sizes) uses theme.font.*. The verify
- *    headings sit on that scale: the verdict is h3 on the phone and
- *    h1 from 641px, and the document title is h5. Those are the nearest
- *    steps to the old 30 / 44 / 19 sizes that keep the hero above the
- *    card title (design review on PR #353).
+ * VerifyPage styles — canvas `Verify.dc.html` / `VerifyMobile.dc.html`
+ * (seald.css section 23). Colours, type and radii come from theme tokens;
+ * the page is one centred 640px column that drops to 16px gutters at 640px.
  */
+const MOBILE = '@media (max-width: 640px)';
 
-const pulse = keyframes`
-  0% { transform: scale(0.95); opacity: 0.8; }
-  100% { transform: scale(1.18); opacity: 0; }
-`;
+export type VerdictTone = 'ok' | 'warn' | 'bad' | 'off';
 
-export const Page = styled.main<{ readonly $variant: 'success' | 'failed' | 'neutral' }>`
+export const Page = styled.div`
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: 100%;
   min-width: 0;
   min-height: 100vh;
+  background: ${({ theme }) => theme.color.bg.subtle};
   font-family: ${({ theme }) => theme.font.sans};
   color: ${({ theme }) => theme.color.fg[1]};
-  ${({ theme, $variant }) => {
-    if ($variant === 'failed') {
-      return css`
-        background:
-          radial-gradient(900px 360px at 50% -100px, ${theme.color.danger[50]} 0%, transparent 70%),
-          ${theme.color.paper};
-      `;
-    }
-    if ($variant === 'neutral') {
-      return css`
-        background:
-          radial-gradient(900px 360px at 50% -100px, ${theme.color.ink[100]} 0%, transparent 70%),
-          ${theme.color.paper};
-      `;
-    }
-    return css`
-      background:
-        radial-gradient(900px 360px at 50% -100px, ${theme.color.success[50]} 0%, transparent 70%),
-        ${theme.color.paper};
-    `;
-  }}
 `;
 
-export const Container = styled.div`
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 920px;
-  min-width: 0;
-  margin: 0 auto;
-  padding: 56px ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]};
-
-  @media (max-width: 640px) {
-    /*
-     * Bottom padding includes an 80px safe-zone so the global cookie-consent
-     * banner (apps/landing/public/scripts/cookie-consent.js) cannot occlude
-     * the primary actions (Download / Audit PDF) on mobile. The banner is
-     * dismissed once and disappears via JS, but until then we keep clearance.
-     */
-    padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[5]} 80px;
-  }
-`;
-
-export const Verdict = styled.section`
-  text-align: center;
-  margin-bottom: ${({ theme }) => theme.space[8]};
-`;
-
-export const VerdictMark = styled.div<{ readonly $variant: 'success' | 'failed' | 'neutral' }>`
-  width: 88px;
-  height: 88px;
-  margin: 0 auto ${({ theme }) => theme.space[5]};
-  border-radius: ${({ theme }) => theme.radius.pill};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  background: ${({ theme, $variant }) => verdictBg(theme, $variant)};
-  color: ${({ theme, $variant }) => verdictFg(theme, $variant)};
-  border: 1.5px solid ${({ theme, $variant }) => verdictBorder(theme, $variant)};
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: -10px;
-    border-radius: ${({ theme }) => theme.radius.pill};
-    border: 1.5px solid ${({ theme, $variant }) => verdictRingBorder(theme, $variant)};
-    opacity: 0.18;
-    animation: ${pulse} 3s ${({ theme }) => theme.motion.easeStandard} infinite;
-  }
-
-  /*
-   * Vestibular-disorder users see the 3s pulse loop indefinitely otherwise.
-   * Defer to the OS-level prefers-reduced-motion preference and turn the
-   * animation off entirely; the ring still renders, just static.
-   */
-  @media (prefers-reduced-motion: reduce) {
-    &::before {
-      animation: none;
-    }
-  }
-
-  svg {
-    width: 44px;
-    height: 44px;
-  }
-`;
-
-export const VerdictEyebrow = styled.span<{ readonly $variant: 'success' | 'failed' | 'neutral' }>`
-  font-size: 12px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-  margin-bottom: ${({ theme }) => theme.space[3]};
-  color: ${({ theme, $variant }) => eyebrowFg(theme, $variant)};
-
-  &::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    border-radius: ${({ theme }) => theme.radius.pill};
-    background: ${({ theme, $variant }) => eyebrowDot(theme, $variant)};
-  }
-`;
-
-export const VerdictHeading = styled.h1`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  /*
-   * Mobile-first. The phone size is h3 (28px), the nearest scale step
-   * to the old 30px. Desktop (the complement of the page's 640px
-   * breakpoint) is h1 (48px), the nearest step to the old 44px.
-   */
-  font-size: ${({ theme }) => theme.font.size.h3};
-  line-height: ${({ theme }) => theme.font.lineHeight.tight};
-  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
-  color: ${({ theme }) => theme.color.fg[1]};
-  margin: 0 0 ${({ theme }) => theme.space[3]};
-  text-wrap: balance;
-
-  em {
-    font-style: italic;
-    font-family: inherit;
-    color: ${({ theme }) => theme.color.success[700]};
-  }
-
-  em.danger {
-    color: ${({ theme }) => theme.color.danger[700]};
-  }
-
-  @media (min-width: 641px) {
-    font-size: ${({ theme }) => theme.font.size.h1};
-  }
-`;
-
-export const VerdictBody = styled.p`
-  color: ${({ theme }) => theme.color.fg[2]};
-  font-size: ${({ theme }) => theme.font.size.body};
-  line-height: 1.55;
-  max-width: 540px;
-  margin: 0 auto;
-`;
-
-export const Card = styled.section`
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  background: ${({ theme }) => theme.color.paper};
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.lg};
-  box-shadow: ${({ theme }) => theme.shadow.md};
-  overflow: hidden;
-`;
-
-export const CardHead = styled.header`
-  box-sizing: border-box;
-  min-width: 0;
-  max-width: 100%;
-  padding: ${({ theme }) => theme.space[5]} ${({ theme }) => theme.space[6]};
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[4]};
-  background: ${({ theme }) => theme.color.ink[50]};
-
-  @media (max-width: 640px) {
-    flex-direction: column;
-    align-items: stretch;
-  }
-`;
-
-export const DocMeta = styled.div`
+/** `.sign-top` — the public header. */
+export const TopBar = styled.header`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
-  flex: 1;
-  min-width: 0;
-  max-width: 100%;
-`;
-
-export const DocTitle = styled.h2`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  /* h5 (18px) is the nearest scale step to the old 19px, and stays under the verdict. */
-  font-size: ${({ theme }) => theme.font.size.h5};
-  color: ${({ theme }) => theme.color.fg[1]};
-  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
-  line-height: ${({ theme }) => theme.font.lineHeight.snug};
-  margin: 0 0 4px;
-  min-width: 0;
-  max-width: 100%;
-  overflow-wrap: break-word;
-`;
-
-export const DocSub = styled.div`
-  font-size: ${({ theme }) => theme.font.size.caption};
-  color: ${({ theme }) => theme.color.fg[3]};
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-  flex-wrap: wrap;
-
-  .id {
-    font-family: ${({ theme }) => theme.font.mono};
-    font-size: 12px;
-    color: ${({ theme }) => theme.color.fg[2]};
-  }
-
-  .sep {
-    width: 3px;
-    height: 3px;
-    border-radius: ${({ theme }) => theme.radius.pill};
-    background: ${({ theme }) => theme.color.ink[300]};
+  height: 64px;
+  padding: 0 ${({ theme }) => theme.space[6]};
+  background: ${({ theme }) => theme.color.paper};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+  ${MOBILE} {
+    padding: 0 ${({ theme }) => theme.space[4]};
   }
 `;
 
-export const DocActions = styled.div`
-  display: flex;
-  gap: ${({ theme }) => theme.space[2]};
-  flex-shrink: 0;
-`;
-
-export const Btn = styled.a<{ readonly $variant?: 'primary' | 'secondary' }>`
+export const Logo = styled.span`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
-  font-family: ${({ theme }) => theme.font.sans};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  padding: 9px 14px;
-  border-radius: ${({ theme }) => theme.radius.md};
-  border: 1px solid transparent;
-  cursor: pointer;
-  text-decoration: none;
-  transition: background ${({ theme }) => theme.motion.durFast};
-
-  ${({ theme, $variant }) =>
-    $variant === 'primary'
-      ? css`
-          background: ${theme.color.indigo[600]};
-          color: ${theme.color.paper};
-          &:hover {
-            background: ${theme.color.indigo[700]};
-          }
-        `
-      : css`
-          background: ${theme.color.paper};
-          color: ${theme.color.fg[1]};
-          border-color: ${theme.color.border[1]};
-          &:hover {
-            background: ${theme.color.ink[50]};
-          }
-        `};
-
-  svg {
-    width: 14px;
-    height: 14px;
-    stroke-width: 1.75;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke: currentColor;
-  }
-
-  /*
-   * iOS HIG / WCAG 2.5.5 require a 44×44 px minimum tap target. The desktop
-   * caption-sized button is below that floor on small viewports, so we bump
-   * padding + apply an explicit min-height inside the mobile breakpoint.
-   */
-  @media (max-width: 640px) {
-    padding: 12px 16px;
-    min-height: 44px;
-  }
 `;
 
-export const Facts = styled.dl`
-  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[6]}
-    ${({ theme }) => theme.space[6]};
-  margin: 0;
-`;
-
-export const Fact = styled.div`
-  display: grid;
-  /*
-   * Flexible key column: collapses from 200 px down to 140 px on the
-   * 1024–1100 px range where long hash values + tags previously collided
-   * with the fixed 200 px label.
-   */
-  grid-template-columns: minmax(140px, 200px) 1fr auto;
-  gap: ${({ theme }) => theme.space[6]};
-  padding: ${({ theme }) => theme.space[3]} 0;
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+export const LogoMark = styled.span`
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fgOnAccent};
+  font-family: ${({ theme }) => theme.font.script};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: ${({ theme }) => theme.font.size.xl};
+  line-height: 1;
+`;
 
-  &:last-child {
-    border-bottom: none;
-  }
+export const LogoWord = styled.span`
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.xl};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+`;
 
-  /*
-   * When the value wraps (two-line SHA-256 hash), the tag should pin to
-   * the top of the row instead of vertically centering against a
-   * multi-line value.
-   */
-  & > :last-child {
-    align-self: start;
-  }
+export const Spacer = styled.span`
+  flex: 1;
+`;
 
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    gap: ${({ theme }) => theme.space[1]};
+export const Stage = styled.main`
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: ${({ theme }) => theme.space[16]} ${({ theme }) => theme.space[6]}
+    ${({ theme }) => theme.space[10]};
+  ${MOBILE} {
+    padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[4]}
+      ${({ theme }) => theme.space[10]};
   }
 `;
 
-export const FactKey = styled.dt`
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
+export const Column = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[8]};
+  width: 100%;
+  max-width: 640px;
+  min-width: 0;
+`;
+
+/* ---- verdict hero ---- */
+
+export const Verdict = styled.section`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  text-align: center;
+  ${fadeIn}
+`;
+
+const TONES = {
+  ok: { bg: 'success', fg: 'success', ring: 'rgba(16, 185, 129, 0.08)' },
+  warn: { bg: 'warn', fg: 'warn', ring: 'rgba(245, 158, 11, 0.08)' },
+  bad: { bg: 'danger', fg: 'danger', ring: 'rgba(239, 68, 68, 0.08)' },
+} as const;
+
+export const VerdictIcon = styled.span<{ readonly $tone: VerdictTone }>`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  ${spring}
+  ${({ theme, $tone }) => {
+    if ($tone === 'off') {
+      return css`
+        background: ${theme.color.ink[100]};
+        color: ${theme.color.fg[3]};
+      `;
+    }
+    const t = TONES[$tone];
+    return css`
+      background: ${theme.color[t.bg][50]};
+      color: ${theme.color[t.fg][700]};
+      box-shadow: 0 0 0 8px ${t.ring};
+    `;
+  }}
+  ${MOBILE} {
+    width: 80px;
+    height: 80px;
+  }
+`;
+
+export const VerdictWord = styled.h1`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.x5l};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  color: ${({ theme }) => theme.color.fg[1]};
+  ${MOBILE} {
+    font-size: ${({ theme }) => theme.font.size.x3l};
+  }
+`;
+
+export const DocTitle = styled.h2`
+  margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.lg};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.02em;
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const Meta = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const Avatars = styled.ul`
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[2]};
+  margin: ${({ theme }) => theme.space[1]} 0 0;
+  padding: 0;
+  list-style: none;
+`;
+
+export const AvatarSlot = styled.li<{ readonly $faded: boolean }>`
+  display: inline-flex;
+  opacity: ${({ $faded }) => ($faded ? 0.45 : 1)};
+`;
+
+export const ChipsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+/* ---- compare a copy ---- */
+
+export const DropZone = styled.div<{ readonly $over: boolean }>`
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[4]};
+  width: 100%;
+  min-height: 96px;
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[5]};
+  border: 1.5px dashed ${({ theme }) => theme.color.indigo[300]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  transition:
+    background ${({ theme }) => theme.motion.durBase} ${({ theme }) => theme.motion.easeStandard},
+    border-color ${({ theme }) => theme.motion.durBase} ${({ theme }) => theme.motion.easeStandard};
+  ${({ $over, theme }) =>
+    $over &&
+    css`
+      border-color: ${theme.color.indigo[500]};
+      background: ${theme.color.indigo[50]};
+    `}
+  ${MOBILE} {
+    flex-wrap: wrap;
+  }
+`;
+
+export const DropText = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+`;
+
+export const DropTitle = styled.span`
+  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const HiddenInput = styled.input`
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+`;
+
+export const ResultCard = styled.div<{ readonly $bad?: boolean }>`
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[4]};
+  width: 100%;
+  padding: ${({ theme }) => theme.space[5]};
+  border: 1px solid ${({ theme, $bad }) => ($bad ? theme.color.danger[500] : theme.color.border[1])};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme, $bad }) => ($bad ? theme.color.danger[50] : theme.color.paper)};
+  ${pop}
+  ${MOBILE} {
+    flex-wrap: wrap;
+  }
+`;
+
+export const ResultBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: ${({ theme }) => theme.space[2]};
+  flex: 1;
+  min-width: 0;
+`;
+
+export const CheckingRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  color: ${({ theme }) => theme.color.indigo[600]};
+  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+`;
+
+/* ---- technical details ---- */
+
+export const DetailsCard = styled.section`
+  box-sizing: border-box;
+  width: 100%;
+  padding: ${({ theme }) => `0 ${theme.space[5]} ${theme.space[3]}`};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.color.paper};
+  ${rise}
+`;
+
+export const Expander = styled.button`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
-
-  svg {
-    width: 14px;
-    height: 14px;
-    stroke-width: 1.75;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke: ${({ theme }) => theme.color.fg[4]};
+  width: 100%;
+  height: 48px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  text-align: left;
+  cursor: pointer;
+  &:focus-visible {
+    outline: 0;
+    border-radius: ${({ theme }) => theme.radius.sm};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  & > :last-child {
+    margin-left: auto;
+    transition: transform ${({ theme }) => theme.motion.durBase}
+      ${({ theme }) => theme.motion.easeStandard};
+  }
+  &[aria-expanded='true'] > :last-child {
+    transform: rotate(180deg);
   }
 `;
 
-export const FactVal = styled.dd<{ readonly $mono?: boolean; readonly $hash?: boolean }>`
+export const KvList = styled.dl`
+  display: flex;
+  flex-direction: column;
+  margin: ${({ theme }) => theme.space[2]} 0 0;
+`;
+
+export const KvRow = styled.div<{ readonly $danger?: boolean }>`
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  min-height: 44px;
+  padding: ${({ theme }) => theme.space[2]} 0;
+  border-top: 1px solid ${({ theme }) => theme.color.ink[150]};
+  &:first-child {
+    border-top: 0;
+  }
+  ${MOBILE} {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  ${({ $danger, theme }) =>
+    $danger &&
+    css`
+      margin: 0 -${theme.space[3]};
+      padding: ${theme.space[2]} ${theme.space[3]};
+      border-top: 0;
+      border-radius: ${theme.radius.sm};
+      background: ${theme.color.danger[50]};
+      color: ${theme.color.danger[700]};
+    `}
+`;
+
+export const KvKey = styled.dt`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+  ${MOBILE} {
+    grid-column: 1 / -1;
+  }
+`;
+
+export const KvVal = styled.dd<{ readonly $hash?: boolean }>`
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[1]};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  line-height: 1.4;
-  word-break: break-word;
-  margin: 0;
-
-  ${({ $mono, theme }) =>
-    $mono &&
-    css`
-      font-family: ${theme.font.mono};
-      font-size: 13px;
-      font-weight: ${theme.font.weight.regular};
-      color: ${theme.color.ink[700]};
-      letter-spacing: -0.005em;
-    `}
-
   ${({ $hash, theme }) =>
     $hash &&
     css`
       font-family: ${theme.font.mono};
-      font-size: 12px;
-      color: ${theme.color.ink[700]};
-      word-break: break-all;
-      line-height: 1.5;
-      font-weight: ${theme.font.weight.regular};
+      font-size: ${theme.font.size.xs};
     `}
 `;
 
-export const Tag = styled.span<{
-  readonly $tone?: 'success' | 'indigo' | 'neutral' | 'danger' | 'warn';
-}>`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-  padding: 3px 10px 3px 8px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: 11px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.02em;
-
-  ${({ theme, $tone = 'success' }) => {
-    const palette = {
-      success: {
-        bg: theme.color.success[50],
-        fg: theme.color.success[700],
-        dot: theme.color.success[500],
-      },
-      indigo: {
-        bg: theme.color.indigo[50],
-        fg: theme.color.indigo[700],
-        dot: theme.color.indigo[500],
-      },
-      neutral: { bg: theme.color.ink[100], fg: theme.color.fg[2], dot: theme.color.ink[400] },
-      danger: {
-        bg: theme.color.danger[50],
-        fg: theme.color.danger[700],
-        dot: theme.color.danger[500],
-      },
-      warn: { bg: theme.color.warn[50], fg: theme.color.warn[700], dot: theme.color.warn[500] },
-    } as const;
-    const { bg, fg, dot } = palette[$tone];
-    return css`
-      background: ${bg};
-      color: ${fg};
-      &::before {
-        content: '';
-        width: 6px;
-        height: 6px;
-        border-radius: ${theme.radius.pill};
-        background: ${dot};
-      }
-    `;
-  }}
-`;
-
-export const SignersList = styled.ul`
-  display: flex;
-  flex-direction: column;
-  gap: ${({ theme }) => theme.space[2]};
-  list-style: none;
+export const KvAction = styled.dd`
   margin: 0;
-  padding: 0;
-`;
-
-export const SignerRow = styled.li`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme }) => theme.color.fg[1]};
-`;
-
-export const Avatar = styled.span<{ readonly $bg: string }>`
-  width: 26px;
-  height: 26px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ $bg }) => $bg};
-  color: ${({ theme }) => theme.color.paper};
-  font-weight: ${({ theme }) => theme.font.weight.bold};
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-`;
-
-export const SignerName = styled.span`
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-`;
-
-export const SignerEmail = styled.span`
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-size: 13px;
-`;
-
-export const SignerCheck = styled.span<{ readonly $declined?: boolean }>`
-  margin-left: auto;
-  color: ${({ theme, $declined }) =>
-    $declined ? theme.color.danger[500] : theme.color.success[500]};
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-
-  svg {
-    width: 14px;
-    height: 14px;
-  }
 `;
 
-export const Integrity = styled.div<{ readonly $failed?: boolean }>`
-  padding: ${({ theme }) => theme.space[4]} ${({ theme }) => theme.space[6]};
-  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
-  background: ${({ theme, $failed }) => ($failed ? theme.color.danger[50] : theme.color.ink[50])};
+export const DetailsFoot = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[4]};
-  flex-wrap: wrap;
-`;
-
-export const IntegrityIco = styled.span<{ readonly $failed?: boolean }>`
-  width: 32px;
-  height: 32px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme, $failed }) =>
-    $failed ? theme.color.danger[50] : theme.color.success[50]};
-  color: ${({ theme, $failed }) => ($failed ? theme.color.danger[700] : theme.color.success[700])};
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-
-  svg {
-    width: 16px;
-    height: 16px;
-    stroke-width: 2;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke: currentColor;
-  }
-`;
-
-export const IntegrityInner = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
-`;
-
-export const IntegrityText = styled.div`
-  font-size: ${({ theme }) => theme.font.size.caption};
-  color: ${({ theme }) => theme.color.ink[700]};
-  line-height: 1.4;
-
-  strong {
-    color: ${({ theme }) => theme.color.fg[1]};
-    font-weight: ${({ theme }) => theme.font.weight.semibold};
-  }
-`;
-
-export const IntegrityMeta = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
   flex-wrap: wrap;
   justify-content: flex-end;
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
-export const Timeline = styled.div`
-  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[6]}
-    ${({ theme }) => theme.space[6]};
-`;
-
-export const TimelineHead = styled.h3`
-  font-size: 12px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.06em;
-  color: ${({ theme }) => theme.color.fg[3]};
-  text-transform: uppercase;
-  padding: ${({ theme }) => theme.space[3]} 0;
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
-  margin: 0;
-`;
-
-export const TimelineRow = styled.li<{ readonly $tone?: 'success' | 'indigo' | 'warn' }>`
-  display: grid;
-  grid-template-columns: 90px 24px 1fr auto;
-  gap: ${({ theme }) => theme.space[3]};
-  align-items: flex-start;
-  padding: ${({ theme }) => theme.space[3]} 0;
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
-  position: relative;
-
-  &:last-child {
-    border-bottom: none;
-  }
-
-  /*
-   * On mobile the dot-and-line column is ornamental — hide it and move
-   * the tone color onto a 3px left border on the row itself, which keeps
-   * the visual hierarchy without burning a column.
-   */
-  @media (max-width: 640px) {
-    grid-template-columns: 1fr;
-    padding-left: ${({ theme }) => theme.space[3]};
-    border-left: 3px solid ${({ theme, $tone = 'indigo' }) => dotBorderFor(theme, $tone)};
-  }
-`;
-
-export const TimelineList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
-`;
-
-export const TimelineTime = styled.div`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  padding-top: 2px;
-
-  .d {
-    display: block;
-    color: ${({ theme }) => theme.color.fg[2]};
-    font-weight: ${({ theme }) => theme.font.weight.medium};
-  }
-`;
-
-export const TimelineDotCol = styled.div`
-  position: relative;
-  align-self: stretch;
-
-  /*
-   * Single-column mobile timeline — the dot column drops to nothing and
-   * the row's left border carries the tone instead (TimelineRow above).
-   */
-  @media (max-width: 640px) {
-    display: none;
-  }
-`;
-
-export const TimelineDot = styled.span<{ readonly $tone?: 'success' | 'indigo' | 'warn' }>`
-  position: absolute;
-  left: 50%;
-  top: 6px;
-  width: 10px;
-  height: 10px;
-  border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.paper};
-  border: 2px solid ${({ theme, $tone = 'indigo' }) => dotBorderFor(theme, $tone)};
-  transform: translateX(-50%);
-  z-index: 1;
-`;
-
-export const TimelineLine = styled.span`
-  position: absolute;
-  left: 50%;
-  top: 18px;
-  bottom: -12px;
-  width: 1px;
-  background: ${({ theme }) => theme.color.border[1]};
-  transform: translateX(-50%);
-`;
-
-export const TimelineBody = styled.div`
-  strong {
-    color: ${({ theme }) => theme.color.fg[1]};
-    font-weight: ${({ theme }) => theme.font.weight.semibold};
-    font-size: ${({ theme }) => theme.font.size.bodySm};
-    display: block;
-    margin-bottom: 2px;
-  }
-
-  span {
-    color: ${({ theme }) => theme.color.fg[2]};
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .meta {
-    color: ${({ theme }) => theme.color.fg[3]};
-    font-size: 12px;
-    margin-top: 4px;
-    display: block;
-    font-family: ${({ theme }) => theme.font.mono};
-  }
-`;
-
-export const TimelineActor = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  text-align: right;
-  padding-top: 2px;
-
-  .nm {
-    color: ${({ theme }) => theme.color.fg[1]};
-    font-weight: ${({ theme }) => theme.font.weight.medium};
-    display: block;
-    font-family: ${({ theme }) => theme.font.sans};
-    font-size: 13px;
-  }
+  gap: ${({ theme }) => theme.space[2]};
+  margin-top: ${({ theme }) => theme.space[2]};
 `;
 
 export const Footer = styled.footer`
-  margin-top: ${({ theme }) => theme.space[8]};
-  padding-top: ${({ theme }) => theme.space[5]};
-  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-size: 12px;
-  gap: ${({ theme }) => theme.space[4]};
-  flex-wrap: wrap;
-`;
-
-export const FooterLeft = styled.div`
-  display: flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-`;
-
-export const FooterRight = styled.div<{ readonly $alert?: boolean }>`
-  display: flex;
-  gap: ${({ theme }) => theme.space[4]};
-
-  span {
-    display: inline-flex;
-    align-items: center;
-    gap: ${({ theme }) => theme.space[2]};
-  }
-
-  svg {
-    width: 12px;
-    height: 12px;
-    color: ${({ theme, $alert }) => ($alert ? theme.color.danger[700] : theme.color.success[500])};
-  }
-`;
-
-export const SkeletonBlock = styled.div`
-  background: linear-gradient(
-    90deg,
-    ${({ theme }) => theme.color.ink[100]} 0%,
-    ${({ theme }) => theme.color.ink[150]} 50%,
-    ${({ theme }) => theme.color.ink[100]} 100%
-  );
-  background-size: 200% 100%;
-  border-radius: ${({ theme }) => theme.radius.sm};
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
-
-  @keyframes skeleton-shimmer {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-
-  /*
-   * Shimmer is decorative — vestibular-disorder users should not see the
-   * 1.4s background-position loop. Static gradient is fine as a skeleton
-   * surface; the surrounding aria-busy still announces loading state.
-   */
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-`;
-
-/*
- * Inline secondary action button. Renders next to the Verification URL fact
- * value to copy the shareable URL to the clipboard.
- */
-export const InlineActionBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[1]};
-  font-family: ${({ theme }) => theme.font.sans};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  font-size: ${({ theme }) => theme.font.size.caption};
-  color: ${({ theme }) => theme.color.indigo[700]};
-  background: transparent;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.sm};
-  padding: 4px 8px;
-  margin-left: ${({ theme }) => theme.space[2]};
-  cursor: pointer;
-  transition: background ${({ theme }) => theme.motion.durFast};
-
-  &:hover {
-    background: ${({ theme }) => theme.color.ink[50]};
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
-  }
-
-  svg {
-    width: 12px;
-    height: 12px;
-  }
-`;
-
-/*
- * Loading-state messaging — softens the subtitle copy after 5 s and renders
- * a manual Retry affordance after 15 s if the verify query is still pending.
- */
-export const LoadingSubtitle = styled.p`
-  color: ${({ theme }) => theme.color.fg[3]};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  margin: ${({ theme }) => theme.space[5]} auto 0;
-  text-align: center;
-`;
-
-export const LoadingRetryBtn = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
-  margin: ${({ theme }) => theme.space[4]} auto 0;
-  font-family: ${({ theme }) => theme.font.sans};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  color: ${({ theme }) => theme.color.paper};
-  background: ${({ theme }) => theme.color.indigo[600]};
-  border: 1px solid transparent;
-  border-radius: ${({ theme }) => theme.radius.md};
-  padding: 10px 16px;
-  min-height: 44px;
-  cursor: pointer;
-  transition: background ${({ theme }) => theme.motion.durFast};
-
-  &:hover {
-    background: ${({ theme }) => theme.color.indigo[700]};
-  }
-
-  &:focus-visible {
-    outline: none;
-    box-shadow: ${({ theme }) => theme.shadow.focus};
-  }
-`;
-
-export const LoadingActions = styled.div`
-  display: flex;
   justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+/* ---- entry ---- */
+
+export const EntryStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[6]};
+`;
+
+export const EntryTitle = styled.h1`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.x4l};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const CodeForm = styled.form`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  width: 100%;
+`;
+
+export const CodeInput = styled.input<{ readonly $error: boolean }>`
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 380px;
+  height: 56px;
+  padding: 0 ${({ theme }) => theme.space[4]};
+  border: 1.5px solid
+    ${({ theme, $error }) => ($error ? theme.color.danger[500] : theme.color.border[2])};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.xl};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: ${({ theme }) => theme.color.fg[1]};
+  transition:
+    border-color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeStandard},
+    box-shadow ${({ theme }) => theme.motion.durBase} ${({ theme }) => theme.motion.easeOut};
+  &::placeholder {
+    letter-spacing: 0;
+    font-family: ${({ theme }) => theme.font.sans};
+    font-size: ${({ theme }) => theme.font.size.body};
+    font-weight: ${({ theme }) => theme.font.weight.regular};
+    color: ${({ theme }) => theme.color.fg[4]};
+  }
+  &:focus {
+    outline: 0;
+    border-color: ${({ theme, $error }) =>
+      $error ? theme.color.danger[500] : theme.color.indigo[600]};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const InlineAlert = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.danger[700]};
+`;
+
+export const OrRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  width: 100%;
+`;
+
+export const OrRule = styled.span`
+  flex: 1;
+  height: 1px;
+  background: ${({ theme }) => theme.color.border[1]};
+`;
+
+export const EntryDrop = styled(DropZone)`
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[6]}`};
+`;
+
+/* ---- loading + errors ---- */
+
+export const LoadingStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[4]};
+`;
+
+export const SkeletonChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const LoadingNote = styled.p`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const ErrorPanel = styled.div`
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[6]};
+  border: 1px solid ${({ theme }) => theme.color.danger[200]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  background: ${({ theme }) => theme.color.danger[50]};
   text-align: center;
-  padding: ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[6]};
-
   h2 {
-    font-family: ${({ theme }) => theme.font.serif};
-    font-weight: ${({ theme }) => theme.font.weight.medium};
-    font-size: 28px;
-    color: ${({ theme }) => theme.color.fg[1]};
-    margin: 0 0 ${({ theme }) => theme.space[3]};
+    margin: 0;
+    font-size: ${({ theme }) => theme.font.size.xl};
+    color: ${({ theme }) => theme.color.danger[800]};
   }
-
   p {
-    color: ${({ theme }) => theme.color.fg[3]};
-    font-size: ${({ theme }) => theme.font.size.body};
-    line-height: 1.55;
-    max-width: 480px;
-    margin: 0 auto;
+    margin: 0;
+    font-size: ${({ theme }) => theme.font.size.bodySm};
+    color: ${({ theme }) => theme.color.fg[2]};
   }
 `;

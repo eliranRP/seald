@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -108,8 +108,9 @@ describe('VerifyPage with several documents', () => {
     get.mockResolvedValueOnce({ data: PAYLOAD });
     renderVerify();
 
-    expect(await screen.findByText(/Master agreement/)).toBeInTheDocument();
-    expect(screen.getByText(/Side letter/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /technical details/i }));
+
+    expect(screen.getByLabelText('Original SHA-256 hash of Master agreement')).toBeInTheDocument();
     expect(screen.getByLabelText('Original SHA-256 hash of Master agreement')).toHaveTextContent(
       HASH('a'),
     );
@@ -135,7 +136,7 @@ describe('VerifyPage with several documents', () => {
     expect(screen.queryByLabelText('Original SHA-256 hash')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Sealed SHA-256 hash')).not.toBeInTheDocument();
     // The audit PDF stays.
-    expect(screen.getByRole('link', { name: /audit pdf/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /audit trail pdf/i })).toBeInTheDocument();
   });
 
   it('renders the single-document view when the flag is off, even if documents arrive', async () => {
@@ -143,10 +144,11 @@ describe('VerifyPage with several documents', () => {
     get.mockResolvedValueOnce({ data: PAYLOAD });
     renderVerify();
 
-    expect(await screen.findByLabelText('Original SHA-256 hash')).toHaveTextContent(HASH('a'));
+    fireEvent.click(await screen.findByRole('button', { name: /technical details/i }));
+    expect(screen.getByLabelText('Original SHA-256 hash')).toHaveTextContent(HASH('a'));
     expect(screen.getByLabelText('Sealed SHA-256 hash')).toHaveTextContent(HASH('c'));
     expect(screen.queryByLabelText(/SHA-256 hash of/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /^download$/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /^sealed pdf$/i })).toHaveAttribute(
       'href',
       'https://signed.example/sealed.pdf',
     );
@@ -158,7 +160,8 @@ describe('VerifyPage with several documents', () => {
       data: { ...PAYLOAD, documents: [PAYLOAD.documents![0]!] },
     });
     renderVerify();
-    expect(await screen.findByLabelText('Original SHA-256 hash')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /technical details/i }));
+    expect(screen.getByLabelText('Original SHA-256 hash')).toBeInTheDocument();
     expect(screen.queryByLabelText(/SHA-256 hash of/)).not.toBeInTheDocument();
   });
 });

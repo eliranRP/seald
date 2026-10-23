@@ -34,6 +34,7 @@ const SPA_EXACT = new Set([
   '/signers',
   '/contacts',
   '/templates',
+  '/verify',
 ]);
 
 // Trailing slash matters: '/auth/' matches '/auth/foo' and '/auth' itself.

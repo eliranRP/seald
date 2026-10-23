@@ -189,7 +189,7 @@ const EXPIRED: VerifyResponse = {
 
 interface WithDataProps {
   readonly data: VerifyResponse | null;
-  readonly forcedState?: 'loading' | 'error';
+  readonly forcedState?: 'loading' | 'error' | 'entry';
 }
 
 function verifyPayloadResponse(
@@ -260,11 +260,14 @@ function StoryHarness({ data, forcedState }: WithDataProps) {
         isInvalidated: false,
       });
   }
-  const route = forcedState === 'error' ? '/verify/missing' : `/verify/${SHORT}`;
+  let route = `/verify/${SHORT}`;
+  if (forcedState === 'error') route = '/verify/missing';
+  if (forcedState === 'entry') route = '/verify';
   return (
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[route]}>
         <Routes>
+          <Route path="/verify" element={<VerifyPage />} />
           <Route path="/verify/:shortCode" element={<VerifyPage />} />
         </Routes>
       </MemoryRouter>
@@ -290,23 +293,42 @@ export const Loading: Story = {
   render: () => <StoryHarness data={null} forcedState="loading" />,
 };
 
+/** `/verify` with no code: type the 13-character code or drop the sealed PDF. */
+export const Entry: Story = {
+  render: () => <StoryHarness data={null} forcedState="entry" />,
+};
+
+/** Awaiting signatures: warn verdict, faded avatar, no compare card. */
+export const InProgress: Story = {
+  render: () => (
+    <StoryHarness
+      data={{
+        ...COMPLETED,
+        envelope: {
+          ...COMPLETED.envelope,
+          status: 'awaiting_others',
+          completed_at: null,
+          sealed_sha256: null,
+        },
+        signers: [
+          COMPLETED.signers[0]!,
+          { ...COMPLETED.signers[1]!, status: 'awaiting', signed_at: null },
+        ],
+        sealed_url: null,
+      }}
+    />
+  ),
+};
+
+/** An unknown code returns to the entry page with the field marked. */
 export const NotFound: Story = {
   render: () => <StoryHarness data={null} forcedState="error" />,
 };
 
 /**
- * Tamper-evident audit chain failure. `verifyEventChain` detected a
- * row whose `prev_event_hash` doesn't match the canonical-JSON hash of
- * its predecessor. The page uses the danger ramp (danger-50 wash,
- * danger-700 eyebrow, ShieldAlert mark and integrity icon) instead of
- * the success check. The eyebrow reads "Sealed · audit chain broken",
- * the heading's accessible name is "Sealed; audit chain broken", and
- * the integrity line tells the reader to contact the sender. It does
- * not say the seal is intact or that the document is unchanged.
- *
- * Pinned as its own Chromatic baseline so a regression that drops the
- * badge or swaps the danger color is caught visually on every PR.
- * Shown at the 390×844 phone viewport, where the verdict uses h3.
+ * Tamper-evident audit chain failure: the red "Tampered" verdict, an
+ * "Audit chain broken" chip and the technical details open by default.
+ * Pinned as its own Chromatic baseline, at the 390x844 phone viewport.
  */
 export const ChainBroken: Story = {
   render: () => <StoryHarness data={{ ...COMPLETED, chain_intact: false }} />,
