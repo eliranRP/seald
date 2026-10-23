@@ -71,7 +71,7 @@ describe('TemplatesListPage — phone', () => {
     expect(screen.getByRole('button', { name: TAGGED[0]!.name })).toBeInTheDocument();
   });
 
-  it('⋯ opens a sheet with Edit, Duplicate, Tags and Delete', async () => {
+  it('⋯ opens a sheet with Edit, Duplicate, Tags, Direct link and Delete', async () => {
     const user = userEvent.setup();
     renderPhone();
     await user.click(screen.getByRole('button', { name: `More for ${TAGGED[0]!.name}` }));
@@ -80,7 +80,7 @@ describe('TemplatesListPage — phone', () => {
       within(sheet)
         .getAllByRole('button')
         .map((b) => b.textContent),
-    ).toEqual(['Edit', 'Duplicate', 'Tags', 'Delete']);
+    ).toEqual(['Edit', 'Duplicate', 'Tags', 'Direct link', 'Delete']);
     await user.click(within(sheet).getByRole('button', { name: 'Edit' }));
     expect(screen.getByLabelText('location')).toHaveTextContent(
       `/templates/${encodeURIComponent(TAGGED[0]!.id)}/edit?mode=edit`,

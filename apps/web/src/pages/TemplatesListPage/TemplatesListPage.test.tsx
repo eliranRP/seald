@@ -175,7 +175,7 @@ describe('TemplatesListPage — card menu', () => {
     );
   });
 
-  it('lists Edit, Duplicate, Tags and Delete', async () => {
+  it('lists Edit, Duplicate, Tags, Direct link and Delete', async () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: `More for ${NDA.name}` }));
@@ -183,6 +183,7 @@ describe('TemplatesListPage — card menu', () => {
       'Edit',
       'Duplicate',
       'Tags',
+      'Direct link',
       'Delete',
     ]);
   });
