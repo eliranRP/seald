@@ -48,6 +48,35 @@ describe('validateNextPath — accepted approval paths', () => {
   });
 });
 
+describe('validateNextPath — the owner pages (signed-out dialog)', () => {
+  it.each([
+    '/documents',
+    '/documents?q=nda',
+    '/document/abc-123',
+    '/document/new',
+    '/templates',
+    '/templates/t_1/use',
+    '/signers',
+    '/settings',
+    '/settings/integrations',
+    '/settings/developers',
+  ])('accepts %s', (candidate) => {
+    expect(validateNextPath(candidate)).toBe(candidate);
+  });
+
+  it.each([
+    '/documentsx',
+    '/document//evil.com',
+    '//documents',
+    '/documents/../evil',
+    '/settings/../../evil',
+    '/signers/anything',
+    '/m/send',
+  ])('refuses %s', (candidate) => {
+    expect(validateNextPath(candidate)).toBeNull();
+  });
+});
+
 describe('validateNextPath — the MCP OAuth consent page (WP-27)', () => {
   it('accepts the exact consent path', () => {
     expect(validateNextPath('/oauth/mcp/consent')).toBe('/oauth/mcp/consent');
@@ -128,9 +157,10 @@ describe('validateNextPath — fragments, queries and whitespace', () => {
   });
 });
 
+// The dashboard and settings used to be refused here; the signed-out dialog now
+// returns the owner to the page they were on, so they moved to the accepted list above.
 describe('validateNextPath — other app paths and edge inputs', () => {
   it.each([
-    ['desktop dashboard', '/documents'],
     ['sign-in itself', '/signin'],
     ['mobile sender', '/m/send'],
     ['approve prefix without a separator', '/approvex/abc'],
@@ -138,7 +168,6 @@ describe('validateNextPath — other app paths and edge inputs', () => {
     ['approve with no id', '/approve/'],
     ['wrong case prefix', '/APPROVE/abc'],
     ['root', '/'],
-    ['settings', '/settings/developers'],
   ])('refuses %s (%s)', (_label, candidate) => {
     expect(validateNextPath(candidate)).toBeNull();
   });

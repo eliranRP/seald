@@ -1,10 +1,12 @@
 /**
  * Validator for the `?next=` return path that sign-in honours. The guided
  * approval review sends an unauthenticated owner to `/signin?next=…`, and
- * after sign-in the app returns them to that path. Only the approval
- * review is a legitimate target, so anything else is refused.
+ * after sign-in the app returns them to that path. Only those in-app
+ * pages are legitimate targets, so anything else is refused.
  *
- * Accepted: `/approve/<id>` and `/approve/<id>/review`, with an optional
+ * Accepted: `/approve/<id>` and `/approve/<id>/review`, the owner's own
+ * pages (`/documents`, `/document/<id>`, `/templates…`, `/signers`,
+ * `/settings…`; used by the signed-out dialog), with an optional
  * query string made of `[A-Za-z0-9_=&-]` (for example `?page=1`), and the
  * exact path `/oauth/mcp/consent` (WP-27, no query).
  *
@@ -21,7 +23,13 @@
  */
 export const NEXT_PARAM = 'next';
 
-const APPROVE_PREFIX = '/approve/';
+/**
+ * Signed-in app locations a return trip may land on: the approval review
+ * (the original use) and, for the "You were signed out" dialog, the page the
+ * owner was on. Same segment rules apply to both.
+ */
+const NEXT_PREFIXES = ['/approve/', '/document/', '/templates/', '/settings/'] as const;
+const NEXT_EXACT = ['/documents', '/signers', '/templates', '/settings'] as const;
 /**
  * WP-27: the MCP OAuth consent page, exactly, with no query. Its
  * authorization request waits in sessionStorage during sign-in instead,
@@ -41,14 +49,18 @@ export function validateNextPath(candidate: string | null | undefined): string |
   if (candidate.length === 0 || candidate.length > MAX_NEXT_LENGTH) return null;
   if (candidate.includes('%')) return null;
   if (candidate === OAUTH_CONSENT_PATH) return candidate;
-  if (!candidate.startsWith(APPROVE_PREFIX)) return null;
 
   const queryAt = candidate.indexOf('?');
   const pathPart = queryAt === -1 ? candidate : candidate.slice(0, queryAt);
   const queryPart = queryAt === -1 ? null : candidate.slice(queryAt + 1);
 
-  const segments = pathPart.slice(APPROVE_PREFIX.length).split('/');
-  if (!segments.every((segment) => PATH_SEGMENT.test(segment))) return null;
+  const exact = (NEXT_EXACT as readonly string[]).includes(pathPart);
+  if (!exact) {
+    const prefix = NEXT_PREFIXES.find((p) => pathPart.startsWith(p));
+    if (prefix === undefined) return null;
+    const segments = pathPart.slice(prefix.length).split('/');
+    if (!segments.every((segment) => PATH_SEGMENT.test(segment))) return null;
+  }
   if (queryPart !== null && !QUERY_STRING.test(queryPart)) return null;
 
   return candidate;

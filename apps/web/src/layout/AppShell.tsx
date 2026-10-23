@@ -5,6 +5,7 @@ import styled from 'styled-components';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MobileNav } from '../components/MobileNav';
 import { NavBar } from '../components/NavBar';
+import { OfflineBar } from '../components/OfflineBar';
 import { screenEnter } from '@/styles/motion';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
@@ -14,6 +15,7 @@ import { useGDriveOAuthMessageListener } from '@/routes/settings/integrations/us
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { MOBILE_NAV_ITEMS, NAV_ITEMS, NEW_DOCUMENT_PATH, matchNavId } from './navItems';
 import { isMobileNavExempt } from './mobileNavExempt';
+import { SystemOverlays } from './SystemOverlays';
 
 /** Help entry in the top bar (no help centre yet — mail support). */
 const HELP_HREF = 'mailto:support@seald.nromomentum.com';
@@ -226,6 +228,7 @@ export function AppShell() {
 
   return (
     <Shell>
+      <OfflineBar />
       <NavBar
         items={DESKTOP_NAV_ITEMS}
         activeItemId={activeNavId}
@@ -266,6 +269,7 @@ export function AppShell() {
           onNew={handleNewDocument}
         />
       ) : null}
+      <SystemOverlays />
     </Shell>
   );
 }
