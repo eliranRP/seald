@@ -172,4 +172,30 @@ describe('Verify endpoint (e2e)', () => {
       expect(ev.envelope_id).toBeUndefined();
     }
   });
+
+  it('finds a sealed envelope by the SHA-256 of its PDF without auth', async () => {
+    const env = await seedEnvelope();
+    const sha = 'ab'.repeat(32);
+    const store = (envelopesRepo as unknown as { envelopes: Map<string, Record<string, unknown>> })
+      .envelopes;
+    store.set(env.id, { ...store.get(env.id), status: 'completed', sealed_sha256: sha });
+    const res = await request(app.getHttpServer()).get(`/verify/by-hash/${sha}`).expect(200);
+    expect(res.body).toEqual({ short_code: env.short_code });
+    await request(app.getHttpServer()).get(`/verify/by-hash/${sha.toUpperCase()}`).expect(200);
+  });
+
+  it('returns 404 from by-hash for an unknown or malformed hash', async () => {
+    await request(app.getHttpServer())
+      .get(`/verify/by-hash/${'cd'.repeat(32)}`)
+      .expect(404);
+    await request(app.getHttpServer()).get('/verify/by-hash/not-a-hash').expect(404);
+  });
+
+  it('exposes sealed_at, tsa_name and event_count on the verify payload', async () => {
+    const env = await seedEnvelope();
+    const res = await request(app.getHttpServer()).get(`/verify/${env.short_code}`).expect(200);
+    expect(res.body.envelope.sealed_at).toBeNull();
+    expect(res.body.envelope.tsa_name).toBeNull();
+    expect(res.body.envelope.event_count).toBe(res.body.events.length);
+  });
 });

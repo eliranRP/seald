@@ -350,6 +350,12 @@ export abstract class EnvelopesRepository {
   abstract findByIdForOwner(owner_id: string, envelope_id: string): Promise<Envelope | null>;
   abstract findByIdWithAll(envelope_id: string): Promise<Envelope | null>;
   abstract findByShortCode(short_code: string): Promise<Envelope | null>;
+  /**
+   * Public verify-by-PDF: the short_code of the envelope whose sealed PDF (or,
+   * with multiple documents, any sealed document) has this SHA-256. Null when
+   * nothing matches. Only completed envelopes carry a sealed hash.
+   */
+  abstract findShortCodeBySealedSha256(sha256: string): Promise<string | null>;
   abstract findSignerByAccessTokenHash(
     hash: string,
   ): Promise<{ envelope: Envelope; signer: EnvelopeSigner } | null>;

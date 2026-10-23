@@ -367,6 +367,22 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
     return toEnvelopeDomain(row, signers, fields);
   }
 
+  async findShortCodeBySealedSha256(sha256: string): Promise<string | null> {
+    const direct = await this.db
+      .selectFrom('envelopes')
+      .select('short_code')
+      .where('sealed_sha256', '=', sha256)
+      .executeTakeFirst();
+    if (direct) return direct.short_code;
+    const viaDocument = await this.db
+      .selectFrom('envelope_documents')
+      .innerJoin('envelopes', 'envelopes.id', 'envelope_documents.envelope_id')
+      .select('envelopes.short_code')
+      .where('envelope_documents.sealed_sha256', '=', sha256)
+      .executeTakeFirst();
+    return viaDocument?.short_code ?? null;
+  }
+
   async findSignerByAccessTokenHash(
     hash: string,
   ): Promise<{ envelope: Envelope; signer: EnvelopeSigner } | null> {

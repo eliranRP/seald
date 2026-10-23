@@ -147,6 +147,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     return [...this.envelopes.values()].find((e) => e.short_code === short_code) ?? null;
   }
 
+  async findShortCodeBySealedSha256(sha256: string): Promise<string | null> {
+    return [...this.envelopes.values()].find((e) => e.sealed_sha256 === sha256)?.short_code ?? null;
+  }
+
   // e2e fixtures persist access_token_hash in a side map since the domain
   // signer shape doesn't expose it.
   private readonly signerTokenHashes = new Map<string, string>(); // signer_id -> hash

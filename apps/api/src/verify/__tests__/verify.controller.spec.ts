@@ -78,6 +78,7 @@ describe('VerifyController', () => {
   let controller: VerifyController;
   const repo = {
     findByShortCode: jest.fn(),
+    findShortCodeBySealedSha256: jest.fn(),
     listEventsForEnvelope: jest.fn(),
     verifyEventChain: jest.fn(),
   };
@@ -88,6 +89,7 @@ describe('VerifyController', () => {
 
   beforeEach(async () => {
     repo.findByShortCode.mockReset();
+    repo.findShortCodeBySealedSha256.mockReset();
     repo.listEventsForEnvelope.mockReset();
     repo.verifyEventChain.mockReset();
     repo.verifyEventChain.mockResolvedValue({ chain_intact: true });
@@ -283,5 +285,47 @@ describe('VerifyController', () => {
     expect((signer as { signing_order?: unknown }).signing_order).toBeUndefined();
     expect((signer as { viewed_at?: unknown }).viewed_at).toBeUndefined();
     expect((signer as { tc_accepted_at?: unknown }).tc_accepted_at).toBeUndefined();
+  });
+
+  it('exposes sealed_at (sealed event), event_count and a null tsa_name when sealed', async () => {
+    repo.findByShortCode.mockResolvedValueOnce(ENVELOPE);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([
+      EVENT_RAW,
+      { ...EVENT_RAW, id: 'e2', event_type: 'sealed', created_at: '2026-04-25T21:21:07.000Z' },
+    ]);
+    storage.createSignedUrl.mockResolvedValue('https://signed.example/x.pdf');
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.envelope.sealed_at).toBe('2026-04-25T21:21:07.000Z');
+    expect(res.envelope.event_count).toBe(2);
+    expect(res.envelope.tsa_name).toBeNull();
+  });
+
+  it('leaves sealed_at null for an envelope that is not sealed', async () => {
+    const sent: Envelope = { ...ENVELOPE, status: 'awaiting_others', completed_at: null };
+    repo.findByShortCode.mockResolvedValueOnce(sent);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.envelope.sealed_at).toBeNull();
+  });
+
+  describe('byHash', () => {
+    const SHA = 'b'.repeat(64);
+    it('returns the short_code for a known sealed hash (case-insensitive)', async () => {
+      repo.findShortCodeBySealedSha256.mockResolvedValueOnce('u82ZmvdxwG3CU');
+      await expect(controller.byHash(SHA.toUpperCase().replace(/B/g, 'B'))).resolves.toEqual({
+        short_code: 'u82ZmvdxwG3CU',
+      });
+      expect(repo.findShortCodeBySealedSha256).toHaveBeenCalledWith(SHA);
+    });
+
+    it('404s without touching the database for a malformed hash', async () => {
+      await expect(controller.byHash('xyz')).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.findShortCodeBySealedSha256).not.toHaveBeenCalled();
+    });
+
+    it('404s when no envelope sealed that file', async () => {
+      repo.findShortCodeBySealedSha256.mockResolvedValueOnce(null);
+      await expect(controller.byHash(SHA)).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 });

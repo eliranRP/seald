@@ -47,6 +47,12 @@ export interface VerifyEnvelope {
   readonly sent_at: string | null;
   readonly completed_at: string | null;
   readonly expires_at: string;
+  /** When the PDF was sealed. Null until sealed. */
+  readonly sealed_at?: string | null;
+  /** Timestamp authority behind the seal, when the API records it. */
+  readonly tsa_name?: string | null;
+  /** Number of audit events on the chain. */
+  readonly event_count?: number;
 }
 
 export interface VerifySigner {
