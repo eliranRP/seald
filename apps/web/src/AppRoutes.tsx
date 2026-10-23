@@ -190,6 +190,14 @@ export function AppRoutes() {
       {/* Public verify surface. Anyone with a 13-char short_code can pull
           the envelope's metadata + audit timeline. No auth gate. */}
       <Route
+        path="/verify"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <VerifyPage />
+          </Suspense>
+        }
+      />
+      <Route
         path="/verify/:shortCode"
         element={
           <Suspense fallback={<AuthLoadingScreen />}>
