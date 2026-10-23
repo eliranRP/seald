@@ -18,18 +18,20 @@ const sizeStyles = (t: DefaultTheme, size: ButtonSize, iconOnly: boolean) => {
       border-radius: ${t.radius.md};
     `,
     lg: css`
-      padding: 0 18px;
+      padding: 0 ${t.space[5]};
       font-size: ${t.font.size.bodyMd};
       border-radius: ${t.radius.md};
     `,
   }[size];
   return css`
-    height: ${HEIGHT[size]};
     min-height: ${HEIGHT[size]};
     ${base}
+    padding-top: ${t.space[1]};
+    padding-bottom: ${t.space[1]};
     ${iconOnly &&
     css`
       width: ${HEIGHT[size]};
+      height: ${HEIGHT[size]};
       padding: 0;
     `}
   `;
@@ -99,8 +101,8 @@ export const ButtonRoot = styled.button<{
   gap: ${({ theme }) => theme.space[2]};
   font-family: ${({ theme }) => theme.font.sans};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  line-height: 1;
-  white-space: nowrap;
+  line-height: 1.2;
+  text-align: center;
   text-decoration: none;
   border: 1px solid transparent;
   cursor: pointer;
