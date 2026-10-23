@@ -10,6 +10,8 @@ import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
+import { apiClient } from '../lib/api/apiClient';
+import { readIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
 import type { ImportPhase } from '../features/gdriveImport';
@@ -38,6 +40,7 @@ import { makeMeSigner } from '../features/documentEditor/upload/meSigner';
 import { TO_QUERY_PARAM, recipientFromQuery } from '../features/contacts/recipientFromQuery';
 
 const TEMPLATE_QUERY_PARAM = 'template';
+const GDRIVE_RETURN_PARAM = 'gdrive_connected';
 const RECENT_TEMPLATE_COUNT = 3;
 
 const Page = styled.div`
@@ -140,6 +143,19 @@ export function UploadRoute() {
   const connectDrive = useConnectGDrive();
   const reconnectDrive = useReconnectGDrive();
   const handleConnectDrive = useCallback((): void => {
+    if (readIsMobileViewport()) {
+      // iOS Safari blocks the OAuth popup: full-page redirect instead. The
+      // API sends the phone back through `/m/send/drive` to this screen.
+      apiClient
+        .get<{ url: string }>(
+          `/integrations/gdrive/oauth/url?return=${encodeURIComponent('/m/send/drive')}`,
+        )
+        .then((res) => {
+          window.location.href = res.data.url;
+        })
+        .catch(() => undefined);
+      return;
+    }
     connectDrive.mutate();
   }, [connectDrive]);
   // Picker-credentials returns 401 `token-expired` when the stored refresh
@@ -148,6 +164,16 @@ export function UploadRoute() {
     reconnectDrive.mutate();
   }, [reconnectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  // Back from Google's consent on a phone (`/m/send/drive` forwards here):
+  // open the Drive picker once the new account has loaded, then drop the arg.
+  const returnedFromDrive = searchParams.get(GDRIVE_RETURN_PARAM) === '1';
+  useEffect(() => {
+    if (!returnedFromDrive || !gdriveOn || driveAccountId === null) return;
+    setDrivePickerOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete(GDRIVE_RETURN_PARAM);
+    setSearchParams(next, { replace: true });
+  }, [returnedFromDrive, gdriveOn, driveAccountId, searchParams, setSearchParams]);
   const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
   const [driveImportFileName, setDriveImportFileName] = useState('');
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

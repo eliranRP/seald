@@ -224,6 +224,21 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     excluded: 'owner_in_app_only',
     note: 'Turns the file the owner picked on the upload screen into PDF bytes; an agent stages files with documents_upload.',
   },
+  // Scan with phone (redesign v2 WS-J): the owner's browser hands a phone
+  // camera session a code. The two phone routes are @Public (the code is the
+  // credential) and never appear here.
+  'POST /scan-sessions': {
+    excluded: 'owner_in_app_only',
+    note: 'Opens a QR hand-off so the owner scans pages with a phone camera; an agent stages files with documents_upload.',
+  },
+  'GET /scan-sessions/:code': {
+    excluded: 'owner_in_app_only',
+    note: 'The upload screen polls it while the phone scans; an agent has no phone to wait on.',
+  },
+  'GET /scan-sessions/:code/pdf': {
+    excluded: 'owner_in_app_only',
+    note: 'Hands the scanned PDF to the upload screen once; an agent stages files with documents_upload.',
+  },
   // WP-37: the template's direct link (the public `/direct-links/*` routes are
   // @Public). Creating, rotating or revoking a public link is the owner's call in the app.
   'GET /templates/:id/direct-link': {

@@ -35,6 +35,9 @@
   "useGitignore": false,
   "allowCompoundWords": true,
   "words": [
+    "qrcode",
+    "luma",
+    "otsu",
     "unsend",
     "svix",
     "whsec",

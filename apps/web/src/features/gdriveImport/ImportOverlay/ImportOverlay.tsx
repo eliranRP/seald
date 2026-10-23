@@ -74,7 +74,7 @@ function CheckIcon({ size = 14 }: { readonly size?: number }) {
  * pulse-ring active state and pop-in green checks).
  *
  * The component is purely presentational --- phase transitions are driven
- * by the caller (MobileSendPage / UploadRoute) mapping `useDriveImport`
+ * by the caller (UploadRoute) mapping `useDriveImport`
  * state onto `ImportPhase`.
  */
 export function ImportOverlay({ open, phase, fileName }: ImportOverlayProps) {

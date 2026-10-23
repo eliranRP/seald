@@ -36,6 +36,7 @@ const SPA_EXACT = new Set([
   '/contacts',
   '/templates',
   '/verify',
+  '/scan',
 ]);
 
 // Trailing slash matters: '/auth/' matches '/auth/foo' and '/auth' itself.
@@ -48,6 +49,8 @@ const SPA_EXACT = new Set([
 // route mounted outside AppShell to bypass the mobile-redirect rule).
 // Pinned by
 // `apps/web/src/pages/GDriveOAuthCallbackPage/_worker-spa-routing.test.ts`.
+// `/scan/` is the phone side of "Scan with phone" (`/scan/:code`); it needs
+// `camera=(self)` in the Permissions-Policy below, or getUserMedia is blocked.
 // `/sent/` is the post-send confirmation prefix. The React tree mounts
 // the screen at `/document/:id/sent` (already covered by `/document/`);
 // `/sent/:id` is still requested in the wild and must not serve the
@@ -65,6 +68,7 @@ const SPA_PREFIXES = [
   '/sent/',
   '/d/',
   '/approve/',
+  '/scan/',
 ];
 
 /**
@@ -115,7 +119,7 @@ const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy':
-    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+    'accelerometer=(), camera=(self), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
   'Content-Security-Policy':
     "default-src 'self'; base-uri 'self'; form-action 'self' mailto:; frame-ancestors 'self'; img-src 'self' data: blob: https://static.cloudflareinsights.com https://*.googleusercontent.com https://*.gstatic.com https://*.supabase.co; script-src 'self' https://static.cloudflareinsights.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://cloudflareinsights.com https://*.supabase.co https://api.seald.nromomentum.com https://www.googleapis.com https://content.googleapis.com; frame-src 'self' https://docs.google.com https://accounts.google.com; object-src 'none'; upgrade-insecure-requests",

@@ -70,6 +70,9 @@ const OWNER_IN_APP_ROUTES: readonly string[] = [
   'POST /envelopes/:id/unsend',
   'GET /me/settings',
   'PATCH /me/settings',
+  'POST /scan-sessions',
+  'GET /scan-sessions/:code',
+  'GET /scan-sessions/:code/pdf',
 ];
 
 interface Route {

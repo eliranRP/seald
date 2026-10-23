@@ -291,9 +291,15 @@ importers:
       lucide-react:
         specifier: 1.14.0
         version: 1.14.0(react@19.2.6)
+      pdf-lib:
+        specifier: ^1.17
+        version: 1.17.1
       pdfjs-dist:
         specifier: ^6.3.289
         version: 6.3.289
+      qrcode:
+        specifier: ^1.5
+        version: 1.5.4
       react:
         specifier: 19.2.6
         version: 19.2.6
@@ -346,6 +352,9 @@ importers:
       '@types/node':
         specifier: 25.7.0
         version: 25.7.0
+      '@types/qrcode':
+        specifier: ^1.5.6
+        version: 1.5.6
       '@types/react':
         specifier: ^19
         version: 19.2.14
@@ -12571,7 +12580,7 @@ snapshots:
 
   '@types/qrcode@1.5.6':
     dependencies:
-      '@types/node': 20.16.10
+      '@types/node': 25.7.0
 
   '@types/qs@6.15.0': {}
 

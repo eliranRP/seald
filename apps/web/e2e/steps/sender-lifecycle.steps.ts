@@ -157,10 +157,9 @@ When('the sender chooses the {string} download bundle', async ({ page }, _label:
 
 // BUG-1 step defs (`Then the envelope row tiles do not overflow the
 // viewport` + `Then the column-header strip is hidden`) were removed
-// 2026-05-03 when the mobile dashboard scenario was rewritten to assert
-// the redirect to /m/send. The dashboard never renders on a phone
-// viewport now, so no overflow / column-header assertion applies. The
-// "Then the URL is /m/send" step lives in sender-mobile.steps.ts.
+// 2026-05-03 with the mobile redirect. The dashboard is responsive now (and
+// the /m/send wizard is retired); `Then the URL is /documents` lives in
+// sender-mobile.steps.ts.
 
 Then('the row for the historical envelope shows its year', async ({ page }) => {
   // BUG-2: the row that points at HISTORICAL_SENT_AT (2024) must carry
