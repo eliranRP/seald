@@ -131,6 +131,10 @@ export class InMemoryAutomationsRepo extends AutomationsCrudRepository {
     return new Set(ids.filter((id) => this.waiting.has(id)));
   }
 
+  async supersedeApprovals(_ownerId: string, id: string): Promise<number> {
+    return this.waiting.delete(id) ? 1 : 0;
+  }
+
   readonly pendingJobs = new Set<string>();
   readonly parked: string[] = [];
 

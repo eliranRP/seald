@@ -32,8 +32,7 @@ export const SHIPPED_STEPS = [
   'step-8c',
   'step-8d',
   'step-9',
-  // WP-30: automations A3. The /automations HTTP routes land with the
-  // settings UI (WP-31) and map to these tools in that package.
+  // WP-30: automations A3. The /automations owner routes (WP-31) map to these tools.
   'step-a3',
   'step-12',
   'step-13',
@@ -117,10 +116,20 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     note: 'Re-mints after the owner edits fields from Review; an agent re-previews through its own tool instead.',
   },
 
-  // Automations (WP-29 A2b). `automations_test_webhook` ships with A2b's
-  // MCP half over the same `AutomationTestService.sendTest`
-  // (workflow-automations.md § Pull requests); the rest of /automations
-  // lands with the settings page (WP-31) and maps to the A3 tools.
+  // Automations. The owner routes (WP-31) call the same AutomationsService as
+  // the A3 tools. `automations_test_webhook` ships with A2b's MCP half over
+  // the same `AutomationTestService.sendTest`. Deleting a recipe and rotating
+  // its webhook secret have no tool: an agent changing or revealing a signing
+  // secret is an approval-gated key action (WP-45).
+  'GET /automations': { tool: 'automations_list' },
+  'POST /automations': { tool: 'automations_upsert_recipe' },
+  'GET /automations/:id': { tool: 'automations_list' },
+  'PATCH /automations/:id': { tool: 'automations_upsert_recipe' },
+  'DELETE /automations/:id': { planned: 'WP-45' },
+  'POST /automations/:id/rotate-secret': { planned: 'WP-45' },
+  'GET /automations/:id/runs': { tool: 'automations_list_runs' },
+  'GET /automations/runs/:runId': { tool: 'automations_get_run' },
+  'POST /automations/:id/runs/:runId/retry': { tool: 'automations_retry_run' },
   'POST /automations/:id/test': { planned: 'step-a2b' },
 
   // Contacts (step 12). contacts_search and contacts_import have no route of

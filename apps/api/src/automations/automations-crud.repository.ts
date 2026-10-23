@@ -100,12 +100,17 @@ export abstract class AutomationsCrudRepository {
   ): Promise<AutomationRecord | null>;
   abstract delete(ownerId: string, id: string): Promise<void>;
   abstract ownsTemplate(ownerId: string, templateId: string): Promise<boolean>;
-  /** Ids (of `ids`) that have an open owner approval. */
-  abstract awaitingApproval(
-    ownerId: string,
-    ids: readonly string[],
-    now: Date,
-  ): Promise<Set<string>>;
+  /**
+   * Ids (of `ids`) that are waiting on an approval, by the one definition in
+   * `automation-approval-state.ts` (newest approval unapproved and not
+   * superseded). `POST /automations/:id/test` uses the same rule.
+   */
+  abstract awaitingApproval(ownerId: string, ids: readonly string[]): Promise<Set<string>>;
+  /**
+   * The owner saved the recipe in the app: settle its unapproved approvals
+   * (close the open one, mark denied or expired ones superseded).
+   */
+  abstract supersedeApprovals(ownerId: string, id: string, now: Date): Promise<number>;
   /**
    * Queued jobs of a recipe whose destination just changed: the job goes,
    * the run is marked failed and retryable (`recipe_changed`), so nothing

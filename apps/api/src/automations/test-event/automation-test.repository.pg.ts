@@ -3,12 +3,8 @@ import type { Kysely } from 'kysely';
 import type { Database } from '../../../db/schema';
 import { DB_TOKEN } from '../../db/db.provider';
 import { withAutomationTables, type AutomationsDatabase } from '../automations.schema';
-import {
-  AUTOMATION_APPROVAL_KIND,
-  AUTOMATION_APPROVAL_SUBJECT_PREFIX,
-  AutomationTestRepository,
-  type TestableRecipe,
-} from './automation-test.repository';
+import { unapprovedRecipeIds } from '../automation-approval-state';
+import { AutomationTestRepository, type TestableRecipe } from './automation-test.repository';
 
 @Injectable()
 export class AutomationTestPgRepository extends AutomationTestRepository {
@@ -32,16 +28,6 @@ export class AutomationTestPgRepository extends AutomationTestRepository {
   }
 
   async recipeAwaitingApproval(ownerId: string, automationId: string): Promise<boolean> {
-    const latest = await this.db
-      .selectFrom('mcp_approvals')
-      .select(['approved_at'])
-      .where('owner_id', '=', ownerId)
-      .where('action', '=', AUTOMATION_APPROVAL_KIND)
-      .where('subject_key', '=', `${AUTOMATION_APPROVAL_SUBJECT_PREFIX}${automationId}`)
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'desc')
-      .limit(1)
-      .executeTakeFirst();
-    return latest !== undefined && latest.approved_at === null;
+    return (await unapprovedRecipeIds(this.db, ownerId, [automationId])).has(automationId);
   }
 }

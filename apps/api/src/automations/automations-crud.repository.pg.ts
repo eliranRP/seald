@@ -12,6 +12,7 @@ import {
   type PageCursor,
   type RunRecord,
 } from './automations-crud.repository';
+import { supersedeRecipeApprovals, unapprovedRecipeIds } from './automation-approval-state';
 import { withAutomationTables, type AutomationsDatabase } from './automations.schema';
 
 function parseConfig(raw: unknown): Record<string, unknown> {
@@ -174,18 +175,12 @@ export class AutomationsCrudPgRepository extends AutomationsCrudRepository {
     return res.rows.length > 0;
   }
 
-  async awaitingApproval(ownerId: string, ids: readonly string[], now: Date): Promise<Set<string>> {
-    if (ids.length === 0) return new Set();
-    const keys = ids.map((id) => `automation:${id}`);
-    const res = await sql<{ subject_key: string }>`
-      select subject_key from public.mcp_approvals
-      where owner_id = ${ownerId}::uuid
-        and action = 'automation_external_destination'
-        and subject_key = any(${keys}::text[])
-        and approved_at is null and denied_at is null and failed_at is null and expired_at is null
-        and expires_at > ${now.toISOString()}::timestamptz
-    `.execute(this.db);
-    return new Set(res.rows.map((r) => r.subject_key.slice('automation:'.length)));
+  async awaitingApproval(ownerId: string, ids: readonly string[]): Promise<Set<string>> {
+    return unapprovedRecipeIds(this.db, ownerId, ids);
+  }
+
+  async supersedeApprovals(ownerId: string, id: string, now: Date): Promise<number> {
+    return supersedeRecipeApprovals(this.db, ownerId, id, now);
   }
 
   async parkPendingJobs(automationId: string): Promise<number> {

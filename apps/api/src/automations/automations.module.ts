@@ -20,6 +20,8 @@ import { AutomationsCrudPgRepository } from './automations-crud.repository.pg';
 import { AutomationsPgRepository } from './automations.repository.pg';
 import { AutomationsService } from './automations.service';
 import { AutomationMatcherService } from './matcher';
+import { AutomationsOwnerController } from './owner/automations-owner.controller';
+import { AutomationsOwnerService } from './owner/automations-owner.service';
 import { AutomationTestRateLimiter } from './test-event/automation-test-rate-limiter';
 import { AutomationTestController } from './test-event/automation-test.controller';
 import { AutomationTestRepository } from './test-event/automation-test.repository';
@@ -29,9 +31,10 @@ import { AutomationTestService } from './test-event/automation-test.service';
 /**
  * Workflow automations (A1 + A2 webhook action + A2b test endpoint). Global
  * so `EnvelopesPgRepository` can take the optional `AUTOMATION_EVENT_HOOK`
- * without `EnvelopesModule` importing this module. One route so far,
- * `POST /automations/:id/test` (404 while the flag is off); the MCP
- * tools (WP-30) call `AutomationsService`.
+ * without `EnvelopesModule` importing this module. Owner routes
+ * (`/automations`, WP-31, plus `POST /automations/:id/test`) answer 404
+ * while the flag is off; they and the MCP tools (WP-30) both call
+ * `AutomationsService`.
  * Everything is inert while `workflowAutomations` is off or
  * `AUTOMATIONS_DISABLED=true`: no trigger rows, no matching, no worker, no
  * outbound request, and no database query at boot.
@@ -39,7 +42,9 @@ import { AutomationTestService } from './test-event/automation-test.service';
 @Global()
 @Module({
   imports: [GDriveModule],
-  controllers: [AutomationTestController, EmailCopyStopController],
+  // Order matters: the public `GET /automations/stop` must register before
+  // the owner's `GET /automations/:id`, or `:id` would swallow it.
+  controllers: [EmailCopyStopController, AutomationsOwnerController, AutomationTestController],
   providers: [
     { provide: EmailCopyRepository, useClass: EmailCopyPgRepository },
     EmailCopyActionExecutor,
@@ -49,6 +54,7 @@ import { AutomationTestService } from './test-event/automation-test.service';
     AutomationsPgRepository,
     { provide: AutomationsCrudRepository, useClass: AutomationsCrudPgRepository },
     AutomationsService,
+    AutomationsOwnerService,
     AutomationMatcherService,
     AutomationWorkerService,
     { provide: AutoDisableStore, useClass: PgAutoDisableStore },

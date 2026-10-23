@@ -41,8 +41,7 @@ import {
   type RunRecord,
 } from './automations-crud.repository';
 
-/** The one approval kind this service's external-destination rule feeds (WP-30). */
-export const AUTOMATION_APPROVAL_SUBJECT_PREFIX = 'automation:';
+export { AUTOMATION_APPROVAL_SUBJECT_PREFIX } from './automation-approval-state';
 
 const DEFAULT_NAMES: Readonly<Record<AutomationRecipeId, string>> = {
   sealed_save_drive: 'Save sealed copies to Drive',
@@ -80,6 +79,11 @@ export interface ChangeOutcome {
   readonly automation: AutomationOutput;
   /** The caller must open an `automation_external_destination` approval for it. */
   readonly needsApproval: boolean;
+  /**
+   * The new webhook signing secret, shown once. Set only on a signed-in
+   * create; an agent's change never carries it.
+   */
+  readonly webhookSecret?: string;
 }
 
 export interface UpsertPreview {
@@ -206,24 +210,27 @@ export class AutomationsService {
   async list(
     ownerId: string,
     input: { limit?: number | undefined; cursor?: string | undefined } = {},
-    now: Date = new Date(),
   ): Promise<Page<AutomationOutput>> {
     const limit = clampLimit(input.limit);
     const rows = await this.repo.list(ownerId, limit, decodeCursor(input.cursor));
     const shown = rows.slice(0, limit).map((r) => r.row.id);
-    const waiting = await this.repo.awaitingApproval(ownerId, shown, now);
+    const waiting = await this.repo.awaitingApproval(ownerId, shown);
     return toPage(rows, limit, (rec) => this.view(rec, waiting.has(rec.id)));
   }
 
-  async get(ownerId: string, id: string, now: Date = new Date()): Promise<AutomationOutput> {
+  async get(ownerId: string, id: string): Promise<AutomationOutput> {
     const rec = await this.requireRecipe(ownerId, id);
-    const waiting = await this.repo.awaitingApproval(ownerId, [id], now);
+    const waiting = await this.repo.awaitingApproval(ownerId, [id]);
     return this.view(rec, waiting.has(id));
   }
 
-  /** True while an owner approval for this recipe is open. A2b's test endpoint refuses on it. */
-  async isAwaitingApproval(ownerId: string, id: string, now: Date = new Date()): Promise<boolean> {
-    return (await this.repo.awaitingApproval(ownerId, [id], now)).has(id);
+  /**
+   * True while the recipe is waiting on an approval (newest approval
+   * unapproved, not superseded by an owner save). A2b's test endpoint
+   * refuses on the same rule.
+   */
+  async isAwaitingApproval(ownerId: string, id: string): Promise<boolean> {
+    return (await this.repo.awaitingApproval(ownerId, [id])).has(id);
   }
 
   /** What an upsert would do. Validates exactly like {@link upsertRecipe}; writes nothing. */
@@ -262,7 +269,7 @@ export class AutomationsService {
   ): Promise<ChangeOutcome> {
     const now = opts.now ?? new Date();
     return input.automationId === undefined
-      ? this.create(ownerId, input, opts, now)
+      ? this.create(ownerId, input, opts)
       : this.update(ownerId, input.automationId, input, opts, now);
   }
 
@@ -280,12 +287,14 @@ export class AutomationsService {
     const now = opts.now ?? new Date();
     const rec = await this.requireRecipe(ownerId, id);
     if (rec.enabled === enabled)
-      return { automation: await this.get(ownerId, id, now), needsApproval: false };
+      return { automation: await this.get(ownerId, id), needsApproval: false };
     if (enabled && opts.requireApproval && (await this.isExternal(ownerId, rec))) {
-      return { automation: await this.get(ownerId, id, now), needsApproval: true };
+      return { automation: await this.get(ownerId, id), needsApproval: true };
     }
     await this.repo.update(ownerId, id, { enabled });
-    return { automation: await this.get(ownerId, id, now), needsApproval: false };
+    // The owner turned it on in the app: that is their approval.
+    if (enabled && !opts.requireApproval) await this.repo.supersedeApprovals(ownerId, id, now);
+    return { automation: await this.get(ownerId, id), needsApproval: false };
   }
 
   /** What {@link setEnabled} would do. Writes nothing. */
@@ -299,6 +308,24 @@ export class AutomationsService {
     if (rec.enabled === enabled) return { enabled_after: enabled, needs_approval: false };
     const needs = enabled && opts.requireApproval && (await this.isExternal(ownerId, rec));
     return { enabled_after: needs ? rec.enabled : enabled, needs_approval: needs };
+  }
+
+  /**
+   * Rotate a webhook recipe's signing secret (settings API only). The new
+   * secret is returned once; the old one verifies for 24 hours.
+   */
+  async rotateWebhookSecret(
+    ownerId: string,
+    id: string,
+    now: Date = new Date(),
+  ): Promise<{ readonly secret: string; readonly previousRetiresAt: Date }> {
+    const rec = await this.requireRecipe(ownerId, id);
+    if (rec.action !== 'webhook') throw new ConflictException('not_a_webhook');
+    try {
+      return await this.secrets.rotateSecret(id, now);
+    } catch (err) {
+      throw this.translateSecretsError(err);
+    }
   }
 
   /** Delete a recipe (cascades its runs, jobs and secrets). */
@@ -430,7 +457,6 @@ export class AutomationsService {
     ownerId: string,
     input: UpsertRecipeInput,
     opts: ChangeOptions,
-    now: Date,
   ): Promise<ChangeOutcome> {
     const plan = await this.planCreate(ownerId, input);
     const recipe = AUTOMATION_RECIPES[input.recipe as AutomationRecipeId];
@@ -447,16 +473,23 @@ export class AutomationsService {
       templateId: input.templateId ?? null,
       config: plan.config,
     });
+    let webhookSecret: string | undefined;
     if (plan.newUrl !== null) {
       try {
-        // The signing secret is generated and stored here; MCP never shows it.
-        await this.secrets.createSecrets(rec.id, plan.newUrl);
+        // The signing secret is generated and stored here. Only a signed-in
+        // owner is handed it, once; MCP never shows it.
+        const created = await this.secrets.createSecrets(rec.id, plan.newUrl);
+        if (!opts.requireApproval) webhookSecret = created.secret;
       } catch (err) {
         await this.repo.delete(ownerId, rec.id);
         throw this.translateSecretsError(err);
       }
     }
-    return { automation: await this.get(ownerId, rec.id, now), needsApproval };
+    return {
+      automation: await this.get(ownerId, rec.id),
+      needsApproval,
+      ...(webhookSecret !== undefined ? { webhookSecret } : {}),
+    };
   }
 
   private async update(
@@ -485,7 +518,10 @@ export class AutomationsService {
     };
     await this.repo.update(ownerId, id, patch);
     if (needsApproval && existing.enabled) await this.repo.parkPendingJobs(id);
-    return { automation: await this.get(ownerId, id, now), needsApproval };
+    // A signed-in save is the owner's own decision: it settles any approval
+    // an agent left open, denied or expired for this recipe.
+    if (!opts.requireApproval) await this.repo.supersedeApprovals(ownerId, id, now);
+    return { automation: await this.get(ownerId, id), needsApproval };
   }
 
   private async planCreate(ownerId: string, input: UpsertRecipeInput): Promise<PlannedConfig> {

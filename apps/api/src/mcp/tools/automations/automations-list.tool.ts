@@ -14,13 +14,9 @@ export const automationsListTool = defineTool({
   requiresFlags: AUTOMATION_FLAGS,
   input: AutomationsListInputSchema,
   output: AutomationsListOutputSchema,
-  handler: (args, { principal, services, now }) =>
-    services.automations.list(
-      principal.ownerId,
-      {
-        ...(args.limit !== undefined ? { limit: args.limit } : {}),
-        ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
-      },
-      now,
-    ),
+  handler: (args, { principal, services }) =>
+    services.automations.list(principal.ownerId, {
+      ...(args.limit !== undefined ? { limit: args.limit } : {}),
+      ...(args.cursor !== undefined ? { cursor: args.cursor } : {}),
+    }),
 });
