@@ -4,6 +4,7 @@ import { drop } from '@/styles/motion';
 export const MenuAnchor = styled.div`
   position: relative;
   display: inline-flex;
+  align-items: center;
 `;
 
 export const MenuSurface = styled.div<{ $align: 'start' | 'end' }>`

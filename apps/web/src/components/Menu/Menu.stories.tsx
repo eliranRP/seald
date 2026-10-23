@@ -14,7 +14,15 @@ const noop = (): void => undefined;
 
 export const RowActions: Story = {
   render: () => (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 24, minHeight: 360 }}>
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'flex-start',
+        padding: 24,
+        minHeight: 360,
+      }}
+    >
       <MenuButton
         aria-label="More actions for NDA.pdf"
         trigger={(p) => (
