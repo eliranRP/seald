@@ -13,7 +13,7 @@ const SPOKEN: Record<MiniTrackState, string> = {
 };
 
 /**
- * L1 primitive — compact per-signer track (canvas `.mtrack`): one dot per
+ * L1 primitive — compact per-signer track (canvas mini track): one dot per
  * step joined by short lines. Each step's state is spoken ("Opened: in
  * progress"), never carried by colour alone.
  */

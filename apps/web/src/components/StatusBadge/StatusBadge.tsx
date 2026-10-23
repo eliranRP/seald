@@ -47,7 +47,7 @@ function isEnvelopeStatus(status: string): status is EnvelopeBadgeStatus {
   return Object.prototype.hasOwnProperty.call(ENVELOPE_BADGE_MAP, status);
 }
 
-/** L2 — maps a signer or envelope status to its toned, iconed Badge. */
+/** L2 — maps a signer or envelope status to its toned Badge with an icon. */
 export function StatusBadge({ status, label }: StatusBadgeProps) {
   const entry = isEnvelopeStatus(status) ? ENVELOPE_BADGE_MAP[status] : STATUS_BADGE_MAP[status];
   return (
