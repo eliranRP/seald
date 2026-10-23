@@ -167,7 +167,7 @@ Then('the row for the historical envelope shows its year', async ({ page }) => {
   // "2024" in its rendered text. Without the fix only "Apr 02" would
   // appear and the year would be implicit, indistinguishable from a
   // current-year date.
-  const row = page.getByRole('button', { name: /Historical MSA/i });
+  const row = page.getByTestId('doc-row').filter({ hasText: /Historical MSA/i });
   await expect(row).toContainText('2024');
 });
 
@@ -175,7 +175,7 @@ Then('the row for the recent envelope omits the year', async ({ page }) => {
   // The recent envelope is in the *current* calendar year (2026, per
   // fixedNow). The dashboard should keep the compact "Apr 25" form so
   // the table doesn't widen on every row.
-  const row = page.getByRole('button', { name: /Recent NDA/i });
+  const row = page.getByTestId('doc-row').filter({ hasText: /Recent NDA/i });
   await expect(row).not.toContainText('2026');
 });
 

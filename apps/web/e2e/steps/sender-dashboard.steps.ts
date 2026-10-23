@@ -50,8 +50,10 @@ When('the sender filters the dashboard by {string}', async ({ dashboardPage }, s
 });
 
 Then('the seeded envelope appears in the list', async ({ page }) => {
-  // Declarative — assert the envelope title is on the page.
-  // Real implementation will tighten to a row-scoped locator when the
-  // dashboard layout from W1 lands.
-  await page.getByText(/MSA v1/i).waitFor();
+  // Row-scoped: the "Needs you" strip may repeat the same title.
+  await page
+    .getByTestId('doc-row')
+    .filter({ hasText: /MSA v1/i })
+    .first()
+    .waitFor();
 });
