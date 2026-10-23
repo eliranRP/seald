@@ -184,6 +184,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /templates/:id': { tool: 'templates_get_schema' },
   'PATCH /templates/:id': { tool: 'templates_update' },
   'DELETE /templates/:id': { tool: 'templates_delete' },
+  // Templates redesign: duplicate a template, and the Undo for a delete. No tool yet.
+  'POST /templates/:id/duplicate': { planned: 'step-16' },
+  'POST /templates/:id/restore': { planned: 'step-16' },
   // envelopes_create_from_template bumps the use count itself, after success.
   'POST /templates/:id/use': { tool: 'envelopes_create_from_template' },
   'POST /templates/:id/apply': { tool: 'envelopes_create_from_template' },

@@ -16,6 +16,8 @@ import { TemplatesRepository, type UpdateTemplatePatch } from './templates.repos
  */
 const MAX_EXAMPLE_PDF_BYTES = 25 * 1024 * 1024;
 const PDF_MIME = 'application/pdf';
+/** Longest template title the DTO accepts. */
+const MAX_TITLE_LENGTH = 200;
 // `%PDF-` — same magic-byte gate as `EnvelopesService.uploadOriginal`.
 // The client-supplied `mimetype` alone is spoofable (a GIF carrying
 // `Content-Type: application/pdf` would otherwise pass), so we
@@ -76,6 +78,45 @@ export class TemplatesService {
   async remove(owner_id: string, id: string): Promise<void> {
     const ok = await this.repo.delete(owner_id, id);
     if (!ok) throw new NotFoundException('template_not_found');
+  }
+
+  /**
+   * Copy a template ("NAME copy"): layout, tags, signer roster, order and
+   * the saved example PDF. Use count and last-used start fresh. If the PDF
+   * cannot be copied the half-made copy is removed and the error rethrown,
+   * so a duplicate never silently loses its document.
+   */
+  async duplicate(owner_id: string, id: string): Promise<Template> {
+    const src = await this.get(owner_id, id);
+    const copy = await this.repo.create({
+      owner_id,
+      title: `${src.title} copy`.slice(0, MAX_TITLE_LENGTH),
+      description: src.description,
+      cover_color: src.cover_color,
+      field_layout: src.field_layout,
+      tags: src.tags,
+      last_signers: src.last_signers,
+      ...(src.delivery_mode !== undefined ? { delivery_mode: src.delivery_mode } : {}),
+    });
+    const srcPath = await this.repo.getExamplePdfPath(owner_id, id);
+    if (!srcPath) return copy;
+    try {
+      const bytes = await this.storage.download(srcPath);
+      const path = `templates/${owner_id}/${copy.id}/example.pdf`;
+      await this.storage.upload(path, bytes, PDF_MIME);
+      const updated = await this.repo.setExamplePdfPath(owner_id, copy.id, path);
+      return updated ?? copy;
+    } catch (err) {
+      await this.repo.delete(owner_id, copy.id);
+      throw err;
+    }
+  }
+
+  /** Undo a delete within the 24-hour window. */
+  async restore(owner_id: string, id: string): Promise<Template> {
+    const t = await this.repo.restore(owner_id, id);
+    if (!t) throw new NotFoundException('template_not_found');
+    return t;
   }
 
   async use(owner_id: string, id: string): Promise<Template> {
