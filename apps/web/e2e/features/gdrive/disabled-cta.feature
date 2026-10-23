@@ -4,8 +4,8 @@ Feature: Drive picker CTA — inline OAuth connect from Sign + Template flows
   #
   # Pre-fix: When `feature.gdriveIntegration` is ON but the user has not
   # connected a Google account, both Drive entry points (the
-  # `/document/new` source card AND the `/templates/:id/use` Step 1
-  # "Upload a new one" panel) render a `<button disabled title="Connect
+  # `/document/new` source card AND the Use template dialog's document drop
+  # area) render a `<button disabled title="Connect
   # Google Drive in Settings to use this.">`. Three a11y failures:
   #   1. The native `title` attribute is not announced by NVDA / VoiceOver
   #      on disabled buttons.
@@ -24,7 +24,7 @@ Feature: Drive picker CTA — inline OAuth connect from Sign + Template flows
   # "Connect Google Drive" button that opens the OAuth popup INLINE via
   # `useConnectGDrive().mutate()`. The popup posts back through the
   # AppShell-mounted message listener and the accounts query flips to
-  # connected without leaving the wizard. No reliance on `title`. No
+  # connected without leaving the page. No reliance on `title`. No
   # navigation away from the current route on activation.
 
   Background:
@@ -41,10 +41,9 @@ Feature: Drive picker CTA — inline OAuth connect from Sign + Template flows
     And no element on the page relies on the native `title` attribute to convey the connect-in-settings hint
 
   @gdrive @a11y @smoke
-  Scenario: /templates/:id/use Upload-new step exposes an enabled "Connect Google Drive" CTA that opens OAuth inline
+  Scenario: /templates/:id/use document drop area exposes an enabled "Connect Google Drive" CTA that opens OAuth inline
     Given a template with id "475e2154-b1f8-45ee-877a-be8a0ef1eb67" exists
     When the sender visits "/templates/475e2154-b1f8-45ee-877a-be8a0ef1eb67/use"
-    And the sender selects the "Upload a new one" document source
     Then the Drive replace button renders with accessible name matching /connect google drive/i
     And that button is not disabled
     And activating that button opens the Drive OAuth popup without leaving "/templates/475e2154-b1f8-45ee-877a-be8a0ef1eb67/use"
