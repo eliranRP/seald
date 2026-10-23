@@ -7,17 +7,16 @@ import styled, { keyframes } from 'styled-components';
  * flow uses a full-page redirect (Q2 in clarifications-mobile.md) — iOS
  * Safari blocks popup-based OAuth — so the API's callback bounces the
  * user to `/m/send/drive` after a successful token exchange. This route
- * is a near-zero-LOC bounce: it forwards back into `/m/send` with
- * `?gdrive_connected=1` so MobileSendPage's auto-open effect re-opens
- * the picker sheet on landing. Replace=true so the back-button skips
- * the hop.
+ * is a near-zero-LOC bounce: it forwards into the Upload screen
+ * (`/document/new`) with `?gdrive_connected=1` so UploadRoute re-opens the
+ * Drive picker on landing. The old `/m/send` wizard it used to return to is
+ * retired. Replace=true so the back-button skips the hop.
  *
  * Slice-D §9 MEDIUM (audit fix): previously rendered `null`, which on
  * iOS Safari produced a 150-300 ms blank-page flash that reads as
- * broken. We now show a centered status spinner + "Returning from
- * Google Drive…" caption so the user has feedback during the
- * navigation hop. Pattern mirrors `RedirectWhenAuthed.tsx:20-22` /
- * `AuthLoadingScreen`.
+ * broken. We now show a centered status spinner + "Opening your Drive…"
+ * caption so the user has feedback during the navigation hop. Pattern
+ * mirrors `RedirectWhenAuthed.tsx:20-22` / `AuthLoadingScreen`.
  */
 const spin = keyframes`
   to { transform: rotate(360deg); }
@@ -59,13 +58,13 @@ const Caption = styled.p`
 export function MobileGdriveReturnPage() {
   const navigate = useNavigate();
   useEffect(() => {
-    navigate('/m/send?gdrive_connected=1', { replace: true });
+    navigate('/document/new?gdrive_connected=1', { replace: true });
   }, [navigate]);
   return (
-    <Wrap role="status" aria-live="polite" aria-label="Returning from Google Drive">
+    <Wrap role="status" aria-live="polite" aria-label="Opening your Drive">
       <Inner>
         <Spinner aria-hidden />
-        <Caption>Returning from Google Drive…</Caption>
+        <Caption>Opening your Drive…</Caption>
       </Inner>
     </Wrap>
   );

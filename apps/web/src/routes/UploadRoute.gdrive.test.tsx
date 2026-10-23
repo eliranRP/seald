@@ -67,9 +67,9 @@ vi.mock('../components/drive-picker', () => ({
 
 import { UploadRoute } from './UploadRoute';
 
-function renderRoute() {
+function renderRoute(entry = '/document/new') {
   return renderWithProviders(
-    <MemoryRouter initialEntries={['/document/new']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/document/new" element={<UploadRoute />} />
       </Routes>
@@ -164,5 +164,22 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     expect(reconnectMutateMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /trigger reconnect/i }));
     expect(reconnectMutateMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Phone: Google's consent is a full-page redirect that returns through
+  // /m/send/drive to /document/new?gdrive_connected=1 (the old /m/send wizard
+  // used to consume that arg).
+  it('opens the Drive picker when it lands back from Google with ?gdrive_connected=1', () => {
+    isFeatureEnabledSpy.mockReturnValue(true);
+    mockAccounts(true);
+    renderRoute('/document/new?gdrive_connected=1');
+    expect(screen.getByTestId('drive-picker-stub')).toBeInTheDocument();
+  });
+
+  it('does not open the picker on a plain visit', () => {
+    isFeatureEnabledSpy.mockReturnValue(true);
+    mockAccounts(true);
+    renderRoute();
+    expect(screen.queryByTestId('drive-picker-stub')).not.toBeInTheDocument();
   });
 });
