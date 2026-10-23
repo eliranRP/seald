@@ -159,7 +159,7 @@ describe('apps/landing/_worker.js routing', () => {
 
   it('serves the approval pages unframeable, uncached, without referrer or beacon (WP-22)', async () => {
     const consent = '<script defer src="/scripts/cookie-consent.js"></script>';
-    for (const path of ['/approve', '/approve/abc', '/approve/abc/review']) {
+    for (const path of ['/approve', '/approve/abc', '/approve/abc/review', '/oauth/mcp/consent']) {
       const { env } = assetsFrom({
         '/app': {
           body: `<!doctype html><title>Seald</title>${consent}`,

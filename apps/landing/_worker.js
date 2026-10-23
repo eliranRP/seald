@@ -181,9 +181,10 @@ async function notFound(request, env) {
   });
 }
 
-// WP-22: the owner-approval pages carry a one-time token. They must never
-// be framed, cached or leak the URL in a Referer, and they load no
-// analytics beacon (docs/design/mcp-server.md step 7a).
+// WP-22: the owner-approval pages carry a one-time token, and WP-27's MCP
+// OAuth consent page carries an authorization request. They must never be
+// framed, cached or leak the URL in a Referer, and they load no analytics
+// beacon (docs/design/mcp-server.md step 7a and the OAuth section).
 const APPROVE_CSP = SECURITY_HEADERS['Content-Security-Policy'].replace(
   "frame-ancestors 'self'",
   "frame-ancestors 'none'",
@@ -191,7 +192,9 @@ const APPROVE_CSP = SECURITY_HEADERS['Content-Security-Policy'].replace(
 const COOKIE_CONSENT_TAG = '<script defer src="/scripts/cookie-consent.js"></script>';
 
 export function isApprovePath(pathname) {
-  return pathname === '/approve' || pathname.startsWith('/approve/');
+  return (
+    pathname === '/approve' || pathname.startsWith('/approve/') || pathname === '/oauth/mcp/consent'
+  );
 }
 
 async function approveShell(asset, headers) {
