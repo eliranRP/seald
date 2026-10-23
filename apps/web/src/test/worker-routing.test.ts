@@ -157,6 +157,38 @@ describe('apps/landing/_worker.js routing', () => {
     }
   });
 
+  it('serves the approval pages unframeable, uncached, without referrer or beacon (WP-22)', async () => {
+    const consent = '<script defer src="/scripts/cookie-consent.js"></script>';
+    for (const path of ['/approve', '/approve/abc', '/approve/abc/review']) {
+      const { env } = assetsFrom({
+        '/app': {
+          body: `<!doctype html><title>Seald</title>${consent}`,
+          contentType: 'text/html; charset=utf-8',
+          etag: '"app"',
+        },
+      });
+      const response = await worker.fetch(new Request(`https://seald.nromomentum.com${path}`), env);
+      expect(response.status, path).toBe(200);
+      expect(response.headers.get('x-frame-options'), path).toBe('DENY');
+      expect(response.headers.get('content-security-policy'), path).toContain(
+        "frame-ancestors 'none'",
+      );
+      expect(response.headers.get('cache-control'), path).toBe('no-store');
+      expect(response.headers.get('referrer-policy'), path).toBe('no-referrer');
+      expect(response.headers.get('etag'), path).toBeNull();
+      expect(await response.text(), path).toBe('<!doctype html><title>Seald</title>');
+    }
+  });
+
+  it('keeps the regular headers on other SPA routes', async () => {
+    const { env } = site();
+    const response = await worker.fetch(
+      new Request('https://seald.nromomentum.com/approvals'),
+      env,
+    );
+    expect(response.headers.get('x-frame-options')).not.toBe('DENY');
+  });
+
   it('serves a marketing page at the extensionless path with status 200', async () => {
     const { env, fetched } = site();
     const response = await worker.fetch(new Request('https://seald.nromomentum.com/contact'), env);

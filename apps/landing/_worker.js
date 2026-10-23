@@ -154,10 +154,7 @@ async function isHomepageFallback(request, response, env) {
   const etag = response.headers.get('etag');
   const indexEtag = indexResponse.headers.get('etag');
   if (etag && indexEtag) return etag === indexEtag;
-  const [pageBody, indexBody] = await Promise.all([
-    response.clone().text(),
-    indexResponse.text(),
-  ]);
+  const [pageBody, indexBody] = await Promise.all([response.clone().text(), indexResponse.text()]);
   return pageBody === indexBody;
 }
 
@@ -184,6 +181,30 @@ async function notFound(request, env) {
   });
 }
 
+// WP-22: the owner-approval pages carry a one-time token. They must never
+// be framed, cached or leak the URL in a Referer, and they load no
+// analytics beacon (docs/design/mcp-server.md step 7a).
+const APPROVE_CSP = SECURITY_HEADERS['Content-Security-Policy'].replace(
+  "frame-ancestors 'self'",
+  "frame-ancestors 'none'",
+);
+const COOKIE_CONSENT_TAG = '<script defer src="/scripts/cookie-consent.js"></script>';
+
+export function isApprovePath(pathname) {
+  return pathname === '/approve' || pathname.startsWith('/approve/');
+}
+
+async function approveShell(asset, headers) {
+  headers.set('X-Frame-Options', 'DENY');
+  headers.set('Content-Security-Policy', APPROVE_CSP);
+  headers.set('Cache-Control', 'no-store');
+  headers.set('Referrer-Policy', 'no-referrer');
+  headers.delete('ETag');
+  headers.delete('Content-Length');
+  const html = (await asset.text()).replace(COOKIE_CONSENT_TAG, '');
+  return new Response(html, { status: asset.status, statusText: asset.statusText, headers });
+}
+
 async function spaShell(request, env) {
   // Server-side rewrite. Fetch `/app` (NOT `/app.html`) via the
   // assets binding: CF Pages auto-strips `.html` from served
@@ -196,6 +217,9 @@ async function spaShell(request, env) {
   const asset = await env.ASSETS.fetch(new Request(rewritten.toString(), request));
   const headers = new Headers(asset.headers);
   headers.set('X-Robots-Tag', 'noindex, nofollow');
+  if (isApprovePath(new URL(request.url).pathname)) {
+    return approveShell(asset, headers);
+  }
   return new Response(asset.body, {
     status: asset.status,
     statusText: asset.statusText,
@@ -216,7 +240,9 @@ async function verificationFile(request, env) {
     if (location) {
       const followUrl = new URL(location, fileUrl);
       if (followUrl.origin === fileUrl.origin) {
-        const followed = await env.ASSETS.fetch(new Request(followUrl.toString(), { method: 'GET' }));
+        const followed = await env.ASSETS.fetch(
+          new Request(followUrl.toString(), { method: 'GET' }),
+        );
         if (followed.ok && !(await isHomepageFallback(request, followed, env))) {
           const headers = new Headers(followed.headers);
           return new Response(followed.body, {
