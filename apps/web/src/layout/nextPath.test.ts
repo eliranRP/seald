@@ -1,5 +1,40 @@
-import { describe, expect, it } from 'vitest';
-import { readNextParam, validateNextPath } from './nextPath';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { readNextParam, rememberNext, takeRememberedNext, validateNextPath } from './nextPath';
+
+describe('rememberNext / takeRememberedNext', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('returns a parked approval path once, then nothing', () => {
+    rememberNext('/approve/abc123/review?page=2');
+    expect(takeRememberedNext()).toBe('/approve/abc123/review?page=2');
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('parks nothing for a null path', () => {
+    rememberNext(null);
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('drops an entry older than an hour', () => {
+    rememberNext('/approve/abc123', 1_000);
+    expect(takeRememberedNext(1_000 + 60 * 60 * 1000 + 1)).toBeNull();
+  });
+
+  it('re-validates the value when it is taken', () => {
+    window.sessionStorage.setItem(
+      'seald.auth.next',
+      JSON.stringify({ next: 'https://evil.com/approve/abc', at: Date.now() }),
+    );
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('ignores a malformed entry', () => {
+    window.sessionStorage.setItem('seald.auth.next', 'not json');
+    expect(takeRememberedNext()).toBeNull();
+  });
+});
 
 describe('validateNextPath — accepted approval paths', () => {
   it.each([

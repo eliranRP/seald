@@ -1,11 +1,12 @@
-import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { AlertTriangle } from 'lucide-react';
 import { AuthShell } from '@/components/AuthShell';
 import { AuthForm } from '@/components/AuthForm';
 import type { AuthFormMode } from '@/components/AuthForm/AuthForm.types';
 import { pathForAuthMode } from '@/layout/authPaths';
+import { pathWithNext, readNextParam, rememberNext, takeRememberedNext } from '@/layout/nextPath';
 import { useAuth } from '@/providers/AuthProvider';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 
@@ -35,6 +36,7 @@ const ErrorBanner = styled.div`
  */
 export function SignUpPage() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
   const { enterGuestMode } = useAuth();
   const isMobile = useIsMobileViewport();
   const [guestError, setGuestError] = useState<string | null>(null);
@@ -51,11 +53,19 @@ export function SignUpPage() {
       });
   }, [enterGuestMode, isMobile, navigate]);
 
+  const next = readNextParam(params);
+
+  // One job: park a valid `?next=` for the Google round trip and for the
+  // sign-up confirmation email, which both return through /auth/callback.
+  useEffect(() => {
+    rememberNext(next);
+  }, [next]);
+
   const handleSwitch = useCallback(
-    (next: AuthFormMode): void => {
-      navigate(pathForAuthMode(next));
+    (mode: AuthFormMode): void => {
+      navigate(pathWithNext(pathForAuthMode(mode), next));
     },
-    [navigate],
+    [navigate, next],
   );
 
   const handleNeedsEmail = useCallback(
@@ -66,12 +76,14 @@ export function SignUpPage() {
   );
 
   const handleAuthed = useCallback((): void => {
-    // Per product (2026-05-03, refined): mirror of SignInPage.handleAuthed —
-    // the desktop dashboard wasn't designed for 390 px, so mobile users are
-    // locked to the dedicated mobile sender at /m/send after sign-up.
-    // Desktop visitors still land on /documents.
-    navigate(isMobile ? '/m/send' : '/documents');
-  }, [isMobile, navigate]);
+    // A validated `?next=` (an approval review) wins, as on SignInPage.
+    // Otherwise, per product (2026-05-03, refined): the desktop dashboard
+    // wasn't designed for 390 px, so mobile users are locked to the
+    // dedicated mobile sender at /m/send after sign-up. Desktop visitors
+    // still land on /documents.
+    takeRememberedNext();
+    navigate(next ?? (isMobile ? '/m/send' : '/documents'));
+  }, [isMobile, navigate, next]);
 
   return (
     <AuthShell>

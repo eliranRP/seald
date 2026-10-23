@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { renderWithProviders } from '../../test/renderWithProviders';
+import { takeRememberedNext } from '../../layout/nextPath';
 import { SignInPage } from './SignInPage';
 
 // Sign-in with a `?next=` return path. Only a validated `/approve/…` path is
@@ -22,6 +23,11 @@ afterEach(() => {
   mobileViewport = false;
 });
 
+function Where() {
+  const loc = useLocation();
+  return <p data-testid="where">{`${loc.pathname}${loc.search}`}</p>;
+}
+
 function renderAt(initialEntry: string) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -30,6 +36,7 @@ function renderAt(initialEntry: string) {
         <Route path="/documents" element={<h1>Documents dashboard</h1>} />
         <Route path="/m/send" element={<h1>Mobile sender flow</h1>} />
         <Route path="/approve/:id/review" element={<h1>Approval review</h1>} />
+        <Route path="/signup" element={<Where />} />
       </Routes>
     </MemoryRouter>,
     { auth: { signInWithPassword: vi.fn(async () => undefined) } },
@@ -81,5 +88,31 @@ describe('SignInPage — ?next= return path', () => {
     expect(
       await screen.findByRole('heading', { name: /documents dashboard/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('SignInPage — ?next= across the Google round trip and sign-up', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
+  it('parks a valid ?next= for /auth/callback, once', () => {
+    renderAt('/signin?next=%2Fapprove%2Fabc%2Freview%3Fpage%3D1');
+    expect(takeRememberedNext()).toBe('/approve/abc/review?page=1');
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('parks nothing for an unsafe ?next=', () => {
+    renderAt('/signin?next=%2F%2Fevil.com');
+    expect(takeRememberedNext()).toBeNull();
+  });
+
+  it('keeps ?next= when the owner switches to sign-up', async () => {
+    const user = userEvent.setup();
+    renderAt('/signin?next=%2Fapprove%2Fabc%2Freview');
+    await user.click(screen.getByRole('button', { name: /create an account/i }));
+    expect(await screen.findByTestId('where')).toHaveTextContent(
+      '/signup?next=%2Fapprove%2Fabc%2Freview',
+    );
   });
 });

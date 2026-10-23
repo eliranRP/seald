@@ -84,6 +84,29 @@ describe('apiClient response interceptor', () => {
     );
   });
 
+  it('keeps the API error slug from `{ error }` bodies as `code`', async () => {
+    const adapter: AxiosAdapter = (config) => {
+      const response = {
+        data: { error: 'fresh_login_required' },
+        status: 403,
+        statusText: 'Forbidden',
+        headers: {},
+        config,
+      };
+      const err = new AxiosError(
+        'Request failed with status code 403',
+        'ERR_BAD_REQUEST',
+        config,
+        null,
+        response as unknown as AxiosResponse,
+      );
+      return Promise.reject(err);
+    };
+    await expect(
+      withAdapter(adapter, () => apiClient.post('/approvals/x/approve', {})),
+    ).rejects.toMatchObject({ status: 403, code: 'fresh_login_required' });
+  });
+
   // Bug C regression (2026-05-03): users hitting Send while the API was
   // unreachable saw the raw axios message "Network Error" — there's no
   // body and no statusText, so the interceptor was returning the bare

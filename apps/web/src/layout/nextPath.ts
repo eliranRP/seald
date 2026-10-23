@@ -50,3 +50,45 @@ export function validateNextPath(candidate: string | null | undefined): string |
 export function readNextParam(params: URLSearchParams): string | null {
   return validateNextPath(params.get(NEXT_PARAM));
 }
+
+/** `path?next=<next>` when `next` is a valid approval path, else `path`. */
+export function pathWithNext(path: string, next: string | null): string {
+  return next === null ? path : `${path}?${NEXT_PARAM}=${encodeURIComponent(next)}`;
+}
+
+/**
+ * Sign-in with Google and the sign-up confirmation email both leave the app
+ * and come back through `/auth/callback`, which has no `?next=`. The page
+ * that holds a valid `?next=` parks it here first, and the callback takes it
+ * once. It lives in `sessionStorage` (this tab only) for at most an hour, and
+ * the value is re-validated when it is taken, so a tampered entry cannot
+ * redirect anywhere the validator would refuse.
+ */
+const REMEMBER_KEY = 'seald.auth.next';
+const REMEMBER_MAX_AGE_MS = 60 * 60 * 1000;
+
+export function rememberNext(next: string | null, now: number = Date.now()): void {
+  if (next === null) return;
+  try {
+    window.sessionStorage.setItem(REMEMBER_KEY, JSON.stringify({ next, at: now }));
+  } catch {
+    /* storage blocked: the sign-in then lands on the default page */
+  }
+}
+
+/** Returns the parked path once, or `null` when none, expired or invalid. */
+export function takeRememberedNext(now: number = Date.now()): string | null {
+  try {
+    const raw = window.sessionStorage.getItem(REMEMBER_KEY);
+    window.sessionStorage.removeItem(REMEMBER_KEY);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    const { next, at } = parsed as { next?: unknown; at?: unknown };
+    if (typeof next !== 'string' || typeof at !== 'number') return null;
+    if (now - at > REMEMBER_MAX_AGE_MS) return null;
+    return validateNextPath(next);
+  } catch {
+    return null;
+  }
+}

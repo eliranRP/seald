@@ -81,10 +81,18 @@ apiClient.interceptors.response.use(
         wrapped.status = error.response.status;
       }
       const body = error.response?.data as
-        | { readonly code?: unknown; readonly retryAfter?: unknown }
+        | {
+            readonly code?: unknown;
+            readonly error?: unknown;
+            readonly retryAfter?: unknown;
+          }
         | undefined;
       if (typeof body?.code === 'string') {
         wrapped.code = body.code;
+      } else if (typeof body?.error === 'string') {
+        // `HttpExceptionFilter` answers `{ error: <slug> }`. Keep the slug so a
+        // caller can branch on it, for example `fresh_login_required` (WP-22).
+        wrapped.code = body.error;
       }
       if (typeof body?.retryAfter === 'number') {
         wrapped.retryAfter = body.retryAfter;
