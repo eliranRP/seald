@@ -53,105 +53,23 @@ describe('UserMenu', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('renders Download my data + Delete account when handlers are provided', async () => {
-    const onExportData = vi.fn();
-    const onDeleteAccount = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <UserMenu
-        user={user}
-        onSignOut={() => {}}
-        onExportData={onExportData}
-        onDeleteAccount={onDeleteAccount}
-      />,
-    );
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    await userEvent.click(getByRole('menuitem', { name: /download my data/i }));
-    expect(onExportData).toHaveBeenCalledTimes(1);
-    // After firing, menu closes; reopen and verify the danger item too.
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    await userEvent.click(getByRole('menuitem', { name: /delete account/i }));
-    expect(onDeleteAccount).toHaveBeenCalledTimes(1);
-  });
-
-  it('does NOT render Download my data / Delete account when handlers are absent', async () => {
+  it('has no Download my data, Integrations or Delete account items: they live in Settings', async () => {
     const { getByRole, queryByRole } = renderWithTheme(
-      <UserMenu user={user} onSignOut={() => {}} />,
+      <UserMenu user={user} onSignOut={() => {}} onOpenSettings={() => {}} />,
     );
     await userEvent.click(getByRole('button', { name: /open menu for/i }));
     expect(queryByRole('menuitem', { name: /download my data/i })).toBeNull();
+    expect(queryByRole('menuitem', { name: /integrations/i })).toBeNull();
     expect(queryByRole('menuitem', { name: /delete account/i })).toBeNull();
   });
 
-  it('disables and reflects busy state on the export item while isExporting', async () => {
-    const onExportData = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <UserMenu user={user} onSignOut={() => {}} onExportData={onExportData} isExporting />,
-    );
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    const item = getByRole('menuitem', { name: /preparing download/i });
-    expect(item).toBeDisabled();
-    expect(item).toHaveAttribute('aria-busy', 'true');
-    await userEvent.click(item);
-    expect(onExportData).not.toHaveBeenCalled();
-  });
-
-  it('disables and reflects busy state on the delete item while isDeleting', async () => {
-    const onDeleteAccount = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <UserMenu user={user} onSignOut={() => {}} onDeleteAccount={onDeleteAccount} isDeleting />,
-    );
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    const item = getByRole('menuitem', { name: /deleting account/i });
-    expect(item).toBeDisabled();
-    expect(item).toHaveAttribute('aria-busy', 'true');
-    await userEvent.click(item);
-    expect(onDeleteAccount).not.toHaveBeenCalled();
-  });
-
-  // Discoverability: /settings/integrations was added by the Drive-feature work
-  // but had no entry in the avatar dropdown — so authed users could not reach
-  // it without typing the URL. The gdrive-feature-manager skill forbids new
-  // top-level NAV_ITEMS, so the avatar dropdown is the natural home.
-  it('renders an Integrations menuitem when onOpenIntegrations is provided', async () => {
-    const onOpenIntegrations = vi.fn();
-    const { getByRole, queryByRole } = renderWithTheme(
-      <UserMenu user={user} onSignOut={() => {}} onOpenIntegrations={onOpenIntegrations} />,
-    );
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    await userEvent.click(getByRole('menuitem', { name: /integrations/i }));
-    expect(onOpenIntegrations).toHaveBeenCalledTimes(1);
-    // Activating an item closes the menu — same contract as Sign out / Export.
-    expect(queryByRole('menu')).toBeNull();
-  });
-
-  it('does NOT render Integrations when onOpenIntegrations is absent', async () => {
-    const { getByRole, queryByRole } = renderWithTheme(
-      <UserMenu user={user} onSignOut={() => {}} />,
-    );
-    await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    expect(queryByRole('menuitem', { name: /integrations/i })).toBeNull();
-  });
-
-  it('lists Settings first when onOpenSettings is provided, then the rest in order', async () => {
+  it('lists Settings first when onOpenSettings is provided, then Sign out', async () => {
     const onOpenSettings = vi.fn();
     const { getByRole, getAllByRole, queryByRole } = renderWithTheme(
-      <UserMenu
-        user={user}
-        onSignOut={() => {}}
-        onOpenSettings={onOpenSettings}
-        onExportData={() => {}}
-        onOpenIntegrations={() => {}}
-        onDeleteAccount={() => {}}
-      />,
+      <UserMenu user={user} onSignOut={() => {}} onOpenSettings={onOpenSettings} />,
     );
     await userEvent.click(getByRole('button', { name: /open menu for/i }));
-    expect(getAllByRole('menuitem').map((el) => el.textContent)).toEqual([
-      'Settings',
-      'Download my data',
-      'Integrations',
-      'Sign out',
-      'Delete account',
-    ]);
+    expect(getAllByRole('menuitem').map((el) => el.textContent)).toEqual(['Settings', 'Sign out']);
     // Opening focuses the first item for keyboard users.
     expect(getByRole('menuitem', { name: 'Settings' })).toHaveFocus();
     await userEvent.click(getByRole('menuitem', { name: 'Settings' }));

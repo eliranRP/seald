@@ -114,28 +114,18 @@ describe('useAccountActions — exportData', () => {
 });
 
 describe('useAccountActions — deleteAccount', () => {
-  it('aborts silently when the user cancels the prompt', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue(null);
-    const onAccountDeleted = vi.fn();
-    const { result } = renderHook(() => useAccountActions({ onAccountDeleted }));
-    await act(async () => {
-      await result.current.deleteAccount();
-    });
-    expect(del).not.toHaveBeenCalled();
-    expect(onAccountDeleted).not.toHaveBeenCalled();
-  });
-
-  it('aborts silently when the user types the wrong phrase', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('delete my account');
+  it('never opens a window.prompt: the caller owns the confirmation', async () => {
+    const prompt = vi.spyOn(window, 'prompt');
+    del.mockResolvedValueOnce(undefined);
     const { result } = renderHook(() => useAccountActions());
     await act(async () => {
       await result.current.deleteAccount();
     });
-    expect(del).not.toHaveBeenCalled();
+    expect(prompt).not.toHaveBeenCalled();
+    expect(del).toHaveBeenCalledTimes(1);
   });
 
   it('calls DELETE /me with the literal confirm phrase, then onAccountDeleted', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('DELETE_MY_ACCOUNT');
     del.mockResolvedValueOnce(undefined);
     const onAccountDeleted = vi.fn();
     const { result } = renderHook(() => useAccountActions({ onAccountDeleted }));
@@ -149,7 +139,6 @@ describe('useAccountActions — deleteAccount', () => {
   });
 
   it('reports a friendly error when the admin call fails (503)', async () => {
-    vi.spyOn(window, 'prompt').mockReturnValue('DELETE_MY_ACCOUNT');
     del.mockRejectedValueOnce(new Error('admin_api_unavailable'));
     const onAccountDeleted = vi.fn();
     const onError = vi.fn();

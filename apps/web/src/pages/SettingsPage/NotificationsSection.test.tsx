@@ -1,0 +1,85 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { DEFAULT_USER_SETTINGS } from 'shared';
+import { renderWithProviders } from '@/test/renderWithProviders';
+
+const getMock = vi.fn();
+const patchMock = vi.fn();
+vi.mock('@/lib/api/apiClient', () => ({
+  apiClient: {
+    get: (...a: unknown[]): unknown => getMock(...a),
+    patch: (...a: unknown[]): unknown => patchMock(...a),
+  },
+}));
+
+import { NotificationsSection } from './NotificationsSection';
+
+describe('NotificationsSection', () => {
+  beforeEach(() => {
+    getMock.mockReset().mockResolvedValue({ data: DEFAULT_USER_SETTINGS });
+    patchMock
+      .mockReset()
+      .mockImplementation((_url: string, body: object) =>
+        Promise.resolve({ data: { ...DEFAULT_USER_SETTINGS, ...body } }),
+      );
+  });
+
+  it('has Completed and Declined always on and not changeable', async () => {
+    renderWithProviders(<NotificationsSection />);
+    const completed = await screen.findByRole('switch', { name: 'Completed' });
+    const declined = screen.getByRole('switch', { name: 'Declined, expired, bounced' });
+    expect(completed).toBeChecked();
+    expect(completed).toBeDisabled();
+    expect(declined).toBeChecked();
+    expect(declined).toBeDisabled();
+  });
+
+  it('starts with Someone signs on and Daily summary off', async () => {
+    renderWithProviders(<NotificationsSection />);
+    expect(await screen.findByRole('switch', { name: 'Someone signs' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Daily summary' })).not.toBeChecked();
+  });
+
+  it('saves the Daily summary switch at once', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsSection />);
+    const sw = await screen.findByRole('switch', { name: 'Daily summary' });
+    await user.click(sw);
+    expect(sw).toBeChecked();
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith('/me/settings', {
+        notify: { daily_summary: true },
+      }),
+    );
+  });
+
+  it('rolls the switch back when the save fails', async () => {
+    const user = userEvent.setup();
+    patchMock.mockRejectedValue(new Error('nope'));
+    renderWithProviders(<NotificationsSection />);
+    const sw = await screen.findByRole('switch', { name: 'Someone signs' });
+    await user.click(sw);
+    await waitFor(() => expect(sw).toBeChecked());
+  });
+
+  it('shows the defaults and saves a new reminder cadence', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsSection />);
+    expect(await screen.findByRole('radio', { name: '3 days' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: '30' })).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Weekly' }));
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith('/me/settings', { reminder_default: 'weekly' }),
+    );
+  });
+
+  it('saves a new expiry as a number of days', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<NotificationsSection />);
+    await user.click(await screen.findByRole('radio', { name: '60 days' }));
+    await waitFor(() =>
+      expect(patchMock).toHaveBeenCalledWith('/me/settings', { expiry_default_days: 60 }),
+    );
+  });
+});

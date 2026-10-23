@@ -239,3 +239,4 @@ export {
   isEmailShape,
   splitEmailList,
 } from './contacts';
+export * from './user-settings';

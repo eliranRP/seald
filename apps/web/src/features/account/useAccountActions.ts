@@ -37,10 +37,10 @@ export interface UseAccountActions {
  *   into a download anchor, and clicks it. We use a temporary anchor
  *   (rather than `window.location = blobUrl`) so the user sees a
  *   browser-native save dialog and the SPA stays where it is.
- * - `deleteAccount` first asks the user to type the confirm phrase
- *   (`'DELETE_MY_ACCOUNT'`) into a `window.prompt`, mirroring the
- *   server-side DTO so a misclick can't wipe the account. On success it
- *   calls `onAccountDeleted` (caller signs out + redirects).
+ * - `deleteAccount` sends the server-side confirm phrase straight away. The
+ *   caller owns the human confirmation (Settings > Account shows a
+ *   type-DELETE dialog first), so a misclick can't wipe the account. On
+ *   success it calls `onAccountDeleted` (caller signs out + redirects).
  */
 export function useAccountActions(options: UseAccountActionsOptions = {}): UseAccountActions {
   const { onAccountDeleted, onError } = options;
@@ -76,15 +76,6 @@ export function useAccountActions(options: UseAccountActionsOptions = {}): UseAc
 
   const deleteAccountAction = useCallback(async (): Promise<void> => {
     if (isDeleting) return;
-    if (typeof window === 'undefined') return;
-    const reply = window.prompt(
-      'This will permanently delete your account, every envelope you sent, and every contact / template you saved. ' +
-        'Type DELETE_MY_ACCOUNT (uppercase, no quotes) to confirm.',
-    );
-    if (reply !== 'DELETE_MY_ACCOUNT') {
-      // User cancelled or typed the wrong phrase — silent no-op.
-      return;
-    }
     setDeleting(true);
     setLastError(null);
     try {

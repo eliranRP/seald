@@ -68,6 +68,8 @@ const OWNER_IN_APP_ROUTES: readonly string[] = [
   'GET /agent-activity',
   'POST /uploads/convert',
   'POST /envelopes/:id/unsend',
+  'GET /me/settings',
+  'PATCH /me/settings',
 ];
 
 interface Route {
