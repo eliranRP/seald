@@ -66,7 +66,8 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('region', { name: /field palette/i })).toBeInTheDocument();
     expect(screen.getByRole('document', { name: /page 1 of 4/i })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: /page navigation/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /send to sign/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^send$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send options' })).toBeInTheDocument();
   });
 
   it('navigates between pages via the toolbar and restricts PlacedFields to the current page', () => {
@@ -632,32 +633,145 @@ describe('DocumentPage', () => {
     expect(next?.length).toBe(1);
   });
 
-  it('opens AddSignerDropdown and fires onAddSignerFromContact on pick', () => {
+  it('adds a recent contact with one tap (falls back to onAddSignerFromContact)', () => {
     const onAddSignerFromContact = vi.fn<(c: AddSignerContact) => void>();
     renderPage({ onAddSignerFromContact });
 
-    fireEvent.click(screen.getByRole('button', { name: /add signer/i }));
-    const searchbox = screen.getByRole('searchbox', { name: /search contacts/i });
-    fireEvent.change(searchbox, { target: { value: 'grace' } });
-    fireEvent.click(screen.getByRole('option', { name: /grace hopper/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Grace Hopper' }));
 
     expect(onAddSignerFromContact).toHaveBeenCalledTimes(1);
     const firstCall = onAddSignerFromContact.mock.calls[0];
     expect(firstCall ? firstCall[0].id : undefined).toBe('c');
   });
 
-  it('fires onSend when the send CTA is clicked', () => {
+  it('adds several contacts from the picker in one call', () => {
+    const onAddSignersFromContacts = vi.fn<(c: ReadonlyArray<AddSignerContact>) => void>();
+    renderPage({ onAddSignersFromContacts });
+
+    fireEvent.click(screen.getByRole('button', { name: 'From contacts' }));
+    const dialog = screen.getByRole('dialog', { name: 'Contacts' });
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Grace Hopper' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add 1 signer' }));
+
+    expect(onAddSignersFromContacts).toHaveBeenCalledTimes(1);
+    expect(onAddSignersFromContacts.mock.calls[0]?.[0].map((c) => c.id)).toEqual(['c']);
+  });
+
+  it('creates a signer from the New email form', () => {
+    const onCreateSigner = vi.fn<(name: string, email: string) => void>();
+    renderPage({ onCreateSigner });
+
+    fireEvent.click(screen.getByRole('button', { name: 'New email' }));
+    const form = within(screen.getByRole('form', { name: 'New signer' }));
+    fireEvent.change(form.getByLabelText('Name'), { target: { value: 'Dana Levi' } });
+    fireEvent.change(form.getByLabelText('Email'), { target: { value: 'dana@levi.co' } });
+    fireEvent.click(form.getByRole('button', { name: 'Add' }));
+
+    expect(onCreateSigner).toHaveBeenCalledWith('Dana Levi', 'dana@levi.co');
+  });
+
+  it('fires onSend when the send CTA is clicked and every signer has a signature', () => {
     const onSend = vi.fn();
-    renderPage({ onSend });
-    fireEvent.click(screen.getByRole('button', { name: /send to sign/i }));
+    renderPage({
+      onSend,
+      initialFields: [
+        { id: 'f1', page: 1, type: 'signature', x: 60, y: 100, signerIds: ['a'] },
+        { id: 'f2', page: 1, type: 'signature', x: 60, y: 300, signerIds: ['b'] },
+      ],
+    });
+    expect(screen.getByRole('button', { name: 'Ready' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^send$/i }));
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
-  it('fires onBack when the back button is clicked', () => {
+  it('blocks Send while a signer has no signature and offers a one-click fix', () => {
+    const onSend = vi.fn();
+    const spy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onSend, onFieldsChangeSpy: spy });
+    // DEFAULT_FIELDS: Ada has a signature, Alan only a date.
+    expect(screen.getByRole('button', { name: /^send$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send options' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: '1 issue' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /alan has no signature/i }));
+    const next = spy.mock.calls[0]?.[0];
+    const added = next?.find((f) => f.type === 'signature' && f.signerIds.includes('b'));
+    expect(added).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Ready' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^send$/i })).toBeEnabled();
+  });
+
+  it('says Sign now when only the sender is on the list', () => {
+    renderPage({
+      signers: [DEFAULT_SIGNERS[0] as DocumentPageSigner],
+      youId: 'a',
+      initialFields: [{ id: 'f1', page: 1, type: 'signature', x: 60, y: 100, signerIds: ['a'] }],
+    });
+    expect(screen.getByRole('button', { name: /^sign now$/i })).toBeEnabled();
+    expect(screen.getByText('You')).toBeInTheDocument();
+  });
+
+  it('opens the send options sheet from the chevron and sends from it', () => {
+    const onSend = vi.fn();
+    renderPage({
+      onSend,
+      initialFields: [
+        { id: 'f1', page: 1, type: 'signature', x: 60, y: 100, signerIds: ['a'] },
+        { id: 'f2', page: 1, type: 'signature', x: 60, y: 300, signerIds: ['b'] },
+      ],
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send options' }));
+    const dialog = screen.getByRole('dialog', { name: 'Send options' });
+    expect(within(dialog).getByText('2 signers · in any order')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send now' }));
+    expect(onSend).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Send options' })).not.toBeInTheDocument();
+  });
+
+  it('fires onBack when the close button is clicked', () => {
     const onBack = vi.fn();
     renderPage({ onBack });
-    fireEvent.click(screen.getByRole('button', { name: /^back$/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('arms a field tile and places the field where the page is clicked', () => {
+    const spy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    renderPage({ onFieldsChangeSpy: spy, initialFields: [] });
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }));
+    expect(screen.getByText(/click the page to place/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('document', { name: /page 1 of 4/i }), {
+      clientX: 100,
+      clientY: 100,
+    });
+    const next = spy.mock.calls[0]?.[0];
+    expect(next?.[0]?.type).toBe('text');
+  });
+
+  it('undoes and redoes from the toolbar', () => {
+    const spy = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    const field: PlacedFieldValue = {
+      id: 'f1',
+      page: 1,
+      type: 'signature',
+      x: 60,
+      y: 100,
+      signerIds: ['a'],
+    };
+    renderPage({ onFieldsChangeSpy: spy, initialFields: [field] });
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('group', { name: /signature field for/i }));
+    fireEvent.keyDown(window, { key: 'Delete' });
+    expect(spy).toHaveBeenLastCalledWith([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(spy).toHaveBeenLastCalledWith([field]);
+    fireEvent.click(screen.getByRole('button', { name: 'Redo' }));
+    expect(spy).toHaveBeenLastCalledWith([]);
+  });
+
+  it('opens the shortcuts list from the toolbar', () => {
+    renderPage();
+    fireEvent.click(screen.getByRole('button', { name: 'Shortcuts' }));
+    expect(screen.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeInTheDocument();
   });
 
   it('Delete key removes every selected field', () => {

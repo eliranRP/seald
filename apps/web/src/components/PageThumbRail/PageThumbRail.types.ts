@@ -19,6 +19,12 @@ export interface PageThumbRailProps extends Omit<HTMLAttributes<HTMLElement>, 'o
    * zero (no badge).
    */
   readonly fieldCountByPage?: Readonly<Record<number, number>> | undefined;
+  /**
+   * Colours of the signers who have a field on each page. A page with
+   * entries shows them as small dots on its thumb, so the rail answers
+   * "which pages still need fields" without reading numbers.
+   */
+  readonly signerDotsByPage?: Readonly<Record<number, ReadonlyArray<string>>> | undefined;
   /** aria-label for the wrapping <nav>. Defaults to "Page navigation". */
   readonly label?: string | undefined;
 }

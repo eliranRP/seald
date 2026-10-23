@@ -57,6 +57,16 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
   readonly signers: ReadonlyArray<DocumentPageSigner>;
   readonly contacts?: ReadonlyArray<AddSignerContact> | undefined;
   readonly onAddSignerFromContact?: ((contact: AddSignerContact) => void) | undefined;
+  /**
+   * Several contacts at once ("From contacts" multi-select). The host adds
+   * them in one update; without this the page falls back to calling
+   * `onAddSignerFromContact` for each.
+   */
+  readonly onAddSignersFromContacts?:
+    | ((contacts: ReadonlyArray<AddSignerContact>) => void)
+    | undefined;
+  /** Id of the sender's own row on the signer list ("You"). */
+  readonly youId?: string | undefined;
   readonly onCreateSigner?: ((name: string, email: string) => void) | undefined;
   readonly onRemoveSigner?: ((id: string) => void) | undefined;
 
@@ -112,7 +122,12 @@ export interface DocumentPageProps extends HTMLAttributes<HTMLDivElement> {
    * to counting `fields`.
    */
   readonly sendTotals?:
-    | { readonly fieldCount: number; readonly signatureFieldCount: number }
+    | {
+        readonly fieldCount: number;
+        readonly signatureFieldCount: number;
+        /** Signers who have a signature field in any document. */
+        readonly signerIdsWithSignature?: ReadonlyArray<string> | undefined;
+      }
     | undefined;
   /**
    * Override the right-rail send button copy + icon. Defaults stay as

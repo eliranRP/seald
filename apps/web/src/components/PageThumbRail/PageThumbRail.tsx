@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useMemo, useRef } from 'react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import type { PageThumbRailProps } from './PageThumbRail.types';
 import {
   FieldCountBadge,
@@ -9,6 +9,8 @@ import {
   SkeletonLine,
   SkeletonLines,
   Thumb,
+  ThumbDot,
+  ThumbDots,
 } from './PageThumbRail.styles';
 
 function clampPage(next: number, total: number): number {
@@ -33,6 +35,7 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
     currentPage,
     onSelectPage,
     fieldCountByPage,
+    signerDotsByPage,
     label = 'Page navigation',
     ...rest
   } = props;
@@ -105,6 +108,19 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
       </RailHeader>
       {pages.map((page) => {
         const count = fieldCountByPage?.[page] ?? 0;
+        const dots = signerDotsByPage?.[page] ?? [];
+        let badge: ReactNode = null;
+        if (dots.length > 0) {
+          badge = (
+            <ThumbDots aria-hidden>
+              {dots.slice(0, 4).map((color) => (
+                <ThumbDot key={color} $color={color} />
+              ))}
+            </ThumbDots>
+          );
+        } else if (count > 0) {
+          badge = <FieldCountBadge aria-hidden>{count}</FieldCountBadge>;
+        }
         const isCurrent = page === currentPage;
         const isLast = page === totalPages;
         // Shorter skeleton on the final page (typically a signature page in
@@ -129,7 +145,7 @@ export const PageThumbRail = forwardRef<HTMLElement, PageThumbRailProps>((props,
                 <SkeletonLine key={i} $width={skeletonWidthPct(page, i)} />
               ))}
             </SkeletonLines>
-            {count > 0 ? <FieldCountBadge aria-hidden>{count}</FieldCountBadge> : null}
+            {badge}
             <PageLabel $active={isCurrent}>{page}</PageLabel>
           </Thumb>
         );

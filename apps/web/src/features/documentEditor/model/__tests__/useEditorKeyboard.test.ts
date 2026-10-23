@@ -225,4 +225,35 @@ describe('useEditorKeyboard global keydown handler', () => {
     dispatchKey({ key: '+', ctrlKey: true });
     expect(zoomIn).toHaveBeenCalledOnce();
   });
+
+  it('Shift+Cmd+Z and Ctrl+Y call redo when something can be redone; nothing otherwise', () => {
+    const redo = vi.fn();
+    let canRedo = true;
+    renderHook(() =>
+      useEditorKeyboard({
+        fields: [],
+        onFieldsChange: vi.fn(),
+        pushUndo: vi.fn(),
+        clipboardRef: { current: [] },
+        hasUndo: () => false,
+        hasClipboard: () => false,
+        undo: vi.fn(),
+        redo,
+        hasRedo: () => canRedo,
+        currentPage: 1,
+        selectedIds: [],
+        setSelectedIds: vi.fn(),
+        requestRemove: vi.fn(),
+        zoomIn: vi.fn(),
+        zoomOut: vi.fn(),
+        resetZoom: vi.fn(),
+      }),
+    );
+    dispatchKey({ key: 'z', metaKey: true, shiftKey: true });
+    dispatchKey({ key: 'y', ctrlKey: true });
+    expect(redo).toHaveBeenCalledTimes(2);
+    canRedo = false;
+    dispatchKey({ key: 'z', metaKey: true, shiftKey: true });
+    expect(redo).toHaveBeenCalledTimes(2);
+  });
 });

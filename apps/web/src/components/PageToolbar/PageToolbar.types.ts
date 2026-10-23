@@ -24,4 +24,12 @@ export interface PageToolbarProps extends HTMLAttributes<HTMLDivElement> {
   /** Disabled thresholds — callers cap zoom themselves, toolbar only reflects the state. */
   readonly zoomOutDisabled?: boolean | undefined;
   readonly zoomInDisabled?: boolean | undefined;
+  /** Undo / Redo buttons render when their handler is given. */
+  readonly onUndo?: (() => void) | undefined;
+  readonly onRedo?: (() => void) | undefined;
+  readonly undoDisabled?: boolean | undefined;
+  readonly redoDisabled?: boolean | undefined;
+  /** "?" button that opens the keyboard shortcuts list. */
+  readonly onShowShortcuts?: (() => void) | undefined;
+  readonly shortcutsExpanded?: boolean | undefined;
 }

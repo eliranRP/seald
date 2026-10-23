@@ -8,7 +8,8 @@ export const Root = styled.div`
   padding: ${({ theme }) => `${theme.space[1]} ${theme.space[2]}`};
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.sm};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  box-shadow: ${({ theme }) => theme.shadow.md};
 `;
 
 export const IconButton = styled.button`

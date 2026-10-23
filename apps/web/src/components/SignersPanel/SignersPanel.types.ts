@@ -15,4 +15,8 @@ export interface SignersPanelProps extends HTMLAttributes<HTMLElement> {
   readonly title?: string | undefined;
   readonly addLabel?: string | undefined;
   readonly removeLabelPrefix?: string | undefined;
+  /** Id of the sender's own row: it reads "You" instead of the name. */
+  readonly youId?: string | undefined;
+  /** Show 1, 2, 3 in front of each row (signing in order). */
+  readonly showOrder?: boolean | undefined;
 }

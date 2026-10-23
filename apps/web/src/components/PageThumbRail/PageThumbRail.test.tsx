@@ -79,4 +79,18 @@ describe('PageThumbRail', () => {
     fireEvent.keyDown(getByRole('navigation'), { key: 'Home' });
     expect(onSelectPage).toHaveBeenCalledWith(1);
   });
+
+  it('shows signer colour dots instead of the count when given', () => {
+    const { container, getByRole } = renderWithTheme(
+      <PageThumbRail
+        totalPages={3}
+        currentPage={1}
+        onSelectPage={() => {}}
+        fieldCountByPage={{ 2: 2 }}
+        signerDotsByPage={{ 2: ['#F472B6', '#7DD3FC'] }}
+      />,
+    );
+    expect(getByRole('button', { name: 'Page 2, 2 fields' })).toBeInTheDocument();
+    expect(container.querySelectorAll('i')).toHaveLength(2);
+  });
 });

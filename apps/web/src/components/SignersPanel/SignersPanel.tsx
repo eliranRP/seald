@@ -1,19 +1,19 @@
 import { forwardRef } from 'react';
-import type { JSX } from 'react';
 import { Plus, X } from 'lucide-react';
-import type { SignersPanelProps, SignersPanelSigner } from './SignersPanel.types';
+import type { SignersPanelProps } from './SignersPanel.types';
 import {
   AddButton,
-  Chip,
-  ChipItem,
-  ChipList,
-  ChipWrap,
   Count,
-  FirstName,
   Header,
+  Info,
   Initials,
+  List,
+  Meta,
+  Name,
+  OrderNum,
   RemoveButton,
   Root,
+  Row,
   Title,
 } from './SignersPanel.styles';
 
@@ -26,11 +26,11 @@ function initials(name: string): string {
     .join('');
 }
 
-function firstName(name: string): string {
-  const parts = name.split(' ').filter(Boolean);
-  return parts[0] ?? name;
-}
-
+/**
+ * The signer list of the Prepare screen: one row per person with a colour
+ * avatar (initials), name, email and a remove button. The sender's own row
+ * reads "You". Rows can show their signing order.
+ */
 export const SignersPanel = forwardRef<HTMLElement, SignersPanelProps>((props, ref) => {
   const {
     signers,
@@ -40,27 +40,12 @@ export const SignersPanel = forwardRef<HTMLElement, SignersPanelProps>((props, r
     title = 'Signers',
     addLabel = 'Add signer',
     removeLabelPrefix = 'Remove signer',
+    youId,
+    showOrder = false,
     ...rest
   } = props;
 
-  const handleChipClick = (id: string) => (): void => {
-    onSelectSigner?.(id);
-  };
-
-  const handleRemoveClick = (id: string) => (): void => {
-    onRemoveSigner?.(id);
-  };
-
-  const chipInteractive = onSelectSigner !== undefined;
-
-  const renderChipContent = (signer: SignersPanelSigner): JSX.Element => (
-    <>
-      <Initials $color={signer.color} aria-hidden>
-        {initials(signer.name)}
-      </Initials>
-      <FirstName>{firstName(signer.name)}</FirstName>
-    </>
-  );
+  const interactive = onSelectSigner !== undefined;
 
   return (
     <Root {...rest} ref={ref} aria-label={title}>
@@ -68,52 +53,59 @@ export const SignersPanel = forwardRef<HTMLElement, SignersPanelProps>((props, r
         <Title>{title}</Title>
         <Count aria-live="polite">{signers.length}</Count>
       </Header>
-      <ChipList role="list">
-        {signers.map((signer) => {
-          const hoverTitle = `${signer.name} · ${signer.email}`;
-          const chip = chipInteractive ? (
-            <Chip
-              as="button"
-              type="button"
-              $clickable
-              title={hoverTitle}
-              aria-label={`${signer.name}, ${signer.email}`}
-              onClick={handleChipClick(signer.id)}
-            >
-              {renderChipContent(signer)}
-            </Chip>
-          ) : (
-            <Chip $clickable={false} title={hoverTitle}>
-              {renderChipContent(signer)}
-            </Chip>
+      <List role="list">
+        {signers.map((signer, i) => {
+          const isYou = signer.id === youId;
+          const displayName = isYou ? 'You' : signer.name;
+          const text = (
+            <>
+              <Name>{displayName}</Name>
+              <Meta>{signer.email}</Meta>
+            </>
           );
           return (
-            <ChipItem key={signer.id}>
-              {onRemoveSigner !== undefined ? (
-                <ChipWrap>
-                  {chip}
-                  <RemoveButton
-                    type="button"
-                    aria-label={`${removeLabelPrefix} ${signer.name}`}
-                    onClick={handleRemoveClick(signer.id)}
-                  >
-                    <X size={12} aria-hidden />
-                  </RemoveButton>
-                </ChipWrap>
+            <Row key={signer.id} $index={i}>
+              {showOrder ? (
+                <OrderNum aria-label={`Signs number ${String(i + 1)}`}>{i + 1}</OrderNum>
+              ) : null}
+              <Initials $color={signer.color} aria-hidden>
+                {initials(signer.name)}
+              </Initials>
+              {interactive ? (
+                <Info
+                  as="button"
+                  type="button"
+                  $clickable
+                  title={`${signer.name} · ${signer.email}`}
+                  aria-label={`${signer.name}, ${signer.email}`}
+                  onClick={() => onSelectSigner(signer.id)}
+                >
+                  {text}
+                </Info>
               ) : (
-                chip
+                <Info $clickable={false} title={`${signer.name} · ${signer.email}`}>
+                  {text}
+                </Info>
               )}
-            </ChipItem>
+              {onRemoveSigner !== undefined ? (
+                <RemoveButton
+                  type="button"
+                  aria-label={`${removeLabelPrefix} ${signer.name}`}
+                  onClick={() => onRemoveSigner(signer.id)}
+                >
+                  <X size={16} aria-hidden />
+                </RemoveButton>
+              ) : null}
+            </Row>
           );
         })}
-        {onRequestAdd !== undefined ? (
-          <ChipItem>
-            <AddButton type="button" aria-label={addLabel} onClick={onRequestAdd}>
-              <Plus size={14} aria-hidden />
-            </AddButton>
-          </ChipItem>
-        ) : null}
-      </ChipList>
+      </List>
+      {onRequestAdd !== undefined ? (
+        <AddButton type="button" aria-label={addLabel} onClick={onRequestAdd}>
+          <Plus size={14} aria-hidden />
+          {addLabel}
+        </AddButton>
+      ) : null}
     </Root>
   );
 });

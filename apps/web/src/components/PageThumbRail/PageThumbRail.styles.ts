@@ -140,3 +140,19 @@ export const PageLabel = styled.span<{ readonly $active: boolean }>`
     $active ? theme.font.weight.semibold : theme.font.weight.medium};
   line-height: 1;
 `;
+
+export const ThumbDots = styled.span`
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  gap: 2px;
+`;
+
+export const ThumbDot = styled.i<{ $color: string }>`
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: ${({ $color }) => $color};
+`;
