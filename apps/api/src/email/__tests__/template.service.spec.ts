@@ -1,8 +1,16 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { MAX_AUTOMATED_REMINDERS } from 'shared';
-import { AUTOMATED_REMINDER_CADENCE } from '../reminder-cadence';
 import { TemplateService } from '../template.service';
+
+/** Visible text of the rendered HTML: tags dropped, zero-width joiners removed, spaces collapsed. */
+function visibleText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\u200d/g, '')
+    .replace(/&nbsp;|&zwnj;/g, ' ')
+    .replace(/\s+/g, ' ');
+}
 
 describe('TemplateService', () => {
   let svc: TemplateService;
@@ -34,10 +42,12 @@ describe('TemplateService', () => {
       'signer_corrected',
       'signer_replaced',
       'new_link_requested',
+      'your_turn',
+      'bounced_to_sender',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(19);
+    expect(kinds).toHaveLength(21);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -62,6 +72,12 @@ describe('TemplateService', () => {
       total_signers: 3,
       signed_count: 2,
       signer_name: 'Maya Raskin',
+      previous_signer_name: 'Hannah Wills',
+      bounced_email: 'alex@quil.vc',
+      bounce_reason: 'Mailbox does not exist',
+      new_link_url: 'https://seald.nromomentum.com/sign/abc',
+      doc_meta: '3 pages · from Ada Lovelace',
+      signer_progress_dots_html: '',
       // Globally-injected legal-footer vars in production come from
       // EmailDispatcherService; we set them inline here so the brand
       // wordmark assertion below has a stable value to match against.
@@ -81,6 +97,8 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'your_turn',
+      'bounced_to_sender',
     ] as const)('%s renders to valid HTML + non-empty text + subject', (kind) => {
       const out = svc.render(kind, commonVars);
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
@@ -107,12 +125,42 @@ describe('TemplateService', () => {
     it('substitutes every placeholder in the HTML body', () => {
       const out = svc.render('invite', vars);
       expect(out.html).toContain('Ada Lovelace');
-      expect(out.html).toContain('ada@example.com');
+      // The address carries a zero-width joiner after the @ (auto-linker defeat).
+      expect(visibleText(out.html)).toContain('ada@example.com');
       expect(out.html).toContain('NDA v1');
       expect(out.html).toContain(vars.sign_url);
       expect(out.html).toContain(vars.verify_url);
-      expect(out.html).toContain(vars.short_code);
+      // The short code carries a zero-width joiner so Gmail does not link it.
+      expect(out.html).toContain('abcde1\u200d2345xyz');
+      expect(visibleText(out.html)).toContain(vars.short_code);
       expect(out.html).not.toMatch(/\{\{[^}]+\}\}/);
+    });
+
+    it('defeats the mail auto-linker for the sender address', () => {
+      const out = svc.render('invite', vars);
+      expect(out.html).toContain('ada@\u200dexample.com');
+      expect(out.html).not.toContain('ada@example.com');
+      expect(out.html).not.toContain('mailto:');
+      // The plain-text twin keeps the real address.
+      expect(out.text).toContain('ada@example.com');
+    });
+
+    it('is a status card: one bulletproof button, preheader, legal footer line', () => {
+      const out = svc.render('invite', {
+        ...vars,
+        doc_meta: '3 pages · from Ada Lovelace',
+        expires_at_readable: 'Nov 20',
+      });
+      expect(out.html.match(/Review &amp; sign/g)).toHaveLength(1);
+      expect(out.html).toContain('bgcolor="#4f46e5"');
+      const compact = out.html.replace(/\s+/g, '');
+      expect(compact).toContain('max-width:560px');
+      expect(compact).toContain('display:none;max-height:0;overflow:hidden;mso-hide:all');
+      const text = visibleText(out.html);
+      expect(text).toContain('Simple e-signature · ESIGN/UETA · Legal info');
+      expect(out.html).toContain('href="https://seald.nromomentum.com/legal/esign-disclosure"');
+      expect(text).toContain('Expires Nov 20');
+      expect(text).toContain('3 pages · from Ada Lovelace');
     });
 
     it('substitutes every placeholder in the text body', () => {
@@ -145,76 +193,100 @@ describe('TemplateService', () => {
   });
 
   describe('render — reminder', () => {
+    const vars = {
+      sender_name: 'Ada Lovelace',
+      sender_email: 'ada@example.com',
+      envelope_title: 'MSA',
+      sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+      verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
+      short_code: 'abcde12345xyz',
+      expires_at_readable: 'Nov 20',
+      sent_ago: '5 days ago',
+      unsubscribe_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+      public_url: 'https://seald.nromomentum.com',
+      legal_entity: 'Seald',
+      legal_postal: 'Chlenov 24, Tel Aviv-Yafo 6604806, Israel',
+      privacy_url: 'https://seald.nromomentum.com/legal/privacy',
+      preferences_url: 'mailto:privacy@seald.nromomentum.com',
+    };
+
     it('quotes the envelope title and keeps the legal-footer middle dot', () => {
-      const out = svc.render('reminder', {
-        sender_name: 'Ada Lovelace',
-        sender_email: 'ada@example.com',
-        envelope_title: 'MSA',
-        sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
-        verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
-        short_code: 'abcde12345xyz',
-        expires_at_readable: '2026-05-24 00:00 UTC',
-        public_url: 'https://seald.nromomentum.com',
-        legal_entity: 'Seald',
-        legal_postal: 'Chlenov 24, Tel Aviv-Yafo 6604806, Israel',
-        privacy_url: 'https://seald.nromomentum.com/legal/privacy',
-        preferences_url: 'mailto:privacy@seald.nromomentum.com',
-        reminder_cadence: AUTOMATED_REMINDER_CADENCE,
-      });
-      expect(out.subject).toBe('Reminder: please sign "MSA"');
+      const out = svc.render('reminder', vars);
+      expect(out.subject).toBe('Reminder: "MSA" is waiting for you');
       expect(out.html).toContain('Seald</strong> · Chlenov 24');
-      const flatHtml = out.html.replace(/\s+/g, ' ');
-      const flatText = out.text.replace(/\s+/g, ' ');
-      expect(out.html).toContain('Review and sign');
-      expect(out.html).not.toContain('Review and sign now');
-      expect(flatHtml).toContain('The link expires on 2026-05-24 00:00 UTC');
-      expect(flatText).toContain('This request expires on 2026-05-24 00:00 UTC');
-      expect(flatHtml).not.toContain('Reminder sent by');
-      expect(flatText).not.toContain('Reminder sent by');
-      const footer = `Unless the sender turns them off, Seald sends up to ${MAX_AUTOMATED_REMINDERS} automatic daily reminders; they stop sooner if you sign or decline, or when the request expires or is cancelled.`;
-      expect(flatHtml).toContain(footer);
-      expect(flatText).toContain(footer);
-      expect(out.text).toContain('Review and sign:');
+      const text = visibleText(out.html);
+      expect(text).toContain('Still waiting for your signature');
+      expect(text).toContain('Ada Lovelace sent this 5 days ago.');
+      expect(text).toContain('Expires Nov 20');
+      expect(out.html.match(/Review &amp; sign/g)).toHaveLength(1);
+      expect(out.text).toContain('Review & sign:');
+      expect(out.text).toContain('Expires Nov 20.');
       expect(out.text).toContain('Seald · Chlenov 24');
       expect(out.text).toContain('MSA');
     });
 
-    it('omits the automatic-reminder sentence unless reminder_cadence is set', () => {
-      const out = svc.render('reminder', {
-        sender_name: 'Ada Lovelace',
-        sender_email: 'ada@example.com',
-        envelope_title: 'MSA',
-        sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
-        reminder_cadence: '',
-      });
-      expect(out.html).not.toContain('automatic daily reminders');
-      expect(out.text).not.toContain('automatic daily reminders');
-      expect(out.html).toContain('asked you to sign a document.');
-      expect(out.text).toContain('asked you to sign a document.');
-      expect(out.html).toContain('simple electronic signature');
-      expect(out.text).toContain('simple electronic signature');
+    it('offers Unsubscribe from reminders in the footer, and only there', () => {
+      const out = svc.render('reminder', vars);
+      expect(visibleText(out.html)).toContain('Sent via Seald · Unsubscribe from reminders');
+      const invite = svc.render('invite', { ...vars, previous_signer_name: '' });
+      expect(visibleText(invite.html)).not.toContain('Unsubscribe from reminders');
     });
 
-    it('uses the same e-signature notice text as the invite', () => {
-      const notice = (source: string): string => {
-        const match = source.match(
-          /Seald records a simple electronic signature[\s\S]*?where it will be enforced\./,
-        );
-        return (match?.[0] ?? '').replace(/\s+/g, ' ').trim();
-      };
-      const invite = readFileSync(resolve(__dirname, '../templates/invite/body.html'), 'utf8');
-      const reminderHtml = readFileSync(
-        resolve(__dirname, '../templates/reminder/body.html'),
-        'utf8',
-      );
-      const reminderTxt = readFileSync(
-        resolve(__dirname, '../templates/reminder/body.txt'),
-        'utf8',
-      );
-      expect(notice(invite).length).toBeGreaterThan(0);
-      expect(notice(reminderHtml)).toBe(notice(invite));
-      expect(notice(reminderTxt)).toBe(notice(invite));
-      expect(reminderTxt).not.toMatch(/electronic signature\.[ \t]+$/m);
+    it('moves the long e-signature paragraph out of the email', () => {
+      const out = svc.render('reminder', vars);
+      for (const part of [visibleText(out.html), out.text]) {
+        expect(part).not.toContain('Seald records a simple electronic signature');
+        expect(part).not.toContain('automatic daily reminders');
+      }
+    });
+  });
+
+  describe('render — your_turn', () => {
+    it('names the previous signer and keeps the signing link out of anything but the button', () => {
+      const out = svc.render('your_turn', {
+        sender_name: 'Ada Lovelace',
+        sender_email: 'ada@example.com',
+        envelope_title: 'NDA v1',
+        previous_signer_name: 'Hannah Wills',
+        sign_url: 'https://seald.nromomentum.com/sign/abc?t=xyz',
+        expires_at_readable: 'Nov 20',
+        short_code: 'abcde12345xyz',
+        verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
+        public_url: 'https://seald.nromomentum.com',
+      });
+      expect(out.subject).toBe('Your turn to sign "NDA v1"');
+      const text = visibleText(out.html);
+      expect(text).toContain("It's your turn to sign");
+      expect(text).toContain('Hannah Wills just signed.');
+      expect(out.html).toContain('href="https://seald.nromomentum.com/sign/abc?t=xyz"');
+      expect(out.text).toContain('Hannah Wills just signed.');
+      expect(out.text).toContain('https://seald.nromomentum.com/sign/abc?t=xyz');
+    });
+  });
+
+  describe('render — bounced_to_sender', () => {
+    it('names the bounced address, keeps it out of a mailto link, and points at the document', () => {
+      const out = svc.render('bounced_to_sender', {
+        signer_name: 'Alex Reyes',
+        bounced_email: 'alex@quil.vc',
+        bounce_reason: 'Mailbox does not exist',
+        envelope_title: 'NDA v1',
+        dashboard_url: 'https://seald.nromomentum.com/document/env-1',
+        short_code: 'abcde12345xyz',
+        verify_url: 'https://seald.nromomentum.com/verify/abcde12345',
+        public_url: 'https://seald.nromomentum.com',
+      });
+      expect(out.subject).toBe("Couldn't deliver to alex@quil.vc");
+      const text = visibleText(out.html);
+      expect(text).toContain('Email to Alex Reyes bounced');
+      expect(text).toContain('alex@quil.vc could not be reached.');
+      expect(text).toContain('Mailbox does not exist');
+      expect(out.html).toContain('alex@\u200dquil.vc');
+      expect(out.html).not.toContain('mailto:');
+      expect(out.html).toContain('href="https://seald.nromomentum.com/document/env-1"');
+      expect(text).toContain('Fix email');
+      expect(out.text).toContain('alex@quil.vc could not be reached.');
+      expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
     });
   });
 
@@ -265,6 +337,10 @@ describe('TemplateService', () => {
       total_signers: 1,
       signed_count: 0,
       signer_name: 'Maya Raskin',
+      previous_signer_name: 'Hannah',
+      bounced_email: 'alex@quil.vc',
+      bounce_reason: 'x',
+      new_link_url: 'https://seald.nromomentum.com/sign/abc',
       legal_entity: 'Seald',
       legal_postal: 'Postal address available on request — write to legal@seald.test.',
       privacy_url: 'https://seald.nromomentum.com/legal/privacy',
@@ -281,6 +357,8 @@ describe('TemplateService', () => {
       'expired_to_sender',
       'expired_to_signer',
       'signed_to_sender',
+      'your_turn',
+      'bounced_to_sender',
     ] as const)('%s renders the "Seald" brand wordmark in body and subject', (kind) => {
       const out = svc.render(kind, vars);
       // Body must contain the brand wordmark wrapped in the footer <strong>.
@@ -311,8 +389,8 @@ describe('TemplateService', () => {
       expect(out.text).toContain('Maya Raskin signed NDA v1.');
       expect(out.text).toContain('2 of 3 signed.');
       expect(out.text).toContain('The finished file is emailed when everyone has signed.');
-      expect(out.text).toContain('Open in Seald:');
-      expect(out.html).toContain('Open in Seald');
+      expect(out.text).toContain('Open document:');
+      expect(out.html).toContain('Open document');
       expect(out.text).toContain('https://seald.nromomentum.com/document/env-1');
       expect(out.html).not.toContain('?t=');
       expect(out.text).not.toContain('?t=');

@@ -1,12 +1,16 @@
+Everyone signed. The sealed PDF and audit trail are ready.
+
 {{envelope_title}} is signed and sealed.
 
-Everyone has signed. Download the sealed PDF and the separate audit PDF from the links below. When a seal is applied, changing the PDF breaks that seal.
+Everyone has signed. Download the sealed PDF and the separate audit PDF from
+the links below. When a seal is applied, changing the PDF breaks that seal.
 
 Download:
   Sealed document: {{sealed_url}}
   Audit trail:     {{audit_url}}
 
-Verify this document with reference code {{short_code}}:
+Verify · {{short_code}}
   {{verify_url}}
-
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

@@ -1,9 +1,14 @@
+Your one-time code is {{code}}. It works once.
+
 Your one-time code for "{{envelope_title}}" from {{sender_name}}:
 
   {{code}}
 
 {{purpose_line}} The code works once and expires in {{expires_minutes}} minutes.
 
-Didn't ask for this code? You can ignore this email. Never share the code with anyone, including someone who says they work for Seald.
+Didn't ask for this code? You can ignore this email. Never share the code with
+anyone, including someone who says they work for Seald.
 
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

@@ -130,6 +130,7 @@ function asNullableNumber(v: unknown): number | null {
 function deriveSignerStatus(row: SignerRow): EnvelopeSigner['status'] {
   if (row.declined_at !== null) return 'declined';
   if (row.signed_at !== null) return 'completed';
+  if (row.delivery_status === 'bounced') return 'bounced';
   if (row.viewed_at !== null) return 'viewing';
   return 'awaiting';
 }
@@ -151,6 +152,7 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     ...(isFeatureEnabled('signingOrder') ? { invited_at: toIso(row.invited_at) } : {}),
     // WP-38: reaches the wire only with `i18n` on.
     ...(isFeatureEnabled('i18n') ? { locale: row.locale ?? null } : {}),
+    delivery_status: row.delivery_status,
   };
 }
 
@@ -275,6 +277,7 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
       color: s.color,
       status: deriveSignerStatus(s),
       signed_at: toIso(s.signed_at),
+      delivery_status: s.delivery_status,
     })),
   };
 }
@@ -1122,6 +1125,10 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             ...(patch.name !== undefined ? { name: patch.name } : {}),
             ...(patch.email !== undefined ? { email: patch.email } : {}),
             ...(emailChanged ? { contact_id: null } : {}),
+            // A new address starts with a clean delivery record.
+            ...(emailChanged
+              ? { delivery_status: 'delivered' as const, bounced_at: null, bounce_reason: null }
+              : {}),
             // The old link no longer matches; the dispatcher mints a new
             // token when the fresh invite goes out.
             access_token_hash: null,
@@ -1162,6 +1169,27 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       if (isSignerEmailUniqueViolation(err)) throw new EnvelopeSignerEmailTakenError();
       throw err;
     }
+  }
+
+  async markSignerBounced(
+    signer_id: string,
+    reason: string | null,
+    now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null> {
+    const row = await this.db
+      .updateTable('envelope_signers')
+      .set({
+        delivery_status: 'bounced',
+        bounced_at: now.toISOString(),
+        bounce_reason: reason,
+      })
+      .where('id', '=', signer_id)
+      .where('delivery_status', '=', 'delivered')
+      .where('signed_at', 'is', null)
+      .where('declined_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? { envelope_id: row.envelope_id, signer: toSignerDomain(row) } : null;
   }
 
   async updateOpenExpiry(

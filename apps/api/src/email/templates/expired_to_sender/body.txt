@@ -1,12 +1,18 @@
-{{envelope_title}} expired.
+Not everyone signed in time. Extend it by 30 days in one tap.
 
-The signing window for this request closed on {{expired_at_readable}}
-before all parties signed. Of {{total_signers}} signers, {{signed_count}}
-had completed by the deadline.
+Expired before everyone signed.
 
-To try again, start a new envelope from the dashboard and upload the PDF. The original
-expired request is retained with its audit trail.
+The signing window for {{envelope_title}} closed on {{expired_at_readable}}
+before all parties signed. Of {{total_signers}} signers, {{signed_count}} had
+completed by the deadline.
 
-  Open dashboard: {{dashboard_url}}
+Extend 30 days:
+  {{dashboard_url}}
 
+The expired request stays on your account with its audit trail.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

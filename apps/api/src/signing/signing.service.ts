@@ -196,7 +196,7 @@ export class SigningService {
       .filter((s) => s.id !== signer.id)
       .map((s) => ({
         id: s.id,
-        status: s.status,
+        status: publicSignerStatus(s.status),
         name_masked: maskName(s.name),
       }));
     return {
@@ -221,7 +221,7 @@ export class SigningService {
         name: signer.name,
         color: signer.color,
         role: signer.role,
-        status: signer.status,
+        status: publicSignerStatus(signer.status),
         viewed_at: signer.viewed_at,
         tc_accepted_at: signer.tc_accepted_at,
         signed_at: signer.signed_at,
@@ -542,7 +542,7 @@ export class SigningService {
     // the mail below, a failure must not fail the committed signature.
     if (submitted.next_step) {
       try {
-        await this.signingOrder.startStep(envelope, submitted.next_step);
+        await this.signingOrder.startStep(envelope, submitted.next_step, signer.name);
       } catch (err) {
         const message = err instanceof Error ? err.message : 'unknown';
         this.logger.error(
@@ -885,6 +885,14 @@ function assertStillSignable(envelope: Envelope, signer: EnvelopeSigner): void {
 }
 
 /** ISO timestamp → "2026-04-24 13:05 UTC" for human-readable email copy. */
+/**
+ * `bounced` is for the sender: a signer page or the public verify page never
+ * reports that someone's mailbox rejected the invite.
+ */
+function publicSignerStatus(status: EnvelopeSigner['status']): Exclude<typeof status, 'bounced'> {
+  return status === 'bounced' ? 'awaiting' : status;
+}
+
 function formatUtc(iso: string): string {
   const date = new Date(iso);
   const year = date.getUTCFullYear();

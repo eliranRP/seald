@@ -215,7 +215,7 @@ function protectEmailsInLabel(label: string): string {
 export interface SignerSnapshot {
   readonly name: string;
   readonly email: string;
-  readonly status: 'awaiting' | 'viewing' | 'completed' | 'declined';
+  readonly status: 'awaiting' | 'viewing' | 'completed' | 'declined' | 'bounced';
   readonly signed_at: string | null;
 }
 
@@ -252,7 +252,7 @@ function mapSignerStatus(
   if (backend === 'completed') return 'signed';
   if (backend === 'declined') return 'declined';
   if (asExpiredWhenUnsigned) return 'expired';
-  return backend === 'viewing' ? 'waiting' : 'pending';
+  return backend === 'viewing' ? 'waiting' : 'pending'; // awaiting, bounced
 }
 
 /** "2026-04-22T14:18:07.000Z" → "Apr 22". */
@@ -381,4 +381,46 @@ const ESCAPE_MAP: Record<string, string> = {
 
 function escapeHtml(input: string): string {
   return input.replace(/[&<>"']/g, (ch) => ESCAPE_MAP[ch] ?? ch);
+}
+
+// --- signer progress dots (status-card emails) -------------------------------
+
+/** One dot per signer: signed, the recipient, declined or bounced, still waiting. */
+export type ProgressDot = 'done' | 'you' | 'bad' | 'waiting';
+
+const DOT_COLORS: Record<ProgressDot, string> = {
+  done: '#10B981',
+  you: '#4F46E5',
+  bad: '#EF4444',
+  waiting: '#CBD5E1',
+};
+
+/** "2 of 3 signed": the text twin of the dots, also their accessible name. */
+export function buildProgressText(dots: ReadonlyArray<ProgressDot>): string {
+  if (dots.length === 0) return '';
+  const done = dots.filter((d) => d === 'done').length;
+  return `${done} of ${dots.length} signed`;
+}
+
+/**
+ * Row of 8px dots for the document card. Table cells with `bgcolor`, no
+ * images, no flex: renders the same in Gmail, Outlook and Apple Mail. The
+ * text twin rides on `aria-label` and `title`. Empty list: empty string.
+ */
+export function buildProgressDotsHtml(dots: ReadonlyArray<ProgressDot>): string {
+  if (dots.length === 0) return '';
+  const label = escapeHtml(buildProgressText(dots));
+  const cells = dots
+    .map((d) => {
+      const color = DOT_COLORS[d];
+      return (
+        `<td width="8" height="8" bgcolor="${color}" ` +
+        `style="width:8px;height:8px;background:${color};border-radius:4px;font-size:0;line-height:0;">&nbsp;</td>`
+      );
+    })
+    .join('<td width="4" style="width:4px;font-size:0;line-height:0;">&nbsp;</td>');
+  return (
+    `<table role="img" aria-label="${label}" title="${label}" cellspacing="0" cellpadding="0" ` +
+    `border="0" align="right"><tr>${cells}</tr></table>`
+  );
 }

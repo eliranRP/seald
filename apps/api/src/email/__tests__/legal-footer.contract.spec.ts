@@ -63,7 +63,7 @@ describe('legal email footer', () => {
     const text = readFileSync(resolve(__dirname, '../templates/automation_copy/body.txt'), 'utf8');
 
     it('says who added the recipient and offers a stop link in the HTML footer', () => {
-      const foot = html.slice(html.indexOf('<div class="foot">'));
+      const foot = html.slice(html.search(/<div\s+class="foot"/)).replace(/\s+/g, ' ');
       expect(foot).toContain('{{sender_email}}');
       expect(foot).toContain('added you to a Seald automation');
       expect(foot).toContain('href="{{stop_url}}"');

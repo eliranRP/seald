@@ -461,6 +461,7 @@ export type FieldKindDb =
   | 'dropdown';
 export type SignatureFormatDb = 'drawn' | 'typed' | 'upload';
 export type ActorKindDb = 'sender' | 'signer' | 'system';
+export type SignerDeliveryStatusDb = 'delivered' | 'bounced';
 export type EventTypeDb =
   | 'created'
   | 'pdf_uploaded'
@@ -491,7 +492,9 @@ export type EventTypeDb =
   | 'signer_corrected'
   | 'signer_replaced'
   | 'expiry_changed'
-  | 'unsent';
+  | 'unsent'
+  // Migration 0040
+  | 'email_bounced';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -610,6 +613,14 @@ export interface EnvelopeSignersTable {
   // dispatched invite or reminder bumps access_token_sent_at (rotation).
   last_reminded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   verification_checks: ColumnType<string[], string | undefined, string | undefined>;
+  // Migration 0040 — a hard bounce reported by the email provider.
+  delivery_status: ColumnType<
+    SignerDeliveryStatusDb,
+    SignerDeliveryStatusDb | undefined,
+    SignerDeliveryStatusDb | undefined
+  >;
+  bounced_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  bounce_reason: string | null;
 
   viewed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   tc_accepted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
@@ -740,7 +751,9 @@ export type EmailKindDb =
   | 'automation_disabled'
   | 'signer_corrected'
   | 'signer_replaced'
-  | 'new_link_requested';
+  | 'new_link_requested'
+  | 'your_turn'
+  | 'bounced_to_sender';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed' | 'canceled';
 
 export interface OutboundEmailsTable {

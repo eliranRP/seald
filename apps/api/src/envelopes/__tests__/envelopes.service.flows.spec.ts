@@ -163,6 +163,10 @@ class FakeOutbound extends OutboundEmailsRepository {
   async listByEnvelope(envelope_id: string) {
     return this.rows.filter((r) => r.envelope_id === envelope_id);
   }
+  async findByProviderId(): Promise<null> {
+    return null;
+  }
+  async recordProviderEvent(): Promise<void> {}
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
@@ -472,6 +476,9 @@ class FakeRepo extends EnvelopesRepository {
     return false;
   }
   async correctSigner(): Promise<never> {
+    throw new Error('not exercised here');
+  }
+  async markSignerBounced(): Promise<never> {
     throw new Error('not exercised here');
   }
   async updateOpenExpiry(): Promise<never> {

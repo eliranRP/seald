@@ -1,3 +1,5 @@
+{{sent_count}} sent, {{failed_count}} failed.
+
 Your bulk send of {{template_title}} is {{outcome_word}}.
 
 Sent: {{sent_count}}
@@ -6,9 +8,12 @@ Canceled: {{canceled_count}}
 Skipped (invalid rows): {{skipped_count}}
 Rows in file: {{total_count}}
 {{failed_rows_text}}
-Each sent envelope went to its signers as a normal request. Track them from your dashboard.
+Each sent envelope went to its signers as a normal request. Track them from
+your dashboard.
 
 View the batch:
   {{batch_url}}
 
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

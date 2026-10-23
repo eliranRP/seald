@@ -1,12 +1,16 @@
-You no longer need to sign "{{envelope_title}}".
+The sender asked someone else to sign. Your link no longer works.
 
-{{sender_name}} asked someone else to sign. The signing link we sent to
-this address no longer works, and nothing you started is stored.
+You no longer need to sign.
+{{sender_name}} asked someone else to sign.
 
-Nothing to do. If you think this is a mistake, contact {{sender_name}}
+  {{envelope_title}}
+
+Nothing to do. The link we sent to this address no longer works, and nothing
+you started is stored. If you think this is a mistake, contact {{sender_name}}
 directly.
 
-Reference: {{short_code}}
-{{verify_url}}
-
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

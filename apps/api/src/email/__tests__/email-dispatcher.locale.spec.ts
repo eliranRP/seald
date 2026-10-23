@@ -88,12 +88,12 @@ describe('EmailDispatcherService locale (WP-38)', () => {
     payload: { envelope_title: 'MSA' },
   };
 
-  it('flag off: renders in en without reading the envelope', async () => {
+  it('flag off: renders in en; the one envelope read feeds the mail context only', async () => {
     setFlag('i18n', false);
     await repo.insert(senderRow);
     expect((await dispatcher.dispatchOne())?.status).toBe('sent');
     expect(renderLocales).toEqual(['en']);
-    expect(lookups).toEqual([]);
+    expect(lookups).toEqual(['env-1']);
   });
 
   it('flag on: sender-facing mail resolves from the envelope', async () => {
