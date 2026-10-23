@@ -3,6 +3,7 @@ import { ChevronRight } from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
 import { isApprovalsEnabled } from '@/features/approvals';
+import { isAutomationsEnabled } from '@/features/automations';
 import { isDevelopersEnabled } from '@/features/developers';
 import { SettingsFrame, type SettingsVariant } from './SettingsFrame';
 
@@ -62,6 +63,12 @@ export function SettingsIndexPage({ variant }: SettingsIndexPageProps) {
     rows.push({
       label: 'Integrations',
       to: mobile ? '/m/send/settings' : '/settings/integrations',
+    });
+  }
+  if (isAutomationsEnabled()) {
+    rows.push({
+      label: 'Automations',
+      to: mobile ? '/m/settings/automations' : '/settings/automations',
     });
   }
   if (isDevelopersEnabled()) {

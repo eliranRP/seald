@@ -61,6 +61,31 @@ describe('apiClient response interceptor', () => {
     );
   });
 
+  it("carries the API's `{ error: '<slug>' }` as `code`, and a `code` field wins", async () => {
+    const reject =
+      (data: unknown): AxiosAdapter =>
+      (config) => {
+        const response = { data, status: 409, statusText: 'Conflict', headers: {}, config };
+        return Promise.reject(
+          new AxiosError(
+            'Request failed with status code 409',
+            'ERR_BAD_REQUEST',
+            config,
+            null,
+            response as unknown as AxiosResponse,
+          ),
+        );
+      };
+    await expect(
+      withAdapter(reject({ error: 'automation_limit_reached' }), () => apiClient.post('/x', {})),
+    ).rejects.toMatchObject({ status: 409, code: 'automation_limit_reached' });
+    await expect(
+      withAdapter(reject({ code: 'token-expired', error: 'other' }), () =>
+        apiClient.post('/x', {}),
+      ),
+    ).rejects.toMatchObject({ code: 'token-expired' });
+  });
+
   it('joins array messages from class-validator into a single string', async () => {
     const adapter: AxiosAdapter = (config) => {
       const response = {

@@ -20,7 +20,13 @@ import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
 import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
-import { DevelopersSettingsPage, SettingsIndexPage } from './pages/SettingsPage';
+import {
+  AutomationDetailSettingsPage,
+  AutomationsSettingsPage,
+  DevelopersSettingsPage,
+  NewAutomationSettingsPage,
+  SettingsIndexPage,
+} from './pages/SettingsPage';
 import { ApproveQueuePage } from './pages/ApproveQueuePage';
 import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
@@ -312,6 +318,20 @@ export function AppRoutes() {
             element={<DevelopersSettingsPage variant="desktop" />}
           />
           <Route path="/settings/approvals" element={<ApproveQueuePage variant="desktop" />} />
+          {/* WP-31: automations. The pages render "Not available" with
+              `workflowAutomations` off, so the routes can stay mounted. */}
+          <Route
+            path="/settings/automations"
+            element={<AutomationsSettingsPage variant="desktop" />}
+          />
+          <Route
+            path="/settings/automations/new"
+            element={<NewAutomationSettingsPage variant="desktop" />}
+          />
+          <Route
+            path="/settings/automations/:id"
+            element={<AutomationDetailSettingsPage variant="desktop" />}
+          />
           <Route
             path="/settings/integrations"
             element={
@@ -329,6 +349,18 @@ export function AppRoutes() {
         <Route
           path="/m/settings/developers"
           element={<DevelopersSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations"
+          element={<AutomationsSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations/new"
+          element={<NewAutomationSettingsPage variant="mobile" />}
+        />
+        <Route
+          path="/m/settings/automations/:id"
+          element={<AutomationDetailSettingsPage variant="mobile" />}
         />
       </Route>
 

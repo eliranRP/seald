@@ -62,7 +62,8 @@ function messageFromAxiosError(err: AxiosError): string {
  * an axios error into something with a helpful `message` and the original
  * HTTP status attached. `code` carries the API's machine-readable error
  * code when the response body included one (`{ code, message }` shape used
- * by the gdrive surfaces and others); `retryAfter` mirrors the seconds-
+ * by the gdrive surfaces and others, else the `{ error: '<slug>' }` of the
+ * global filter); `retryAfter` mirrors the seconds-
  * to-wait hint a `429` body may carry.
  */
 export interface ApiError extends Error {
