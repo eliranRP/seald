@@ -386,8 +386,9 @@ Path alias `@/*` applies to `apps/web/src/*` only (configured in
 
 ## Visual regression (Chromatic)
 
-Every Storybook story is diffed against the last accepted baseline; baselines
-auto-accept on `main`, PRs surface diffs in Chromatic's UI for review.
+Chromatic no longer runs in CI; `chromatic.yml` was removed. It is a local,
+opt-in check: run it to diff every Storybook story against the last accepted
+baseline, then review the diffs in Chromatic's UI.
 
 ### Run locally
 
@@ -400,27 +401,11 @@ CHROMATIC_PROJECT_TOKEN=<token> pnpm --filter web chromatic
 Get the token from https://www.chromatic.com/manage?appId=eliranRP/seald.
 A placeholder lives in `apps/web/.env.local.example`.
 
-### CI
-
-`.github/workflows/chromatic.yml` runs on every PR and every push to
-`main` (doc-only paths skipped). It:
-
-1. Reads `CHROMATIC_PROJECT_TOKEN` from GitHub Actions secrets.
-2. Builds Storybook (`pnpm --filter web build-storybook` via the action).
-3. Uploads snapshots; TurboSnap (`onlyChanged: true`) skips unchanged stories.
-4. On `main`, accepts changes automatically (new baseline).
-   On PRs, diffs are surfaced at https://chromatic.com — a reviewer must
-   accept in the Chromatic UI to update the baseline.
-
 ### Repo secret
 
-`CHROMATIC_PROJECT_TOKEN` is already provisioned as a GitHub Actions secret
-(added 2026-04-25 via `gh secret set`). To rotate it, generate a new token at
-https://www.chromatic.com/manage?appId=eliranRP/seald and run:
-
-```sh
-printf '<new-token>' | gh secret set CHROMATIC_PROJECT_TOKEN -R eliranRP/seald --body -
-```
+`CHROMATIC_PROJECT_TOKEN` is still a GitHub Actions secret (added
+2026-04-25), but no workflow reads it now. Delete it, or keep it in case a
+Chromatic workflow comes back.
 
 ## Web hosting (Cloudflare Pages, single domain)
 

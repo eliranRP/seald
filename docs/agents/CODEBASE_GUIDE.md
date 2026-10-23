@@ -49,7 +49,7 @@ packages/shared/   Cross-package types, Zod contracts, feature flags.
 deploy/            Caddyfile, Terraform, compose notes.
 Design-Guide/      Static HTML design kits. Not imported by the app.
 docs/              Contributor docs, specs, and this folder.
-.github/workflows/ CI, Chromatic, Playwright, Cloudflare, Docker, Terraform.
+.github/workflows/ CI, Playwright, Cloudflare, Docker, Terraform.
 ```
 
 `apps/web/src/` is the SPA. Path alias `@/*` maps to `apps/web/src/*`
@@ -467,11 +467,9 @@ API unit, web Vitest with coverage, Storybook build, one Playwright spec
 commitlint, then an aggregate `ci-success` job.
 
 Other workflows that run on pull requests (same docs `paths-ignore` as
-CI, except Chromatic which uses a `paths:` allow-list): `playwright.yml`
-(full e2e + BDD), `chromatic.yml` (visual baselines; auto-accept on
-`main`; `--exit-zero-on-changes` so a diff does not fail the job),
-`security.yml` (Trivy, gitleaks, pnpm audit), `lint-meta.yml` (actionlint,
-gherkin-lint, cspell).
+CI): `playwright.yml` (full e2e + BDD), `security.yml` (Trivy, gitleaks, pnpm audit), `lint-meta.yml` (actionlint,
+gherkin-lint, cspell). Chromatic is not in CI; run
+`pnpm --filter web chromatic` locally.
 
 Deploy and infra: `deploy.yml` (SSH + Docker Compose for the API on push
 to `main`, ignores `apps/web/**`), `deploy-cloudflare.yml` (landing + SPA
