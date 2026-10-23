@@ -35,6 +35,8 @@ describe('legal email footer', () => {
     CORS_ORIGIN: 'http://localhost:5173',
     APP_PUBLIC_URL: 'http://localhost:5173',
     DATABASE_URL: 'postgres://u:p@host:5432/db',
+    // Fake 32-byte key: workflowAutomations ships on, so boot needs one.
+    AUTOMATION_SECRETS_KEY: 'ab'.repeat(32),
   });
 
   it('defaults the footer to Seald and the Tel Aviv postal line', () => {

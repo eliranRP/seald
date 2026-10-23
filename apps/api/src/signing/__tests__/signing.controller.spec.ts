@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import type { Request, Response } from 'express';
+import type { FeatureFlag } from 'shared';
 import type { AppEnv } from '../../config/env.schema';
 import type { Envelope, EnvelopeField, EnvelopeSigner } from '../../envelopes/envelopes.repository';
 import { makeEnvelope, makeField, makeSigner } from '../../../test/factories';
@@ -63,6 +64,7 @@ function buildController(opts: {
   svc?: Partial<SigningService>;
   session?: Partial<SignerSessionService>;
   env?: Partial<AppEnv>;
+  documents?: Partial<EnvelopeDocumentsService>;
 }): SigningController {
   const svc: Partial<SigningService> = opts.svc ?? {};
   const session: Partial<SignerSessionService> = {
@@ -78,9 +80,16 @@ function buildController(opts: {
     svc as SigningService,
     session as SignerSessionService,
     env,
-    {} as EnvelopeDocumentsService,
+    (opts.documents ?? {}) as EnvelopeDocumentsService,
   );
 }
+
+type OverrideHost = { __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>> };
+const host = globalThis as unknown as OverrideHost;
+
+afterEach(() => {
+  delete host.__SEALD_FEATURE_OVERRIDES__;
+});
 
 describe('SigningController.start', () => {
   it('issues a non-Secure cookie in test env, returns the result body', async () => {
@@ -142,10 +151,16 @@ describe('SigningController.start', () => {
   });
 });
 
-describe('SigningController.me', () => {
+describe.each([false, true])('SigningController.me (multiDocumentEnvelopes %s)', (multiDoc) => {
   it('delegates to svc.me with the session envelope + signer', async () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { multiDocumentEnvelopes: multiDoc };
     const session = envContext();
+    const documents = {
+      decorateFields: jest.fn(async (_id: string, fields: ReadonlyArray<EnvelopeField>) => fields),
+      listForEnvelope: jest.fn(async () => []),
+    };
     const ctrl = buildController({
+      documents: documents as unknown as Partial<EnvelopeDocumentsService>,
       svc: {
         me(env, signer) {
           expect(env.id).toBe(ENV_ID);
@@ -181,6 +196,14 @@ describe('SigningController.me', () => {
     });
     const out = await ctrl.me(session);
     expect(out.envelope.id).toBe(ENV_ID);
+    if (multiDoc) {
+      // WP-03: documents in order, and the document each field sits on.
+      expect(documents.decorateFields).toHaveBeenCalledWith(ENV_ID, []);
+      expect(out.documents).toEqual([]);
+    } else {
+      expect(documents.decorateFields).not.toHaveBeenCalled();
+      expect(out).not.toHaveProperty('documents');
+    }
   });
 });
 

@@ -17,6 +17,10 @@ import { EnvelopesController } from '../envelopes.controller';
 import type { EnvelopesService } from '../envelopes.service';
 import type { Envelope } from '../envelopes.repository';
 import type { EnvelopeDocumentsService } from '../documents/envelope-documents.service';
+import type { FeatureFlag } from 'shared';
+
+type OverrideHost = { __SEALD_FEATURE_OVERRIDES__?: Partial<Record<FeatureFlag, boolean>> };
+const host = globalThis as unknown as OverrideHost;
 
 /**
  * Pure controller-level coverage. Every route is invoked directly with a
@@ -61,6 +65,13 @@ describe('EnvelopesController', () => {
       saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
     controller = new EnvelopesController(svc, {} as EnvelopeDocumentsService);
+    // The legacy single-document controller paths. The WP-03 paths are
+    // covered under "with multiDocumentEnvelopes on" at the end.
+    host.__SEALD_FEATURE_OVERRIDES__ = { multiDocumentEnvelopes: false };
+  });
+
+  afterEach(() => {
+    delete host.__SEALD_FEATURE_OVERRIDES__;
   });
 
   function makeRequest(opts?: {
@@ -559,6 +570,59 @@ describe('EnvelopesController', () => {
       const body = (caught as HttpException).getResponse() as { code: string; retryAfter: number };
       expect(body.code).toBe('rate-limited');
       expect(body.retryAfter).toBe(45);
+    });
+  });
+
+  describe('with multiDocumentEnvelopes on (WP-03)', () => {
+    let documents: {
+      decorateEnvelope: jest.Mock;
+      decorateFields: jest.Mock;
+      replacePrimary: jest.Mock;
+      assertFieldDocuments: jest.Mock;
+    };
+
+    beforeEach(() => {
+      host.__SEALD_FEATURE_OVERRIDES__ = { multiDocumentEnvelopes: true };
+      documents = {
+        decorateEnvelope: jest.fn(async (e: Envelope) => ({ ...e, documents: [] })),
+        decorateFields: jest.fn(async (_id: string, f: unknown) => f),
+        replacePrimary: jest.fn(),
+        assertFieldDocuments: jest.fn(async () => undefined),
+      };
+      controller = new EnvelopesController(svc, documents as unknown as EnvelopeDocumentsService);
+    });
+
+    it('decorates envelope responses with documents[]', async () => {
+      const env = makeEnvelope();
+      svc.getById.mockResolvedValue(env);
+      svc.patchDraft.mockResolvedValue(env);
+      await expect(controller.get(USER, env.id)).resolves.toEqual({ ...env, documents: [] });
+      await expect(controller.patch(USER, env.id, { title: 'x' })).resolves.toEqual({
+        ...env,
+        documents: [],
+      });
+      expect(documents.decorateEnvelope).toHaveBeenCalledTimes(2);
+    });
+
+    it('replaces document 1 on upload instead of the legacy original', async () => {
+      const env = makeEnvelope({ original_pages: 2, original_sha256: 'b'.repeat(64) });
+      documents.replacePrimary.mockResolvedValue(env);
+      const file = { buffer: Buffer.from('%PDF-z') } as Express.Multer.File;
+      await expect(controller.upload(USER, env.id, file)).resolves.toEqual({
+        pages: 2,
+        sha256: 'b'.repeat(64),
+      });
+      expect(documents.replacePrimary).toHaveBeenCalledWith(USER.id, env.id, file.buffer);
+      expect(svc.uploadOriginal).not.toHaveBeenCalled();
+    });
+
+    it('checks field documents and decorates the placed fields', async () => {
+      const fields = [{ id: 'f1' }] as never;
+      svc.replaceFields.mockResolvedValue(fields);
+      const out = await controller.placeFields(USER, 'env-1', { fields: [] } as never);
+      expect(out).toEqual({ fields });
+      expect(svc.replaceFields).toHaveBeenCalledWith(USER.id, 'env-1', [], expect.any(Function));
+      expect(documents.decorateFields).toHaveBeenCalledWith('env-1', fields);
     });
   });
 });

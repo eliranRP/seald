@@ -107,9 +107,18 @@ describe('StepSweepService', () => {
   });
 
   it('the tick does nothing while the signingOrder flag is off', async () => {
-    const { svc, resumed } = build(sequential());
-    await svc.tick();
-    expect(resumed).toHaveLength(0);
+    const host = globalThis as unknown as {
+      __SEALD_FEATURE_OVERRIDES__?: Record<string, boolean> | undefined;
+    };
+    const prior = host.__SEALD_FEATURE_OVERRIDES__;
+    host.__SEALD_FEATURE_OVERRIDES__ = { ...prior, signingOrder: false };
+    try {
+      const { svc, resumed } = build(sequential());
+      await svc.tick();
+      expect(resumed).toHaveLength(0);
+    } finally {
+      host.__SEALD_FEATURE_OVERRIDES__ = prior;
+    }
   });
 
   it('the tick sweeps once the signingOrder flag is on', async () => {

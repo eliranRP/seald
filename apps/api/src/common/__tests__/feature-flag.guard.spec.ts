@@ -14,6 +14,7 @@ const WP00_FLAGS: FeatureFlag[] = [
   'signerAccessAuth',
   'appendCertificate',
   'mcpServer',
+  'mcpOauth',
   'workflowAutomations',
   'publicApi',
   'bulkSend',
@@ -27,20 +28,33 @@ afterEach(() => {
 
 describe('requireFlag', () => {
   it('throws NotFoundException when the flag is off', () => {
+    host.__SEALD_FEATURE_OVERRIDES__ = { signingOrder: false };
     expect(() => requireFlag('signingOrder')).toThrow(NotFoundException);
   });
 
-  it('passes when an override switches the flag on, and is dark again after cleanup', () => {
+  it('passes when an override switches the flag on, and falls back to the shipped default after cleanup', () => {
     host.__SEALD_FEATURE_OVERRIDES__ = { signingOrder: true };
     expect(() => requireFlag('signingOrder')).not.toThrow();
 
-    delete host.__SEALD_FEATURE_OVERRIDES__;
+    host.__SEALD_FEATURE_OVERRIDES__ = { signingOrder: false };
     expect(() => requireFlag('signingOrder')).toThrow(NotFoundException);
+
+    delete host.__SEALD_FEATURE_OVERRIDES__;
+    if (FEATURE_FLAGS.signingOrder === true) {
+      expect(() => requireFlag('signingOrder')).not.toThrow();
+    } else {
+      expect(() => requireFlag('signingOrder')).toThrow(NotFoundException);
+    }
   });
 });
 
-describe('WP-00 feature flag seeds', () => {
-  it.each(WP00_FLAGS)('%s defaults to false', (flag) => {
-    expect(FEATURE_FLAGS[flag]).toBe(false);
+describe('parity feature flag seeds', () => {
+  // The owner switched every parity flag on (feat/enable-parity-flags).
+  it.each(WP00_FLAGS)('%s ships on', (flag) => {
+    expect(FEATURE_FLAGS[flag]).toBe(true);
+  });
+
+  it('gdriveMultiAccount stays off (its UI is not part of the parity work)', () => {
+    expect(FEATURE_FLAGS.gdriveMultiAccount).toBe(false);
   });
 });
