@@ -368,7 +368,11 @@ describePg('MCP "Later" list (e2e, real Postgres)', () => {
         'templates_delete',
       ]),
     );
-    host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: true };
+    host.__SEALD_FEATURE_OVERRIDES__ = {
+      mcpServer: true,
+      bulkSend: false,
+      signerAccessAuth: false,
+    };
     const dark = (await client.listTools()).tools.map((t) => t.name);
     for (const gone of [
       'envelopes_bulk_send_from_template',
@@ -1018,7 +1022,7 @@ describePg('MCP "Later" list (e2e, real Postgres)', () => {
         res.body.items.find((i: { id: string }) => i.id === String(out['approval_id'])),
       ).toMatchObject({ source: 'approval', outcome: 'denied', tool: 'envelopes_fix_signer' });
 
-      host.__SEALD_FEATURE_OVERRIDES__ = {};
+      host.__SEALD_FEATURE_OVERRIDES__ = { mcpServer: false, publicApi: false };
       expect((await http().get('/agent-activity').set(bearer(fresh))).status).toBe(404);
     });
   });

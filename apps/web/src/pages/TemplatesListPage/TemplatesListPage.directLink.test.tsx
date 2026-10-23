@@ -43,6 +43,7 @@ describe('TemplatesListPage direct link (WP-37)', () => {
   });
 
   it('shows no Link action while directLinks is off', () => {
+    (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { directLinks: false };
     renderPage();
     expect(
       screen.queryByRole('button', { name: `Direct link for ${TEMPLATES[0]!.name}` }),

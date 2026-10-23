@@ -18,6 +18,7 @@ import {
   MCP_UPLOAD_DAILY_CAP,
   MCP_UPLOAD_INLINE_MAX_BASE64,
   MCP_UPLOAD_MAX_BYTES,
+  isFeatureEnabled,
   type ApiKeyScope,
   type FeatureFlag,
 } from 'shared';
@@ -332,12 +333,14 @@ describePg('MCP draft tools (e2e, real Postgres)', () => {
     ]) {
       expect(names).toContain(name);
     }
-    // Only the approval-gated tools of steps 10 and 11 (WP-24) send or remind.
+    // Only the approval-gated tools of steps 10 and 11 (WP-24) send or
+    // remind, plus the approval-gated bulk send (step 15) with bulkSend on.
     expect(names.filter((n) => /send|remind/.test(n))).toEqual([
       'envelopes_preview_send',
       'envelopes_send',
       'envelopes_preview_remind',
       'envelopes_remind',
+      ...(isFeatureEnabled('bulkSend') ? ['envelopes_bulk_send_from_template'] : []),
     ]);
   });
 

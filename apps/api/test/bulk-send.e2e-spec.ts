@@ -361,6 +361,11 @@ describe('Bulk send from a template (e2e)', () => {
     });
 
     it('rejects options the flags do not allow', async () => {
+      host.__SEALD_FEATURE_OVERRIDES__ = {
+        bulkSend: true,
+        signingOrder: false,
+        customReminders: false,
+      };
       const csv = `${HEAD}\n${good(1)}\n`;
       expect((await upload(csv, { signing_order: 'sequential' })).status).toBe(400);
       expect((await upload(csv, { reminder_first_after_days: '2' })).status).toBe(400);

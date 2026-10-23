@@ -13,6 +13,7 @@ import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { ReminderSchedulerService } from '../src/reminders/reminder-scheduler.service';
 import { SigningOrderService } from '../src/signing/signing-order.service';
 import { SigningTokenService } from '../src/signing/signing-token.service';
@@ -22,6 +23,7 @@ import { dispatchSignLinks } from './dispatched-sign-links';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStepSweepRepository } from './in-memory-step-sweep-repository';
 import { InMemoryStorageService } from './in-memory-storage';
@@ -112,6 +114,9 @@ describe('Signing order (WP-05, e2e)', () => {
       .useValue(outbound)
       .overrideProvider(StepSweepRepository)
       .useValue(new InMemoryStepSweepRepository(envelopesRepo, outbound))
+      // signerAccessAuth ships on: /sign/start reads access settings.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -457,6 +462,9 @@ describe('Signing order (WP-05, e2e)', () => {
   });
 
   describe('flag off', () => {
+    // signingOrder ships on, so the off state is pinned explicitly.
+    beforeEach(() => setFlag('signingOrder', false));
+
     it('404s the route and leaves responses and send unchanged', async () => {
       const { envId } = await buildDraft(['ada', 'bea']);
       const res = await http()

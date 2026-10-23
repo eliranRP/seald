@@ -690,6 +690,7 @@ describe('Template direct links (WP-37, e2e)', () => {
 
   describe('template signing order (WP-06 gap)', () => {
     it('rejects delivery_mode and signing_order while signingOrder is off, and omits them', async () => {
+      setFlag('signingOrder', false);
       const bad = await http()
         .post('/templates')
         .set(auth)

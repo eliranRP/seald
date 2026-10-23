@@ -15,11 +15,13 @@ import type { AppEnv } from '../src/config/env.schema';
 import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { PadesSigner } from '../src/sealing/pades-signer';
 import { SealingService } from '../src/sealing/sealing.service';
 import { StorageService } from '../src/storage/storage.service';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { dispatchSignToken } from './dispatched-sign-links';
@@ -172,6 +174,9 @@ describeOrSkip('PAdES signing — real P12 (e2e)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      // signerAccessAuth ships on: /sign/start reads access settings.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
 
     app = moduleRef.createNestApplication();

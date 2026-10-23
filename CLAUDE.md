@@ -16,13 +16,13 @@ ignore the AI-specific sections.
 
 Every push to `main` (and every PR) runs five jobs:
 
-| Job | What it runs |
-|---|---|
-| `install` | `pnpm install --frozen-lockfile` |
-| `lint` | `pnpm -r typecheck` + `pnpm -r lint` |
-| `unit` | `pnpm --filter api test` (jest) |
-| `web` | `pnpm --filter web test` (vitest) |
-| `e2e` | `pnpm --filter api test:e2e` (jest e2e, includes PAdES) |
+| Job       | What it runs                                            |
+| --------- | ------------------------------------------------------- |
+| `install` | `pnpm install --frozen-lockfile`                        |
+| `lint`    | `pnpm -r typecheck` + `pnpm -r lint`                    |
+| `unit`    | `pnpm --filter api test` (jest)                         |
+| `web`     | `pnpm --filter web test` (vitest)                       |
+| `e2e`     | `pnpm --filter api test:e2e` (jest e2e, includes PAdES) |
 
 Doc-only changes (`**/*.md`, `docs/**`, `Design-Guide/**`, LICENSE,
 .gitignore, .editorconfig) skip CI via `paths-ignore`.
@@ -37,6 +37,7 @@ pnpm -r typecheck && pnpm -r lint && pnpm --filter api test && pnpm --filter web
 ## Code conventions
 
 ### React + TypeScript
+
 The [`react-best-practices` skill](~/.claude/skills/react-best-practices/SKILL.md)
 distills the canonical sources (Vercel, react.dev, TS handbook, Packt patterns,
 bulletproof-react, FSD) into numbered rules (1.1–4.6). Every commit touching
@@ -52,11 +53,13 @@ React/TS should respect them, especially:
 - **4.6** Tests query by accessible role/name; testid only as last resort.
 
 ### Email HTML
+
 The [`gmail-email-html` skill](~/.claude/skills/gmail-email-html/SKILL.md)
 covers Gmail/Outlook quirks. Inline visual styles, defeat the auto-linker,
 preview every change in real Gmail before committing.
 
 ### Sealing / PAdES
+
 The seald API seals every completed envelope into a PAdES PDF that
 progresses **B-T → B-LT (DSS) → optional B-LTA**. All sealing code lives
 in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
@@ -89,7 +92,7 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   `0x00`. Use `apps/api/src/sealing/pades-verify-helpers.ts` instead
   (`extractContents()` slices by the outer DER `SEQUENCE` length).
 - **S.6** Audit chain: `envelope_events.prev_event_hash =
-  SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
+SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   surfaces `chain_intact`. Walk via `verifyEventChain`. Canonical JSON
   contract (sorted keys, RFC 8785-ish) lives next to the helper — import
   it, don't reimplement.
@@ -210,10 +213,10 @@ contract is in `apps/api/src/config/env.schema.ts`, and
   signature unless this is `true`. Staging escape hatch only (S.3).
 
 Feature flags are in `packages/shared/src/feature-flags.ts`. All of these
-ship `false` (`multiDocumentEnvelopes`, `signingOrder`, `fieldMetaV2`,
+ship `true` since the parity flag flip (`multiDocumentEnvelopes`, `signingOrder`, `fieldMetaV2`,
 `customReminders`, `signerAccessAuth`, `appendCertificate`, `mcpServer`,
 `mcpOauth`, `workflowAutomations`, `publicApi`, `bulkSend`, `directLinks`,
-`i18n`). Flipping one is its own PR. `mcpOauth` needs `mcpServer`. The
+`i18n`). Turning one off again is a one-line PR. `mcpOauth` needs `mcpServer`. The
 API key routes and the approval routes are on when `mcpServer` or
 `publicApi` is on. `gdriveIntegration` is `true` and predates this work.
 Two changes are not flag-gated: the B-LTA timestamp (S.7, when a TSA is
@@ -243,7 +246,7 @@ idempotent (already-applied filenames are skipped).
 - **M.4** Forward-only repair migrations are fine when a prior
   migration left prod in a broken state — make them idempotent
   (`create … if not exists`, `delete from schema_migrations where
-  filename = …`) so re-runs are safe. See `0014_repair_gdrive_accounts.sql`
+filename = …`) so re-runs are safe. See `0014_repair_gdrive_accounts.sql`
   for the canonical pattern.
 
 Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
@@ -281,6 +284,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
   `en`; on means `navigator.language` -> supported list -> `en`.
 
 ### Sprint history
+
 - **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
 - **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
   verifier CI.
@@ -294,9 +298,10 @@ external/legal. See `memory/feedback_pades_due_diligence_resolved.md`
 before re-raising any sealing finding.
 
 ### Commit messages
+
 Follow conventional commits: `type(scope): subject` (e.g.
 `fix(audit): refined event icons`, `refactor(api): tighten TS hygiene`).
-Body should explain *why* and reference the rule id when the change is
+Body should explain _why_ and reference the rule id when the change is
 skill-driven (e.g. `(rule 4.4)`).
 
 ## Standing rules for AI assistants
@@ -309,6 +314,7 @@ and apply to every session.
 
 After every `git push`, spawn a `general-purpose` subagent with
 `run_in_background: true` to:
+
 1. List GH Actions runs for the new HEAD.
 2. Wait for each to reach `completed`.
 3. If any fail, fetch `gh run view <id> --log-failed`, fix the root cause,
@@ -415,6 +421,7 @@ and the **React SPA** (every other route — `/signin`, `/signup`,
 `/signers`, `/auth/*`, `/debug/*`).
 
 Architecture:
+
 - DNS: GoDaddy CNAME `seald` → `seald-landing.pages.dev`
 - Cloudflare Pages project: `seald-landing`
 - Build: `.github/workflows/deploy-cloudflare.yml` runs on push to main
@@ -427,6 +434,7 @@ Architecture:
   block was removed from `deploy/Caddyfile` on 2026-04-25.
 
 Required GH secrets (already provisioned):
+
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 - `VITE_API_BASE_URL` — `https://api.seald.nromomentum.com`
@@ -443,7 +451,7 @@ First-deploy workflow:
    no upload (wrangler will fill it on the next push). 30 seconds.
    Alternative: regenerate the token via the "Edit Cloudflare Workers"
    template (includes Pages: Edit), then `gh secret set
-   CLOUDFLARE_API_TOKEN`. The deploy workflow will then auto-create
+CLOUDFLARE_API_TOKEN`. The deploy workflow will then auto-create
    the project on its next run with no human action needed.
 
 2. **DNS** — `gh workflow run terraform.yml --ref main -f action=apply`

@@ -43,6 +43,18 @@ Given('a signed-in sender on a 375x667 phone', async ({ seededUser, mockedApi, p
       fields: [],
     },
   });
+  // With customReminders on, the send path PATCHes the draft's expiry and
+  // reminder cadence before upload (WP-09).
+  mockedApi.on('PATCH', /\/api\/envelopes\/[^/]+$/, {
+    json: {
+      id: 'env_mobile_123',
+      short_code: 'MOB-123',
+      status: 'draft',
+      title: 'mobile-sample',
+      signers: [],
+      fields: [],
+    },
+  });
   mockedApi.on('POST', /\/api\/envelopes\/[^/]+\/upload$/, {
     json: { pages: 1, sha256: 'deadbeef' },
   });

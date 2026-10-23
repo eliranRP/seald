@@ -321,7 +321,7 @@ describe('parseBulkOptions', () => {
   });
 
   it('allows sequential order and reminders only with their flags on', () => {
-    host.__SEALD_FEATURE_OVERRIDES__ = {};
+    host.__SEALD_FEATURE_OVERRIDES__ = { signingOrder: false, customReminders: false };
     expect(() => parseBulkOptions({ signing_order: 'sequential' })).toThrow('bulk_options_invalid');
     const reminder = {
       reminder_first_after_days: '2',

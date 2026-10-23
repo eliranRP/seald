@@ -18,6 +18,7 @@ import { PassthroughTransactionRunner, TransactionRunner } from '../src/db/trans
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { IdempotencyRecordsRepository } from '../src/idempotency/idempotency-records.repository';
 import { InMemoryIdempotencyRecordsRepository } from '../src/idempotency/__tests__/in-memory-idempotency-records.repository';
 import { PublicApiRateLimiter } from '../src/public-api/public-api-rate-limiter';
@@ -28,6 +29,7 @@ import { InMemoryApprovalsRepository } from './in-memory-approvals-repository';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
@@ -231,7 +233,10 @@ describe('public REST API v1 (e2e, in-memory)', () => {
         .overrideProvider(PublicApiRateLimiter)
         .useValue(limiter)
         .overrideProvider(StorageService)
-        .useValue(new InMemoryStorageService()),
+        .useValue(new InMemoryStorageService())
+        // signerAccessAuth ships on: the send approval reads access settings.
+        .overrideProvider(AccessAuthRepository)
+        .useValue(new InMemoryAccessAuthRepository(envelopesRepo)),
     ).compile();
 
     app = moduleRef.createNestApplication();
@@ -261,8 +266,8 @@ describe('public REST API v1 (e2e, in-memory)', () => {
   });
 
   describe('the publicApi flag', () => {
-    it('is off by default', () => {
-      expect(FEATURE_FLAGS.publicApi).toBe(false);
+    it('ships on (the parity flags are switched on)', () => {
+      expect(FEATURE_FLAGS.publicApi).toBe(true);
     });
 
     it('404s every route, with a valid key, before auth, in the API error shape', async () => {

@@ -14,8 +14,7 @@ afterEach(() => {
 });
 
 describe('apiKeysEnabled', () => {
-  it('is off when both mcpServer and publicApi are off (the shipped default)', () => {
-    expect(apiKeysEnabled({})).toBe(false);
+  it('is off when both mcpServer and publicApi are off', () => {
     flags(false, false);
     expect(apiKeysEnabled({})).toBe(false);
   });
@@ -39,6 +38,7 @@ describe('ApiKeysFlagMiddleware', () => {
   it('throws not_found when off and calls next when on', () => {
     const mw = new ApiKeysFlagMiddleware();
     const next = jest.fn();
+    flags(false, false);
     expect(() => mw.use({}, {}, next)).toThrow(NotFoundException);
     expect(next).not.toHaveBeenCalled();
     flags(true, false);
