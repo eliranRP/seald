@@ -68,6 +68,25 @@ export class TemplatesController {
     return this.svc.remove(user.id, id);
   }
 
+  /** Copy a template (and its saved example PDF) as "NAME copy". */
+  @Post(':id/duplicate')
+  duplicate(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Template> {
+    return this.svc.duplicate(user.id, id);
+  }
+
+  /** Undo a delete (the "Template deleted" Undo toast). */
+  @Post(':id/restore')
+  @HttpCode(200)
+  restore(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<Template> {
+    return this.svc.restore(user.id, id);
+  }
+
   /**
    * Bumps `uses_count` and `last_used_at`. Called by the upload-flow
    * integration when a sender clicks "Continue with this template" on

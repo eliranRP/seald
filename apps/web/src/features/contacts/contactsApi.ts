@@ -16,10 +16,21 @@ export interface ApiContact {
   readonly color: string;
   readonly created_at: string;
   readonly updated_at: string;
+  /** `GET /contacts` only: sent envelopes listing this email. */
+  readonly docs_count?: number;
+  /** `GET /contacts` only: latest send to this email, ISO, or null. */
+  readonly last_sent_at?: string | null;
 }
 
 function toAddSignerContact(c: ApiContact): AddSignerContact {
-  return { id: c.id, name: c.name, email: c.email, color: c.color };
+  return {
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    color: c.color,
+    ...(c.docs_count !== undefined ? { docsCount: c.docs_count } : {}),
+    ...(c.last_sent_at !== undefined ? { lastSentAt: c.last_sent_at } : {}),
+  };
 }
 
 /**
@@ -75,4 +86,49 @@ export async function updateContactApi(
 
 export async function deleteContact(id: string, signal?: AbortSignal): Promise<void> {
   await apiClient.delete(`/contacts/${id}`, configWithSignal(signal));
+}
+
+/** Result of `POST /contacts/bulk` (addresses are lower-cased by the server). */
+export interface BulkCreateContactsResult {
+  readonly created: ReadonlyArray<AddSignerContact>;
+  readonly skippedDuplicate: ReadonlyArray<string>;
+  readonly invalid: ReadonlyArray<string>;
+}
+
+/** Add many contacts from pasted addresses; the server guesses the names. */
+export async function bulkCreateContacts(
+  emails: ReadonlyArray<string>,
+  signal?: AbortSignal,
+): Promise<BulkCreateContactsResult> {
+  const { data } = await apiClient.post<{
+    readonly created: ReadonlyArray<ApiContact>;
+    readonly skipped_duplicate: ReadonlyArray<string>;
+    readonly invalid: ReadonlyArray<string>;
+  }>('/contacts/bulk', { emails }, configWithSignal(signal));
+  return {
+    created: data.created.map(toAddSignerContact),
+    skippedDuplicate: data.skipped_duplicate,
+    invalid: data.invalid,
+  };
+}
+
+/** Soft-delete several contacts (Undo window: 24 hours). */
+export async function deleteContacts(
+  ids: ReadonlyArray<string>,
+  signal?: AbortSignal,
+): Promise<void> {
+  await apiClient.delete('/contacts', { ...configWithSignal(signal), data: { ids } });
+}
+
+/** Undo a delete. Returns the contacts that came back. */
+export async function restoreContacts(
+  ids: ReadonlyArray<string>,
+  signal?: AbortSignal,
+): Promise<ReadonlyArray<AddSignerContact>> {
+  const { data } = await apiClient.post<ReadonlyArray<ApiContact>>(
+    '/contacts/restore',
+    { ids },
+    configWithSignal(signal),
+  );
+  return data.map(toAddSignerContact);
 }

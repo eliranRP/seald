@@ -9,7 +9,7 @@ const { Given, When, Then } = createBdd(test);
  * iter-1 LOCAL bug + the 2026-05-04 (commit 901515b) follow-up:
  *
  *   - Pre-fix the Drive CTA on `/document/new` and on the
- *     `/templates/:id/use` Step 1 "Upload a new one" panel was a
+ *     `/templates/:id/use` document drop area was a
  *     `<button disabled title="…">` (an a11y dead-end — native `title`
  *     is not announced on disabled buttons, the button isn't focusable,
  *     touch users see no tooltip).
@@ -20,9 +20,9 @@ const { Given, When, Then } = createBdd(test);
  *     opens the OAuth popup INLINE via `useConnectGDrive().mutate()`.
  *     The popup posts back through the AppShell-mounted message
  *     listener and the accounts query flips to connected without
- *     leaving the wizard.
+ *     leaving the page.
  *
- * Three harness contortions worth flagging:
+ * Two harness contortions worth flagging:
  *
  *  1. **Feature-flag override.** The static `FEATURE_FLAGS` constant in
  *     `packages/shared/src/feature-flags.ts` is `false` for
@@ -31,16 +31,7 @@ const { Given, When, Then } = createBdd(test);
  *     call time so we can flip the flag from this Given without
  *     touching the constant. Production never sets this global.
  *
- *  2. **Templates store hydration.** `UseTemplatePage` reads from the
- *     module-scoped templates store and does NOT fetch on its own.
- *     Deep-linking via `page.goto('/templates/<id>/use')` would boot a
- *     fresh bundle with an empty store and render the NotFoundCard.
- *     The "When the sender visits …" step detects this pattern and
- *     hydrates by navigating to `/templates` first (the list page DOES
- *     fetch /api/templates on mount), then SPA-navigates to the wizard
- *     URL via history.pushState + popstate so module state survives.
- *
- *  3. **window.open shim.** `useConnectGDrive` calls
+ *  2. **window.open shim.** `useConnectGDrive` calls
  *     `window.open(url, 'gdrive-oauth', POPUP_FEATURES)` after fetching
  *     the consent URL. We can't actually load Google's consent page in
  *     CI, so the activation step replaces `window.open` with a stub
@@ -86,38 +77,11 @@ Given('the Drive OAuth URL endpoint returns a stubbed consent URL', async ({ moc
 });
 
 When('the sender visits {string}', async ({ page }, url: string) => {
-  if (/^\/templates\/[^/]+\/use(\?|$)/.test(url)) {
-    // UseTemplatePage doesn't auto-fetch templates — it reads from the
-    // module-scoped store populated by /templates, /document/new, and
-    // the editor route. Hard-navigating directly to the wizard URL on
-    // a fresh page boot leaves the store empty → NotFoundCard. Hydrate
-    // via /templates first (TemplatesListPage calls listTemplates() on
-    // mount), then SPA-navigate so the store survives.
-    await page.goto('/templates');
-    await expect(page.getByRole('heading', { name: /templates/i }).first()).toBeVisible();
-    // Wait for the list to hydrate the store: the heading renders before
-    // the fetch lands, and navigating away first aborts it.
-    if (seededTemplateTitle !== null) {
-      await expect(page.getByText(seededTemplateTitle).first()).toBeVisible();
-    }
-    await page.evaluate((target) => {
-      window.history.pushState({}, '', target);
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    }, url);
-    await page.waitForURL((u) => u.pathname + u.search === url || u.pathname === url);
-    return;
-  }
   await page.goto(url);
 });
 
-When('the sender selects the {string} document source', async ({ page }, label: string) => {
-  await page.getByRole('radio', { name: new RegExp(`^${label}$`, 'i') }).click();
-});
-
-let seededTemplateTitle: string | null = null;
-
 Given('a template with id {string} exists', async ({ mockedApi }, id: string) => {
-  seededTemplateTitle = 'Sample template for gdrive disabled-cta scenario';
+  const seededTemplateTitle = 'Sample template for gdrive disabled-cta scenario';
   // Mirrors the Nest TemplatesController's ApiTemplate wire shape. The
   // hydrating list page (TemplatesListPage) maps `title` → summary.name.
   mockedApi.on('GET', /\/api\/templates(\?|$)/, {

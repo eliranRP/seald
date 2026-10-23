@@ -295,6 +295,15 @@ export function createPgMemDb(): PgMemHandle {
       add column if not exists invited_at timestamptz;
   `);
 
+  // 0041 + 0042 — soft delete for contacts and templates (and the partial
+  // unique index on live contact emails). Loaded verbatim: plain DDL.
+  mem.public.none(
+    readFileSync(resolve(__dirname, '../db/migrations/0041_contacts_soft_delete.sql'), 'utf8'),
+  );
+  mem.public.none(
+    readFileSync(resolve(__dirname, '../db/migrations/0042_templates_soft_delete.sql'), 'utf8'),
+  );
+
   const { Pool } = mem.adapters.createPg();
   const pool = new Pool();
   // pg-mem inlines query parameters by serializing Buffers as utf-8

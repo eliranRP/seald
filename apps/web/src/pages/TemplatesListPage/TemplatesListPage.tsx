@@ -1,551 +1,419 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Plus, Search, Trash2, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { JSX } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { LayoutTemplate, Plus, Search, X } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
-import { DirectLinkDialog } from '@/features/directLinks';
 import { Button } from '@/components/Button';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { EmptyState } from '@/components/EmptyState';
 import { Icon } from '@/components/Icon';
-import { PageHeader } from '@/components/PageHeader';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
+import { Skeleton } from '@/components/Skeleton';
 import { TagEditorPopover } from '@/components/TagEditorPopover';
-import { TemplateCard } from '@/components/TemplateCard';
+import { TemplateCard, templateMenuEntries } from '@/components/TemplateCard';
+import { Toast } from '@/components/Toast';
+import { isBulkSendEnabled } from '@/features/bulkSend';
+import { DirectLinkDialog } from '@/features/directLinks';
 import {
-  duplicateTemplate,
   getTemplates,
   setTemplates as publishTemplates,
   subscribeToTemplates,
-  tagColorFor,
 } from '@/features/templates';
+import type { TemplateSummary } from '@/features/templates';
 import {
   deleteTemplate as apiDeleteTemplate,
+  duplicateTemplateApi,
   listTemplates,
+  restoreTemplate,
   updateTemplate as apiUpdateTemplate,
 } from '@/features/templates/templatesApi';
-import type { TemplateSummary } from '@/features/templates';
-import { isBulkSendEnabled } from '@/features/bulkSend';
-import { TagFilterMenu } from '@/components/TagFilterMenu';
+import { UseTemplateDialog } from '@/features/templates/UseTemplateDialog';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import {
-  ActiveTagOverflow,
-  ActiveTagPill,
-  ActiveTagRemove,
-  CreateBadge,
-  CreateBody,
-  CreateCard,
-  CreateSub,
-  CreateThumb,
-  CreateTitle,
-  EmptyState,
-  FirstRunCard,
-  FirstRunIcon,
-  FirstRunLede,
-  FirstRunTitle,
+  Count,
   Grid,
-  GroupCount,
-  GroupHeader,
-  GroupRule,
-  GroupSection,
-  GroupTagDot,
-  GroupTagPill,
-  GroupToggleLabel,
+  HeaderRow,
   Inner,
   Main,
-  ModalBackdrop,
-  ModalBody,
-  ModalCancelButton,
-  ModalCard,
-  ModalDeleteButton,
-  ModalFooter,
-  ModalHead,
-  ModalIcon,
-  ModalTitle,
-  SearchBox,
+  Meta,
+  Pill,
+  Pills,
+  SearchField,
+  SheetActions,
+  SheetHead,
+  SkeletonCard,
+  Spacer,
+  Title,
   Toolbar,
-  ToolbarSpacer,
 } from './TemplatesListPage.styles';
 
-const ACTIVE_TAG_VISIBLE = 3;
+const UNDO_MS = 6000;
+const SKELETON_CARDS = 6;
 
 function matchesQuery(template: TemplateSummary, query: string): boolean {
-  if (!query) return true;
-  const loweredQuery = query.toLowerCase();
-  if (template.name.toLowerCase().includes(loweredQuery)) return true;
-  if (template.description && template.description.toLowerCase().includes(loweredQuery))
-    return true;
-  if ((template.tags ?? []).some((tag) => tag.toLowerCase().includes(loweredQuery))) return true;
-  return false;
+  return query === '' || template.name.toLowerCase().includes(query);
+}
+
+interface ToastState {
+  readonly title: string;
+  readonly tone: 'success' | 'error' | 'info';
+  readonly undo?: () => void;
 }
 
 export interface TemplatesListPageProps {
   /**
-   * Pre-seed the list. Production passes nothing — `TEMPLATES` is the
-   * empty array (templates are user-authored, not pre-baked). Tests +
-   * Storybook stories pass `SAMPLE_TEMPLATES` to render the populated
-   * layout without re-introducing seed data in the shipped bundle.
+   * Pre-seed the list. Production passes nothing: templates are
+   * user-authored. Tests and stories pass fixtures to render the populated
+   * layout without a request.
    */
   readonly initialTemplates?: ReadonlyArray<TemplateSummary>;
 }
 
 /**
- * L4 page — `/templates`. Mirrors the design guide's TemplatesList:
- *
- *   - Serif "Templates" + lede "Place fields once. Reuse forever."
- *   - Tag filter menu, active-tag chip strip, group-by-tag toggle,
- *     search-by-name-or-tag input
- *   - 4:3 thumbnail cards with accents, tag pills, hover overlay
- *     (Tags / Edit / Use / Delete)
- *   - Centered delete confirmation modal
- *   - Centered tag editor popover (anchored from the card overlay)
+ * Templates (`/templates`): a card grid with search and tag pills. A card is
+ * "Use" (one step: pick people, document, Send now); its ⋯ menu has Edit,
+ * Duplicate, Tags and Delete (with Undo). `/templates/:id/use` is the same
+ * page with that template's Use dialog open, so old links keep working.
  */
-export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps = {}) {
+export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps = {}): JSX.Element {
   const navigate = useNavigate();
+  const { id: routeUseId } = useParams<{ id?: string }>();
+  const isMobile = useIsMobileViewport();
+
   const [templates, setTemplates] = useState<ReadonlyArray<TemplateSummary>>(
     () => initialTemplates ?? getTemplates(),
   );
-  // Test seed: when `initialTemplates` is supplied, publish to the
-  // store so sibling pages reading via subscribers see the same data.
+  const [loading, setLoading] = useState(initialTemplates === undefined);
   useEffect(() => {
     if (initialTemplates) publishTemplates(initialTemplates);
   }, [initialTemplates]);
-
-  // Subscribe to module-store mutations from elsewhere (Save-as-template
-  // on the editor, etc.).
-  useEffect(() => {
-    return subscribeToTemplates(() => {
-      setTemplates(getTemplates());
-    });
-  }, []);
-
-  // Hydrate from the server unless tests pre-seeded.
+  // Other pages (the editor's Save, the Use dialog) publish through the store.
+  useEffect(() => subscribeToTemplates(() => setTemplates(getTemplates())), []);
+  // Hydrate from the server unless a test or story pre-seeded the list.
   useEffect(() => {
     if (initialTemplates) return undefined;
     const ac = new AbortController();
     listTemplates(ac.signal)
-      .then((rows) => {
-        publishTemplates(rows);
-      })
+      .then((rows) => publishTemplates(rows))
       .catch((err) => {
-        // Soft fail — guests + offline see the empty list.
         console.warn('[templates] list fetch failed:', err);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setLoading(false);
       });
     return () => ac.abort();
   }, [initialTemplates]);
 
   const [query, setQuery] = useState('');
-  const deferredQuery = useDeferredValue(query);
-  const [activeTags, setActiveTags] = useState<ReadonlyArray<string>>([]);
-  const [groupByTag, setGroupByTag] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<TemplateSummary | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [usingId, setUsingId] = useState<string | null>(routeUseId ?? null);
+  const [deleting, setDeleting] = useState<TemplateSummary | null>(null);
   const [editTagsFor, setEditTagsFor] = useState<TemplateSummary | null>(null);
   const [directLinkFor, setDirectLinkFor] = useState<TemplateSummary | null>(null);
-  // WP-37: the Link action exists only while `directLinks` is on.
-  const onDirectLink = isFeatureEnabled('directLinks') ? setDirectLinkFor : undefined;
+  const [sheetFor, setSheetFor] = useState<TemplateSummary | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  // Derived sets ---------------------------------------------------------
+  const bulkOn = isBulkSendEnabled();
+  const directLinksOn = isFeatureEnabled('directLinks');
 
+  // ---- derived ---------------------------------------------------------------
   const allTags = useMemo(() => {
     const set = new Set<string>();
     for (const t of templates) for (const tag of t.tags ?? []) set.add(tag);
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [templates]);
 
-  const tagCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const t of templates) {
-      for (const tag of t.tags ?? []) counts[tag] = (counts[tag] ?? 0) + 1;
+  const q = query.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      templates.filter(
+        (t) => matchesQuery(t, q) && (activeTag === null || (t.tags ?? []).includes(activeTag)),
+      ),
+    [templates, q, activeTag],
+  );
+  const filtering = q !== '' || activeTag !== null;
+  const isEmpty = !loading && templates.length === 0;
+  const noMatches = !loading && templates.length > 0 && visible.length === 0;
+
+  const usingTemplate = useMemo(
+    () => (usingId ? (templates.find((t) => t.id === usingId) ?? null) : null),
+    [templates, usingId],
+  );
+
+  // A deep link to a template that does not exist: say so and show the list.
+  useEffect(() => {
+    if (!routeUseId || loading) return;
+    if (templates.some((t) => t.id === routeUseId)) {
+      setUsingId(routeUseId);
+      return;
     }
-    return counts;
-  }, [templates]);
+    setUsingId(null);
+    setToast({ title: 'Template not found', tone: 'error' });
+    navigate('/templates', { replace: true });
+  }, [routeUseId, loading, templates, navigate]);
 
-  const filtered = useMemo(() => {
-    return templates.filter((t) => {
-      if (activeTags.length > 0 && !activeTags.every((at) => (t.tags ?? []).includes(at))) {
-        return false;
-      }
-      return matchesQuery(t, deferredQuery);
-    });
-  }, [templates, deferredQuery, activeTags]);
+  // ---- actions ------------------------------------------------------------------
+  const closeUse = useCallback((): void => {
+    setUsingId(null);
+    if (routeUseId) navigate('/templates', { replace: true });
+  }, [routeUseId, navigate]);
 
-  const grouped = useMemo(() => {
-    if (!groupByTag) return null;
-    const map: Record<string, TemplateSummary[]> = {};
-    for (const t of filtered) {
-      const tags = (t.tags ?? []).length > 0 ? (t.tags ?? []) : ['Untagged'];
-      for (const tag of tags) {
-        const bucket = map[tag];
-        if (bucket) bucket.push(t);
-        else map[tag] = [t];
-      }
-    }
-    return Object.keys(map)
-      .sort((a, b) => a.localeCompare(b))
-      .map((tag) => ({ tag, items: map[tag] ?? [] }));
-  }, [filtered, groupByTag]);
-
-  // Mutations ------------------------------------------------------------
-
-  const toggleActiveTag = useCallback((tag: string) => {
-    setActiveTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+  const refetch = useCallback((): void => {
+    void listTemplates()
+      .then(publishTemplates)
+      .catch(() => undefined);
   }, []);
 
-  const clearActiveTags = useCallback(() => setActiveTags([]), []);
-
-  const handleCreate = useCallback((): void => {
-    navigate('/templates/new/use');
+  const newTemplate = useCallback((): void => {
+    void navigate('/templates/new');
   }, [navigate]);
 
-  const handleUse = useCallback(
-    (template: TemplateSummary): void => {
-      navigate(`/templates/${encodeURIComponent(template.id)}/use`);
+  const editTemplate = useCallback(
+    (t: TemplateSummary): void => {
+      navigate(`/templates/${encodeURIComponent(t.id)}/edit?mode=edit`);
     },
     [navigate],
   );
 
-  const handleEdit = useCallback(
-    (template: TemplateSummary): void => {
-      navigate(`/templates/${encodeURIComponent(template.id)}/use?mode=edit`);
-    },
-    [navigate],
-  );
-
-  const bulkOn = isBulkSendEnabled();
-  const handleBulkSend = useCallback(
-    (template: TemplateSummary): void => {
-      navigate(`/templates/${encodeURIComponent(template.id)}/bulk-send`);
-    },
-    [navigate],
-  );
-
-  const handleDuplicate = useCallback((template: TemplateSummary): void => {
-    setTemplates((prev) => {
-      const copy = duplicateTemplate(template);
-      const idx = prev.findIndex((t) => t.id === template.id);
-      const next =
-        idx === -1 ? [...prev, copy] : [...prev.slice(0, idx + 1), copy, ...prev.slice(idx + 1)];
-      publishTemplates(next);
-      return next;
-    });
+  const duplicate = useCallback((t: TemplateSummary): void => {
+    void duplicateTemplateApi(t.id)
+      .then((copy) => {
+        const current = getTemplates();
+        const at = current.findIndex((x) => x.id === t.id);
+        publishTemplates(
+          at === -1
+            ? [copy, ...current]
+            : [...current.slice(0, at + 1), copy, ...current.slice(at + 1)],
+        );
+        setToast({ title: `Duplicated as ${copy.name}`, tone: 'success' });
+      })
+      .catch(() => setToast({ title: 'Could not duplicate. Try again.', tone: 'error' }));
   }, []);
 
-  const handleConfirmDelete = useCallback((template: TemplateSummary): void => {
-    setConfirmDelete(template);
-  }, []);
-
-  // Optimistic delete — drop locally, then call the server.
-  const performDelete = useCallback((template: TemplateSummary): void => {
-    setTemplates((prev) => {
-      const next = prev.filter((t) => t.id !== template.id);
-      publishTemplates(next);
-      return next;
-    });
-    setConfirmDelete(null);
-    void apiDeleteTemplate(template.id).catch((err) => {
-      console.warn('[templates] delete failed; refetching:', err);
-      void listTemplates()
-        .then(publishTemplates)
-        .catch(() => undefined);
-    });
-  }, []);
+  const confirmDelete = (): void => {
+    const target = deleting;
+    if (!target) return;
+    setDeleting(null);
+    setSheetFor(null);
+    // Optimistic: drop the card now; the server soft-deletes and Undo restores.
+    publishTemplates(getTemplates().filter((t) => t.id !== target.id));
+    apiDeleteTemplate(target.id)
+      .then(() =>
+        setToast({
+          title: 'Template deleted',
+          tone: 'success',
+          undo: () => {
+            setToast(null);
+            restoreTemplate(target.id)
+              .then(() => refetch())
+              .catch(() => setToast({ title: 'Could not undo the delete', tone: 'error' }));
+          },
+        }),
+      )
+      .catch(() => {
+        refetch();
+        setToast({ title: 'Could not delete. Try again.', tone: 'error' });
+      });
+  };
 
   /**
-   * Persist a tag mutation: update the local store optimistically so
-   * the UI reacts instantly, then PATCH `/templates/:id` with the new
-   * `tags` array. If the server rejects the patch, refetch the list
-   * to roll local state back. Pure-local mode (when `initialTemplates`
-   * is supplied for tests / Storybook) skips the network call so
-   * jsdom + stories don't fight an unreachable API.
-   *
-   * `nextTags` is computed synchronously from the module store BEFORE
-   * scheduling the React state update — reading it from inside a
-   * `setTemplates(updater)` closure was unreliable under StrictMode
-   * (the updater runs twice in dev) and risked PATCHing with stale
-   * `[]`.
+   * Persist a tag change: update the store at once, then PATCH the tags and
+   * refetch on failure. The tags are computed from the store before the
+   * update is scheduled so StrictMode's double invoke cannot send stale ones.
    */
-  const updateTemplateTags = useCallback(
+  const updateTags = useCallback(
     (templateId: string, mutate: (tags: ReadonlyArray<string>) => ReadonlyArray<string>): void => {
       const current = getTemplates();
       const target = current.find((t) => t.id === templateId);
       if (!target) return;
       const nextTags = mutate(target.tags ?? []);
-      const next = current.map((t) => (t.id === templateId ? { ...t, tags: nextTags } : t));
-      publishTemplates(next);
-      // Tests / Storybook with `initialTemplates` skip the network —
-      // local state is the source of truth in that mode.
+      publishTemplates(current.map((t) => (t.id === templateId ? { ...t, tags: nextTags } : t)));
+      // Pre-seeded lists (tests, stories) stay local.
       if (initialTemplates) return;
-      void apiUpdateTemplate(templateId, { tags: nextTags }).catch((err) => {
-        console.warn('[templates] tag update failed; refetching:', err);
-        void listTemplates()
-          .then(publishTemplates)
-          .catch(() => undefined);
-      });
+      void apiUpdateTemplate(templateId, { tags: nextTags }).catch(() => refetch());
     },
-    [initialTemplates],
+    [initialTemplates, refetch],
   );
 
-  const toggleTemplateTag = useCallback(
-    (templateId: string, tag: string): void => {
-      updateTemplateTags(templateId, (tags) =>
-        tags.includes(tag) ? tags.filter((x) => x !== tag) : [...tags, tag],
-      );
-    },
-    [updateTemplateTags],
-  );
-
-  const createTemplateTag = useCallback(
-    (templateId: string, tag: string): void => {
-      const clean = tag.trim();
-      if (!clean) return;
-      updateTemplateTags(templateId, (tags) => (tags.includes(clean) ? tags : [...tags, clean]));
-    },
-    [updateTemplateTags],
-  );
-
-  // Keep the open tag-editor popover in sync with the canonical
-  // template record so its checkboxes reflect the latest `tags` after
-  // a toggle/create. Previously `setEditTagsFor` was duplicated inside
-  // each mutation; deriving from `templates` keeps a single source of
-  // truth (rule 4.2 — local state, then derive).
-  const editTargetTemplate = useMemo(
+  const editTarget = useMemo(
     () => (editTagsFor ? (templates.find((t) => t.id === editTagsFor.id) ?? editTagsFor) : null),
     [editTagsFor, templates],
   );
 
-  /**
-   * Escape closes the delete confirmation modal — WCAG 2.1.2 (No
-   * Keyboard Trap). Previously the modal could only be dismissed via
-   * the backdrop click or the Cancel button; keyboard-only users had
-   * no way out short of confirming the destructive action. Bound at
-   * the document level so it fires regardless of focus location
-   * inside the modal; teardown is gated on `confirmDelete` so the
-   * listener exists only while the modal is open.
-   */
-  useEffect(() => {
-    if (!confirmDelete) return undefined;
-    const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setConfirmDelete(null);
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [confirmDelete]);
+  const actions = {
+    onEdit: editTemplate,
+    onDuplicate: duplicate,
+    onEditTags: setEditTagsFor,
+    onDelete: setDeleting,
+  } as const;
 
-  const isFiltered = query.length > 0 || activeTags.length > 0;
+  const clearFilters = (): void => {
+    setQuery('');
+    setActiveTag(null);
+  };
 
-  const newTemplateTile = (
-    <CreateCard type="button" onClick={handleCreate} aria-label="Create a new template">
-      <CreateThumb aria-hidden>
-        <CreateBadge>
-          <Icon icon={Plus} size={26} />
-        </CreateBadge>
-      </CreateThumb>
-      <CreateBody>
-        <CreateTitle>New template</CreateTitle>
-        <CreateSub>Upload a PDF, place fields once.</CreateSub>
-      </CreateBody>
-    </CreateCard>
-  );
+  const resultsText = `${String(visible.length)} ${visible.length === 1 ? 'result' : 'results'}`;
 
-  // First-run: no templates AND no active filter. Show a single
-  // centered welcome card with one CTA. Previously the page rendered
-  // the "New template" tile inside an otherwise-empty grid AND the
-  // "New template" header button — two duplicate CTAs that read as a
-  // strange one-card grid. Audit A · TemplatesListPage M-11.
-  const isFirstRun = templates.length === 0 && !isFiltered;
-
+  // ---- render --------------------------------------------------------------------
   return (
     <Main>
       <Inner>
-        <PageHeader
-          eyebrow="Templates"
-          title="Place fields once. Reuse forever."
-          {...(isFirstRun
-            ? {}
-            : {
-                actions: (
-                  <Button variant="primary" iconLeft={Plus} onClick={handleCreate}>
-                    New template
-                  </Button>
-                ),
-              })}
-        />
-
-        {isFirstRun ? (
-          <FirstRunCard role="region" aria-label="Welcome to templates">
-            <FirstRunIcon aria-hidden>
-              <Icon icon={Plus} size={28} />
-            </FirstRunIcon>
-            <FirstRunTitle>No templates yet</FirstRunTitle>
-            <FirstRunLede>
-              Save a layout once and reuse it for every contract that follows the same shape.
-            </FirstRunLede>
-            <Button variant="primary" iconLeft={Plus} onClick={handleCreate}>
-              Create your first template
-            </Button>
-          </FirstRunCard>
-        ) : null}
-
-        {isFirstRun ? null : (
-          <>
-            <Toolbar>
-              <TagFilterMenu
-                allTags={allTags}
-                counts={tagCounts}
-                selected={activeTags}
-                onToggle={toggleActiveTag}
-                onClear={clearActiveTags}
+        <HeaderRow>
+          <Title>Templates</Title>
+          {loading ? (
+            <Skeleton variant="circle" width={20} height={20} />
+          ) : (
+            <Count aria-label={`${String(templates.length)} templates`}>{templates.length}</Count>
+          )}
+          <Spacer />
+          {isMobile ? (
+            <>
+              <Button
+                variant="ghost"
+                iconOnly
+                iconLeft={Search}
+                aria-label="Search templates"
+                onClick={() => setSearchOpen((v) => !v)}
               />
+              <Button
+                variant="ghost"
+                iconOnly
+                iconLeft={Plus}
+                aria-label="New template"
+                onClick={newTemplate}
+              />
+            </>
+          ) : null}
+          {!isMobile && !isEmpty ? (
+            <Button variant="primary" iconLeft={Plus} onClick={newTemplate}>
+              New template
+            </Button>
+          ) : null}
+        </HeaderRow>
 
-              {activeTags.length > 0 ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  {activeTags.slice(0, ACTIVE_TAG_VISIBLE).map((tag) => {
-                    const tagColor = tagColorFor(tag);
-                    return (
-                      <ActiveTagPill key={tag} $bg={tagColor.bg} $fg={tagColor.fg}>
-                        {tag}
-                        <ActiveTagRemove
-                          type="button"
-                          aria-label={`Remove ${tag} filter`}
-                          onClick={() => toggleActiveTag(tag)}
-                        >
-                          <Icon icon={X} size={10} />
-                        </ActiveTagRemove>
-                      </ActiveTagPill>
-                    );
-                  })}
-                  {activeTags.length > ACTIVE_TAG_VISIBLE ? (
-                    <ActiveTagOverflow>
-                      +{activeTags.length - ACTIVE_TAG_VISIBLE} more
-                    </ActiveTagOverflow>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <ToolbarSpacer />
-
-              <GroupToggleLabel>
-                <input
-                  type="checkbox"
-                  checked={groupByTag}
-                  onChange={(e) => setGroupByTag(e.target.checked)}
-                />
-                Group by tag
-              </GroupToggleLabel>
-
-              <SearchBox>
-                <Icon icon={Search} size={14} aria-hidden />
+        {!isEmpty && (!isMobile || searchOpen || allTags.length > 0) ? (
+          <Toolbar>
+            {!isMobile || searchOpen ? (
+              <SearchField>
+                <Icon icon={Search} size={16} />
                 <input
                   type="search"
                   value={query}
+                  placeholder="Search templates"
+                  aria-label="Search templates"
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search by name or tag"
-                  aria-label="Search by name or tag"
                 />
-              </SearchBox>
-            </Toolbar>
+                {isMobile ? (
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    iconLeft={X}
+                    aria-label="Clear search"
+                    onClick={() => {
+                      setQuery('');
+                      setSearchOpen(false);
+                    }}
+                  />
+                ) : null}
+              </SearchField>
+            ) : null}
+            {allTags.length > 0 ? (
+              <Pills role="group" aria-label="Filter by tag">
+                <Pill
+                  type="button"
+                  $active={activeTag === null}
+                  aria-pressed={activeTag === null}
+                  onClick={() => setActiveTag(null)}
+                >
+                  All
+                </Pill>
+                {allTags.map((tag) => (
+                  <Pill
+                    key={tag}
+                    type="button"
+                    $active={activeTag === tag}
+                    aria-pressed={activeTag === tag}
+                    onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                  >
+                    {tag}
+                  </Pill>
+                ))}
+              </Pills>
+            ) : null}
+          </Toolbar>
+        ) : null}
 
-            {groupByTag && grouped ? (
-              <>
-                {grouped.length === 0 ? (
-                  <EmptyState role="status">No templates match your filter.</EmptyState>
-                ) : null}
-                {grouped.map((g) => {
-                  const groupColor = tagColorFor(g.tag);
-                  return (
-                    <GroupSection key={g.tag}>
-                      <GroupHeader>
-                        <GroupTagPill $bg={groupColor.bg} $fg={groupColor.fg}>
-                          <GroupTagDot $color={groupColor.fg} aria-hidden />
-                          {g.tag}
-                        </GroupTagPill>
-                        <GroupCount>{g.items.length}</GroupCount>
-                        <GroupRule aria-hidden />
-                      </GroupHeader>
-                      <Grid>
-                        {g.items.map((t) => (
-                          <TemplateCard
-                            key={`${g.tag}-${t.id}`}
-                            template={t}
-                            onUse={handleUse}
-                            onEdit={handleEdit}
-                            onDelete={handleConfirmDelete}
-                            onDuplicate={handleDuplicate}
-                            onTagClick={(tag) => toggleActiveTag(tag)}
-                            onEditTags={(tpl) => setEditTagsFor(tpl)}
-                            onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
-                            onDirectLink={onDirectLink}
-                          />
-                        ))}
-                      </Grid>
-                    </GroupSection>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                <Grid>
-                  {newTemplateTile}
-                  {filtered.map((t) => (
-                    <TemplateCard
-                      key={t.id}
-                      template={t}
-                      onUse={handleUse}
-                      onEdit={handleEdit}
-                      onDelete={handleConfirmDelete}
-                      onDuplicate={handleDuplicate}
-                      onTagClick={(tag) => toggleActiveTag(tag)}
-                      onEditTags={(tpl) => setEditTagsFor(tpl)}
-                      onBulkSend={bulkOn && t.hasExamplePdf ? handleBulkSend : undefined}
-                      onDirectLink={onDirectLink}
-                    />
-                  ))}
-                </Grid>
-                {filtered.length === 0 && (query || isFiltered) ? (
-                  <EmptyState role="status">
-                    {query
-                      ? `No templates match "${query}".`
-                      : 'No templates match the selected tags.'}
-                  </EmptyState>
-                ) : null}
-              </>
-            )}
-          </>
-        )}
+        {filtering && !loading && visible.length > 0 ? (
+          <Meta role="status">{resultsText}</Meta>
+        ) : null}
+
+        {loading ? (
+          <Grid aria-busy="true" aria-label="Loading templates">
+            {Array.from({ length: SKELETON_CARDS }, (_, i) => (
+              <SkeletonCard key={`sk-${String(i)}`}>
+                <Skeleton variant="rect" height="100%" />
+              </SkeletonCard>
+            ))}
+          </Grid>
+        ) : null}
+
+        {isEmpty ? (
+          <EmptyState
+            icon={LayoutTemplate}
+            title="No templates yet"
+            action={
+              <Button variant="primary" iconLeft={Plus} onClick={newTemplate}>
+                New template
+              </Button>
+            }
+          />
+        ) : null}
+
+        {noMatches ? (
+          <EmptyState
+            icon={Search}
+            title="No matches"
+            action={
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear search
+              </Button>
+            }
+          />
+        ) : null}
+
+        {visible.length > 0 ? (
+          <Grid>
+            {visible.map((t) => (
+              <TemplateCard
+                key={t.id}
+                template={t}
+                compact={isMobile}
+                onUse={(tpl) => setUsingId(tpl.id)}
+                onMore={setSheetFor}
+                {...actions}
+                {...(bulkOn && t.hasExamplePdf
+                  ? {
+                      onBulkSend: (tpl: TemplateSummary) =>
+                        navigate(`/templates/${encodeURIComponent(tpl.id)}/bulk-send`),
+                    }
+                  : {})}
+                {...(directLinksOn ? { onDirectLink: setDirectLinkFor } : {})}
+              />
+            ))}
+          </Grid>
+        ) : null}
       </Inner>
 
-      {/* Delete confirmation modal — centered, mirrors the design guide. */}
-      {confirmDelete ? (
-        <ModalBackdrop role="presentation" onClick={() => setConfirmDelete(null)}>
-          <ModalCard
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Delete ${confirmDelete.name}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ModalHead>
-              <ModalIcon aria-hidden>
-                <Icon icon={Trash2} size={20} />
-              </ModalIcon>
-              <div>
-                <ModalTitle>Delete this template?</ModalTitle>
-                <ModalBody>
-                  <b>{confirmDelete.name}</b> will be removed. Documents already sent are not
-                  affected.
-                </ModalBody>
-              </div>
-            </ModalHead>
-            <ModalFooter>
-              <ModalCancelButton type="button" onClick={() => setConfirmDelete(null)}>
-                Cancel
-              </ModalCancelButton>
-              <ModalDeleteButton
-                type="button"
-                onClick={() => performDelete(confirmDelete)}
-                aria-label={`Confirm delete ${confirmDelete.name}`}
-              >
-                <Icon icon={Trash2} size={14} />
-                Delete template
-              </ModalDeleteButton>
-            </ModalFooter>
-          </ModalCard>
-        </ModalBackdrop>
-      ) : null}
+      <UseTemplateDialog template={usingTemplate} onClose={closeUse} />
+
+      <ConfirmDeleteDialog
+        open={deleting !== null}
+        title={`Delete ${deleting?.name ?? 'template'}?`}
+        note="Sent documents stay."
+        onCancel={() => setDeleting(null)}
+        onConfirm={confirmDelete}
+      />
 
       {directLinkFor ? (
         <DirectLinkDialog
@@ -562,19 +430,73 @@ export function TemplatesListPage({ initialTemplates }: TemplatesListPageProps =
 
       <TagEditorPopover
         open={editTagsFor !== null}
-        // Read tags off the canonical template record so the popover
-        // reflects mutations immediately (instead of the stale snapshot
-        // captured when `setEditTagsFor(template)` was called).
-        currentTags={editTargetTemplate?.tags ?? []}
+        currentTags={editTarget?.tags ?? []}
         allTags={allTags}
         onToggle={(tag) => {
-          if (editTagsFor) toggleTemplateTag(editTagsFor.id, tag);
+          if (editTagsFor) {
+            updateTags(editTagsFor.id, (tags) =>
+              tags.includes(tag) ? tags.filter((x) => x !== tag) : [...tags, tag],
+            );
+          }
         }}
         onCreate={(tag) => {
-          if (editTagsFor) createTemplateTag(editTagsFor.id, tag);
+          const clean = tag.trim();
+          if (editTagsFor && clean) {
+            updateTags(editTagsFor.id, (tags) => (tags.includes(clean) ? tags : [...tags, clean]));
+          }
         }}
         onClose={() => setEditTagsFor(null)}
       />
+
+      <MWBottomSheet
+        open={isMobile && sheetFor !== null}
+        onClose={() => setSheetFor(null)}
+        labelledBy="template-actions-title"
+      >
+        {sheetFor ? (
+          <>
+            <SheetHead id="template-actions-title">{sheetFor.name}</SheetHead>
+            <SheetActions>
+              {templateMenuEntries(sheetFor, {
+                ...actions,
+                ...(bulkOn && sheetFor.hasExamplePdf
+                  ? {
+                      onBulkSend: (tpl: TemplateSummary) =>
+                        navigate(`/templates/${encodeURIComponent(tpl.id)}/bulk-send`),
+                    }
+                  : {}),
+                ...(directLinksOn ? { onDirectLink: setDirectLinkFor } : {}),
+              }).map((entry) => {
+                if (entry.type === 'separator' || entry.type === 'label') return null;
+                return (
+                  <Button
+                    key={entry.id}
+                    variant="ghost"
+                    fullWidth
+                    {...(entry.icon ? { iconLeft: entry.icon } : {})}
+                    onClick={() => {
+                      setSheetFor(null);
+                      entry.onSelect();
+                    }}
+                  >
+                    {entry.label}
+                  </Button>
+                );
+              })}
+            </SheetActions>
+          </>
+        ) : null}
+      </MWBottomSheet>
+
+      {toast ? (
+        <Toast
+          title={toast.title}
+          tone={toast.tone}
+          duration={UNDO_MS}
+          onClose={() => setToast(null)}
+          {...(toast.undo ? { action: { label: 'Undo', onClick: toast.undo } } : {})}
+        />
+      ) : null}
     </Main>
   );
 }

@@ -1,356 +1,707 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { JSX } from 'react';
-import { Pencil, Trash2, UserPlus } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowUpDown,
+  CheckCircle2,
+  ChevronLeft,
+  MoreHorizontal,
+  Pencil,
+  Search,
+  Send,
+  Trash2,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import { EmptyState } from '@/components/EmptyState';
-import { PageHeader } from '@/components/PageHeader';
+import { Icon } from '@/components/Icon';
+import { MenuButton } from '@/components/Menu';
+import { MWBottomSheet } from '@/components/MWBottomSheet';
 import { Skeleton } from '@/components/Skeleton';
-import { TextField } from '@/components/TextField';
+import { Toast } from '@/components/Toast';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
-import { useAppState } from '@/providers/AppStateProvider';
-import { ExitConfirmDialog } from '@/components/ExitConfirmDialog';
 import {
-  ActionsCell,
-  DialogBackdrop,
-  DialogCard,
-  DialogFooter,
-  DialogTitle,
-  DocsCell,
-  EmailCell,
-  FieldStack,
+  AddContactsDialog,
+  EditContactDialog,
+  useBulkCreateContactsMutation,
+  useDeleteContactsMutation,
+  useRestoreContactsMutation,
+} from '@/features/contacts';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
+import { relativeAgo } from '@/lib/relativeAgo';
+import { useAppState } from '@/providers/AppStateProvider';
+import {
+  AvatarStack,
+  BulkBar,
+  BulkLabel,
+  CheckBox,
+  Count,
+  DocsLink,
+  Ellipsis,
+  HeaderRow,
   Inner,
   Main,
+  Meta,
+  MobileList,
+  MobileMeta,
+  MobileName,
+  MobileRow,
   NameCell,
-  TableHead,
-  TableRow,
-  TableShell,
+  Quiet,
+  Row,
+  RowActions,
+  SearchField,
+  SheetActions,
+  SheetHead,
+  SkeletonRow,
+  Spacer,
+  SrOnly,
+  THead,
+  Table,
+  Title,
+  Toolbar,
 } from './ContactsPage.styles';
 
-type DialogState =
-  | { readonly mode: 'closed' }
-  | { readonly mode: 'add' }
-  | { readonly mode: 'edit'; readonly contact: AddSignerContact };
+type SortKey = 'last_sent' | 'name';
+const SORT_STORAGE_KEY = 'seald.contacts.sort';
+const UNDO_MS = 6000;
+const SKELETON_ROWS = 6;
 
-function isValidEmail(value: string): boolean {
-  // Minimal shape check — enough to catch obvious typos in the demo app.
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+function readSort(): SortKey {
+  try {
+    return window.localStorage.getItem(SORT_STORAGE_KEY) === 'name' ? 'name' : 'last_sent';
+  } catch {
+    return 'last_sent';
+  }
 }
 
-interface RenderContactsBodyArgs {
-  readonly loading: boolean;
-  readonly contacts: ReadonlyArray<AddSignerContact>;
-  readonly docCountBySigner: ReadonlyMap<string, number>;
-  readonly onEdit: (contact: AddSignerContact) => void;
-  readonly onDelete: (id: string) => void;
+function writeSort(sort: SortKey): void {
+  try {
+    window.localStorage.setItem(SORT_STORAGE_KEY, sort);
+  } catch {
+    /* storage can be blocked; the choice just won't be remembered */
+  }
 }
 
-function renderContactsBody(args: RenderContactsBodyArgs): JSX.Element | JSX.Element[] {
-  const { loading, contacts, docCountBySigner, onEdit, onDelete } = args;
-  // While the initial fetch is in flight and we have nothing cached, render
-  // skeleton rows sized to the real table so the layout doesn't shift when
-  // data lands.
-  if (loading && contacts.length === 0) {
-    return Array.from({ length: 5 }, (_, i) => (
-      <TableRow key={`sk-${i}`} aria-hidden>
-        <NameCell>
-          <Skeleton variant="circle" width={32} height={32} />
-          <Skeleton width={140} />
-        </NameCell>
-        <EmailCell>
-          <Skeleton width={180} />
-        </EmailCell>
-        <DocsCell>
-          <Skeleton width={90} />
-        </DocsCell>
-        <ActionsCell>
-          <Skeleton variant="rect" width={56} height={28} />
-          <Skeleton variant="rect" width={72} height={28} />
-        </ActionsCell>
-      </TableRow>
-    ));
-  }
-  if (contacts.length === 0) {
-    return <EmptyState>No signers yet. Add one to get started.</EmptyState>;
-  }
-  return contacts.map((c) => (
-    <TableRow key={c.id}>
-      <NameCell>
-        <Avatar name={c.name} size={32} />
-        <span>{c.name}</span>
-      </NameCell>
-      <EmailCell>{c.email}</EmailCell>
-      <DocsCell>
-        {docCountBySigner.get(c.id) ?? 0} document
-        {(docCountBySigner.get(c.id) ?? 0) === 1 ? '' : 's'}
-      </DocsCell>
-      <ActionsCell>
-        <Button
-          variant="ghost"
-          size="sm"
-          iconLeft={Pencil}
-          aria-label={`Edit ${c.name}`}
-          onClick={() => onEdit(c)}
-        >
-          Edit
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          iconLeft={Trash2}
-          aria-label={`Delete ${c.name}`}
-          onClick={() => onDelete(c.id)}
-        >
-          Delete
-        </Button>
-      </ActionsCell>
-    </TableRow>
-  ));
+function sentTime(c: AddSignerContact): number {
+  return c.lastSentAt ? new Date(c.lastSentAt).getTime() : Number.NEGATIVE_INFINITY;
+}
+
+/** Last sent (never-sent last, ties by name) or A to Z. */
+function sortContacts(
+  list: ReadonlyArray<AddSignerContact>,
+  sort: SortKey,
+): ReadonlyArray<AddSignerContact> {
+  const byName = (a: AddSignerContact, b: AddSignerContact): number =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  return [...list].sort((a, b) => {
+    if (sort === 'name') return byName(a, b);
+    const diff = sentTime(b) - sentTime(a);
+    return Number.isNaN(diff) || diff === 0 ? byName(a, b) : diff;
+  });
+}
+
+function matches(c: AddSignerContact, q: string): boolean {
+  return c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q);
+}
+
+function docsLabel(n: number): string {
+  return `${String(n)} ${n === 1 ? 'document' : 'documents'}`;
+}
+
+interface ToastState {
+  readonly title: string;
+  readonly tone: 'success' | 'error';
+  readonly undo?: () => void;
 }
 
 /**
- * L4 page — Contacts / Signers CRUD. Lists every contact from `useAppState`
- * and exposes add / edit / delete through a small dialog. Used as the target
- * of the `Signers` top-level nav item and as a deeper management surface for
- * the (smaller) add-signer popovers inside the document editor.
+ * Contacts (`/signers`): the people you send documents to. Search, sort by
+ * last sent or name, a table whose documents count links to the Documents
+ * list filtered to that person, a hover Send action, add-many by pasted list,
+ * and select-many delete with Undo. On phones the table becomes a list and
+ * the row actions open a bottom sheet.
  */
-export function ContactsPage() {
-  const { contacts, contactsLoading, documents, addContact, updateContact, removeContact } =
-    useAppState();
-  const [dialog, setDialog] = useState<DialogState>({ mode: 'closed' });
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  /**
-   * Per-field error state. Previously the dialog held a single `error`
-   * string and bound it to the email TextField's `error` prop — so a
-   * "Please enter a name." validation message rendered under the wrong
-   * field, confusing the user into editing the email when their name
-   * was the actual problem. Tracking each field independently lets us
-   * point screen readers + sighted users at the field that failed.
-   */
-  const [nameError, setNameError] = useState<string | null>(null);
-  const [emailError, setEmailError] = useState<string | null>(null);
+export function ContactsPage(): JSX.Element {
+  const navigate = useNavigate();
+  const isMobile = useIsMobileViewport();
+  const { contacts, contactsLoading, updateContact } = useAppState();
+  const bulkCreate = useBulkCreateContactsMutation();
+  const deleteContacts = useDeleteContactsMutation();
+  const restoreContacts = useRestoreContactsMutation();
 
-  const resetFieldErrors = (): void => {
-    setNameError(null);
-    setEmailError(null);
-  };
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>(readSort);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState<AddSignerContact | null>(null);
+  const [deleting, setDeleting] = useState<ReadonlyArray<AddSignerContact> | null>(null);
+  const [sheetFor, setSheetFor] = useState<AddSignerContact | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  const openAdd = (): void => {
-    setName('');
-    setEmail('');
-    resetFieldErrors();
-    setDialog({ mode: 'add' });
-  };
+  const q = query.trim().toLowerCase();
+  const visible = useMemo(
+    () => sortContacts(q ? contacts.filter((c) => matches(c, q)) : contacts, sort),
+    [contacts, q, sort],
+  );
+  const existingEmails = useMemo(
+    () => new Set(contacts.map((c) => c.email.toLowerCase())),
+    [contacts],
+  );
+  const loading = contactsLoading && contacts.length === 0;
+  const selectedCount = selected.size;
+  const allVisibleSelected = visible.length > 0 && visible.every((c) => selected.has(c.id));
 
-  const openEdit = (contact: AddSignerContact): void => {
-    setName(contact.name);
-    setEmail(contact.email);
-    resetFieldErrors();
-    setDialog({ mode: 'edit', contact });
-  };
-
-  const closeDialog = (): void => {
-    setDialog({ mode: 'closed' });
-  };
-
-  /**
-   * Escape closes the add/edit dialog — WCAG 2.1.2 (No Keyboard Trap).
-   * Previously the dialog could only be dismissed via the backdrop or
-   * the Cancel button; keyboard-only users had no way out short of
-   * submitting. Bound at the document level so it fires regardless of
-   * focus inside the dialog; teardown is gated on `dialog.mode` so
-   * the listener exists only while the dialog is open. Mirrors the
-   * pattern at `TemplatesListPage.tsx:307-314`. Audit A · ContactsPage
-   * M-13.
-   */
+  // Drop selected ids that are no longer listed (deleted, or filtered away).
   useEffect(() => {
-    if (dialog.mode === 'closed') return undefined;
+    setSelected((prev) => {
+      const live = new Set(contacts.map((c) => c.id));
+      const next = new Set([...prev].filter((id) => live.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [contacts]);
+
+  // Escape empties the selection (the dialogs handle their own Escape).
+  const clearSelection = useCallback((): void => {
+    setSelected(new Set());
+    setSelectMode(false);
+  }, []);
+  useEffect(() => {
+    if (selectedCount === 0 || deleting !== null) return undefined;
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') setDialog({ mode: 'closed' });
+      if (e.key === 'Escape') clearSelection();
     };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [dialog.mode]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedCount, deleting, clearSelection]);
 
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (): Promise<void> => {
-    if (submitting) return;
-    const trimmedName = name.trim();
-    const trimmedEmail = email.trim();
-    // Validate both fields up front so the user sees every issue at
-    // once rather than fixing one only to discover the next on resubmit.
-    const nextNameError = trimmedName ? null : 'Please enter a name.';
-    const nextEmailError = isValidEmail(trimmedEmail)
-      ? null
-      : 'Please enter a valid email address.';
-    setNameError(nextNameError);
-    setEmailError(nextEmailError);
-    if (nextNameError || nextEmailError) return;
-
-    setSubmitting(true);
-    try {
-      if (dialog.mode === 'add') {
-        await addContact(trimmedName, trimmedEmail);
-      } else if (dialog.mode === 'edit') {
-        await updateContact(dialog.contact.id, { name: trimmedName, email: trimmedEmail });
-      }
-      closeDialog();
-    } catch (err) {
-      // Bug found 2026-05-02 audit: previously the page fired the mutation
-      // and synchronously closed the dialog, so any rejection (duplicate
-      // email 409, server 500, network drop) became an unhandled promise
-      // rejection and the user saw the optimistic row appear and then
-      // vanish with no explanation. Keep the dialog open and surface the
-      // error so the user can correct + retry.
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      const apiError = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      let message: string;
-      if (status === 409 || apiError === 'email_taken') {
-        message = 'That email is already in use by another contact.';
-      } else if (err instanceof Error && err.message) {
-        message = `Could not save contact — ${err.message}. Please try again.`;
-      } else {
-        message = 'Could not save contact. Something went wrong — please try again.';
-      }
-      // Server-side errors are most often email-related (duplicate,
-      // syntactic), so attach to the email field. Pure name validation
-      // is caught client-side above.
-      setEmailError(message);
-    } finally {
-      setSubmitting(false);
-    }
+  const toggleSort = (): void => {
+    const next: SortKey = sort === 'last_sent' ? 'name' : 'last_sent';
+    setSort(next);
+    writeSort(next);
   };
 
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const toggleOne = (id: string): void => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  const handleDelete = (id: string): void => {
-    setPendingDeleteId(id);
+  const toggleAll = (): void => {
+    setSelected(allVisibleSelected ? new Set() : new Set(visible.map((c) => c.id)));
+  };
+
+  const sendTo = (c: AddSignerContact): void => {
+    navigate(`/document/new?to=${encodeURIComponent(c.email)}`);
+  };
+
+  const openDocs = (c: AddSignerContact): string =>
+    `/documents?signer=${encodeURIComponent(c.email)}`;
+
+  const handleAdd = async (emails: ReadonlyArray<string>): Promise<void> => {
+    const result = await bulkCreate.mutateAsync(emails);
+    const n = result.created.length;
+    setToast({
+      tone: 'success',
+      title: n === 1 ? 'Contact added' : `${String(n)} contacts added`,
+    });
   };
 
   const confirmDelete = (): void => {
-    if (pendingDeleteId) {
-      removeContact(pendingDeleteId);
-      setPendingDeleteId(null);
-    }
+    if (!deleting) return;
+    const ids = deleting.map((c) => c.id);
+    const count = ids.length;
+    setDeleting(null);
+    setSheetFor(null);
+    clearSelection();
+    deleteContacts.mutate(ids, {
+      onSuccess: () =>
+        setToast({
+          tone: 'success',
+          title: count === 1 ? 'Contact deleted' : `${String(count)} contacts deleted`,
+          undo: () => {
+            setToast(null);
+            restoreContacts.mutate(ids, {
+              onError: () => setToast({ tone: 'error', title: 'Could not undo the delete' }),
+            });
+          },
+        }),
+      onError: () => setToast({ tone: 'error', title: 'Could not delete. Try again.' }),
+    });
   };
 
-  const docCountBySigner = useMemo(() => {
-    const map = new Map<string, number>();
-    documents.forEach((doc) => {
-      doc.signers.forEach((s) => {
-        map.set(s.id, (map.get(s.id) ?? 0) + 1);
-      });
-    });
-    return map;
-  }, [documents]);
+  const rowItems = (c: AddSignerContact) => [
+    { id: 'edit', label: 'Edit', icon: Pencil, onSelect: () => setEditing(c) },
+    { type: 'separator' as const, id: 'sep' },
+    {
+      id: 'delete',
+      label: 'Delete',
+      icon: Trash2,
+      danger: true,
+      onSelect: () => setDeleting([c]),
+    },
+  ];
 
+  const sortLabel = sort === 'last_sent' ? 'Sort: Last sent' : 'Sort: Name';
+  const resultsText = `${String(visible.length)} ${visible.length === 1 ? 'result' : 'results'}`;
+  const isEmpty = !loading && contacts.length === 0;
+  const noMatches = !loading && contacts.length > 0 && visible.length === 0;
+
+  /** Dialogs and the toast, shared by the desktop and phone layouts. */
+  const renderOverlays = (): JSX.Element => {
+    const count = deleting?.length ?? 0;
+    const title =
+      count === 1
+        ? `Delete ${deleting?.[0]?.name ?? 'contact'}?`
+        : `Delete ${String(count)} contacts?`;
+    return (
+      <>
+        <AddContactsDialog
+          open={adding}
+          onClose={() => setAdding(false)}
+          existingEmails={existingEmails}
+          onAdd={handleAdd}
+        />
+        <EditContactDialog
+          open={editing !== null}
+          contact={editing}
+          contacts={contacts}
+          onClose={() => setEditing(null)}
+          onSave={(patch) => updateContact(editing?.id ?? '', patch)}
+        />
+        <ConfirmDeleteDialog
+          open={deleting !== null}
+          title={title}
+          note="They stay on sent documents."
+          deleteLabel={count > 1 ? `Delete ${String(count)}` : 'Delete'}
+          onCancel={() => setDeleting(null)}
+          onConfirm={confirmDelete}
+        >
+          {count > 1 ? (
+            <AvatarStack aria-hidden>
+              {(deleting ?? []).slice(0, 5).map((c) => (
+                <Avatar key={c.id} name={c.name} size={32} />
+              ))}
+            </AvatarStack>
+          ) : null}
+        </ConfirmDeleteDialog>
+        {toast ? (
+          <Toast
+            title={toast.title}
+            tone={toast.tone}
+            duration={UNDO_MS}
+            onClose={() => setToast(null)}
+            {...(toast.undo ? { action: { label: 'Undo', onClick: toast.undo } } : {})}
+          />
+        ) : null}
+      </>
+    );
+  };
+
+  // ---------------------------------------------------------------- mobile
+  if (isMobile) {
+    return (
+      <Main>
+        <Inner>
+          {searchOpen ? (
+            <HeaderRow>
+              <Button
+                variant="ghost"
+                iconOnly
+                iconLeft={ChevronLeft}
+                aria-label="Back"
+                onClick={() => {
+                  setSearchOpen(false);
+                  setQuery('');
+                }}
+              />
+              <SearchField>
+                <Icon icon={Search} size={16} />
+                <SrOnly>Search name or email</SrOnly>
+                <input
+                  type="search"
+                  value={query}
+                  autoFocus
+                  placeholder="Search name or email"
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </SearchField>
+            </HeaderRow>
+          ) : (
+            <HeaderRow>
+              {selectMode ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    iconLeft={X}
+                    aria-label="Clear selection"
+                    onClick={clearSelection}
+                  />
+                  <Title as="h2">{`${String(selectedCount)} selected`}</Title>
+                </>
+              ) : (
+                <>
+                  <Title>Contacts</Title>
+                  {loading ? null : <Count>{contacts.length}</Count>}
+                  <Spacer />
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    iconLeft={CheckCircle2}
+                    aria-label="Select contacts"
+                    onClick={() => setSelectMode(true)}
+                  />
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    iconLeft={Search}
+                    aria-label="Search contacts"
+                    onClick={() => setSearchOpen(true)}
+                  />
+                  <Button
+                    variant="ghost"
+                    iconOnly
+                    iconLeft={UserPlus}
+                    aria-label="Add contacts"
+                    onClick={() => setAdding(true)}
+                  />
+                </>
+              )}
+            </HeaderRow>
+          )}
+
+          {contacts.length > 0 ? (
+            <Toolbar>
+              <Button variant="secondary" size="sm" iconLeft={ArrowUpDown} onClick={toggleSort}>
+                {sortLabel}
+              </Button>
+              <Spacer />
+              <Meta>{q ? resultsText : `${String(contacts.length)} total`}</Meta>
+            </Toolbar>
+          ) : null}
+
+          {loading ? (
+            <div aria-busy="true" aria-label="Loading contacts">
+              {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                <MobileRow key={`sk-${String(i)}`} as="div" aria-hidden>
+                  <Skeleton variant="circle" width={40} height={40} />
+                  <MobileName>
+                    <Skeleton width="60%" height={12} />
+                    <Skeleton width="40%" height={10} />
+                  </MobileName>
+                </MobileRow>
+              ))}
+            </div>
+          ) : null}
+
+          {isEmpty ? (
+            <EmptyState
+              icon={Users}
+              title="No contacts yet"
+              action={
+                <Button variant="primary" iconLeft={UserPlus} onClick={() => setAdding(true)}>
+                  Add contacts
+                </Button>
+              }
+            />
+          ) : null}
+
+          {noMatches ? (
+            <EmptyState
+              icon={Search}
+              title="No matches"
+              action={
+                <Button variant="ghost" onClick={() => setQuery('')}>
+                  Clear search
+                </Button>
+              }
+            />
+          ) : null}
+
+          {visible.length > 0 ? (
+            <MobileList>
+              {visible.map((c) => (
+                <MobileRow
+                  key={c.id}
+                  type="button"
+                  $selected={selected.has(c.id)}
+                  aria-pressed={selectMode ? selected.has(c.id) : undefined}
+                  onClick={() => (selectMode ? toggleOne(c.id) : setSheetFor(c))}
+                >
+                  <Avatar name={c.name} size={40} />
+                  <MobileName>
+                    <Ellipsis>{c.name}</Ellipsis>
+                    <Quiet>{c.email}</Quiet>
+                  </MobileName>
+                  <MobileMeta>{`${String(c.docsCount ?? 0)} docs`}</MobileMeta>
+                </MobileRow>
+              ))}
+            </MobileList>
+          ) : null}
+        </Inner>
+
+        {selectMode ? (
+          <BulkBar role="toolbar" aria-label="Selection actions">
+            <BulkLabel>{`${String(selectedCount)} selected`}</BulkLabel>
+            <Button variant="ghost" size="sm" onClick={clearSelection}>
+              Clear
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              iconLeft={Trash2}
+              disabled={selectedCount === 0}
+              onClick={() => setDeleting(contacts.filter((c) => selected.has(c.id)))}
+            >
+              {selectedCount > 0 ? `Delete ${String(selectedCount)}` : 'Delete'}
+            </Button>
+          </BulkBar>
+        ) : null}
+
+        <MWBottomSheet open={sheetFor !== null} onClose={() => setSheetFor(null)}>
+          {sheetFor ? (
+            <>
+              <SheetHead>
+                <Avatar name={sheetFor.name} size={40} />
+                <MobileName>
+                  <Ellipsis>{sheetFor.name}</Ellipsis>
+                  <Quiet>{sheetFor.email}</Quiet>
+                </MobileName>
+              </SheetHead>
+              <SheetActions>
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  iconLeft={Send}
+                  onClick={() => {
+                    const target = sheetFor;
+                    setSheetFor(null);
+                    sendTo(target);
+                  }}
+                >
+                  Send
+                </Button>
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  iconLeft={Pencil}
+                  onClick={() => {
+                    setEditing(sheetFor);
+                    setSheetFor(null);
+                  }}
+                >
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  iconLeft={Trash2}
+                  onClick={() => {
+                    setDeleting([sheetFor]);
+                    setSheetFor(null);
+                  }}
+                >
+                  Delete
+                </Button>
+              </SheetActions>
+            </>
+          ) : null}
+        </MWBottomSheet>
+
+        {renderOverlays()}
+      </Main>
+    );
+  }
+
+  // --------------------------------------------------------------- desktop
   return (
     <Main>
       <Inner>
-        <PageHeader
-          eyebrow="Signers"
-          title="People you send documents to"
-          actions={
-            <Button variant="primary" iconLeft={UserPlus} onClick={openAdd}>
-              Add signer
+        <HeaderRow>
+          <Title>Contacts</Title>
+          {loading ? (
+            <Skeleton variant="circle" width={20} height={20} />
+          ) : (
+            <Count aria-label={`${String(contacts.length)} contacts`}>{contacts.length}</Count>
+          )}
+          <Spacer />
+          {isEmpty ? null : (
+            <Button variant="primary" iconLeft={UserPlus} onClick={() => setAdding(true)}>
+              Add
             </Button>
-          }
-        />
+          )}
+        </HeaderRow>
 
-        <TableShell>
-          <TableHead>
-            <div>Name</div>
-            <div>Email</div>
-            <div>Documents</div>
-            <div aria-hidden />
-          </TableHead>
-          {renderContactsBody({
-            loading: contactsLoading,
-            contacts,
-            docCountBySigner,
-            onEdit: openEdit,
-            onDelete: handleDelete,
-          })}
-        </TableShell>
+        {isEmpty ? null : (
+          <Toolbar>
+            <SearchField>
+              <Icon icon={Search} size={16} />
+              <SrOnly>Search name or email</SrOnly>
+              <input
+                type="search"
+                value={query}
+                placeholder="Search name or email"
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </SearchField>
+            {q ? <Meta role="status">{resultsText}</Meta> : null}
+            <Spacer />
+            <Button variant="ghost" size="sm" iconLeft={ArrowUpDown} onClick={toggleSort}>
+              {sortLabel}
+            </Button>
+          </Toolbar>
+        )}
+
+        {isEmpty ? (
+          <Table>
+            <EmptyState
+              icon={Users}
+              title="No contacts yet"
+              action={
+                <Button variant="primary" iconLeft={UserPlus} onClick={() => setAdding(true)}>
+                  Add contacts
+                </Button>
+              }
+            />
+          </Table>
+        ) : (
+          <Table role="table" aria-label="Contacts" aria-busy={loading || undefined}>
+            <THead role="row">
+              <span role="columnheader">
+                <CheckBox
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={allVisibleSelected}
+                  disabled={loading || visible.length === 0}
+                  onChange={toggleAll}
+                />
+              </span>
+              <span role="columnheader">Name</span>
+              <span role="columnheader">Email</span>
+              <span role="columnheader">Documents</span>
+              <span role="columnheader">Last sent</span>
+              <span role="columnheader" aria-label="Actions" />
+            </THead>
+
+            {loading
+              ? Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                  <SkeletonRow key={`sk-${String(i)}`} aria-hidden>
+                    <Skeleton variant="rect" width={16} height={16} />
+                    <NameCell>
+                      <Skeleton variant="circle" width={28} height={28} />
+                      <Skeleton width={140} height={12} />
+                    </NameCell>
+                    <Skeleton width={190} height={10} />
+                    <Skeleton width={70} height={10} />
+                    <Skeleton width={48} height={10} />
+                    <span />
+                  </SkeletonRow>
+                ))
+              : visible.map((c) => {
+                  const docs = c.docsCount ?? 0;
+                  return (
+                    <Row key={c.id} role="row" $selected={selected.has(c.id)}>
+                      <span role="cell">
+                        <CheckBox
+                          type="checkbox"
+                          aria-label={`Select ${c.name}`}
+                          checked={selected.has(c.id)}
+                          onChange={() => toggleOne(c.id)}
+                        />
+                      </span>
+                      <NameCell role="cell">
+                        <Avatar name={c.name} size={32} />
+                        <Ellipsis>{c.name}</Ellipsis>
+                      </NameCell>
+                      <Quiet role="cell">{c.email}</Quiet>
+                      <span role="cell">
+                        {docs > 0 ? (
+                          <DocsLink
+                            href={openDocs(c)}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate(openDocs(c));
+                            }}
+                          >
+                            {docsLabel(docs)}
+                          </DocsLink>
+                        ) : (
+                          <Meta>{docsLabel(0)}</Meta>
+                        )}
+                      </span>
+                      <Meta role="cell">{docs > 0 ? relativeAgo(c.lastSentAt) : 'never'}</Meta>
+                      <RowActions role="cell">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          iconLeft={Send}
+                          aria-label={`Send to ${c.name}`}
+                          onClick={() => sendTo(c)}
+                        >
+                          Send
+                        </Button>
+                        <MenuButton
+                          aria-label={`Actions for ${c.name}`}
+                          items={rowItems(c)}
+                          trigger={(p) => (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              iconOnly
+                              iconLeft={MoreHorizontal}
+                              aria-label={`More for ${c.name}`}
+                              {...p}
+                            />
+                          )}
+                        />
+                      </RowActions>
+                    </Row>
+                  );
+                })}
+
+            {noMatches ? (
+              <EmptyState
+                icon={Search}
+                title="No matches"
+                action={
+                  <Button variant="ghost" onClick={() => setQuery('')}>
+                    Clear search
+                  </Button>
+                }
+              />
+            ) : null}
+          </Table>
+        )}
       </Inner>
 
-      <ExitConfirmDialog
-        open={pendingDeleteId !== null}
-        title="Remove this signer?"
-        description="They will still appear on any documents where they were already placed, but you won't see them in this list anymore."
-        confirmLabel="Remove"
-        cancelLabel="Cancel"
-        onConfirm={confirmDelete}
-        onCancel={() => setPendingDeleteId(null)}
-      />
-
-      {dialog.mode !== 'closed' ? (
-        <DialogBackdrop role="presentation" onClick={closeDialog}>
-          <DialogCard
-            role="dialog"
-            aria-modal="true"
-            aria-label={dialog.mode === 'add' ? 'Add signer' : 'Edit signer'}
-            onClick={(e) => e.stopPropagation()}
+      {selectedCount > 0 ? (
+        <BulkBar role="toolbar" aria-label="Bulk actions">
+          <BulkLabel>{`${String(selectedCount)} selected`}</BulkLabel>
+          <Button variant="ghost" size="sm" onClick={clearSelection}>
+            Clear
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            iconLeft={Trash2}
+            onClick={() => setDeleting(contacts.filter((c) => selected.has(c.id)))}
           >
-            <DialogTitle>{dialog.mode === 'add' ? 'Add signer' : 'Edit signer'}</DialogTitle>
-            {/*
-              We deliberately don't wrap the inputs in a <form>:
-              DialogCard above stops click propagation (so the
-              backdrop doesn't close the modal when the user clicks
-              inside), which also stops the browser from delivering
-              the implicit `submit` event after a click on a
-              type="submit" button. Instead we wire Enter handling
-              directly on the inputs and call `handleSubmit()` from
-              both the button click and the keydown — keyboard users
-              still get one-press submission without depending on
-              implicit form submission.
-            */}
-            <FieldStack>
-              <TextField
-                label="Name"
-                value={name}
-                onChange={(next) => setName(next)}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleSubmit();
-                  }
-                }}
-                {...(nameError ? { error: nameError } : {})}
-              />
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(next) => setEmail(next)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    void handleSubmit();
-                  }
-                }}
-                {...(emailError ? { error: emailError } : {})}
-              />
-            </FieldStack>
-            <DialogFooter>
-              <Button variant="ghost" onClick={closeDialog}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => {
-                  void handleSubmit();
-                }}
-              >
-                {dialog.mode === 'add' ? 'Add signer' : 'Save changes'}
-              </Button>
-            </DialogFooter>
-          </DialogCard>
-        </DialogBackdrop>
+            {`Delete ${String(selectedCount)}`}
+          </Button>
+        </BulkBar>
       ) : null}
+
+      {renderOverlays()}
     </Main>
   );
 }

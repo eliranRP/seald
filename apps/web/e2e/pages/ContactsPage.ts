@@ -1,35 +1,56 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
+/**
+ * Page Object for `/signers` (the Contacts page). Thin wrapper over `page`
+ * exposing semantic affordances (rule 4.6: query by accessible role/name).
+ */
 export class ContactsPage {
-  constructor(private readonly page: Page) {}
+  constructor(readonly page: Page) {}
 
   async goto(): Promise<void> {
     await this.page.goto('/signers');
   }
 
   async expectVisible(): Promise<void> {
-    await expect(this.page.getByRole('button', { name: /^add signer$/i })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: 'Contacts', level: 1 })).toBeVisible();
   }
 
-  async addContact(name: string, email: string): Promise<void> {
-    // The page-header "Add signer" button opens an aria-labelled dialog
-    // with Name + Email TextFields and an "Add signer" submit button.
+  /** The Add contacts dialog (a dialog on desktop). */
+  get addDialog(): Locator {
+    return this.page.getByRole('dialog', { name: 'Add contacts' });
+  }
+
+  get editDialog(): Locator {
+    return this.page.getByRole('dialog', { name: 'Edit contact' });
+  }
+
+  /** Opens the Add contacts dialog from the header button or the empty state. */
+  async openAddDialog(): Promise<void> {
     await this.page
-      .getByRole('button', { name: /^add signer$/i })
+      .getByRole('button', { name: /^add( contacts)?$/i })
       .first()
       .click();
-    const dialog = this.page.getByRole('dialog', { name: /add signer/i });
-    await dialog.getByRole('textbox', { name: /^name$/i }).fill(name);
-    await dialog.getByRole('textbox', { name: /^email$/i }).fill(email);
-    await dialog.getByRole('button', { name: /^add signer$/i }).click();
+    await expect(this.addDialog).toBeVisible();
   }
 
-  async deleteContact(name: string): Promise<void> {
-    await this.page.getByRole('button', { name: new RegExp(`^delete ${name}$`, 'i') }).click();
-    await this.page.getByRole('button', { name: /confirm|delete/i }).click();
+  async pasteEmails(text: string): Promise<void> {
+    const field = this.addDialog.getByRole('textbox', { name: 'Emails' });
+    await field.click();
+    // Paste through the clipboard event path the page handles.
+    await field.evaluate((el, value) => {
+      const data = new DataTransfer();
+      data.setData('text', value);
+      el.dispatchEvent(
+        new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }),
+      );
+    }, text);
+  }
+
+  async openRowMenu(name: string): Promise<void> {
+    await this.page.getByRole('button', { name: `More for ${name}` }).click();
   }
 
   async expectContactVisible(name: string): Promise<void> {
-    await expect(this.page.getByText(new RegExp(name, 'i')).first()).toBeVisible();
+    await expect(this.page.getByText(name).first()).toBeVisible();
   }
 }

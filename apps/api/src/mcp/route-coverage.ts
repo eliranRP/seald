@@ -175,6 +175,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /contacts/:id': { tool: 'contacts_get' },
   'PATCH /contacts/:id': { tool: 'contacts_update' },
   'DELETE /contacts/:id': { tool: 'contacts_delete' },
+  // Contacts redesign: paste-a-list add, bulk delete, and the Undo for a delete.
+  'POST /contacts/bulk': { tool: 'contacts_import' },
+  'DELETE /contacts': { tool: 'contacts_delete' },
+  'POST /contacts/restore': { planned: 'step-16' },
 
   // Templates (steps 13 and 15): the listing, the schema read, the draft built
   // from a template and template authoring are tools. The example PDF and the
@@ -184,6 +188,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /templates/:id': { tool: 'templates_get_schema' },
   'PATCH /templates/:id': { tool: 'templates_update' },
   'DELETE /templates/:id': { tool: 'templates_delete' },
+  // Templates redesign: duplicate a template, and the Undo for a delete. No tool yet.
+  'POST /templates/:id/duplicate': { planned: 'step-16' },
+  'POST /templates/:id/restore': { planned: 'step-16' },
   // envelopes_create_from_template bumps the use count itself, after success.
   'POST /templates/:id/use': { tool: 'envelopes_create_from_template' },
   'POST /templates/:id/apply': { tool: 'envelopes_create_from_template' },

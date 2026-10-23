@@ -17,6 +17,9 @@ import {
 
 type Row = Selectable<TemplatesTable>;
 
+/** How long a soft-deleted template stays restorable. */
+const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 function toDomain(r: Row): Template {
   return {
     id: r.id,
@@ -70,6 +73,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
       .selectFrom('templates')
       .selectAll()
       .where('owner_id', '=', owner_id)
+      .where('deleted_at', 'is', null)
       // Recently-used first; never-used (last_used_at IS NULL) at the bottom.
       .orderBy(sql`last_used_at desc nulls last`)
       .orderBy('created_at', 'desc')
@@ -83,6 +87,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
       .selectAll()
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .executeTakeFirst();
     return row ? toDomain(row) : null;
   }
@@ -111,18 +116,41 @@ export class TemplatesPgRepository extends TemplatesRepository {
       .set(update)
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .returningAll()
       .executeTakeFirst();
     return row ? toDomain(row) : null;
   }
 
   async delete(owner_id: string, id: string): Promise<boolean> {
-    const res = await this.db
+    // Opportunistic purge: rows past the Undo window are gone for good.
+    await this.db
       .deleteFrom('templates')
       .where('owner_id', '=', owner_id)
+      .where('deleted_at', '<', new Date(Date.now() - UNDO_WINDOW_MS))
+      .execute();
+    const now = new Date().toISOString();
+    const row = await this.db
+      .updateTable('templates')
+      .set({ deleted_at: now, updated_at: now })
+      .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
+      .returning('id')
       .executeTakeFirst();
-    return (res?.numDeletedRows ?? 0n) > 0n;
+    return row !== undefined;
+  }
+
+  override async restore(owner_id: string, id: string): Promise<Template | null> {
+    const row = await this.db
+      .updateTable('templates')
+      .set({ deleted_at: null, updated_at: new Date().toISOString() })
+      .where('owner_id', '=', owner_id)
+      .where('id', '=', id)
+      .where('deleted_at', 'is not', null)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toDomain(row) : null;
   }
 
   async deleteAllByOwner(owner_id: string): Promise<number> {
@@ -144,6 +172,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
       })
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .returningAll()
       .executeTakeFirst();
     return row ? toDomain(row) : null;
@@ -162,6 +191,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
       })
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .returningAll()
       .executeTakeFirst();
     return row ? toDomain(row) : null;
@@ -173,6 +203,7 @@ export class TemplatesPgRepository extends TemplatesRepository {
       .select('example_pdf_path')
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .executeTakeFirst();
     return row?.example_pdf_path ?? null;
   }

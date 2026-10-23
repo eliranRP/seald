@@ -460,6 +460,7 @@ export function TemplateEditorRoute() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
   const [guestSenderOpen, setGuestSenderOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{
     readonly title: string;
     readonly subtitle?: string | undefined;
@@ -558,6 +559,7 @@ export function TemplateEditorRoute() {
 
   const handleSaveAsTemplate = useCallback(async () => {
     if (!draft) return;
+    setSaving(true);
     const title = (renamedTitle ?? sourceTemplate?.name ?? 'Untitled template').trim();
     try {
       // Pass the live signer roster so each saved field records its
@@ -623,6 +625,7 @@ export function TemplateEditorRoute() {
       });
       window.setTimeout(() => navigate('/templates'), 700);
     } catch (err) {
+      setSaving(false);
       setToast({
         title: 'Save failed',
         subtitle: err instanceof Error ? err.message : 'Failed to save template. Please try again.',
@@ -704,7 +707,7 @@ export function TemplateEditorRoute() {
           accessAuth: accessAuth.value,
         });
         sendDocument(draft.id);
-        navigate(`/document/${result.envelope_id}/sent`);
+        navigate('/documents', { state: { justSent: result.envelope_id } });
       } catch (err) {
         setSendError(err instanceof Error ? err.message : 'Unable to send the document.');
       }
@@ -803,15 +806,6 @@ export function TemplateEditorRoute() {
 
   // ---- Navigation guards (Back / cancel) -------------------------------
 
-  const goBackToWizard = useCallback(() => {
-    // Step 3 → Step 2 (signers) of the wizard.
-    if (isNewTemplate) {
-      navigate('/templates/new/use');
-      return;
-    }
-    navigate(`/templates/${encodeURIComponent(decodedId)}/use`);
-  }, [isNewTemplate, decodedId, navigate]);
-
   const goCancel = useCallback(() => navigate('/templates'), [navigate]);
 
   // unsaved-work guards (only meaningful once the draft has either fields or
@@ -902,12 +896,21 @@ export function TemplateEditorRoute() {
   return (
     <Page>
       <TemplateFlowHeader
-        step={3}
         mode={mode}
         templateName={headerTitle}
+        {...(draft
+          ? { meta: `${String(draft.totalPages)} ${draft.totalPages === 1 ? 'page' : 'pages'}` }
+          : {})}
         onRenameTemplate={renameTemplate}
-        onBack={goBackToWizard}
         onCancel={goCancel}
+        {...(mode !== 'using' && ready
+          ? {
+              saving,
+              onSave: () => {
+                handleSaveAsTemplate().catch(() => {});
+              },
+            }
+          : {})}
       />
 
       <PageBody>
@@ -957,7 +960,7 @@ export function TemplateEditorRoute() {
             sendLabel={mode === 'new' ? 'Save as template' : 'Send to sign'}
             templateMode={mode === 'new' ? 'authoring' : 'using'}
             templateName={headerTitle}
-            onBack={goBackToWizard}
+            onBack={goCancel}
           />
         ) : null}
 

@@ -1,53 +1,35 @@
 import type { HTMLAttributes } from 'react';
 import type { TemplateSummary } from '@/features/templates';
 
-/**
- * Cover thumbnail accent. Picks from a small set of soft palettes so
- * the grid reads as a varied stack of templates without committing to
- * a per-template colour-picker UI yet. Mirrors the design guide's
- * `ACCENTS` map (`indigo` / `amber` / `emerald` / `pink`).
- */
-export type TemplateCardAccent = 'indigo' | 'amber' | 'emerald' | 'pink';
-
-export interface TemplateCardProps extends Omit<
-  HTMLAttributes<HTMLElement>,
-  'onClick' | 'children'
-> {
-  readonly template: TemplateSummary;
-  readonly onUse: (template: TemplateSummary) => void;
+export interface TemplateCardActions {
+  /** Menu "Edit": opens the template in the editor. */
   readonly onEdit?: ((template: TemplateSummary) => void) | undefined;
-  /** Optional duplicate handler. Surfaces a "More actions" overflow menu when present. */
   readonly onDuplicate?: ((template: TemplateSummary) => void) | undefined;
+  /** Menu "Tags": the host shows its tag editor. */
+  readonly onEditTags?: ((template: TemplateSummary) => void) | undefined;
   /**
-   * Optional delete handler. When supplied, the hover-action overlay
-   * adds a Delete affordance (red trash). The host page owns the
-   * confirmation surface — this card only exposes the trigger so the
-   * confirm modal can sit at page level (matches the design guide's
-   * centered modal rather than a per-card popover).
+   * The host confirms before deleting; the card only lifts the intent.
+   * Last item of the menu, in red.
    */
   readonly onDelete?: ((template: TemplateSummary) => void) | undefined;
   /**
-   * Click on a tag pill in the card body. The page uses this to add
-   * the tag to the active filter so users can pivot from a card into
-   * a filtered grid.
-   */
-  readonly onTagClick?: ((tag: string) => void) | undefined;
-  /**
-   * Open the tag editor popover anchored to this card. The page
-   * decides where to render the popover; the card just lifts the
-   * intent. When omitted, no Tags affordance is rendered in the
-   * hover overlay.
-   */
-  readonly onEditTags?: ((template: TemplateSummary) => void) | undefined;
-  /**
-   * WP-36: open bulk send (one envelope per CSV row) for this template. The
-   * host passes it only while `bulkSend` is on and the template has a saved
-   * document; when omitted no Bulk send affordance renders.
+   * WP-36: open bulk send (one envelope per CSV row). The host passes it only
+   * while `bulkSend` is on and the template has a saved document.
    */
   readonly onBulkSend?: ((template: TemplateSummary) => void) | undefined;
-  /**
-   * Open the template's direct-link settings (WP-37). The page passes it
-   * only while `directLinks` is on; without it no Link affordance shows.
-   */
+  /** WP-37: open the template's direct-link settings (flag `directLinks`). */
   readonly onDirectLink?: ((template: TemplateSummary) => void) | undefined;
+}
+
+export interface TemplateCardProps
+  extends TemplateCardActions, Omit<HTMLAttributes<HTMLDivElement>, 'onClick' | 'children'> {
+  readonly template: TemplateSummary;
+  /** The whole card is this action ("Use"). */
+  readonly onUse: (template: TemplateSummary) => void;
+  /**
+   * Phone layout: a row (small thumbnail, name, meta, ⋯) instead of a tile.
+   * The ⋯ then calls `onMore` (the host opens a sheet) instead of a menu.
+   */
+  readonly compact?: boolean | undefined;
+  readonly onMore?: ((template: TemplateSummary) => void) | undefined;
 }

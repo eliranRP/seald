@@ -2,48 +2,32 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { TemplateFlowHeader } from './TemplateFlowHeader';
 
 const meta: Meta<typeof TemplateFlowHeader> = {
-  title: 'L2 / TemplateFlowHeader',
+  title: 'L1/TemplateFlowHeader',
   component: TemplateFlowHeader,
+  tags: ['autodocs', 'layer-1'],
   parameters: { layout: 'fullscreen' },
+  args: {
+    templateName: 'NDA — standard',
+    meta: '3 pages',
+    onCancel: () => undefined,
+  },
 };
 export default meta;
 
 type Story = StoryObj<typeof TemplateFlowHeader>;
 
-const baseArgs = {
-  step: 1 as const,
-  templateName: 'Mutual NDA — short form',
-  onBack: () => {
-    /* storybook noop */
-  },
-  onCancel: () => {
-    /* storybook noop */
-  },
+export const Editing: Story = {
+  args: { mode: 'editing', onSave: () => undefined, onRenameTemplate: () => undefined },
 };
 
-export const UsingStep1: Story = {
-  args: { ...baseArgs, mode: 'using', step: 1 },
+export const New: Story = {
+  args: { mode: 'new', templateName: 'Untitled template', onSave: () => undefined },
 };
 
-export const UsingStep2: Story = {
-  args: { ...baseArgs, mode: 'using', step: 2 },
+export const FromTemplate: Story = {
+  args: { mode: 'using' },
 };
 
-export const UsingStep3: Story = {
-  args: { ...baseArgs, mode: 'using', step: 3 },
-};
-
-export const NewStep1: Story = {
-  args: { ...baseArgs, mode: 'new', templateName: 'New template', step: 1 },
-};
-
-export const Editable: Story = {
-  args: {
-    ...baseArgs,
-    mode: 'using',
-    step: 1,
-    onRenameTemplate: (next: string) => {
-      console.log('rename to', next);
-    },
-  },
+export const Saving: Story = {
+  args: { mode: 'editing', onSave: () => undefined, saving: true },
 };

@@ -9,7 +9,7 @@ import { RootLanding } from './layout/RootLanding';
 import { DashboardPage, SentRedirect } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TemplatesListPage } from './pages/TemplatesListPage';
-import { UseTemplatePage } from './pages/UseTemplatePage';
+import { NewTemplateRoute } from './routes/NewTemplateRoute';
 import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
 import { AuthPage } from './pages/AuthPage';
@@ -326,15 +326,18 @@ export function AppRoutes() {
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
           <Route path="/signers" element={<ContactsPage />} />
+          {/* One canonical URL for Contacts. */}
+          <Route path="/contacts" element={<Navigate to="/signers" replace />} />
           <Route path="/templates" element={<TemplatesListPage />} />
-          <Route path="/templates/:id/use" element={<UseTemplatePage />} />
+          {/* The Use dialog is part of the list page; this path stays as a deep link. */}
+          <Route path="/templates/:id/use" element={<TemplatesListPage />} />
+          <Route path="/templates/new" element={<NewTemplateRoute />} />
+          <Route path="/templates/new/use" element={<Navigate to="/templates/new" replace />} />
           {/* WP-36: bulk CSV send. The page itself shows "not available" with
               `bulkSend` off, so the route can stay mounted. */}
           <Route path="/templates/:id/bulk-send/:batchId?" element={<BulkSendPage />} />
-          {/* Step 3 of the templates wizard runs INSIDE AppShell so the
-              global NavBar stays visible across the entire wizard.
-              The TemplateFlowHeader (back / mode pill / step pills /
-              cancel) sits BELOW the NavBar as a sub-chrome bar. */}
+          {/* The template editor runs INSIDE AppShell so the global NavBar stays
+              visible; its own bar (name, Cancel, Save template) sits below it. */}
           <Route
             path="/templates/:id/edit"
             element={
