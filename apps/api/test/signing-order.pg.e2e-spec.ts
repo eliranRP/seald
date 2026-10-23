@@ -255,7 +255,7 @@ describePg('signing order (real Postgres)', () => {
       return (
         await pool.query<{ signer_id: string; source_event_id: string; dedupe_key: string }>(
           `select signer_id, source_event_id, dedupe_key from public.outbound_emails
-            where envelope_id = $1 and kind = 'invite' order by created_at`,
+            where envelope_id = $1 and kind in ('invite', 'your_turn') order by created_at`,
           [envelopeId],
         )
       ).rows;

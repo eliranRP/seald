@@ -357,7 +357,11 @@ describePg('MCP contacts, templates and Drive approvals (e2e, real Postgres)', (
     expect(ok(await call(a, 'contacts_delete', write({ contact_id: id })))).toEqual({
       removed: true,
     });
-    const rows = await q('select email from public.contacts where owner_id = $1', [ownerA]);
+    // Delete is a soft delete (Undo window); only live rows count.
+    const rows = await q(
+      'select email from public.contacts where owner_id = $1 and deleted_at is null',
+      [ownerA],
+    );
     expect(rows.rows.map((r) => r.email)).toEqual(['bob@example.com']);
 
     // The same idempotency key replays the first answer and writes nothing twice.

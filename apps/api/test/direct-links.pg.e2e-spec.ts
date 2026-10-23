@@ -324,7 +324,7 @@ describePg('template direct links (real Postgres)', () => {
     ).rejects.toThrow();
   });
 
-  it('removes links and claims with their template, and keeps the envelope', async () => {
+  it('hides links on template delete and removes them with the purge, keeping the envelope', async () => {
     const t = await newTemplate();
     const { link } = await newLink(t.id);
     const claim = await links.reserveClaim({
@@ -348,6 +348,17 @@ describePg('template direct links (real Postgres)', () => {
       direct_link_id: link.id,
     });
     expect(await templates.delete(ownerId, t.id)).toBe(true);
+    // Soft delete: the public link path loads the template through
+    // findOneByOwner, which no longer returns it, so the link 404s. The rows
+    // stay so Undo (restore) brings the link back.
+    expect(await templates.findOneByOwner(ownerId, t.id)).toBeNull();
+    const kept_link = await pool.query(
+      'select count(*)::int as n from template_direct_links where id = $1',
+      [link.id],
+    );
+    expect((kept_link.rows[0] as { n: number }).n).toBe(1);
+    // Past the Undo window the row is purged; links and claims cascade.
+    await pool.query('delete from templates where id = $1', [t.id]);
     const gone = await pool.query(
       'select count(*)::int as n from template_direct_links where id = $1',
       [link.id],
