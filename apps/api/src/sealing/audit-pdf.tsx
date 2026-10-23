@@ -13,7 +13,7 @@ import {
 } from '@react-pdf/renderer';
 import * as React from 'react';
 import QRCode from 'qrcode';
-import { maskEmail } from 'shared';
+import { McpEventMetadataSchema, type McpEventMetadata, maskEmail } from 'shared';
 import type { Envelope, EnvelopeEvent, EnvelopeSigner } from '../envelopes/envelope.entity';
 import type { SignerAuditDetail } from '../envelopes/envelopes.repository';
 import { resolveContentLocale, t } from '../i18n';
@@ -1275,7 +1275,7 @@ function Section({ num, title }: { num: string; title: string }): React.ReactEle
   );
 }
 
-interface DataCellInfo {
+export interface DataCellInfo {
   label: string;
   value: string;
   mono?: boolean;
@@ -1886,6 +1886,36 @@ function ReferenceLinks(): React.ReactElement {
 // Derivation helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * WP-23: the two datagrid rows for an MCP-originated send. The rows exist
+ * only when the envelope's `sent` event carries a `metadata.mcp` that
+ * parses. Otherwise this returns nothing and the certificate is unchanged.
+ * The pair is always two cells, so the two-column grid stays aligned.
+ * The key name is the owner's own label; `client_name` is never stored or
+ * printed (docs/design/mcp-server.md).
+ */
+export function mcpCertificateCells(
+  events: ReadonlyArray<EnvelopeEvent>,
+): ReadonlyArray<DataCellInfo> {
+  const sent = events.find((e) => e.event_type === 'sent' && e.metadata['mcp'] !== undefined);
+  if (!sent) return [];
+  const parsed = McpEventMetadataSchema.safeParse(sent.metadata['mcp']);
+  if (!parsed.success) return [];
+  const mcp = parsed.data;
+  const keyName = mcp.key_name?.trim() ?? '';
+  return [
+    { label: 'Approval', value: mcpApprovalClause(mcp) },
+    { label: 'Sent via', value: keyName.length > 0 ? keyName : 'API key' },
+  ];
+}
+
+function mcpApprovalClause(mcp: McpEventMetadata): string {
+  if (mcp.approval !== 'email') return 'Sent without per-send approval';
+  return mcp.approved_by_session
+    ? 'Approved by owner (signed-in)'
+    : 'Approved by owner (email link)';
+}
+
 function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
   const env = ctx.envelope;
   const proposer = deriveProposer(ctx);
@@ -1919,6 +1949,7 @@ function buildDatagridCells(ctx: RenderCtx): ReadonlyArray<DataCellInfo> {
       ...digitalSignatureCell(mark, ctx.timestampApplied),
     },
     { label: 'Delivery mode', value: humanDelivery(env.delivery_mode) },
+    ...mcpCertificateCells(ctx.events),
     {
       label: 'Signers',
       value: `${signedCount} of ${signatoryCount || env.signers.length} completed`,

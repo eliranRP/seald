@@ -308,3 +308,29 @@ export type EnvelopesListPendingOutput = z.infer<typeof EnvelopesListPendingOutp
 export type EnvelopesListEventsInput = z.infer<typeof EnvelopesListEventsInputSchema>;
 export type EnvelopesListEventsOutput = z.infer<typeof EnvelopesListEventsOutputSchema>;
 export type McpToolError = z.infer<typeof McpToolErrorSchema>;
+
+// ---------------------------------------------------------------------------
+// `envelope_events.metadata.mcp` (docs/design/mcp-server.md, "Attribution on
+// MCP-originated events"). The send path writes it (WP-24, not yet wired);
+// the audit certificate reads it (`apps/api/src/sealing/audit-pdf.tsx`).
+// It never carries `client_name`, a header-supplied name, or
+// `client_name_source`. Signer events never carry it.
+// ---------------------------------------------------------------------------
+
+export const MCP_APPROVAL_MODES = ['email', 'unattended', 'none'] as const;
+export type McpApprovalMode = (typeof MCP_APPROVAL_MODES)[number];
+
+export const McpEventMetadataSchema = z.object({
+  auth: z.enum(['api_key', 'oauth']),
+  key_id: uuid.nullable(),
+  key_prefix: z.string().nullable(),
+  key_name: z.string().nullable(),
+  oauth_client_id: uuid.nullable(),
+  oauth_grant_id: uuid.nullable(),
+  acting_for_user_id: uuid,
+  acting_for_email: z.string(),
+  tool: z.string(),
+  approval: z.enum(MCP_APPROVAL_MODES),
+  approved_by_session: z.boolean(),
+});
+export type McpEventMetadata = z.infer<typeof McpEventMetadataSchema>;

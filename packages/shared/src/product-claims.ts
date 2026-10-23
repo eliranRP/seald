@@ -89,3 +89,12 @@ export const DRIVE_DISCONNECT_NOTE =
 
 export const SEAL_DOWNLOAD_ERROR =
   "We couldn't load the download yet. If sealing finishes, we'll email signers a link. You can also check the verify page.";
+
+/**
+ * Intent-to-sign sentence for sends made through MCP (WP-23, decision D4).
+ * The slot ships with the sentence specified in docs/design/mcp-server.md.
+ * The live `/sign` page does not show it yet; the signing-copy PR wires it.
+ */
+// TODO(copy-approval): final wording comes with the legal v0.4 flag-flip PR.
+export const INTENT_TO_SIGN_MCP_NOTE =
+  'I am signing personally. I am not using an automated tool or AI agent to sign for me.';
