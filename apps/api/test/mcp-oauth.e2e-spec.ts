@@ -18,6 +18,7 @@ import { PassthroughTransactionRunner, TransactionRunner } from '../src/db/trans
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { IdempotencyRecordsRepository } from '../src/idempotency/idempotency-records.repository';
 import { InMemoryIdempotencyRecordsRepository } from '../src/idempotency/__tests__/in-memory-idempotency-records.repository';
 import { CimdFetcher } from '../src/mcp/oauth/cimd';
@@ -29,6 +30,7 @@ import { InMemoryApprovalsRepository } from './in-memory-approvals-repository';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOAuthRepository } from './in-memory-oauth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
@@ -271,7 +273,10 @@ describe('MCP OAuth 2.1 (e2e, in-memory)', () => {
         .overrideProvider(OAuthRepository)
         .useValue(oauth)
         .overrideProvider(CimdFetcher)
-        .useValue(cimd),
+        .useValue(cimd)
+        // signerAccessAuth ships on: the send approval reads access settings.
+        .overrideProvider(AccessAuthRepository)
+        .useValue(new InMemoryAccessAuthRepository(envelopesRepo)),
     ).compile();
 
     app = moduleRef.createNestApplication();
@@ -311,9 +316,9 @@ describe('MCP OAuth 2.1 (e2e, in-memory)', () => {
     await app.close();
   });
 
-  describe('dark by default', () => {
-    it('mcpOauth defaults to false', () => {
-      expect(FEATURE_FLAGS.mcpOauth).toBe(false);
+  describe('dark with the flag off', () => {
+    it('mcpOauth ships on (the parity flags are switched on)', () => {
+      expect(FEATURE_FLAGS.mcpOauth).toBe(true);
     });
 
     it('with mcpOauth off every OAuth route 404s and /mcp answers exactly as before', async () => {

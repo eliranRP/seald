@@ -11,7 +11,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { Pool } from 'pg';
 import request from 'supertest';
-import { MCP_SERVER_VERSION, type ApiKeyScope, type FeatureFlag } from 'shared';
+import { MCP_SERVER_VERSION, isFeatureEnabled, type ApiKeyScope, type FeatureFlag } from 'shared';
 import { AppModule } from '../src/app.module';
 import { generateApiKey } from '../src/api-keys/api-key-secret';
 import { JWKS_RESOLVER } from '../src/auth/jwks.provider';
@@ -493,11 +493,13 @@ describePg('MCP server (e2e, real Postgres)', () => {
         }
       }
       // Send, remind and cancel exist only as the approval-gated tools (WP-24).
+      // With bulkSend on, the approval-gated bulk send (step 15) joins them.
       expect(tools.filter((t) => /send|remind/.test(t.name)).map((t) => t.name)).toEqual([
         'envelopes_preview_send',
         'envelopes_send',
         'envelopes_preview_remind',
         'envelopes_remind',
+        ...(isFeatureEnabled('bulkSend') ? ['envelopes_bulk_send_from_template'] : []),
       ]);
     });
 

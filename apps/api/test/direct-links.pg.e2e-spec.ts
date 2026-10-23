@@ -370,6 +370,7 @@ describePg('template direct links (real Postgres)', () => {
   });
 
   it('stores templates.delivery_mode, defaulting to parallel, and gates it on the wire', async () => {
+    setFlag('signingOrder', false);
     const plain = await newTemplate();
     expect(plain).not.toHaveProperty('delivery_mode');
     setFlag('signingOrder', true);

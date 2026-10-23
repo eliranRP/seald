@@ -19,6 +19,7 @@ import { ContactsRepository } from '../src/contacts/contacts.repository';
 import { OutboundEmailsRepository } from '../src/email/outbound-emails.repository';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { EnvelopesRepository } from '../src/envelopes/envelopes.repository';
+import { AccessAuthRepository } from '../src/signing/access-auth/access-auth.repository';
 import { PadesSigner } from '../src/sealing/pades-signer';
 import { SealingService } from '../src/sealing/sealing.service';
 import { StorageService } from '../src/storage/storage.service';
@@ -27,6 +28,7 @@ import { dispatchSignToken } from './dispatched-sign-links';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
 import { InMemoryEnvelopesRepository } from './in-memory-envelopes-repository';
+import { InMemoryAccessAuthRepository } from './in-memory-access-auth-repository';
 import { InMemoryOutboundEmailsRepository } from './in-memory-outbound-emails-repository';
 import { InMemoryStorageService } from './in-memory-storage';
 import { InMemoryTemplatesRepository } from './in-memory-templates-repository';
@@ -146,6 +148,9 @@ describeOrSkip('Field meta + new kinds (e2e, WP-07)', () => {
       .useValue(storage)
       .overrideProvider(OutboundEmailsRepository)
       .useValue(outbound)
+      // signerAccessAuth ships on: /sign/start reads access settings.
+      .overrideProvider(AccessAuthRepository)
+      .useValue(new InMemoryAccessAuthRepository(envelopesRepo))
       .compile();
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(
