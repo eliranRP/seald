@@ -55,8 +55,11 @@ describe('EnvelopesController', () => {
       remindSigner: jest.fn(),
       addSigner: jest.fn(),
       removeSigner: jest.fn(),
+      fixSigner: jest.fn(),
+      replaceSigner: jest.fn(),
       replaceFields: jest.fn(),
       listEvents: jest.fn(),
+      listEventsWithChain: jest.fn(),
       getDownloadUrl: jest.fn(),
       saveToGoogleDrive: jest.fn(),
     } as unknown as jest.Mocked<EnvelopesService>;
@@ -376,6 +379,42 @@ describe('EnvelopesController', () => {
     });
   });
 
+  describe('PATCH and replace signer routes', () => {
+    const req = { headers: { 'user-agent': 'UA' }, ip: '203.0.113.9' } as unknown as Request;
+
+    it('PATCH threads the dto and returns the signer', async () => {
+      svc.fixSigner.mockResolvedValue({ signer: { id: 's1' }, email_changed: true } as never);
+      const out = await controller.updateSigner(USER, 'env-1', 's1', { email: 'a@b.co' }, req);
+      expect(out).toEqual({ id: 's1' });
+      expect(svc.fixSigner).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        's1',
+        { email: 'a@b.co' },
+        expect.objectContaining({ user_agent: 'UA' }),
+      );
+    });
+
+    it('replace threads name and email and returns the signer', async () => {
+      svc.replaceSigner.mockResolvedValue({ signer: { id: 's1' } } as never);
+      const out = await controller.replaceSigner(
+        USER,
+        'env-1',
+        's1',
+        { name: 'Jo', email: 'jo@b.co' },
+        req,
+      );
+      expect(out).toEqual({ id: 's1' });
+      expect(svc.replaceSigner).toHaveBeenCalledWith(
+        USER.id,
+        'env-1',
+        's1',
+        { name: 'Jo', email: 'jo@b.co' },
+        expect.objectContaining({ user_agent: 'UA' }),
+      );
+    });
+  });
+
   describe('DELETE /envelopes/:id/signers/:signer_id (removeSigner)', () => {
     it('forwards both ids', async () => {
       svc.removeSigner.mockResolvedValue(undefined);
@@ -455,12 +494,12 @@ describe('EnvelopesController', () => {
   });
 
   describe('GET /envelopes/:id/events', () => {
-    it('wraps service result as { events }', async () => {
+    it('wraps service result as { events, chain_intact }', async () => {
       const events = [{ id: 'ev1' }] as never;
-      svc.listEvents.mockResolvedValue(events);
+      svc.listEventsWithChain.mockResolvedValue({ events, chain_intact: true });
       const out = await controller.events(USER, 'env-1');
-      expect(out).toEqual({ events });
-      expect(svc.listEvents).toHaveBeenCalledWith(USER.id, 'env-1');
+      expect(out).toEqual({ events, chain_intact: true });
+      expect(svc.listEventsWithChain).toHaveBeenCalledWith(USER.id, 'env-1');
     });
   });
 

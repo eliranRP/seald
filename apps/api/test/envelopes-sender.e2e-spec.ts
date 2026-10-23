@@ -879,6 +879,99 @@ describe('Envelopes — sender draft flow (e2e)', () => {
     });
   });
 
+  describe('PATCH and replace a signer on a sent envelope', () => {
+    async function sentEnvelope(): Promise<{ envId: string; signerId: string }> {
+      const contact = await contactsRepo.create({
+        owner_id: USER_A,
+        name: 'Ada',
+        email: 'ada@example.com',
+        color: '#112233',
+      });
+      const env = await request(app.getHttpServer())
+        .post('/envelopes')
+        .set(auth(tokenA))
+        .send({ title: 'Fix me' });
+      await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/upload`)
+        .set(auth(tokenA))
+        .attach('file', tinyPdf, { filename: 't.pdf', contentType: 'application/pdf' });
+      const signer = await request(app.getHttpServer())
+        .post(`/envelopes/${env.body.id}/signers`)
+        .set(auth(tokenA))
+        .send({ contact_id: contact.id });
+      await request(app.getHttpServer())
+        .put(`/envelopes/${env.body.id}/fields`)
+        .set(auth(tokenA))
+        .send({
+          fields: [
+            {
+              signer_id: signer.body.id,
+              kind: 'signature',
+              page: 1,
+              x: 0.1,
+              y: 0.1,
+              required: true,
+            },
+          ],
+        });
+      await request(app.getHttpServer()).post(`/envelopes/${env.body.id}/send`).set(auth(tokenA));
+      return { envId: env.body.id, signerId: signer.body.id };
+    }
+
+    it('PATCH fixes the email, re-invites and keeps the audit chain intact', async () => {
+      const { envId, signerId } = await sentEnvelope();
+      const res = await request(app.getHttpServer())
+        .patch(`/envelopes/${envId}/signers/${signerId}`)
+        .set(auth(tokenA))
+        .send({ email: 'ada.fixed@example.com' });
+      expect(res.status).toBe(200);
+      expect(res.body.email).toBe('ada.fixed@example.com');
+      const kinds = outbound.rows.map((r) => [r.kind, r.to_email]);
+      expect(kinds).toContainEqual(['invite', 'ada.fixed@example.com']);
+      expect(kinds).toContainEqual(['signer_corrected', 'ada@example.com']);
+      const events = await request(app.getHttpServer())
+        .get(`/envelopes/${envId}/events`)
+        .set(auth(tokenA));
+      expect(events.body.chain_intact).toBe(true);
+    });
+
+    it('PATCH rejects a stranger with 404 and a bad email with 400', async () => {
+      const { envId, signerId } = await sentEnvelope();
+      const bad = await request(app.getHttpServer())
+        .patch(`/envelopes/${envId}/signers/${signerId}`)
+        .set(auth(tokenA))
+        .send({ email: 'nope' });
+      expect(bad.status).toBe(400);
+      const other = await request(app.getHttpServer())
+        .patch(`/envelopes/${envId}/signers/${signerId}`)
+        .set(auth(tokenB))
+        .send({ email: 'x@example.com' });
+      expect(other.status).toBe(404);
+    });
+
+    it('POST replace swaps the person and mails the old address', async () => {
+      const { envId, signerId } = await sentEnvelope();
+      const res = await request(app.getHttpServer())
+        .post(`/envelopes/${envId}/signers/${signerId}/replace`)
+        .set(auth(tokenA))
+        .send({ name: 'Jordan Lee', email: 'jordan@example.com' });
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ id: signerId, email: 'jordan@example.com' });
+      const kinds = outbound.rows.map((r) => [r.kind, r.to_email]);
+      expect(kinds).toContainEqual(['invite', 'jordan@example.com']);
+      expect(kinds).toContainEqual(['signer_replaced', 'ada@example.com']);
+      const events = await request(app.getHttpServer())
+        .get(`/envelopes/${envId}/events`)
+        .set(auth(tokenA));
+      expect(
+        events.body.events.filter(
+          (e: { event_type: string }) => e.event_type === 'signer_replaced',
+        ),
+      ).toHaveLength(1);
+      expect(events.body.chain_intact).toBe(true);
+    });
+  });
+
   describe('POST /envelopes/:id/signers/:signer_id/remind', () => {
     async function buildSentEnvelope(): Promise<{ envId: string; signerId: string }> {
       const contact = await contactsRepo.create({

@@ -22,6 +22,7 @@ const TEMPLATES = [
   'reminder',
   'signed_to_sender',
   'signer_corrected',
+  'signer_replaced',
   'withdrawn_after_sign',
   'withdrawn_to_signer',
 ] as const;

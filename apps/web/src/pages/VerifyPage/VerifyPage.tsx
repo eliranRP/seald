@@ -193,6 +193,7 @@ const EVENT_LABEL: Record<VerifyEvent['event_type'], string> = {
   access_code_failed: 'Wrong one-time code entered',
   approval_decided: 'Owner approval recorded',
   signer_corrected: 'Signer details corrected',
+  signer_replaced: 'Signer replaced',
   expiry_changed: 'Expiry changed',
 };
 

@@ -1,0 +1,88 @@
+<div class="wrap">
+  <div class="card">
+    <div class="accent accent-slate"></div>
+    <table
+      role="presentation"
+      class="masthead"
+      cellspacing="0"
+      cellpadding="0"
+      border="0"
+      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
+    >
+      <tr>
+        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
+          <span
+            style="
+              display: inline-block;
+              width: 28px;
+              height: 28px;
+              border-radius: 7px;
+              background: #4f46e5;
+              color: #ffffff;
+              font-family: Georgia, 'Source Serif 4', serif;
+              font-weight: 600;
+              font-size: 16px;
+              text-align: center;
+              line-height: 28px;
+              vertical-align: middle;
+              text-decoration: none;
+            "
+            >S</span
+          >
+        </td>
+        <td
+          style="
+            padding: 20px 28px 20px 10px;
+            vertical-align: middle;
+            font-family:
+              Source Serif 4,
+              Georgia,
+              serif;
+            font-weight: 500;
+            font-size: 18px;
+            color: #0b1220;
+            letter-spacing: -0.01em;
+          "
+        >
+          Seald
+        </td>
+      </tr>
+    </table>
+    <div class="body">
+      <span class="kicker kicker-slate">No action needed</span>
+      <h1>
+        You no longer need to sign
+        <em>{{envelope_title}}</em>.
+      </h1>
+      <p class="from-line">
+        Replaced by
+        <b
+          class="no-autolink"
+          style="display: inline-block; color: #0b1220; font-weight: 600; text-decoration: none"
+          >{{sender_name}}</b
+        >
+      </p>
+      <p>
+        {{sender_name}} asked someone else to sign. The signing link we sent to this address no
+        longer works, and nothing you started is stored.
+      </p>
+      <p class="muted">
+        If you expected to sign this and believe this is an error, please contact
+        <span class="no-autolink" style="color: inherit; text-decoration: none"
+          >{{sender_name}}</span
+        >
+        directly.
+      </p>
+      <div class="verify">
+        Reference: <code>{{short_code}}</code><br />
+        <a href="{{verify_url}}">{{verify_url}}</a>
+      </div>
+    </div>
+    <div class="foot">
+      <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
+      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
+      <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
+      <a href="{{preferences_url}}">Questions about these emails</a>
+    </div>
+  </div>
+</div>

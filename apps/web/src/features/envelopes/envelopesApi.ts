@@ -20,7 +20,7 @@ export type EnvelopeStatus =
   | 'canceled';
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
-export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
+export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined' | 'bounced';
 /** Every kind the API knows; name, number, radio and dropdown only while `fieldMetaV2` is on (WP-07). */
 export type FieldKind = AnyFieldKind;
 
@@ -257,6 +257,7 @@ export type EnvelopeEventType =
   | 'step_started'
   // WP-26 (migration 0039)
   | 'signer_corrected'
+  | 'signer_replaced'
   | 'expiry_changed';
 
 export interface EnvelopeEvent {
@@ -273,6 +274,8 @@ export interface EnvelopeEvent {
 
 export interface EnvelopeEventsResponse {
   readonly events: ReadonlyArray<EnvelopeEvent>;
+  /** Whether the audit hash chain still verifies. Absent on older servers. */
+  readonly chain_intact?: boolean;
 }
 
 export async function listEnvelopeEvents(
@@ -522,6 +525,52 @@ export async function cancelEnvelope(
   const { data } = await apiClient.post<CancelEnvelopeResponse>(
     `/envelopes/${id}/cancel`,
     undefined,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+export interface FixSignerInput {
+  readonly email: string;
+  readonly name?: string;
+}
+
+/**
+ * `PATCH /envelopes/:id/signers/:signerId` — fix a signer's email on a sent
+ * envelope. The server revokes the old link and sends a fresh invite.
+ */
+export async function fixEnvelopeSigner(
+  envelopeId: string,
+  signerId: string,
+  input: FixSignerInput,
+  signal?: AbortSignal,
+): Promise<EnvelopeSigner> {
+  const { data } = await apiClient.patch<EnvelopeSigner>(
+    `/envelopes/${envelopeId}/signers/${signerId}`,
+    input,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+export interface ReplaceSignerInput {
+  readonly name: string;
+  readonly email: string;
+}
+
+/**
+ * `POST /envelopes/:id/signers/:signerId/replace` — swap a signer who has
+ * not signed for someone else. Fields, role and order move to the new person.
+ */
+export async function replaceEnvelopeSigner(
+  envelopeId: string,
+  signerId: string,
+  input: ReplaceSignerInput,
+  signal?: AbortSignal,
+): Promise<EnvelopeSigner> {
+  const { data } = await apiClient.post<EnvelopeSigner>(
+    `/envelopes/${envelopeId}/signers/${signerId}/replace`,
+    input,
     configWithSignal(signal),
   );
   return data;

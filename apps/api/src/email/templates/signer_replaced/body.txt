@@ -1,0 +1,12 @@
+You no longer need to sign "{{envelope_title}}".
+
+{{sender_name}} asked someone else to sign. The signing link we sent to
+this address no longer works, and nothing you started is stored.
+
+Nothing to do. If you think this is a mistake, contact {{sender_name}}
+directly.
+
+Reference: {{short_code}}
+{{verify_url}}
+
+Sent via Seald · {{public_url}}

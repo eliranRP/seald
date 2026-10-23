@@ -73,6 +73,7 @@ export const EVENT_TYPES = [
   'approval_decided',
   // WP-26 (migration 0039): a sent envelope's signer was corrected, or its expiry moved.
   'signer_corrected',
+  'signer_replaced',
   'expiry_changed',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];

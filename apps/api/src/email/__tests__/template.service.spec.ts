@@ -32,10 +32,11 @@ describe('TemplateService', () => {
       'automation_copy',
       'automation_disabled',
       'signer_corrected',
+      'signer_replaced',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(17);
+    expect(kinds).toHaveLength(18);
   });
 
   describe('every template is a self-contained HTML doc', () => {

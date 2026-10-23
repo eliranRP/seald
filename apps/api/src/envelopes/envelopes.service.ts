@@ -701,6 +701,16 @@ export class EnvelopesService {
     return this.repo.listEventsForEnvelope(envelope_id);
   }
 
+  /** `listEvents` plus whether the audit hash chain still verifies (envelope detail "Chain intact"). */
+  async listEventsWithChain(
+    owner_id: string,
+    envelope_id: string,
+  ): Promise<{ readonly events: readonly EnvelopeEvent[]; readonly chain_intact: boolean }> {
+    const events = await this.listEvents(owner_id, envelope_id);
+    const { chain_intact } = await this.repo.verifyEventChain(envelope_id);
+    return { events, chain_intact };
+  }
+
   /**
    * Transition an envelope from `draft` to `awaiting_others`, write `sent`
    * events, and enqueue `invite` emails.
@@ -1247,6 +1257,86 @@ export class EnvelopesService {
       }
     }
     return { signer: done.signer, email_changed: emailChanged };
+  }
+
+  /**
+   * Replace a signer who has not signed with someone else (envelope detail
+   * redesign). The signer row stays, so its fields, role and order move to
+   * the new person; the old link stops working at once, the new person is
+   * invited (when it is their turn) and the old address gets the
+   * `signer_replaced` note. One hash-chained `signer_replaced` event.
+   */
+  async replaceSigner(
+    owner_id: string,
+    envelope_id: string,
+    signer_id: string,
+    next: { readonly name: string; readonly email: string },
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+    now: Date = new Date(),
+  ): Promise<{ readonly signer: EnvelopeSigner }> {
+    const { signer: before } = await this.checkFixSigner(owner_id, envelope_id, signer_id, next);
+    if (before.email.toLowerCase() === next.email.toLowerCase()) {
+      throw new BadRequestException('signer_unchanged');
+    }
+    const done = await this.repo.correctSigner(envelope_id, signer_id, next, now);
+    if (!done) {
+      await this.checkFixSigner(owner_id, envelope_id, signer_id, next);
+      throw new ConflictException('envelope_terminal');
+    }
+    const event = await this.repo.appendEvent({
+      envelope_id,
+      signer_id,
+      actor_kind: 'sender',
+      event_type: 'signer_replaced',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: {
+        previous_name: done.previous.name,
+        new_name: done.signer.name,
+        previous_email: done.previous.email,
+        new_email: done.signer.email,
+      },
+    });
+    const envelope = await this.repo.findByIdForOwner(owner_id, envelope_id);
+    if (!envelope) throw new NotFoundException('envelope_not_found');
+    const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
+    const sender = { email: envelope.sender_email ?? '', name: envelope.sender_name ?? null };
+    if (isSignersTurn(envelope.delivery_mode, envelope.signers, signer_id)) {
+      try {
+        await this.outboundEmails.insert({
+          envelope_id,
+          signer_id,
+          kind: 'invite',
+          to_email: done.signer.email,
+          to_name: done.signer.name,
+          source_event_id: event.id,
+          payload: inviteEmailPayload(envelope, sender, publicUrl),
+        });
+      } catch (err) {
+        if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+      }
+    }
+    try {
+      await this.outboundEmails.insert({
+        envelope_id,
+        signer_id,
+        kind: 'signer_replaced',
+        to_email: done.previous.email,
+        to_name: done.previous.name,
+        source_event_id: event.id,
+        payload: {
+          sender_name: sender.name ?? sender.email,
+          sender_email: sender.email,
+          envelope_title: envelope.title,
+          short_code: envelope.short_code,
+          verify_url: `${publicUrl}/verify/${envelope.short_code}`,
+          public_url: publicUrl,
+        },
+      });
+    } catch (err) {
+      if (!(err instanceof DuplicateOutboundEmailError)) throw err;
+    }
+    return { signer: done.signer };
   }
 
   /**
