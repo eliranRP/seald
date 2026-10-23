@@ -166,7 +166,7 @@ describe('App routing', () => {
   it('redirects root to the Dashboard', async () => {
     renderApp(['/']);
     expect(
-      await screen.findByRole('heading', { level: 1, name: /everything you've sent/i }),
+      await screen.findByRole('heading', { level: 1, name: /^documents$/i }),
     ).toBeInTheDocument();
   });
 
@@ -186,7 +186,7 @@ describe('App routing', () => {
     expect(within(nav).queryByRole('link', { name: /^sign$/i })).toBeNull();
     fireEvent.click(within(nav).getByRole('link', { name: 'Documents' }));
     expect(
-      await screen.findByRole('heading', { level: 1, name: /everything you've sent/i }),
+      await screen.findByRole('heading', { level: 1, name: /^documents$/i }),
     ).toBeInTheDocument();
   });
 

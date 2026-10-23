@@ -20,6 +20,7 @@ import type {
   StepInvite,
   SubmitResult,
   UpdateDraftMetadataPatch,
+  UnsendOutcome,
 } from '../src/envelopes/envelopes.repository';
 import type { DeliveryMode } from 'shared';
 import { initialInvitees, nextStepInvitees, stepOf } from '../src/signing/signing-order';
@@ -785,6 +786,41 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const next: Envelope = { ...env, status: 'canceled', updated_at: now };
     this.envelopes.set(envelope_id, next);
     return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
+
+  async unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' };
+    if (env.status !== 'awaiting_others' || env.sent_at === null) {
+      return { ok: false, reason: 'not_sent' };
+    }
+    if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
+      return { ok: false, reason: 'window_expired' };
+    }
+    if (
+      env.signers.some(
+        (s) => s.viewed_at !== null || s.signed_at !== null || s.declined_at !== null,
+      )
+    ) {
+      return { ok: false, reason: 'signer_engaged' };
+    }
+    const next: Envelope = {
+      ...env,
+      status: 'draft',
+      sent_at: null,
+      updated_at: now.toISOString(),
+    };
+    for (const s of env.signers) {
+      this.signerTokenHashes.delete(s.id);
+      this.invitedAt.delete(s.id);
+    }
+    this.envelopes.set(envelope_id, next);
+    return { ok: true, envelope: next };
   }
 
   async listReminderCandidates(

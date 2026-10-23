@@ -202,6 +202,29 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     `.execute(this.db);
   }
 
+  async cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }> {
+    const canceled = await this.db
+      .updateTable('outbound_emails')
+      .set({ status: 'canceled' })
+      .where('envelope_id', '=', envelope_id)
+      .where('kind', '=', 'invite')
+      .where('status', '=', 'pending')
+      .executeTakeFirst();
+    const handled = await this.db
+      .selectFrom('outbound_emails')
+      .select((eb) => eb.fn.countAll<string>().as('n'))
+      .where('envelope_id', '=', envelope_id)
+      .where('kind', '=', 'invite')
+      .where('status', 'in', ['sending', 'sent'])
+      .executeTakeFirst();
+    return {
+      canceled: Number(canceled?.numUpdatedRows ?? 0n),
+      alreadyHandled: Number(handled?.n ?? 0),
+    };
+  }
+
   async markFailed(
     id: string,
     args: {

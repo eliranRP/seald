@@ -331,11 +331,21 @@ export interface EventInput {
     // WP-26 (migration 0039)
     | 'signer_corrected'
     | 'signer_replaced'
-    | 'expiry_changed';
+    | 'expiry_changed'
+    // Migration 0045
+    | 'unsent';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;
 }
+
+/** Result of `EnvelopesRepository.unsendEnvelope`. */
+export type UnsendOutcome =
+  | { readonly ok: true; readonly envelope: Envelope }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'not_sent' | 'window_expired' | 'signer_engaged';
+    };
 
 /**
  * Port for envelope persistence. The adapter owns row-conditional UPDATEs
@@ -503,6 +513,21 @@ export abstract class EnvelopesRepository {
     readonly notifiedSignerIds: ReadonlyArray<string>;
     readonly alreadySignedSignerIds: ReadonlyArray<string>;
   } | null>;
+
+  /**
+   * Undo after Send. One transaction: when the row is the owner's
+   * `awaiting_others` envelope, sent no more than `windowMs` before `now`,
+   * and no signer has viewed, signed or declined, flip it back to `draft`,
+   * clear `sent_at`, and drop every signer's access token and invite stamp.
+   * Otherwise nothing changes and the outcome names why, so the service can
+   * answer 404 or the right 409.
+   */
+  abstract unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome>;
 
   abstract expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>>;
 

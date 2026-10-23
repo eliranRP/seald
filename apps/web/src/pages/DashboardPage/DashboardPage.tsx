@@ -1,615 +1,849 @@
-import { useCallback, useMemo } from 'react';
-import type { JSX } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, UploadCloud } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Badge } from '@/components/Badge';
-import type { BadgeTone } from '@/components/Badge/Badge.types';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import {
+  Bell,
+  Ban,
+  ChevronDown,
+  Clock,
+  Download,
+  Eye,
+  Inbox,
+  LayoutTemplate,
+  Link2,
+  PenLine,
+  Search,
+  ShieldCheck,
+  Smartphone,
+  Tag as TagIcon,
+  Trash2,
+  Undo2,
+  Upload,
+  X,
+  XCircle,
+  FilePen,
+  CircleCheck,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import type { EnvelopeListItem } from 'shared';
+import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { DocThumb } from '@/components/DocThumb';
 import { EmptyState } from '@/components/EmptyState';
-import { ColumnResizeHandle } from '@/components/ColumnResizeHandle';
-import { EnvelopeIllustration } from '@/components/EnvelopeIllustration';
-import { TagChip } from '@/components/TagChip';
-import { useColumnWidths } from '@/hooks/useColumnWidths';
-import { FilterToolbar } from '@/components/FilterToolbar';
-import { PageHeader } from '@/components/PageHeader';
-import { SignerProgressBar } from '@/components/SignerProgressBar';
-import type { SignerProgressBarEntry } from '@/components/SignerProgressBar';
-import { SignerStack } from '@/components/SignerStack';
-import type { SignerStackEntry, SignerStackStatus } from '@/components/SignerStack';
+import { Menu, MenuAnchor } from '@/components/Menu';
+import type { MenuEntry } from '@/components/Menu';
 import { Skeleton } from '@/components/Skeleton';
-import { StatCard } from '@/components/StatCard';
-import { useEnvelopesQuery } from '@/features/envelopes';
-import type { EnvelopeListItem, EnvelopeStatus } from '@/features/envelopes';
+import { Toast } from '@/components/Toast';
+import type { ToastProps } from '@/components/Toast';
 import {
-  filtersToQueryParams,
-  isAwaitingYou,
-  parseFilters,
-  parseSort,
-  serializeFilters,
-  type EnvelopeFilters,
-  type SortKey,
-} from '@/features/dashboardFilters';
-import { formatShortDate } from '@/lib/dateFormat';
+  DASHBOARD_TABS,
+  EMPTY_VIEW,
+  addTagToEnvelopes,
+  applyView,
+  canRemind,
+  copyDocumentLink,
+  downloadEnvelopes,
+  fixBouncedEmail,
+  formatTurnaround,
+  groupByRecency,
+  hasActiveFilters,
+  needsYouCards,
+  remindEnvelopes,
+  removeEnvelopes,
+  rowStatus,
+  tabCounts,
+  uniquePeople,
+  uniqueTags,
+} from '@/features/dashboard';
+import type {
+  ActionSummary,
+  DashboardTab,
+  NeedsCard,
+  RowStatus,
+  ViewFilters,
+} from '@/features/dashboard';
+import { envelopeKeys, useEnvelopesQuery, useUnsendEnvelopeMutation } from '@/features/envelopes';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { useAuth } from '@/providers/AuthProvider';
+import { ConfirmDialog } from './ConfirmDialog';
 import {
-  CHEVRON_COL_PX,
-  COLUMN_MIN_WIDTHS,
-  ChevronCell,
-  DEFAULT_COLUMN_WIDTHS,
-  DateCell,
-  DocCell,
-  DocCode,
-  DocCount,
-  DocTitle,
-  HeadCell,
-  HeaderSlot,
+  AvgMeta,
+  BulkBar,
+  Footer,
+  GroupLabel,
+  HeaderRow,
   Inner,
   Main,
-  ProgressCell,
-  SignersCell,
-  SortCaret,
-  SortHeaderButton,
-  StatGrid,
-  TableHead,
-  TableRow,
+  MobileActionBar,
+  MobileGroup,
+  PageTitle,
+  SkeletonRow,
+  SkeletonStack,
+  SplitGroup,
+  Tab,
+  TabList,
   TableShell,
-  TagOverflow,
-  TagStrip,
-  ToolbarRow,
+  TabsRow,
+  THead,
+  CountPill,
+  RowCheck,
+  Spacer,
 } from './DashboardPage.styles';
+import { DocumentRow } from './DocumentRow';
+import { FirstRun } from './FirstRun';
+import { HomeToolbar } from './HomeToolbar';
+import { FilterSheet, RowSheet } from './MobileSheets';
+import type { SheetAction } from './MobileSheets';
+import { NeedsYouStrip } from './NeedsYouStrip';
+import { TagDialog } from './TagDialog';
 
-type ColKey = keyof typeof DEFAULT_COLUMN_WIDTHS;
-const COLUMN_KEYS: ReadonlyArray<ColKey> = [
-  'document',
-  'signers',
-  'progress',
-  'status',
-  'updated',
-  'created',
-];
-const COLUMN_LABELS: Record<ColKey, string> = {
-  document: 'Document',
-  signers: 'Signers',
-  progress: 'Progress',
-  status: 'Status',
-  updated: 'Last updated',
-  created: 'Created',
-};
-// The column id (the localStorage width key) maps to the sort key the
-// API understands — `document` differs (sorts by `title`) and the two
-// date columns split the old single `date` key: `updated` keeps the
-// `date` sort (server orders by `updated_at`) while `created` uses the
-// API's `created` key (orders by `created_at`).
-const COLUMN_SORT_KEY: Record<ColKey, SortKey> = {
-  document: 'title',
-  signers: 'signers',
-  progress: 'progress',
-  status: 'status',
-  updated: 'date',
-  created: 'created',
-};
-const COLUMN_SPECS = COLUMN_KEYS.map((k) => ({
-  key: k,
-  default: DEFAULT_COLUMN_WIDTHS[k],
-  min: COLUMN_MIN_WIDTHS[k],
-}));
-// v2: split the single `date` column into `updated` + `created`. Bump
-// the storage key so any v1 width override (with the now-removed `date`
-// key) is discarded and each user gets the new defaults on first load.
-const COLUMN_WIDTHS_STORAGE_KEY = 'seald.dashboard.columns.v2';
-
-/** The "no filter at all" state — what `Clear filters` resets to. */
-const EMPTY_FILTERS: EnvelopeFilters = {
-  q: '',
-  status: [],
-  date: { kind: 'preset', preset: 'all' },
-  signer: [],
-  tags: [],
+const TAB_META: Record<DashboardTab, { label: string; icon: LucideIcon }> = {
+  all: { label: 'All', icon: Inbox },
+  you: { label: 'To sign', icon: PenLine },
+  others: { label: 'Waiting', icon: Clock },
+  sealed: { label: 'Sealed', icon: ShieldCheck },
+  drafts: { label: 'Drafts', icon: FilePen },
+  stopped: { label: 'Stopped', icon: XCircle },
 };
 
-/**
- * The filter each clickable stat tile maps to. Clicking applies it
- * (replacing the current filter set); clicking the already-applied
- * tile clears every filter.
- */
-const STAT_FILTERS = {
-  awaitingYou: { ...EMPTY_FILTERS, status: ['awaiting_you'] },
-  awaitingOthers: { ...EMPTY_FILTERS, status: ['awaiting_others'] },
-  sealedThisMonth: {
-    ...EMPTY_FILTERS,
-    status: ['sealed'],
-    date: { kind: 'preset', preset: 'thisMonth' },
-  },
-} as const satisfies Record<string, EnvelopeFilters>;
+/** Undo stays on screen this long after Send. */
+const UNDO_MS = 5000;
+/** The new row keeps its highlight this long. */
+const FRESH_MS = 5000;
 
-const STATUS_LABEL: Record<EnvelopeStatus, string> = {
-  draft: 'Draft',
-  awaiting_others: 'Awaiting others',
-  sealing: 'Sealing',
-  completed: 'Sealed',
-  declined: 'Declined',
-  expired: 'Expired',
-  canceled: 'Canceled',
-};
+interface ToastSpec {
+  readonly kind: 'sent' | 'undone' | 'info' | 'error';
+  readonly title: string;
+  readonly envelopeId?: string;
+}
 
-const STATUS_TONE: Record<EnvelopeStatus, BadgeTone> = {
-  draft: 'neutral',
-  awaiting_others: 'amber',
-  sealing: 'indigo',
-  completed: 'emerald',
-  declined: 'red',
-  expired: 'red',
-  canceled: 'neutral',
-};
+interface PendingConfirm {
+  readonly title: string;
+  readonly description: string;
+  readonly confirmLabel: string;
+  readonly run: () => Promise<void>;
+}
 
-/**
- * Compact date for the dashboard table. Always includes the year when
- * the envelope is from a different calendar year — see
- * `apps/web/src/lib/dateFormat.ts` and the BUG-2 regression test in
- * `dateFormat.test.ts`. Without the year, "Apr 02 2024" and
- * "Apr 02 2026" rendered identically and senders couldn't distinguish
- * "sent last week" from "sent two years ago".
- */
-function formatDate(iso: string | null): string {
-  return formatShortDate(iso);
+function parseTab(raw: string | null): DashboardTab {
+  return DASHBOARD_TABS.find((t) => t === raw) ?? 'all';
+}
+
+function removeTitle(single: EnvelopeListItem | undefined, count: number): string {
+  if (single === undefined) return `Remove ${plural(count, 'document', 'documents')}?`;
+  return single.status === 'draft' ? 'Delete this draft?' : 'Cancel this request?';
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
 }
 
 /**
- * Map backend `SignerUiStatus` + envelope state → the narrower UI
- * status the SignerStack / SignerProgressBar components render. Note:
- * `awaiting-you` is sender-only and not reachable without co-signing,
- * so we fall back to `pending` for the "waiting-on-a-signer" case.
- */
-function toStackStatus(
-  envelope: EnvelopeListItem,
-  signer: EnvelopeListItem['signers'][number],
-): SignerStackStatus {
-  if (signer.status === 'completed') return 'signed';
-  if (signer.status === 'declined') return 'declined';
-  if (envelope.status === 'draft') return 'draft';
-  // Both 'awaiting' and 'viewing' collapse to 'pending' today.
-  return 'pending';
-}
-
-function toStackEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerStackEntry> {
-  return envelope.signers.map((s) => ({
-    id: s.id,
-    name: s.name,
-    email: s.email,
-    status: toStackStatus(envelope, s),
-  }));
-}
-
-function toBarEntries(envelope: EnvelopeListItem): ReadonlyArray<SignerProgressBarEntry> {
-  return envelope.signers.map((s) => ({
-    id: s.id,
-    status: toStackStatus(envelope, s),
-  }));
-}
-
-/**
- * "Showing N documents" caption rendered on the right of the filter
- * toolbar. When the table query's `next_cursor` is non-null the server
- * truncated the page — surface "(more available)" so the count doesn't
- * read as the absolute total.
- *
- *   - 0 rows               → "No documents"
- *   - 1 row                → "Showing 1 document"
- *   - N rows               → "Showing N documents"
- *   - N rows + more on srv → "Showing N documents (more available)"
- */
-function formatDocCount(count: number, hasMore: boolean): string {
-  if (count === 0) return 'No documents';
-  const noun = count === 1 ? 'document' : 'documents';
-  const base = `Showing ${count} ${noun}`;
-  return hasMore ? `${base} (more available)` : base;
-}
-
-/**
- * Median turnaround (in hours) between sent_at and completed_at across
- * completed envelopes. Format as "1.8d" when ≥ 24h, "14h" otherwise,
- * "—" when no completed envelopes are in the list.
- */
-function formatTurnaround(list: ReadonlyArray<EnvelopeListItem>): string {
-  const hours: number[] = [];
-  for (const d of list) {
-    if (d.status === 'completed' && d.sent_at && d.completed_at) {
-      const sent = new Date(d.sent_at).getTime();
-      const done = new Date(d.completed_at).getTime();
-      if (!Number.isNaN(sent) && !Number.isNaN(done) && done > sent) {
-        hours.push((done - sent) / (1000 * 60 * 60));
-      }
-    }
-  }
-  if (hours.length === 0) return '—';
-  hours.sort((a, b) => a - b);
-  const mid = Math.floor(hours.length / 2);
-  const lower = hours[mid - 1];
-  const upper = hours[mid];
-  let median: number;
-  if (hours.length % 2 === 0) {
-    if (lower === undefined || upper === undefined) return '—';
-    median = (lower + upper) / 2;
-  } else {
-    if (upper === undefined) return '—';
-    median = upper;
-  }
-  if (median >= 24) return `${(median / 24).toFixed(1)}d`;
-  return `${Math.round(median)}h`;
-}
-
-interface RenderDocumentsBodyArgs {
-  readonly loading: boolean;
-  readonly rowsForSkeleton: boolean;
-  readonly filtered: ReadonlyArray<EnvelopeListItem>;
-  readonly navigate: (path: string) => void;
-  readonly viewerEmail: string | null;
-  /** Live grid template — derived from useColumnWidths in the parent. */
-  readonly gridTemplate: string;
-}
-
-function renderDocumentsBody(args: RenderDocumentsBodyArgs): JSX.Element | JSX.Element[] {
-  const { loading, rowsForSkeleton, filtered, navigate, viewerEmail, gridTemplate } = args;
-  if (loading && rowsForSkeleton) {
-    return Array.from({ length: 6 }, (_, i) => (
-      <TableRow key={`sk-${i}`} as="div" aria-hidden $grid={gridTemplate}>
-        <DocCell>
-          <Skeleton variant="rect" width={40} height={40} />
-          <div style={{ minWidth: 0, display: 'grid', gap: 6 }}>
-            <Skeleton width={200} />
-            <Skeleton width={80} />
-          </div>
-        </DocCell>
-        <SignersCell>
-          <Skeleton variant="rect" width={120} height={28} />
-        </SignersCell>
-        <ProgressCell>
-          <Skeleton variant="rect" width={140} height={6} />
-        </ProgressCell>
-        <Skeleton variant="rect" width={110} height={22} />
-        <DateCell>
-          <Skeleton width={90} />
-        </DateCell>
-        <DateCell>
-          <Skeleton width={90} />
-        </DateCell>
-        <ChevronCell>
-          <Skeleton variant="rect" width={16} height={16} />
-        </ChevronCell>
-      </TableRow>
-    ));
-  }
-  if (filtered.length === 0) {
-    return (
-      <EmptyState>
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 12,
-            paddingBlock: 24,
-          }}
-        >
-          <EnvelopeIllustration size={140} />
-          <span>No documents match these filters.</span>
-        </div>
-      </EmptyState>
-    );
-  }
-  return filtered.map((d) => (
-    <TableRow
-      key={d.id}
-      type="button"
-      onClick={() => navigate(`/document/${d.id}`)}
-      aria-label={`Open ${d.title}`}
-      $grid={gridTemplate}
-    >
-      <DocCell>
-        <DocThumb size={40} title={d.title} signed={d.status === 'completed'} />
-        <div style={{ minWidth: 0 }}>
-          <DocTitle>{d.title}</DocTitle>
-          <DocCode>{d.short_code}</DocCode>
-          {/* Show at most 2 tag chips on a row + a neutral "+N" overflow
-              chip so a row with 5 tags reads as "first, second, +3"
-              instead of bleeding the whole strip into the table.
-              The overflow's accessible name carries the full count for
-              screen-reader users. */}
-          {d.tags && d.tags.length > 0 ? (
-            <TagStrip>
-              {d.tags.slice(0, 2).map((t) => (
-                <TagChip key={t} label={t} />
-              ))}
-              {d.tags.length > 2 ? (
-                <TagOverflow aria-label={`${d.tags.length - 2} more tags`}>
-                  +{d.tags.length - 2}
-                </TagOverflow>
-              ) : null}
-            </TagStrip>
-          ) : null}
-        </div>
-      </DocCell>
-      <SignersCell>
-        <SignerStack signers={toStackEntries(d)} aria-label={`${d.title} signers`} />
-      </SignersCell>
-      <ProgressCell>
-        <SignerProgressBar signers={toBarEntries(d)} aria-label={`${d.title} progress`} />
-      </ProgressCell>
-      <div>
-        {/* If the dashboard viewer is one of this envelope's pending
-            signers, show the actionable "Awaiting you" indigo badge
-            instead of the generic amber "Awaiting others". */}
-        {isAwaitingYou(d, viewerEmail) ? (
-          <Badge tone="indigo">Awaiting you</Badge>
-        ) : (
-          <Badge tone={STATUS_TONE[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-        )}
-      </div>
-      <DateCell>{formatDate(d.updated_at)}</DateCell>
-      <DateCell>{formatDate(d.created_at)}</DateCell>
-      <ChevronCell aria-hidden>
-        <ChevronRight size={16} />
-      </ChevronCell>
-    </TableRow>
-  ));
-}
-
-/**
- * L4 page — the sender dashboard / inbox view listing every envelope
- * the user has created. Pulls from the live `/envelopes` endpoint,
- * which now embeds a signers snippet per item so we can render the
- * multi-signer `SignerStack` + `SignerProgressBar` without N+1 fetches.
+ * The Documents home (`/documents`): what needs you, status tabs with
+ * counts, search and filters, a table grouped by recency, bulk actions,
+ * and the landing spot after Send (toast with Undo + a highlighted row).
  */
 export function DashboardPage() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // Sort + filters both live in the URL and are applied server-side
-  // (`GET /envelopes?sort=&dir=&q=&bucket=&date=&signer=&tags=`).
-  const sort = useMemo(() => parseSort(searchParams), [searchParams]);
-  const parsedFilters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const filterParams = useMemo(() => filtersToQueryParams(parsedFilters), [parsedFilters]);
-
-  // Viewer email drives the "Awaiting you" predicate (toolbar counts +
-  // the row badge).
+  const location = useLocation();
+  const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const mobile = useIsMobileViewport();
   const { user } = useAuth();
   const viewerEmail = user?.email ?? null;
 
-  // Table query — filtered + sorted by the server. Its `items` render
-  // directly; no client-side filter/sort pass.
-  const tableQuery = useEnvelopesQuery(true, {
-    limit: 100,
-    sort: sort.key,
-    dir: sort.dir,
-    ...filterParams,
-  });
-  const filtered: ReadonlyArray<EnvelopeListItem> = useMemo(
-    () => tableQuery.data?.items ?? [],
-    [tableQuery.data],
+  const query = useEnvelopesQuery(true, { limit: 100, sort: 'date', dir: 'desc' });
+  const items = useMemo<ReadonlyArray<EnvelopeListItem>>(
+    () => query.data?.items ?? [],
+    [query.data],
   );
-  const documentsLoading = tableQuery.isPending;
-  // Drives the "(more available)" hint on the doc-count caption. The
-  // table query carries a `next_cursor` whenever the server truncated
-  // the page — surface it so "Showing 100 documents" doesn't read as
-  // "you only have 100".
-  const hasMore = (tableQuery.data?.next_cursor ?? null) !== null;
+  const loading = query.isPending;
+  const hasMore = (query.data?.next_cursor ?? null) !== null;
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => setNow(new Date()), [items]);
 
-  // Toolbar / stats query — the *unfiltered* list, so the chips' per-
-  // bucket counts + distinct signer/tag lists stay accurate regardless
-  // of the active filter. React Query de-duplicates this against the
-  // table query whenever no filter is active (identical params).
-  const facetsQuery = useEnvelopesQuery(true, { limit: 100, sort: 'date', dir: 'desc' });
-  const allEnvelopes: ReadonlyArray<EnvelopeListItem> = useMemo(
-    () => facetsQuery.data?.items ?? [],
-    [facetsQuery.data],
+  const [filters, setFilters] = useState<ViewFilters>(() => ({
+    ...EMPTY_VIEW,
+    tab: parseTab(searchParams.get('tab')),
+  }));
+  const patchFilters = useCallback(
+    (patch: Partial<ViewFilters>): void => setFilters((f) => ({ ...f, ...patch })),
+    [],
+  );
+  const clearFilters = useCallback(
+    (): void => setFilters((f) => ({ ...EMPTY_VIEW, tab: f.tab, sort: f.sort })),
+    [],
   );
 
-  // Header click cycle: not-active → asc; active+asc → desc;
-  // active+desc → back to the default (strip both params).
-  const handleSortClick = useCallback(
-    (key: SortKey): void => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          const isActive = next.get('sort') === key;
-          const curDir = next.get('dir');
-          if (!isActive) {
-            next.set('sort', key);
-            next.set('dir', 'asc');
-          } else if (curDir === 'asc') {
-            next.set('sort', key);
-            next.set('dir', 'desc');
-          } else {
-            next.delete('sort');
-            next.delete('dir');
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [selecting, setSelecting] = useState(false);
+  const [needsExpanded, setNeedsExpanded] = useState(false);
+  const [filterSheet, setFilterSheet] = useState(false);
+  const [sheetFor, setSheetFor] = useState<string | null>(null);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newChevronRef = useRef<HTMLButtonElement | null>(null);
+  const [tagFor, setTagFor] = useState<ReadonlyArray<EnvelopeListItem> | null>(null);
+  const [confirm, setConfirm] = useState<PendingConfirm | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+  const [toast, setToast] = useState<ToastSpec | null>(null);
+  const [freshId, setFreshId] = useState<string | null>(null);
+
+  const unsend = useUnsendEnvelopeMutation();
+
+  // After Send the editor navigates here with `{ justSent: envelopeId }`.
+  const justSent = (location.state as { justSent?: unknown } | null)?.justSent;
+  useEffect(() => {
+    if (typeof justSent !== 'string') return;
+    setToast({ kind: 'sent', title: 'Sent', envelopeId: justSent });
+    setFreshId(justSent);
+    queryClient.invalidateQueries({ queryKey: envelopeKeys.lists() });
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [justSent, location.pathname, location.search, navigate, queryClient]);
+
+  useEffect(() => {
+    if (freshId === null) return undefined;
+    const t = setTimeout(() => setFreshId(null), FRESH_MS);
+    return () => clearTimeout(t);
+  }, [freshId]);
+
+  const sentSignerCount =
+    toast?.kind === 'sent'
+      ? items.find((e) => e.id === toast.envelopeId)?.signers.length
+      : undefined;
+
+  const counts = useMemo(() => tabCounts(items, viewerEmail), [items, viewerEmail]);
+  const visible = useMemo(
+    () => applyView(items, filters, viewerEmail, now),
+    [items, filters, viewerEmail, now],
+  );
+  const groups = useMemo(() => groupByRecency(visible, now), [visible, now]);
+  const cards = useMemo(() => needsYouCards(items, viewerEmail, now), [items, viewerEmail, now]);
+  const people = useMemo(() => uniquePeople(items), [items]);
+  const tags = useMemo(() => uniqueTags(items), [items]);
+  const avg = useMemo(() => formatTurnaround(items), [items]);
+  const filtered = hasActiveFilters(filters);
+  const firstRun = !loading && !query.isError && items.length === 0;
+
+  const selectedItems = useMemo(
+    () => visible.filter((e) => selected.has(e.id)),
+    [visible, selected],
+  );
+  const allVisibleSelected = visible.length > 0 && selectedItems.length === visible.length;
+  const bulkOn = selected.size > 0;
+
+  const say = useCallback(
+    (title: string, kind: ToastSpec['kind'] = 'info'): void => setToast({ kind, title }),
+    [],
+  );
+
+  const refresh = useCallback((): void => {
+    void queryClient.invalidateQueries({ queryKey: envelopeKeys.lists() });
+  }, [queryClient]);
+
+  const summarize = useCallback(
+    (done: string, s: ActionSummary, failure: string): void => {
+      if (s.failed > 0 && s.ok === 0) {
+        say(s.firstError === 'remind_throttled' ? 'Reminded recently' : failure, 'error');
+      } else if (s.ok === 0) {
+        say('Nothing to do');
+      } else {
+        say(s.failed > 0 ? `${done} · ${s.failed} failed` : done);
+      }
+      refresh();
+    },
+    [say, refresh],
+  );
+
+  const openDocument = useCallback(
+    (id: string): void => {
+      void navigate(`/document/${id}`);
+    },
+    [navigate],
+  );
+
+  const remind = useCallback(
+    async (envs: ReadonlyArray<EnvelopeListItem>): Promise<void> => {
+      const s = await remindEnvelopes(envs, viewerEmail);
+      summarize(plural(s.ok, 'reminder sent', 'reminders sent'), s, 'Could not send reminder');
+    },
+    [viewerEmail, summarize],
+  );
+
+  const download = useCallback(
+    async (envs: ReadonlyArray<EnvelopeListItem>): Promise<void> => {
+      const s = await downloadEnvelopes(envs);
+      summarize('Download started', s, 'Could not download');
+    },
+    [summarize],
+  );
+
+  const onPrimary = useCallback(
+    (env: EnvelopeListItem, status: RowStatus): void => {
+      if (status === 'others') void remind([env]);
+      else if (status === 'sealed') void download([env]);
+      else openDocument(env.id);
+    },
+    [remind, download, openDocument],
+  );
+
+  const askRemove = useCallback(
+    (envs: ReadonlyArray<EnvelopeListItem>): void => {
+      const drafts = envs.filter((e) => e.status === 'draft').length;
+      const out = envs.filter(
+        (e) => e.status === 'awaiting_others' || e.status === 'sealing',
+      ).length;
+      if (drafts + out === 0) {
+        setToast({ kind: 'info', title: 'Sealed documents cannot be removed' });
+        return;
+      }
+      const single = envs.length === 1 ? envs[0] : undefined;
+      setConfirm({
+        title: removeTitle(single, drafts + out),
+        description:
+          out > 0
+            ? 'Signers who have not signed will be told it was withdrawn.'
+            : 'This cannot be undone.',
+        confirmLabel: single && single.status !== 'draft' ? 'Cancel request' : 'Delete',
+        run: async () => {
+          const s = await removeEnvelopes(envs);
+          summarize(plural(s.ok, 'document removed', 'documents removed'), s, 'Could not remove');
+          setSelected(new Set());
+        },
+      });
+    },
+    [summarize],
+  );
+
+  const rowActions = useCallback(
+    (env: EnvelopeListItem): SheetAction[] => {
+      const out: SheetAction[] = [
+        { id: 'open', label: 'Open', icon: Eye, onSelect: () => openDocument(env.id) },
+      ];
+      if (canRemind(env)) {
+        out.push({
+          id: 'remind',
+          label: 'Remind all',
+          icon: Bell,
+          onSelect: () => void remind([env]),
+        });
+      }
+      if (env.status === 'completed') {
+        out.push({
+          id: 'download',
+          label: 'Download',
+          icon: Download,
+          onSelect: () => void download([env]),
+        });
+      }
+      out.push(
+        {
+          id: 'copy',
+          label: 'Copy link',
+          icon: Link2,
+          onSelect: () =>
+            void copyDocumentLink(env.id).then((ok) =>
+              say(ok ? 'Link copied' : 'Could not copy', ok ? 'info' : 'error'),
+            ),
+        },
+        { id: 'tag', label: 'Add tag', icon: TagIcon, onSelect: () => setTagFor([env]) },
+      );
+      if (env.status === 'draft' || env.status === 'awaiting_others' || env.status === 'sealing') {
+        out.push({
+          id: 'remove',
+          label: env.status === 'draft' ? 'Delete draft' : 'Cancel request',
+          icon: env.status === 'draft' ? Trash2 : Ban,
+          danger: true,
+          onSelect: () => askRemove([env]),
+        });
+      }
+      return out;
+    },
+    [openDocument, remind, download, say, askRemove],
+  );
+
+  const menuEntries = useCallback(
+    (env: EnvelopeListItem): MenuEntry[] => {
+      const entries: MenuEntry[] = [];
+      for (const a of rowActions(env)) {
+        if (a.danger === true) entries.push({ type: 'separator', id: `sep-${a.id}` });
+        entries.push({
+          id: a.id,
+          label: a.label,
+          icon: a.icon,
+          danger: a.danger === true,
+          onSelect: a.onSelect,
+        });
+      }
+      return entries;
+    },
+    [rowActions],
+  );
+
+  const toggleSelected = useCallback((id: string): void => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback((): void => {
+    setSelected(allVisibleSelected ? new Set() : new Set(visible.map((e) => e.id)));
+  }, [allVisibleSelected, visible]);
+
+  const clearSelection = useCallback((): void => {
+    setSelected(new Set());
+    setSelecting(false);
+  }, []);
+
+  const handleUndo = useCallback(
+    (id: string): void => {
+      unsend
+        .mutateAsync(id)
+        .then(() => {
+          setFreshId(null);
+          setToast({ kind: 'undone', title: 'Send cancelled · Saved as draft' });
+        })
+        .catch(() => setToast({ kind: 'error', title: 'Too late to undo' }));
+    },
+    [unsend],
+  );
+
+  const handleNeedsAct = useCallback(
+    (card: NeedsCard): void => {
+      if (card.kind === 'others') void remind([card.envelope]);
+      else openDocument(card.envelope.id);
+    },
+    [remind, openDocument],
+  );
+
+  const handleFixEmail = useCallback(
+    async (card: NeedsCard, email: string): Promise<void> => {
+      if (card.signer === undefined) return;
+      try {
+        await fixBouncedEmail(card.envelope.id, card.signer.id, email);
+        say(`Resent to ${email}`);
+        refresh();
+      } catch {
+        say('Could not resend', 'error');
+      }
+    },
+    [say, refresh],
+  );
+
+  const runConfirm = useCallback((): void => {
+    if (confirm === null) return;
+    setConfirmBusy(true);
+    confirm.run().finally(() => {
+      setConfirmBusy(false);
+      setConfirm(null);
+    });
+  }, [confirm]);
+
+  const newMenuItems: MenuEntry[] = [
+    { id: 'upload', label: 'Upload file', icon: Upload, onSelect: () => navigate('/document/new') },
+    {
+      id: 'template',
+      label: 'From template',
+      icon: LayoutTemplate,
+      onSelect: () => navigate('/templates'),
+    },
+    { id: 'scan', label: 'Scan with phone', icon: Smartphone, onSelect: () => navigate('/scan') },
+  ];
+
+  const sheetEnvelope = sheetFor === null ? undefined : items.find((e) => e.id === sheetFor);
+
+  let toastProps: ToastProps | null = null;
+  if (toast !== null) {
+    const base = { onClose: () => setToast(null), 'aria-label': undefined };
+    if (toast.kind === 'sent') {
+      const id = toast.envelopeId ?? '';
+      toastProps = {
+        ...base,
+        title:
+          sentSignerCount === undefined
+            ? 'Sent'
+            : `Sent to ${plural(sentSignerCount, 'signer', 'signers')}`,
+        duration: UNDO_MS,
+        action: { label: 'Undo', onClick: () => handleUndo(id) },
+      };
+    } else if (toast.kind === 'undone') {
+      toastProps = { ...base, title: toast.title, icon: Undo2, duration: 4000 };
+    } else {
+      toastProps = {
+        ...base,
+        title: toast.title,
+        tone: toast.kind === 'error' ? 'error' : 'info',
+        duration: 4000,
+      };
+    }
+  }
+
+  const tableBody = (): ReactNode => {
+    if (loading) {
+      return Array.from({ length: 6 }, (_, i) => (
+        <SkeletonRow key={i} aria-hidden>
+          <Skeleton width={16} height={16} />
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <Skeleton variant="rect" width={32} height={40} />
+            <SkeletonStack>
+              <Skeleton width="70%" height={12} />
+              <Skeleton width="45%" height={10} />
+            </SkeletonStack>
+          </div>
+          {mobile ? null : (
+            <>
+              <Skeleton width={88} height={24} />
+              <Skeleton width={120} height={28} />
+              <Skeleton width={48} height={10} />
+              <span />
+            </>
+          )}
+        </SkeletonRow>
+      ));
+    }
+    if (visible.length === 0) {
+      if (filters.tab === 'you' && !filtered && counts.you === 0) {
+        return (
+          <EmptyState
+            icon={CircleCheck}
+            title="All caught up"
+            action={
+              <Button variant="secondary" onClick={() => patchFilters({ tab: 'others' })}>
+                View waiting
+              </Button>
+            }
+          />
+        );
+      }
+      return (
+        <EmptyState
+          icon={Search}
+          title={filtered ? 'No matches' : 'Nothing here'}
+          action={
+            filtered ? (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear search
+              </Button>
+            ) : undefined
           }
-          return next;
-        },
-        { replace: true },
+        />
       );
-    },
-    [setSearchParams],
-  );
-
-  // Stat-tile click → replace the filter facets with `next` (keeping
-  // whatever sort is active). Used by the clickable KPI tiles below.
-  const applyStatFilter = useCallback(
-    (next: EnvelopeFilters): void => {
-      setSearchParams(
-        (prev) => {
-          const params = new URLSearchParams(serializeFilters(next));
-          const sortKey = prev.get('sort');
-          const sortDir = prev.get('dir');
-          if (sortKey) params.set('sort', sortKey);
-          if (sortDir) params.set('dir', sortDir);
-          return params;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
-
-  // Per-user column widths persisted in localStorage (piece 3 of the
-  // single-screen-with-filters request). The hook gives us the live
-  // map + a setter the resize handles call on every pointer-move;
-  // the grid template is recomputed each render from those values.
-  const { widths, setWidth } = useColumnWidths(COLUMN_SPECS, COLUMN_WIDTHS_STORAGE_KEY);
-  const gridTemplate = useMemo(
-    () =>
-      `${COLUMN_KEYS.map((k) => `${widths[k] ?? DEFAULT_COLUMN_WIDTHS[k]}px`).join(' ')} ${CHEVRON_COL_PX}px`,
-    [widths],
-  );
-
-  const stats = useMemo<
-    ReadonlyArray<{
-      readonly label: string;
-      readonly value: string;
-      readonly tone: BadgeTone;
-      /** Set on the tiles that act as filter shortcuts. */
-      readonly filter?: EnvelopeFilters;
-    }>
-  >(() => {
-    const awaitingYou = allEnvelopes.filter((d) => isAwaitingYou(d, viewerEmail)).length;
-    // Mutually exclusive with awaitingYou so the totals don't double-count.
-    const awaitingOthers = allEnvelopes.filter(
-      (d) =>
-        (d.status === 'awaiting_others' || d.status === 'sealing') &&
-        !isAwaitingYou(d, viewerEmail),
-    ).length;
-    const completedThisMonth = allEnvelopes.filter((d) => {
-      if (d.status !== 'completed') return false;
-      const when = new Date(d.completed_at ?? d.updated_at);
-      const now = new Date();
-      return when.getFullYear() === now.getFullYear() && when.getMonth() === now.getMonth();
-    }).length;
-    return [
-      {
-        label: 'Awaiting you',
-        value: awaitingYou.toString(),
-        tone: 'indigo',
-        filter: STAT_FILTERS.awaitingYou,
-      },
-      {
-        label: 'Awaiting others',
-        value: awaitingOthers.toString(),
-        tone: 'amber',
-        filter: STAT_FILTERS.awaitingOthers,
-      },
-      {
-        label: 'Sealed this month',
-        value: completedThisMonth.toString(),
-        tone: 'emerald',
-        filter: STAT_FILTERS.sealedThisMonth,
-      },
-      { label: 'Avg. turnaround', value: formatTurnaround(allEnvelopes), tone: 'neutral' },
-    ];
-  }, [allEnvelopes, viewerEmail]);
+    }
+    const renderRow = (env: EnvelopeListItem) => (
+      <DocumentRow
+        key={env.id}
+        envelope={env}
+        viewerEmail={viewerEmail}
+        now={now}
+        selected={selected.has(env.id)}
+        fresh={freshId === env.id}
+        selectable={!mobile || selecting}
+        mobile={mobile}
+        menuItems={menuEntries(env)}
+        onToggleSelected={() => toggleSelected(env.id)}
+        onOpen={() => openDocument(env.id)}
+        onPrimary={(status) => onPrimary(env, status)}
+        onOpenSheet={() => setSheetFor(env.id)}
+      />
+    );
+    return groups.map((g) =>
+      mobile ? (
+        <MobileGroup key={g.key}>
+          <GroupLabel>{g.label}</GroupLabel>
+          {g.items.map(renderRow)}
+        </MobileGroup>
+      ) : (
+        <section key={g.key} aria-label={g.label}>
+          <GroupLabel>{g.label}</GroupLabel>
+          {g.items.map(renderRow)}
+        </section>
+      ),
+    );
+  };
 
   return (
     <Main>
       <Inner>
-        <HeaderSlot>
-          {/* `size="md"` renders the 36 px H1 variant — the dashboard's
-              KPI strip + filter bar do enough work; the previous 48 px
-              H1 dominated the page. Other PageHeader consumers
-              (EnvelopeDetailPage, etc.) keep the 48 px default. */}
-          <PageHeader
-            size="md"
-            eyebrow="Documents"
-            title="Everything you've sent"
-            actions={
-              <Button
-                variant="primary"
-                iconLeft={UploadCloud}
-                onClick={() => navigate('/document/new')}
-              >
+        <HeaderRow>
+          <PageTitle>Documents</PageTitle>
+          <MenuAnchor>
+            <SplitGroup>
+              <Button variant="primary" iconLeft={Upload} onClick={() => navigate('/document/new')}>
                 New document
               </Button>
-            }
-          />
-        </HeaderSlot>
-
-        <StatGrid>
-          {stats.map((s) => {
-            if (!s.filter) {
-              return <StatCard key={s.label} label={s.label} value={s.value} tone={s.tone} />;
-            }
-            const target = s.filter;
-            const active = serializeFilters(parsedFilters) === serializeFilters(target);
-            return (
-              <StatCard
-                key={s.label}
-                label={s.label}
-                value={s.value}
-                tone={s.tone}
-                active={active}
-                onActivate={() => applyStatFilter(active ? EMPTY_FILTERS : target)}
+              <Button
+                ref={newChevronRef}
+                variant="primary"
+                iconOnly
+                iconLeft={ChevronDown}
+                aria-label="More ways to start"
+                aria-haspopup="menu"
+                aria-expanded={newMenuOpen}
+                onClick={() => setNewMenuOpen((o) => !o)}
               />
-            );
-          })}
-        </StatGrid>
+            </SplitGroup>
+            <Menu
+              open={newMenuOpen}
+              onClose={() => setNewMenuOpen(false)}
+              items={newMenuItems}
+              anchorRef={newChevronRef}
+              aria-label="New document"
+            />
+          </MenuAnchor>
+        </HeaderRow>
 
-        <ToolbarRow>
-          <FilterToolbar envelopes={allEnvelopes} viewerEmail={viewerEmail} />
-          {/* Right-aligned doc-count caption. While the list is still
-              loading we don't render it (the toolbar already conveys
-              "working" state via the skeleton rows below); once the
-              list lands we surface the visible count and a hint when
-              the page-cap kicked in (`next_cursor` is non-null). */}
-          {!documentsLoading ? (
-            <DocCount aria-live="polite">{formatDocCount(filtered.length, hasMore)}</DocCount>
-          ) : null}
-        </ToolbarRow>
+        {query.isError ? (
+          <Banner
+            tone="error"
+            action={
+              <Button size="sm" variant="secondary" onClick={() => void query.refetch()}>
+                Retry
+              </Button>
+            }
+          >
+            Could not load your documents
+          </Banner>
+        ) : null}
 
-        <TableShell>
-          <TableHead role="row" $grid={gridTemplate}>
-            {COLUMN_KEYS.map((key) => {
-              const sortKey = COLUMN_SORT_KEY[key];
-              const active = sort.key === sortKey;
-              // Every sortable column carries a Lucide chevron icon.
-              // Active columns render Up/Down in indigo; inactive
-              // columns render a faint ChevronDown at fg-3 so the
-              // header still reads as sortable without competing with
-              // the active sort. (Audit A · L-3 — replaces the previous
-              // U+25BE unicode caret that rendered ambiguously.)
-              const ArrowIcon = active && sort.dir === 'asc' ? ChevronUp : ChevronDown;
-              let ariaSort: 'ascending' | 'descending' | 'none' = 'none';
-              if (active && sort.dir === 'asc') ariaSort = 'ascending';
-              else if (active) ariaSort = 'descending';
-              return (
-                <HeadCell key={key} aria-sort={ariaSort}>
-                  <SortHeaderButton
-                    type="button"
-                    $active={active}
-                    onClick={() => handleSortClick(sortKey)}
-                  >
-                    {COLUMN_LABELS[key]}
-                    <SortCaret aria-hidden $active={active}>
-                      <ArrowIcon size={12} strokeWidth={2} />
-                    </SortCaret>
-                  </SortHeaderButton>
-                  <ColumnResizeHandle
-                    width={widths[key] ?? DEFAULT_COLUMN_WIDTHS[key]}
-                    onResize={(px) => setWidth(key, px)}
-                    ariaLabel={`Resize ${COLUMN_LABELS[key]} column`}
+        {firstRun ? (
+          <FirstRun
+            onUpload={() => navigate('/document/new')}
+            onTemplate={() => navigate('/templates')}
+          />
+        ) : (
+          <>
+            <NeedsYouStrip
+              cards={cards}
+              loading={loading}
+              expanded={needsExpanded}
+              onToggleExpanded={() => setNeedsExpanded((v) => !v)}
+              onOpen={(card) => openDocument(card.envelope.id)}
+              onAct={handleNeedsAct}
+              onFixEmail={handleFixEmail}
+            />
+
+            <TabsRow>
+              <TabList role="tablist" aria-label="Status">
+                {DASHBOARD_TABS.map((key) => {
+                  const meta = TAB_META[key];
+                  const Icon = meta.icon;
+                  const active = filters.tab === key;
+                  return (
+                    <Tab
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      $active={active}
+                      onClick={() => patchFilters({ tab: key })}
+                    >
+                      <Icon size={16} aria-hidden />
+                      {meta.label}
+                      {loading ? (
+                        <Skeleton variant="circle" width={20} height={20} />
+                      ) : (
+                        <CountPill aria-label={`${counts[key]} documents`}>{counts[key]}</CountPill>
+                      )}
+                    </Tab>
+                  );
+                })}
+              </TabList>
+              {avg !== null ? (
+                <AvgMeta>
+                  <Clock size={14} aria-hidden />
+                  {avg} avg
+                </AvgMeta>
+              ) : null}
+            </TabsRow>
+
+            {bulkOn ? (
+              <BulkBar role="toolbar" aria-label="Bulk actions">
+                {mobile ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    iconLeft={X}
+                    aria-label="Clear selection"
+                    onClick={clearSelection}
                   />
-                </HeadCell>
-              );
-            })}
-            <div aria-hidden />
-          </TableHead>
-          {renderDocumentsBody({
-            loading: documentsLoading,
-            rowsForSkeleton: filtered.length === 0,
-            filtered,
-            navigate,
-            viewerEmail,
-            gridTemplate,
-          })}
-        </TableShell>
+                ) : null}
+                <span>{`${selected.size} selected`}</span>
+                {mobile ? null : (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconLeft={Bell}
+                      onClick={() => void remind(selectedItems)}
+                    >
+                      Remind
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconLeft={Download}
+                      onClick={() => void download(selectedItems)}
+                    >
+                      Download
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconLeft={TagIcon}
+                      onClick={() => setTagFor(selectedItems)}
+                    >
+                      Tag
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconLeft={Trash2}
+                      onClick={() => askRemove(selectedItems)}
+                    >
+                      Delete
+                    </Button>
+                    <Spacer />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      iconOnly
+                      iconLeft={X}
+                      aria-label="Clear selection"
+                      onClick={clearSelection}
+                    />
+                  </>
+                )}
+              </BulkBar>
+            ) : (
+              <HomeToolbar
+                filters={filters}
+                onChange={patchFilters}
+                onClear={clearFilters}
+                people={people}
+                tags={tags}
+                mobile={mobile}
+                onOpenFilterSheet={() => setFilterSheet(true)}
+                onStartSelecting={() => setSelecting(true)}
+              />
+            )}
+
+            {mobile && selecting && !bulkOn ? (
+              <BulkBar role="toolbar" aria-label="Selecting">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  iconLeft={X}
+                  aria-label="Clear selection"
+                  onClick={clearSelection}
+                />
+                <span>Select documents</span>
+              </BulkBar>
+            ) : null}
+
+            <TableShell>
+              {!mobile && !loading && visible.length > 0 ? (
+                <THead role="row">
+                  <RowCheck
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAll}
+                    aria-label="Select all"
+                  />
+                  <span>Document</span>
+                  <span>Status</span>
+                  <span>Signers</span>
+                  <span>Updated</span>
+                  <span />
+                </THead>
+              ) : null}
+              {tableBody()}
+            </TableShell>
+
+            {!loading ? (
+              <Footer aria-live="polite">
+                {plural(visible.length, 'document', 'documents')}
+                {hasMore ? ' (more available)' : ''}
+              </Footer>
+            ) : null}
+          </>
+        )}
       </Inner>
+
+      {toastProps !== null ? <Toast {...toastProps} /> : null}
+
+      {mobile && bulkOn ? (
+        <MobileActionBar role="toolbar" aria-label="Selection actions">
+          <button type="button" onClick={() => void remind(selectedItems)}>
+            <Bell size={20} aria-hidden />
+            Remind
+          </button>
+          <button type="button" onClick={() => void download(selectedItems)}>
+            <Download size={20} aria-hidden />
+            Download
+          </button>
+          <button type="button" onClick={() => setTagFor(selectedItems)}>
+            <TagIcon size={20} aria-hidden />
+            Tag
+          </button>
+          <button type="button" data-danger="true" onClick={() => askRemove(selectedItems)}>
+            <Trash2 size={20} aria-hidden />
+            Delete
+          </button>
+        </MobileActionBar>
+      ) : null}
+
+      {mobile ? (
+        <>
+          <FilterSheet
+            open={filterSheet}
+            onClose={() => setFilterSheet(false)}
+            filters={filters}
+            onChange={patchFilters}
+            onReset={clearFilters}
+            people={people}
+            tags={tags}
+            resultCount={visible.length}
+          />
+          {sheetEnvelope ? (
+            <RowSheet
+              open
+              onClose={() => setSheetFor(null)}
+              title={sheetEnvelope.title}
+              status={rowStatus(sheetEnvelope, viewerEmail)}
+              actions={rowActions(sheetEnvelope)}
+              onOpenDocument={() => openDocument(sheetEnvelope.id)}
+            />
+          ) : null}
+        </>
+      ) : null}
+
+      {tagFor !== null ? (
+        <TagDialog
+          count={tagFor.length}
+          onCancel={() => setTagFor(null)}
+          onSave={(tag) => {
+            const envs = tagFor;
+            setTagFor(null);
+            void addTagToEnvelopes(envs, tag).then((s) =>
+              summarize(plural(s.ok, 'document tagged', 'documents tagged'), s, 'Could not tag'),
+            );
+          }}
+        />
+      ) : null}
+
+      {confirm !== null ? (
+        <ConfirmDialog
+          title={confirm.title}
+          description={confirm.description}
+          confirmLabel={confirm.confirmLabel}
+          busy={confirmBusy}
+          onCancel={() => setConfirm(null)}
+          onConfirm={runConfirm}
+        />
+      ) : null}
     </Main>
   );
 }

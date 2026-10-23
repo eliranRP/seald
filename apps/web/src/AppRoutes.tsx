@@ -6,13 +6,12 @@ import { RequireAuth } from './layout/RequireAuth';
 import { RequireAuthOrGuest } from './layout/RequireAuthOrGuest';
 import { RedirectWhenAuthed } from './layout/RedirectWhenAuthed';
 import { RootLanding } from './layout/RootLanding';
-import { DashboardPage } from './pages/DashboardPage';
+import { DashboardPage, SentRedirect } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TemplatesListPage } from './pages/TemplatesListPage';
 import { UseTemplatePage } from './pages/UseTemplatePage';
 import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
-import { SentConfirmationPage } from './pages/SentConfirmationPage';
 import { SignInPage } from './pages/SignInPage';
 import { SignUpPage } from './pages/SignUpPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -274,7 +273,7 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
+          <Route path="/document/:id/sent" element={<SentRedirect />} />
         </Route>
         {/* Mobile-web send flow. Sits outside <AppShell /> on purpose — the
             desktop NavBar would dominate a 375px viewport; the mobile flow

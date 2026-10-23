@@ -110,6 +110,9 @@ function hasCadenceKeys(patch: UpdateDraftMetadataPatch): boolean {
 /** Artifacts `GET /envelopes/:id/download?kind=` can hand out. */
 export type EnvelopeDownloadKind = 'sealed' | 'original' | 'audit' | 'declined';
 
+/** How long after Send the owner may still undo it (Undo toast: 5 s, plus slack). */
+export const UNSEND_WINDOW_MS = 10_000;
+
 @Injectable()
 export class EnvelopesService {
   constructor(
@@ -1008,6 +1011,48 @@ export class EnvelopesService {
     await this.repo.enqueueJob(envelope_id, 'audit_only');
 
     return { status: 'canceled', envelope_status: 'canceled' };
+  }
+
+  /**
+   * Undo after Send. Owner only, within `UNSEND_WINDOW_MS` of `sent_at`
+   * and before any signer has viewed, signed or declined. The envelope goes
+   * back to `draft`, signer tokens are dropped, pending invite emails are
+   * canceled, and an `unsent` event is appended (the chain only grows).
+   */
+  async unsend(
+    owner_id: string,
+    envelope_id: string,
+    audit: { ip: string | null; user_agent: string | null } = { ip: null, user_agent: null },
+  ): Promise<Envelope> {
+    const outcome = await this.repo.unsendEnvelope(
+      envelope_id,
+      owner_id,
+      new Date(),
+      UNSEND_WINDOW_MS,
+    );
+    if (!outcome.ok) {
+      switch (outcome.reason) {
+        case 'not_found':
+          throw new NotFoundException('envelope_not_found');
+        case 'not_sent':
+          throw new ConflictException('envelope_not_sent');
+        case 'window_expired':
+          throw new ConflictException('unsend_window_expired');
+        case 'signer_engaged':
+          throw new ConflictException('unsend_signer_engaged');
+      }
+    }
+    const { canceled, alreadyHandled } =
+      await this.outboundEmails.cancelPendingInvites(envelope_id);
+    await this.repo.appendEvent({
+      envelope_id,
+      actor_kind: 'sender',
+      event_type: 'unsent',
+      ip: audit.ip,
+      user_agent: audit.user_agent,
+      metadata: { canceled_email_count: canceled, already_sent_email_count: alreadyHandled },
+    });
+    return outcome.envelope;
   }
 
   /**

@@ -1,29 +1,19 @@
-import styled from 'styled-components';
+import styled, { css, keyframes } from 'styled-components';
 import { truncateText } from '@/styles/mixins';
 
-/**
- * Mobile breakpoint for the dashboard chrome. Below this width we stack
- * the StatGrid into 2 columns (4×1fr at 375px gives ~70px tiles which
- * are unreadable), shrink the page padding, hide the column headings,
- * and switch the table from a 6-column grid into a stacked card list.
- *
- * BUG-1 regression: the previous fixed `1.3fr 1.5fr 1fr 180px 100px 60px`
- * grid plus `space[12]` (48px) left/right padding overflowed every
- * mobile viewport — the Status/Date/chevronron columns were clipped off
- * the right edge with no horizontal scroll affordance.
- */
-const MOBILE = '768px';
+/** Phones: the design's mobile layout (HomeMobile) takes over. */
+export const MOBILE = '640px';
 
 export const Main = styled.div`
   flex: 1 1 auto;
   min-width: 0;
   overflow: auto;
-  padding: ${({ theme }) => theme.space[12]} ${({ theme }) => theme.space[12]}
+  padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[12]}
     ${({ theme }) => theme.space[20]};
 
   @media (max-width: ${MOBILE}) {
-    padding: ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[4]}
-      ${({ theme }) => theme.space[12]};
+    padding: ${({ theme }) => theme.space[4]} ${({ theme }) => theme.space[4]}
+      ${({ theme }) => theme.space[24]};
   }
 `;
 
@@ -32,191 +22,359 @@ export const Inner = styled.div`
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-`;
+  gap: ${({ theme }) => theme.space[6]};
 
-/**
- * Spacing between the dashboard masthead and the stat-tile row.
- * Tightened from `space[8]` (32 px) to `space[6]` (24 px) now that
- * `PageHeader` renders at its 36 px (`size='md'`) variant — the
- * smaller H1 doesn't need as much breathing room above the stats.
- */
-export const HeaderSlot = styled.div`
-  margin-bottom: ${({ theme }) => theme.space[6]};
-`;
-
-/**
- * Toolbar row that hosts the FilterToolbar on the left and the
- * doc-count caption on the right. Keeps the count anchored to the
- * trailing edge of the filter row without disturbing the toolbar's
- * own flex layout.
- */
-export const ToolbarRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: ${({ theme }) => theme.space[3]};
-  flex-wrap: wrap;
-
-  /* The toolbar already pads itself top/bottom; the count caption
-     should sit on the same baseline as the chips. */
-  & > :first-child {
-    flex: 1 1 auto;
-    min-width: 0;
+  @media (max-width: ${MOBILE}) {
+    gap: ${({ theme }) => theme.space[4]};
   }
 `;
 
-/**
- * "Showing N documents" caption rendered on the right of the
- * FilterToolbar row. 13 px / `fg-3` to read as ambient metadata, not
- * a control. The leading vertical rule + `space[3]` padding anchor it
- * to the chip row so it no longer reads as an orphaned line of text
- * floating beside the 32 px filter pills (audit A · DashboardPage M-1).
- */
-export const DocCount = styled.div`
-  font-size: 13px;
-  color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  padding-left: ${({ theme }) => theme.space[3]};
-  border-left: 1px solid ${({ theme }) => theme.color.border[1]};
-  align-self: center;
-`;
-
-/**
- * Per-row tag strip. Lives inside `DocCell` so it sits right under the
- * doc title + short-code. Tightened chip rendering uses 2-visible +
- * "+N" overflow chip; see `DashboardPage.tsx`.
- */
-export const TagStrip = styled.div`
+export const HeaderRow = styled.div`
   display: flex;
-  flex-wrap: wrap;
-  gap: ${({ theme }) => theme.space[1]};
-  margin-top: ${({ theme }) => theme.space[1]};
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
 `;
 
-/**
- * Compact neutral chip used for the "+N" tag overflow indicator.
- * Matches the visual weight of TagChip (2 px / 6 px padding, pill,
- * 11 px text) but stays in the neutral palette so it reads as
- * "and N more" rather than another category.
- */
-export const TagOverflow = styled.span`
+export const PageTitle = styled.h1`
+  margin: 0;
+  flex: 1 1 auto;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.x4l};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
+  color: ${({ theme }) => theme.color.fg[1]};
+
+  @media (max-width: ${MOBILE}) {
+    font-size: ${({ theme }) => theme.font.size.x3l};
+  }
+`;
+
+/** Split primary button: main action + chevron that opens the New menu. */
+export const SplitGroup = styled.div`
+  display: inline-flex;
+
+  & > button:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  & > button:last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    border-left: 1px solid ${({ theme }) => theme.color.indigo[400]};
+  }
+`;
+
+export const Section = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[3]};
+  min-width: 0;
+`;
+
+export const SectionHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const Eyebrow = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const CountPill = styled.span<{ $accent?: boolean }>`
   display: inline-flex;
   align-items: center;
-  padding: 2px 6px;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  font-family: ${({ theme }) => theme.font.sans};
-  font-size: 11px;
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  line-height: 1.4;
-  background: ${({ theme }) => theme.color.ink[100]};
-  color: ${({ theme }) => theme.color.fg[3]};
-  white-space: nowrap;
+  font-size: ${({ theme }) => theme.font.size.badge};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-variant-numeric: tabular-nums;
+  background: ${({ theme, $accent }) =>
+    $accent ? theme.color.indigo[600] : theme.color.bg.subtle};
+  color: ${({ theme, $accent }) => ($accent ? theme.color.fgOnAccent : theme.color.fg[2])};
 `;
 
-export const StatGrid = styled.div`
+export const MoreLink = styled.button`
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.indigo[600]};
+`;
+
+export const NeedsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: ${({ theme }) => theme.space[4]};
-  /* Tightened from space[6] (24px) to space[5] (20px) so the
-     header → stats → toolbar rhythm has a slightly tighter step than
-     the masthead gap. Audit A · DashboardPage M-2. */
-  margin-bottom: ${({ theme }) => theme.space[5]};
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: ${({ theme }) => theme.space[3]};
+  list-style: none;
+  margin: 0;
+  padding: 0;
 
   @media (max-width: ${MOBILE}) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: ${({ theme }) => theme.space[3]};
+    display: flex;
+    overflow-x: auto;
+    margin: 0 -${({ theme }) => theme.space[4]};
+    padding: 0 ${({ theme }) => theme.space[4]};
+    scroll-snap-type: x proximity;
   }
 `;
 
-export const TableShell = styled.div`
+export const NeedCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  min-width: 0;
+  padding: 12px 12px 12px 14px;
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-top: none;
-  border-radius: ${({ theme }) => `0 0 ${theme.radius.xl} ${theme.radius.xl}`};
-  overflow: hidden;
-`;
-
-/**
- * Default kit-spec column widths in pixels: Document · Signers ·
- * Progress · Status · Last updated · Created · chevron. The chevron
- * column stays fixed (it's just an icon) so we resize the six content
- * columns.
- *
- * Per-user overrides ride in `localStorage` via `useColumnWidths`;
- * the dashboard composes the active grid template from the live
- * width map and passes it down via the `$grid` prop.
- */
-export const DEFAULT_COLUMN_WIDTHS = {
-  document: 320,
-  signers: 220,
-  progress: 180,
-  status: 180,
-  updated: 110,
-  created: 110,
-} as const;
-
-export const COLUMN_MIN_WIDTHS = {
-  document: 200,
-  signers: 140,
-  progress: 120,
-  status: 120,
-  updated: 90,
-  created: 90,
-} as const;
-
-export const CHEVRON_COL_PX = 60;
-
-export const TableHead = styled.div<{ $grid: string }>`
-  display: grid;
-  grid-template-columns: ${({ $grid }) => $grid};
-  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[5]}`};
-  background: ${({ theme }) => theme.color.ink[50]};
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
-  font-size: 11px;
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.08em;
-  color: ${({ theme }) => theme.color.fg[3]};
-  text-transform: uppercase;
-  gap: ${({ theme }) => theme.space[4]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  box-shadow: ${({ theme }) => theme.shadow.xs};
 
   @media (max-width: ${MOBILE}) {
-    /* Headings stop carrying meaning once the rows collapse into stacked
-       cards — hide them rather than render a meaningless single-column
-       label. The TableRow's badges/avatars/code are self-describing. */
+    flex: 0 0 248px;
+    width: 248px;
+    scroll-snap-align: start;
+  }
+`;
+
+const NEED_TONES = {
+  indigo: { bg: 'indigo', fg: 'indigo' },
+  amber: { bg: 'warn', fg: 'warn' },
+  red: { bg: 'danger', fg: 'danger' },
+} as const;
+export type NeedTone = keyof typeof NEED_TONES;
+
+export const NeedIcon = styled.span<{ $tone: NeedTone }>`
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme, $tone }) => theme.color[NEED_TONES[$tone].bg][50]};
+  color: ${({ theme, $tone }) =>
+    $tone === 'indigo' ? theme.color.indigo[700] : theme.color[NEED_TONES[$tone].fg][700]};
+`;
+
+export const NeedBody = styled.div`
+  flex: 1 1 auto;
+  min-width: 0;
+`;
+
+export const NeedTitle = styled.button`
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  ${truncateText}
+
+  &:hover {
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+`;
+
+export const MetaLine = styled.div`
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
+  ${truncateText}
+`;
+
+export const FixField = styled.input`
+  width: 100%;
+  height: 32px;
+  margin-top: 4px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.bg.surface};
+  color: ${({ theme }) => theme.color.fg[1]};
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.caption};
+
+  &:focus-visible {
+    outline: none;
+    border-color: ${({ theme }) => theme.color.border.focus};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+export const TabsRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[2]};
+
+  @media (max-width: ${MOBILE}) {
+    border-bottom: 0;
+  }
+`;
+
+export const TabList = styled.div`
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  gap: ${({ theme }) => theme.space[1]};
+  overflow-x: auto;
+
+  @media (max-width: ${MOBILE}) {
+    gap: ${({ theme }) => theme.space[2]};
+    margin: 0 -${({ theme }) => theme.space[4]};
+    padding: 0 ${({ theme }) => theme.space[4]};
+  }
+`;
+
+export const Tab = styled.button<{ $active: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  height: 44px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border: 0;
+  border-bottom: 2px solid
+    ${({ theme, $active }) => ($active ? theme.color.indigo[600] : 'transparent')};
+  margin-bottom: -1px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : theme.color.fg[3])};
+  transition: color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeOut};
+
+  &:hover {
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.border.focus};
+    outline-offset: -2px;
+    border-radius: ${({ theme }) => theme.radius.xs};
+  }
+
+  @media (max-width: ${MOBILE}) {
+    border: 1px solid ${({ theme }) => theme.color.border[1]};
+    border-radius: ${({ theme }) => theme.radius.pill};
+    margin-bottom: 0;
+    background: ${({ theme, $active }) =>
+      $active ? theme.color.indigo[50] : theme.color.bg.surface};
+    border-color: ${({ theme, $active }) =>
+      $active ? theme.color.indigo[300] : theme.color.border[1]};
+    color: ${({ theme, $active }) => ($active ? theme.color.indigo[700] : theme.color.fg[2])};
+  }
+`;
+
+export const AvgMeta = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+
+  @media (max-width: ${MOBILE}) {
     display: none;
   }
 `;
 
-export const HeadCell = styled.div`
-  /* Each header cell hosts an absolutely-positioned ColumnResizeHandle
-     pinned to its right edge — needs a positioning context. */
-  position: relative;
+export const ToolbarRow = styled.div`
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
-/**
- * Clickable column label that toggles the server-side sort. Fills the
- * cell except for the 6px resize handle at the right edge, so a click
- * anywhere on the label sorts and a grab right at the border resizes.
- */
-export const SortHeaderButton = styled.button<{ $active: boolean }>`
-  all: unset;
+export const SearchField = styled.label`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  width: 320px;
+  max-width: 100%;
+  height: 44px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  box-sizing: border-box;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.bg.surface};
+  color: ${({ theme }) => theme.color.fg[3]};
+
+  &:focus-within {
+    border-color: ${({ theme }) => theme.color.border.focus};
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: none;
+    font: inherit;
+    font-size: ${({ theme }) => theme.font.size.bodySm};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
+
+  @media (max-width: ${MOBILE}) {
+    flex: 1 1 100%;
+    width: auto;
+  }
+`;
+
+export const Kbd = styled.kbd`
+  padding: 1px 6px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.xxs};
+  font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  color: ${({ theme }) => theme.color.fg[3]};
+
+  @media (max-width: ${MOBILE}) {
+    display: none;
+  }
+`;
+
+export const Spacer = styled.span`
+  flex: 1 1 auto;
+`;
+
+/** A button that opens a menu and shows the picked value (`is-set`). */
+export const SelectButton = styled.button<{ $set?: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  cursor: pointer;
+  gap: 6px;
+  height: 44px;
+  padding: 0 ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme, $set }) => ($set ? theme.color.indigo[300] : theme.color.border[1])};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme, $set }) => ($set ? theme.color.indigo[50] : theme.color.bg.surface)};
+  color: ${({ theme, $set }) => ($set ? theme.color.indigo[700] : theme.color.fg[2])};
   font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : 'inherit')};
-  padding: 2px 4px;
-  margin-left: -4px;
-  border-radius: ${({ theme }) => theme.radius.sm};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  cursor: pointer;
+
   &:hover {
-    color: ${({ theme }) => theme.color.fg[1]};
+    background: ${({ theme, $set }) => ($set ? theme.color.indigo[100] : theme.color.bg.subtle)};
   }
   &:focus-visible {
     outline: none;
@@ -224,134 +382,481 @@ export const SortHeaderButton = styled.button<{ $active: boolean }>`
   }
 `;
 
-/**
- * Direction caret rendered next to every sortable column header.
- * `$active` paints the kit-standard indigo arrow; inactive sortable
- * columns render a faint Lucide ChevronDown so the header still reads
- * as sortable without shouting like the active column. Audit A ·
- * DashboardPage L-3 — previously used the U+25BE unicode caret which
- * rendered ambiguously at small sizes / low opacity.
- */
-export const SortCaret = styled.span<{ readonly $active: boolean }>`
+export const ChipsRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const Chip = styled.span`
   display: inline-flex;
   align-items: center;
-  line-height: 1;
-  color: ${({ $active, theme }) => ($active ? theme.color.indigo[600] : theme.color.fg[3])};
-  opacity: ${({ $active }) => ($active ? 1 : 0.5)};
+  gap: 2px;
+  height: 28px;
+  padding: 0 4px 0 12px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  color: ${({ theme }) => theme.color.indigo[700]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
 
-  & > svg {
-    width: 12px;
-    height: 12px;
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: ${({ theme }) => theme.radius.pill};
+    background: none;
+    color: inherit;
+    cursor: pointer;
+  }
+  button:hover {
+    background: ${({ theme }) => theme.color.indigo[100]};
   }
 `;
 
-export const TableRow = styled.button<{ $grid: string }>`
-  all: unset;
-  box-sizing: border-box;
-  display: grid;
-  width: 100%;
-  grid-template-columns: ${({ $grid }) => $grid};
-  gap: ${({ theme }) => theme.space[4]};
-  padding: ${({ theme }) => `${theme.space[4]} ${theme.space[5]}`};
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+export const BulkBar = styled.div`
+  display: flex;
   align-items: center;
-  cursor: pointer;
-  text-align: left;
-  &:last-child {
-    border-bottom: none;
+  gap: ${({ theme }) => theme.space[2]};
+  min-height: 44px;
+  padding: 4px ${({ theme }) => theme.space[3]};
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.ink[900]};
+  color: ${({ theme }) => theme.color.fgOnAccent};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+
+  button {
+    color: inherit;
   }
-  &:hover {
-    background: ${({ theme }) => theme.color.ink[50]};
-  }
-  &:focus-visible {
-    box-shadow: ${({ theme }) => theme.shadow.focus};
-    border-radius: ${({ theme }) => theme.radius.sm};
-  }
+`;
+
+export const TableShell = styled.div`
+  background: ${({ theme }) => theme.color.bg.surface};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+  overflow: hidden;
 
   @media (max-width: ${MOBILE}) {
-    /* Stack each row into a single column. The doc cell stays at the top
-       (primary identity), the signer/progress/status badges flow below as
-       inline-wrapping content, the two date cells share the bottom row
-       (last-updated trailing, created leading), and the chevron tucks
-       into the top-right so the whole row still reads as a tap target. */
-    grid-template-columns: 1fr auto;
-    grid-template-areas:
-      'doc chevron'
-      'signers signers'
-      'progress progress'
-      'status status'
-      'created updated';
-    gap: ${({ theme }) => theme.space[2]};
-    padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]}`};
-    align-items: start;
-
-    & > :nth-child(1) {
-      grid-area: doc;
-    }
-    & > :nth-child(2) {
-      grid-area: signers;
-    }
-    & > :nth-child(3) {
-      grid-area: progress;
-    }
-    & > :nth-child(4) {
-      grid-area: status;
-    }
-    & > :nth-child(5) {
-      grid-area: updated;
-      justify-self: end;
-    }
-    & > :nth-child(6) {
-      grid-area: created;
-    }
-    & > :nth-child(7) {
-      grid-area: chevron;
-      align-self: center;
-    }
+    background: none;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
   }
+`;
+
+const ROW_GRID = css`
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1.8fr) minmax(130px, 0.9fr) minmax(130px, 0.9fr) 72px 190px;
+  align-items: center;
+  column-gap: ${({ theme }) => theme.space[4]};
+  padding: 0 ${({ theme }) => theme.space[5]};
+`;
+
+export const THead = styled.div`
+  ${ROW_GRID}
+  height: 40px;
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[2]};
+  background: ${({ theme }) => theme.color.bg.subtle};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.wide};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const GroupLabel = styled.h3`
+  margin: 0;
+  padding: 10px ${({ theme }) => theme.space[5]} 6px;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
+  background: ${({ theme }) => theme.color.bg.surface};
+
+  @media (max-width: ${MOBILE}) {
+    padding: 0 0 ${({ theme }) => theme.space[2]};
+    background: none;
+  }
+`;
+
+export const MobileGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+  margin-bottom: ${({ theme }) => theme.space[4]};
+`;
+
+const newFade = keyframes`
+  from { background-color: var(--indigo-50); }
+  to { background-color: transparent; }
+`;
+
+export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: boolean }>`
+  ${ROW_GRID}
+  position: relative;
+  min-height: 72px;
+  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
+  background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : 'transparent')};
+  ${({ theme, $hot, $selected }) =>
+    $hot && !$selected ? `background: ${theme.color.bg.subtle};` : ''}
+  transition: background ${({ theme }) => theme.motion.durFast};
+
+  ${({ $fresh }) =>
+    $fresh
+      ? css`
+          background-color: ${({ theme }) => theme.color.indigo[50]};
+          animation: ${newFade} 3s ${({ theme }) => theme.motion.easeOut} 1s forwards;
+          @media (prefers-reduced-motion: reduce) {
+            animation: none;
+          }
+        `
+      : ''}
+
+  &:hover {
+    background: ${({ theme, $selected }) =>
+      $selected ? theme.color.indigo[50] : theme.color.bg.subtle};
+  }
+`;
+
+export const MCard = styled.div<{ $selected?: boolean; $fresh?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  min-height: 64px;
+  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[2]}
+    ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
+  background: ${({ theme, $selected }) =>
+    $selected ? theme.color.indigo[50] : theme.color.bg.surface};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.lg};
+
+  ${({ $fresh }) =>
+    $fresh
+      ? css`
+          background-color: ${({ theme }) => theme.color.indigo[50]};
+          animation: ${newFade} 3s ${({ theme }) => theme.motion.easeOut} 1s forwards;
+          @media (prefers-reduced-motion: reduce) {
+            animation: none;
+          }
+        `
+      : ''}
+`;
+
+export const RowCheck = styled.input`
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: ${({ theme }) => theme.color.indigo[600]};
+  cursor: pointer;
 `;
 
 export const DocCell = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.space[3]};
   align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
   min-width: 0;
 `;
 
-export const DocTitle = styled.div`
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
-  color: ${({ theme }) => theme.color.fg[1]};
-  font-size: 14px;
-  ${truncateText}
+export const DocText = styled.div`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
 `;
 
-export const DocCode = styled.div`
-  font-size: 12px;
-  color: ${({ theme }) => theme.color.fg[3]};
+export const DocTitleButton = styled.button`
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+  ${truncateText}
+
+  &:hover {
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+  &:focus-visible {
+    outline: 2px solid ${({ theme }) => theme.color.border.focus};
+    outline-offset: 2px;
+    border-radius: ${({ theme }) => theme.radius.xxs};
+  }
+`;
+
+export const DocSub = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  min-width: 0;
+  margin-top: 2px;
+`;
+
+export const Mono = styled.span`
   font-family: ${({ theme }) => theme.font.mono};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const Tag = styled.span`
+  padding: 0 6px;
+  border-radius: ${({ theme }) => theme.radius.xxs};
+  background: ${({ theme }) => theme.color.bg.subtle};
+  font-size: ${({ theme }) => theme.font.size.micro};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[2]};
+`;
+
+export const StatusCell = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+`;
+
+export const StatusMeta = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  color: ${({ theme }) => theme.color.fg[3]};
+  ${truncateText}
 `;
 
 export const SignersCell = styled.div`
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 `;
 
-export const ProgressCell = styled.div`
-  display: flex;
-  align-items: center;
-  min-width: 0;
-`;
-
-export const DateCell = styled.div`
-  font-size: 13px;
+export const UpdatedCell = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
-  font-family: ${({ theme }) => theme.font.mono};
+  font-variant-numeric: tabular-nums;
 `;
 
-export const ChevronCell = styled.div`
+export const RowActions = styled.div`
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  gap: ${({ theme }) => theme.space[1]};
+  position: relative;
+`;
+
+export const Footer = styled.div`
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const SkeletonRow = styled.div`
+  ${ROW_GRID}
+  min-height: 72px;
+  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
+
+  @media (max-width: ${MOBILE}) {
+    display: flex;
+    gap: ${({ theme }) => theme.space[3]};
+    padding: ${({ theme }) => theme.space[3]};
+    border: 1px solid ${({ theme }) => theme.color.border[1]};
+    border-radius: ${({ theme }) => theme.radius.lg};
+    margin-bottom: ${({ theme }) => theme.space[2]};
+  }
+`;
+
+export const SkeletonStack = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+`;
+
+export const FirstRunBlock = styled.section`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[6]};
+  padding: ${({ theme }) => theme.space[4]} 0 ${({ theme }) => theme.space[8]};
+  text-align: center;
+`;
+
+export const FirstRunTitle = styled.h2`
+  margin: 0;
+  font-family: ${({ theme }) => theme.font.serif};
+  font-size: ${({ theme }) => theme.font.size.h3};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+
+  @media (max-width: ${MOBILE}) {
+    font-size: ${({ theme }) => theme.font.size.x2l};
+  }
+`;
+
+export const Steps = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
+export const Step = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[2]};
+
+  & > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: ${({ theme }) => theme.radius.pill};
+    background: ${({ theme }) => theme.color.indigo[50]};
+    color: ${({ theme }) => theme.color.indigo[700]};
+  }
+`;
+
+export const StepLine = styled.span`
+  width: 40px;
+  height: 2px;
+  margin-bottom: 24px;
+  background: ${({ theme }) => theme.color.border[1]};
+`;
+
+export const Dropzone = styled.div<{ $over?: boolean }>`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  width: 100%;
+  max-width: 640px;
+  box-sizing: border-box;
+  padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[4]};
+  border: 2px dashed
+    ${({ theme, $over }) => ($over ? theme.color.indigo[500] : theme.color.border[1])};
+  border-radius: ${({ theme }) => theme.radius.xl};
+  background: ${({ theme, $over }) => ($over ? theme.color.indigo[50] : theme.color.bg.surface)};
+  color: ${({ theme }) => theme.color.indigo[600]};
+`;
+
+export const DropTitle = styled.div`
+  font-size: ${({ theme }) => theme.font.size.xl};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  color: ${({ theme }) => theme.color.fg[1]};
+`;
+
+export const DropMeta = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const ButtonRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const SheetTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: 4px 4px 12px;
+`;
+
+export const SheetSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[2]};
+  margin-bottom: ${({ theme }) => theme.space[4]};
+`;
+
+export const PillGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const PillRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const SheetItem = styled.button<{ $danger?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  width: 100%;
+  height: 48px;
+  padding: 0 ${({ theme }) => theme.space[2]};
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: ${({ theme }) => theme.font.size.body};
+  color: ${({ theme, $danger }) => ($danger ? theme.color.danger[700] : theme.color.fg[1])};
+  text-align: left;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`;
+
+export const MobileActionBar = styled.div`
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: ${({ theme }) => theme.color.bg.surface};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  padding-bottom: env(safe-area-inset-bottom);
+
+  button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 56px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    font: inherit;
+    font-size: ${({ theme }) => theme.font.size.micro};
+    font-weight: ${({ theme }) => theme.font.weight.medium};
+    color: ${({ theme }) => theme.color.fg[2]};
+  }
+  button[data-danger='true'] {
+    color: ${({ theme }) => theme.color.danger[700]};
+  }
+`;
+
+export const FieldLabel = styled.label`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[1]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  color: ${({ theme }) => theme.color.fg[2]};
 `;

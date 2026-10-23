@@ -22,6 +22,7 @@ import {
   placeEnvelopeFields,
   removeEnvelopeSigner,
   sendEnvelope,
+  unsendEnvelope,
   uploadEnvelopeFile,
 } from './envelopesApi';
 
@@ -189,6 +190,19 @@ export function useCancelEnvelopeMutation() {
       // to round-trip. With hierarchical keys a single `envelopeKeys.all`
       // invalidation would catch everything, but we scope narrowly to
       // avoid unnecessary refetches on unrelated detail queries.
+      qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
+      qc.invalidateQueries({ queryKey: envelopeKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: envelopeKeys.events(id) });
+    },
+  });
+}
+
+/** Undo after Send. Refreshes the list so the row flips back to Draft. */
+export function useUnsendEnvelopeMutation() {
+  const qc = useQueryClient();
+  return useMutation<Envelope, Error, string>({
+    mutationFn: (id) => unsendEnvelope(id),
+    onSuccess: (_envelope, id) => {
       qc.invalidateQueries({ queryKey: envelopeKeys.lists() });
       qc.invalidateQueries({ queryKey: envelopeKeys.detail(id) });
       qc.invalidateQueries({ queryKey: envelopeKeys.events(id) });

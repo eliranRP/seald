@@ -112,6 +112,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // WP-24: through owner approval (envelopes_preview_send / _preview_remind preview them).
   'POST /envelopes/:id/send': { tool: 'envelopes_send' },
   'POST /envelopes/:id/cancel': { tool: 'envelopes_cancel' },
+  'POST /envelopes/:id/unsend': {
+    excluded: 'owner_in_app_only',
+    note: 'Undo toast in the app, 10 s after Send; an agent has cancel and update instead.',
+  },
   'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
