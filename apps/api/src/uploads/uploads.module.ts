@@ -7,6 +7,8 @@ import {
   DriveSourceService,
   makeDriveFileMetadataFetcher,
 } from './drive-source.service';
+import { LocalConvertController } from './local-convert.controller';
+import { LocalConvertService } from './local-convert.service';
 import { StagedUploadsRepository } from './staged-uploads.repository';
 import { StagedUploadsPgRepository } from './staged-uploads.repository.pg';
 import { StagedUploadsService } from './staged-uploads.service';
@@ -17,7 +19,9 @@ import { StagedUploadsService } from './staged-uploads.service';
  */
 @Module({
   imports: [EnvelopesModule, GDriveModule, ConversionModule],
+  controllers: [LocalConvertController],
   providers: [
+    LocalConvertService,
     StagedUploadsService,
     { provide: StagedUploadsRepository, useClass: StagedUploadsPgRepository },
     DriveSourceService,

@@ -109,6 +109,12 @@ const ConversionServiceProvider: Provider = {
   ],
   // GOTENBERG_CLIENT: the MCP upload path (WP-19) converts a local .docx
   // with the same network-isolated sidecar.
-  exports: [ConversionService, ConversionGateway, DriveImportService, GOTENBERG_CLIENT],
+  exports: [
+    ConversionService,
+    ConversionGateway,
+    DriveImportService,
+    GOTENBERG_CLIENT,
+    CONVERSION_MAX_BYTES,
+  ],
 })
 export class ConversionModule {}

@@ -85,4 +85,50 @@ describe('useUndoStack', () => {
     });
     expect(result.current.hasClipboard()).toBe(true);
   });
+
+  it('redo() returns to the state an undo left, and a fresh edit clears the redo history', () => {
+    const onFieldsChange = vi.fn<(next: ReadonlyArray<PlacedFieldValue>) => void>();
+    let current = [f('1'), f('2')];
+    const { result, rerender } = renderHook(() =>
+      useUndoStack({ fields: current, onFieldsChange }),
+    );
+    const before = [f('1')];
+    act(() => {
+      result.current.pushUndo(before);
+    });
+    expect(result.current.hasRedo()).toBe(false);
+
+    act(() => {
+      result.current.undo();
+    });
+    expect(onFieldsChange).toHaveBeenLastCalledWith(before);
+    expect(result.current.hasRedo()).toBe(true);
+
+    current = before;
+    rerender();
+    act(() => {
+      result.current.redo();
+    });
+    expect(onFieldsChange).toHaveBeenLastCalledWith([f('1'), f('2')]);
+    expect(result.current.hasRedo()).toBe(false);
+    expect(result.current.hasUndo()).toBe(true);
+
+    act(() => {
+      result.current.undo();
+    });
+    expect(result.current.hasRedo()).toBe(true);
+    act(() => {
+      result.current.pushUndo([f('9')]);
+    });
+    expect(result.current.hasRedo()).toBe(false);
+  });
+
+  it('redo() does nothing when there is nothing to redo', () => {
+    const onFieldsChange = vi.fn();
+    const { result } = renderHook(() => useUndoStack({ fields: [], onFieldsChange }));
+    act(() => {
+      result.current.redo();
+    });
+    expect(onFieldsChange).not.toHaveBeenCalled();
+  });
 });

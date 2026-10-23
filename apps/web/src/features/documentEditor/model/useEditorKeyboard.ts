@@ -10,6 +10,8 @@ interface UseEditorKeyboardArgs {
   readonly hasUndo: () => boolean;
   readonly hasClipboard: () => boolean;
   readonly undo: () => void;
+  readonly redo?: (() => void) | undefined;
+  readonly hasRedo?: (() => boolean) | undefined;
   readonly currentPage: number;
   readonly selectedIds: ReadonlyArray<string>;
   readonly setSelectedIds: React.Dispatch<React.SetStateAction<ReadonlyArray<string>>>;
@@ -32,6 +34,7 @@ interface UseEditorKeyboardReturn {
  *   Cmd/Ctrl+C   Copy selection to internal clipboard
  *   Cmd/Ctrl+V   Paste clipboard onto current page (with offset)
  *   Cmd/Ctrl+Z   Undo last discrete mutation
+ *   Shift+Cmd/Ctrl+Z or Cmd/Ctrl+Y   Redo
  *   Delete/Backspace   Remove selected fields (routes via requestRemove
  *                       so linked copies prompt for scope)
  *   Cmd/Ctrl + (= / + / - / 0)   Zoom in/out/reset
@@ -47,6 +50,8 @@ export function useEditorKeyboard({
   hasUndo,
   hasClipboard,
   undo,
+  redo,
+  hasRedo,
   currentPage,
   selectedIds,
   setSelectedIds,
@@ -113,6 +118,16 @@ export function useEditorKeyboard({
         undo();
         return;
       }
+      if (
+        redo !== undefined &&
+        ((mod && (e.key === 'z' || e.key === 'Z') && e.shiftKey) ||
+          (mod && (e.key === 'y' || e.key === 'Y')))
+      ) {
+        if (hasRedo !== undefined && !hasRedo()) return;
+        e.preventDefault();
+        redo();
+        return;
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedIds.length === 0) return;
         e.preventDefault();
@@ -139,8 +154,10 @@ export function useEditorKeyboard({
   }, [
     copySelection,
     hasClipboard,
+    hasRedo,
     hasUndo,
     pasteClipboard,
+    redo,
     removeSelection,
     resetZoom,
     selectedIds,

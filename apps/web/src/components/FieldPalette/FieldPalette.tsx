@@ -19,12 +19,17 @@ import { paletteFieldKinds } from '@/features/documentEditor/fieldProperties/pal
 import type { FieldKind } from '@/types/sealdTypes';
 import type { FieldPaletteProps } from './FieldPalette.types';
 import {
+  ChipRowWrap,
+  FieldChip,
+  FieldTile,
   HintCard,
   Root,
   Row,
   RowLabel,
   SectionHeaderNext,
   SectionHeaderTop,
+  TileGrid,
+  TileUsage,
   UsageBadge,
 } from './FieldPalette.styles';
 
@@ -52,6 +57,8 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
     onFieldDragEnd,
     onFieldActivate,
     hint,
+    variant = 'list',
+    activeKind = null,
     usageByKind,
     ...rest
   } = props;
@@ -80,6 +87,38 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
         onFieldActivate?.(kind);
       }
     };
+
+  const renderTile = (kind: FieldKind): ReactNode => {
+    const meta = FIELD_META[kind];
+    const TileIcon = meta.icon;
+    const usage = usageByKind?.[kind] ?? 0;
+    const Tag = variant === 'chips' ? FieldChip : FieldTile;
+    return (
+      <Tag
+        key={kind}
+        role="button"
+        tabIndex={0}
+        draggable
+        $active={activeKind === kind}
+        aria-label={meta.label}
+        aria-pressed={activeKind === kind}
+        onDragStart={handleDragStart(kind)}
+        onDragEnd={handleDragEnd(kind)}
+        onKeyDown={handleKeyDown(kind)}
+        onClick={() => onFieldActivate?.(kind)}
+      >
+        <TileIcon size={18} strokeWidth={1.75} aria-hidden />
+        {meta.label}
+        {usage > 0 ? (
+          <TileUsage
+            aria-label={`${String(usage)} ${meta.label} field${usage === 1 ? '' : 's'} placed in document`}
+          >
+            {`×${String(usage)}`}
+          </TileUsage>
+        ) : null}
+      </Tag>
+    );
+  };
 
   const renderRow = (kind: FieldKind): ReactNode => {
     const meta = FIELD_META[kind];
@@ -111,6 +150,22 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
   };
 
   const hintNode: ReactNode = hint ?? <HintCard>{DEFAULT_HINT}</HintCard>;
+
+  if (variant === 'chips') {
+    return (
+      <Root {...rest} ref={ref} role="region" aria-label="Field palette">
+        <ChipRowWrap>{[...requiredList, ...optionalList].map(renderTile)}</ChipRowWrap>
+      </Root>
+    );
+  }
+
+  if (variant === 'tiles') {
+    return (
+      <Root {...rest} ref={ref} role="region" aria-label="Field palette">
+        <TileGrid>{[...requiredList, ...optionalList].map(renderTile)}</TileGrid>
+      </Root>
+    );
+  }
 
   return (
     <Root {...rest} ref={ref} role="region" aria-label="Field palette">

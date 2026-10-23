@@ -119,4 +119,27 @@ describe('PageToolbar', () => {
     expect(getByRole('button', { name: 'Zoom in' })).toBeDisabled();
     expect(getByRole('button', { name: 'Zoom out' })).not.toBeDisabled();
   });
+
+  it('renders undo, redo and shortcuts buttons only when wired', async () => {
+    const onUndo = vi.fn();
+    const onRedo = vi.fn();
+    const onShowShortcuts = vi.fn();
+    const { getByRole, queryByRole, rerender } = renderWithTheme(<PageToolbar {...baseProps()} />);
+    expect(queryByRole('button', { name: 'Undo' })).toBeNull();
+    expect(queryByRole('button', { name: 'Shortcuts' })).toBeNull();
+    rerender(
+      <PageToolbar
+        {...baseProps()}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        redoDisabled
+        onShowShortcuts={onShowShortcuts}
+      />,
+    );
+    await userEvent.click(getByRole('button', { name: 'Undo' }));
+    await userEvent.click(getByRole('button', { name: 'Shortcuts' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(onShowShortcuts).toHaveBeenCalledTimes(1);
+    expect(getByRole('button', { name: 'Redo' })).toBeDisabled();
+  });
 });

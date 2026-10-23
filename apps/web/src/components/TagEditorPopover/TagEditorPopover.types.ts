@@ -1,7 +1,9 @@
 import type { HTMLAttributes } from 'react';
 
-export interface TagEditorPopoverProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'onToggle'> {
+export interface TagEditorPopoverProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'children' | 'onToggle'
+> {
   readonly open: boolean;
   /** Tags currently attached to the target template. */
   readonly currentTags: ReadonlyArray<string>;

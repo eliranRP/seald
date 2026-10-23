@@ -10,16 +10,25 @@ import type { HTMLAttributes, ReactNode } from 'react';
 export type UploadPageErrorCode = 'type' | 'size';
 
 /**
- * Drives which dropzone state is shown. `idle` is the default empty
- * picker. `analyzing` covers the brief post-drop window where the PDF
- * is parsed + page count + fields are extracted — the dropzone is
- * replaced with an animated "Analyzing your document" loader.
+ * Drives which area state is shown. `idle` is the empty dropzone.
+ * `analyzing` covers the window where the PDF is read and counted;
+ * `converting` is the same for a Word file that is first turned into a
+ * PDF on the server. Both swap the dropzone for a file card with a
+ * checklist.
  */
-export type UploadPageStatus = 'idle' | 'analyzing';
+export type UploadPageStatus = 'idle' | 'analyzing' | 'converting';
+
+/** A recent template offered as a one-click start. */
+export interface UploadRecentTemplate {
+  readonly id: string;
+  readonly name: string;
+  readonly signers?: number | undefined;
+}
 
 /**
- * L4 page — centered upload dropzone. The NavBar is provided by the parent
- * `AppShell` layout; this page renders only the dropzone body.
+ * L4 page: the upload surface. The NavBar is provided by the parent
+ * `AppShell` layout; the flow header (Upload, Prepare, Send) is rendered
+ * by the route.
  *
  * The page owns no persistent state. It drives drag-over visuals and file
  * validation, then bubbles the chosen `File` up via `onFileSelected`.
@@ -30,26 +39,21 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   /** Fires instead of `onFileSelected` when the file fails `accept` or `maxSizeBytes`. */
   readonly onError?: ((code: UploadPageErrorCode, message: string) => void) | undefined;
 
-  // Multiple files (WP-04, flag `multiDocumentEnvelopes`) -----------------
+  // Multiple files (flag `multiDocumentEnvelopes`) -------------------------
   /**
-   * When `true`, the picker and the dropzone accept several PDFs and the
+   * When `true`, the picker and the dropzone accept several files and the
    * validated list is handed to `onFilesSelected` (falling back to
    * `onFileSelected` with the first one when that is not supplied).
-   * Defaults to `false`: one file, exactly as before.
    */
   readonly multiple?: boolean | undefined;
   /** Fires with every validated file, in pick order, when `multiple` is on. */
   readonly onFilesSelected?: ((files: ReadonlyArray<File>) => void) | undefined;
 
-  // Dropzone copy / limits -----------------------------------------------
+  // Copy / limits ----------------------------------------------------------
   readonly title?: string | undefined;
+  /** Kept for hosts that still pass a sentence; the new design shows none by default. */
   readonly subtitle?: string | undefined;
-  /**
-   * When `true`, the page-level `title` + `subtitle` block is omitted —
-   * useful when the host page already renders its own header chrome
-   * (e.g. the templates wizard's `DocumentTitleRow`) and only wants to
-   * embed the dropzone surface. Defaults to `false`.
-   */
+  /** Omit the page title block when the host renders its own header. */
   readonly hideHeader?: boolean | undefined;
   readonly dropHeading?: string | undefined;
   readonly dropSubheading?: ReactNode | undefined;
@@ -58,52 +62,45 @@ export interface UploadPageProps extends Omit<HTMLAttributes<HTMLDivElement>, 'o
   readonly accept?: string | undefined;
   /** Max accepted file size in bytes. Defaults to 25 MB. */
   readonly maxSizeBytes?: number | undefined;
+  /** Also accept Word (.docx/.doc). Copy switches to "PDF or Word". */
+  readonly allowWord?: boolean | undefined;
 
-  // Loader ---------------------------------------------------------------
-  /**
-   * When `analyzing`, the dropzone is replaced with an animated loader
-   * showing "Analyzing your document". Useful while the chosen PDF is
-   * being parsed.
-   */
+  // Loader -----------------------------------------------------------------
   readonly status?: UploadPageStatus | undefined;
-  /** File name to display in the analyzing state. */
+  /** File name to display in the loading card. */
   readonly analyzingFileName?: string | undefined;
+  /** Size of the file in the loading card, in bytes. */
+  readonly analyzingFileSize?: number | undefined;
+  /** Page count once known; ticks the "Pages" step with its number. */
+  readonly analyzedPages?: number | undefined;
+  /** Cancel the work in progress and return to the empty dropzone. */
+  readonly onCancelAnalysis?: (() => void) | undefined;
+  /** Conversion failed: show the failure card instead of the checklist. */
+  readonly conversionFailed?: boolean | undefined;
+  readonly onRetryConversion?: (() => void) | undefined;
 
-  // Template integration -------------------------------------------------
-  /**
-   * Title of the template the sender chose on `/templates/:id/use`. When
-   * present, a "Using template: <title>" banner renders above the dropzone
-   * with a "Clear template" affordance that fires `onClearTemplate`.
-   */
-  readonly templateBannerTitle?: string | undefined;
-  /** Tone of the template banner. Defaults to `info`. */
-  readonly templateBannerTone?: 'info' | 'warning' | undefined;
-  /** Strips the `?template=` query arg + any pre-populated field state. */
-  readonly onClearTemplate?: (() => void) | undefined;
-  /**
-   * When supplied, a "Start from a template" CTA is rendered at the
-   * bottom of the dropzone. The parent (`UploadRoute`) opens the
-   * template-picker dialog and routes to `?template=<id>` once a
-   * template is chosen. Hidden when there are no templates yet.
-   */
+  // Sources ----------------------------------------------------------------
+  /** Show the source tiles (Upload, Template, Drive, Scan). */
+  readonly showSources?: boolean | undefined;
   readonly onPickTemplate?: (() => void) | undefined;
+  /** Number of saved templates, shown under the Template tile. */
+  readonly templateCount?: number | undefined;
+  /** Up to three recent templates as one-click chips. */
+  readonly recentTemplates?: ReadonlyArray<UploadRecentTemplate> | undefined;
+  readonly onPickRecentTemplate?: ((id: string) => void) | undefined;
+  /** "Scan with phone": opens `/scan`. */
+  readonly onScan?: (() => void) | undefined;
 
-  // Google Drive integration --------------------------------------------
-  /**
-   * When supplied, a "Pick from Google Drive" CTA is rendered in the
-   * same dropzone-footer prompt row as `onPickTemplate`. Use this
-   * branch when the user has at least one connected Drive account —
-   * clicking opens the Drive picker. Mutually exclusive with
-   * `onConnectDrive`: callers pass exactly one based on connection
-   * state (the alternate is the OAuth popup wiring).
-   */
+  // Template integration ---------------------------------------------------
+  /** Title of the template the sender chose; shows a "Using template" banner. */
+  readonly templateBannerTitle?: string | undefined;
+  readonly templateBannerTone?: 'info' | 'warning' | undefined;
+  /** Strips the `?template=` query arg and any pre-populated field state. */
+  readonly onClearTemplate?: (() => void) | undefined;
+
+  // Google Drive -----------------------------------------------------------
+  /** Connected account: the Drive tile opens the picker. */
   readonly onPickDrive?: (() => void) | undefined;
-  /**
-   * When supplied, a "Connect Google Drive" CTA is rendered in the
-   * same prompt row. Used when the user has the feature flag on but
-   * no connected Drive account yet — clicking opens the OAuth popup
-   * inline (see `useConnectGDrive().mutate()`). Mutually exclusive
-   * with `onPickDrive`.
-   */
+  /** No account yet: the Drive tile starts the OAuth popup. */
   readonly onConnectDrive?: (() => void) | undefined;
 }

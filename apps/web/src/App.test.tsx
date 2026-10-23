@@ -175,7 +175,7 @@ describe('App routing', () => {
     fireEvent.click(await screen.findByRole('button', { name: /new document/i }));
     // UploadRoute is React.lazy() so the chunk loads asynchronously after
     // navigation — use findBy to await it.
-    expect(await screen.findByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: /upload a file/i })).toBeInTheDocument();
   });
 
   // v2 IA: the "Sign" tab is retired — "New document" (above) is the way
@@ -192,43 +192,16 @@ describe('App routing', () => {
 
   // With the `vi.mock('./lib/pdf', ...)` at the top of this file,
   // `usePdfDocument` synchronously reports numPages: 1, so UploadRoute
-  // mounts the SignersStepCard surface immediately after a PDF is
-  // chosen. We assert against its empty-state heading and CTA copy
-  // ("Continue to fields") to avoid coupling to picker internals.
-  const STEP_TIMEOUT = { timeout: 1000 };
+  // opens the editor as soon as a PDF is chosen: there is no signer step,
+  // signers are added in the editor.
+  const STEP_TIMEOUT = { timeout: 5000 };
 
-  it('shows the SignersStepCard immediately after a PDF is chosen', async () => {
+  it('opens the editor straight after a PDF is chosen', async () => {
     renderApp(['/document/new']);
-    const input = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
+    const input = (await screen.findByLabelText(/choose file/i)) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf()] } });
-    expect(
-      await screen.findByRole('heading', { name: /who needs to sign this/i }, STEP_TIMEOUT),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /continue to fields/i })).toBeDisabled();
-  });
-
-  it('Back from the SignersStepCard returns to the upload dropzone and discards picked signers', async () => {
-    renderApp(['/document/new']);
-    const input1 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
-    fireEvent.change(input1, { target: { files: [makePdf()] } });
-    // Wait for the SignersStepCard to mount (heading present), then
-    // pick a contact via the inline picker.
-    await screen.findByRole('heading', { name: /who needs to sign this/i }, STEP_TIMEOUT);
-    fireEvent.click(screen.getByRole('button', { name: /^add signer$/i }));
-    fireEvent.click(await screen.findByRole('option', { name: /eliran azulay/i }));
-    // SignersStepCard's footer Back link drops the file + signers and
-    // re-renders the UploadPage dropzone.
-    fireEvent.click(screen.getByRole('button', { name: /^back$/i }));
-    expect(screen.getByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
-    // After Back, UploadPage remounts the Dropzone (status flips back
-    // to 'idle'), so the file input is a fresh DOM node — re-query it.
-    const input2 = (await screen.findByLabelText(/choose pdf file/i)) as HTMLInputElement;
-    fireEvent.change(input2, { target: { files: [makePdf()] } });
-    // SignersStepCard re-renders empty (no carry-over signers) — its
-    // Continue CTA is gated on having ≥1 signer.
-    expect(
-      await screen.findByRole('button', { name: /continue to fields/i }, STEP_TIMEOUT),
-    ).toBeDisabled();
+    expect(await screen.findByText('From contacts', undefined, STEP_TIMEOUT)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'From contacts' })).toBeInTheDocument();
   });
 
   it('Signers page lists seed contacts', async () => {

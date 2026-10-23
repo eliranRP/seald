@@ -90,3 +90,64 @@ export const MultipleFiles: Story = {
   parameters: { chromatic: { modes: chromaticViewportModes } },
   render: () => <MultipleDemo />,
 };
+
+const SOURCES = {
+  allowWord: true,
+  showSources: true,
+  onPickTemplate: () => {},
+  templateCount: 6,
+  onPickDrive: () => {},
+  onScan: () => {},
+  recentTemplates: [
+    { id: 't1', name: 'NDA — mutual', signers: 2 },
+    { id: 't2', name: 'Offer letter', signers: 2 },
+    { id: 't3', name: 'Consulting agreement', signers: 2 },
+  ],
+  onPickRecentTemplate: () => {},
+} as const;
+
+/** The v2 start screen: source tiles, one drop zone for PDF and Word, recent templates. */
+export const Start: Story = {
+  parameters: { chromatic: { modes: chromaticViewportModes } },
+  render: () => <UploadPage onFileSelected={() => {}} {...SOURCES} />,
+};
+
+export const Analyzing: Story = {
+  render: () => (
+    <UploadPage
+      onFileSelected={() => {}}
+      {...SOURCES}
+      status="analyzing"
+      analyzingFileName="Master services agreement.pdf"
+      analyzingFileSize={1_258_291}
+      analyzedPages={8}
+      onCancelAnalysis={() => {}}
+    />
+  ),
+};
+
+export const ConvertingWord: Story = {
+  render: () => (
+    <UploadPage
+      onFileSelected={() => {}}
+      {...SOURCES}
+      status="converting"
+      analyzingFileName="Q3 vendor agreement.docx"
+      onCancelAnalysis={() => {}}
+    />
+  ),
+};
+
+export const ConversionFailed: Story = {
+  render: () => (
+    <UploadPage
+      onFileSelected={() => {}}
+      {...SOURCES}
+      status="converting"
+      analyzingFileName="Q3 vendor agreement.docx"
+      conversionFailed
+      onRetryConversion={() => {}}
+      onCancelAnalysis={() => {}}
+    />
+  ),
+};

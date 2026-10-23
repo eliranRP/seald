@@ -235,7 +235,7 @@ describe('DocumentRoute multi-document editor', () => {
     });
     renderSeeded();
 
-    await userEvent.click(await screen.findByRole('button', { name: /send to sign/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^send$/i }));
 
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(

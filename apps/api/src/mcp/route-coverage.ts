@@ -201,6 +201,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     excluded: 'owner_in_app_only',
     note: 'Stops a batch the owner already approved. The owner stops it in the app; the agent polls batches_get.',
   },
+  'POST /uploads/convert': {
+    excluded: 'owner_in_app_only',
+    note: 'Turns the file the owner picked on the upload screen into PDF bytes; an agent stages files with documents_upload.',
+  },
   // WP-37: the template's direct link (the public `/direct-links/*` routes are
   // @Public). Creating, rotating or revoking a public link is the owner's call in the app.
   'GET /templates/:id/direct-link': {

@@ -78,3 +78,62 @@ export const HintCard = styled.div`
   color: ${({ theme }) => theme.color.indigo[800]};
   line-height: 1.5;
 `;
+
+export const TileGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const FieldTile = styled.div<{ $active: boolean }>`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 68px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  border: ${({ $active }) => ($active ? '1.5px' : '1px')} solid
+    ${({ theme, $active }) => ($active ? theme.color.indigo[600] : theme.color.border[1])};
+  background: ${({ theme, $active }) => ($active ? theme.color.indigo[50] : theme.color.paper)};
+  color: ${({ theme, $active }) => ($active ? theme.color.indigo[800] : theme.color.fg[2])};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  cursor: grab;
+  user-select: none;
+  &:hover {
+    background: ${({ theme, $active }) => ($active ? theme.color.indigo[50] : theme.color.ink[50])};
+    border-color: ${({ theme, $active }) =>
+      $active ? theme.color.indigo[600] : theme.color.border[2]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+  &:active {
+    cursor: grabbing;
+  }
+`;
+
+export const TileUsage = styled(UsageBadge)`
+  position: absolute;
+  top: 4px;
+  right: 4px;
+`;
+
+export const ChipRowWrap = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const FieldChip = styled(FieldTile)`
+  flex-direction: row;
+  width: auto;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  white-space: nowrap;
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+`;

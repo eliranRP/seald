@@ -18,7 +18,11 @@ export interface SendReminderSettings {
   readonly locale?: string | undefined;
 }
 
+/**
+ * Redesign defaults: remind every 3 days, expire in 30. The first reminder
+ * goes out after the same 3 days, then repeats at that interval.
+ */
 export const DEFAULT_SEND_REMINDER_SETTINGS: SendReminderSettings = {
   expiry: { kind: 'days', days: 30 },
-  cadence: DEFAULT_REMINDER_CADENCE,
+  cadence: { ...DEFAULT_REMINDER_CADENCE, firstAfterDays: 3, intervalDays: 3 },
 };
