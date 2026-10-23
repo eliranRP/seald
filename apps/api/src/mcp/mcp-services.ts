@@ -2,11 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { AccountDirectoryService } from '../accounts/account-directory.service';
 import { ApprovalsService } from '../approvals/approvals.service';
 import { AutomationsService } from '../automations/automations.service';
+import { ContactsService } from '../contacts/contacts.service';
 import { EnvelopeDocumentsService } from '../envelopes/documents/envelope-documents.service';
 import { EnvelopesService } from '../envelopes/envelopes.service';
 import { EnvelopeQueriesService } from '../envelopes/queries/envelope-queries.service';
 import { IdempotencyService } from '../idempotency/idempotency.service';
 import { SigningOrderService } from '../signing/signing-order.service';
+import { TemplateApplyService } from '../templates/template-apply.service';
+import { TemplatesService } from '../templates/templates.service';
 import { DriveSourceService } from '../uploads/drive-source.service';
 import { StagedUploadsService } from '../uploads/staged-uploads.service';
 
@@ -33,5 +36,9 @@ export class McpServices {
     readonly approvals: ApprovalsService,
     // WP-30 (automations A3): the same service the settings API uses.
     readonly automations: AutomationsService,
+    // WP-25 (steps 12–13): contacts and templates.
+    readonly contacts: ContactsService,
+    readonly templates: TemplatesService,
+    readonly templateApply: TemplateApplyService,
   ) {}
 }

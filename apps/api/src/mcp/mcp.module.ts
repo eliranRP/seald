@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { AccountsModule } from '../accounts/accounts.module';
 import { ApiKeysModule } from '../api-keys/api-keys.module';
 import { ApprovalsModule } from '../approvals/approvals.module';
+import { ContactsModule } from '../contacts/contacts.module';
 import { EnvelopesModule } from '../envelopes/envelopes.module';
 import { EnvelopeQueriesModule } from '../envelopes/queries/envelope-queries.module';
 import { IdempotencyModule } from '../idempotency/idempotency.module';
+import { TemplatesModule } from '../templates/templates.module';
 import { UploadsModule } from '../uploads/uploads.module';
 import { McpAuthGuard, McpFlagGuard } from './mcp-auth.guard';
 import { AutomationApprovalRegistrar } from './tools/automations/automation-approval.registrar';
@@ -30,6 +32,9 @@ import { McpToolRunner } from './tool-runner';
     // WP-21: owner approvals. Imported here, not in app.module.ts (a hot
     // file); its controllers (`/approvals/*`) mount through this import.
     ApprovalsModule,
+    // WP-25: contacts and templates services.
+    ContactsModule,
+    TemplatesModule,
   ],
   controllers: [McpController],
   providers: [

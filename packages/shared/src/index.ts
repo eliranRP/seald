@@ -223,5 +223,6 @@ export type {
 export * from './mcp';
 export * from './mcp-write';
 export * from './mcp-automations';
+export * from './mcp-contacts-templates';
 export * from './approvals';
 export * from './bulk-send';

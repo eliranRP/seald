@@ -35,6 +35,9 @@ export const SHIPPED_STEPS = [
   // WP-30: automations A3. The /automations HTTP routes land with the
   // settings UI (WP-31) and map to these tools in that package.
   'step-a3',
+  'step-12',
+  'step-13',
+  'step-14',
 ] as const;
 
 export const EXCLUSION_REASONS = [
@@ -85,7 +88,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'PUT /envelopes/:id/fields': { tool: 'envelopes_place_fields' },
   'GET /envelopes/:id/events': { tool: 'envelopes_list_events' },
   'GET /envelopes/:id/download': { tool: 'envelopes_download_url' },
-  'POST /envelopes/:id/gdrive/save': { planned: 'step-14' },
+  'POST /envelopes/:id/gdrive/save': { tool: 'envelopes_save_to_drive' },
 
   // Documents of an envelope (WP-03)
   'GET /envelopes/:id/documents': { tool: 'envelopes_get' },
@@ -117,23 +120,27 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // lands with the settings page (WP-31) and maps to the A3 tools.
   'POST /automations/:id/test': { planned: 'step-a2b' },
 
-  // Contacts
-  'GET /contacts': { planned: 'step-12' },
-  'POST /contacts': { planned: 'step-12' },
-  'GET /contacts/:id': { planned: 'step-12' },
-  'PATCH /contacts/:id': { planned: 'step-12' },
-  'DELETE /contacts/:id': { planned: 'step-12' },
+  // Contacts (step 12). contacts_search and contacts_import have no route of
+  // their own: search filters the list, import saves rows through create and update.
+  'GET /contacts': { tool: 'contacts_list' },
+  'POST /contacts': { tool: 'contacts_create' },
+  'GET /contacts/:id': { tool: 'contacts_get' },
+  'PATCH /contacts/:id': { tool: 'contacts_update' },
+  'DELETE /contacts/:id': { tool: 'contacts_delete' },
 
-  // Templates
-  'GET /templates': { planned: 'step-13' },
-  'POST /templates': { planned: 'step-13' },
-  'GET /templates/:id': { planned: 'step-13' },
-  'PATCH /templates/:id': { planned: 'step-13' },
-  'DELETE /templates/:id': { planned: 'step-13' },
-  'POST /templates/:id/use': { planned: 'step-13' },
-  'POST /templates/:id/apply': { planned: 'step-13' },
-  'POST /templates/:id/example': { planned: 'step-13' },
-  'GET /templates/:id/example': { planned: 'step-13' },
+  // Templates (step 13): the listing, the schema read and the draft built
+  // from a template are tools. Authoring a template, its example PDF and the
+  // WP-37 direct link have no step-13 tool; they are planned with step 15.
+  'GET /templates': { tool: 'templates_list' },
+  'POST /templates': { planned: 'step-15' },
+  'GET /templates/:id': { tool: 'templates_get_schema' },
+  'PATCH /templates/:id': { planned: 'step-15' },
+  'DELETE /templates/:id': { planned: 'step-15' },
+  // envelopes_create_from_template bumps the use count itself, after success.
+  'POST /templates/:id/use': { tool: 'envelopes_create_from_template' },
+  'POST /templates/:id/apply': { tool: 'envelopes_create_from_template' },
+  'POST /templates/:id/example': { planned: 'step-15' },
+  'GET /templates/:id/example': { planned: 'step-15' },
   // WP-36 bulk send from a template: MCP "Later" list (WP-26),
   // `envelopes_bulk_send_from_template` + `batches_get` over the same service.
   'GET /templates/:id/bulk-schema': { planned: 'step-15' },
@@ -141,12 +148,13 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /bulk-batches/:id': { planned: 'step-15' },
   'POST /bulk-batches/:id/confirm': { planned: 'step-15' },
   'POST /bulk-batches/:id/cancel': { planned: 'step-15' },
-  // WP-37: the template's direct link (the public `/direct-links/*` routes are @Public).
-  'GET /templates/:id/direct-link': { planned: 'step-13' },
-  'POST /templates/:id/direct-link': { planned: 'step-13' },
-  'PATCH /templates/:id/direct-link': { planned: 'step-13' },
-  'POST /templates/:id/direct-link/rotate': { planned: 'step-13' },
-  'DELETE /templates/:id/direct-link': { planned: 'step-13' },
+  // WP-37: the template's direct link (the public `/direct-links/*` routes are
+  // @Public). No step-13 tool covers them; planned with the later templates PR.
+  'GET /templates/:id/direct-link': { planned: 'step-15' },
+  'POST /templates/:id/direct-link': { planned: 'step-15' },
+  'PATCH /templates/:id/direct-link': { planned: 'step-15' },
+  'POST /templates/:id/direct-link/rotate': { planned: 'step-15' },
+  'DELETE /templates/:id/direct-link': { planned: 'step-15' },
 
   // Google Drive
   // A Seald settings link, not a consent URL minted for the key (see the tool).
@@ -156,7 +164,7 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
     note: 'Full-page 302 to Google for mobile browsers; an agent gets the same consent link from oauth/url.',
   },
   'GET /integrations/gdrive/accounts': { tool: 'gdrive_list_accounts' },
-  'DELETE /integrations/gdrive/accounts/:id': { planned: 'step-14' },
+  'DELETE /integrations/gdrive/accounts/:id': { tool: 'gdrive_disconnect' },
   'GET /integrations/gdrive/files': { tool: 'gdrive_list_files' },
   // An agent cannot open Google's picker: gdrive_import answers a file the
   // app cannot read with gdrive_file_not_picked and a Seald picker link.

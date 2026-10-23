@@ -46,6 +46,13 @@ const MESSAGES: Readonly<Record<string, string>> = {
   signer_not_in_envelope: 'A field names a signer who is not on this envelope.',
   document_not_in_envelope: 'A field names a document that is not on this envelope.',
   contact_not_found: 'No contact with this id was found for this account.',
+  email_taken: 'A saved contact already uses this email.',
+  template_not_found: 'No template with this id was found for this account.',
+  template_has_no_fields:
+    'The template has no fields that land on this document, so no draft was made and the template was not used.',
+  template_signer_count_mismatch:
+    'signers must have exactly one entry per template signer slot. See templates_get_schema.',
+  envelope_not_sealed: 'The envelope is not completed yet, so there is nothing to save.',
   upload_not_found: 'No upload with this id was found for this account.',
   upload_not_complete: 'This upload is not complete yet. Call documents_upload_complete first.',
   upload_already_completed: 'This upload is already complete.',
@@ -90,7 +97,6 @@ const MESSAGES: Readonly<Record<string, string>> = {
     'This run failed for a reason a retry cannot fix. Edit the automation instead.',
   webhook_url_required: 'A webhook recipe needs a url.',
   webhook_url_blocked: 'Seald does not send to that address. Use a public https address.',
-  template_not_found: 'No template with this id was found for this account.',
 };
 
 function messageFor(slug: string, status: number): string {

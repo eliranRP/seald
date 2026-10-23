@@ -7,6 +7,7 @@ import { automationsListTool } from './automations/automations-list.tool';
 import { automationsRetryRunTool } from './automations/automations-retry-run.tool';
 import { automationsSetEnabledTool } from './automations/automations-set-enabled.tool';
 import { automationsUpsertRecipeTool } from './automations/automations-upsert-recipe.tool';
+import { MCP_CONTACTS_TOOLS } from './contacts';
 import { documentsUploadCompleteTool } from './documents/documents-upload-complete.tool';
 import { documentsUploadStartTool } from './documents/documents-upload-start.tool';
 import { documentsUploadTool } from './documents/documents-upload.tool';
@@ -18,6 +19,7 @@ import { envelopesListEventsTool } from './envelopes-list-events.tool';
 import { envelopesListPendingTool } from './envelopes-list-pending.tool';
 import { envelopesSearchTool } from './envelopes-search.tool';
 import { envelopesStatusTool } from './envelopes-status.tool';
+import { MCP_GDRIVE_WRITE_TOOLS } from './gdrive-write';
 import { gdriveConnectUrlTool } from './gdrive/gdrive-connect-url.tool';
 import { gdriveConversionCancelTool } from './gdrive/gdrive-conversion-cancel.tool';
 import { gdriveConversionStatusTool } from './gdrive/gdrive-conversion-status.tool';
@@ -37,6 +39,7 @@ import { envelopesReorderDocumentsTool } from './prepare/envelopes-reorder-docum
 import { envelopesSetRecipientOrderTool } from './prepare/envelopes-set-recipient-order.tool';
 import { envelopesSuggestFieldsTool } from './prepare/envelopes-suggest-fields.tool';
 import { envelopesUpdateTool } from './prepare/envelopes-update.tool';
+import { MCP_TEMPLATES_TOOLS } from './templates';
 
 /** Read tools (WP-17, steps 4–6). */
 export const MCP_READ_TOOLS: readonly McpTool[] = [
@@ -84,6 +87,9 @@ export const MCP_WRITE_TOOLS: readonly McpTool[] = [
 /** Approval reads (WP-21, step 7c). There is no tool that decides. */
 export const MCP_APPROVAL_TOOLS: readonly McpTool[] = [approvalsGetTool, approvalsListTool];
 
+/** Contacts, templates and the Drive tools that wait on the owner (WP-25, steps 12–14). */
+export { MCP_CONTACTS_TOOLS, MCP_GDRIVE_WRITE_TOOLS, MCP_TEMPLATES_TOOLS };
+
 /**
  * Automation tools (WP-30, automations A3). Reads need `automations:read`;
  * writes need `automations:write`, which no key has by default. Listed only
@@ -108,4 +114,7 @@ export const MCP_TOOLS: readonly McpTool[] = [
   ...MCP_APPROVAL_TOOLS,
   ...MCP_SUGGEST_TOOLS,
   ...MCP_AUTOMATION_TOOLS,
+  ...MCP_CONTACTS_TOOLS,
+  ...MCP_TEMPLATES_TOOLS,
+  ...MCP_GDRIVE_WRITE_TOOLS,
 ];

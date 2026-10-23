@@ -5,8 +5,11 @@ import { describeTool, listTools } from '../tool-catalog';
 import {
   MCP_APPROVAL_TOOLS,
   MCP_AUTOMATION_TOOLS,
+  MCP_CONTACTS_TOOLS,
+  MCP_GDRIVE_WRITE_TOOLS,
   MCP_READ_TOOLS,
   MCP_SUGGEST_TOOLS,
+  MCP_TEMPLATES_TOOLS,
   MCP_TOOLS,
   MCP_WRITE_TOOLS,
 } from '../tools';
@@ -68,12 +71,34 @@ describe('MCP tool catalog (contract)', () => {
     expect(MCP_APPROVAL_TOOLS.map((t) => t.name)).toEqual(['approvals_get', 'approvals_list']);
     for (const tool of MCP_APPROVAL_TOOLS) expect(tool.annotations.readOnlyHint).toBe(true);
     expect(MCP_SUGGEST_TOOLS.map((t) => t.name)).toEqual(['envelopes_suggest_fields']);
+    // Steps 12–14 (WP-25).
+    expect(MCP_CONTACTS_TOOLS.map((t) => t.name)).toEqual([
+      'contacts_list',
+      'contacts_search',
+      'contacts_get',
+      'contacts_create',
+      'contacts_update',
+      'contacts_delete',
+      'contacts_import',
+    ]);
+    expect(MCP_TEMPLATES_TOOLS.map((t) => t.name)).toEqual([
+      'templates_list',
+      'templates_get_schema',
+      'envelopes_create_from_template',
+    ]);
+    expect(MCP_GDRIVE_WRITE_TOOLS.map((t) => t.name)).toEqual([
+      'gdrive_disconnect',
+      'envelopes_save_to_drive',
+    ]);
     expect(MCP_TOOLS).toEqual([
       ...MCP_READ_TOOLS,
       ...MCP_WRITE_TOOLS,
       ...MCP_APPROVAL_TOOLS,
       ...MCP_SUGGEST_TOOLS,
       ...MCP_AUTOMATION_TOOLS,
+      ...MCP_CONTACTS_TOOLS,
+      ...MCP_TEMPLATES_TOOLS,
+      ...MCP_GDRIVE_WRITE_TOOLS,
     ]);
   });
 
@@ -179,6 +204,8 @@ describe('MCP tool catalog (contract)', () => {
         ['envelopes_set_recipient_order', ['signingOrder']],
         ['gdrive_import', ['gdriveIntegration']],
         ['automations_list', ['mcpServer', 'workflowAutomations']],
+        ['gdrive_disconnect', ['gdriveIntegration']],
+        ['envelopes_save_to_drive', ['gdriveIntegration']],
       ]),
     );
     const all = Object.fromEntries(Object.keys(FEATURE_FLAGS).map((k) => [k, true]));
