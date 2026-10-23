@@ -33,10 +33,11 @@ describe('TemplateService', () => {
       'automation_disabled',
       'signer_corrected',
       'signer_replaced',
+      'new_link_requested',
     ]) {
       expect(kinds).toContain(expected);
     }
-    expect(kinds).toHaveLength(18);
+    expect(kinds).toHaveLength(19);
   });
 
   describe('every template is a self-contained HTML doc', () => {
@@ -360,6 +361,23 @@ describe('TemplateService', () => {
       }
       expect(out.html.toLowerCase()).toContain('<!doctype html>');
       expect(out.html).toContain('>Seald</strong>');
+    });
+
+    it('new_link_requested names the signer and links to the envelope, with no signing link', () => {
+      const out = svc.render('new_link_requested', {
+        ...vars,
+        signer_name: 'Hannah Wills',
+        expired_at_readable: '2026-10-20 09:00 UTC',
+        envelope_url: 'https://seald.nromomentum.com/document/abc',
+      });
+      expect(out.subject).toBe('Hannah Wills asked for a new link');
+      for (const part of [out.html, out.text]) {
+        expect(part).toContain('Hannah Wills');
+        expect(part).toContain('2026-10-20 09:00 UTC');
+        expect(part).toContain('https://seald.nromomentum.com/document/abc');
+        expect(part).not.toMatch(/\{\{[^}]+\}\}/);
+        expect(part).not.toContain('?t=');
+      }
     });
 
     it('automation_disabled escapes a hostile recipe name in HTML', () => {

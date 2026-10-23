@@ -276,7 +276,7 @@ describe('Signing order (WP-05, e2e)', () => {
       envelopesRepo.setSignerTokenHash(signerIds['cy']!, tokens.hash(early));
       const tooEarly = await startSession(envId, early);
       expect(tooEarly.status).toBe(409);
-      expect(tooEarly.body).toEqual({ error: 'not_your_turn' });
+      expect(tooEarly.body).toMatchObject({ error: 'not_your_turn' });
       const remind = await http()
         .post(`/envelopes/${envId}/signers/${signerIds['cy']}/remind`)
         .set(auth);

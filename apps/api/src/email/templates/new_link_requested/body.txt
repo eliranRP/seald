@@ -1,0 +1,9 @@
+{{signer_name}} needs a new link.
+
+Their link to "{{envelope_title}}" expired on {{expired_at_readable}}.
+Extend the deadline and resend to let them sign.
+
+Extend & resend:
+  {{envelope_url}}
+
+Sent via Seald · {{public_url}}

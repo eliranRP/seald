@@ -384,6 +384,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'automation_disabled',
   'signer_corrected',
   'signer_replaced',
+  'new_link_requested',
 ]);
 
 /**
