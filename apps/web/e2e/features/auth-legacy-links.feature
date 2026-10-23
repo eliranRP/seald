@@ -1,7 +1,6 @@
-Feature: Forgot password flow
+Feature: Old password links still land somewhere useful
 
   @auth @regression
-  Scenario: User requests a password reset email
-    Given the password-reset API will succeed
-    When the user requests a reset for "alice@example.com"
-    Then a reset confirmation is shown
+  Scenario: A stale password-reset link opens the sign-in screen
+    When the user opens the old forgot-password link
+    Then the sign-in screen is shown
