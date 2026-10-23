@@ -103,20 +103,9 @@ const ApproveReviewPage = lazy(() =>
   import('./pages/ApproveReviewPage').then((m) => ({ default: m.ApproveReviewPage })),
 );
 
-// Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
-// bundle doesn't pay for the editor canvas + pdfjs weight (rule 2.5). Pulled
-// in for any viewport ≤ 640px when the user lands on the app root.
-const MobileSendPage = lazy(() =>
-  import('./pages/MobileSendPage').then((m) => ({ default: m.MobileSendPage })),
-);
-
-// Mobile integrations settings screen — connect/disconnect Google Drive.
-// Lazy-loaded alongside MobileSendPage (same audience, same reason).
-const MobileIntegrationsPage = lazy(() =>
-  import('./pages/MobileSendPage/screens/MWIntegrations').then((m) => ({
-    default: m.MWIntegrations,
-  })),
-);
+// Scan with phone (`/scan`, `/scan/:code`). Lazy so the camera + PDF-building
+// code (pdf-lib, qrcode) stays out of the dashboard / sign-in entry bundle.
+const ScanPage = lazy(() => import('./pages/ScanPage').then((m) => ({ default: m.ScanPage })));
 
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
@@ -212,6 +201,17 @@ export function AppRoutes() {
         }
       />
 
+      {/* Phone side of "Scan with phone". No sign-in: the code in the path is
+          the credential and reaches one scan session. Outside <AppShell />. */}
+      <Route
+        path="/scan/:code"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <ScanPage />
+          </Suspense>
+        }
+      />
+
       {/* Public template direct link (WP-37): a name + email form that emails the
           visitor a normal signing link. The token in the path is the credential. */}
       <Route
@@ -292,39 +292,29 @@ export function AppRoutes() {
           />
           <Route path="/document/:id/sent" element={<SentRedirect />} />
         </Route>
-        {/* Mobile-web send flow. Sits outside <AppShell /> on purpose — the
-            desktop NavBar would dominate a 375px viewport; the mobile flow
-            ships its own stepper + sticky CTA chrome. */}
-        <Route
-          path="/m/send"
-          element={
-            <ErrorBoundary>
-              <Suspense fallback={<AuthLoadingScreen />}>
-                <MobileSendPage />
-              </Suspense>
-            </ErrorBoundary>
-          }
-        />
-        {/* Bounce-back from Google's OAuth consent for the mobile flow.
-            Forwards into /m/send?gdrive_connected=1 so the picker auto-
-            opens once the new account row is in the React-Query cache.
-            Lives outside <AppShell /> for the same reason as /m/send. */}
+        {/* The separate mobile send wizard is retired (redesign v2): phones use
+            the responsive Home / Upload / Prepare screens. Old links and
+            bookmarks land on the screen that replaced them. */}
+        <Route path="/m/send" element={<Navigate to="/documents" replace />} />
+        {/* Bounce-back from Google's OAuth consent on a phone. Forwards into
+            the Upload screen with ?gdrive_connected=1 so the Drive picker
+            opens once the new account is loaded. */}
         <Route path="/m/send/drive" element={<MobileGdriveReturnPage />} />
-        {/* Mobile integrations settings — connect/disconnect Google Drive.
-            Lives outside <AppShell /> for the same reason as /m/send. */}
-        <Route
-          path="/m/send/settings"
-          element={
-            <Suspense fallback={<AuthLoadingScreen />}>
-              <MobileIntegrationsPage />
-            </Suspense>
-          }
-        />
+        <Route path="/m/send/settings" element={<Navigate to="/settings" replace />} />
       </Route>
 
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
+          {/* Scan with phone: the QR dialog on a computer, the camera on a phone. */}
+          <Route
+            path="/scan"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <ScanPage />
+              </Suspense>
+            }
+          />
           <Route path="/signers" element={<ContactsPage />} />
           <Route path="/templates" element={<TemplatesListPage />} />
           <Route path="/templates/:id/use" element={<UseTemplatePage />} />
