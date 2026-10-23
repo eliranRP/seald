@@ -24,6 +24,10 @@ async function pdf(pages: number): Promise<Buffer> {
 }
 const sha = (b: Buffer): string => createHash('sha256').update(b).digest('hex');
 
+// These specs render real PDFs (React-PDF + pdf-lib), which takes several
+// seconds per case on a loaded runner; jest's 5 s default times them out.
+jest.setTimeout(30_000);
+
 describe('SealingService — multi-document envelopes', () => {
   it('seals every document with its own fields and records each sealed hash', async () => {
     const envelopes = new InMemoryEnvelopesRepository();

@@ -148,6 +148,10 @@ const EVENTS: EnvelopeEvent[] = [
   }),
 ];
 
+// These specs render real PDFs (React-PDF + pdf-lib), which takes several
+// seconds per case on a loaded runner; jest's 5 s default times them out.
+jest.setTimeout(30_000);
+
 describe('SealingService — audit_only writes declined.pdf (WP-01 item 4)', () => {
   it.each([
     ['declined', 'Declined — not signed'],
