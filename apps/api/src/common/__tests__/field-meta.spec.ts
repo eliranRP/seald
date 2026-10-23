@@ -3,9 +3,11 @@ import {
   calendarDateInZone,
   formatCalendarDate,
   formatNumberValue,
+  isValidEmailValue,
   isValidTimeZone,
   parseDateValue,
   parseFieldMeta,
+  parseNumberValue,
   renderDateValue,
   validateTextValue,
   type AnyFieldKind,
@@ -166,6 +168,58 @@ describe('validateTextValue (WP-07)', () => {
   ];
   it.each(rows)('%s %j %j -> %s', (kind, meta, value, expected) => {
     expect(validateTextValue(kind, meta, value)).toBe(expected);
+  });
+});
+
+describe('parseNumberValue (WP-46 linear-time number check)', () => {
+  // The pre-WP-46 pattern, kept here only as the reference language.
+  const LEGACY_NUMERIC = /^-?(\d+\.?\d*|\.\d+)$/;
+
+  it.each([
+    ['0', 0],
+    ['12', 12],
+    ['12.', 12],
+    ['12.5', 12.5],
+    ['.5', 0.5],
+    ['-3.5', -3.5],
+    ['-.5', -0.5],
+    ['  7  ', 7],
+  ] as const)('accepts %j as %d', (text, expected) => {
+    expect(parseNumberValue(text)).toBe(expected);
+  });
+
+  it.each(['', '-', '.', '-.', '1.2.3', '1e3', '+1', '1,000', 'abc', '1 2', '--1'])(
+    'rejects %j',
+    (text) => {
+      expect(parseNumberValue(text)).toBeNull();
+    },
+  );
+
+  it('accepts exactly the strings the old pattern accepted', () => {
+    const alphabet = ['0', '1', '.', '-', 'x'];
+    let frontier = [''];
+    for (let len = 1; len <= 6; len += 1) {
+      frontier = frontier.flatMap((prefix) => alphabet.map((c) => prefix + c));
+      for (const text of frontier) {
+        const legacy = LEGACY_NUMERIC.test(text) ? Number(text) : null;
+        expect([text, parseNumberValue(text)]).toEqual([text, legacy]);
+      }
+    }
+  });
+
+  it('rejects a long adversarial digit run in linear time', () => {
+    const attack = `${'0'.repeat(100_000)}x`;
+    const started = performance.now();
+    expect(parseNumberValue(attack)).toBeNull();
+    expect(parseNumberValue(`-${'00'.repeat(50_000)}.`)).toBe(-0);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
+  it('keeps the email check fast on a long adversarial value', () => {
+    const started = performance.now();
+    expect(isValidEmailValue(`a@${'b.'.repeat(120)}`)).toBe(false);
+    expect(isValidEmailValue(`${'a'.repeat(100_000)}@`)).toBe(false);
+    expect(performance.now() - started).toBeLessThan(250);
   });
 });
 

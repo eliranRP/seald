@@ -209,7 +209,12 @@ export function isValidEmailValue(value: string): boolean {
   return value.length <= 254 && EMAIL.test(value);
 }
 
-const NUMERIC = /^-?(\d+\.?\d*|\.\d+)$/;
+// Same language as /^-?(\d+\.?\d*|\.\d+)$/ but linear-time: the old
+// optional dot let `\d+` and `\d*` split a digit run n ways, so a long
+// run of digits that failed at the end backtracked quadratically
+// (CodeQL js/polynomial-redos, WP-46). Here the fraction digits can only
+// start after a literal dot, so every input has one parse.
+const NUMERIC = /^-?(?:\d+(?:\.\d*)?|\.\d+)$/;
 
 /** Parse a number a signer typed; null when it is not a plain decimal. */
 export function parseNumberValue(text: string): number | null {
