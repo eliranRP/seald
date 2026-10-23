@@ -1,29 +1,39 @@
 # Resuming the documenso-parity work
 
-Work on PR #380 (`feat/documenso-parity`, draft) was paused on 2026-10-22, partway through wave 5. This folder is enough for a new session or agent to pick it up without the original conversation.
+All work packages of PR #380 (`feat/documenso-parity`, draft) are merged as of 2026-10-23. This folder records how the work was run, so a follow-up session or agent can pick up the remaining follow-ups without the original conversation.
 
-- **Plan and decisions:** [`../documenso-parity-plan.md`](../documenso-parity-plan.md). It holds the work packages (WP-xx), migration ids, model tiers, waves (§5) and decisions D1–D7.
+- **Plan and decisions:** [`../documenso-parity-plan.md`](../documenso-parity-plan.md). It holds the work packages (WP-xx), migration ids, model tiers, waves (§5) and decisions D1–D11.
 - **Rules every WP agent follows:** [`agent-preamble.md`](agent-preamble.md).
 - **Running log** (what each WP delivered, its gaps and follow-ups): [`orchestrator-log.md`](orchestrator-log.md).
 
 ## State
 
-Waves 0–7 are merged on `feat/documenso-parity` except WP-39 and WP-46.
-
 | Item | State |
 |---|---|
-| `feat/documenso-parity` head | Wave 7 through WP-45 (`46d1a57`), plus the WP-41 docs commit. |
-| Still open | **WP-39** (i18n string extraction, haiku) and **WP-46** (security sweep, opus, last). |
-| Security checks | CodeQL, Trivy and `pnpm audit` are red **by design** until WP-46 (D6/D7). Do not fix them earlier. |
+| `feat/documenso-parity` head | `f3e4998` (WP-46), plus docs. Waves 0–7 and WP-46 are merged. |
+| CI | Every check is green except CodeQL, which holds six `js/insufficient-password-hash` false positives on SHA-256 of random keys and tokens. The owner dismisses them in GitHub code scanning (D11). |
+| Feature flags | Every new surface ships **off**. Each flag is turned on later in its own small PR, after the env vars in CLAUDE.md are set. |
 | MCP server version | 0.10.0 (`MCP_SERVER_VERSION`). |
 | Migrations used | 0022–0037 and 0039. `0038` is unused, which is harmless because the runner globs files. |
-| Docs | WP-41: CLAUDE.md covers the new env vars, S.7/S.8, the migration list, the flags and the new web routes. [`docs/self-hosting.md`](../../self-hosting.md) covers operation. |
+| Docs | CLAUDE.md covers the new env vars, S.7/S.8, the migration list, the flags and the new web routes. [`docs/self-hosting.md`](../../self-hosting.md) covers operation. |
 
-## Next steps, in order
+## Follow-ups (not in this PR)
 
-1. **WP-39** (i18n string extraction), then **WP-46** (security sweep) last.
-   - WP-46 picks up every security item in the log: CodeQL alerts, dependency CVEs (including node-forge), the pg Pool `error` listener, and the Terraform IMDS hop limit.
-   - Earlier waves' steps (WP-30 and the wave 6 and 7 merges) are complete. Their follow-ups are in the orchestrator log.
+- **i18n (WP-39 was partial):** move the rest of the SPA (sign-in/up, documents list, envelope detail, shared components such as SignatureCapture), the emails and the certificate to catalog keys. Decide the certificate title wording first: the code says "Certificate of Completion", the catalog says "Certificate of completion".
+- **Product gaps:**
+  - Mobile send lacks the new field kinds, and approving from a phone cannot edit fields.
+  - The "Use template" page has no access-code or signing-order controls.
+  - Bulk send ignores a template's saved signing order.
+  - Declined-envelope PDFs are missing from export, Drive and download.
+  - MCP envelope tools do not accept `locale`.
+  - Email-copy recipient confirmation and the "automation saved" email both need a migration. D10 meanwhile allows only the owner's own mailbox.
+  - Bounce and complaint suspension is inert until email-provider webhooks are stored.
+- **Accepted risks (WP-46):**
+  - Browser-based OAuth clients are blocked by CORS on `/oauth/token`.
+  - Rate limiters are per process, so they need a shared store before scaling out.
+  - Expired OAuth codes and tokens are never purged; add a cron sweep.
+  - node-forge GHSA-86w9-cpqp-85rv has no fix and is ignored with a dated note (verify-only path, unreachable from `apps/api/src`). Re-check when a fixed version ships.
+- **External:** register the MCP OAuth clients with ChatGPT and Claude. Preview the "API key created", approval and automation emails in real Gmail.
 
 ## How each wave was run
 

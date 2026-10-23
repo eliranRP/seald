@@ -1,6 +1,6 @@
 # Orchestrator log (append-only, oldest first)
 
-Raw running notes from the orchestrating session. Branch names and worktrees mentioned for waves 1–5 no longer exist; their commits are on feat/documenso-parity.
+Raw running notes from the orchestrating session. Worktree branch names no longer exist; their commits are on feat/documenso-parity.
 
 ```text
 Wave1 worktrees + deps worktree branched from 93cee5f (pre-reword). Merge via: git rebase --onto 65913bd 93cee5f <branch>
@@ -37,5 +37,27 @@ WP-36 DONE: branch worktree-agent-a910d3cd2fe08bfda base cb5e171, commits 4c65d8
 WP-37 DONE: branch worktree-agent-a2a8df6cf01ad2b2c base cb5e171, commits eeb752f 8fc8878; migration 0033. Hot: AppRoutes /d/, _worker SPA_PREFIXES /d/, app.module, route-coverage step-13. Deviation: emailed signing link instead of mandatory access code (code only if signerAccessAuth on) - tell user. Fixed DocumentRoute.documents.test race. Follow-up: bulk ignores template delivery_mode/slot order; use-template source='app'. New SHA-256 token hashing -> likely CodeQL alert (WP-46).
 WP-21 DONE: branch worktree-agent-a200e4b04ad979f4c commits fd31928 ea4a6f9 b2c8c5f; migration 0030; env APPROVAL_CSRF_KEY, EMAIL_PROVIDER_DAILY/MONTHLY_QUOTA; MCP 0.4.0 (conflict w/ WP-20). TODO(WP-24) send caps; decision+action not one tx.
 Wave5 (21 20 36 37 38 11 + cors fix) merged+pushed 16e5073. WP-30 launched on 16e5073 (MCP -> 0.6.0).
-STOPPED 2026-10-22 at owner request. WP-30 partial pushed to wip/wp30-automations-mcp (b441d24, unverified).
+RESUMED 2026-10-23 on 4dcb799 (new container; postgres restarted). Wave6 batch1 launched: WP-30 finish (sonnet, cherry-picks b441d24), WP-23 (haiku), WP-24 (opus), WP-29b (opus), WP-33 (sonnet, 0034). Queued: WP-25, WP-35 (after 24), WP-34, WP-32, WP-22, WP-31. Close PR #381 when WP-30 merges.
+WP-30 DONE: branch worktree-agent-a37932075a8934d04 commit 9a0700c (=b441d24, reword on pick; skip empty 803599e). step-a3, MCP 0.6.0. No /automations HTTP routes exist -> WP-31 must build. isAwaitingApproval for 29b. WP-33 must register executor for completed_email_copy.
+WP-23 merged ff8ae7a + D4 fix d886b7e (MCP note = INTENT_TO_SIGN_NOTE). WP-30 merged cbbb557. Told WP-24 about McpEventMetadataSchema. WP-25 launched.
+WP-29b merged 9c06131 (approval check fail-closed via mcp_approvals; WP-30 isAwaitingApproval open-only - reconcile in WP-31). WP-33 merged 813c3da (0034, API_PUBLIC_URL env; not built: address-confirm mail). Timeout fix f086ad7. Launching WP-32, WP-22.
+WP-25 merged 9efc95d; MCP -> 0.7.0. folder_id required on save_to_drive (default folder TBD, WP-32). Template authoring routes re-pointed to step-15.
+Merged WP-24 (e353c19 e30ac92; ambient tx; bounce suspension derived/inert), WP-34 (0037), WP-32 (gdrive_upload, default Seald folder), reconcile 2bb0d54 MCP 0.8.0. Launching WP-35, WP-31.
+WP-22 merged (0ba9575 9bfd8f8 picked) + worker /approve headers 021dfe7. Gaps: Edit on phone hidden; no auto-return from DocumentRoute; bell desktop only.
+Wave6 batch pushed 021dfe7 (30 23 29b 33 25 24 34 32 22). PR #381 closed. Running: WP-35, WP-31.
+WP-31 merged 86b2b50 49e0ab4 (owner /automations routes, unapprovedRecipeIds single rule fail-closed, settings pages). Not built: owner save notification email + email address confirmation (need migration); UI own-mailbox only. delete/rotate-secret planned WP-45.
+WP-35 merged+pushed (public REST v1 over McpToolRunner; Drive/automations/suggest not exposed; error msgs mention MCP tool names). WAVE 6 COMPLETE at 4ca905c.
+Wave7 launched on 4ca905c: WP-26 (sonnet, 0039 if needed), WP-27 (opus, 0036), WP-45 (opus, 0038 if needed). Then WP-41 docs, WP-39 strings, WP-46 security.
+WP-27 merged (mcpOauth flag, 0036, env MCP_OAUTH_ISSUER/CLIENTS/VERIFIED_CIMD_HOSTS) + worker consent headers. connected-apps routes planned WP-45 (told WP-45). Told 26/45 to use requesterOf.
+Pushed WP-27 + worker + approvals clock fix. Watch for other date-pinned specs (NOW=2026-10-2x) that read the real clock.
+WP-46 list add: CodeQL #37 subject-hash.ts:76, #38 oauth-secrets.ts:19 (D11 dismiss); #36 clear-text sessionStorage consentModel.ts:56 (disposition or minimize). Replied on threads 4359446098/125/137.
+WP-26 squash-merged 6564cbb (0039, MCP 0.9.0, owner_in_app_only exclusion). Old signer session lives 30 min after fix.
+WP-45 squash 46d1a57 pushed; MCP 0.10.0. Next: WP-41 docs, WP-39 strings, WP-46.
+WP-46 list add: CodeQL #39 idempotency.service.ts:91 (request hash; api_keys tool names) - D11 dismiss; replied thread 4359689809.
+WP-41 merged+pushed 4baa29c (CLAUDE.md, docs/self-hosting.md, status lines).
+LESSON: never rerun a workflow on an older commit - shared concurrency group cancels the head's run. Rerun the head's run only.
+WP-39 partial merged+pushed 7a2ced0: i18n:check (+CI step), signing surfaces. Step 3 (rest of SPA, shared components, emails, certificate) not done. Cert title wording mismatch (catalog vs audit-pdf).
+WP-46 launched (opus) on 7a2ced0.
+WP-46 ff-merged+pushed f3e4998. ALL WPs DONE. Await CI: Trivy/audit/CodeQL on new head.
+ALL WORK PACKAGES DONE at f3e4998 (2026-10-23). CI green except CodeQL: 6 js/insufficient-password-hash false positives awaiting owner dismissal (D11).
 ```
