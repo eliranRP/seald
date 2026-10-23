@@ -21,6 +21,8 @@ import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
 import { MobileGdriveReturnPage } from './pages/MobileGdriveReturnPage';
 import { DevelopersSettingsPage, SettingsIndexPage } from './pages/SettingsPage';
+import { ApproveQueuePage } from './pages/ApproveQueuePage';
+import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -81,6 +83,18 @@ const VerifyPage = lazy(() =>
 // Public template direct link (WP-37). Lazy and unauthenticated, like verify.
 const DirectLinkPage = lazy(() =>
   import('./pages/DirectLinkPage').then((m) => ({ default: m.DirectLinkPage })),
+);
+
+// Approvals (WP-22). The email-link page is public and tiny; the card and the
+// guided review need a signed-in owner, and the review pulls in pdfjs.
+const ApprovePage = lazy(() =>
+  import('./pages/ApprovePage').then((m) => ({ default: m.ApprovePage })),
+);
+const ApproveDetailPage = lazy(() =>
+  import('./pages/ApproveDetailPage').then((m) => ({ default: m.ApproveDetailPage })),
+);
+const ApproveReviewPage = lazy(() =>
+  import('./pages/ApproveReviewPage').then((m) => ({ default: m.ApproveReviewPage })),
 );
 
 // Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
@@ -171,6 +185,39 @@ export function AppRoutes() {
           </Suspense>
         }
       />
+
+      {/* Owner approvals (WP-22). `/approve` is the email-link page: the token
+          is in the URL fragment, never the path. The card and the review need
+          a signed-in owner and send everyone else to /signin?next=…. All three
+          live outside <AppShell /> so the ≤640px redirect never fires. */}
+      <Route
+        path="/approve"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <ApprovePage />
+          </Suspense>
+        }
+      />
+      <Route element={<RequireOwnerSession />}>
+        <Route
+          path="/approve/:id"
+          element={
+            <Suspense fallback={<AuthLoadingScreen />}>
+              <ApproveDetailPage />
+            </Suspense>
+          }
+        />
+        <Route
+          path="/approve/:id/review"
+          element={
+            <ErrorBoundary>
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <ApproveReviewPage />
+              </Suspense>
+            </ErrorBoundary>
+          }
+        />
+      </Route>
 
       {/* Public recipient signing flow. Entry, done, and declined are
           accessible without a live session; prep / fill / review require the
@@ -264,6 +311,7 @@ export function AppRoutes() {
             path="/settings/developers"
             element={<DevelopersSettingsPage variant="desktop" />}
           />
+          <Route path="/settings/approvals" element={<ApproveQueuePage variant="desktop" />} />
           <Route
             path="/settings/integrations"
             element={
@@ -277,6 +325,7 @@ export function AppRoutes() {
             same reason as /m/send: the phone has its own chrome. Guests are
             sent away by RequireAuth (keys need an email on the account). */}
         <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        <Route path="/m/settings/approvals" element={<ApproveQueuePage variant="mobile" />} />
         <Route
           path="/m/settings/developers"
           element={<DevelopersSettingsPage variant="mobile" />}

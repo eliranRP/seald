@@ -25,6 +25,7 @@ import { SEO_INDEXING_ENABLED, robotsTxt } from './indexing.config.js';
 
 const SPA_EXACT = new Set([
   '/app',
+  '/approve',
   '/signin',
   '/signup',
   '/forgot-password',
@@ -61,6 +62,7 @@ const SPA_PREFIXES = [
   '/oauth/',
   '/sent/',
   '/d/',
+  '/approve/',
 ];
 
 /**

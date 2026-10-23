@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
+import { isApprovalsEnabled } from '@/features/approvals';
 import { isDevelopersEnabled } from '@/features/developers';
 import { SettingsFrame, type SettingsVariant } from './SettingsFrame';
 
@@ -67,6 +68,12 @@ export function SettingsIndexPage({ variant }: SettingsIndexPageProps) {
     rows.push({
       label: 'Developers',
       to: mobile ? '/m/settings/developers' : '/settings/developers',
+    });
+  }
+  if (isApprovalsEnabled()) {
+    rows.push({
+      label: 'Approvals',
+      to: mobile ? '/m/settings/approvals' : '/settings/approvals',
     });
   }
   return (

@@ -39,6 +39,11 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
    * mode).
    */
   readonly onOpenIntegrations?: (() => void) | undefined;
+  /**
+   * Optional — rendered before the user menu in the right cluster (the
+   * approvals bell, WP-22). Hidden in guest mode.
+   */
+  readonly rightSlot?: ReactNode | undefined;
   /** Mirrors UserMenu.isExporting; disables the item while in flight. */
   readonly isExporting?: boolean | undefined;
   /** Mirrors UserMenu.isDeleting; disables the item while in flight. */

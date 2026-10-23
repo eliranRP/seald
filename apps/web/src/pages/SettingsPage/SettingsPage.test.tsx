@@ -74,6 +74,27 @@ describe('settings pages', () => {
     expect(screen.queryByRole('link', { name: 'Integrations' })).not.toBeInTheDocument();
   });
 
+  it('/settings lists Approvals (queue) with the flag on, and the phone link on /m/settings', () => {
+    flagsOn(['mcpServer']);
+    const { unmount } = renderAt('/settings');
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute(
+      'href',
+      '/settings/approvals',
+    );
+    unmount();
+    renderAt('/m/settings');
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute(
+      'href',
+      '/m/settings/approvals',
+    );
+  });
+
+  it('/settings omits Approvals when both developer flags are off', () => {
+    flagsOn(['gdriveIntegration']);
+    renderAt('/settings');
+    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
+  });
+
   it('/settings omits Developers when both developer flags are off', () => {
     flagsOn(['gdriveIntegration']);
     renderAt('/settings');
