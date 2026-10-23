@@ -163,6 +163,11 @@ function strConfig(config: Readonly<Record<string, unknown>>, key: string): stri
   return typeof v === 'string' ? v : null;
 }
 
+/** Trimmed, lower-cased and de-duplicated, as the MCP schema does it. */
+function normalizeRecipients(list: readonly string[]): string[] {
+  return [...new Set(list.map((e) => e.trim().toLowerCase()))];
+}
+
 function recipientsOf(config: Readonly<Record<string, unknown>>): string[] {
   const v = config['recipients'];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
@@ -548,12 +553,9 @@ export class AutomationsService {
       if (input.url !== undefined || input.payloadDetail !== undefined) {
         throw new BadRequestException('validation_error');
       }
-      const recipients = [...new Set(input.recipients ?? [])];
-      return {
-        config: { recipients },
-        newUrl: null,
-        external: await this.hasForeignRecipient(ownerId, recipients),
-      };
+      const recipients = normalizeRecipients(input.recipients ?? []);
+      await this.refuseUnconfirmedRecipients(ownerId, recipients);
+      return { config: { recipients }, newUrl: null, external: false };
     }
     if (recipe.action === 'gdrive_upload') {
       if (
@@ -623,10 +625,10 @@ export class AutomationsService {
         throw new BadRequestException('validation_error');
       }
       if (input.recipients !== undefined) {
-        const next = [...new Set(input.recipients)];
+        const next = normalizeRecipients(input.recipients);
         const known = new Set(recipientsOf(existing.config));
         const added = next.filter((e) => !known.has(e));
-        externalChange = await this.hasForeignRecipient(ownerId, added);
+        await this.refuseUnconfirmedRecipients(ownerId, added);
         config['recipients'] = next;
       }
     } else if (
@@ -707,6 +709,20 @@ export class AutomationsService {
     if (recipients.length === 0) return false;
     const own = await this.ownerEmail(ownerId);
     return recipients.some((r) => r !== own);
+  }
+
+  /**
+   * Until recipient confirmation ships (workflow-automations.md A7), an
+   * email copy may only go to the owner's own mailbox (owner decision,
+   * 2026-10-23). Recipes saved before this rule keep their list.
+   */
+  private async refuseUnconfirmedRecipients(
+    ownerId: string,
+    recipients: readonly string[],
+  ): Promise<void> {
+    if (await this.hasForeignRecipient(ownerId, recipients)) {
+      throw new BadRequestException('recipient_not_confirmed');
+    }
   }
 
   private async isExternal(ownerId: string, rec: AutomationRecord): Promise<boolean> {

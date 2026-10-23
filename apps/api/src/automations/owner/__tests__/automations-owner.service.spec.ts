@@ -66,6 +66,18 @@ describe('AutomationsOwnerService (WP-31)', () => {
       expect(later).not.toContain('/seald/inbound');
     });
 
+    it('refuses an email copy to any address but the owner mailbox', async () => {
+      const { svc } = owner();
+      await expect(
+        svc.create(OWNER, { recipe: 'completed_email_copy', recipients: ['lawyer@firm.example'] }),
+      ).rejects.toThrow('recipient_not_confirmed');
+      const mine = await svc.create(OWNER, {
+        recipe: 'completed_email_copy',
+        recipients: ['Owner@Example.com'],
+      });
+      expect(mine.automation.enabled).toBe(true);
+    });
+
     it('gives no secret for a recipe that has none', async () => {
       const { svc } = owner();
       const out = await svc.create(OWNER, { recipe: 'declined_notify_me' });

@@ -128,7 +128,7 @@ describe('automations_upsert_recipe', () => {
     ).toBe('validation_error');
   });
 
-  it('keeps an email recipe to the owner mailbox internal and any other address external', async () => {
+  it('keeps an email recipe to the owner mailbox internal and refuses any other address', async () => {
     const w = autoWorld();
     const own = ok(
       await callAuto(
@@ -138,17 +138,15 @@ describe('automations_upsert_recipe', () => {
       ),
     );
     expect(own['status']).toBe('saved');
-    const other = ok(
+    // Recipient confirmation is not built yet, so other addresses are refused.
+    const other = err(
       await callAuto(
         w,
         'automations_upsert_recipe',
         write({ recipe: 'signed_notify_list', recipients: ['lawyer@firm.example'] }),
       ),
     );
-    expect(other).toMatchObject({
-      status: 'approval_pending',
-      automation: { enabled: false, recipients: ['lawyer@firm.example'] },
-    });
+    expect(other.slug).toBe('recipient_not_confirmed');
   });
 
   it('edits: same URL needs no approval; a new URL or signer data turns it off and asks again', async () => {

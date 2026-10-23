@@ -92,6 +92,7 @@ const MESSAGES: Readonly<Record<string, string>> = {
   automation_not_ready: 'The automation is missing its destination. Edit it and save again.',
   automation_secrets_not_configured: 'Webhook automations are not available on this server yet.',
   recipe_not_available: 'This recipe is not available yet.',
+  recipient_not_confirmed: "An email copy can only go to the account owner's own address for now.",
   recipe_mismatch: 'recipe does not match the automation being edited.',
   retry_not_allowed:
     'This run failed for a reason a retry cannot fix. Edit the automation instead.',
