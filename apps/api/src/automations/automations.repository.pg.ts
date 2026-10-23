@@ -381,6 +381,38 @@ export class AutomationsPgRepository {
   }
 
   /**
+   * Hold a run until `scheduled_for` without spending an attempt (the
+   * email-copy daily cap). The run goes back to `queued` with the slug as
+   * its reason; the claim's attempt bump is undone so waiting a few days
+   * never reaches `max_attempts`.
+   */
+  async deferRun(
+    input: FinishRunInput & { readonly slug: string; readonly scheduled_for: Date },
+  ): Promise<void> {
+    await this.db.transaction().execute(async (trx) => {
+      await trx
+        .updateTable('automation_runs')
+        .set({
+          status: 'queued',
+          last_error: input.slug,
+          attempts: sql<number>`greatest(attempts - 1, 0)`,
+        })
+        .where('id', '=', input.run_id)
+        .execute();
+      await trx
+        .updateTable('automation_jobs')
+        .set({
+          status: 'pending',
+          locked_at: null,
+          attempts: sql<number>`greatest(attempts - 1, 0)`,
+          scheduled_for: input.scheduled_for.toISOString(),
+        })
+        .where('id', '=', input.job_id)
+        .execute();
+    });
+  }
+
+  /**
    * Terminal failure: run `failed` with `retryable`, job deleted, failure
    * streak bumped. `retryable` true is the one-tap Retry case (temporary
    * failure out of attempts); false is Fix (permanent failure).

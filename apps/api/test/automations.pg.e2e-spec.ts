@@ -148,6 +148,9 @@ describePg('workflow automations A1 (real Postgres)', () => {
     );
     expect(res.rows).toEqual(
       [
+        'automation_copy_sends',
+        'automation_copy_stop_tokens',
+        'automation_copy_suppressions',
         'automation_jobs',
         'automation_matcher_checkpoint',
         'automation_runs',
@@ -384,6 +387,8 @@ describePg('workflow automations A1 (real Postgres)', () => {
   });
 
   it('down script removes the model and the up script re-creates it', async () => {
+    // Rollbacks run newest first: 0034 (email copy) depends on automation_runs.
+    await psqlFile(resolve(MIGRATIONS_DIR, 'down/0034_automation_email_copy_down.sql'));
     await psqlFile(resolve(MIGRATIONS_DIR, 'down/0031_automations_down.sql'));
     const after = await pool!.query(
       `select count(*)::int n from pg_class where relnamespace = 'public'::regnamespace and relname like 'automation%' and relkind = 'r'`,

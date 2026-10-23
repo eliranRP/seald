@@ -183,6 +183,14 @@ const envSchema = z
     AUTOMATION_SECRETS_KEY: z.string().optional(),
 
     /**
+     * Public origin of this API (no trailing slash), used for links in
+     * email that hit the API directly, today the `email_copy` stop link
+     * (WP-33). Unset: derived from APP_PUBLIC_URL (`api.` + its host, or
+     * localhost:PORT in dev). Set it explicitly when the API lives elsewhere.
+     */
+    API_PUBLIC_URL: z.string().url().optional(),
+
+    /**
      * Incident kill switch for the MCP surface (docs/design/mcp-server.md,
      * Transport). `true` makes `/mcp` 404 even while the `mcpServer` flag
      * is on, and turns off the key routes that only MCP keeps alive. It is

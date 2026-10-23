@@ -643,7 +643,8 @@ export type EmailKindDb =
   | 'access_code'
   | 'approval_request'
   | 'approval_denied'
-  | 'bulk_complete';
+  | 'bulk_complete'
+  | 'automation_copy';
 export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
 
 export interface OutboundEmailsTable {

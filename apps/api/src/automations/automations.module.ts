@@ -1,4 +1,9 @@
 import { Global, Module } from '@nestjs/common';
+import { EmailCopyLinkMinter } from './actions/email/email-copy-link-minter.service';
+import { EmailCopyStopController } from './actions/email/email-copy-stop.controller';
+import { EmailCopyActionExecutor } from './actions/email/email-copy.executor';
+import { EmailCopyRepository } from './actions/email/email-copy.repository';
+import { EmailCopyPgRepository } from './actions/email/email-copy.repository.pg';
 import { WebhookActionExecutor } from './actions/webhook/webhook.executor';
 import { WebhookPgRepository } from './actions/webhook/webhook.repository.pg';
 import { WebhookSecretsService } from './actions/webhook/webhook-secrets.service';
@@ -28,8 +33,11 @@ import { AutomationTestService } from './test-event/automation-test.service';
  */
 @Global()
 @Module({
-  controllers: [AutomationTestController],
+  controllers: [AutomationTestController, EmailCopyStopController],
   providers: [
+    { provide: EmailCopyRepository, useClass: EmailCopyPgRepository },
+    EmailCopyActionExecutor,
+    EmailCopyLinkMinter,
     AutomationsPgRepository,
     { provide: AutomationsCrudRepository, useClass: AutomationsCrudPgRepository },
     AutomationsService,
@@ -40,8 +48,11 @@ import { AutomationTestService } from './test-event/automation-test.service';
     WebhookActionExecutor,
     {
       provide: AUTOMATION_ACTION_EXECUTORS,
-      useFactory: (webhook: WebhookActionExecutor): AutomationActionExecutors => ({ webhook }),
-      inject: [WebhookActionExecutor],
+      useFactory: (
+        webhook: WebhookActionExecutor,
+        emailCopy: EmailCopyActionExecutor,
+      ): AutomationActionExecutors => ({ webhook, email_copy: emailCopy }),
+      inject: [WebhookActionExecutor, EmailCopyActionExecutor],
     },
     { provide: AUTOMATION_EVENT_HOOK, useExisting: AutomationMatcherService },
     { provide: AutomationTestRepository, useClass: AutomationTestPgRepository },
@@ -49,6 +60,7 @@ import { AutomationTestService } from './test-event/automation-test.service';
     AutomationTestService,
   ],
   exports: [
+    EmailCopyLinkMinter,
     AUTOMATION_EVENT_HOOK,
     AutomationsPgRepository,
     AutomationsService,

@@ -109,6 +109,29 @@ export interface AutomationMatcherCheckpointTable {
   updated_at: Timestamp;
 }
 
+/** Migration 0034 (A7 email copy): one row per recipient-message sent that UTC day. */
+export interface AutomationCopySendsTable {
+  run_id: string;
+  email: string;
+  owner_id: string;
+  day: ColumnType<string, string, string>;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AutomationCopySuppressionsTable {
+  owner_id: string;
+  email: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AutomationCopyStopTokensTable {
+  token_hash: string;
+  owner_id: string;
+  email: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+  used_at: NullableTimestamp;
+}
+
 /** Column added to `envelopes` by 0031. Null until the use-template flow sets it. */
 export interface EnvelopesSourceTemplateColumn {
   source_template_id: string | null;
@@ -121,6 +144,9 @@ export type AutomationTables = {
   automation_jobs: AutomationJobsTable;
   automation_runs: AutomationRunsTable;
   automation_matcher_checkpoint: AutomationMatcherCheckpointTable;
+  automation_copy_sends: AutomationCopySendsTable;
+  automation_copy_suppressions: AutomationCopySuppressionsTable;
+  automation_copy_stop_tokens: AutomationCopyStopTokensTable;
 };
 
 /** What 0031 adds on top of `Database`, as `withTables` takes it. */

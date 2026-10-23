@@ -26,13 +26,18 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
     const dupByKey = input.dedupe_key
       ? this.rows.find((r) => r.dedupe_key === input.dedupe_key)
       : undefined;
-    const dupByTuple = this.rows.find(
-      (r) =>
-        r.envelope_id === (input.envelope_id ?? null) &&
-        r.signer_id === (input.signer_id ?? null) &&
-        r.kind === input.kind &&
-        r.source_event_id === (input.source_event_id ?? null),
-    );
+    // Postgres treats nulls as distinct in a unique index, so a row with no
+    // signer (sender- and recipient-addressed mail) never clashes on the tuple.
+    const dupByTuple =
+      (input.signer_id ?? null) === null
+        ? undefined
+        : this.rows.find(
+            (r) =>
+              r.envelope_id === (input.envelope_id ?? null) &&
+              r.signer_id === (input.signer_id ?? null) &&
+              r.kind === input.kind &&
+              r.source_event_id === (input.source_event_id ?? null),
+          );
     if (dupByKey || dupByTuple) throw new DuplicateOutboundEmailError();
     const now = new Date().toISOString();
     const row: OutboundEmailRow = {

@@ -132,6 +132,10 @@ export class AutomationWorkerService implements OnModuleInit, OnModuleDestroy {
       await this.repo.completeRun({ ...base, response_status: outcome.responseStatus ?? null });
       return 'done';
     }
+    if (outcome.kind === 'deferred') {
+      await this.repo.deferRun({ ...base, slug: outcome.slug, scheduled_for: outcome.until });
+      return 'retrying';
+    }
     const response_status = outcome.responseStatus ?? null;
     if (outcome.kind === 'permanent') {
       await this.repo.failRun({ ...base, slug: outcome.slug, retryable: false, response_status });

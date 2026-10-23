@@ -16,6 +16,17 @@ export type AutomationActionOutcome =
       /** e.g. Drive `RateLimitedError.retryAfterMs`; wins when later than backoff. */
       readonly retryAfterMs?: number;
     }
+  /**
+   * Not a failure and not an attempt: the run waits until `until` (the
+   * email-copy daily cap). The worker puts the job back without spending
+   * the attempt, so a long wait never exhausts `max_attempts`.
+   */
+  | {
+      readonly kind: 'deferred';
+      readonly slug: string;
+      readonly until: Date;
+      readonly responseStatus?: undefined;
+    }
   /** 4xx other than 408/429, SSRF rejection, missing connection, bad config. */
   | { readonly kind: 'permanent'; readonly slug: string; readonly responseStatus?: number };
 

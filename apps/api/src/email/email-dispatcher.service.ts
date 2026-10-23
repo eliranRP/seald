@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { DEFAULT_LOCALE, isFeatureEnabled } from 'shared';
+import { EmailCopyLinkMinter } from '../automations/actions/email/email-copy-link-minter.service';
 import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
@@ -78,6 +79,7 @@ export class EmailDispatcherService {
     @Optional() private readonly accessCodes?: AccessCodeMinter,
     // WP-21: mints the link token of an `approval_request` row at dispatch.
     @Optional() private readonly approvalLinks?: ApprovalLinkMinter,
+    @Optional() private readonly copyLinks?: EmailCopyLinkMinter,
   ) {
     this.publicUrl = env.APP_PUBLIC_URL.replace(/\/$/, '');
     this.fromAddress = env.EMAIL_FROM_ADDRESS;
@@ -176,6 +178,17 @@ export class EmailDispatcherService {
           this.log.warn(`approval_request skipped approval_not_pending outbound=${claimed.id}`);
           await this.repo.markSkipped(claimed.id, 'approval_not_pending');
           return { id: claimed.id, status: 'skipped', error: 'approval_not_pending' };
+        }
+        payload = { ...payload, ...minted };
+      }
+      if (claimed.kind === 'automation_copy') {
+        // WP-33: the stop link token exists only in this message; its hash is
+        // stored. Null: the address already stopped these notices.
+        const minted = this.copyLinks ? await this.copyLinks.mint(claimed) : null;
+        if (!minted) {
+          this.log.warn(`automation_copy skipped recipient_stopped outbound=${claimed.id}`);
+          await this.repo.markSkipped(claimed.id, 'recipient_stopped');
+          return { id: claimed.id, status: 'skipped', error: 'recipient_stopped' };
         }
         payload = { ...payload, ...minted };
       }
@@ -349,6 +362,7 @@ const PER_ATTEMPT_BODY_KINDS = new Set<string>([
   ...SIGNER_LINK_KINDS,
   'access_code',
   'approval_request',
+  'automation_copy',
 ]);
 
 const TEMPLATE_KINDS = new Set<string>([
@@ -366,6 +380,7 @@ const TEMPLATE_KINDS = new Set<string>([
   'approval_request',
   'approval_denied',
   'bulk_complete',
+  'automation_copy',
 ]);
 
 /**

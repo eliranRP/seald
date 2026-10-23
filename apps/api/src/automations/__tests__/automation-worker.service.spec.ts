@@ -40,6 +40,7 @@ function mockRepo() {
     claimNextJob: jest.fn<Promise<ClaimedAutomationJob | null>, [Date, Date]>(),
     completeRun: jest.fn().mockResolvedValue(undefined),
     retryRun: jest.fn().mockResolvedValue(undefined),
+    deferRun: jest.fn().mockResolvedValue(undefined),
     failRun: jest.fn().mockResolvedValue(undefined),
   };
 }
@@ -122,6 +123,26 @@ describe('AutomationWorkerService', () => {
     });
     expect(await w.process(job(), NOW)).toBe('done');
     expect(repo.completeRun).toHaveBeenCalledWith({ ...base, response_status: 204 });
+  });
+
+  it('a deferred outcome (email daily cap) holds the run until `until` without retry or failure', async () => {
+    const repo = mockRepo();
+    const until = new Date('2026-10-23T00:00:00.000Z');
+    const w = worker(repo, {
+      email_copy: {
+        execute: async () => ({ kind: 'deferred', slug: 'email_copy_daily_cap', until }),
+      },
+    });
+    expect(
+      await w.process(job({ action: 'email_copy', attempts: AUTOMATION_MAX_ATTEMPTS }), NOW),
+    ).toBe('retrying');
+    expect(repo.deferRun).toHaveBeenCalledWith({
+      ...base,
+      slug: 'email_copy_daily_cap',
+      scheduled_for: until,
+    });
+    expect(repo.retryRun).not.toHaveBeenCalled();
+    expect(repo.failRun).not.toHaveBeenCalled();
   });
 
   it.each(Array.from({ length: AUTOMATION_MAX_ATTEMPTS - 1 }, (_, i) => i + 1))(
