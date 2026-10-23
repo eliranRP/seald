@@ -8,11 +8,10 @@ Feature: Sender sends a document from a phone-sized viewport
     Given a signed-in sender on a 375x667 phone
 
   @sender @smoke @mobile
-  Scenario: Mobile sender lands on /m/send not /documents
+  Scenario: Mobile sender lands on the responsive documents page
+    # Redesign v2: phones are no longer bounced to /m/send.
     When the sender visits the root
-    Then the URL is /m/send
-    And the "New document" heading is visible
-    And the "Upload PDF" tile is visible inside the viewport
+    Then the URL is /documents
 
   @sender @smoke @mobile
   Scenario: Mobile sender uploads a PDF and reaches the place step

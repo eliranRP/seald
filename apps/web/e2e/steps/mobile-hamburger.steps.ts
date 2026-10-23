@@ -44,8 +44,9 @@ Then('the mobile menu does not contain a {string} button', async ({ page }, labe
 });
 
 Then('the URL is \\/documents', async ({ page }) => {
-  await page.waitForURL(/\/documents$/);
-  expect(page.url()).toMatch(/\/documents$/);
+  // The dashboard may add its own query (e.g. ?status=all).
+  await page.waitForURL(/\/documents(\?.*)?$/);
+  expect(page.url()).toMatch(/\/documents(\?.*)?$/);
 });
 
 Then('the mobile menu sheet is closed', async ({ page }) => {
