@@ -6,5 +6,22 @@
 # - Has no available fix yet and is accepted risk
 # - Only affects dev dependencies not shipped to production
 #
-# Example:
-# CVE-2023-XXXXX  # dev-only dependency, not in production bundle
+# Every entry needs a date, the reason, and the matching pnpm audit
+# ignore (root package.json -> pnpm.auditConfig.ignoreGhsas) when the
+# advisory also fails `pnpm audit --prod --audit-level=high`.
+# Re-check each entry whenever the package publishes a new version.
+
+# node-forge <=1.4.0, GHSA-86w9-cpqp-85rv (2026-10-23, WP-46).
+# No fixed release exists (1.4.0 is the latest). The flaw is in RSA
+# PKCS#1 v1.5 signature VERIFICATION (rsa publicKey.verify, and the
+# certificate/chain verify helpers built on it): it accepts extra nested
+# DigestAlgorithm elements. The API only uses node-forge to BUILD and
+# PARSE CMS/ASN.1 (apps/api/src/sealing: kms-cms-signer, p12-tsa-signer,
+# pades-signer, dss-injector, cert-chain-extractor, tsa-client,
+# revocation-fetcher) and to sign with @signpdf/signer-p12. Nothing under
+# apps/api/src calls publicKey.verify, certificate.verify or
+# verifyCertificateChain, so the vulnerable path is unreachable at runtime.
+# The only verify call is apps/api/scripts/verify-pades.ts, a CI checker
+# that runs over PDFs the pipeline itself just sealed, not over untrusted
+# input. Mirrored in pnpm.auditConfig.ignoreGhsas.
+CVE-2026-85393
