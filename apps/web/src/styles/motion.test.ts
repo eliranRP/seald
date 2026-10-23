@@ -47,7 +47,7 @@ describe('motion helpers', () => {
     ['barDown', barDown, MOTION_KEYFRAMES.barDown, seald.motion.durBase, seald.motion.easeOut],
   ])('%s animates its keyframe with theme duration + easing', (_name, rules, frame, dur, ease) => {
     const out = squash(rules);
-    expect(out).toContain(`animation: ${frame} ${dur} ${ease} both`);
+    expect(out).toContain(`animation: ${frame} ${dur} ${ease} backwards`);
   });
 
   it.each([

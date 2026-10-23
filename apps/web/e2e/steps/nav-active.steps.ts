@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { createBdd } from 'playwright-bdd';
 import { test } from '../fixtures/test';
 
@@ -66,13 +67,22 @@ When('the user opens the new envelope upload page', async ({ page }) => {
   await page.goto('/document/new');
 });
 
+// Nav items are links inside `nav[aria-label="Primary"]`; the active one
+// carries `aria-current="page"` (NavBar.tsx).
+function primaryNavLink(page: Page, label: string) {
+  return page
+    .getByRole('navigation', { name: 'Primary' })
+    .getByRole('link', { name: new RegExp(`^${label}$`, 'i') });
+}
+
 Then('the primary nav highlights {string}', async ({ page }, label: string) => {
-  // Active tab is rendered with `aria-current="page"` (NavBar.tsx).
-  const tab = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') });
-  await expect(tab).toHaveAttribute('aria-current', 'page');
+  await expect(primaryNavLink(page, label)).toHaveAttribute('aria-current', 'page');
 });
 
 Then('the primary nav does not highlight {string}', async ({ page }, label: string) => {
-  const tab = page.getByRole('button', { name: new RegExp(`^${label}$`, 'i') });
-  await expect(tab).not.toHaveAttribute('aria-current', 'page');
+  await expect(primaryNavLink(page, label)).not.toHaveAttribute('aria-current', 'page');
+});
+
+Then('the primary nav has no {string} tab', async ({ page }, label: string) => {
+  await expect(primaryNavLink(page, label)).toHaveCount(0);
 });

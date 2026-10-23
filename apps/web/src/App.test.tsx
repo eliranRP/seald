@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ThemeProvider } from 'styled-components';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -178,10 +178,16 @@ describe('App routing', () => {
     expect(await screen.findByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
   });
 
-  it('clicking the Sign NavBar tab navigates to /document/new', async () => {
-    renderApp(['/documents']);
-    fireEvent.click(await screen.findByRole('button', { name: /^sign$/i }));
-    expect(await screen.findByRole('region', { name: /upload a pdf/i })).toBeInTheDocument();
+  // v2 IA: the "Sign" tab is retired — "New document" (above) is the way
+  // in. The nav links still route client-side.
+  it('clicking the Documents nav link from the upload flow returns to the Dashboard', async () => {
+    renderApp(['/document/new']);
+    const nav = await screen.findByRole('navigation', { name: 'Primary' });
+    expect(within(nav).queryByRole('link', { name: /^sign$/i })).toBeNull();
+    fireEvent.click(within(nav).getByRole('link', { name: 'Documents' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /everything you've sent/i }),
+    ).toBeInTheDocument();
   });
 
   // With the `vi.mock('./lib/pdf', ...)` at the top of this file,

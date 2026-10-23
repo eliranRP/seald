@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { isMobileRedirectExempt } from './mobileRedirect';
+import { isMobileNavExempt } from './mobileNavExempt';
 
-describe('isMobileRedirectExempt', () => {
+describe('isMobileNavExempt', () => {
   it.each(['/approve', '/approve/abc', '/approve/abc/review'])('exempts %s', (pathname) => {
-    expect(isMobileRedirectExempt(pathname)).toBe(true);
+    expect(isMobileNavExempt(pathname)).toBe(true);
   });
 
   it.each(['/documents', '/m/send', '/signin', '/approvex/abc', '/settings/approvals', '/'])(
     'does not exempt %s',
     (pathname) => {
-      expect(isMobileRedirectExempt(pathname)).toBe(false);
+      expect(isMobileNavExempt(pathname)).toBe(false);
     },
   );
 });

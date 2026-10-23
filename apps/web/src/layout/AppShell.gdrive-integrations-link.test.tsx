@@ -27,9 +27,8 @@ vi.mock('@/features/account', () => ({
   }),
 }));
 
-// useIsMobileViewport returns true on tiny viewports — AppShell then short-
-// circuits to <Navigate to="/m/send" />, which would skip our dropdown
-// entirely. Pin the desktop branch.
+// Pin the desktop branch: on a phone viewport the shell renders the compact
+// top bar + bottom nav, which this test is not about.
 vi.mock('../hooks/useIsMobileViewport', () => ({
   useIsMobileViewport: () => false,
   readIsMobileViewport: () => false,

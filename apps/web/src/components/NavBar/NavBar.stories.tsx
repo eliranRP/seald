@@ -19,13 +19,28 @@ function InteractiveDemo() {
     <NavBar
       activeItemId={active}
       onSelectItem={(id) => setActive(id)}
-      user={{ name: 'Jamie Okonkwo' }}
+      user={{ name: 'Jamie Okonkwo', email: 'jamie@seald.app' }}
+      helpHref="mailto:support@seald.nromomentum.com"
+      onSignOut={() => undefined}
+      onOpenSettings={() => undefined}
     />
   );
 }
 
 export const Default: Story = {
   render: () => <InteractiveDemo />,
+};
+
+export const MobileTopBar: Story = {
+  render: () => (
+    <div style={{ width: 390 }}>
+      <NavBar
+        compact
+        user={{ name: 'Jamie Okonkwo', email: 'jamie@seald.app' }}
+        onSignOut={() => undefined}
+      />
+    </div>
+  ),
 };
 
 export const WithoutUser: Story = {

@@ -9,6 +9,8 @@ export interface UserMenuUser {
 export interface UserMenuProps extends HTMLAttributes<HTMLDivElement> {
   readonly user: UserMenuUser;
   readonly onSignOut: () => void;
+  /** Optional — first item, "Settings" (→ /settings). */
+  readonly onOpenSettings?: (() => void) | undefined;
   /**
    * Optional — when provided, renders a "Download my data" item that
    * fires the privacy-rights data export. Hidden when omitted so Storybook

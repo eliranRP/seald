@@ -1,9 +1,13 @@
 import type { HTMLAttributes, ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
 
 export type NavItem = {
   readonly id: string;
   readonly label: string;
+  /** When set the item is a link; plain clicks are routed via onSelectItem. */
   readonly href?: string | undefined;
+  /** 16px leading icon (canvas `.navlink .ic`). */
+  readonly icon?: LucideIcon | undefined;
 };
 
 export type NavBarUser = {
@@ -28,6 +32,15 @@ export interface NavBarProps extends HTMLAttributes<HTMLElement> {
   readonly onSignIn?: (() => void) | undefined;
   readonly onSignUp?: (() => void) | undefined;
   readonly onSignOut?: (() => void) | undefined;
+  /** Optional — wires the account menu's first item, "Settings". */
+  readonly onOpenSettings?: (() => void) | undefined;
+  /** Optional — renders the ghost Help icon link before the avatar. */
+  readonly helpHref?: string | undefined;
+  /**
+   * Mobile top bar (`.m-top`): no nav items, no Help — destinations live in
+   * the bottom MobileNav. AppShell sets it at ≤640px.
+   */
+  readonly compact?: boolean | undefined;
   /** Optional — wires the UserMenu's "Download my data" item. */
   readonly onExportData?: (() => void) | undefined;
   /** Optional — wires the UserMenu's "Delete account" danger item. */

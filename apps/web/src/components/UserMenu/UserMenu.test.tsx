@@ -131,4 +131,40 @@ describe('UserMenu', () => {
     await userEvent.click(getByRole('button', { name: /open menu for/i }));
     expect(queryByRole('menuitem', { name: /integrations/i })).toBeNull();
   });
+
+  it('lists Settings first when onOpenSettings is provided, then the rest in order', async () => {
+    const onOpenSettings = vi.fn();
+    const { getByRole, getAllByRole, queryByRole } = renderWithTheme(
+      <UserMenu
+        user={user}
+        onSignOut={() => {}}
+        onOpenSettings={onOpenSettings}
+        onExportData={() => {}}
+        onOpenIntegrations={() => {}}
+        onDeleteAccount={() => {}}
+      />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    expect(getAllByRole('menuitem').map((el) => el.textContent)).toEqual([
+      'Settings',
+      'Download my data',
+      'Integrations',
+      'Sign out',
+      'Delete account',
+    ]);
+    // Opening focuses the first item for keyboard users.
+    expect(getByRole('menuitem', { name: 'Settings' })).toHaveFocus();
+    await userEvent.click(getByRole('menuitem', { name: 'Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+    expect(queryByRole('menu')).toBeNull();
+  });
+
+  it('returns focus to the avatar after Escape', async () => {
+    const { getByRole } = renderWithTheme(<UserMenu user={user} onSignOut={() => {}} />);
+    const trigger = getByRole('button', { name: /open menu for/i });
+    await userEvent.click(trigger);
+    await userEvent.keyboard('{Escape}');
+    expect(trigger).toHaveFocus();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
 });

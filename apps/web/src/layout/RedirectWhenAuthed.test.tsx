@@ -72,24 +72,20 @@ describe('RedirectWhenAuthed', () => {
     expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
   });
 
-  it('bounces a signed-in mobile visitor to /m/send (the dedicated mobile sender) — never the desktop dashboard', () => {
-    // Production contract (2026-05-03, refined): the desktop dashboard
-    // and the rest of the AppShell-hosted desktop surfaces were not
-    // designed for a 390 px viewport (table cells overlap, hero text
-    // wraps awkwardly, the title char-stacks). Rather than retrofit
-    // responsiveness onto every desktop page, mobile users are locked
-    // to the dedicated mobile sender at /m/send. Desktop visitors
-    // still see /documents.
+  it('bounces a signed-in mobile visitor to /documents as well (no /m/send lock in v2)', () => {
+    // Redesign v2: the AppShell screens are responsive, so a phone lands
+    // on the same dashboard as desktop.
     authState = {
       ...baseAuth,
       user: { id: 'u1', email: 'a@b.co', name: 'Alex' },
     };
     mobileViewport = true;
     renderAt('/signin');
-    expect(screen.getByText('mobile send page')).toBeInTheDocument();
+    expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('mobile send page')).toBeNull();
   });
 
-  it('returns a signed-in mobile visitor to a validated ?next= approval review, not /m/send', () => {
+  it('returns a signed-in mobile visitor to a validated ?next= approval review', () => {
     authState = SIGNED_IN;
     mobileViewport = true;
     renderAt('/signin?next=%2Fapprove%2Fabc%2Freview%3Fpage%3D1');
@@ -113,7 +109,7 @@ describe('RedirectWhenAuthed', () => {
     authState = SIGNED_IN;
     mobileViewport = true;
     const { unmount } = renderAt(`/signin?next=${encoded}`);
-    expect(screen.getByText('mobile send page')).toBeInTheDocument();
+    expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
     unmount();
 
     mobileViewport = false;

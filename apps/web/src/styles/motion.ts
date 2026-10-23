@@ -8,7 +8,12 @@ import { css } from 'styled-components';
  *    `easeSpring`;
  *  - only opacity + transform (individual `translate` / `scale`) animate;
  *  - lists stagger by `theme.motion.stagger`, capped at 8 items;
- *  - everything collapses under `prefers-reduced-motion` (GlobalStyles).
+ *  - everything collapses under `prefers-reduced-motion` (GlobalStyles);
+ *  - fill-mode is `backwards`, not `both`: every keyframe ends on the
+ *    element's natural state, and not holding the end value means no
+ *    lingering `translate` / `scale` — which would otherwise turn the
+ *    animated element into the containing block of `position: fixed`
+ *    descendants (modals, toasts) for good.
  *
  * The keyframes live once in `GlobalStyles` under the names below so plain
  * CSS can use them too. These helpers are the only way components should
@@ -43,19 +48,19 @@ export type MotionKeyframe = (typeof MOTION_KEYFRAMES)[keyof typeof MOTION_KEYFR
 /** Main column of a screen easing in on navigation. */
 export const screenEnter = css`
   animation: ${MOTION_KEYFRAMES.screenIn} ${({ theme }) => theme.motion.durEnter}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Plain fade (scrims, secondary panels). */
 export const fadeIn = css`
   animation: ${MOTION_KEYFRAMES.fadeIn} ${({ theme }) => theme.motion.durBase}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** List rows / cards rising into place. Pair with `stagger(index)`. */
 export const rise = css`
   animation: ${MOTION_KEYFRAMES.rise} ${({ theme }) => theme.motion.durEnter}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Max stagger steps — the 8th item and later share the last delay. */
@@ -75,37 +80,37 @@ export function stagger(index: number) {
 /** Modal / dialog card popping in. */
 export const pop = css`
   animation: ${MOTION_KEYFRAMES.pop} ${({ theme }) => theme.motion.durEnter}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Dropdown menu dropping from its trigger. */
 export const drop = css`
   transform-origin: top right;
   animation: ${MOTION_KEYFRAMES.drop} ${({ theme }) => theme.motion.durBase}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Bottom sheet sliding up from the viewport edge. */
 export const sheetUp = css`
   animation: ${MOTION_KEYFRAMES.sheetUp} ${({ theme }) => theme.motion.durEnter}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Toast arriving with a slight spring. */
 export const toastIn = css`
   animation: ${MOTION_KEYFRAMES.toastIn} ${({ theme }) => theme.motion.durEnter}
-    ${({ theme }) => theme.motion.easeSpring} both;
+    ${({ theme }) => theme.motion.easeSpring} backwards;
 `;
 
 /** Full-width bar (offline, session) sliding down from the top. */
 export const barDown = css`
   animation: ${MOTION_KEYFRAMES.barDown} ${({ theme }) => theme.motion.durBase}
-    ${({ theme }) => theme.motion.easeOut} both;
+    ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Success marks springing in. */
 export const spring = css`
-  animation: ${MOTION_KEYFRAMES.spring} 420ms ${({ theme }) => theme.motion.easeSpring} both;
+  animation: ${MOTION_KEYFRAMES.spring} 420ms ${({ theme }) => theme.motion.easeSpring} backwards;
 `;
 
 /** Attention ring pulsing around the "current" step dot. */
@@ -116,7 +121,7 @@ export const ring = css`
 /** Progress fill growing from the left. */
 export const growX = css`
   transform-origin: left;
-  animation: ${MOTION_KEYFRAMES.growX} 600ms ${({ theme }) => theme.motion.easeOut} both;
+  animation: ${MOTION_KEYFRAMES.growX} 600ms ${({ theme }) => theme.motion.easeOut} backwards;
 `;
 
 /** Press feedback: scales to .97 on :active (not when disabled). */

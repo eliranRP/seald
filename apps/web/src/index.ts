@@ -26,6 +26,7 @@ export * from './components/TextField';
 // ————— L2 Domain —————
 export * from './components/AddSignerDropdown';
 export * from './components/FieldsPlacedList';
+export * from './components/MobileNav';
 export * from './components/PageThumbStrip';
 export * from './components/PageToolbar';
 export * from './components/PlacedField';

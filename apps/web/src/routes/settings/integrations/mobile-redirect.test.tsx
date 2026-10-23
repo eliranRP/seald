@@ -3,13 +3,9 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../../../test/renderWithProviders';
 import { AppShell } from '../../../layout/AppShell';
 
-// WT-B watchpoint #2: at viewport ≤ 640 px, the new `/settings/integrations`
-// surface MUST collapse to /m/send. The existing AppShell mobile-redirect
-// rule already covers ALL routes mounted under <AppShell />, so this test
-// is a regression contract: as long as the integrations page lives inside
-// AppShell, no extra redirect is needed. If a future refactor pulls it out
-// of AppShell, this test will fail and force the author to reintroduce
-// the redirect.
+// WT-B watchpoint #2, revised for redesign v2: the AppShell no longer
+// bounces phones to /m/send. At ≤ 640 px `/settings/integrations` renders
+// in place inside the mobile shell, with the bottom nav's "Me" tab lit.
 
 vi.mock('@/features/account', () => ({
   useAccountActions: () => ({
@@ -52,10 +48,13 @@ describe('Settings → Integrations mobile redirect (WT-B watchpoint #2)', () =>
     expect(getByRole('heading', { name: /desktop integrations/i })).toBeInTheDocument();
   });
 
-  it('redirects a mobile user from /settings/integrations to /m/send', () => {
+  it('renders /settings/integrations in place on a phone with "Me" active', () => {
     mobileViewport = true;
     const { getByRole, queryByRole } = renderAt('/settings/integrations');
-    expect(getByRole('heading', { name: /mobile sender/i })).toBeInTheDocument();
-    expect(queryByRole('heading', { name: /desktop integrations/i })).toBeNull();
+    expect(getByRole('heading', { name: /desktop integrations/i })).toBeInTheDocument();
+    expect(queryByRole('heading', { name: /mobile sender/i })).toBeNull();
+    const nav = getByRole('navigation', { name: 'Main' });
+    const active = Array.from(nav.querySelectorAll('a[aria-current="page"]'));
+    expect(active.map((a) => a.textContent)).toEqual(['Me']);
   });
 });

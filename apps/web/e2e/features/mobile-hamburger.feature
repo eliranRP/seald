@@ -1,10 +1,10 @@
 Feature: Mobile hamburger only exposes Sign out
-  # Per product (2026-05-03, refined) mobile users are locked to /m/send;
-  # every desktop AppShell route bounces back here. The hamburger drawer
-  # therefore exposes no nav links at all — a "Documents" tap would route
-  # to /documents which the AppShell guard would immediately redirect
-  # back to /m/send, a no-op that reads as broken. Identity + Sign out
-  # only. Sign / Templates / Signers / Download my data / Delete account
+  # Scope: the legacy mobile sender at /m/send and its own hamburger.
+  # Redesign v2 removed the AppShell lock that bounced every phone visit
+  # to /m/send — AppShell routes now render responsively with a bottom
+  # nav (Documents · Templates · + · Contacts · Me). The /m/send drawer
+  # keeps exposing no nav links until that page is retired. Identity +
+  # Sign out only. Sign / Templates / Signers / Download my data / Delete account
   # are reached from desktop. This file pins that contract so a future
   # "let's just expose all the nav items again" regression is caught by
   # CI rather than by a frustrated mobile user.
