@@ -197,10 +197,7 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
           </IconBubble>
           <TitleBlock>
             <Title id={titleId}>Disconnect Google Drive?</Title>
-            <Description id={descId}>
-              Documents you&apos;ve already imported will keep working. You won&apos;t be able to
-              pick new files until you reconnect.
-            </Description>
+            <Description id={descId}>Imported files keep working.</Description>
           </TitleBlock>
         </Header>
 
@@ -215,7 +212,7 @@ export const DisconnectModal = forwardRef<HTMLDivElement, DisconnectModalProps>(
 
         <Footer>
           <Button variant="ghost" onClick={onClose} disabled={buttonsDisabled}>
-            Cancel
+            Keep
           </Button>
           <Button
             variant="danger"

@@ -1,6 +1,5 @@
 import { useCallback } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { isFeatureEnabled } from 'shared';
 import styled from 'styled-components';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { MobileNav } from '../components/MobileNav';
@@ -8,7 +7,6 @@ import { NavBar } from '../components/NavBar';
 import { screenEnter } from '@/styles/motion';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { useAccountActions } from '@/features/account';
 import { ApprovalsBell, isApprovalsEnabled } from '@/features/approvals';
 import { useGDriveOAuthMessageListener } from '@/routes/settings/integrations/useGDriveAccounts';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
@@ -183,17 +181,6 @@ export function AppShell() {
       .finally(() => navigate('/signin', { replace: true }));
   }, [signOut, navigate]);
 
-  // After successful account deletion the Supabase session is invalid;
-  // sign-out flushes the access token and `RequireAuth` then bounces the
-  // user to /signin. We replace history so back-button doesn't return
-  // them to a now-403 authed surface.
-  const onAccountDeleted = useCallback(async (): Promise<void> => {
-    await signOut().catch(() => undefined);
-    navigate('/signin', { replace: true });
-  }, [signOut, navigate]);
-
-  const account = useAccountActions({ onAccountDeleted });
-
   // Inline OAuth-popup bridge — when "Connect Google Drive" fires from
   // any authed surface (UploadRoute, UseTemplatePage, IntegrationsPage),
   // the popup posts back via `postMessage` + a same-origin
@@ -205,17 +192,6 @@ export function AppShell() {
   useGDriveOAuthMessageListener();
 
   const mode = !user && guest ? 'guest' : 'authed';
-
-  // Discoverability for /settings/integrations — only an entry in the
-  // avatar dropdown when the feature is on AND the user is authed. Guest
-  // mode + flag-off both render the menu without the row, so the dropdown
-  // stays lean. The `gdrive-feature-manager` skill forbids new top-level
-  // NAV_ITEMS, so this is the canonical home for the entry point.
-  const handleOpenIntegrations = useCallback((): void => {
-    navigate('/settings/integrations');
-  }, [navigate]);
-  const onOpenIntegrations =
-    mode === 'authed' && isFeatureEnabled('gdriveIntegration') ? handleOpenIntegrations : undefined;
 
   // Mobile (≤640px): the same routes render responsively — the NavBar
   // collapses to the mobile top bar and the bottom MobileNav carries the
@@ -238,12 +214,7 @@ export function AppShell() {
         onSignOut={handleSignOut}
         onOpenSettings={mode === 'authed' ? handleOpenSettings : undefined}
         helpHref={mode === 'authed' ? HELP_HREF : undefined}
-        onExportData={mode === 'authed' ? account.exportData : undefined}
-        onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
-        onOpenIntegrations={onOpenIntegrations}
         rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
-        isExporting={account.isExporting}
-        isDeleting={account.isDeleting}
       />
       <Content key={location.pathname}>
         {/* Keyed by pathname so navigating to a different route remounts

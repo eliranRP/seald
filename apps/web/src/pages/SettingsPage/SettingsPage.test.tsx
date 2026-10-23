@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import * as flagsModule from 'shared';
 import { renderWithProviders } from '@/test/renderWithProviders';
@@ -21,16 +20,14 @@ function renderAt(path: string) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+        <Route path="/settings" element={<SettingsIndexPage />} />
         <Route path="/settings/developers" element={<DevelopersSettingsPage variant="desktop" />} />
         <Route path="/settings/integrations" element={<h1>integrations stub</h1>} />
-        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        <Route path="/m/settings" element={<SettingsIndexPage />} />
         <Route
           path="/m/settings/developers"
           element={<DevelopersSettingsPage variant="mobile" />}
         />
-        <Route path="/m/send/settings" element={<h1>drive stub</h1>} />
-        <Route path="/m/send" element={<h1>send stub</h1>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -48,33 +45,44 @@ describe('settings pages', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
-  it('/settings lists Integrations and Developers when their flags are on', () => {
+  it('the index lists the five sections, then Developers when its flag is on', () => {
     flagsOn(['gdriveIntegration', 'mcpServer']);
     renderAt('/settings');
 
     const list = screen.getByRole('list', { name: 'Settings' });
     expect(list).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute(
-      'href',
-      '/settings/integrations',
-    );
+    for (const name of ['Profile', 'Signature', 'Notifications', 'Integrations', 'Account']) {
+      expect(screen.getByRole('link', { name })).toHaveAttribute(
+        'href',
+        `/settings/${name.toLowerCase()}`,
+      );
+    }
     expect(screen.getByRole('link', { name: 'Developers' })).toHaveAttribute(
       'href',
       '/settings/developers',
     );
   });
 
-  it('/settings shows Developers when only publicApi is on, and omits Integrations', () => {
+  it('the index hides Integrations when Drive is off and Developers when both API flags are off', () => {
+    flagsOn([]);
+    renderAt('/settings');
+
+    expect(screen.queryByRole('link', { name: 'Integrations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Developers' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Profile' })).toBeInTheDocument();
+  });
+
+  it('the index shows Developers when only publicApi is on', () => {
     flagsOn(['publicApi']);
     renderAt('/settings');
 
     expect(screen.getByRole('link', { name: 'Developers' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Integrations' })).not.toBeInTheDocument();
   });
 
-  it('/settings lists Approvals (queue) with the flag on, and the phone link on /m/settings', () => {
+  it('the index lists Approvals with the flag on, and links the phone page on a phone', () => {
     flagsOn(['mcpServer']);
     const { unmount } = renderAt('/settings');
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute(
@@ -82,49 +90,25 @@ describe('settings pages', () => {
       '/settings/approvals',
     );
     unmount();
+
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
     renderAt('/m/settings');
     expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute(
       'href',
       '/m/settings/approvals',
     );
-  });
-
-  it('/settings omits Approvals when both developer flags are off', () => {
-    flagsOn(['gdriveIntegration']);
-    renderAt('/settings');
-    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
-  });
-
-  it('/settings omits Developers when both developer flags are off', () => {
-    flagsOn(['gdriveIntegration']);
-    renderAt('/settings');
-
-    expect(screen.queryByRole('link', { name: 'Developers' })).not.toBeInTheDocument();
-  });
-
-  it('/m/settings renders one list with phone links and Drive staying at /m/send/settings', () => {
-    flagsOn(['gdriveIntegration', 'mcpServer']);
-    renderAt('/m/settings');
-
-    expect(screen.getAllByRole('list', { name: 'Settings' })).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Integrations' })).toHaveAttribute(
-      'href',
-      '/m/send/settings',
-    );
-    expect(screen.getByRole('link', { name: 'Developers' })).toHaveAttribute(
-      'href',
-      '/m/settings/developers',
-    );
     expect(screen.getByRole('heading', { name: 'Settings', level: 1 })).toBeInTheDocument();
   });
 
-  it('/m/settings Back returns to /m/send', async () => {
-    const user = userEvent.setup();
-    flagsOn(['mcpServer']);
-    renderAt('/m/settings');
-
-    await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByRole('heading', { name: 'send stub' })).toBeInTheDocument();
+  it('the index omits Approvals when both developer flags are off', () => {
+    flagsOn(['gdriveIntegration']);
+    renderAt('/settings');
+    expect(screen.queryByRole('link', { name: 'Approvals' })).not.toBeInTheDocument();
   });
 
   it('/settings/developers renders the Developers panel with the flag on', async () => {

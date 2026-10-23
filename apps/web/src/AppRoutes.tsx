@@ -24,7 +24,8 @@ import {
   AutomationsSettingsPage,
   DevelopersSettingsPage,
   NewAutomationSettingsPage,
-  SettingsIndexPage,
+  SettingsPage,
+  SettingsRoot,
 } from './pages/SettingsPage';
 import { ApproveQueuePage } from './pages/ApproveQueuePage';
 import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
@@ -43,18 +44,6 @@ const DocumentRoute = lazy(() =>
 );
 const TemplateEditorRoute = lazy(() =>
   import('./routes/TemplateEditorRoute').then((m) => ({ default: m.TemplateEditorRoute })),
-);
-
-// `/settings/integrations` — WT-B Drive integration page. Lazy because
-// the gdrive feature is gated behind `feature.gdriveIntegration` and
-// the typical first-time visitor won't reach this surface; keeping it
-// out of the dashboard chunk avoids paying for the OAuth scaffolding
-// up-front. Lives inside <AppShell /> so the existing mobile-redirect
-// rule (640 px → /m/send) covers it without a new redirect (rule 4.4).
-const IntegrationsPage = lazy(() =>
-  import('./routes/settings/integrations/IntegrationsPage').then((m) => ({
-    default: m.IntegrationsPage,
-  })),
 );
 
 // Code-split every signing page so recipients don't pay for the sender
@@ -108,14 +97,6 @@ const ApproveReviewPage = lazy(() =>
 // in for any viewport ≤ 640px when the user lands on the app root.
 const MobileSendPage = lazy(() =>
   import('./pages/MobileSendPage').then((m) => ({ default: m.MobileSendPage })),
-);
-
-// Mobile integrations settings screen — connect/disconnect Google Drive.
-// Lazy-loaded alongside MobileSendPage (same audience, same reason).
-const MobileIntegrationsPage = lazy(() =>
-  import('./pages/MobileSendPage/screens/MWIntegrations').then((m) => ({
-    default: m.MWIntegrations,
-  })),
 );
 
 /**
@@ -306,16 +287,8 @@ export function AppRoutes() {
             opens once the new account row is in the React-Query cache.
             Lives outside <AppShell /> for the same reason as /m/send. */}
         <Route path="/m/send/drive" element={<MobileGdriveReturnPage />} />
-        {/* Mobile integrations settings — connect/disconnect Google Drive.
-            Lives outside <AppShell /> for the same reason as /m/send. */}
-        <Route
-          path="/m/send/settings"
-          element={
-            <Suspense fallback={<AuthLoadingScreen />}>
-              <MobileIntegrationsPage />
-            </Suspense>
-          }
-        />
+        {/* Retired: Drive settings live at /settings/integrations on every width. */}
+        <Route path="/m/send/settings" element={<Navigate to="/settings/integrations" replace />} />
       </Route>
 
       <Route element={<RequireAuth />}>
@@ -339,9 +312,11 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          {/* Settings index (desktop). Rows show only for features whose flag
-              is on. The Integrations breadcrumb points back here. */}
-          <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+          {/* Settings: `/settings` is Profile on desktop and the section index on a
+              phone; `/settings/:section` is one section (profile, signature,
+              notifications, integrations, account). The flagged pages below
+              are static routes, so they win over `:section`. */}
+          <Route path="/settings" element={<SettingsRoot />} />
           <Route
             path="/settings/developers"
             element={<DevelopersSettingsPage variant="desktop" />}
@@ -361,19 +336,13 @@ export function AppRoutes() {
             path="/settings/automations/:id"
             element={<AutomationDetailSettingsPage variant="desktop" />}
           />
-          <Route
-            path="/settings/integrations"
-            element={
-              <Suspense fallback={<AuthLoadingScreen />}>
-                <IntegrationsPage />
-              </Suspense>
-            }
-          />
+          <Route path="/settings/:section" element={<SettingsPage />} />
         </Route>
-        {/* Mobile settings index + Developers. Outside <AppShell /> for the
-            same reason as /m/send: the phone has its own chrome. Guests are
-            sent away by RequireAuth (keys need an email on the account). */}
-        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        {/* Mobile Developers, Approvals and Automations. Outside <AppShell />
+            for the same reason as /m/send: the phone has its own chrome.
+            Guests are sent away by RequireAuth (keys need an email on the
+            account). The index itself is /settings on a phone. */}
+        <Route path="/m/settings" element={<Navigate to="/settings" replace />} />
         <Route path="/m/settings/approvals" element={<ApproveQueuePage variant="mobile" />} />
         <Route
           path="/m/settings/developers"
