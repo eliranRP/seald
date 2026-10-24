@@ -167,6 +167,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('1 document')).toBeInTheDocument();
   });
 
+  // Each debounced wait gets 5 s; the test itself gets 20 s so those
+  // waits never run into Vitest's 5 s default test timeout.
   const DEBOUNCED = { timeout: 5000 };
 
   it('searches, shows a removable chip, and the No matches state', async () => {
@@ -197,7 +199,7 @@ describe('DashboardPage', () => {
     expect(
       await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
     ).toBeInTheDocument();
-  });
+  }, 20000);
 
   it('filters by tag from the Tags menu', async () => {
     renderHome();
