@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import { Bell, Check, MoreHorizontal, Pencil, Send, UserRoundCog } from 'lucide-react';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
@@ -11,13 +11,14 @@ import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import type { Envelope, EnvelopeSigner } from '@/features/envelopes';
 import { isPending, signerRowView } from './envelopeView';
 import {
-  Card,
   CardHead,
   Count,
+  EmptyNote,
   Eyebrow,
   FieldBox,
   FixRow,
   RowActions,
+  SectionCard,
   SheetList,
   SignerEmail,
   SignerGrid,
@@ -103,7 +104,7 @@ function SignerMenu(props: {
       <Button
         ref={anchorRef}
         variant="ghost"
-        size="sm"
+        size={isMobile ? 'md' : 'sm'}
         iconOnly
         iconLeft={MoreHorizontal}
         aria-label={label}
@@ -119,6 +120,7 @@ function SignerMenu(props: {
                 <Button
                   key={entry.id}
                   variant="ghost"
+                  size="lg"
                   fullWidth
                   iconLeft={entry.icon}
                   onClick={() => {
@@ -163,16 +165,17 @@ export function SignersCard(props: SignersCardProps) {
     onReplace,
   } = props;
   const live = envelope.status === 'awaiting_others';
+  // Mobile stacks name over track in a small card and keeps the email only
+  // when it is the problem (bounced); Remind becomes an icon button.
+  const isMobile = useIsMobileViewport();
   return (
-    <Card $flush aria-label="Signers">
+    <SectionCard $flush aria-label="Signers">
       <CardHead>
         <Eyebrow>Signers</Eyebrow>
         <Count>{envelope.signers.length}</Count>
       </CardHead>
       {envelope.signers.length === 0 ? (
-        <CardHead>
-          <Count>No signers on this envelope.</Count>
-        </CardHead>
+        <EmptyNote>No signers on this envelope.</EmptyNote>
       ) : (
         <SignerList>
           {envelope.signers.map((signer) => {
@@ -180,37 +183,56 @@ export function SignersCard(props: SignersCardProps) {
             const pending = isPending(signer);
             const actionable = live && pending;
             const reminded = remindedIds.has(signer.id);
+            const track = (
+              <TrackSlot>
+                <MiniTrack steps={view.steps} aria-label={`Progress for ${signer.name}`} />
+              </TrackSlot>
+            );
+            const reminderSent = (
+              <Button
+                variant="ghost"
+                size={isMobile ? 'md' : 'sm'}
+                iconOnly={isMobile}
+                iconLeft={Check}
+                {...(isMobile ? { 'aria-label': 'Reminded' } : {})}
+                disabled
+              >
+                {isMobile ? null : 'Reminded'}
+              </Button>
+            );
+            const remind = (
+              <Button
+                variant="secondary"
+                size={isMobile ? 'md' : 'sm'}
+                iconOnly={isMobile}
+                iconLeft={Bell}
+                loading={busyId === signer.id}
+                aria-label={`Remind ${signer.name}`}
+                onClick={() => onRemind(signer)}
+              >
+                {isMobile ? null : 'Remind'}
+              </Button>
+            );
+            // A bounced address can't be reminded; the row's menu offers Fix email instead.
+            let remindButton: ReactNode = reminded ? reminderSent : remind;
+            if (signer.status === 'bounced') remindButton = null;
             return (
               <SignerItem key={signer.id} $bad={view.bad}>
                 <SignerGrid>
                   <Avatar name={signer.name} size={32} />
                   <SignerWho>
                     <SignerName>{signer.name}</SignerName>
-                    <SignerEmail>{signer.email}</SignerEmail>
+                    {!isMobile || signer.status === 'bounced' ? (
+                      <SignerEmail>{signer.email}</SignerEmail>
+                    ) : null}
+                    {isMobile ? track : null}
                   </SignerWho>
-                  <TrackSlot>
-                    <MiniTrack steps={view.steps} aria-label={`Progress for ${signer.name}`} />
-                  </TrackSlot>
+                  {isMobile ? null : track}
                   <When $bad={view.bad}>{view.when}</When>
                   <RowActions>
                     {actionable ? (
                       <>
-                        {reminded ? (
-                          <Button variant="ghost" size="sm" iconLeft={Check} disabled>
-                            Reminded
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            iconLeft={Bell}
-                            loading={busyId === signer.id}
-                            aria-label={`Remind ${signer.name}`}
-                            onClick={() => onRemind(signer)}
-                          >
-                            Remind
-                          </Button>
-                        )}
+                        {remindButton}
                         <SignerMenu
                           signer={signer}
                           canRemind={!reminded}
@@ -235,6 +257,6 @@ export function SignersCard(props: SignersCardProps) {
           })}
         </SignerList>
       )}
-    </Card>
+    </SectionCard>
   );
 }
