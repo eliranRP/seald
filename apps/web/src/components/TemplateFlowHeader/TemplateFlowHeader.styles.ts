@@ -2,17 +2,37 @@ import styled, { css } from 'styled-components';
 
 const MOBILE = '@media (max-width: 640px)';
 
-/** Top bar of the template editor (canvas `.flowbar`): close, name, pill, actions. */
+/**
+ * Top bar of the template editor (canvas `.flowbar`): a 64px three-column
+ * grid, close + name on the left, the mode pill centred, actions right.
+ * Phones get the 56px `.m-top`: close, pill, name, then the actions.
+ */
 export const Bar = styled.header`
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  gap: ${({ theme }) => theme.space[4]};
-  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[6]}`};
+  flex: none;
+  height: 64px;
+  padding: 0 ${({ theme }) => theme.space[6]};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
   background: ${({ theme }) => theme.color.paper};
   ${MOBILE} {
+    display: flex;
     gap: ${({ theme }) => theme.space[2]};
-    padding: ${({ theme }) => `${theme.space[2]} ${theme.space[3]}`};
+    height: 56px;
+    padding: ${({ theme }) => `0 ${theme.space[2]} 0 ${theme.space[4]}`};
+  }
+`;
+
+/** Close button + name block (canvas `.row-flex`). */
+export const Lead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  min-width: 0;
+  ${MOBILE} {
+    /* Let the pill slot in between close and name, as on the board. */
+    display: contents;
   }
 `;
 
@@ -21,30 +41,39 @@ export const NameBlock = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  ${MOBILE} {
+    order: 2;
+  }
 `;
 
 export const Meta = styled.span`
-  padding: 0 10px;
-  font-size: ${({ theme }) => theme.font.size.xs};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
   ${MOBILE} {
     display: none;
   }
 `;
 
+/** Mode label (canvas `.pill`; the phone bar uses the dark `.is-active` one). */
 export const ModePill = styled.span`
   display: inline-flex;
   align-items: center;
   flex: none;
-  height: 28px;
+  height: 36px;
   padding: 0 ${({ theme }) => theme.space[3]};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme }) => theme.color.ink[900]};
-  color: ${({ theme }) => theme.color.fgOnAccent};
+  background: ${({ theme }) => theme.color.paper};
+  color: ${({ theme }) => theme.color.fg[2]};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   white-space: nowrap;
+  ${MOBILE} {
+    order: 1;
+    border-color: ${({ theme }) => theme.color.ink[900]};
+    background: ${({ theme }) => theme.color.ink[900]};
+    color: ${({ theme }) => theme.color.fgOnAccent};
+  }
 `;
 
 export const NameButton = styled.button<{ $editable: boolean }>`
@@ -53,13 +82,17 @@ export const NameButton = styled.button<{ $editable: boolean }>`
   gap: ${({ theme }) => theme.space[1]};
   align-self: flex-start;
   min-width: 0;
-  max-width: 100%;
-  padding: 4px 10px;
+  max-width: calc(100% + 12px);
+  /* Board .h3 (16px / 24px). The rename chip bleeds 6px outward so the
+     name lines up with the meta line under it. */
+  margin: -1px -7px;
+  padding: 0 6px;
   border: 1px solid transparent;
-  border-radius: ${({ theme }) => theme.radius.md};
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: transparent;
   font: inherit;
-  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-size: ${({ theme }) => theme.font.size.body};
+  line-height: 24px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
   cursor: ${({ $editable }) => ($editable ? 'text' : 'default')};
@@ -88,14 +121,16 @@ export const NameButton = styled.button<{ $editable: boolean }>`
 export const NameInput = styled.input`
   align-self: flex-start;
   min-width: 240px;
-  max-width: 100%;
-  padding: 4px 10px;
+  max-width: calc(100% + 12px);
+  margin: -1px -7px;
+  padding: 0 6px;
   border: 1px solid ${({ theme }) => theme.color.indigo[600]};
-  border-radius: ${({ theme }) => theme.radius.md};
+  border-radius: ${({ theme }) => theme.radius.sm};
   outline: none;
   box-shadow: ${({ theme }) => theme.shadow.focus};
   font: inherit;
-  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-size: ${({ theme }) => theme.font.size.body};
+  line-height: 24px;
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
   ${MOBILE} {
@@ -104,8 +139,12 @@ export const NameInput = styled.input`
 `;
 
 export const Actions = styled.div`
+  justify-self: end;
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
   flex: none;
+  ${MOBILE} {
+    order: 3;
+  }
 `;

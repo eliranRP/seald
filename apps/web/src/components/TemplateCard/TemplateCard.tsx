@@ -96,8 +96,8 @@ export const TemplateCard = forwardRef<HTMLDivElement, TemplateCardProps>((props
           <i />
           <b />
         </Thumb>
-        <Text>
-          <Name id={nameId} title={template.name}>
+        <Text $compact={compact}>
+          <Name id={nameId} title={template.name} $compact={compact}>
             {template.name}
           </Name>
           <Meta id={metaId}>
@@ -115,7 +115,6 @@ export const TemplateCard = forwardRef<HTMLDivElement, TemplateCardProps>((props
           {compact ? (
             <Button
               variant="ghost"
-              size="sm"
               iconOnly
               iconLeft={MoreHorizontal}
               aria-label={moreLabel}
