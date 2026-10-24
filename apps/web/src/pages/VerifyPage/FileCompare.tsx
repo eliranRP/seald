@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
-import { CheckCircle2, Upload, XCircle } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { CheckChip } from '@/components/CheckChip';
 import { Icon } from '@/components/Icon';
 import { ProgressBar } from '@/components/ProgressBar';
 import { Spinner } from '@/components/Spinner';
@@ -17,6 +16,7 @@ import {
   Meta,
   ResultBody,
   ResultCard,
+  ResultChip,
 } from './VerifyPage.styles';
 
 export interface MatchedFile {
@@ -112,7 +112,7 @@ export function FileCompare({ sealedHashes, initialMatch }: FileCompareProps) {
       <ResultCard
         role="status"
         aria-live="polite"
-        style={{ flexDirection: 'column', alignItems: 'stretch' }}
+        style={{ flexDirection: 'column', alignItems: 'stretch', gap: 14 }}
       >
         <CheckingRow>
           <Spinner size="md" />
@@ -126,10 +126,7 @@ export function FileCompare({ sealedHashes, initialMatch }: FileCompareProps) {
     return (
       <ResultCard>
         <ResultBody>
-          <CheckChip state="ok">
-            <Icon icon={CheckCircle2} size={16} />
-            Matches the sealed copy
-          </CheckChip>
+          <ResultChip state="ok">Matches the sealed copy</ResultChip>
           <Meta>{`${state.file.name} · ${formatSize(state.file.size)}`}</Meta>
         </ResultBody>
         <Button variant="ghost" size="sm" onClick={reset}>
@@ -142,16 +139,51 @@ export function FileCompare({ sealedHashes, initialMatch }: FileCompareProps) {
     return (
       <ResultCard $bad role="alert">
         <ResultBody>
-          <CheckChip state="bad">
-            <Icon icon={XCircle} size={16} />
-            {"Doesn't match"}
-          </CheckChip>
+          <ResultChip state="bad">{"Doesn't match"}</ResultChip>
           <Meta>{state.reason}</Meta>
         </ResultBody>
         <Button variant="ghost" size="sm" onClick={reset}>
           Check another
         </Button>
       </ResultCard>
+    );
+  }
+
+  const pick = () => input.current?.click();
+  const fileInput = (
+    <HiddenInput
+      ref={input}
+      type="file"
+      accept="application/pdf,.pdf"
+      aria-label="Choose a PDF to compare"
+      tabIndex={-1}
+      onChange={(e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (file) void check(file);
+      }}
+    />
+  );
+
+  // Phone: the whole card is the tap target (no drag, no separate button).
+  if (isMobile) {
+    return (
+      <>
+        <DropZone
+          as="button"
+          type="button"
+          $over={false}
+          onClick={pick}
+          data-testid="verify-dropzone"
+        >
+          <Icon icon={Upload} size={24} />
+          <DropText>
+            <DropTitle>{idleTitle}</DropTitle>
+            <Meta>Checked in your browser · never uploaded</Meta>
+          </DropText>
+        </DropZone>
+        {fileInput}
+      </>
     );
   }
 
@@ -171,21 +203,10 @@ export function FileCompare({ sealedHashes, initialMatch }: FileCompareProps) {
         <DropTitle>{over ? 'Drop to compare' : idleTitle}</DropTitle>
         <Meta>Checked in your browser · never uploaded</Meta>
       </DropText>
-      <Button variant="secondary" size="sm" onClick={() => input.current?.click()}>
+      <Button variant="secondary" size="sm" onClick={pick}>
         Choose file
       </Button>
-      <HiddenInput
-        ref={input}
-        type="file"
-        accept="application/pdf,.pdf"
-        aria-label="Choose a PDF to compare"
-        tabIndex={-1}
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) void check(file);
-        }}
-      />
+      {fileInput}
     </DropZone>
   );
 }

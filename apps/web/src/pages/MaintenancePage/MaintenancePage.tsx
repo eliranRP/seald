@@ -1,21 +1,10 @@
 import type { JSX } from 'react';
 import { Clock, Settings } from 'lucide-react';
-import styled from 'styled-components';
+import { ButtonRoot } from '@/components/Button/Button.styles';
 import { InfoChip } from '@/components/InfoChip';
 import { OfflineBar } from '@/components/OfflineBar';
 import { StatePage } from '@/components/StatePage';
 import { PublicHeader } from '@/layout/PublicHeader';
-
-const StatusLink = styled.a`
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.indigo[700]};
-  text-decoration: none;
-
-  &:hover {
-    text-decoration: underline;
-  }
-`;
 
 export interface MaintenancePageProps {
   /** Minutes the API said maintenance would last; "About 15 min" when unknown. */
@@ -37,12 +26,21 @@ export function MaintenancePage({ etaMinutes }: MaintenancePageProps): JSX.Eleme
     <>
       <OfflineBar />
       <PublicHeader />
-      <StatePage icon={Settings} tone="warn" title="Back soon">
+      <StatePage icon={Settings} tone="neutral" title="Back soon">
         <InfoChip icon={Clock}>{`About ${String(minutes)} min`}</InfoChip>
         {statusUrl ? (
-          <StatusLink href={statusUrl} rel="noreferrer">
+          // `.btn.btn-ghost` link (44px), as on the System maintenance board.
+          <ButtonRoot
+            as="a"
+            $variant="ghost"
+            $size="md"
+            $fullWidth={false}
+            $iconOnly={false}
+            href={statusUrl}
+            rel="noreferrer"
+          >
             Status page
-          </StatusLink>
+          </ButtonRoot>
         ) : null}
       </StatePage>
     </>

@@ -12,14 +12,17 @@ import { DialogBackdrop } from '../DialogPrimitives';
 import { Spinner } from '../Spinner';
 import type { ScanWithPhoneDialogProps, ScanWithPhoneState } from './ScanWithPhoneDialog.types';
 import {
+  Body,
   Card,
   Done,
   ErrorText,
   Header,
   Heading,
   Meta,
+  OverlayTitle,
   QrOverlay,
   QrWrap,
+  Received,
   Status,
 } from './ScanWithPhoneDialog.styles';
 
@@ -135,88 +138,78 @@ export function ScanWithPhoneDialog(props: ScanWithPhoneDialogProps): JSX.Elemen
       <Card role="dialog" aria-modal="true" aria-labelledby={TITLE_ID}>
         <Header>
           <Heading id={TITLE_ID}>Scan with your phone</Heading>
-          <Button
-            iconOnly
-            variant="ghost"
-            size="sm"
-            iconLeft={X}
-            aria-label="Close"
-            onClick={onClose}
-          />
+          <Button iconOnly variant="ghost" iconLeft={X} aria-label="Close" onClick={onClose} />
         </Header>
 
-        {showQr ? (
-          <QrWrap $dim={state.kind === 'expired'}>
-            {qrUrl ? <img src={qrUrl} alt="QR code. Scan it with your phone camera." /> : null}
-            {!qrUrl && state.kind === 'qr' ? (
-              <Spinner size="lg" label="Making the QR code" />
-            ) : null}
-            {state.kind === 'expired' ? (
-              <QrOverlay>
-                <Button variant="secondary" iconLeft={RefreshCw} onClick={newCode}>
-                  New code
-                </Button>
-              </QrOverlay>
-            ) : null}
-          </QrWrap>
-        ) : null}
+        <Body>
+          {showQr ? (
+            <QrWrap $dim={state.kind === 'expired'}>
+              {qrUrl ? <img src={qrUrl} alt="QR code. Scan it with your phone camera." /> : null}
+              {!qrUrl && state.kind === 'qr' ? (
+                <Spinner size="lg" label="Making the QR code" />
+              ) : null}
+              {state.kind === 'expired' ? (
+                <QrOverlay>
+                  <OverlayTitle role="status">This code expired.</OverlayTitle>
+                  <Button variant="ghost" size="sm" iconLeft={RefreshCw} onClick={newCode}>
+                    New code
+                  </Button>
+                </QrOverlay>
+              ) : null}
+            </QrWrap>
+          ) : null}
 
-        {state.kind === 'creating' ? (
-          <Status role="status">
-            <Spinner size="lg" />
-            <Meta>Making your code…</Meta>
-          </Status>
-        ) : null}
+          {state.kind === 'creating' ? (
+            <Status role="status">
+              <Spinner size="lg" />
+              <Meta>Making your code…</Meta>
+            </Status>
+          ) : null}
 
-        {state.kind === 'qr' ? (
-          <Status>
-            <Meta>Open your camera and point it here</Meta>
-            <Meta role="status">
-              <Spinner size="sm" />
-              Waiting for your phone…
-            </Meta>
-            <Meta>
-              <Lock size={14} aria-hidden />
-              Link works for 10 min
-            </Meta>
-          </Status>
-        ) : null}
+          {state.kind === 'qr' ? (
+            <Status>
+              <Meta>Open your camera and point it here</Meta>
+              <Meta role="status">
+                <Spinner size="sm" />
+                Waiting for your phone…
+              </Meta>
+              <Meta>
+                <Lock size={14} aria-hidden />
+                Link works for 10 min
+              </Meta>
+            </Status>
+          ) : null}
 
-        {state.kind === 'expired' ? (
-          <Status>
-            <Meta role="status">This code expired.</Meta>
-          </Status>
-        ) : null}
+          {state.kind === 'fetching' ? (
+            <Status role="status">
+              <Spinner size="lg" />
+              <Meta>Getting your scan…</Meta>
+            </Status>
+          ) : null}
 
-        {state.kind === 'fetching' ? (
-          <Status role="status">
-            <Spinner size="lg" />
-            <Meta>Getting your scan…</Meta>
-          </Status>
-        ) : null}
+          {state.kind === 'received' ? (
+            <Received>
+              <Done aria-hidden>
+                <CheckCircle2 size={32} />
+              </Done>
+              <Heading as="p" role="status">
+                {pagesLabel(state.pageCount)}
+              </Heading>
+              <Button variant="primary" onClick={() => onContinue(state.pdf)} autoFocus>
+                Continue
+              </Button>
+            </Received>
+          ) : null}
 
-        {state.kind === 'received' ? (
-          <Status>
-            <Done aria-hidden>
-              <CheckCircle2 size={28} />
-            </Done>
-            <Heading as="p" role="status">
-              {pagesLabel(state.pageCount)}
-            </Heading>
-            <Button variant="primary" size="lg" onClick={() => onContinue(state.pdf)} autoFocus>
-              Continue
-            </Button>
-          </Status>
-        ) : null}
-
-        {state.kind === 'error' ? (
-          <Status>
-            <ErrorText role="alert">{"Couldn't set up the scan. Try again."}</ErrorText>
-            <Button variant="secondary" iconLeft={RefreshCw} onClick={newCode}>
-              Try again
-            </Button>
-          </Status>
-        ) : null}
+          {state.kind === 'error' ? (
+            <Status>
+              <ErrorText role="alert">{"Couldn't set up the scan. Try again."}</ErrorText>
+              <Button variant="secondary" iconLeft={RefreshCw} onClick={newCode}>
+                Try again
+              </Button>
+            </Status>
+          ) : null}
+        </Body>
       </Card>
     </DialogBackdrop>
   );
