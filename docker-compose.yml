@@ -36,6 +36,12 @@
 
 services:
   api:
+    # Production pulls the image docker.yml built on GitHub's runners
+    # (deploy.yml sets SEALD_API_IMAGE to the commit's sha tag) and never
+    # builds on the host: `nest build` exhausted the 2 GB t4g.small during
+    # the redesign v2 deploy and took the running API down with it.
+    # Local `docker compose up --build` still builds from source.
+    image: ${SEALD_API_IMAGE:-ghcr.io/eliranrp/seald:main}
     build:
       context: .
       dockerfile: Dockerfile
