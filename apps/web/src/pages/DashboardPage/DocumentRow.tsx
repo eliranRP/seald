@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react';
-import { Mail, MoreHorizontal } from 'lucide-react';
+import { Check, Mail, MoreHorizontal } from 'lucide-react';
 import type { EnvelopeListItem } from 'shared';
 import { Button } from '@/components/Button';
-import { DocThumb } from '@/components/DocThumb';
 import { Menu, MenuAnchor } from '@/components/Menu';
 import type { MenuEntry } from '@/components/Menu';
 import { SignerProgressBar } from '@/components/SignerProgressBar';
@@ -19,6 +18,7 @@ import {
   Mono,
   RowActions,
   RowCheck,
+  RowThumb,
   SignersCell,
   StatusCell,
   StatusMeta,
@@ -82,7 +82,14 @@ export function DocumentRow(props: DocumentRowProps) {
       aria-label={`Select ${env.title}`}
     />
   );
-  const thumb = <DocThumb size={40} title={env.title} signed={status === 'sealed'} aria-hidden />;
+  const thumb = (
+    <RowThumb aria-hidden>
+      <i />
+      <i />
+      <i />
+      {status === 'sealed' ? <Check strokeWidth={3.5} aria-hidden /> : null}
+    </RowThumb>
+  );
 
   if (mobile) {
     return (
@@ -98,10 +105,9 @@ export function DocumentRow(props: DocumentRowProps) {
             {reason}
           </StatusMeta>
         </DocText>
-        <StatusBadge status={status} />
+        <StatusBadge status={status} iconOnly />
         <Button
           variant="ghost"
-          size="sm"
           iconOnly
           iconLeft={MoreHorizontal}
           aria-label={`More actions for ${env.title}`}
@@ -149,7 +155,7 @@ export function DocumentRow(props: DocumentRowProps) {
         />
       </SignersCell>
       <UpdatedCell>{formatUpdated(env.updated_at, now)}</UpdatedCell>
-      <RowActions>
+      <RowActions data-part="row-actions">
         <Button
           size="sm"
           variant={primary.variant}
