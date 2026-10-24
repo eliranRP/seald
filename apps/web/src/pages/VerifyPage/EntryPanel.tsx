@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Spinner } from '@/components/Spinner';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { fileProblem, lookupShortCodeByHash, sha256Hex } from '@/features/verify';
 import {
   CodeForm,
@@ -21,6 +22,7 @@ import {
   OrRule,
   Verdict,
   VerdictIcon,
+  VerifyButton,
 } from './VerifyPage.styles';
 
 const CODE_LENGTH = 13;
@@ -47,6 +49,7 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobileViewport();
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -82,6 +85,14 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
       setBusy(false);
     }
   };
+
+  const pick = () => input.current?.click();
+  const dropIcon = busy ? (
+    <Spinner size="lg" label="Looking up the file" />
+  ) : (
+    <Icon icon={Upload} size={isMobile ? 24 : 32} />
+  );
+  const dropMeta = <Meta>We look up its hash on the server. The file is not uploaded.</Meta>;
 
   const onDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -126,18 +137,13 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
         <Meta id="verify-code-help">Find the code in the PDF footer or scan its QR.</Meta>
         {codeError ? (
           <InlineAlert role="alert">
-            <Icon icon={AlertCircle} size={16} />
+            <Icon icon={AlertCircle} size={14} />
             No document with this code
           </InlineAlert>
         ) : null}
-        <Button
-          type="submit"
-          size="lg"
-          disabled={code.length !== CODE_LENGTH}
-          style={{ width: 240 }}
-        >
+        <VerifyButton type="submit" disabled={code.length !== CODE_LENGTH}>
           Verify
-        </Button>
+        </VerifyButton>
       </CodeForm>
 
       <OrRow aria-hidden>
@@ -146,49 +152,58 @@ export function EntryPanel({ rejectedCode }: EntryPanelProps) {
         <OrRule />
       </OrRow>
 
-      <EntryDrop
-        $over={over}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={onDrop}
-        data-testid="verify-entry-dropzone"
-      >
-        {busy ? (
-          <Spinner size="lg" label="Looking up the file" />
-        ) : (
-          <Icon icon={Upload} size={32} />
-        )}
-        <DropText style={{ alignItems: 'center', flex: 'none' }}>
-          <DropTitle>{over ? 'Drop to look it up' : 'Drop the sealed PDF'}</DropTitle>
-          <Meta>We look up its hash on the server. The file is not uploaded.</Meta>
-        </DropText>
-        <Button
-          variant="secondary"
-          size="sm"
+      {isMobile ? (
+        // Phone: the whole card is the tap target (no drag, no separate button).
+        <EntryDrop
+          as="button"
+          type="button"
+          $over={false}
           disabled={busy}
-          onClick={() => input.current?.click()}
+          onClick={pick}
+          data-testid="verify-entry-dropzone"
         >
-          Choose file
-        </Button>
-        <HiddenInput
-          ref={input}
-          type="file"
-          accept="application/pdf,.pdf"
-          aria-label="Choose the sealed PDF"
-          tabIndex={-1}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = '';
-            if (file) void findByFile(file);
+          {dropIcon}
+          <DropText style={{ alignItems: 'center', flex: 'none' }}>
+            <DropTitle>Tap to choose the PDF</DropTitle>
+            {dropMeta}
+          </DropText>
+        </EntryDrop>
+      ) : (
+        <EntryDrop
+          $over={over}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setOver(true);
           }}
-        />
-      </EntryDrop>
+          onDragLeave={() => setOver(false)}
+          onDrop={onDrop}
+          data-testid="verify-entry-dropzone"
+        >
+          {dropIcon}
+          <DropText style={{ alignItems: 'center', flex: 'none' }}>
+            <DropTitle>{over ? 'Drop to look it up' : 'Drop the sealed PDF'}</DropTitle>
+            {dropMeta}
+          </DropText>
+          <Button variant="secondary" size="sm" disabled={busy} onClick={pick}>
+            Choose file
+          </Button>
+        </EntryDrop>
+      )}
+      <HiddenInput
+        ref={input}
+        type="file"
+        accept="application/pdf,.pdf"
+        aria-label="Choose the sealed PDF"
+        tabIndex={-1}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (file) void findByFile(file);
+        }}
+      />
       {fileError ? (
         <InlineAlert role="alert">
-          <Icon icon={AlertCircle} size={16} />
+          <Icon icon={AlertCircle} size={14} />
           {fileError}
         </InlineAlert>
       ) : null}

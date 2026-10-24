@@ -8,6 +8,7 @@ import { CheckChip } from '@/components/CheckChip';
 import { Icon } from '@/components/Icon';
 import { Skeleton } from '@/components/Skeleton';
 import { Toast } from '@/components/Toast';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { useVerifyEnvelope, VERIFY_KEY } from '@/features/verify';
 import type { VerifyResponse, VerifySigner } from '@/features/verify';
 import { copyText } from './copyText';
@@ -22,6 +23,7 @@ import {
   ChipsRow,
   Column,
   DocTitle,
+  EntryFooter,
   ErrorPanel,
   Footer,
   LoadingNote,
@@ -150,7 +152,7 @@ function VerifyContent({ data, matchedFile }: VerifyContentProps) {
       />
 
       <Footer>
-        <Icon icon={ShieldCheck} size={16} />
+        <Icon icon={ShieldCheck} size={14} />
         Verification by Seald
       </Footer>
 
@@ -167,8 +169,12 @@ interface VerifyLoadingProps {
 // copy to "Still working…", 15s offers a manual Retry.
 const STILL_WORKING_DELAY_MS = 5_000;
 const RETRY_OFFER_DELAY_MS = 15_000;
+// Chip placeholder widths from the boards (Verify loading, desktop / mobile).
+const DESKTOP_CHIP_WIDTHS = [150, 150, 150, 150] as const;
+const MOBILE_CHIP_WIDTHS = [120, 110, 130, 96] as const;
 
 function VerifyLoading({ onRetry }: VerifyLoadingProps) {
+  const isMobile = useIsMobileViewport();
   const [stillWorking, setStillWorking] = useState(false);
   const [retryOffered, setRetryOffered] = useState(false);
 
@@ -186,11 +192,16 @@ function VerifyLoading({ onRetry }: VerifyLoadingProps) {
     <Shell>
       <LoadingStack aria-busy aria-live="polite" aria-label="Loading verification">
         <Skeleton variant="circle" width={96} height={96} aria-hidden />
-        <Skeleton variant="text" width={320} height={36} aria-hidden />
-        <Skeleton variant="text" width={220} height={14} aria-hidden />
+        <Skeleton
+          variant="text"
+          width={isMobile ? '70%' : 320}
+          height={isMobile ? 22 : 36}
+          aria-hidden
+        />
+        <Skeleton variant="text" width={isMobile ? '45%' : 220} height={14} aria-hidden />
         <SkeletonChips>
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} variant="text" width={150} height={32} aria-hidden />
+          {(isMobile ? MOBILE_CHIP_WIDTHS : DESKTOP_CHIP_WIDTHS).map((w, i) => (
+            <Skeleton key={i} variant="text" width={w} height={32} aria-hidden />
           ))}
         </SkeletonChips>
         {stillWorking ? <LoadingNote>Still working…</LoadingNote> : null}
@@ -251,6 +262,10 @@ export function VerifyPage() {
     return (
       <Shell>
         <EntryPanel />
+        <EntryFooter>
+          <Icon icon={ShieldCheck} size={14} />
+          Verification by Seald
+        </EntryFooter>
       </Shell>
     );
   }
@@ -261,6 +276,10 @@ export function VerifyPage() {
       return (
         <Shell>
           <EntryPanel key={shortCode} rejectedCode={shortCode} />
+          <EntryFooter>
+            <Icon icon={ShieldCheck} size={14} />
+            Verification by Seald
+          </EntryFooter>
         </Shell>
       );
     }
