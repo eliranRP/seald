@@ -1,12 +1,12 @@
 name: Deploy (SSH pull + compose up)
 
 on:
-  # Direct push-to-main deploy. The host rebuilds from source via
-  # `docker compose up -d --build`, so we don't need to wait for the
-  # GHCR image workflow. (workflow_run chaining is notoriously flaky
-  # and silently drops events when the listener workflow has just
-  # landed on the default branch; the direct push trigger is 100%
-  # reliable.)
+  # Direct push-to-main deploy. The host pulls the image docker.yml
+  # builds for the same commit (it waits for it below) and never builds
+  # from source: an on-host `nest build` exhausted the 2 GB t4g.small.
+  # (workflow_run chaining is notoriously flaky and silently drops
+  # events when the listener workflow has just landed on the default
+  # branch; the direct push trigger plus a wait is reliable.)
   push:
     branches: [main]
     paths-ignore:
@@ -53,7 +53,8 @@ jobs:
   ssh_deploy:
     name: Pull + compose up on EC2
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Covers waiting for docker.yml's multi-arch image (up to ~20 min).
+    timeout-minutes: 35
 
     steps:
       - uses: actions/checkout@v6
@@ -65,7 +66,7 @@ jobs:
           username: ${{ secrets.DEPLOY_SSH_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           port: 22
-          command_timeout: 12m
+          command_timeout: 30m
           script: |
             set -euo pipefail
             cd /opt/seald
@@ -129,10 +130,29 @@ jobs:
             fi
             df -h / || true
 
-            sudo docker compose pull || true
-            sudo docker compose up -d --build --force-recreate api
+            # Pull the image docker.yml built for this exact commit
+            # (metadata-action `type=sha,format=short` → sha-<7 chars>).
+            # docker.yml starts on the same push, so wait for it. Never
+            # fall back to building here: on the 2 GB host that takes the
+            # running API down (redesign v2 deploy, 2026-10-24).
+            SEALD_API_IMAGE="ghcr.io/eliranrp/seald:sha-$(git rev-parse --short=7 HEAD)"
+            export SEALD_API_IMAGE
+            echo "Waiting for $SEALD_API_IMAGE"
+            for i in $(seq 1 75); do
+              if sudo docker pull "$SEALD_API_IMAGE" >/dev/null 2>&1; then
+                echo "pulled after ${i} tries"
+                break
+              fi
+              if [ "$i" -eq 75 ]; then
+                echo "$SEALD_API_IMAGE never appeared; did docker.yml fail?" >&2
+                exit 1
+              fi
+              sleep 20
+            done
+            sudo docker compose pull gotenberg caddy || true
+            sudo env SEALD_API_IMAGE="$SEALD_API_IMAGE" docker compose up -d --no-build --force-recreate api
 
-            # Drop the image the rebuild just replaced (dangling only).
+            # Drop the image the new one replaced (dangling only).
             sudo docker image prune -f || true
 
             # Health probe: api:3000 is exposed only on the docker
