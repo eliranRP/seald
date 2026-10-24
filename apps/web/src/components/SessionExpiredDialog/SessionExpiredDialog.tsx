@@ -1,9 +1,20 @@
 import type { JSX } from 'react';
+import { Lock } from 'lucide-react';
 import { Button } from '../Button';
-import { DialogBackdrop, DialogCard, DialogFooter, DialogTitle } from '../DialogPrimitives';
+import { DialogBackdrop } from '../DialogPrimitives';
+import { Icon } from '../Icon';
 import { MWBottomSheet } from '../MWBottomSheet';
 import type { SessionExpiredDialogProps } from './SessionExpiredDialog.types';
-import { Meta, SheetBody, SheetHeading } from './SessionExpiredDialog.styles';
+import {
+  Card,
+  CardBody,
+  CardFoot,
+  Heading,
+  LockIcon,
+  Meta,
+  SheetBody,
+  SheetStack,
+} from './SessionExpiredDialog.styles';
 
 const TITLE = 'You were signed out';
 const BODY = 'Sign in to keep going.';
@@ -19,12 +30,21 @@ export function SessionExpiredDialog(props: SessionExpiredDialogProps): JSX.Elem
   const { open, onSignIn, mobile = false } = props;
   if (!open) return null;
 
+  const lockIcon = (
+    <LockIcon aria-hidden>
+      <Icon icon={Lock} size={24} />
+    </LockIcon>
+  );
+
   if (mobile) {
     return (
       <MWBottomSheet open onClose={noop} labelledBy={TITLE_ID}>
         <SheetBody>
-          <SheetHeading id={TITLE_ID}>{TITLE}</SheetHeading>
-          <Meta>{BODY}</Meta>
+          <SheetStack>
+            {lockIcon}
+            <Heading id={TITLE_ID}>{TITLE}</Heading>
+            <Meta>{BODY}</Meta>
+          </SheetStack>
           <Button variant="primary" size="lg" fullWidth onClick={onSignIn} data-autofocus>
             Sign in again
           </Button>
@@ -35,15 +55,18 @@ export function SessionExpiredDialog(props: SessionExpiredDialogProps): JSX.Elem
 
   return (
     <DialogBackdrop role="presentation">
-      <DialogCard role="alertdialog" aria-modal="true" aria-labelledby={TITLE_ID}>
-        <DialogTitle id={TITLE_ID}>{TITLE}</DialogTitle>
-        <Meta>{BODY}</Meta>
-        <DialogFooter>
+      <Card role="alertdialog" aria-modal="true" aria-labelledby={TITLE_ID}>
+        <CardBody>
+          {lockIcon}
+          <Heading id={TITLE_ID}>{TITLE}</Heading>
+          <Meta>{BODY}</Meta>
+        </CardBody>
+        <CardFoot>
           <Button variant="primary" onClick={onSignIn} autoFocus>
             Sign in again
           </Button>
-        </DialogFooter>
-      </DialogCard>
+        </CardFoot>
+      </Card>
     </DialogBackdrop>
   );
 }
