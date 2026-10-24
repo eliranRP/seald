@@ -3,6 +3,7 @@ import { fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { AppShell } from './AppShell';
+import { useFocusedShell } from './shellChrome';
 
 // AppShell pulls account actions via React-Query — stub the hook so the
 // shell can render without a live API. We only care about the legal/
@@ -67,5 +68,32 @@ describe('AppShell legal/cookie footer (issue #39)', () => {
     expect(() =>
       fireEvent.click(getByRole('button', { name: /manage cookie preferences/i })),
     ).not.toThrow();
+  });
+});
+
+function FocusedPage() {
+  useFocusedShell();
+  return <div>editor</div>;
+}
+
+describe('AppShell focused flows', () => {
+  it('drops the top bar and the legal footer while a focused page is mounted', () => {
+    const { getByText, queryByRole } = renderWithProviders(
+      <MemoryRouter initialEntries={['/document/new']}>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route path="/document/new" element={<FocusedPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(getByText('editor')).toBeInTheDocument();
+    expect(queryByRole('link', { name: /templates/i })).not.toBeInTheDocument();
+    expect(queryByRole('contentinfo', { name: /legal and cookie preferences/i })).toBeNull();
+  });
+
+  it('keeps the top bar on ordinary pages', () => {
+    const { getByRole } = renderShell();
+    expect(getByRole('link', { name: /templates/i })).toBeInTheDocument();
   });
 });

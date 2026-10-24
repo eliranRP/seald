@@ -3,6 +3,7 @@ import { Check, Pencil, X } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import type { TemplateFlowHeaderProps } from './TemplateFlowHeader.types';
+import { useFocusedShell } from '@/layout/shellChrome';
 import {
   Actions,
   Bar,
@@ -20,6 +21,8 @@ import {
  * "Save template" on the right.
  */
 export const TemplateFlowHeader = forwardRef<HTMLElement, TemplateFlowHeaderProps>((props, ref) => {
+  // The flow header replaces the app top bar (design: Upload / Prepare).
+  useFocusedShell();
   const {
     mode,
     templateName,

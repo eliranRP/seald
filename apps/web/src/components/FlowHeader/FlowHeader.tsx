@@ -2,6 +2,7 @@ import { forwardRef } from 'react';
 import { Check, X } from 'lucide-react';
 import { Button } from '../Button';
 import type { FlowHeaderProps } from './FlowHeader.types';
+import { useFocusedShell } from '@/layout/shellChrome';
 import {
   Left,
   Meta,
@@ -22,6 +23,8 @@ import {
  * On phones the track becomes a thin segmented bar under the title.
  */
 export const FlowHeader = forwardRef<HTMLElement, FlowHeaderProps>((props, ref) => {
+  // The flow header replaces the app top bar (design: Upload / Prepare).
+  useFocusedShell();
   const { steps, onClose, closeLabel = 'Close', title, meta, children, ...rest } = props;
   return (
     <Root {...rest} ref={ref}>
