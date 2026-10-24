@@ -123,15 +123,17 @@ export const TileUsage = styled(UsageBadge)`
   right: 4px;
 `;
 
+/** PrepareMobile `.m-scroll-x` of `.tpl-chip`s: 44px pills, 12px apart. */
 export const ChipRowWrap = styled.div`
   display: flex;
-  gap: ${({ theme }) => theme.space[2]};
+  gap: ${({ theme }) => theme.space[3]};
 `;
 
 export const FieldChip = styled(FieldTile)`
   flex-direction: row;
   width: auto;
-  height: 40px;
+  height: 44px;
+  gap: ${({ theme }) => theme.space[2]};
   padding: 0 14px;
   border-radius: ${({ theme }) => theme.radius.pill};
   white-space: nowrap;

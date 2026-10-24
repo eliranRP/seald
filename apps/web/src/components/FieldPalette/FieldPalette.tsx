@@ -107,7 +107,7 @@ export const FieldPalette = forwardRef<HTMLDivElement, FieldPaletteProps>((props
         onKeyDown={handleKeyDown(kind)}
         onClick={() => onFieldActivate?.(kind)}
       >
-        <TileIcon size={18} strokeWidth={1.75} aria-hidden />
+        <TileIcon size={variant === 'chips' ? 16 : 20} strokeWidth={1.75} aria-hidden />
         {meta.label}
         {usage > 0 ? (
           <TileUsage
