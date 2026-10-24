@@ -1,15 +1,11 @@
-import { Bell, Layers, PenLine, Settings, User, type LucideIcon } from 'lucide-react';
+import { Bell, Layers, Settings, Signature, User, type LucideIcon } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import { isApprovalsEnabled } from '@/features/approvals';
 import { isAutomationsEnabled } from '@/features/automations';
 import { isDevelopersEnabled } from '@/features/developers';
 
 export type SettingsSectionId =
-  | 'profile'
-  | 'signature'
-  | 'notifications'
-  | 'integrations'
-  | 'account';
+  'profile' | 'signature' | 'notifications' | 'integrations' | 'account';
 
 export interface SettingsSectionDef {
   readonly id: SettingsSectionId;
@@ -19,7 +15,7 @@ export interface SettingsSectionDef {
 
 const ALL_SECTIONS: ReadonlyArray<SettingsSectionDef> = [
   { id: 'profile', label: 'Profile', icon: User },
-  { id: 'signature', label: 'Signature', icon: PenLine },
+  { id: 'signature', label: 'Signature', icon: Signature },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'integrations', label: 'Integrations', icon: Layers },
   { id: 'account', label: 'Account', icon: Settings },

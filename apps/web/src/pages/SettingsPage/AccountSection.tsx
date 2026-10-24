@@ -28,7 +28,7 @@ export function AccountSection() {
   return (
     <Section aria-label="Account">
       <RowsCard>
-        <Row>
+        <Row $min={64} $mobileMin={64}>
           <RowIcon>
             <Icon icon={Download} size={14} />
           </RowIcon>
@@ -43,7 +43,7 @@ export function AccountSection() {
             {account.isExporting ? 'Preparing…' : 'Download'}
           </Button>
         </Row>
-        <Row $last>
+        <Row $last $min={64} $mobileMin={64}>
           <RowIcon>
             <Icon icon={LogOut} size={14} />
           </RowIcon>
@@ -55,9 +55,11 @@ export function AccountSection() {
         </Row>
       </RowsCard>
 
-      <Eyebrow $danger>Danger zone</Eyebrow>
-      <RowsCard>
-        <Row $last>
+      <Eyebrow $danger $mobileHidden>
+        Danger zone
+      </Eyebrow>
+      <RowsCard $mobileRule>
+        <Row $last $min={64} $mobileMin={64}>
           <RowIcon $danger>
             <Icon icon={Trash2} size={14} />
           </RowIcon>
