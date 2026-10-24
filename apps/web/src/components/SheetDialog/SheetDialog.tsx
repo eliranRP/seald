@@ -2,7 +2,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { Button } from '@/components/Button';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
-import { Body, Foot, Head, Heading, Scrim, Surface } from './SheetDialog.styles';
+import { Body, Foot, Handle, Head, Heading, Scrim, Surface } from './SheetDialog.styles';
 import type { SheetDialogProps } from './SheetDialog.types';
 
 /**
@@ -45,6 +45,7 @@ export function SheetDialog(props: SheetDialogProps) {
         $width={width}
         onClick={(e) => e.stopPropagation()}
       >
+        <Handle aria-hidden="true" />
         {showTitle ? (
           <Head>
             <Heading>{title}</Heading>

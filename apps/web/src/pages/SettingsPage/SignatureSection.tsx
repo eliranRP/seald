@@ -10,6 +10,8 @@ import { deriveInitialsFromName } from '@/components/SignatureCapture/SignatureC
 import { SignatureDrawPad } from './SignatureDrawPad';
 import { imageFileToPng } from './imageFileToPng';
 import {
+  CardHeading,
+  CardTitle,
   DirtyBar,
   DropLabel,
   Eyebrow,
@@ -129,7 +131,7 @@ export function SignatureSection() {
   return (
     <Section aria-label="Signature">
       <Panel $gap={4}>
-        <Eyebrow>Your signature</Eyebrow>
+        <CardHeading>Your signature</CardHeading>
         <SegmentedControl
           aria-label="Signature type"
           block
@@ -159,13 +161,13 @@ export function SignatureSection() {
 
         {draft.type === 'uploaded' ? (
           <Stack $gap={8}>
-            <SigPad>
+            <SigPad $drop={!draft.uploaded}>
               {draft.uploaded ? (
                 <SigImage src={draft.uploaded} alt="Your uploaded signature" />
               ) : (
                 <DropLabel>
-                  <Icon icon={Upload} size={24} />
-                  <span>Choose an image</span>
+                  <Icon icon={Upload} size={32} />
+                  <CardTitle as="span">Choose an image</CardTitle>
                   <Meta>PNG or JPG on a plain background, up to 1 MB</Meta>
                   <HiddenFile
                     ref={fileRef}

@@ -1,7 +1,8 @@
-import { Link, Navigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Navigate, useParams } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readIsMobileViewport } from '@/hooks/useIsMobileViewport';
+import { FocusedShell } from '@/layout/shellChrome';
 import { AccountSection } from './AccountSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { NotificationsSection } from './NotificationsSection';
@@ -9,6 +10,7 @@ import { SettingsIndexPage } from './SettingsIndexPage';
 import { ProfileSection } from './ProfileSection';
 import { SignatureSection } from './SignatureSection';
 import {
+  BackLink,
   Layout,
   MobileTitle,
   MobileTop,
@@ -50,11 +52,14 @@ export function SettingsPage() {
 
   return (
     <Page>
+      {/* The phone board gives each section its own back header in place of
+          the app top bar and bottom nav. */}
+      {readIsMobileViewport() ? <FocusedShell /> : null}
       <PageTitle>Settings</PageTitle>
       <MobileTop>
-        <Link to="/settings" aria-label="Back to settings">
-          <Icon icon={ArrowLeft} size={20} />
-        </Link>
+        <BackLink to="/settings" aria-label="Back to settings">
+          <Icon icon={ChevronLeft} size={20} />
+        </BackLink>
         <MobileTitle>{current?.label}</MobileTitle>
       </MobileTop>
       <Layout>

@@ -82,7 +82,7 @@ function renderRightCluster(args: RightClusterArgs): ReactNode {
       />
     );
   }
-  return <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} />;
+  return <Avatar name={user.name} size={36} tone="indigo" imageUrl={user.avatarUrl} />;
 }
 
 /**

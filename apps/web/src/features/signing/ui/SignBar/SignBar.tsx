@@ -3,7 +3,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { ProgressBar } from '@/components/ProgressBar';
 import { useT } from '@/lib/i18n';
-import { Bar, Count, Note, Progress, Track } from './SignBar.styles';
+import { Action, Bar, Count, Note, Progress, Track } from './SignBar.styles';
 import type { SignBarProps } from './SignBar.types';
 
 /** Progress over the required, hand-filled fields and the Next / Finish action. */
@@ -30,17 +30,19 @@ export function SignBar(props: SignBarProps) {
             {t('signing.sign.bar.optional', { count: optionalLeft })}
           </Note>
         ) : null}
-        {!ready ? <Note>{t('signing.sign.bar.required')}</Note> : null}
+        {!ready ? <Note $required>{t('signing.sign.bar.required')}</Note> : null}
       </Progress>
-      {ready ? (
-        <Button iconLeft={Check} onClick={onFinish}>
-          {t('signing.sign.bar.finish')}
-        </Button>
-      ) : (
-        <Button iconRight={ChevronRight} onClick={onNext}>
-          {t('signing.sign.bar.next')}
-        </Button>
-      )}
+      <Action>
+        {ready ? (
+          <Button iconLeft={Check} onClick={onFinish} fullWidth>
+            {t('signing.sign.bar.finish')}
+          </Button>
+        ) : (
+          <Button iconRight={ChevronRight} onClick={onNext} fullWidth>
+            {t('signing.sign.bar.next')}
+          </Button>
+        )}
+      </Action>
     </Bar>
   );
 }

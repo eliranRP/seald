@@ -1,4 +1,5 @@
 import styled, { css } from 'styled-components';
+import { Button } from '@/components/Button';
 import { visuallyHidden } from '@/styles/mixins';
 import { rise, toastIn } from '@/styles/motion';
 
@@ -8,25 +9,28 @@ const MOBILE = '@media (max-width: 640px)';
 export const Main = styled.div`
   flex: 1 1 auto;
   min-width: 0;
-  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[8]} ${theme.space[20]}`};
+  /* Board .container: 1280 border-box with 48px sides → 1184 content. */
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[12]} ${theme.space[16]}`};
   ${MOBILE} {
     padding: ${({ theme }) => `${theme.space[4]} ${theme.space[4]} ${theme.space[24]}`};
   }
 `;
 
 export const Inner = styled.div`
-  max-width: 1200px;
+  max-width: 1184px;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[5]};
+  ${MOBILE} {
+    gap: ${({ theme }) => theme.space[3]};
+  }
 `;
 
 export const HeaderRow = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
-  min-height: 44px;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
 export const Title = styled.h1`
@@ -34,6 +38,7 @@ export const Title = styled.h1`
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x4l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
   ${MOBILE} {
@@ -73,7 +78,7 @@ export const SearchField = styled.label`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
-  height: 44px;
+  height: 40px;
   padding: 0 ${({ theme }) => theme.space[3]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -104,6 +109,7 @@ export const SearchField = styled.label`
   }
   ${MOBILE} {
     max-width: none;
+    height: 44px;
   }
 `;
 
@@ -122,7 +128,7 @@ export const Table = styled.div`
 
 const GRID = css`
   display: grid;
-  grid-template-columns: 28px minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1.1fr) 96px 172px;
+  grid-template-columns: 28px minmax(0, 2.4fr) minmax(0, 1.7fr) minmax(0, 1.2fr) 88px 172px;
   gap: ${({ theme }) => theme.space[4]};
   align-items: center;
   padding: 0 ${({ theme }) => theme.space[5]};
@@ -142,8 +148,8 @@ export const Row = styled.div<{ $selected?: boolean; $static?: boolean }>`
   ${GRID}
   position: relative;
   min-height: 64px;
-  padding-top: ${({ theme }) => theme.space[2]};
-  padding-bottom: ${({ theme }) => theme.space[2]};
+  padding-top: 10px;
+  padding-bottom: 10px;
   border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
   background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : 'transparent')};
   ${({ $static }) => ($static ? '' : rise)}
@@ -158,10 +164,17 @@ export const Row = styled.div<{ $selected?: boolean; $static?: boolean }>`
   }
 `;
 
+/** Grid cell: centres a checkbox or link on the row instead of the text baseline. */
+export const Cell = styled.span`
+  display: flex;
+  align-items: center;
+  min-width: 0;
+`;
+
 export const NameCell = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
   min-width: 0;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
@@ -211,8 +224,8 @@ export const RowActions = styled.div`
 `;
 
 export const CheckBox = styled.input`
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   margin: 0;
   accent-color: ${({ theme }) => theme.color.indigo[600]};
   cursor: pointer;
@@ -249,6 +262,15 @@ export const BulkBar = styled.div`
   }
 `;
 
+/** "Clear" on the dark bar: board `.bulkbar .btn` (ink-700 fill, paper text). */
+export const BulkClear = styled(Button)`
+  background: ${({ theme }) => theme.color.ink[700]};
+  color: ${({ theme }) => theme.color.paper};
+  &:hover:not(:disabled) {
+    background: ${({ theme }) => theme.color.ink[600]};
+  }
+`;
+
 export const BulkLabel = styled.span`
   padding: 0 ${({ theme }) => theme.space[2]};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
@@ -276,7 +298,8 @@ export const AvatarStack = styled.div`
 export const MobileList = styled.div`
   display: flex;
   flex-direction: column;
-  margin: 0 -${({ theme }) => theme.space[4]};
+  /* Bleeds to the screen edges; 8px under the toolbar like the board. */
+  margin: -${({ theme }) => theme.space[1]} -${({ theme }) => theme.space[4]} 0;
 `;
 
 export const MobileRow = styled.button<{ $selected?: boolean }>`
@@ -285,10 +308,10 @@ export const MobileRow = styled.button<{ $selected?: boolean }>`
   gap: ${({ theme }) => theme.space[3]};
   width: 100%;
   min-height: 64px;
-  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  padding: ${({ theme }) => `10px ${theme.space[4]}`};
   border: 0;
   border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
-  background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : 'transparent')};
+  background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : theme.color.paper)};
   text-align: left;
   font: inherit;
   color: inherit;
@@ -307,6 +330,13 @@ export const MobileName = styled.span`
   gap: 2px;
   flex: 1;
   min-width: 0;
+
+  /* Name line (board .sgn-name); the email line is a Quiet. */
+  & > :first-child {
+    font-size: ${({ theme }) => theme.font.size.bodySm};
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    color: ${({ theme }) => theme.color.fg[1]};
+  }
 `;
 
 export const MobileMeta = styled.span`

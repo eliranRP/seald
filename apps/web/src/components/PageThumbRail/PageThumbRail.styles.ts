@@ -1,4 +1,6 @@
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
+
+type Col = { readonly $column: boolean };
 
 /**
  * Glass pane that floats against the right edge of the canvas scroll area.
@@ -18,7 +20,7 @@ import styled from 'styled-components';
  * the original behaviour for the regular editor flow at large
  * viewports.
  */
-export const Rail = styled.nav`
+export const Rail = styled.nav<Col>`
   width: 76px;
   /* Cap relative to the viewport, NOT a hard-coded chrome height.
      Originally 'calc(100vh - 160px)', which assumed only the global
@@ -39,6 +41,24 @@ export const Rail = styled.nav`
   flex-direction: column;
   gap: ${({ theme }) => theme.space[1]};
   scrollbar-width: thin;
+
+  /* Canvas .thumbs: 104px column, 16 / 12 padding, 10px gap. */
+  ${({ $column, theme }) =>
+    $column &&
+    css`
+      width: 104px;
+      height: 100%;
+      max-height: none;
+      align-items: center;
+      gap: 10px;
+      padding: ${theme.space[4]} ${theme.space[3]};
+      background: ${theme.color.paper};
+      backdrop-filter: none;
+      border: 0;
+      border-left: 1px solid ${theme.color.border[1]};
+      border-radius: 0;
+      box-shadow: none;
+    `}
 `;
 
 /** Monospaced "3/12" counter at the top of the rail. */
@@ -59,7 +79,7 @@ export const RailHeader = styled.div`
  * and a page-number caption at the bottom. Active state uses the indigo
  * brand color + a soft outer ring to stand out against neighboring thumbs.
  */
-export const Thumb = styled.button<{ readonly $active: boolean }>`
+export const Thumb = styled.button<{ readonly $active: boolean } & Col>`
   position: relative;
   width: 60px;
   height: 76px;
@@ -85,6 +105,21 @@ export const Thumb = styled.button<{ readonly $active: boolean }>`
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+
+  /* Canvas .thumb: 72px wide at page ratio, number 18px below. */
+  ${({ $column, $active, theme }) =>
+    $column &&
+    css`
+      width: 72px;
+      height: auto;
+      aspect-ratio: 8.5 / 11;
+      margin: 0 0 18px;
+      padding: 8px 6px;
+      border: ${$active ? '1.5px' : '1px'} solid
+        ${$active ? theme.color.indigo[600] : theme.color.border[1]};
+      border-radius: ${theme.radius.xxs};
+      box-shadow: none;
+    `}
 `;
 
 /**
@@ -92,14 +127,14 @@ export const Thumb = styled.button<{ readonly $active: boolean }>`
  * glance. Widths are computed per-page in the component so each thumb has a
  * unique fingerprint instead of looking identical.
  */
-export const SkeletonLines = styled.div`
+export const SkeletonLines = styled.div<Col>`
   position: absolute;
   left: 6px;
   right: 6px;
-  top: 6px;
+  top: ${({ $column }) => ($column ? '8px' : '6px')};
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: ${({ $column }) => ($column ? '3px' : '2px')};
 `;
 
 export const SkeletonLine = styled.span<{ readonly $width: number }>`
@@ -132,19 +167,34 @@ export const FieldCountBadge = styled.span`
   justify-content: center;
 `;
 
-export const PageLabel = styled.span<{ readonly $active: boolean }>`
+export const PageLabel = styled.span<{ readonly $active: boolean } & Col>`
   font-size: 10px;
   font-family: ${({ theme }) => theme.font.mono};
   color: ${({ $active, theme }) => ($active ? theme.color.indigo[700] : theme.color.fg[3])};
   font-weight: ${({ $active, theme }) =>
     $active ? theme.font.weight.semibold : theme.font.weight.medium};
   line-height: 1;
+
+  /* Canvas .thumb-num: 11px under the thumb. */
+  ${({ $column, theme }) =>
+    $column &&
+    css`
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: ${theme.font.sans};
+      font-size: ${theme.font.size.micro};
+      font-weight: ${theme.font.weight.regular};
+      line-height: 14px;
+      color: ${theme.color.fg[3]};
+    `}
 `;
 
-export const ThumbDots = styled.span`
+export const ThumbDots = styled.span<Col>`
   position: absolute;
-  right: 4px;
-  bottom: 4px;
+  right: ${({ $column }) => ($column ? '6px' : '4px')};
+  bottom: ${({ $column }) => ($column ? '6px' : '4px')};
   display: flex;
   gap: 2px;
 `;

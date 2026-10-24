@@ -1,10 +1,13 @@
 import styled from 'styled-components';
 
+const TABLET = '(max-width: 768px)';
+
+/** Canvas `.meta` in `fg-2` with the green check. */
 export const Verified = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[2]};
   overflow-wrap: anywhere;
 
@@ -26,19 +29,32 @@ export const TermsRow = styled.div`
     color: ${({ theme }) => theme.color.indigo[600]};
     text-underline-offset: 2px;
   }
+
+  /* A 44px row with a 20px box on a phone. */
+  @media ${TABLET} {
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+  }
 `;
 
+/** Canvas `.checkbox`: 16px, 20px on a phone. */
 export const TermsBox = styled.input`
   flex: none;
-  width: 18px;
-  height: 18px;
-  margin: 2px 0 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
   accent-color: ${({ theme }) => theme.color.indigo[600]};
   cursor: pointer;
 
   &:focus-visible {
     outline: 2px solid ${({ theme }) => theme.color.accent.base};
     outline-offset: 2px;
+  }
+
+  @media ${TABLET} {
+    width: 20px;
+    height: 20px;
   }
 `;
 

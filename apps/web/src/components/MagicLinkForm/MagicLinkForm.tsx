@@ -2,13 +2,13 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Mail } from 'lucide-react';
 import { Banner } from '../Banner';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { Button } from '../Button';
-import { Divider } from '../Divider';
 import { GoogleButton } from '../GoogleButton';
 import { TextField } from '../TextField';
 import { AuthTitle } from '../AuthSplitLayout';
 import type { MagicLinkFormProps } from './MagicLinkForm.types';
-import { Form, Guest, GuestLink } from './MagicLinkForm.styles';
+import { Form, Guest, GuestLink, OrRow } from './MagicLinkForm.styles';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -32,6 +32,8 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
     submitLabel = 'Email me a sign-in link',
   } = props;
   const [invalid, setInvalid] = useState(false);
+  // The board's submit is 44px on desktop and 48px on a phone.
+  const mobile = useIsMobileViewport();
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -58,7 +60,9 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
         busy={googleBusy}
         disabled={sending}
       />
-      <Divider label="or" />
+      <OrRow role="separator" aria-label="or">
+        or
+      </OrRow>
       <Form noValidate onSubmit={handleSubmit}>
         <TextField
           type="email"
@@ -77,7 +81,7 @@ export function MagicLinkForm(props: MagicLinkFormProps) {
         />
         <Button
           type="submit"
-          size="lg"
+          size={mobile ? 'lg' : 'md'}
           fullWidth
           iconLeft={Mail}
           loading={sending}

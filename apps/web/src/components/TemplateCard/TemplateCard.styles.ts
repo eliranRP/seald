@@ -18,9 +18,10 @@ export const CardButton = styled.button<{ $compact: boolean }>`
   width: 100%;
   min-height: ${({ $compact }) => ($compact ? '84px' : '0')};
   padding: ${({ theme, $compact }) =>
-    $compact ? `${theme.space[3]} 52px ${theme.space[3]} ${theme.space[3]}` : theme.space[3]};
+    $compact ? `${theme.space[3]} 60px ${theme.space[3]} ${theme.space[3]}` : theme.space[3]};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.lg};
+  /* Tile: board .tpl-card (16px). Phone row: board .m-card (12px). */
+  border-radius: ${({ theme, $compact }) => ($compact ? theme.radius.md : theme.radius.lg)};
   background: ${({ theme }) => theme.color.paper};
   font: inherit;
   color: ${({ theme }) => theme.color.fg[1]};
@@ -43,7 +44,7 @@ export const Thumb = styled.span<{ $compact: boolean }>`
   ${({ $compact }) => ($compact ? 'width: 48px; height: 60px;' : 'aspect-ratio: 4 / 3;')}
   padding: ${({ $compact }) => ($compact ? '8px' : '14px')};
   border: 1px solid ${({ theme }) => theme.color.ink[150]};
-  border-radius: ${({ theme, $compact }) => ($compact ? theme.radius.xs : theme.radius.sm)};
+  border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.ink[50]};
 
   i {
@@ -64,19 +65,20 @@ export const Thumb = styled.span<{ $compact: boolean }>`
   }
 `;
 
-export const Text = styled.span`
+export const Text = styled.span<{ $compact: boolean }>`
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[1]};
+  gap: ${({ theme, $compact }) => ($compact ? '6px' : theme.space[2])};
   min-width: 0;
   flex: 1;
 `;
 
-export const Name = styled.span`
+/** Tile name is board .doc-title (14px); the phone row uses .h3 (16px). */
+export const Name = styled.span<{ $compact: boolean }>`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-size: ${({ theme, $compact }) => ($compact ? theme.font.size.body : theme.font.size.bodySm)};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
@@ -91,12 +93,13 @@ export const Meta = styled.span`
 
 export const Dots = styled.span`
   display: inline-flex;
-  gap: 4px;
+  gap: ${({ theme }) => theme.space[2]};
 `;
 
+/** Role colour dot (board .sig-dot, 8px). */
 export const Dot = styled.span<{ $color: string }>`
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: ${({ $color }) => $color};
 `;

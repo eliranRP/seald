@@ -1,8 +1,11 @@
 import styled from 'styled-components';
 import { truncateText } from '@/styles/mixins';
 
-/** Public signer header (canvas `.sign-top`): no app navigation. */
-export const Top = styled.header`
+/**
+ * Public signer header (canvas `.sign-top`): no app navigation. `$doc` is the
+ * document header; on mobile it is the title and actions only (no logo).
+ */
+export const Top = styled.header<{ readonly $doc: boolean }>`
   position: sticky;
   top: 0;
   z-index: ${({ theme }) => theme.z.sticky};
@@ -16,15 +19,21 @@ export const Top = styled.header`
 
   @media (max-width: 640px) {
     height: 56px;
-    padding: 0 ${({ theme }) => theme.space[4]};
+    gap: ${({ theme, $doc }) => ($doc ? theme.space[2] : theme.space[3])};
+    padding: ${({ theme, $doc }) =>
+      $doc ? `0 ${theme.space[2]} 0 ${theme.space[4]}` : `0 ${theme.space[4]}`};
   }
 `;
 
-export const Logo = styled.span`
+export const Logo = styled.span<{ readonly $doc: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[2]};
   flex-shrink: 0;
+
+  @media (max-width: 640px) {
+    display: ${({ $doc }) => ($doc ? 'none' : 'inline-flex')};
+  }
 `;
 
 export const LogoMark = styled.span`
@@ -47,10 +56,6 @@ export const Wordmark = styled.span`
   font-size: ${({ theme }) => theme.font.size.xl};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
-
-  @media (max-width: 640px) {
-    display: none;
-  }
 `;
 
 export const Divider = styled.span`
@@ -69,13 +74,13 @@ export const DocTitle = styled.h1`
   margin: 0;
   ${truncateText}
   font-family: ${({ theme }) => theme.font.sans};
-  font-size: ${({ theme }) => theme.font.size.lg};
+  font-size: ${({ theme }) => theme.font.size.body};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[1]};
 
   @media (max-width: 640px) {
     flex: 1;
-    font-size: ${({ theme }) => theme.font.size.body};
   }
 `;
 

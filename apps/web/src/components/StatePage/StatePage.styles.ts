@@ -7,6 +7,8 @@ export const Root = styled.div`
   flex-direction: column;
   align-items: center;
   gap: ${({ theme }) => theme.space[4]};
+  box-sizing: border-box;
+  width: 100%;
   max-width: 440px;
   margin: 0 auto;
   padding: 96px ${({ theme }) => theme.space[6]};
@@ -14,8 +16,10 @@ export const Root = styled.div`
   font-family: ${({ theme }) => theme.font.sans};
   ${rise}
 
+  /* Phone: full width, 64 / 16 / 24 (SystemMobile .state-page). */
   @media (max-width: 640px) {
-    padding: 64px ${({ theme }) => theme.space[4]};
+    max-width: none;
+    padding: 64px ${({ theme }) => theme.space[4]} ${({ theme }) => theme.space[6]};
   }
 `;
 
@@ -26,10 +30,6 @@ export const Code = styled.div`
   line-height: 1;
   letter-spacing: -0.02em;
   color: ${({ theme }) => theme.color.ink[200]};
-
-  @media (max-width: 640px) {
-    font-size: ${({ theme }) => theme.font.size.x5l};
-  }
 `;
 
 const TONES: Record<StatePageTone, ReturnType<typeof css>> = {
@@ -61,17 +61,21 @@ export const IconCircle = styled.div<{ $tone: StatePageTone }>`
   ${({ $tone }) => TONES[$tone]}
 `;
 
+/** `.h1.h1-m`: 28px serif, 1.1 line height, tight tracking. */
 export const Title = styled.h1`
   margin: 0;
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x3l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+/** `.meta`. */
 export const Description = styled.p`
   margin: 0;
-  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
@@ -79,6 +83,6 @@ export const Body = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[4]};
   width: 100%;
 `;

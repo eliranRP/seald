@@ -72,6 +72,7 @@ import {
   Footer,
   GroupLabel,
   HeaderRow,
+  HeaderSearch,
   Inner,
   Main,
   MobileActionBar,
@@ -178,6 +179,8 @@ export function DashboardPage() {
   const [selecting, setSelecting] = useState(false);
   const [needsExpanded, setNeedsExpanded] = useState(false);
   const [filterSheet, setFilterSheet] = useState(false);
+  /** Phones: the search field opens from the header's search button. */
+  const [mobileSearch, setMobileSearch] = useState(false);
   const [sheetFor, setSheetFor] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const newChevronRef = useRef<HTMLButtonElement | null>(null);
@@ -493,7 +496,7 @@ export function DashboardPage() {
           </div>
           {mobile ? null : (
             <>
-              <Skeleton width={88} height={24} />
+              <Skeleton variant="pill" width={88} height={24} />
               <Skeleton width={120} height={28} />
               <Skeleton width={48} height={10} />
               <span />
@@ -567,6 +570,18 @@ export function DashboardPage() {
       <Inner>
         <HeaderRow>
           <PageTitle>Documents</PageTitle>
+          {mobile ? (
+            <HeaderSearch>
+              <Button
+                variant="ghost"
+                iconOnly
+                iconLeft={Search}
+                aria-label="Search"
+                aria-expanded={mobileSearch}
+                onClick={() => setMobileSearch((o) => !o)}
+              />
+            </HeaderSearch>
+          ) : null}
           <MenuAnchor>
             <SplitGroup>
               <Button variant="primary" iconLeft={Upload} onClick={() => navigate('/document/new')}>
@@ -638,12 +653,17 @@ export function DashboardPage() {
                       $active={active}
                       onClick={() => patchFilters({ tab: key })}
                     >
-                      <Icon size={16} aria-hidden />
+                      <Icon size={mobile ? 14 : 16} aria-hidden />
                       {meta.label}
                       {loading ? (
                         <Skeleton variant="circle" width={20} height={20} />
                       ) : (
-                        <CountPill aria-label={`${counts[key]} documents`}>{counts[key]}</CountPill>
+                        <CountPill
+                          $accent={active && !mobile}
+                          aria-label={`${counts[key]} documents`}
+                        >
+                          {counts[key]}
+                        </CountPill>
                       )}
                     </Tab>
                   );
@@ -726,6 +746,8 @@ export function DashboardPage() {
                 mobile={mobile}
                 onOpenFilterSheet={() => setFilterSheet(true)}
                 onStartSelecting={() => setSelecting(true)}
+                searchOpen={mobileSearch}
+                resultCount={loading ? undefined : visible.length}
               />
             )}
 

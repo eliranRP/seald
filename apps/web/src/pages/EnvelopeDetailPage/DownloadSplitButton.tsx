@@ -11,9 +11,9 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { Menu, MenuAnchor } from '@/components/Menu';
+import { Menu } from '@/components/Menu';
 import type { MenuEntry } from '@/components/Menu';
-import { Hint, MenuHint, MenuLabelRow, Split } from './EnvelopeDetailPage.styles';
+import { DownloadAnchor, Hint, MenuHint, MenuLabelRow, Split } from './EnvelopeDetailPage.styles';
 
 export type DownloadKind = 'bundle' | 'sealed' | 'audit' | 'original' | 'zip' | 'gdrive';
 
@@ -128,8 +128,8 @@ export function DownloadSplitButton(props: DownloadSplitButtonProps) {
   return (
     <>
       {sealing ? <Hint>about 1 min</Hint> : null}
-      <MenuAnchor>
-        <Split>
+      <DownloadAnchor $full={fullWidth === true}>
+        <Split $full={fullWidth === true}>
           <Button
             variant={sealed ? 'primary' : 'secondary'}
             iconLeft={Download}
@@ -158,7 +158,7 @@ export function DownloadSplitButton(props: DownloadSplitButtonProps) {
           anchorRef={anchorRef}
           aria-label="Download"
         />
-      </MenuAnchor>
+      </DownloadAnchor>
     </>
   );
 }

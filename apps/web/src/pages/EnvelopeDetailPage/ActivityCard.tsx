@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/Button';
-import { InfoChip } from '@/components/InfoChip';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import type { ActivityRowView } from './envelopeView';
 import {
+  ActFoot,
   ActIcon,
   ActList,
   ActRow,
   ActText,
   ActTime,
-  Card,
-  ChainOk,
-  CardHead,
+  ActivityHead,
+  ChainChip,
   Eyebrow,
+  SectionCard,
   Spacer,
 } from './EnvelopeDetailPage.styles';
 
@@ -26,24 +27,25 @@ const PREVIEW = 3;
 
 /** Last three events, "Show all" for the rest, and the audit chain verdict. */
 export function ActivityCard({ rows, chainIntact }: ActivityCardProps) {
+  const isMobile = useIsMobileViewport();
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, PREVIEW);
   return (
-    <Card aria-label="Activity">
-      <CardHead style={{ padding: '0 0 12px' }}>
+    <SectionCard aria-label="Activity">
+      <ActivityHead>
         <Eyebrow>Activity</Eyebrow>
         <Spacer />
         {chainIntact === true ? (
-          <ChainOk $ok>
-            <InfoChip icon={ShieldCheck}>Chain intact</InfoChip>
-          </ChainOk>
+          <ChainChip $ok icon={ShieldCheck}>
+            Chain intact
+          </ChainChip>
         ) : null}
         {chainIntact === false ? (
-          <ChainOk $ok={false}>
-            <InfoChip icon={ShieldAlert}>Chain broken</InfoChip>
-          </ChainOk>
+          <ChainChip $ok={false} icon={ShieldAlert}>
+            Chain broken
+          </ChainChip>
         ) : null}
-      </CardHead>
+      </ActivityHead>
       <ActList>
         {shown.map((row) => (
           <ActRow key={row.id}>
@@ -56,18 +58,19 @@ export function ActivityCard({ rows, chainIntact }: ActivityCardProps) {
         ))}
       </ActList>
       {rows.length > PREVIEW ? (
-        <div style={{ marginTop: 8 }}>
+        <ActFoot>
+          {/* The mobile board centres this as a full 44px touch target. */}
           <Button
             variant="ghost"
-            size="sm"
+            size={isMobile ? 'md' : 'sm'}
             iconRight={all ? ChevronUp : ChevronDown}
             aria-expanded={all}
             onClick={() => setAll((v) => !v)}
           >
             {all ? 'Show less' : `Show all (${rows.length})`}
           </Button>
-        </div>
+        </ActFoot>
       ) : null}
-    </Card>
+    </SectionCard>
   );
 }

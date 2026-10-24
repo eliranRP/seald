@@ -1,7 +1,16 @@
 import { ChevronRight } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readIsMobileViewport } from '@/hooks/useIsMobileViewport';
-import { Grow, IndexLink, IndexList, MobileTitle, Page, RowIcon } from './SettingsPage.styles';
+import {
+  Chevron,
+  Grow,
+  IndexIcon,
+  IndexLink,
+  IndexList,
+  IndexTop,
+  MobileIndexTitle,
+  Page,
+} from './SettingsPage.styles';
 import { flaggedRows, visibleSections } from './sections';
 
 /**
@@ -14,16 +23,20 @@ export function SettingsIndexPage() {
   const extra = flaggedRows(readIsMobileViewport());
   return (
     <Page>
-      <MobileTitle>Settings</MobileTitle>
+      <IndexTop>
+        <MobileIndexTitle>Settings</MobileIndexTitle>
+      </IndexTop>
       <IndexList aria-label="Settings">
         {sections.map((s) => (
           <li key={s.id}>
             <IndexLink to={`/settings/${s.id}`}>
-              <RowIcon>
-                <Icon icon={s.icon} size={14} />
-              </RowIcon>
+              <IndexIcon>
+                <Icon icon={s.icon} size={20} />
+              </IndexIcon>
               <Grow>{s.label}</Grow>
-              <Icon icon={ChevronRight} size={18} />
+              <Chevron>
+                <Icon icon={ChevronRight} size={20} />
+              </Chevron>
             </IndexLink>
           </li>
         ))}
@@ -31,7 +44,9 @@ export function SettingsIndexPage() {
           <li key={row.to}>
             <IndexLink to={row.to}>
               <Grow>{row.label}</Grow>
-              <Icon icon={ChevronRight} size={18} />
+              <Chevron>
+                <Icon icon={ChevronRight} size={20} />
+              </Chevron>
             </IndexLink>
           </li>
         ))}

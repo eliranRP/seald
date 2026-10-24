@@ -37,7 +37,7 @@ export const UserMenu = forwardRef<HTMLDivElement, UserMenuProps>((props, ref) =
         aria-label={`Open menu for ${user.name}`}
         onClick={() => setOpen((prev) => !prev)}
       >
-        <Avatar name={user.name} size={32} imageUrl={user.avatarUrl} />
+        <Avatar name={user.name} size={36} tone="indigo" imageUrl={user.avatarUrl} />
       </Trigger>
       <Menu
         id={menuId}

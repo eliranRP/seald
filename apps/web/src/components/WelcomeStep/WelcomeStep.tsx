@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { AuthFormColumn, AuthTitle } from '../AuthSplitLayout';
 import { Banner } from '../Banner';
 import { Button } from '../Button';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { Icon } from '../Icon';
 import { TextField } from '../TextField';
 import type { WelcomeStepProps } from './WelcomeStep.types';
@@ -24,6 +25,8 @@ export function WelcomeStep(props: WelcomeStepProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agreeId = useId();
+  // The board's submit is 44px on desktop and 48px on a phone.
+  const mobile = useIsMobileViewport();
 
   const ready = name.trim().length >= MIN_NAME && agreed;
 
@@ -79,7 +82,7 @@ export function WelcomeStep(props: WelcomeStepProps) {
         {error ? <Banner tone="error">{error}</Banner> : null}
         <Button
           type="submit"
-          size="lg"
+          size={mobile ? 'lg' : 'md'}
           fullWidth
           iconRight={ArrowRight}
           loading={busy}

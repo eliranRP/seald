@@ -27,29 +27,38 @@ export const Main = styled.div`
   }
 `;
 
+/** Canvas `.logo`: 28px mark, 20px serif word, 8px apart. A 44px target on a phone. */
 export const Logo = styled.a`
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   align-self: flex-start;
-  min-height: 44px;
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.xl};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
   text-decoration: none;
-  letter-spacing: -0.01em;
+
+  @media ${TABLET} {
+    min-height: 44px;
+  }
 `;
 
+/** Canvas `.logo-mark`: indigo square with the script "S". */
 export const LogoMark = styled.span`
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: none;
   width: 28px;
   height: 28px;
   border-radius: ${({ theme }) => theme.radius.sm};
   background: ${({ theme }) => theme.color.indigo[600]};
   color: ${({ theme }) => theme.color.fgOnAccent};
+  font-family: ${({ theme }) => theme.font.script};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: ${({ theme }) => theme.font.size.xl};
+  line-height: 1;
 `;
 
 export const Body = styled.div`
@@ -58,7 +67,6 @@ export const Body = styled.div`
   flex-direction: column;
   justify-content: center;
   min-height: 0;
-  padding: 32px 0;
 
   @media ${TABLET} {
     justify-content: flex-start;
@@ -66,12 +74,16 @@ export const Body = styled.div`
   }
 `;
 
+/**
+ * Legal links, dot-separated (canvas `.meta` row, gap 8). On a phone the
+ * text is 12px and each link is a 44px target with no underline.
+ */
 export const FootRow = styled.footer`
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   align-items: center;
-  gap: 8px 16px;
+  gap: 8px;
   padding-top: 24px;
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
@@ -80,6 +92,20 @@ export const FootRow = styled.footer`
   & button {
     color: inherit;
     text-underline-offset: 2px;
+  }
+
+  @media ${TABLET} {
+    gap: 0;
+    font-size: ${({ theme }) => theme.font.size.xs};
+
+    & a,
+    & button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0 8px;
+      text-decoration: none;
+    }
   }
   & a:hover,
   & button:hover {
@@ -127,23 +153,28 @@ export const Panel = styled.aside`
 export const PaperStage = styled.div`
   position: relative;
   width: 352px;
-  height: 300px;
+  height: 456px;
   flex: none;
 `;
 
+/**
+ * Canvas `.paper` at full size (640 wide, letter ratio, 56/64 padding),
+ * scaled to 0.55 and tilted 3deg, so the page reads as a thumbnail.
+ */
 export const Paper = styled.div`
   position: absolute;
   left: 0;
   top: 0;
-  width: 352px;
-  padding: 28px 32px 32px;
+  width: 640px;
+  aspect-ratio: 8.5 / 11;
+  padding: 56px 64px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   background: ${({ theme }) => theme.color.paper};
   border-radius: ${({ theme }) => theme.radius.hair};
   box-shadow: ${({ theme }) => theme.shadow.paper};
-  transform: rotate(-3deg);
+  transform: rotate(-3deg) scale(0.55);
   transform-origin: 0 0;
 `;
 
@@ -151,10 +182,11 @@ export const PaperHead = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
+  margin-bottom: 8px;
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-size: ${({ theme }) => theme.font.size.lg};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
@@ -162,23 +194,31 @@ export const PaperLine = styled.i<{ $w: string }>`
   display: block;
   height: 6px;
   width: ${({ $w }) => $w};
-  border-radius: ${({ theme }) => theme.radius.xxs};
+  border-radius: ${({ theme }) => theme.radius.hair};
   background: ${({ theme }) => theme.color.ink[150]};
 `;
 
+/** The signed field (canvas `.sfield.is-done`): 280 x 48 inside an 88px band. */
 export const SigField = styled.div`
-  margin: 16px 0 8px;
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  height: 48px;
-  padding: 0 12px;
-  border: 1px solid ${({ theme }) => theme.color.success[200]};
-  background: ${({ theme }) => theme.color.success[50]};
-  border-radius: ${({ theme }) => theme.radius.xs};
-  font-family: ${({ theme }) => theme.font.script};
-  font-size: ${({ theme }) => theme.font.size.x2l};
-  color: ${({ theme }) => theme.color.indigo[800]};
+  position: relative;
+  height: 88px;
+  margin-top: 28px;
+
+  & > span {
+    position: absolute;
+    left: 0;
+    top: 20px;
+    display: flex;
+    align-items: center;
+    width: 280px;
+    height: 48px;
+    padding: 0 8px;
+    font-family: ${({ theme }) => theme.font.script};
+    font-size: ${({ theme }) => theme.font.size.x3l};
+    font-weight: ${({ theme }) => theme.font.weight.semibold};
+    line-height: 1;
+    color: ${({ theme }) => theme.color.ink[900]};
+  }
 `;
 
 export const Benefits = styled.ul`
@@ -194,7 +234,7 @@ export const Benefit = styled.li`
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: ${({ theme }) => theme.font.size.body};
+  font-size: ${({ theme }) => theme.font.size.bodyMd};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
@@ -214,23 +254,19 @@ export const FormColumn = styled.div<{ $center?: boolean }>`
   }
 `;
 
-/** `.auth-title`: serif headline, 32px desktop / 28px mobile. */
+/** `.auth-title`: 32px serif at every width, line height 1.15. */
 export const Title = styled.h1`
   margin: 0;
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x4l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  line-height: 1.15;
   color: ${({ theme }) => theme.color.fg[1]};
-
-  @media ${TABLET} {
-    font-size: ${({ theme }) => theme.font.size.x3l};
-  }
 `;
 
-/** `.meta`: small secondary line. */
+/** `.meta`: 13px secondary line. */
 export const Meta = styled.div`
-  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 

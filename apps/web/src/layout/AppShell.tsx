@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -14,6 +14,7 @@ import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { MOBILE_NAV_ITEMS, NAV_ITEMS, NEW_DOCUMENT_PATH, matchNavId } from './navItems';
 import { isMobileNavExempt } from './mobileNavExempt';
 import { SystemOverlays } from './SystemOverlays';
+import { FocusedShellProvider } from './shellChrome';
 
 /** Help entry in the top bar (no help centre yet — mail support). */
 const HELP_HREF = 'mailto:support@seald.nromomentum.com';
@@ -67,15 +68,15 @@ const Content = styled.main`
  */
 const ShellFooter = styled.footer`
   flex: 0 0 auto;
+  /* Short pages: rest at the bottom of the viewport, not mid-screen. */
+  margin-top: auto;
   display: flex;
   flex-wrap: wrap;
   gap: 12px 18px;
   align-items: center;
   justify-content: center;
   padding: 14px 24px;
-  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
-  background: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
+  font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.fg[3]};
 
   a,
@@ -141,6 +142,9 @@ export function AppShell() {
   const location = useLocation();
   const activeNavId = matchNavId(location.pathname);
   const isMobile = useIsMobileViewport();
+  // Upload, Prepare and the template editor bring their own flow header
+  // (see `useFocusedShell`), so the top bar, footer and bottom nav step aside.
+  const [focused, setFocused] = useState(false);
 
   const handleSelectNavItem = useCallback(
     (id: string): void => {
@@ -200,38 +204,42 @@ export function AppShell() {
   // destinations. (Until the v2 redesign every mobile visit bounced to
   // /m/send; that lock is gone.) Focused flows such as the guided approval
   // review keep the screen to themselves, without the bottom nav.
-  const showMobileNav = isMobile && mode === 'authed' && !isMobileNavExempt(location.pathname);
+  const showMobileNav =
+    isMobile && mode === 'authed' && !focused && !isMobileNavExempt(location.pathname);
 
   return (
     <Shell>
       <OfflineBar />
-      <NavBar
-        items={DESKTOP_NAV_ITEMS}
-        activeItemId={activeNavId}
-        onSelectItem={handleSelectNavItem}
-        compact={isMobile}
-        user={user ?? undefined}
-        mode={mode}
-        onSignIn={handleSignIn}
-        onSignUp={handleSignUp}
-        onSignOut={handleSignOut}
-        onOpenSettings={mode === 'authed' ? handleOpenSettings : undefined}
-        helpHref={mode === 'authed' ? HELP_HREF : undefined}
-        rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
-      />
+      {focused ? null : (
+        <NavBar
+          items={DESKTOP_NAV_ITEMS}
+          activeItemId={activeNavId}
+          onSelectItem={handleSelectNavItem}
+          compact={isMobile}
+          user={user ?? undefined}
+          mode={mode}
+          onSignIn={handleSignIn}
+          onSignUp={handleSignUp}
+          onSignOut={handleSignOut}
+          onOpenSettings={mode === 'authed' ? handleOpenSettings : undefined}
+          helpHref={mode === 'authed' ? HELP_HREF : undefined}
+          rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
+        />
+      )}
       <Content key={location.pathname}>
         {/* Keyed by pathname so navigating to a different route remounts
             the boundary and clears any prior caught error — otherwise a
             crashed page would persist its fallback after the user navigates
             away via the NavBar. */}
-        <ErrorBoundary key={location.pathname}>
-          <Outlet />
-        </ErrorBoundary>
-        {/* On phones the legal footer scrolls with the page so it never
-            stacks on top of the bottom nav. */}
-        {isMobile ? <ShellLegalFooter /> : null}
+        <FocusedShellProvider value={setFocused}>
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
+        </FocusedShellProvider>
+        {/* The legal footer sits at the end of the page and scrolls with it
+            (the design has no pinned bar); focused flows leave it out. */}
+        {focused ? null : <ShellLegalFooter />}
       </Content>
-      {isMobile ? null : <ShellLegalFooter />}
       {showMobileNav ? (
         <MobileNav
           items={MOBILE_ITEMS}

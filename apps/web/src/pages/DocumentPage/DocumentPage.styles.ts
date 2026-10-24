@@ -1,5 +1,7 @@
 import styled from 'styled-components';
 
+const MOBILE = '@media (max-width: 640px)';
+
 /**
  * Page container — fills the slot AppShell carves out under the NavBar.
  * `min-height: 0` + `overflow: hidden` keep the zoomed canvas confined to
@@ -24,11 +26,12 @@ export const Body = styled.div`
   min-height: 0;
 `;
 
+/** Canvas `.canvas-area` background (ink 100). */
 export const Workspace = styled.div`
   display: flex;
   flex: 1 1 auto;
   min-height: 0;
-  background: ${({ theme }) => theme.color.ink[50]};
+  background: ${({ theme }) => theme.color.ink[100]};
   user-select: none;
 `;
 
@@ -74,7 +77,10 @@ export const CenterInner = styled.div`
   flex: 1 1 auto;
   min-height: 100%;
   min-width: min-content;
-  padding: ${({ theme }) => theme.space[6]} 0;
+  padding: ${({ theme }) => theme.space[8]} 0;
+  ${MOBILE} {
+    padding: ${({ theme }) => theme.space[4]} 0;
+  }
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -442,8 +448,6 @@ export const GroupToolbarButton = styled.button<{ readonly $tone: 'indigo' | 'da
 
 /* ---------- Prepare layout (sender flow) ---------- */
 
-const MOBILE = '@media (max-width: 640px)';
-
 export const PreparePanel = styled.aside<{ readonly $hidden?: boolean }>`
   display: ${({ $hidden }) => ($hidden === true ? 'none' : 'flex')};
   flex-direction: column;
@@ -461,18 +465,42 @@ export const PreparePanel = styled.aside<{ readonly $hidden?: boolean }>`
     flex: 1 1 auto;
     width: 100%;
     padding: ${({ theme }) => theme.space[4]};
+    gap: ${({ theme }) => theme.space[4]};
     border-right: 0;
+    background: ${({ theme }) => theme.color.bg.app};
   }
 `;
 
-export const PanelSection = styled.section`
+/**
+ * Signers block: header, rows, recent people, add buttons, 20px apart
+ * (16px on phones). Positioned so the compact signing-order switch can pin
+ * itself to the header row; a block that renders nothing in flow marks
+ * itself `data-collapsed` and takes no gap.
+ */
+export const SignersSection = styled.section`
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: ${({ theme }) => theme.space[3]};
+  & > * + *:not([data-collapsed='true']) {
+    margin-top: ${({ theme }) => theme.space[5]};
+  }
+  ${MOBILE} {
+    & > * + *:not([data-collapsed='true']) {
+      margin-top: ${({ theme }) => theme.space[4]};
+    }
+  }
+`;
+
+/** Fields eyebrow and tiles, 10px apart (canvas Prepare). */
+export const FieldsSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 `;
 
 export const Eyebrow = styled.h2`
   margin: 0;
+  line-height: 1.5;
   font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   letter-spacing: ${({ theme }) => theme.font.tracking.wider};
@@ -498,10 +526,9 @@ export const HideOnMobile = styled.span`
   }
 `;
 
+/** PrepareMobile: the segmented tabs sit 12px under the step bar. */
 export const TabsBar = styled.div`
-  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
-  background: ${({ theme }) => theme.color.paper};
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+  padding: ${({ theme }) => `${theme.space[3]} ${theme.space[4]} 0`};
 `;
 
 export const MobileBar = styled.div`
@@ -556,7 +583,11 @@ export const HintPill = styled.div`
   pointer-events: none;
 `;
 
-export const ThumbsSlot = styled(RailSlot)`
+/** Right column holding the page thumbs (canvas `.thumbs`); hidden on phones. */
+export const ThumbsColumn = styled.div`
+  display: flex;
+  flex: none;
+  min-height: 0;
   ${MOBILE} {
     display: none;
   }

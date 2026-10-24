@@ -3,8 +3,10 @@ import styled from 'styled-components';
 export const Shell = styled.div`
   width: 100%;
   min-height: 60vh;
-  display: grid;
-  place-items: center;
+  /* The state page carries its own 96px top padding (System boards). */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
   background: ${({ theme }) => theme.color.bg.app};
 `;
 

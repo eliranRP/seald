@@ -4,6 +4,7 @@ import { isFeatureEnabled } from 'shared';
 import { Button } from '@/components/Button';
 import { ButtonRoot } from '@/components/Button/Button.styles';
 import { Icon } from '@/components/Icon';
+import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { padesLabel } from '@/features/verify';
 import type { VerifyResponse } from '@/features/verify';
 import { formatDateTime } from './verdict';
@@ -43,6 +44,8 @@ interface RowProps {
 }
 
 function Row({ label, value, hash, ariaLabel, copyLabel, dash, danger, onCopy }: RowProps) {
+  // Phone rows get the 44px touch target (board: VerifyMobile kv-row).
+  const isMobile = useIsMobileViewport();
   return (
     <KvRow $danger={danger === true}>
       <KvKey>{label}</KvKey>
@@ -53,7 +56,7 @@ function Row({ label, value, hash, ariaLabel, copyLabel, dash, danger, onCopy }:
         {copyLabel ? (
           <Button
             variant="ghost"
-            size="sm"
+            size={isMobile ? 'md' : 'sm'}
             iconOnly
             iconLeft={Copy}
             aria-label={copyLabel}
@@ -177,7 +180,7 @@ export function TechDetails({ data, sealed, tampered, onCopy }: TechDetailsProps
                 rel="noopener noreferrer"
                 download={safeDownloadName(envelope.title, '-sealed')}
               >
-                <Icon icon={Download} size={16} />
+                <Icon icon={Download} size={14} />
                 Sealed PDF
               </ButtonRoot>
             ) : null}
@@ -197,7 +200,7 @@ export function TechDetails({ data, sealed, tampered, onCopy }: TechDetailsProps
                       download={safeDownloadName(doc.title, '-sealed')}
                       aria-label={`Download sealed ${doc.title}`}
                     >
-                      <Icon icon={Download} size={16} />
+                      <Icon icon={Download} size={14} />
                       {`Sealed PDF ${doc.ord}`}
                     </ButtonRoot>
                   ) : null,
@@ -215,7 +218,7 @@ export function TechDetails({ data, sealed, tampered, onCopy }: TechDetailsProps
                 rel="noopener noreferrer"
                 download={safeDownloadName(envelope.title, '-audit')}
               >
-                <Icon icon={Download} size={16} />
+                <Icon icon={Download} size={14} />
                 Audit trail PDF
               </ButtonRoot>
             ) : null}

@@ -48,7 +48,7 @@ import {
   useSigningFillController,
   useSigningPdfSource,
 } from '@/features/signingFill';
-import { denormalizeCoord, useCanvasHeight, useCanvasWidth } from '@/lib/canvas-coords';
+import { CANVAS_WIDTH, useCanvasHeight, useCanvasWidth } from '@/lib/canvas-coords';
 import { useT } from '@/lib/i18n';
 import { usePdfDocument } from '@/lib/pdf';
 import { ErrorSlot, Page, Pages, Stage } from './SigningFillPage.styles';
@@ -77,6 +77,13 @@ const DEFAULT_FIELD_H: Record<SignerFieldKind, number> = {
   radio: 72,
   dropdown: 36,
 };
+
+/**
+ * Desktop paper width (canvas `.paper`, 640px). Field coordinates are page
+ * fractions, so the page renders wider than the editor's 560px grid; sizes
+ * stored in grid pixels (legacy fields, the defaults above) scale with it.
+ */
+const SIGN_PAPER_WIDTH = 640;
 
 /**
  * Per-page reading order: required first, then top to bottom, then left to
@@ -136,8 +143,17 @@ function Content() {
   const totalPages = activeDocument?.original_pages ?? envelope?.original_pages ?? 1;
   const pdfSrc = useSigningPdfSource(envelope?.id, activeDocument?.id);
   const { doc: signingPdfDoc } = usePdfDocument(pdfSrc);
-  const canvasWidth = useCanvasWidth();
-  const canvasHeight = useCanvasHeight(signingPdfDoc);
+  // `useCanvasWidth` is the editor grid (560) on desktop and the viewport
+  // minus gutters on mobile; the signer page is 640 wide on desktop.
+  const gridWidth = useCanvasWidth();
+  const canvasWidth = gridWidth === CANVAS_WIDTH ? SIGN_PAPER_WIDTH : gridWidth;
+  const gridScale = canvasWidth / CANVAS_WIDTH;
+  // `useCanvasHeight` is the page height on the 560 grid; scale it to the
+  // rendered width so fields line up with the PDF at every width.
+  const canvasHeight = useCanvasHeight(signingPdfDoc) * gridScale;
+  /** Page fraction (or a legacy grid-pixel value above 1) to rendered px. */
+  const toPx = (v: number, extent: number): number =>
+    Math.round(v > 1 ? v * gridScale : v * extent);
   const { fieldsByPage } = useFieldsByPage(fields);
 
   const {
@@ -379,6 +395,7 @@ function Content() {
                 title={activeDocument?.title ?? envelope.title}
                 pdfSrc={pdfSrc ?? undefined}
                 width={canvasWidth}
+                style={{ minHeight: Math.round(canvasHeight) }}
               >
                 {[...pageFields].sort(compareFieldsForReadingOrder).map((f: SignMeField) => {
                   const uiKind = toUiKind(f);
@@ -387,11 +404,11 @@ function Content() {
                     ? t('signing.fill.readOnly', { label: baseLabel })
                     : baseLabel;
                   const width = f.width
-                    ? denormalizeCoord(f.width, canvasWidth)
-                    : DEFAULT_FIELD_W[uiKind];
+                    ? toPx(f.width, canvasWidth)
+                    : Math.round(DEFAULT_FIELD_W[uiKind] * gridScale);
                   const height = f.height
-                    ? denormalizeCoord(f.height, canvasHeight)
-                    : DEFAULT_FIELD_H[uiKind];
+                    ? toPx(f.height, canvasHeight)
+                    : Math.round(DEFAULT_FIELD_H[uiKind] * gridScale);
                   const value = fieldValue(f);
                   const isNow = !needsConsent && nowField?.id === f.id;
                   return (
@@ -408,8 +425,8 @@ function Content() {
                       auto={isAutoField(f)}
                       autoLabel={t('signing.sign.tag.auto')}
                       tag={isNow ? tagFor(uiKind) : undefined}
-                      x={denormalizeCoord(f.x, canvasWidth)}
-                      y={denormalizeCoord(f.y, canvasHeight)}
+                      x={toPx(f.x, canvasWidth)}
+                      y={toPx(f.y, canvasHeight)}
                       w={width}
                       h={height}
                       onActivate={() => {

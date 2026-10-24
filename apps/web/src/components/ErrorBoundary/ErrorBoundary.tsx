@@ -1,6 +1,6 @@
 import { Component } from 'react';
 import type { ErrorInfo, JSX, ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Copy, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/Button';
 import { StatePage } from '@/components/StatePage';
 import { useCopyToClipboard } from '@/hooks/useCopyToClipboard';
@@ -50,6 +50,7 @@ function DefaultFallback({ reset, errorId }: DefaultFallbackProps): JSX.Element 
           <Button
             variant="ghost"
             size="sm"
+            iconLeft={Copy}
             onClick={() => {
               void copy(errorId);
             }}

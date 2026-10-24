@@ -1,4 +1,4 @@
-import { Bell, CheckCircle2, Clock, Lock, Mail, XCircle, type LucideIcon } from 'lucide-react';
+import { Bell, CheckCircle2, Clock, Lock, PenLine, XCircle, type LucideIcon } from 'lucide-react';
 import { DEFAULT_USER_SETTINGS, type ExpiryDefaultDays, type ReminderDefault } from 'shared';
 import { Icon } from '@/components/Icon';
 import { SegmentedControl } from '@/components/SegmentedControl';
@@ -9,6 +9,7 @@ import {
   Row,
   RowIcon,
   RowLabel,
+  RowSegmented,
   RowsCard,
   Section,
   Spacer,
@@ -37,7 +38,7 @@ interface SwitchRow {
 }
 
 const ROWS: ReadonlyArray<SwitchRow> = [
-  { id: 'signed', label: 'Someone signs', icon: Mail, locked: false },
+  { id: 'signed', label: 'Someone signs', icon: PenLine, locked: false },
   { id: 'completed', label: 'Completed', icon: CheckCircle2, locked: true },
   { id: 'declined', label: 'Declined, expired, bounced', icon: XCircle, locked: true },
   // "Daily summary" stays hidden until the daily-summary email exists; the
@@ -66,7 +67,7 @@ export function NotificationsSection() {
 
   return (
     <Section aria-label="Notifications">
-      <Eyebrow>Notify me</Eyebrow>
+      <Eyebrow $mobileHidden>Notify me</Eyebrow>
       <RowsCard>
         {ROWS.map((row, i) => (
           <Row key={row.id} $last={i === ROWS.length - 1}>
@@ -90,35 +91,39 @@ export function NotificationsSection() {
         ))}
       </RowsCard>
 
-      <Eyebrow>Defaults</Eyebrow>
+      <Eyebrow $mobileGroup>Defaults</Eyebrow>
       <RowsCard>
-        <Row>
+        <Row $min={64} $wrap>
           <RowIcon>
             <Icon icon={Bell} size={14} />
           </RowIcon>
           <RowLabel>Reminders</RowLabel>
           <Spacer />
-          <SegmentedControl
-            aria-label="Reminders"
-            options={REMINDER_OPTIONS}
-            value={current.reminder_default}
-            onChange={(reminder_default) => update.mutate({ reminder_default })}
-          />
+          <RowSegmented>
+            <SegmentedControl
+              aria-label="Reminders"
+              options={REMINDER_OPTIONS}
+              value={current.reminder_default}
+              onChange={(reminder_default) => update.mutate({ reminder_default })}
+            />
+          </RowSegmented>
         </Row>
-        <Row $last>
+        <Row $last $min={64} $wrap>
           <RowIcon>
             <Icon icon={Clock} size={14} />
           </RowIcon>
           <RowLabel>Expires after</RowLabel>
           <Spacer />
-          <SegmentedControl
-            aria-label="Expires after"
-            options={EXPIRY_OPTIONS}
-            value={String(current.expiry_default_days)}
-            onChange={(days) =>
-              update.mutate({ expiry_default_days: Number(days) as ExpiryDefaultDays })
-            }
-          />
+          <RowSegmented>
+            <SegmentedControl
+              aria-label="Expires after"
+              options={EXPIRY_OPTIONS}
+              value={String(current.expiry_default_days)}
+              onChange={(days) =>
+                update.mutate({ expiry_default_days: Number(days) as ExpiryDefaultDays })
+              }
+            />
+          </RowSegmented>
         </Row>
       </RowsCard>
     </Section>

@@ -6,24 +6,29 @@ export const Root = styled.section`
   width: 100%;
 `;
 
+/** Same eyebrow header as the Signers and Fields blocks of the Prepare panel. */
 export const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.space[2]};
+  margin-bottom: 10px;
 `;
 
 export const Title = styled.h2`
   margin: 0;
   font-family: ${({ theme }) => theme.font.sans};
-  font-size: 12px;
-  font-weight: 600;
-  color: ${({ theme }) => theme.color.fg[1]};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: 1.5;
+  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const Count = styled.span`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-variant-numeric: tabular-nums;
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
@@ -53,8 +58,9 @@ export const Row = styled.li<{
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
-  padding: 4px 4px 4px 2px;
-  border-radius: ${({ theme }) => theme.radius.sm};
+  min-height: 52px;
+  padding: 4px 6px 4px 4px;
+  border-radius: ${({ theme }) => theme.radius.md};
   border: 1px solid
     ${({ theme, $active, $dropTarget }) =>
       rowBorder(theme, { active: $active, dropTarget: $dropTarget })};
@@ -77,7 +83,7 @@ export const SelectButton = styled.button`
   min-width: 0;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
+  gap: 0;
   padding: 4px 6px;
   border: none;
   border-radius: ${({ theme }) => theme.radius.xs};
@@ -98,13 +104,16 @@ export const Name = styled.span`
   white-space: nowrap;
   font-family: ${({ theme }) => theme.font.sans};
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-weight: 500;
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: 1.3;
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+/** Like the signer row's `.meta` line. */
 export const Meta = styled.span`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: 11px;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  line-height: 1.3;
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
