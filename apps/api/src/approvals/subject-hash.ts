@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import type { ApprovalDestination, ApprovalKind } from 'shared';
+import { sha256Hex } from '../common/sha256';
 import { canonicalJsonValue } from '../envelopes/event-hash';
 
 /** One placed field, as far as an approval binds it. */
@@ -73,5 +73,5 @@ export function computeSubjectHash(facts: SubjectFacts): string {
     files: [...facts.files],
     fields,
   });
-  return createHash('sha256').update(canonical, 'utf8').digest('hex');
+  return sha256Hex(canonical);
 }
