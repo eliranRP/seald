@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readNextParam, rememberNext, takeRememberedNext, validateNextPath } from './nextPath';
+import {
+  readNextParam,
+  rememberNext,
+  takeRememberedNext,
+  validateNextPath,
+  validateReturnPath,
+} from './nextPath';
 
 describe('rememberNext / takeRememberedNext', () => {
   beforeEach(() => {
@@ -177,5 +183,43 @@ describe('readNextParam — reads ?next= from the URL', () => {
 
   it('returns null when the parameter is missing', () => {
     expect(readNextParam(new URLSearchParams(''))).toBeNull();
+  });
+});
+
+describe('validateReturnPath — owner pages for the sign-in return trip', () => {
+  it.each([
+    '/documents',
+    '/documents?q=nda',
+    '/document/abc-123',
+    '/document/new',
+    '/templates',
+    '/templates/t_1/use',
+    '/signers',
+    '/settings',
+    '/settings/integrations',
+    '/approve/abc123/review',
+    '/oauth/mcp/consent',
+  ])('accepts %s', (candidate) => {
+    expect(validateReturnPath(candidate)).toBe(candidate);
+  });
+
+  it.each([
+    '/documentsx',
+    '/document//evil.com',
+    '//documents',
+    '/documents/../evil',
+    '/settings/../../evil',
+    '/signers/anything',
+    '/m/send',
+    '/signin',
+    'https://evil.com/documents',
+    '/documents%2F..',
+  ])('refuses %s', (candidate) => {
+    expect(validateReturnPath(candidate)).toBeNull();
+  });
+
+  it('keeps the strict approval-only rule on validateNextPath', () => {
+    expect(validateNextPath('/documents')).toBeNull();
+    expect(validateNextPath('/settings/developers')).toBeNull();
   });
 });

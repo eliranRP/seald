@@ -74,12 +74,29 @@ export const EVENT_TYPES = [
   'approval_decided',
   // WP-26 (migration 0039): a sent envelope's signer was corrected, or its expiry moved.
   'signer_corrected',
+  'signer_replaced',
   'expiry_changed',
+  // Migration 0045
+  'unsent',
+  // Migration 0040: the email provider reported a hard bounce for a signer.
+  'email_bounced',
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
-export const SIGNER_UI_STATUSES = ['awaiting', 'viewing', 'completed', 'declined'] as const;
+// `bounced` (migration 0040): the email provider reported a hard bounce for the
+// signer's address and they have not signed or declined. Owner-facing only; the
+// signer and verify surfaces report it as `awaiting`.
+export const SIGNER_UI_STATUSES = [
+  'awaiting',
+  'viewing',
+  'completed',
+  'declined',
+  'bounced',
+] as const;
 export type SignerUiStatus = (typeof SIGNER_UI_STATUSES)[number];
+
+export const SIGNER_DELIVERY_STATUSES = ['delivered', 'bounced'] as const;
+export type SignerDeliveryStatus = (typeof SIGNER_DELIVERY_STATUSES)[number];
 
 // Primitive schemas
 // Use z.guid() rather than z.uuid() so that any 8-4-4-4-12 hex pattern is
@@ -114,6 +131,9 @@ export const SignerSchema = z.object({
   // WP-38 (migration 0035): per-signer locale override. Present only while
   // the `i18n` flag is on; null inherits the envelope's locale.
   locale: z.string().nullable().optional(),
+  // Migration 0040: 'bounced' after the email provider reports a hard bounce
+  // for this signer's address; back to 'delivered' once the address is fixed.
+  delivery_status: z.enum(SIGNER_DELIVERY_STATUSES).optional(),
 });
 export type Signer = z.infer<typeof SignerSchema>;
 

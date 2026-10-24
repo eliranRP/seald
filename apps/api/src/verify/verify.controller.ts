@@ -31,6 +31,17 @@ export type { VerifyResponse };
 export class VerifyController {
   constructor(private readonly svc: VerifyService) {}
 
+  /**
+   * Verify-by-PDF entry: the browser hashes a dropped PDF locally and asks
+   * which envelope sealed that exact file. Declared before `:short_code` for
+   * readability; the two-segment path cannot collide with it anyway.
+   */
+  @Get('by-hash/:sha256')
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  byHash(@Param('sha256') sha256: string): Promise<{ readonly short_code: string }> {
+    return this.svc.findByHash(sha256);
+  }
+
   @Get(':short_code')
   @Throttle({ short: { limit: 10, ttl: 60_000 } })
   verify(@Param('short_code') short_code: string): Promise<VerifyResponse> {

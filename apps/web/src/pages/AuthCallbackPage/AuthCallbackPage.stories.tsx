@@ -8,9 +8,6 @@ import { AuthCallbackPage } from './AuthCallbackPage';
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();
 }
-async function asyncSignUp(): Promise<{ readonly needsEmailConfirmation: boolean }> {
-  return { needsEmailConfirmation: false };
-}
 function noop(): void {
   /* storybook stub */
 }
@@ -20,11 +17,9 @@ const LOADING_AUTH: AuthContextValue = {
   user: null,
   guest: false,
   loading: true,
-  signInWithPassword: asyncNoop,
-  signUpWithPassword: asyncSignUp,
+  signInWithEmailLink: asyncNoop,
+  completeProfile: asyncNoop,
   signInWithGoogle: asyncNoop,
-  resetPassword: asyncNoop,
-  resendSignUpConfirmation: asyncNoop,
   signOut: asyncNoop,
   enterGuestMode: asyncNoop,
   exitGuestMode: noop,

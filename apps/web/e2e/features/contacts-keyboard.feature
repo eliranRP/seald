@@ -1,28 +1,28 @@
-Feature: Sender adds a signer using only the keyboard
+Feature: Sender manages contacts using only the keyboard
 
-  The contacts dialog is the fastest path to a new signer for power
-  users. Bug B (regression closed 2026-05-02) blocked Enter-to-submit
-  inside the dialog because the inputs lacked any keydown handler;
-  Bug C surfaced the wrong field's validation error. These scenarios
-  guard the keyboard-only happy path + keyboard-only validation
-  feedback so neither regresses.
+  Adding is the fastest path to a new recipient for power users: type an
+  address, press Enter, tab to Add, press Enter. Editing keeps its
+  validation message on the field that caused it (an empty name is flagged
+  on the name field, not under the email). These scenarios guard both
+  keyboard-only paths.
 
   Background:
-    Given a signed-in sender on the contacts page with the API ready to accept "Carla" "carla@example.com"
+    Given a signed-in sender on the contacts page with a contact "Carla Diaz" "carla@example.com"
 
   @sender @smoke
-  Scenario: Sender adds a signer by pressing Enter inside the dialog
-    When the sender opens the add-signer dialog
-    And the sender types "Carla" into the name field
-    And the sender types "carla@example.com" into the email field
+  Scenario: Sender adds a contact by typing and pressing Enter
+    When the sender opens the add contacts dialog
+    And the sender types "nora@example.com" into the emails field
     And the sender presses Enter
-    Then the add-signer dialog closes
-    And "Carla" appears in the contacts list
+    Then "nora@example.com" shows as a new email chip
+    When the sender tabs to the add button and presses Enter
+    Then the add contacts dialog closes
+    And the confirmation "Contact added" is shown
 
   @sender @smoke
   Scenario: Validation error attaches to the field that caused it
-    When the sender opens the add-signer dialog
-    And the sender types "carla@example.com" into the email field
-    And the sender submits the dialog
-    Then the name field shows the "Please enter a name." error
+    When the sender opens the edit dialog for "Carla Diaz"
+    And the sender clears the name field
+    And the sender saves the contact
+    Then the name field shows the "Enter a name." error
     And the email field has no error

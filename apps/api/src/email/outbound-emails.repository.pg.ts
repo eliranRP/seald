@@ -131,6 +131,29 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
     return rows.map((r) => toDomain(rowRecord(r)));
   }
 
+  async recordProviderEvent(
+    provider: string,
+    event_type: string,
+    provider_id: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
+    await this.db
+      .insertInto('email_webhooks')
+      .values({ provider, event_type, provider_id, payload: JSON.stringify(payload) })
+      .execute();
+  }
+
+  async findByProviderId(provider_id: string): Promise<OutboundEmailRow | null> {
+    const row = await this.db
+      .selectFrom('outbound_emails')
+      .selectAll()
+      .where('provider_id', '=', provider_id)
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .executeTakeFirst();
+    return row ? toDomain(rowRecord(row)) : null;
+  }
+
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
@@ -141,7 +164,7 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
       .selectAll()
       .where('envelope_id', '=', envelope_id)
       .where('signer_id', '=', signer_id)
-      .where((eb) => eb.or([eb('kind', '=', 'invite'), eb('kind', '=', 'reminder')]));
+      .where('kind', 'in', ['invite', 'your_turn', 'reminder']);
     if (options?.excludeAutomated) {
       query = query.where(sql<boolean>`coalesce(payload->>'automated', 'false') <> 'true'`);
     }
@@ -200,6 +223,29 @@ export class OutboundEmailsPgRepository extends OutboundEmailsRepository {
           attempts = max_attempts
       where id = ${id}
     `.execute(this.db);
+  }
+
+  async cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }> {
+    const canceled = await this.db
+      .updateTable('outbound_emails')
+      .set({ status: 'canceled' })
+      .where('envelope_id', '=', envelope_id)
+      .where('kind', 'in', ['invite', 'your_turn'])
+      .where('status', '=', 'pending')
+      .executeTakeFirst();
+    const handled = await this.db
+      .selectFrom('outbound_emails')
+      .select((eb) => eb.fn.countAll<string>().as('n'))
+      .where('envelope_id', '=', envelope_id)
+      .where('kind', 'in', ['invite', 'your_turn'])
+      .where('status', 'in', ['sending', 'sent'])
+      .executeTakeFirst();
+    return {
+      canceled: Number(canceled?.numUpdatedRows ?? 0n),
+      alreadyHandled: Number(handled?.n ?? 0),
+    };
   }
 
   async markFailed(

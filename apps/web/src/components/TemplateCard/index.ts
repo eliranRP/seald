@@ -1,2 +1,2 @@
-export { TemplateCard } from './TemplateCard';
-export type { TemplateCardProps } from './TemplateCard.types';
+export { TemplateCard, templateMenuEntries, templateUsageText } from './TemplateCard';
+export type { TemplateCardActions, TemplateCardProps } from './TemplateCard.types';

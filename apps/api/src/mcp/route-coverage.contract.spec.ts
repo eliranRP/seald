@@ -66,6 +66,13 @@ const OWNER_IN_APP_ROUTES: readonly string[] = [
   'POST /templates/:id/direct-link/rotate',
   'DELETE /templates/:id/direct-link',
   'GET /agent-activity',
+  'POST /uploads/convert',
+  'POST /envelopes/:id/unsend',
+  'GET /me/settings',
+  'PATCH /me/settings',
+  'POST /scan-sessions',
+  'GET /scan-sessions/:code',
+  'GET /scan-sessions/:code/pdf',
 ];
 
 interface Route {

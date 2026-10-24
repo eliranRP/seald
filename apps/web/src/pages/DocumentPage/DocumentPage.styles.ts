@@ -38,11 +38,12 @@ export const Workspace = styled.div`
  * `CanvasScroll` below so the toolbar + thumb strip stay pinned at all zoom
  * levels instead of drifting off-screen with the zoomed canvas.
  */
-export const Center = styled.div`
+export const Center = styled.div<{ readonly $hidden?: boolean }>`
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
-  display: flex;
+  display: ${({ $hidden }) => ($hidden === true ? 'none' : 'flex')};
   flex-direction: column;
   overflow: hidden;
 `;
@@ -384,7 +385,7 @@ export const GroupBoundary = styled.div`
   pointer-events: none;
   border: 1.5px dashed ${({ theme }) => theme.color.indigo[500]};
   background: ${({ theme }) => theme.color.indigo[50]};
-  opacity: 0.35;
+  opacity: 0.45;
   border-radius: ${({ theme }) => theme.radius.sm};
   z-index: 4;
 `;
@@ -400,18 +401,19 @@ export const GroupToolbar = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[1]};
   padding: 4px;
-  background: ${({ theme }) => theme.color.ink[900]};
-  border-radius: ${({ theme }) => theme.radius.sm};
+  background: ${({ theme }) => theme.color.paper};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
   box-shadow: ${({ theme }) => theme.shadow.md};
   z-index: 6;
 `;
 
 export const GroupToolbarLabel = styled.span`
   padding: 0 ${({ theme }) => theme.space[2]};
-  color: ${({ theme }) => theme.color.fg.inverse};
+  color: ${({ theme }) => theme.color.fg[1]};
   font-family: ${({ theme }) => theme.font.sans};
-  font-size: 12px;
-  font-weight: 600;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   white-space: nowrap;
 `;
 
@@ -419,10 +421,11 @@ export const GroupToolbarButton = styled.button<{ readonly $tone: 'indigo' | 'da
   width: 26px;
   height: 26px;
   border: 0;
-  border-radius: 6px;
+  border-radius: ${({ theme }) => theme.radius.xs};
   background: ${({ $tone, theme }) =>
-    $tone === 'danger' ? theme.color.danger[500] : theme.color.indigo[600]};
-  color: ${({ theme }) => theme.color.fg.inverse};
+    $tone === 'danger' ? theme.color.danger[50] : theme.color.indigo[50]};
+  color: ${({ $tone, theme }) =>
+    $tone === 'danger' ? theme.color.danger[700] : theme.color.indigo[700]};
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -434,5 +437,127 @@ export const GroupToolbarButton = styled.button<{ readonly $tone: 'indigo' | 'da
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
+`;
+
+/* ---------- Prepare layout (sender flow) ---------- */
+
+const MOBILE = '@media (max-width: 640px)';
+
+export const PreparePanel = styled.aside<{ readonly $hidden?: boolean }>`
+  display: ${({ $hidden }) => ($hidden === true ? 'none' : 'flex')};
+  flex-direction: column;
+  flex: 0 0 320px;
+  width: 320px;
+  min-height: 0;
+  overflow: auto;
+  padding: ${({ theme }) => theme.space[5]};
+  gap: ${({ theme }) => theme.space[5]};
+  background: ${({ theme }) => theme.color.paper};
+  border-right: 1px solid ${({ theme }) => theme.color.border[1]};
+  user-select: text;
+
+  ${MOBILE} {
+    flex: 1 1 auto;
+    width: 100%;
+    padding: ${({ theme }) => theme.space[4]};
+    border-right: 0;
+  }
+`;
+
+export const PanelSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: ${({ theme }) => theme.space[3]};
+`;
+
+export const Eyebrow = styled.h2`
+  margin: 0;
+  font-size: ${({ theme }) => theme.font.size.xs};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  letter-spacing: ${({ theme }) => theme.font.tracking.wider};
+  text-transform: uppercase;
+  color: ${({ theme }) => theme.color.fg[3]};
+`;
+
+export const PanelFoot = styled.div`
+  margin-top: auto;
+  display: flex;
+`;
+
+export const HeaderActions = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+`;
+
+export const HideOnMobile = styled.span`
+  display: inline-flex;
+  ${MOBILE} {
+    display: none;
+  }
+`;
+
+export const TabsBar = styled.div`
+  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  background: ${({ theme }) => theme.color.paper};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+`;
+
+export const MobileBar = styled.div`
+  padding: 12px 16px 24px;
+  background: ${({ theme }) => theme.color.paper};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  flex-shrink: 0;
+`;
+
+export const ChipsBar = styled.div`
+  display: flex;
+  gap: ${({ theme }) => theme.space[2]};
+  overflow-x: auto;
+  padding: ${({ theme }) => `${theme.space[2]} ${theme.space[4]}`};
+  background: ${({ theme }) => theme.color.paper};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
+  flex-shrink: 0;
+`;
+
+/** Floating canvas toolbar, bottom centre of the canvas (canvas `.canvas-toolbar`). */
+export const ToolbarDock = styled.div`
+  position: absolute;
+  left: 50%;
+  bottom: ${({ theme }) => theme.space[4]};
+  transform: translateX(-50%);
+  z-index: 15;
+`;
+
+export const ShortcutsDock = styled.div`
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 16;
+`;
+
+export const HintPill = styled.div`
+  position: absolute;
+  top: ${({ theme }) => theme.space[4]};
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[2]};
+  padding: 8px 12px;
+  border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.indigo[50]};
+  color: ${({ theme }) => theme.color.indigo[800]};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
+  pointer-events: none;
+`;
+
+export const ThumbsSlot = styled(RailSlot)`
+  ${MOBILE} {
+    display: none;
   }
 `;

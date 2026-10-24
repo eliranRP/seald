@@ -359,6 +359,144 @@ describe('SigningService.startSession', () => {
   });
 });
 
+describe('SigningService.startSession — link-state reasons', () => {
+  async function reasonFor(
+    envelope: Envelope,
+    signer: EnvelopeSigner,
+  ): Promise<{ message: string; reason: string; waiting_on?: string }> {
+    const svc = buildService(emptySpy(), {
+      async findSignerByAccessTokenHash() {
+        return { envelope, signer };
+      },
+    });
+    try {
+      await svc.startSession(ENV_ID, 'A'.repeat(43));
+    } catch (err) {
+      return (
+        err as { getResponse(): { message: string; reason: string; waiting_on?: string } }
+      ).getResponse();
+    }
+    throw new Error('expected a refusal');
+  }
+
+  it('already_signed when the signer signed on a live envelope', async () => {
+    const body = await reasonFor(
+      envelopeAwaitingOthers(),
+      freshSigner({ signed_at: '2026-04-25T10:00:00.000Z' }),
+    );
+    expect(body).toMatchObject({ message: 'already_signed', reason: 'already_signed' });
+  });
+
+  it('already_signed when the signer signed and the envelope has since completed', async () => {
+    const body = await reasonFor(
+      envelopeAwaitingOthers({ status: 'completed' }),
+      freshSigner({ signed_at: '2026-04-25T10:00:00.000Z' }),
+    );
+    expect(body).toMatchObject({ message: 'envelope_terminal', reason: 'already_signed' });
+  });
+
+  it('declined when the signer declined', async () => {
+    const body = await reasonFor(
+      envelopeAwaitingOthers(),
+      freshSigner({ declined_at: '2026-04-25T10:00:00.000Z' }),
+    );
+    expect(body).toMatchObject({ message: 'already_declined', reason: 'declined' });
+  });
+
+  it('expired for an expired envelope and canceled for a canceled one', async () => {
+    expect(
+      await reasonFor(envelopeAwaitingOthers({ status: 'expired' }), freshSigner()),
+    ).toMatchObject({ reason: 'expired' });
+    expect(
+      await reasonFor(envelopeAwaitingOthers({ status: 'canceled' }), freshSigner()),
+    ).toMatchObject({ reason: 'canceled' });
+  });
+
+  it('not_your_turn names the first name of the signer who is up', async () => {
+    const signer = freshSigner({ signing_order: 2 });
+    const env = envelopeAwaitingOthers({
+      delivery_mode: 'sequential',
+      signers: [
+        makeSigner({ id: 'step-1', name: 'Alex Rivera', signing_order: 1, signed_at: null }),
+        signer,
+      ],
+    });
+    const body = await reasonFor(env, signer);
+    expect(body).toMatchObject({ reason: 'not_your_turn', waiting_on: 'Alex' });
+  });
+});
+
+describe('SigningService.requestNewLink', () => {
+  const TOKEN = 'A'.repeat(43);
+
+  function expiredFor(signer: EnvelopeSigner): Envelope {
+    return envelopeAwaitingOthers({
+      status: 'expired',
+      expires_at: '2026-10-20T09:00:00.000Z',
+      signers: [signer],
+    });
+  }
+
+  it('queues one notice to the sender, deduped per signer per day', async () => {
+    const spy = emptySpy();
+    const signer = freshSigner({ name: 'Hannah Wills', email: 'hannah@quill.vc' });
+    const svc = buildService(spy, {
+      async findSignerByAccessTokenHash() {
+        return { envelope: expiredFor(signer), signer };
+      },
+    });
+    await svc.requestNewLink({ envelope_id: ENV_ID, token: TOKEN });
+    expect(spy.outboundInserts).toHaveLength(1);
+    const row = spy.outboundInserts[0]!;
+    expect(row.kind).toBe('new_link_requested');
+    expect(row.to_email).toBe('sender@example.com');
+    expect(row.dedupe_key).toMatch(
+      new RegExp(`^new_link_requested:${SIGNER_ID}:\\d{4}-\\d{2}-\\d{2}$`),
+    );
+    expect(row.payload).toMatchObject({ signer_name: 'Hannah Wills' });
+    expect(JSON.stringify(row.payload)).not.toContain(TOKEN);
+  });
+
+  it('accepts envelope id plus email in place of the token', async () => {
+    const spy = emptySpy();
+    const signer = freshSigner({ email: 'hannah@quill.vc' });
+    const svc = buildService(spy, {
+      async findByIdWithAll() {
+        return expiredFor(signer);
+      },
+    });
+    await svc.requestNewLink({ envelope_id: ENV_ID, email: ' Hannah@Quill.vc ' });
+    expect(spy.outboundInserts).toHaveLength(1);
+  });
+
+  it('does nothing for a live envelope, an unknown token or a foreign envelope', async () => {
+    const spy = emptySpy();
+    const signer = freshSigner();
+    const live = buildService(spy, {
+      async findSignerByAccessTokenHash() {
+        return { envelope: envelopeAwaitingOthers(), signer };
+      },
+    });
+    await live.requestNewLink({ envelope_id: ENV_ID, token: TOKEN });
+    const unknown = buildService(spy, {
+      async findSignerByAccessTokenHash() {
+        return null;
+      },
+    });
+    await unknown.requestNewLink({ envelope_id: ENV_ID, token: TOKEN });
+    const foreign = buildService(spy, {
+      async findSignerByAccessTokenHash() {
+        return { envelope: expiredFor(signer), signer };
+      },
+    });
+    await foreign.requestNewLink({
+      envelope_id: '99999999-9999-4999-8999-999999999999',
+      token: TOKEN,
+    });
+    expect(spy.outboundInserts).toHaveLength(0);
+  });
+});
+
 describe('SigningService.me', () => {
   it('returns the signer-scoped envelope view, masks co-signer names, filters fields', () => {
     const otherSignerId = '11111111-1111-4111-8111-111111111111';
@@ -706,8 +844,10 @@ describe('SigningService.submit', () => {
     await svc.submit(env, freshSigner({ tc_accepted_at: '2026-04-25T10:00:00.000Z' }), null, null);
     expect(spy.events.map((e) => e.event_type)).toEqual(['signed', 'step_started']);
     expect(spy.events[1]?.metadata).toEqual({ step: 2, signing_order: 2, signer_ids: [nextId] });
-    const invites = spy.outboundInserts.filter((i) => i.kind === 'invite');
+    const invites = spy.outboundInserts.filter((i) => i.kind === 'your_turn');
     expect(invites.map((i) => i.to_email)).toEqual(['next@example.com']);
+    // The mail says who just signed.
+    expect(invites[0]?.payload).toMatchObject({ previous_signer_name: freshSigner().name });
   });
 
   it('WP-05: a failed step start does not fail the committed signature', async () => {

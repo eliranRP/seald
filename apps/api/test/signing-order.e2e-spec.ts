@@ -213,7 +213,7 @@ describe('Signing order (WP-05, e2e)', () => {
 
   function invitesTo(envId: string): string[] {
     return outbound.rows
-      .filter((r) => r.envelope_id === envId && r.kind === 'invite')
+      .filter((r) => r.envelope_id === envId && (r.kind === 'invite' || r.kind === 'your_turn'))
       .map((r) => r.to_email)
       .sort();
   }
@@ -281,7 +281,7 @@ describe('Signing order (WP-05, e2e)', () => {
       envelopesRepo.setSignerTokenHash(signerIds['cy']!, tokens.hash(early));
       const tooEarly = await startSession(envId, early);
       expect(tooEarly.status).toBe(409);
-      expect(tooEarly.body).toEqual({ error: 'not_your_turn' });
+      expect(tooEarly.body).toMatchObject({ error: 'not_your_turn' });
       const remind = await http()
         .post(`/envelopes/${envId}/signers/${signerIds['cy']}/remind`)
         .set(auth);
@@ -299,6 +299,12 @@ describe('Signing order (WP-05, e2e)', () => {
       const second = await signWith(envId, beaLink.token);
       expect(second.body).toEqual({ status: 'submitted', envelope_status: 'awaiting_others' });
       expect(invitesTo(envId)).toEqual(['ada@example.com', 'bea@example.com', 'cy@example.com']);
+      // Step 2 goes out as the your-turn mail; step 1 was a plain invite.
+      expect(
+        outbound.rows
+          .filter((r) => r.envelope_id === envId && r.kind === 'your_turn')
+          .map((r) => r.to_email),
+      ).toEqual(['cy@example.com']);
       const started = eventsOf(envId, 'step_started');
       expect(started.map((e) => e.metadata)).toEqual([
         { step: 1, signing_order: 1, signer_ids: [signerIds['ada'], signerIds['bea']] },

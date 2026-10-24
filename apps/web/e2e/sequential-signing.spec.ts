@@ -60,19 +60,18 @@ async function installSequentialApi(page: Page, state: OrderState): Promise<void
 
 async function signThrough(page: Page, token: string): Promise<void> {
   await page.goto(`/sign/${ENVELOPE.id}?t=${token}`);
-  await page.waitForURL(`**/sign/${ENVELOPE.id}/prep`, { timeout: 15_000 });
-  await page.getByRole('checkbox', { name: /read the consumer disclosure/i }).check();
-  await page.getByRole('checkbox', { name: /open and download a PDF on this device/i }).check();
-  await page.getByRole('button', { name: /start signing/i }).click();
   await page.waitForURL(`**/sign/${ENVELOPE.id}/fill`, { timeout: 15_000 });
-  await page.getByRole('button', { name: /review (?:&|and) finish/i }).click();
-  await page.waitForURL(`**/sign/${ENVELOPE.id}/review`, { timeout: 15_000 });
-  await page.getByRole('checkbox', { name: /intend to sign this document/i }).check();
-  await page.getByRole('button', { name: /sign and submit/i }).click();
+  await page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+  await page.getByRole('button', { name: /^start$/i }).click();
+  await page.getByRole('button', { name: /^finish$/i }).click();
+  await page
+    .getByRole('dialog', { name: /finish signing/i })
+    .getByRole('button', { name: /^sign$/i })
+    .click();
   await page.waitForURL(`**/sign/${ENVELOPE.id}/done`, { timeout: 15_000 });
 }
 
-const NOT_YOUR_TURN = /not your turn to sign yet/i;
+const NOT_YOUR_TURN = /not your turn yet/i;
 
 test.describe('sequential signing, two steps', () => {
   test('signer 2 sees the not-your-turn page until signer 1 finishes, then gets in', async ({
@@ -85,17 +84,17 @@ test.describe('sequential signing, two steps', () => {
     await page.goto(`/sign/${ENVELOPE.id}?t=${BO_TOKEN}`);
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toBeVisible();
     await expect(page.getByRole('alert')).toHaveCount(0);
-    await expect(page.getByText(/email you a signing link as soon as it/i)).toBeVisible();
+    await expect(page.getByText(/email you when it's your turn/i)).toBeVisible();
 
     // Step 1 signs through to the done page.
     await signThrough(page, ADA_TOKEN);
-    await expect(page.getByRole('heading', { name: /^signed\.$/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^signed$/i })).toBeVisible();
     expect(state.adaSigned).toBe(true);
 
     // Step 2's link now works.
     await page.goto(`/sign/${ENVELOPE.id}?t=${BO_TOKEN}`);
-    await page.waitForURL(`**/sign/${ENVELOPE.id}/prep`, { timeout: 15_000 });
-    await expect(page.getByRole('button', { name: /start signing/i })).toBeVisible();
+    await page.waitForURL(`**/sign/${ENVELOPE.id}/fill`, { timeout: 15_000 });
+    await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toHaveCount(0);
   });
 
@@ -105,7 +104,7 @@ test.describe('sequential signing, two steps', () => {
     const state: OrderState = { current: BO, adaSigned: false };
     await installSequentialApi(page, state);
 
-    await page.goto(`/sign/${ENVELOPE.id}/prep`);
+    await page.goto(`/sign/${ENVELOPE.id}/fill`);
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toBeVisible();
 
     // Still step 1's turn: checking again keeps the wait page. Wait for that
@@ -117,9 +116,9 @@ test.describe('sequential signing, two steps', () => {
     await stillWaiting;
     await expect(page.getByRole('heading', { name: NOT_YOUR_TURN })).toBeVisible();
 
-    // Signer 1 finishes elsewhere; the next check opens the prep page.
+    // Signer 1 finishes elsewhere; the next check opens the document.
     state.adaSigned = true;
     await page.getByRole('button', { name: 'Check again' }).click();
-    await expect(page.getByRole('button', { name: /start signing/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
   });
 });

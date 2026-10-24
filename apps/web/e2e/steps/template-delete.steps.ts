@@ -4,46 +4,40 @@ import { test } from '../fixtures/test';
 const { Given, When, Then } = createBdd(test);
 
 /**
- * BDD step defs for `features/template-delete.feature`. Covers Bug A
- * (Escape must dismiss the delete-confirmation modal — WCAG 2.1.2 No
- * Keyboard Trap). Steps query by accessible role/name only (rule 4.6).
- *
- * The mocks build a single `GET /api/templates` response with one
- * template so the templates list renders a card the user can target.
- * No DELETE handler is registered: if the modal were ever confirmed,
- * the test would surface "no mock registered" and fail loudly — but the
- * flow under test deliberately *dismisses* the modal, so the DELETE
- * must never fire.
+ * BDD step defs for `features/template-delete.feature`. Steps query by
+ * accessible role/name only (rule 4.6). The mocks answer `GET /api/templates`
+ * with one template so the list renders a card the sender can target;
+ * DELETE and restore are mocked for the Undo scenario. The shared step
+ * "the confirmation {string} is shown" lives in `sender-contacts.steps.ts`.
  */
+
+function templateRow(name: string) {
+  // Mirrors the wire shape the Nest TemplatesController returns
+  // (`apps/web/src/features/templates/templatesApi.ts#ApiTemplate`).
+  return {
+    id: 'tpl_qnda',
+    owner_id: '00000000-0000-4000-8000-000000000a11',
+    title: name,
+    description: 'Mutual NDA used quarterly with vendor onboarding.',
+    cover_color: '#EEF2FF',
+    field_layout: [],
+    tags: ['legal'],
+    last_signers: [],
+    has_example_pdf: false,
+    uses_count: 3,
+    last_used_at: '2026-04-15T10:00:00Z',
+    created_at: '2026-04-01T10:00:00Z',
+    updated_at: '2026-05-02T10:00:00Z',
+  };
+}
 
 Given(
   'a signed-in sender on the templates page with a template named {string}',
   async ({ seededUser, mockedApi, templatesListPage }, name: string) => {
     await seededUser.signInAs();
-    // Mirror the wire shape the Nest TemplatesController returns
-    // (`apps/web/src/features/templates/templatesApi.ts#ApiTemplate`).
-    // Crucially: `title` (not `name`) — the SPA maps `title` → summary.name,
-    // and the per-card aria-label is `Delete ${name}` — without `title`
-    // the Delete button's accessible name would be empty.
-    mockedApi.on('GET', /\/api\/templates(\?|$)/, {
-      json: [
-        {
-          id: 'tpl_qnda',
-          owner_id: '00000000-0000-4000-8000-000000000a11',
-          title: name,
-          description: 'Mutual NDA used quarterly with vendor onboarding.',
-          cover_color: '#EEF2FF',
-          field_layout: [],
-          tags: ['legal'],
-          last_signers: [],
-          has_example_pdf: false,
-          uses_count: 3,
-          last_used_at: '2026-04-15T10:00:00Z',
-          created_at: '2026-04-01T10:00:00Z',
-          updated_at: '2026-05-02T10:00:00Z',
-        },
-      ],
-    });
+    mockedApi.on('GET', /\/api\/templates(\?|$)/, { json: [templateRow(name)] });
+    mockedApi.on('DELETE', /\/api\/templates\/tpl_qnda$/, { status: 204 });
+    mockedApi.on('POST', /\/api\/templates\/tpl_qnda\/restore$/, { json: templateRow(name) });
     await templatesListPage.goto();
     await templatesListPage.expectVisible();
   },
@@ -55,6 +49,14 @@ When(
     await templatesListPage.openDeleteModal(name);
   },
 );
+
+When('the sender confirms the deletion', async ({ templatesListPage }) => {
+  await templatesListPage.confirmDelete();
+});
+
+When('the sender taps Undo', async ({ page }) => {
+  await page.getByRole('button', { name: 'Undo' }).click();
+});
 
 When('the sender presses Escape', async ({ page }) => {
   await page.keyboard.press('Escape');
@@ -77,3 +79,10 @@ Then(
 Then('the {string} template is still in the list', async ({ templatesListPage }, name: string) => {
   await templatesListPage.expectTemplateVisible(name);
 });
+
+Then(
+  'the {string} template is no longer in the list',
+  async ({ templatesListPage }, name: string) => {
+    await templatesListPage.expectTemplateGone(name);
+  },
+);

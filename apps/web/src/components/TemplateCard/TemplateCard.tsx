@@ -1,239 +1,145 @@
-import { forwardRef, useMemo } from 'react';
-import { Link2, Pencil, PenTool, Send, Tag, Trash2, Users } from 'lucide-react';
-import { Icon } from '@/components/Icon';
-import { tagColorFor } from '@/features/templates';
-import type { TemplateCardAccent, TemplateCardProps } from './TemplateCard.types';
-import {
-  ActionButton,
-  ActionDanger,
-  ActionOverlay,
-  ActionPrimary,
-  Body,
-  MiniThumb,
-  Name,
-  Root,
-  StatDot,
-  StatItem,
-  StatMono,
-  StatRow,
-  TagOverflowPill,
-  TagPill,
-  TagRow,
-  ThumbLine,
-  ThumbPagesChip,
-  ThumbPaper,
-  ThumbSig,
-  ThumbSpacer,
-  ThumbStripe,
-} from './TemplateCard.styles';
+import { forwardRef, useId } from 'react';
+import { Copy, Link2, MoreHorizontal, Pencil, Tag, Trash2, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
+import { Button } from '@/components/Button';
+import { MenuButton } from '@/components/Menu';
+import type { MenuEntry } from '@/components/Menu';
+import { deriveTemplateRoles } from '@/features/templates/templateRoles';
+import type { TemplateSummary } from '@/features/templates';
+import { relativeAgo } from '@/lib/relativeAgo';
+import type { TemplateCardActions, TemplateCardProps } from './TemplateCard.types';
+import { CardButton, Dot, Dots, Meta, More, Name, Text, Thumb, Wrap } from './TemplateCard.styles';
 
-const ACCENTS: ReadonlyArray<TemplateCardAccent> = ['indigo', 'amber', 'emerald', 'pink'];
-const THUMB_LINE_COUNT = 7;
-const VISIBLE_TAGS = 2;
-
-/** Hash the template id so accent + line widths stay stable per id. */
-function hashStr(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) | 0;
-  return h;
-}
-
-function computeLineWidths(seed: string, count: number): ReadonlyArray<number> {
-  let h = hashStr(seed);
-  const widths: number[] = [];
-  for (let i = 0; i < count; i += 1) {
-    h = (h * 1103515245 + 12345) | 0;
-    const norm = ((h >>> 16) & 0xffff) / 0xffff;
-    widths.push(58 + Math.round(norm * 32));
-  }
-  return widths;
-}
-
-function pickAccent(seed: string): TemplateCardAccent {
-  const idx = Math.abs(hashStr(seed)) % ACCENTS.length;
-  return ACCENTS[idx] ?? 'indigo';
+/** "Used 12× · 3d ago", or "Not used yet" for a template nobody has sent. */
+export function templateUsageText(template: TemplateSummary, now?: Date): string {
+  if (template.uses <= 0) return 'Not used yet';
+  const ago = relativeAgo(template.lastUsedAt, now);
+  return ago ? `Used ${String(template.uses)}× · ${ago}` : `Used ${String(template.uses)}×`;
 }
 
 /**
- * L2 domain card — 4:3 MiniThumb + name + tags + stats, with a
- * floating action overlay revealed on hover. Mirrors the design
- * guide's TemplatesList card layout
- * (`Design-Guide/project/templates-flow/TemplatesList.jsx`).
- *
- * Whole card is clickable (fires `onUse`). The action overlay's
- * Edit / Use / Delete / Tags affordances `stopPropagation` so the
- * card-click never overrides them.
+ * The card's actions as menu entries: Edit, Duplicate, Tags (then the flagged
+ * Bulk send and Link), a separator and Delete. The tile shows them in a
+ * menu; the phone layout shows the same entries in a sheet.
  */
-export const TemplateCard = forwardRef<HTMLElement, TemplateCardProps>((props, ref) => {
+export function templateMenuEntries(
+  template: TemplateSummary,
+  actions: TemplateCardActions,
+): MenuEntry[] {
+  const entries: MenuEntry[] = [];
+  const add = (
+    id: string,
+    label: string,
+    icon: LucideIcon,
+    run: ((t: TemplateSummary) => void) | undefined,
+    danger = false,
+  ): void => {
+    if (!run) return;
+    entries.push({ id, label, icon, danger, onSelect: () => run(template) });
+  };
+  add('edit', 'Edit', Pencil, actions.onEdit);
+  add('duplicate', 'Duplicate', Copy, actions.onDuplicate);
+  add('tags', 'Tags', Tag, actions.onEditTags);
+  add('bulk', 'Send to many', Users, actions.onBulkSend);
+  add('link', 'Direct link', Link2, actions.onDirectLink);
+  if (actions.onDelete) {
+    if (entries.length > 0) entries.push({ type: 'separator', id: 'sep' });
+    add('delete', 'Delete', Trash2, actions.onDelete, true);
+  }
+  return entries;
+}
+
+/**
+ * L2 domain card: thumbnail, name, role dots and "Used 12× · 3d ago". The
+ * whole card is one button (Use); the ⋯ menu is its sibling so the two never
+ * nest. A tile on desktop, a row on phones (`compact`).
+ */
+export const TemplateCard = forwardRef<HTMLDivElement, TemplateCardProps>((props, ref) => {
   const {
     template,
     onUse,
+    compact = false,
+    onMore,
     onEdit,
-    onDelete,
-    onTagClick,
+    onDuplicate,
     onEditTags,
+    onDelete,
     onBulkSend,
     onDirectLink,
     ...rest
   } = props;
-  const widths = useMemo(() => computeLineWidths(template.id, THUMB_LINE_COUNT), [template.id]);
-  const accent = useMemo(() => pickAccent(template.id), [template.id]);
-
-  const tags = template.tags ?? [];
-  const visibleTags = tags.slice(0, VISIBLE_TAGS);
-  const overflowCount = tags.length - visibleTags.length;
+  const nameId = useId();
+  const metaId = useId();
+  const roles = deriveTemplateRoles(template);
+  const items = templateMenuEntries(template, {
+    onEdit,
+    onDuplicate,
+    onEditTags,
+    onDelete,
+    onBulkSend,
+    onDirectLink,
+  });
+  const moreLabel = `More for ${template.name}`;
 
   return (
-    <Root
-      ref={ref}
-      role="button"
-      tabIndex={0}
-      aria-labelledby={`tpl-name-${template.id}`}
-      onClick={() => onUse(template)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onUse(template);
-        }
-      }}
-      {...rest}
-    >
-      <MiniThumb $accent={accent} aria-hidden>
-        <ThumbPaper>
-          <ThumbStripe $accent={accent} />
-          <ThumbSpacer />
-          {widths.map((w, i) => (
-            <ThumbLine
-              // Index keys are fine — the line set is generated
-              // deterministically from `template.id` + count, so the
-              // identity is positional.
-              key={`l${String(i)}`}
-              $width={w}
+    <Wrap ref={ref} {...rest}>
+      <CardButton
+        type="button"
+        $compact={compact}
+        aria-labelledby={nameId}
+        aria-describedby={metaId}
+        onClick={() => onUse(template)}
+      >
+        <Thumb $compact={compact} aria-hidden>
+          <i />
+          <i />
+          <i />
+          <b />
+        </Thumb>
+        <Text>
+          <Name id={nameId} title={template.name}>
+            {template.name}
+          </Name>
+          <Meta id={metaId}>
+            <Dots aria-hidden>
+              {roles.slice(0, 5).map((r) => (
+                <Dot key={r.key} $color={r.color} />
+              ))}
+            </Dots>
+            <span>{templateUsageText(template)}</span>
+          </Meta>
+        </Text>
+      </CardButton>
+      {items.length > 0 ? (
+        <More $compact={compact}>
+          {compact ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              iconOnly
+              iconLeft={MoreHorizontal}
+              aria-label={moreLabel}
+              onClick={() => onMore?.(template)}
             />
-          ))}
-          <ThumbSig $accent={accent} />
-        </ThumbPaper>
-        <ThumbPagesChip>{template.pages}p</ThumbPagesChip>
-      </MiniThumb>
-
-      <Body>
-        <Name id={`tpl-name-${template.id}`} title={template.name}>
-          {template.name}
-        </Name>
-
-        {tags.length > 0 ? (
-          <TagRow aria-label="Tags">
-            {visibleTags.map((tag) => {
-              const c = tagColorFor(tag);
-              return (
-                <TagPill
-                  key={tag}
-                  type="button"
-                  $bg={c.bg}
-                  $fg={c.fg}
-                  title={`Filter by ${tag}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onTagClick?.(tag);
-                  }}
-                >
-                  {tag}
-                </TagPill>
-              );
-            })}
-            {overflowCount > 0 ? (
-              <TagOverflowPill
-                type="button"
-                title={tags.slice(VISIBLE_TAGS).join(', ')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditTags?.(template);
-                }}
-              >
-                +{overflowCount}
-              </TagOverflowPill>
-            ) : null}
-          </TagRow>
-        ) : null}
-
-        <StatRow>
-          <StatItem>
-            <Icon icon={PenTool} size={11} aria-hidden />
-            {template.fieldCount}
-          </StatItem>
-          <StatDot aria-hidden />
-          <StatItem>Used {template.uses}×</StatItem>
-          <StatDot aria-hidden />
-          <StatMono>{template.lastUsed}</StatMono>
-        </StatRow>
-      </Body>
-
-      <ActionOverlay onClick={(e) => e.stopPropagation()}>
-        {onEditTags ? (
-          <ActionButton
-            type="button"
-            onClick={() => onEditTags(template)}
-            aria-label={`Edit tags for ${template.name}`}
-            title="Edit tags"
-          >
-            <Icon icon={Tag} size={12} />
-            Tags
-          </ActionButton>
-        ) : null}
-        {onDirectLink ? (
-          <ActionButton
-            type="button"
-            onClick={() => onDirectLink(template)}
-            aria-label={`Direct link for ${template.name}`}
-            title="Direct link"
-          >
-            <Icon icon={Link2} size={12} />
-            Link
-          </ActionButton>
-        ) : null}
-        {onEdit ? (
-          <ActionButton
-            type="button"
-            onClick={() => onEdit(template)}
-            aria-label={`Edit ${template.name}`}
-            title="Edit template"
-          >
-            <Icon icon={Pencil} size={12} />
-            Edit
-          </ActionButton>
-        ) : null}
-        {onBulkSend ? (
-          <ActionButton
-            type="button"
-            onClick={() => onBulkSend(template)}
-            aria-label={`Bulk send ${template.name}`}
-            title="Send to many people from a CSV"
-          >
-            <Icon icon={Users} size={12} />
-            Bulk
-          </ActionButton>
-        ) : null}
-        <ActionPrimary
-          type="button"
-          onClick={() => onUse(template)}
-          aria-label={`Use ${template.name}`}
-          title="Use template"
-        >
-          <Icon icon={Send} size={12} />
-          Use
-        </ActionPrimary>
-        {onDelete ? (
-          <ActionDanger
-            type="button"
-            onClick={() => onDelete(template)}
-            aria-label={`Delete ${template.name}`}
-            title="Delete template"
-          >
-            <Icon icon={Trash2} size={12} />
-          </ActionDanger>
-        ) : null}
-      </ActionOverlay>
-    </Root>
+          ) : (
+            <MenuButton
+              aria-label={`Actions for ${template.name}`}
+              items={items}
+              trigger={(p) => (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  iconOnly
+                  iconLeft={MoreHorizontal}
+                  aria-label={moreLabel}
+                  {...p}
+                />
+              )}
+            />
+          )}
+        </More>
+      ) : null}
+    </Wrap>
   );
 });
 

@@ -26,9 +26,9 @@ export const seald = {
       800: '#3730A3',
       900: '#312E81',
     },
-    success: { 50: '#ECFDF5', 500: '#10B981', 700: '#047857' },
+    success: { 50: '#ECFDF5', 200: '#A7F3D0', 400: '#34D399', 500: '#10B981', 700: '#047857' },
     warn: { 50: '#FFFBEB', 500: '#F59E0B', 700: '#B45309' },
-    danger: { 50: '#FEF2F2', 500: '#EF4444', 700: '#B91C1C' },
+    danger: { 50: '#FEF2F2', 200: '#FECACA', 500: '#EF4444', 700: '#B91C1C', 800: '#991B1B' },
     info: { 50: '#EFF6FF', 500: '#3B82F6', 700: '#1D4ED8' },
     /**
      * Categorical palette for tags and template accents only.
@@ -91,12 +91,19 @@ export const seald = {
      * lightboxes).
      */
     overlay: 'var(--overlay)',
+    /** Text / icon colour on an indigo (accent) or dark fill. */
+    fgOnAccent: '#FFFFFF',
   },
   font: {
     sans: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif",
     serif: "'Source Serif 4', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif",
     mono: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
     script: "'Caveat', 'Segoe Script', cursive",
+    /**
+     * Type scale. The v2 redesign scale (canvas seald.css `--fs-*`) is
+     * badge → code; the older heading keys (display/h1…h5/bodyLg) stay for
+     * back-compat until every screen moves to the v2 keys.
+     */
     size: {
       display: '64px',
       h1: '48px',
@@ -105,10 +112,31 @@ export const seald = {
       h4: '22px',
       h5: '18px',
       bodyLg: '18px',
-      body: '16px',
-      bodySm: '14px',
-      caption: '13px',
+      /** Avatar initials and count badges only. */
+      badge: '10px',
       micro: '11px',
+      /** Eyebrows, mono, chips. */
+      xs: '12px',
+      caption: '13px',
+      /** UI default. */
+      bodySm: '14px',
+      /** Paragraphs, email body. */
+      bodyMd: '15px',
+      /** Mobile inputs. */
+      body: '16px',
+      lg: '18px',
+      /** Card titles. */
+      xl: '20px',
+      /** Section / email headline. */
+      x2l: '24px',
+      /** Mobile page title. */
+      x3l: '28px',
+      /** Desktop page title. */
+      x4l: '32px',
+      /** Verdict / display. */
+      x5l: '44px',
+      /** 404 numeral only. */
+      code: '96px',
     },
     weight: { regular: 400, medium: 500, semibold: 600, bold: 700 },
     lineHeight: { tight: 1.1, snug: 1.25, normal: 1.5, relaxed: 1.65 },
@@ -129,6 +157,10 @@ export const seald = {
     24: '96px',
   },
   radius: {
+    /** Paper page corners. */
+    hair: '2px',
+    /** Tiny marks, checkbox. */
+    xxs: '4px',
     xs: '6px',
     sm: '8px',
     md: '12px',
@@ -153,6 +185,20 @@ export const seald = {
     durFast: '120ms',
     durBase: '200ms',
     durSlow: '320ms',
+    /** Press feedback. */
+    durInstant: '80ms',
+    /** Screens and overlays in. */
+    durEnter: '280ms',
+    /** Overlays out. */
+    durExit: '160ms',
+    /** Entering elements. */
+    easeOut: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    /** Leaving elements. */
+    easeIn: 'cubic-bezier(0.4, 0, 1, 1)',
+    /** Success moments, pops. */
+    easeSpring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+    /** List item step; lists cap the stagger at 8 items. */
+    stagger: '35ms',
   },
   z: { nav: 20, sticky: 30, overlay: 80, modal: 90, toast: 100 },
 } as const;

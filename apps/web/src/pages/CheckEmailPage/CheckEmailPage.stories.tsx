@@ -1,16 +1,12 @@
-import type { Meta, StoryObj } from '@storybook/react-vite';
-import { chromaticViewportModes } from '@/stories/chromaticViewports';
 import type { ReactNode } from 'react';
+import type { Meta, StoryObj } from '@storybook/react-vite';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { AuthContext } from '../../providers/AuthProvider';
-import type { AuthContextValue } from '../../providers/AuthProvider';
+import { AuthContext } from '@/providers/AuthProvider';
+import type { AuthContextValue } from '@/providers/AuthProvider';
 import { CheckEmailPage } from './CheckEmailPage';
 
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();
-}
-async function asyncSignUp(): Promise<{ readonly needsEmailConfirmation: boolean }> {
-  return { needsEmailConfirmation: false };
 }
 function noop(): void {
   /* storybook stub */
@@ -21,11 +17,9 @@ const STORY_AUTH: AuthContextValue = {
   user: null,
   guest: false,
   loading: false,
-  signInWithPassword: asyncNoop,
-  signUpWithPassword: asyncSignUp,
   signInWithGoogle: asyncNoop,
-  resetPassword: asyncNoop,
-  resendSignUpConfirmation: asyncNoop,
+  signInWithEmailLink: asyncNoop,
+  completeProfile: asyncNoop,
   signOut: asyncNoop,
   enterGuestMode: asyncNoop,
   exitGuestMode: noop,
@@ -47,24 +41,22 @@ const meta: Meta<typeof CheckEmailPage> = {
   title: 'L4/CheckEmailPage',
   component: CheckEmailPage,
   tags: ['autodocs', 'layer-4'],
-  parameters: { layout: 'fullscreen', chromatic: { modes: chromaticViewportModes } },
+  parameters: { layout: 'fullscreen' },
 };
 export default meta;
 type Story = StoryObj<typeof CheckEmailPage>;
 
-export const ResetMode: Story = {
-  name: 'Reset password mode',
+export const Default: Story = {
   render: () => (
-    <Wrap initial="/check-email?email=jamie%40seald.app&mode=reset">
+    <Wrap initial="/check-email?email=hannah%40quill.vc">
       <CheckEmailPage />
     </Wrap>
   ),
 };
 
-export const SignupMode: Story = {
-  name: 'Signup confirmation mode',
+export const GmailAddress: Story = {
   render: () => (
-    <Wrap initial="/check-email?email=jamie%40seald.app&mode=signup">
+    <Wrap initial="/check-email?email=hannah%40gmail.com">
       <CheckEmailPage />
     </Wrap>
   ),

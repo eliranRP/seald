@@ -120,4 +120,40 @@ describe('FieldPalette', () => {
     );
     expect(await axe(container)).toHaveNoViolations();
   });
+
+  describe('tiles and chips variants', () => {
+    it('renders one flat grid of tiles with no section headings', () => {
+      const { getByRole, queryByText } = renderWithTheme(
+        <FieldPalette kinds={FIELD_KINDS} variant="tiles" />,
+      );
+      expect(getByRole('button', { name: 'Signature' })).toBeInTheDocument();
+      expect(queryByText('Required fields')).toBeNull();
+      expect(queryByText(/Drag a field onto the page/)).toBeNull();
+    });
+
+    it('arms a kind on click and shows it pressed', async () => {
+      const onFieldActivate = vi.fn();
+      const { getByRole, rerender } = renderWithTheme(
+        <FieldPalette kinds={FIELD_KINDS} variant="tiles" onFieldActivate={onFieldActivate} />,
+      );
+      await userEvent.click(getByRole('button', { name: 'Date' }));
+      expect(onFieldActivate).toHaveBeenCalledWith('date');
+      rerender(
+        <FieldPalette
+          kinds={FIELD_KINDS}
+          variant="tiles"
+          activeKind="date"
+          onFieldActivate={onFieldActivate}
+        />,
+      );
+      expect(getByRole('button', { name: 'Date' })).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('renders chips in a single row', () => {
+      const { getAllByRole } = renderWithTheme(
+        <FieldPalette kinds={FIELD_KINDS} variant="chips" />,
+      );
+      expect(getAllByRole('button')).toHaveLength(FIELD_KINDS.length);
+    });
+  });
 });

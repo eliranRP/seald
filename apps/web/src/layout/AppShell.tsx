@@ -1,17 +1,36 @@
 import { useCallback } from 'react';
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { isFeatureEnabled } from 'shared';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { MobileNav } from '../components/MobileNav';
 import { NavBar } from '../components/NavBar';
+import { OfflineBar } from '../components/OfflineBar';
+import { screenEnter } from '@/styles/motion';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { useAccountActions } from '@/features/account';
 import { ApprovalsBell, isApprovalsEnabled } from '@/features/approvals';
 import { useGDriveOAuthMessageListener } from '@/routes/settings/integrations/useGDriveAccounts';
 import { useIsMobileViewport } from '../hooks/useIsMobileViewport';
-import { NAV_ITEMS, matchNavId } from './navItems';
-import { isMobileRedirectExempt } from './mobileRedirect';
+import { MOBILE_NAV_ITEMS, NAV_ITEMS, NEW_DOCUMENT_PATH, matchNavId } from './navItems';
+import { isMobileNavExempt } from './mobileNavExempt';
+import { SystemOverlays } from './SystemOverlays';
+
+/** Help entry in the top bar (no help centre yet — mail support). */
+const HELP_HREF = 'mailto:support@seald.nromomentum.com';
+
+const DESKTOP_NAV_ITEMS = NAV_ITEMS.map((item) => ({
+  id: item.id,
+  label: item.label,
+  icon: item.icon,
+  href: item.path,
+}));
+
+const MOBILE_ITEMS = MOBILE_NAV_ITEMS.map((item) => ({
+  id: item.id,
+  label: item.label,
+  icon: item.icon,
+  href: item.path,
+}));
 
 const Shell = styled.div`
   display: flex;
@@ -34,6 +53,9 @@ const Content = styled.main`
      Signers step with picker open) scroll naturally; pages with their
      own inner scroll (DocumentPage canvas, signing flows) are unaffected. */
   overflow-y: auto;
+  /* Re-keyed per pathname (see AppShell) so every navigation replays the
+     v2 screen-enter motion on the main column. */
+  ${screenEnter}
 `;
 
 /**
@@ -128,6 +150,21 @@ export function AppShell() {
     [navigate],
   );
 
+  const handleMobileNavigate = useCallback(
+    (_id: string, href: string): void => {
+      navigate(href);
+    },
+    [navigate],
+  );
+
+  const handleNewDocument = useCallback((): void => {
+    navigate(NEW_DOCUMENT_PATH);
+  }, [navigate]);
+
+  const handleOpenSettings = useCallback((): void => {
+    navigate('/settings');
+  }, [navigate]);
+
   const handleSignIn = useCallback((): void => {
     exitGuestMode();
     navigate('/signin');
@@ -146,17 +183,6 @@ export function AppShell() {
       .finally(() => navigate('/signin', { replace: true }));
   }, [signOut, navigate]);
 
-  // After successful account deletion the Supabase session is invalid;
-  // sign-out flushes the access token and `RequireAuth` then bounces the
-  // user to /signin. We replace history so back-button doesn't return
-  // them to a now-403 authed surface.
-  const onAccountDeleted = useCallback(async (): Promise<void> => {
-    await signOut().catch(() => undefined);
-    navigate('/signin', { replace: true });
-  }, [signOut, navigate]);
-
-  const account = useAccountActions({ onAccountDeleted });
-
   // Inline OAuth-popup bridge — when "Connect Google Drive" fires from
   // any authed surface (UploadRoute, UseTemplatePage, IntegrationsPage),
   // the popup posts back via `postMessage` + a same-origin
@@ -169,51 +195,31 @@ export function AppShell() {
 
   const mode = !user && guest ? 'guest' : 'authed';
 
-  // Discoverability for /settings/integrations — only an entry in the
-  // avatar dropdown when the feature is on AND the user is authed. Guest
-  // mode + flag-off both render the menu without the row, so the dropdown
-  // stays lean. The `gdrive-feature-manager` skill forbids new top-level
-  // NAV_ITEMS, so this is the canonical home for the entry point.
-  const handleOpenIntegrations = useCallback((): void => {
-    navigate('/settings/integrations');
-  }, [navigate]);
-  const onOpenIntegrations =
-    mode === 'authed' && isFeatureEnabled('gdriveIntegration') ? handleOpenIntegrations : undefined;
-
-  // 2026-05-03 (refined a second time per user) — the desktop AppShell
-  // pages (/documents, /templates, /signers, /document/<id>,
-  // /document/new, /templates/:id/use, /templates/:id/edit) were not
-  // designed for a 390 px viewport: tables overlap, hero text wraps,
-  // the title char-stacks, the NavBar tab row overflows. Rather than
-  // retrofit responsiveness onto every desktop page, lock ALL mobile
-  // users — authed AND guest — to the dedicated mobile sender at
-  // /m/send. The mobile sender supports guest sessions on its own
-  // (mirroring the desktop UploadRoute), so unauthed visitors land on
-  // the mobile screens we built rather than the desktop chrome that
-  // doesn't fit the viewport.
-  if (isMobile && !isMobileRedirectExempt(location.pathname)) {
-    return <Navigate to="/m/send" replace />;
-  }
+  // Mobile (≤640px): the same routes render responsively — the NavBar
+  // collapses to the mobile top bar and the bottom MobileNav carries the
+  // destinations. (Until the v2 redesign every mobile visit bounced to
+  // /m/send; that lock is gone.) Focused flows such as the guided approval
+  // review keep the screen to themselves, without the bottom nav.
+  const showMobileNav = isMobile && mode === 'authed' && !isMobileNavExempt(location.pathname);
 
   return (
     <Shell>
+      <OfflineBar />
       <NavBar
-        items={NAV_ITEMS}
+        items={DESKTOP_NAV_ITEMS}
         activeItemId={activeNavId}
         onSelectItem={handleSelectNavItem}
+        compact={isMobile}
         user={user ?? undefined}
         mode={mode}
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
         onSignOut={handleSignOut}
-        onExportData={mode === 'authed' ? account.exportData : undefined}
-        onDeleteAccount={mode === 'authed' ? account.deleteAccount : undefined}
-        onOpenIntegrations={onOpenIntegrations}
+        onOpenSettings={mode === 'authed' ? handleOpenSettings : undefined}
+        helpHref={mode === 'authed' ? HELP_HREF : undefined}
         rightSlot={mode === 'authed' && isApprovalsEnabled() ? <ApprovalsBell /> : undefined}
-        isExporting={account.isExporting}
-        isDeleting={account.isDeleting}
       />
-      <Content>
+      <Content key={location.pathname}>
         {/* Keyed by pathname so navigating to a different route remounts
             the boundary and clears any prior caught error — otherwise a
             crashed page would persist its fallback after the user navigates
@@ -221,8 +227,20 @@ export function AppShell() {
         <ErrorBoundary key={location.pathname}>
           <Outlet />
         </ErrorBoundary>
+        {/* On phones the legal footer scrolls with the page so it never
+            stacks on top of the bottom nav. */}
+        {isMobile ? <ShellLegalFooter /> : null}
       </Content>
-      <ShellLegalFooter />
+      {isMobile ? null : <ShellLegalFooter />}
+      {showMobileNav ? (
+        <MobileNav
+          items={MOBILE_ITEMS}
+          activeId={activeNavId}
+          onNavigate={handleMobileNavigate}
+          onNew={handleNewDocument}
+        />
+      ) : null}
+      <SystemOverlays />
     </Shell>
   );
 }

@@ -59,14 +59,14 @@ describe('TemplateService — HTML escaping (F-001)', () => {
 
   it('does NOT escape `*_html` keys — fragment builders pre-escape and emit trusted markup', () => {
     const trustedFragment =
-      '<table role="presentation" class="signers"><tr><td>Ada</td></tr></table>';
+      '<table role="img" aria-label="1 of 2 signed"><tr><td>Ada</td></tr></table>';
     const out = svc.render('reminder', {
       ...baseInviteVars,
       expires_at_readable: '2026-05-24 00:00 UTC',
-      // `signer_list_html` is the fragment-builder output. It must reach
-      // the rendered body as live HTML, otherwise the email shows angle
-      // brackets to the user.
-      signer_list_html: trustedFragment,
+      // `signer_progress_dots_html` is the fragment-builder output. It must
+      // reach the rendered body as live HTML, otherwise the email shows
+      // angle brackets to the user.
+      signer_progress_dots_html: trustedFragment,
     });
     expect(out.html).toContain(trustedFragment);
     // And it must NOT have been escaped to entities.

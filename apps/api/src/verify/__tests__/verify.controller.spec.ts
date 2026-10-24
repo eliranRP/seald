@@ -78,21 +78,26 @@ describe('VerifyController', () => {
   let controller: VerifyController;
   const repo = {
     findByShortCode: jest.fn(),
+    findShortCodeBySealedSha256: jest.fn(),
     listEventsForEnvelope: jest.fn(),
     verifyEventChain: jest.fn(),
   };
   const storage = {
     createSignedUrl: jest.fn(),
     exists: jest.fn(),
+    download: jest.fn(),
   };
 
   beforeEach(async () => {
     repo.findByShortCode.mockReset();
+    repo.findShortCodeBySealedSha256.mockReset();
     repo.listEventsForEnvelope.mockReset();
     repo.verifyEventChain.mockReset();
     repo.verifyEventChain.mockResolvedValue({ chain_intact: true });
     storage.createSignedUrl.mockReset();
     storage.exists.mockReset();
+    storage.download.mockReset();
+    storage.download.mockRejectedValue(new Error('not found'));
 
     const moduleRef = await Test.createTestingModule({
       controllers: [VerifyController],
@@ -283,5 +288,78 @@ describe('VerifyController', () => {
     expect((signer as { signing_order?: unknown }).signing_order).toBeUndefined();
     expect((signer as { viewed_at?: unknown }).viewed_at).toBeUndefined();
     expect((signer as { tc_accepted_at?: unknown }).tc_accepted_at).toBeUndefined();
+  });
+
+  it('exposes sealed_at (sealed event), event_count and a null tsa_name when sealed', async () => {
+    repo.findByShortCode.mockResolvedValueOnce(ENVELOPE);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([
+      EVENT_RAW,
+      { ...EVENT_RAW, id: 'e2', event_type: 'sealed', created_at: '2026-04-25T21:21:07.000Z' },
+    ]);
+    storage.createSignedUrl.mockResolvedValue('https://signed.example/x.pdf');
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.envelope.sealed_at).toBe('2026-04-25T21:21:07.000Z');
+    expect(res.envelope.event_count).toBe(2);
+    expect(res.envelope.tsa_name).toBeNull();
+  });
+
+  it('leaves sealed_at null for an envelope that is not sealed', async () => {
+    const sent: Envelope = { ...ENVELOPE, status: 'awaiting_others', completed_at: null };
+    repo.findByShortCode.mockResolvedValueOnce(sent);
+    repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+    const res = await controller.verify('u82ZmvdxwG3CU');
+    expect(res.envelope.sealed_at).toBeNull();
+  });
+
+  describe('byHash', () => {
+    const SHA = 'b'.repeat(64);
+    it('returns the short_code for a known sealed hash (case-insensitive)', async () => {
+      repo.findShortCodeBySealedSha256.mockResolvedValueOnce('u82ZmvdxwG3CU');
+      await expect(controller.byHash(SHA.toUpperCase())).resolves.toEqual({
+        short_code: 'u82ZmvdxwG3CU',
+      });
+      expect(repo.findShortCodeBySealedSha256).toHaveBeenCalledWith(SHA);
+    });
+
+    it('404s without touching the database for a malformed hash', async () => {
+      await expect(controller.byHash('xyz')).rejects.toBeInstanceOf(NotFoundException);
+      expect(repo.findShortCodeBySealedSha256).not.toHaveBeenCalled();
+    });
+
+    it('404s when no envelope sealed that file', async () => {
+      repo.findShortCodeBySealedSha256.mockResolvedValueOnce(null);
+      await expect(controller.byHash(SHA)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('seal profile', () => {
+    function sealedEnvelope(sealed_sha256: string): Envelope {
+      return { ...ENVELOPE, sealed_sha256 };
+    }
+
+    it('reports what the sealed bytes carry and reads each sealed file once', async () => {
+      const envelope = sealedEnvelope('c'.repeat(64));
+      repo.findByShortCode.mockResolvedValue(envelope);
+      repo.listEventsForEnvelope.mockResolvedValue([]);
+      // No CAdES signature in the bytes (a Noop seal): no level is claimed.
+      storage.download.mockResolvedValue(Buffer.from('%PDF-1.7\n%%EOF\n', 'latin1'));
+      const first = await controller.verify(envelope.short_code);
+      expect(first.envelope.seal).toEqual({ level: 'none', timestamped: false });
+      expect(storage.download).toHaveBeenCalledWith(`${envelope.id}/sealed.pdf`);
+      await controller.verify(envelope.short_code);
+      expect(storage.download).toHaveBeenCalledTimes(1);
+    });
+
+    it('is null when the sealed file cannot be read, and before sealing', async () => {
+      repo.findByShortCode.mockResolvedValueOnce(sealedEnvelope('d'.repeat(64)));
+      repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+      const unreadable = await controller.verify('u82ZmvdxwG3CU');
+      expect(unreadable.envelope.seal).toBeNull();
+
+      repo.findByShortCode.mockResolvedValueOnce({ ...ENVELOPE, status: 'awaiting_others' });
+      repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+      const pending = await controller.verify('u82ZmvdxwG3CU');
+      expect(pending.envelope.seal).toBeNull();
+    });
   });
 });

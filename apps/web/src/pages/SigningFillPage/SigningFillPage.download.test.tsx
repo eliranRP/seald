@@ -72,9 +72,9 @@ describe('SigningFillPage — Download original PDF', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders an accessible Download original PDF button in the header', async () => {
+  it('renders an accessible Download PDF button in the header', async () => {
     renderFill();
-    const btn = await screen.findByRole('button', { name: /download original pdf/i });
+    const btn = await screen.findByRole('button', { name: /^download pdf$/i });
     expect(btn).toBeInTheDocument();
   });
 
@@ -87,7 +87,7 @@ describe('SigningFillPage — Download original PDF', () => {
     vi.stubGlobal('fetch', fetchMock);
 
     renderFill();
-    const btn = await screen.findByRole('button', { name: /download original pdf/i });
+    const btn = await screen.findByRole('button', { name: /^download pdf$/i });
     await userEvent.click(btn);
 
     // The hook calls fetch with the signed URL exposed by /sign/pdf.

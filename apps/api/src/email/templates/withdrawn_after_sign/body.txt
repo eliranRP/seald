@@ -1,12 +1,18 @@
-The request was withdrawn after you signed.
+Your signature will not be used. Nothing else to do.
 
-You signed "{{envelope_title}}" on {{signed_at_readable}}. Before all
-parties completed, the request was withdrawn by another party.
+Withdrawn after you signed.
+Your signature won't be used.
 
-Your signature was recorded in the audit trail, but the FINAL SEALED
-DOCUMENT WAS NOT CREATED. The original request is retained as legal
-evidence of your submission.
+  {{envelope_title}}
 
-If you have questions, please contact {{sender_name}} directly.
+You signed on {{signed_at_readable}}. Your signature stays in the audit trail,
+but the final sealed document was not created. The request is kept as evidence
+of your submission.
 
+Questions? Contact {{sender_name}} directly.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

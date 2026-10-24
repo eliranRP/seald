@@ -21,7 +21,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
  * This spec mocks `POST /contacts` to fail (401 — what the real
  * backend returns) and asserts:
  *   1. The signer is still added to the local list (counter goes 0 → 1).
- *   2. "Continue to fields" enables and routes to the editor.
+ *   2. The editor opens straight after the upload.
  *   3. A field can be placed and "Send to sign" succeeds.
  *
  * If `UploadRoute` regresses to swallowing the failure without a local
@@ -273,31 +273,18 @@ test.describe('guest mode — full sender flow', () => {
     await page.goto('/document/new');
 
     // Upload the PDF — same hidden file input used by template-sign-flow.spec.
-    await page.getByLabel('Choose PDF file').setInputFiles(FIXTURE_PATH);
-
-    // Open the inline picker, type a guest email, click "Add as guest signer".
-    await page.getByRole('button', { name: /add signer/i }).click();
-    const search = page.getByRole('textbox', { name: /search contacts or type an email/i });
-    await search.fill('guest-signer@example.com');
-    await page.getByRole('button', { name: /add .* as guest signer/i }).click();
-
-    // ---- The critical assertion: the picker counter advanced from
-    // "0 selected" to "1 selected" without depending on the contacts API.
-    // (This is exactly the bug screenshot the user reported — counter
-    // stuck at 0 — that motivated the fix.) The fix in UploadRoute
-    // short-circuits the API call entirely for guest users, so we expect
-    // zero POST attempts in this scenario; the catch-all 401 mock above
-    // exists only as a safety net in case a regression brings the call
-    // back, in which case the assertion below would still pass while
-    // proving the failure mode is survivable.
-    await expect(page.getByText(/^1 selected$/i)).toBeVisible();
-    expect(log.contactsPostAttempts).toBeGreaterThanOrEqual(0);
-
-    // ---- Continue to fields enables and navigates.
-    const continueBtn = page.getByRole('button', { name: /continue to fields/i });
-    await expect(continueBtn).toBeEnabled();
-    await continueBtn.click();
+    // The editor opens straight away: signers are added there.
+    await page.getByLabel('Choose file').setInputFiles(FIXTURE_PATH);
     await page.waitForURL(/\/document\/[^/]+$/, { timeout: 15_000 });
+
+    // Add a guest signer through the "New email" form. Guests cannot call the
+    // contacts API (401), so the signer must stay local to the draft.
+    await page.getByRole('button', { name: 'New email' }).click();
+    const form = page.getByRole('form', { name: 'New signer' });
+    await form.getByLabel('Email').fill('guest-signer@example.com');
+    await form.getByRole('button', { name: 'Add', exact: true }).click();
+    await expect(page.getByText('guest-signer@example.com')).toBeVisible();
+    expect(log.contactsPostAttempts).toBeGreaterThanOrEqual(0);
 
     // ---- Place at least one signature field to prove the editor accepts
     // the locally-synthesized guest signer (the SelectSignersPopover lists
@@ -318,32 +305,14 @@ test.describe('guest mode — full sender flow', () => {
     // ---- Send. Guest mode now goes through the real `/envelopes/*` API
     // chain (mocked above). The GuestSenderEmailDialog opens first to
     // capture the sender's email (anonymous JWT has no email claim).
-    await page.getByRole('button', { name: /send to sign/i }).click();
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
     const senderDialog = page.getByRole('dialog', { name: /send as guest/i });
     await expect(senderDialog).toBeVisible();
     await senderDialog.getByRole('textbox').first().fill('guest-sender@example.com');
     await senderDialog.getByRole('button', { name: /^continue$/i }).click();
-    await page.waitForURL(/\/document\/[^/]+\/sent$/, { timeout: 15_000 });
-    await expect(page).toHaveURL(/\/document\/[^/]+\/sent$/);
-
-    // ---- Confirmation page must render the handoff summary on the
-    // server-uuid URL. Pre-fix this asserted "Document not found" because
-    // `getDocument(<server-uuid>)` returned undefined — the in-memory
-    // draft was only addressable by its local `d_xxx` id. The fix
-    // persists `envelope_id` on the local draft so post-send lookup
-    // resolves.
-    await expect(
-      page.getByRole('heading', { level: 1, name: /your envelope is on its way/i }),
-    ).toBeVisible();
-    await expect(page.getByText(/guest-signer@example\.com/i)).toBeVisible();
-
-    // ---- "Back to documents" must NOT bounce a guest off the dashboard
-    // (which is gated by RequireAuth, not RequireAuthOrGuest). Pre-fix
-    // the click navigated to /documents which then redirected the guest
-    // back to /document/new — flashing the editor again, which the user
-    // reported as "the screen jumps back to the signature fields screen".
-    await page.getByRole('button', { name: /back to documents/i }).click();
-    await page.waitForURL(/\/document\/new$/, { timeout: 5_000 });
+    // The retired /sent page redirects: a guest has no Documents list, so
+    // they land back on the editor entry.
+    await page.waitForURL(/\/document\/new$/, { timeout: 15_000 });
     await expect(page).toHaveURL(/\/document\/new$/);
   });
 });

@@ -19,6 +19,8 @@ import {
   type GDriveRepository,
 } from '../src/integrations/gdrive/gdrive.repository';
 import { ApiKeysRepository } from '../src/api-keys/api-keys.repository';
+import { UserSettingsRepository } from '../src/me/settings/user-settings.repository';
+import type { UserSettings } from 'shared';
 import { buildTestJwks } from './test-jwks';
 import { InMemoryApiKeysRepository } from './in-memory-api-keys-repository';
 import { InMemoryContactsRepository } from './in-memory-contacts-repository';
@@ -98,6 +100,16 @@ function driveRow(id: string, userId: string): GDriveAccount {
   };
 }
 
+class InMemoryUserSettingsRepository extends UserSettingsRepository {
+  readonly rows = new Map<string, UserSettings>();
+  async find(userId: string): Promise<UserSettings | null> {
+    return this.rows.get(userId) ?? null;
+  }
+  async save(userId: string, settings: UserSettings): Promise<void> {
+    this.rows.set(userId, settings);
+  }
+}
+
 class InMemoryTombstonesRepository extends TombstonesRepository {
   readonly recorded: Array<{ readonly user_id: string; readonly email_hash: string }> = [];
   callLog: string[] = [];
@@ -153,6 +165,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
   let tombstonesRepo: InMemoryTombstonesRepository;
   let gdriveRepo: InMemoryGDriveRepository;
   let apiKeysRepo: InMemoryApiKeysRepository;
+  let settingsRepo: InMemoryUserSettingsRepository;
   let callLog: string[];
   let tk: Awaited<ReturnType<typeof buildTestJwks>>;
   let tokenA: string;
@@ -169,6 +182,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     tombstonesRepo = new InMemoryTombstonesRepository();
     gdriveRepo = new InMemoryGDriveRepository();
     apiKeysRepo = new InMemoryApiKeysRepository();
+    settingsRepo = new InMemoryUserSettingsRepository();
 
     callLog = [];
     // Wire ordering tracking across repos so we can assert the strict
@@ -228,6 +242,8 @@ describe('/me (DSAR + account deletion) — e2e', () => {
       .useValue(gdriveRepo)
       .overrideProvider(ApiKeysRepository)
       .useValue(apiKeysRepo)
+      .overrideProvider(UserSettingsRepository)
+      .useValue(settingsRepo)
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -255,6 +271,7 @@ describe('/me (DSAR + account deletion) — e2e', () => {
     tombstonesRepo.reset();
     gdriveRepo.reset();
     apiKeysRepo.reset();
+    settingsRepo.rows.clear();
     callLog.length = 0;
   });
 
@@ -263,6 +280,85 @@ describe('/me (DSAR + account deletion) — e2e', () => {
   });
 
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
+
+  // ---------- GET/PATCH /me/settings --------------------------------
+
+  describe('/me/settings', () => {
+    it('without Authorization → 401', async () => {
+      const res = await request(app.getHttpServer()).get('/me/settings');
+      expect(res.status).toBe(401);
+    });
+
+    it('reads the defaults for a user who never saved', async () => {
+      const res = await request(app.getHttpServer()).get('/me/settings').set(auth(tokenA));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        display_name: null,
+        signature: { type: 'typed', typed_text: null, image: null },
+        initials: null,
+        notify: { signed: true, daily_summary: false },
+        reminder_default: '3d',
+        expiry_default_days: 30,
+      });
+    });
+
+    it('merges a partial patch, persists it, and keeps other users untouched', async () => {
+      const patch = await request(app.getHttpServer())
+        .patch('/me/settings')
+        .set(auth(tokenA))
+        .send({
+          display_name: '  Maya Cohen ',
+          notify: { daily_summary: true },
+          reminder_default: 'weekly',
+          signature: { type: 'typed', typed_text: 'Maya Cohen' },
+        });
+      expect(patch.status).toBe(200);
+      expect(patch.body.display_name).toBe('Maya Cohen');
+      expect(patch.body.notify).toEqual({ signed: true, daily_summary: true });
+      expect(patch.body.reminder_default).toBe('weekly');
+      expect(patch.body.expiry_default_days).toBe(30);
+
+      const second = await request(app.getHttpServer())
+        .patch('/me/settings')
+        .set(auth(tokenA))
+        .send({ expiry_default_days: 14 });
+      expect(second.body.reminder_default).toBe('weekly');
+      expect(second.body.expiry_default_days).toBe(14);
+
+      const read = await request(app.getHttpServer()).get('/me/settings').set(auth(tokenA));
+      expect(read.body.display_name).toBe('Maya Cohen');
+      const other = await request(app.getHttpServer()).get('/me/settings').set(auth(tokenB));
+      expect(other.body.display_name).toBeNull();
+    });
+
+    it('saves a drawn signature image and drops it when the type goes back to typed', async () => {
+      const image = 'data:image/png;base64,iVBORw0KGgo=';
+      const drawn = await request(app.getHttpServer())
+        .patch('/me/settings')
+        .set(auth(tokenA))
+        .send({ signature: { type: 'drawn', image } });
+      expect(drawn.body.signature).toEqual({ type: 'drawn', typed_text: null, image });
+      const typed = await request(app.getHttpServer())
+        .patch('/me/settings')
+        .set(auth(tokenA))
+        .send({ signature: { type: 'typed' } });
+      expect(typed.body.signature.image).toBeNull();
+    });
+
+    it.each([
+      ['an unknown reminder', { reminder_default: 'daily' }],
+      ['an unsupported expiry', { expiry_default_days: 45 }],
+      ['a non-PNG image', { signature: { type: 'drawn', image: 'https://x.test/a.png' } }],
+      ['an unknown field', { locked: false }],
+      ['a name over 120 characters', { display_name: 'a'.repeat(121) }],
+    ])('rejects %s with 400', async (_label, body) => {
+      const res = await request(app.getHttpServer())
+        .patch('/me/settings')
+        .set(auth(tokenA))
+        .send(body);
+      expect(res.status).toBe(400);
+    });
+  });
 
   // ---------- GET /me/export ----------------------------------------
 

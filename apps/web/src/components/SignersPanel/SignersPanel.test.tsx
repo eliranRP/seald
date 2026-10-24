@@ -21,11 +21,26 @@ describe('SignersPanel', () => {
     expect(listItems.length).toBe(0);
   });
 
-  it('renders one chip per signer showing the first name', () => {
+  it('renders one row per signer with name and email', () => {
     const { getByText } = renderWithTheme(<SignersPanel signers={SIGNERS} />);
-    expect(getByText('Jamie')).toBeDefined();
-    expect(getByText('Ana')).toBeDefined();
+    expect(getByText('Jamie Rivera')).toBeDefined();
+    expect(getByText('ana@farrow.law')).toBeDefined();
     expect(getByText('2')).toBeDefined();
+  });
+
+  it('reads "You" on the sender row but keeps the email', () => {
+    const { getByText, queryByText } = renderWithTheme(
+      <SignersPanel signers={SIGNERS} youId="you" />,
+    );
+    expect(getByText('You')).toBeDefined();
+    expect(getByText('jamie@sealed.co')).toBeDefined();
+    expect(queryByText('Jamie Rivera')).toBeNull();
+  });
+
+  it('numbers the rows when signing in order', () => {
+    const { getByLabelText } = renderWithTheme(<SignersPanel signers={SIGNERS} showOrder />);
+    expect(getByLabelText('Signs number 1')).toBeDefined();
+    expect(getByLabelText('Signs number 2')).toBeDefined();
   });
 
   it('fires onRequestAdd when the add button is clicked', async () => {
@@ -43,7 +58,7 @@ describe('SignersPanel', () => {
     expect(queryByRole('button', { name: 'Add signer' })).toBeNull();
   });
 
-  it('fires onSelectSigner(id) when a chip is clicked', async () => {
+  it('fires onSelectSigner(id) when a row is clicked', async () => {
     const onSelectSigner = vi.fn();
     const { getByRole } = renderWithTheme(
       <SignersPanel signers={SIGNERS} onSelectSigner={onSelectSigner} />,
@@ -56,7 +71,7 @@ describe('SignersPanel', () => {
     expect(id).toBe('ana');
   });
 
-  it('renders chips as non-buttons when onSelectSigner is undefined', () => {
+  it('renders rows as non-buttons when onSelectSigner is undefined', () => {
     const { queryByRole } = renderWithTheme(<SignersPanel signers={SIGNERS} />);
     expect(queryByRole('button', { name: /Jamie Rivera/ })).toBeNull();
     expect(queryByRole('button', { name: /Ana Torres/ })).toBeNull();
@@ -76,7 +91,7 @@ describe('SignersPanel', () => {
     expect(await axe(container)).toHaveNoViolations();
   });
 
-  it('renders a remove button per chip and fires onRemoveSigner(id) when clicked', async () => {
+  it('renders a remove button per row and fires onRemoveSigner(id) when clicked', async () => {
     const onRemoveSigner = vi.fn<(id: string) => void>();
     const { getByRole, getAllByRole } = renderWithTheme(
       <SignersPanel signers={SIGNERS} onRemoveSigner={onRemoveSigner} />,

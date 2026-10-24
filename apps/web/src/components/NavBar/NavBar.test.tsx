@@ -2,32 +2,106 @@ import { describe, it, expect, vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { axe } from 'vitest-axe';
 import { createRef } from 'react';
+import { fireEvent, within } from '@testing-library/react';
+import { FileText } from 'lucide-react';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { NavBar } from './NavBar';
 
 describe('NavBar', () => {
-  it('renders default nav items with Documents active', () => {
+  it('renders default nav items (Documents · Templates · Contacts) with Documents active', () => {
     const { getByRole, queryByRole } = renderWithTheme(<NavBar />);
-    const active = getByRole('button', { name: 'Documents' });
-    expect(active).toHaveAttribute('aria-current', 'page');
-    expect(getByRole('button', { name: 'Sign' })).not.toHaveAttribute('aria-current');
-    expect(getByRole('button', { name: 'Templates' })).not.toHaveAttribute('aria-current');
-    // Reports was retired in the original 4 → 3 trim; Templates was added
-    // back when the templates feature shipped (PR #11). Signers was
-    // removed from the top nav on 2026-05-02 — the Contacts page is still
-    // reachable from envelope detail and via direct URL.
+    const nav = getByRole('navigation', { name: 'Primary' });
+    expect(within(nav).getByRole('button', { name: 'Documents' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(nav).getByRole('button', { name: 'Templates' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(within(nav).getByRole('button', { name: 'Contacts' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    // v2 IA: no "Sign" tab — "New document" is the page's primary action.
+    expect(queryByRole('button', { name: /^sign$/i })).toBeNull();
     expect(queryByRole('button', { name: 'Reports' })).toBeNull();
-    expect(queryByRole('button', { name: 'Signers' })).toBeNull();
   });
 
   it('clicking an inactive item calls onSelectItem with correct id', async () => {
     const onSelectItem = vi.fn();
     const { getByRole } = renderWithTheme(<NavBar onSelectItem={onSelectItem} />);
-    await userEvent.click(getByRole('button', { name: 'Sign' }));
-    expect(onSelectItem).toHaveBeenCalledTimes(1);
-    const first = onSelectItem.mock.calls[0];
-    const id = first ? first[0] : undefined;
-    expect(id).toBe('sign');
+    await userEvent.click(getByRole('button', { name: 'Templates' }));
+    expect(onSelectItem).toHaveBeenCalledWith('templates');
+  });
+
+  it('renders href items as links and intercepts plain clicks for client routing', async () => {
+    const onSelectItem = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <NavBar
+        onSelectItem={onSelectItem}
+        activeItemId="signers"
+        items={[
+          { id: 'documents', label: 'Documents', href: '/documents', icon: FileText },
+          { id: 'signers', label: 'Contacts', href: '/signers' },
+        ]}
+      />,
+    );
+    const contacts = getByRole('link', { name: 'Contacts' });
+    expect(contacts).toHaveAttribute('href', '/signers');
+    expect(contacts).toHaveAttribute('aria-current', 'page');
+    const documents = getByRole('link', { name: 'Documents' });
+    expect(documents.querySelector('svg')).not.toBeNull();
+    await userEvent.click(documents);
+    expect(onSelectItem).toHaveBeenCalledWith('documents');
+  });
+
+  it('lets modified clicks through (open in new tab)', () => {
+    const onSelectItem = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <NavBar
+        onSelectItem={onSelectItem}
+        items={[{ id: 'documents', label: 'Documents', href: '/documents' }]}
+      />,
+    );
+    fireEvent.click(getByRole('link', { name: 'Documents' }), { ctrlKey: true });
+    expect(onSelectItem).not.toHaveBeenCalled();
+  });
+
+  it('renders the Help link only when helpHref is set', () => {
+    const { queryByRole, rerender } = renderWithTheme(<NavBar user={{ name: 'Jamie' }} />);
+    expect(queryByRole('link', { name: 'Help' })).toBeNull();
+    rerender(<NavBar user={{ name: 'Jamie' }} helpHref="mailto:help@example.com" />);
+    expect(queryByRole('link', { name: 'Help' })).toHaveAttribute(
+      'href',
+      'mailto:help@example.com',
+    );
+  });
+
+  it('compact mode (mobile top bar) drops the nav items and help but keeps the account', () => {
+    const { queryByRole, getByRole } = renderWithTheme(
+      <NavBar
+        compact
+        helpHref="mailto:x@y.z"
+        user={{ name: 'Jamie Okonkwo' }}
+        onSignOut={vi.fn()}
+      />,
+    );
+    expect(queryByRole('navigation', { name: 'Primary' })).toBeNull();
+    expect(queryByRole('link', { name: 'Help' })).toBeNull();
+    expect(getByRole('button', { name: /open menu for jamie okonkwo/i })).toBeInTheDocument();
+  });
+
+  it('passes onOpenSettings through to the account menu', async () => {
+    const onOpenSettings = vi.fn();
+    const { getByRole } = renderWithTheme(
+      <NavBar
+        user={{ name: 'Jamie Okonkwo', email: 'j@seald.app' }}
+        onSignOut={vi.fn()}
+        onOpenSettings={onOpenSettings}
+      />,
+    );
+    await userEvent.click(getByRole('button', { name: /open menu for/i }));
+    await userEvent.click(getByRole('menuitem', { name: 'Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
   it('renders the right slot for a signed-in user and hides it in guest mode', () => {
@@ -68,8 +142,8 @@ describe('NavBar', () => {
       expect(getByRole('button', { name: /sign up/i })).toBeInTheDocument();
       // Nav items should be hidden in guest mode.
       expect(queryByRole('button', { name: /documents/i })).toBeNull();
-      expect(queryByRole('button', { name: /^sign$/i })).toBeNull();
-      expect(queryByRole('button', { name: /signers/i })).toBeNull();
+      expect(queryByRole('button', { name: /templates/i })).toBeNull();
+      expect(queryByRole('button', { name: /contacts/i })).toBeNull();
     });
 
     it('Sign in / Sign up buttons call their respective handlers', async () => {

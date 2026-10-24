@@ -39,11 +39,9 @@ function buildAuth(): AuthContextValue {
     user: { id: 'u', email: 'jamie@seald.app', name: 'Jamie' },
     guest: false,
     loading: false,
-    signInWithPassword: () => Promise.resolve(),
-    signUpWithPassword: () => Promise.resolve({ needsEmailConfirmation: false }),
+    signInWithEmailLink: () => Promise.resolve(),
+    completeProfile: () => Promise.resolve(),
     signInWithGoogle: () => Promise.resolve(),
-    resetPassword: () => Promise.resolve(),
-    resendSignUpConfirmation: () => Promise.resolve(),
     signOut: () => Promise.resolve(),
     enterGuestMode: () => Promise.resolve(),
     exitGuestMode: () => undefined,
@@ -235,7 +233,7 @@ describe('DocumentRoute multi-document editor', () => {
     });
     renderSeeded();
 
-    await userEvent.click(await screen.findByRole('button', { name: /send to sign/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /^send$/i }));
 
     await waitFor(() => {
       expect(post).toHaveBeenCalledWith(

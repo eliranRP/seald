@@ -7,7 +7,6 @@ export type {
 } from './templates';
 export {
   TEMPLATES,
-  duplicateTemplate,
   findTemplateById,
   getTemplates,
   resolveTemplateFields,

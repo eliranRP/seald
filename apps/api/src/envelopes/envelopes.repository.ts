@@ -273,6 +273,8 @@ export interface EnvelopeListSignerSnippet {
   readonly color: string;
   readonly status: import('shared').SignerUiStatus;
   readonly signed_at: string | null;
+  /** Migration 0040: 'bounced' after a hard bounce of this signer's address. */
+  readonly delivery_status?: import('shared').SignerDeliveryStatus;
 }
 
 export interface EnvelopeListItem {
@@ -322,6 +324,7 @@ export interface EventInput {
     | 'retention_deleted'
     | 'document_added'
     | 'step_started'
+    | 'email_bounced'
     // WP-10 (migration 0026)
     | 'access_code_sent'
     | 'access_code_verified'
@@ -330,11 +333,22 @@ export interface EventInput {
     | 'approval_decided'
     // WP-26 (migration 0039)
     | 'signer_corrected'
-    | 'expiry_changed';
+    | 'signer_replaced'
+    | 'expiry_changed'
+    // Migration 0045
+    | 'unsent';
   readonly ip?: string | null;
   readonly user_agent?: string | null;
   readonly metadata?: Record<string, unknown>;
 }
+
+/** Result of `EnvelopesRepository.unsendEnvelope`. */
+export type UnsendOutcome =
+  | { readonly ok: true; readonly envelope: Envelope }
+  | {
+      readonly ok: false;
+      readonly reason: 'not_found' | 'not_sent' | 'window_expired' | 'signer_engaged';
+    };
 
 /**
  * Port for envelope persistence. The adapter owns row-conditional UPDATEs
@@ -349,6 +363,12 @@ export abstract class EnvelopesRepository {
   abstract findByIdForOwner(owner_id: string, envelope_id: string): Promise<Envelope | null>;
   abstract findByIdWithAll(envelope_id: string): Promise<Envelope | null>;
   abstract findByShortCode(short_code: string): Promise<Envelope | null>;
+  /**
+   * Public verify-by-PDF: the short_code of the envelope whose sealed PDF (or,
+   * with multiple documents, any sealed document) has this SHA-256. Null when
+   * nothing matches. Only completed envelopes carry a sealed hash.
+   */
+  abstract findShortCodeBySealedSha256(sha256: string): Promise<string | null>;
   abstract findSignerByAccessTokenHash(
     hash: string,
   ): Promise<{ envelope: Envelope; signer: EnvelopeSigner } | null>;
@@ -444,6 +464,18 @@ export abstract class EnvelopesRepository {
   } | null>;
 
   /**
+   * Emails redesign (migration 0040). Record a hard bounce on a signer who
+   * has not signed or declined: `delivery_status` becomes `bounced`. Null
+   * when the signer is gone, already signed or declined, or already marked
+   * bounced, so a replayed webhook records and mails nothing twice.
+   */
+  abstract markSignerBounced(
+    signer_id: string,
+    reason: string | null,
+    now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null>;
+
+  /**
    * WP-26 (change expiry). New `expires_at` on an envelope that is
    * `awaiting_others`. Null when it is not the owner's or no longer open.
    */
@@ -502,6 +534,21 @@ export abstract class EnvelopesRepository {
     readonly notifiedSignerIds: ReadonlyArray<string>;
     readonly alreadySignedSignerIds: ReadonlyArray<string>;
   } | null>;
+
+  /**
+   * Undo after Send. One transaction: when the row is the owner's
+   * `awaiting_others` envelope, sent no more than `windowMs` before `now`,
+   * and no signer has viewed, signed or declined, flip it back to `draft`,
+   * clear `sent_at`, and drop every signer's access token and invite stamp.
+   * Otherwise nothing changes and the outcome names why, so the service can
+   * answer 404 or the right 409.
+   */
+  abstract unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome>;
 
   abstract expireEnvelopes(now: Date, limit: number): Promise<ReadonlyArray<string>>;
 

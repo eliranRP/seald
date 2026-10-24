@@ -36,4 +36,11 @@ describe('Card', () => {
     expect(el).not.toBeNull();
     expect(el).toHaveClass('custom');
   });
+
+  it('flags interactive cards for the hover lift', () => {
+    const { container, rerender } = renderWithTheme(<Card>x</Card>);
+    expect(container.firstElementChild).not.toHaveAttribute('data-interactive');
+    rerender(<Card interactive>x</Card>);
+    expect(container.firstElementChild).toHaveAttribute('data-interactive', 'true');
+  });
 });

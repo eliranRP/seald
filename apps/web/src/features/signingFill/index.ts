@@ -12,6 +12,12 @@ export {
   fieldIsFilled,
   fieldValue,
   fieldLabel,
+  useSignerAutofill,
+  isAutoField,
+  orderFields,
+  nextTodoField,
+  todayIso,
+  displayDate,
 } from './model';
 export { DocumentRail, summarizeDocuments } from './DocumentRail';
 export type { DocumentRailItem, DocumentRailProps } from './DocumentRail';

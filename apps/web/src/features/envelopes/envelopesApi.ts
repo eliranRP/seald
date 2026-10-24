@@ -20,7 +20,7 @@ export type EnvelopeStatus =
   | 'canceled';
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
-export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined';
+export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined' | 'bounced';
 /** Every kind the API knows; name, number, radio and dropdown only while `fieldMetaV2` is on (WP-07). */
 export type FieldKind = AnyFieldKind;
 
@@ -40,6 +40,8 @@ export interface EnvelopeSigner {
   readonly invited_at?: string | null;
   /** 1-based signing step. Present only while `signingOrder` is on (WP-05). */
   readonly step?: number;
+  /** 'bounced' after the mail provider reported a hard bounce for this address (migration 0040). */
+  readonly delivery_status?: 'delivered' | 'bounced';
 }
 
 export interface EnvelopeField {
@@ -257,7 +259,12 @@ export type EnvelopeEventType =
   | 'step_started'
   // WP-26 (migration 0039)
   | 'signer_corrected'
-  | 'expiry_changed';
+  | 'signer_replaced'
+  | 'expiry_changed'
+  // Migration 0045
+  | 'unsent'
+  // Migration 0040
+  | 'email_bounced';
 
 export interface EnvelopeEvent {
   readonly id: string;
@@ -273,6 +280,8 @@ export interface EnvelopeEvent {
 
 export interface EnvelopeEventsResponse {
   readonly events: ReadonlyArray<EnvelopeEvent>;
+  /** Whether the audit hash chain still verifies. Absent on older servers. */
+  readonly chain_intact?: boolean;
 }
 
 export async function listEnvelopeEvents(
@@ -515,6 +524,21 @@ export interface CancelEnvelopeResponse {
  * `awaiting_others` / `sealing`; terminal statuses surface as 409. Use the
  * delete-draft flow for `draft` envelopes.
  */
+/**
+ * Undo after Send: `POST /envelopes/:id/unsend`. Allowed only for the owner,
+ * within 10 s of sending and before any signer opened the document; the
+ * envelope returns to `draft`. Failures surface as 409 slugs
+ * (`unsend_window_expired`, `unsend_signer_engaged`, `envelope_not_sent`).
+ */
+export async function unsendEnvelope(id: string, signal?: AbortSignal): Promise<Envelope> {
+  const { data } = await apiClient.post<Envelope>(
+    `/envelopes/${id}/unsend`,
+    undefined,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
 export async function cancelEnvelope(
   id: string,
   signal?: AbortSignal,
@@ -522,6 +546,52 @@ export async function cancelEnvelope(
   const { data } = await apiClient.post<CancelEnvelopeResponse>(
     `/envelopes/${id}/cancel`,
     undefined,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+export interface FixSignerInput {
+  readonly email: string;
+  readonly name?: string;
+}
+
+/**
+ * `PATCH /envelopes/:id/signers/:signerId` — fix a signer's email on a sent
+ * envelope. The server revokes the old link and sends a fresh invite.
+ */
+export async function fixEnvelopeSigner(
+  envelopeId: string,
+  signerId: string,
+  input: FixSignerInput,
+  signal?: AbortSignal,
+): Promise<EnvelopeSigner> {
+  const { data } = await apiClient.patch<EnvelopeSigner>(
+    `/envelopes/${envelopeId}/signers/${signerId}`,
+    input,
+    configWithSignal(signal),
+  );
+  return data;
+}
+
+export interface ReplaceSignerInput {
+  readonly name: string;
+  readonly email: string;
+}
+
+/**
+ * `POST /envelopes/:id/signers/:signerId/replace` — swap a signer who has
+ * not signed for someone else. Fields, role and order move to the new person.
+ */
+export async function replaceEnvelopeSigner(
+  envelopeId: string,
+  signerId: string,
+  input: ReplaceSignerInput,
+  signal?: AbortSignal,
+): Promise<EnvelopeSigner> {
+  const { data } = await apiClient.post<EnvelopeSigner>(
+    `/envelopes/${envelopeId}/signers/${signerId}/replace`,
+    input,
     configWithSignal(signal),
   );
   return data;

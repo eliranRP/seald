@@ -1,1 +1,0 @@
-export { SentConfirmationPage } from './SentConfirmationPage';

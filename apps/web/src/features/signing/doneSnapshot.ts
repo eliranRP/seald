@@ -38,6 +38,11 @@ export interface DoneSnapshot {
    * carry it (the reader treats missing as 'declined').
    */
   readonly decline_reason?: DeclineReason | undefined;
+  /** What the signer told the sender when declining (chip and note). */
+  readonly reason_text?: string | undefined;
+  /** Signers who have signed, this one included, and all signers (submitted only). */
+  readonly signed_count?: number | undefined;
+  readonly total_count?: number | undefined;
 }
 
 const KEY = 'sealed.sign.last';

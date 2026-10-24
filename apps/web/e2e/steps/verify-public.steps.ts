@@ -102,18 +102,13 @@ When('the user opens {string}', async ({ page }, path: string) => {
 });
 
 Then('the verify verdict heading announces the document is sealed', async ({ page }) => {
-  // PR-5 added an `aria-label` per variant on the verdict <h1> so screen
-  // readers hear the full semantic verdict ("Sealed and intact") instead
-  // of relying on the visible italic emphasis ("This document is sealed.").
-  // `aria-label` overrides the accessible name, so the role+name query
-  // must match the label, not the visible text.
-  await expect(page.getByRole('heading', { level: 1, name: /sealed and intact/i })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Authentic' })).toBeVisible();
 });
 
 Then(
   'the sealed-PDF download link saves with a {string} filename',
   async ({ page }, suffix: string) => {
-    const link = page.getByRole('link', { name: /^download$/i });
+    const link = page.getByRole('link', { name: /^sealed pdf$/i });
     await expect(link).toBeVisible();
     // The presence of the `download` attribute is the contract; the
     // filename inside it must end with the requested suffix so the
@@ -128,7 +123,7 @@ Then(
 Then(
   'the audit-PDF download link saves with a {string} filename',
   async ({ page }, suffix: string) => {
-    const link = page.getByRole('link', { name: /audit pdf/i });
+    const link = page.getByRole('link', { name: /audit trail pdf/i });
     await expect(link).toBeVisible();
     const filename = await link.getAttribute('download');
     expect(filename).not.toBeNull();
@@ -142,11 +137,11 @@ Then(
  * (that file sits outside the e2e rootDir).
  */
 function headingTokenSize(name: string): string {
-  if (name !== 'h1' && name !== 'h3' && name !== 'h5') {
+  if (name !== 'x3l' && name !== 'x5l' && name !== 'lg') {
     throw new Error(`unsupported heading size token: ${name}`);
   }
   const source = readFileSync(join(process.cwd(), 'src/styles/theme.ts'), 'utf8');
-  const match = new RegExp(`${name}:\\s*'(\\d+px)'`).exec(source);
+  const match = new RegExp(`\\b${name}:\\s*'(\\d+px)'`).exec(source);
   const px = match?.[1];
   if (px === undefined) {
     throw new Error(`theme.font.size.${name} is missing from theme.ts`);
@@ -192,14 +187,36 @@ Then('the verify page does not overflow horizontally', async ({ page }) => {
   expect(overflow).toBeLessThanOrEqual(1);
 });
 
-Then('the audit chain status badge reads {string}', async ({ page }, expected: string) => {
-  // Playwright's `getByLabel` only resolves `aria-label` for form
-  // controls; a styled-span Tag with `aria-label="Audit chain status"`
-  // therefore needs an attribute-selector locator (vitest's
-  // testing-library is stricter and matches `aria-label` on every
-  // element, hence the difference between the unit test and the
-  // browser test).
-  const badge = page.locator('[aria-label="Audit chain status"]');
-  await expect(badge).toBeVisible();
-  await expect(badge).toContainText(new RegExp(expected, 'i'));
+Then('the verify checks show {string}', async ({ page }, expected: string) => {
+  // The chips row is a labelled div, not a form control, so getByLabel
+  // does not resolve it; an attribute selector does.
+  const checks = page.locator('[aria-label="Checks"]');
+  await expect(checks).toBeVisible();
+  await expect(checks).toContainText(new RegExp(expected, 'i'));
+});
+
+When('the user opens the technical details', async ({ page }) => {
+  await page.getByRole('button', { name: /technical details/i }).click();
+});
+
+Then('the verify verdict word reads {string}', async ({ page }, word: string) => {
+  await expect(page.getByRole('heading', { level: 1, name: word })).toBeVisible();
+  await expect(page.getByRole('button', { name: /technical details/i })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
+});
+
+Then('the verify entry page asks for a document code', async ({ page }) => {
+  await expect(page.getByRole('heading', { level: 1, name: 'Verify a document' })).toBeVisible();
+  await expect(page.getByLabel('Verification code')).toBeVisible();
+});
+
+Then('the Verify button is disabled until 13 characters are typed', async ({ page }) => {
+  const verify = page.getByRole('button', { name: 'Verify', exact: true });
+  await expect(verify).toBeDisabled();
+  await page.getByLabel('Verification code').fill('PuBLicSm0kE1');
+  await expect(verify).toBeDisabled();
+  await page.getByLabel('Verification code').fill('PuBLicSm0kE12');
+  await expect(verify).toBeEnabled();
 });

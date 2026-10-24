@@ -6,8 +6,10 @@ export interface SaveAsTemplatePayload {
   readonly description: string;
 }
 
-export interface SaveAsTemplateDialogProps
-  extends Omit<FormHTMLAttributes<HTMLFormElement>, 'onSubmit'> {
+export interface SaveAsTemplateDialogProps extends Omit<
+  FormHTMLAttributes<HTMLFormElement>,
+  'onSubmit'
+> {
   readonly open: boolean;
   readonly defaultTitle?: string | undefined;
   readonly defaultDescription?: string | undefined;

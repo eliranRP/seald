@@ -1,6 +1,15 @@
 import { forwardRef } from 'react';
 import type { ReactNode } from 'react';
-import { ChevronLeft, ChevronRight, Minus, Plus, Target } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Minus,
+  Plus,
+  Redo2,
+  Target,
+  Undo2,
+} from 'lucide-react';
 import type { PageToolbarProps } from './PageToolbar.types';
 import { Divider, IconButton, PageIndicator, Root, ZoomPercent } from './PageToolbar.styles';
 
@@ -18,6 +27,12 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
     onResetZoom,
     zoomInDisabled,
     zoomOutDisabled,
+    onUndo,
+    onRedo,
+    undoDisabled,
+    redoDisabled,
+    onShowShortcuts,
+    shortcutsExpanded,
     ...rest
   } = props;
 
@@ -77,8 +92,43 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
     );
   }
 
+  let historyGroup: ReactNode = null;
+  if (onUndo || onRedo) {
+    historyGroup = (
+      <>
+        {onUndo ? (
+          <IconButton type="button" aria-label="Undo" disabled={undoDisabled} onClick={onUndo}>
+            <Undo2 size={14} aria-hidden />
+          </IconButton>
+        ) : null}
+        {onRedo ? (
+          <IconButton type="button" aria-label="Redo" disabled={redoDisabled} onClick={onRedo}>
+            <Redo2 size={14} aria-hidden />
+          </IconButton>
+        ) : null}
+        <Divider aria-hidden />
+      </>
+    );
+  }
+
+  const shortcutsButton: ReactNode = onShowShortcuts ? (
+    <>
+      <Divider aria-hidden />
+      <IconButton
+        type="button"
+        aria-label="Shortcuts"
+        aria-haspopup="dialog"
+        aria-expanded={shortcutsExpanded === true}
+        onClick={onShowShortcuts}
+      >
+        <CircleHelp size={14} aria-hidden />
+      </IconButton>
+    </>
+  ) : null;
+
   return (
     <Root ref={ref} {...rest} role="toolbar" aria-label="Page navigation">
+      {historyGroup}
       {jumpGroup}
       <IconButton
         type="button"
@@ -95,6 +145,7 @@ export const PageToolbar = forwardRef<HTMLDivElement, PageToolbarProps>((props, 
         <ChevronRight size={14} aria-hidden />
       </IconButton>
       {zoomGroup}
+      {shortcutsButton}
     </Root>
   );
 });

@@ -14,6 +14,7 @@ export {
   useSendEnvelopeMutation,
   useDeleteEnvelopeMutation,
   useCancelEnvelopeMutation,
+  useUnsendEnvelopeMutation,
 } from './useEnvelopes';
 export type {
   UploadFileArgs,
@@ -28,6 +29,8 @@ export {
   getEnvelopeDownloadUrl,
   saveEnvelopeToGdrive,
   remindEnvelopeSigner,
+  fixEnvelopeSigner,
+  replaceEnvelopeSigner,
   createEnvelope,
   uploadEnvelopeFile,
   addEnvelopeSigner,
@@ -36,6 +39,7 @@ export {
   sendEnvelope,
   deleteEnvelope,
   cancelEnvelope,
+  unsendEnvelope,
 } from './envelopesApi';
 export type {
   AddEnvelopeSignerInput,
@@ -54,6 +58,8 @@ export type {
   EnvelopeListResponse,
   FieldKind,
   FieldPlacement,
+  FixSignerInput,
+  ReplaceSignerInput,
   ListEnvelopesParams,
   SignerRole,
   SignerUiStatus,

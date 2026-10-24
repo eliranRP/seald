@@ -10,11 +10,9 @@ const baseAuth: AuthContextValue = {
   user: null,
   guest: false,
   loading: false,
-  signInWithPassword: vi.fn(async () => undefined),
-  signUpWithPassword: vi.fn(async () => ({ needsEmailConfirmation: false })),
+  signInWithEmailLink: vi.fn(async () => undefined),
+  completeProfile: vi.fn(async () => undefined),
   signInWithGoogle: vi.fn(async () => undefined),
-  resetPassword: vi.fn(async () => undefined),
-  resendSignUpConfirmation: vi.fn(async () => undefined),
   signOut: vi.fn(async () => undefined),
   enterGuestMode: vi.fn(async () => undefined),
   exitGuestMode: vi.fn(),
@@ -59,21 +57,24 @@ describe('RootLanding', () => {
     expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
   });
 
-  it('routes a signed-in mobile user to /m/send', () => {
+  // Redesign v2: the AppShell screens are responsive, so phones land on
+  // the same routes as desktop instead of the retired /m/send lock.
+  it('routes a signed-in mobile user to /documents too', () => {
     authState = {
       ...baseAuth,
       user: { id: 'u1', email: 'a@b.co', name: 'Alex' },
     };
     mobileViewport = true;
     renderAt('/');
-    expect(screen.getByText('mobile send page')).toBeInTheDocument();
+    expect(screen.getByText('desktop dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('mobile send page')).toBeNull();
   });
 
-  it('routes a guest mobile user to /m/send too', () => {
+  it('routes a guest mobile user to /document/new too', () => {
     authState = { ...baseAuth, guest: true };
     mobileViewport = true;
     renderAt('/');
-    expect(screen.getByText('mobile send page')).toBeInTheDocument();
+    expect(screen.getByText('guest upload')).toBeInTheDocument();
   });
 
   it('routes a guest desktop user to /document/new', () => {

@@ -176,9 +176,7 @@ describe('EnvelopeDetailPage with a signing order', () => {
     mockEnvelope();
     renderAt('env-1');
 
-    expect(
-      await screen.findByText(/^Sent for signing in order \(\d+ signers\)$/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/^Sent in order to \d+ signers$/)).toBeInTheDocument();
     expect(screen.queryByText(/^Sent to \d+ signers$/)).not.toBeInTheDocument();
   });
 

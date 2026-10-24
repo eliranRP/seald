@@ -14,6 +14,10 @@ import { SupabaseAdminClient } from './supabase-admin.client';
 import { SupabaseAdminHttpClient } from './supabase-admin.client.http';
 import { TombstonesRepository } from './tombstones.repository';
 import { TombstonesPgRepository } from './tombstones.repository.pg';
+import { UserSettingsController } from './settings/user-settings.controller';
+import { UserSettingsPgRepository } from './settings/user-settings.repository.pg';
+import { UserSettingsRepository } from './settings/user-settings.repository';
+import { UserSettingsService } from './settings/user-settings.service';
 
 /**
  * Mounts T-19 / T-20 — DSAR export and account deletion. Pulls in the
@@ -31,9 +35,11 @@ import { TombstonesPgRepository } from './tombstones.repository.pg';
     GDriveModule,
     UploadsModule,
   ],
-  controllers: [MeController],
+  controllers: [MeController, UserSettingsController],
   providers: [
     MeService,
+    UserSettingsService,
+    { provide: UserSettingsRepository, useClass: UserSettingsPgRepository },
     { provide: IdempotencyRepository, useClass: IdempotencyPgRepository },
     { provide: SupabaseAdminClient, useClass: SupabaseAdminHttpClient },
     { provide: TombstonesRepository, useClass: TombstonesPgRepository },

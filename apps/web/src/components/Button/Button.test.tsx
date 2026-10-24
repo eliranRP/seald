@@ -72,4 +72,22 @@ describe('Button', () => {
     expect(btn).toHaveAttribute('data-testid', 'go');
     expect(btn).toHaveClass('custom');
   });
+
+  it('renders an icon-only button named by aria-label', () => {
+    const { getByRole } = renderWithTheme(
+      <Button iconOnly iconLeft={Send} aria-label="Send now" variant="ghost" />,
+    );
+    const btn = getByRole('button', { name: 'Send now' });
+    expect(btn.querySelector('svg')).not.toBeNull();
+  });
+
+  it('shows a spinner in place of the left icon while loading', () => {
+    const { getByRole } = renderWithTheme(
+      <Button loading iconLeft={Send}>
+        Send
+      </Button>,
+    );
+    const btn = getByRole('button', { name: 'Send' });
+    expect(btn.querySelector('svg')).toBeNull();
+  });
 });

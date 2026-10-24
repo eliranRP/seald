@@ -198,6 +198,72 @@ describe('Templates HTTP (e2e)', () => {
     expect(useRes.body.last_used_at).not.toBeNull();
   });
 
+  it('POST /templates/:id/duplicate copies the template as "NAME copy"', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/templates')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send({ ...SAMPLE_PAYLOAD, tags: ['Legal'] })
+      .expect(201);
+    const id = created.body.id as string;
+    await request(app.getHttpServer())
+      .post(`/templates/${id}/use`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+
+    const dup = await request(app.getHttpServer())
+      .post(`/templates/${id}/duplicate`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(201);
+    expect(dup.body.id).not.toBe(id);
+    expect(dup.body).toMatchObject({
+      title: 'NDA — short form copy',
+      tags: ['Legal'],
+      uses_count: 0,
+      last_used_at: null,
+    });
+    expect(dup.body.field_layout).toHaveLength(3);
+
+    await request(app.getHttpServer())
+      .post(`/templates/${id}/duplicate`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(404);
+  });
+
+  it('DELETE then POST /templates/:id/restore brings the template back (Undo)', async () => {
+    const created = await request(app.getHttpServer())
+      .post('/templates')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .send(SAMPLE_PAYLOAD)
+      .expect(201);
+    const id = created.body.id as string;
+    await request(app.getHttpServer())
+      .delete(`/templates/${id}`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(204);
+
+    // Another user cannot restore it; the owner can.
+    await request(app.getHttpServer())
+      .post(`/templates/${id}/restore`)
+      .set('Authorization', `Bearer ${tokenB}`)
+      .expect(404);
+    const restored = await request(app.getHttpServer())
+      .post(`/templates/${id}/restore`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    expect(restored.body.id).toBe(id);
+    const list = await request(app.getHttpServer())
+      .get('/templates')
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(200);
+    expect(list.body).toHaveLength(1);
+
+    // A live template cannot be "restored".
+    await request(app.getHttpServer())
+      .post(`/templates/${id}/restore`)
+      .set('Authorization', `Bearer ${tokenA}`)
+      .expect(404);
+  });
+
   it('rejects unknown pageRule literals at validation', async () => {
     await request(app.getHttpServer())
       .post('/templates')

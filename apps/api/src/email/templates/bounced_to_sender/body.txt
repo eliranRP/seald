@@ -1,0 +1,19 @@
+The address looks wrong. Fix it and we will resend right away.
+
+Email to {{signer_name}} bounced.
+{{bounced_email}} could not be reached.
+
+{{bounce_reason}}
+
+  {{envelope_title}}
+
+Fix email:
+  {{dashboard_url}}
+
+Correct the address and Seald sends the request again.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
+Sent via Seald · {{public_url}}

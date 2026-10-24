@@ -1,9 +1,10 @@
-import type { JSX } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { renderWithProviders } from '../test/renderWithProviders';
 import { UploadRoute } from './UploadRoute';
+import { useAppState } from '../providers/AppStateProvider';
+import * as convertModule from '../features/documentEditor/upload/convertUpload';
 import { setTemplates } from '../features/templates';
 import * as templatesApi from '../features/templates/templatesApi';
 import { SAMPLE_TEMPLATES as TEMPLATES } from '../test/templateFixtures';
@@ -18,45 +19,6 @@ vi.mock('../lib/pdf', () => ({
     loading: false,
     error: null,
   }),
-}));
-
-// `SignersStepCard` is the same widget the templates wizard uses;
-// stub it to a tiny shim with "Add Jamie" + "Apply" + a signer-count
-// readout so tests can drive the flow deterministically without the
-// inline contact picker's full DOM tree.
-vi.mock('../components/SignersStepCard', () => ({
-  SignersStepCard: (props: {
-    signers: ReadonlyArray<{ readonly id: string; readonly name: string }>;
-    onPickContact: (c: {
-      readonly id: string;
-      readonly name: string;
-      readonly email: string;
-      readonly color: string;
-    }) => void;
-    onContinue: () => void;
-  }): JSX.Element => {
-    return (
-      <div data-testid="signer-dialog">
-        <button
-          type="button"
-          onClick={() =>
-            props.onPickContact({
-              id: 'c-jamie',
-              name: 'Jamie Okonkwo',
-              email: 'jamie@seald.app',
-              color: '#818CF8',
-            })
-          }
-        >
-          Add Jamie
-        </button>
-        <button type="button" onClick={() => props.onContinue()}>
-          Apply
-        </button>
-        <span data-testid="signer-count">{props.signers.length}</span>
-      </div>
-    );
-  },
 }));
 
 function LocationProbe() {
@@ -141,18 +103,12 @@ describe('UploadRoute (template integration)', () => {
 
   it('pre-populates fields from the template on confirm and routes to the editor', async () => {
     renderAt(`/document/new?template=${encodeURIComponent(SAMPLE.id)}`);
-    const input = screen.getByLabelText(/choose pdf file/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/choose file/i) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [makePdf('contract.pdf')] } });
 
     // The mocked `usePdfDocument` reports 6 pages — same as SAMPLE, so
-    // every layout entry resolves and no page-count warning fires.
-    const addBtn = await screen.findByRole('button', { name: /add jamie/i });
-    fireEvent.click(addBtn);
-    await waitFor(() => {
-      expect(screen.getByTestId('signer-count')).toHaveTextContent('1');
-    });
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-
+    // every layout entry resolves and no page-count warning fires. The
+    // editor opens on its own: signers are chosen there.
     await waitFor(() => {
       expect(screen.getByTestId('doc-probe')).toBeInTheDocument();
     });
@@ -165,9 +121,7 @@ describe('UploadRoute (template integration)', () => {
   it('hides the "Start from a template" CTA when no templates are saved', () => {
     setTemplates([]);
     renderAt('/document/new');
-    expect(
-      screen.queryByRole('button', { name: /start from a template/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /template/i })).not.toBeInTheDocument();
   });
 
   // Regression: previously the upload page only read the in-memory
@@ -182,12 +136,10 @@ describe('UploadRoute (template integration)', () => {
     setTemplates([]);
     const listSpy = vi.spyOn(templatesApi, 'listTemplates').mockResolvedValueOnce(TEMPLATES);
     renderAt('/document/new');
-    expect(
-      screen.queryByRole('button', { name: /start from a template/i }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /template/i })).not.toBeInTheDocument();
     expect(listSpy).toHaveBeenCalledTimes(1);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /start from a template/i })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: /template/i })).toBeInTheDocument();
     });
   });
 
@@ -211,10 +163,10 @@ describe('UploadRoute (template integration)', () => {
         </Routes>
       </MemoryRouter>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /start from a template/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /template/i }));
     const dialog = await screen.findByRole('dialog', { name: /choose a template/i });
     expect(dialog).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: new RegExp(SAMPLE.name, 'i') }));
+    fireEvent.click(within(dialog).getByRole('button', { name: new RegExp(SAMPLE.name, 'i') }));
     await waitFor(() => {
       expect(screen.getByTestId('use-probe')).toHaveTextContent(
         `/templates/${encodeURIComponent(SAMPLE.id)}/use`,
@@ -271,5 +223,50 @@ describe('UploadRoute (template integration)', () => {
       expect(screen.getByTestId('doc-probe')).toBeInTheDocument();
     });
     expect(screen.queryByTestId('signer-dialog')).toBeNull();
+  });
+
+  it('converts a Word file on the server, then opens the editor with the sender as signer', async () => {
+    const convertSpy = vi
+      .spyOn(convertModule, 'convertUploadToPdf')
+      .mockResolvedValueOnce(makePdf('Q3 vendor agreement.pdf'));
+    function DraftProbe2() {
+      const { documents } = useAppState();
+      const draft = documents[0];
+      return (
+        <div data-testid="draft-signers">
+          {(draft?.signers ?? []).map((x) => x.email).join(',')}
+        </div>
+      );
+    }
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/document/new']}>
+        <Routes>
+          <Route path="/document/new" element={<UploadRoute />} />
+          <Route path="/document/:id" element={<DraftProbe2 />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const docx = new File([new Uint8Array([0x50, 0x4b])], 'Q3 vendor agreement.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    fireEvent.change(screen.getByLabelText(/choose file/i), { target: { files: [docx] } });
+    await waitFor(() => {
+      expect(screen.getByTestId('draft-signers')).toBeInTheDocument();
+    });
+    expect(convertSpy).toHaveBeenCalledTimes(1);
+    convertSpy.mockRestore();
+  });
+
+  it('shows Retry when the Word conversion fails', async () => {
+    const convertSpy = vi
+      .spyOn(convertModule, 'convertUploadToPdf')
+      .mockRejectedValueOnce(new convertModule.ConvertUploadError('failed', "Couldn't convert"));
+    renderAt('/document/new');
+    const docx = new File([new Uint8Array([0x50, 0x4b])], 'a.docx', {
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    });
+    fireEvent.change(screen.getByLabelText(/choose file/i), { target: { files: [docx] } });
+    expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
+    convertSpy.mockRestore();
   });
 });

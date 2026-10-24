@@ -20,15 +20,12 @@ Feature: Sender lifecycle regressions — dashboard responsiveness, dates, downl
     Given a signed-in sender with a historical and a recent envelope
 
   @smoke @sender @regression
-  Scenario: Mobile sender opening the dashboard is bounced to /m/send (BUG-1, refined)
-    # Phase-2 of the mobile-locked-to-/m/send contract: rather than
-    # making /documents responsive, we redirect every mobile visitor to
-    # the dedicated mobile sender at /m/send. The dashboard is desktop-
-    # only on purpose. Asserts the redirect fires from the desktop
-    # dashboard URL on a 375 px viewport.
+  Scenario: Mobile sender opening the dashboard stays on the responsive dashboard (BUG-1, redesign v2)
+    # Redesign v2 retires the mobile lock to /m/send: /documents is
+    # responsive and phones get a bottom nav instead of a redirect.
     Given the viewport is sized to an iPhone (375x812)
     When the sender opens the dashboard
-    Then the URL is /m/send
+    Then the URL is /documents
 
   @smoke @sender @regression
   Scenario: Older envelope dates include the year on the dashboard (BUG-2)

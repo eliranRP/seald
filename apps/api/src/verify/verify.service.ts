@@ -1,10 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { isFeatureEnabled, type VerifyDocument } from 'shared';
 import { EnvelopeDocumentsRepository } from '../envelopes/documents/envelope-documents.repository';
-import type { EnvelopeEvent } from '../envelopes/envelope.entity';
+import type { Envelope, EnvelopeEvent } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { isValidShortCode } from '../envelopes/short-code';
+import { detectPadesProfile, weakestProfile, type PadesProfile } from '../sealing/pades-profile';
 import { StorageService } from '../storage/storage.service';
+
+/** Sealed bytes never change, so a profile is cached by the sealed hash. */
+const PROFILE_CACHE_MAX = 500;
 
 /**
  * Public verification of an envelope by short code: metadata, redacted
@@ -19,6 +23,16 @@ export class VerifyService {
     private readonly storage: StorageService,
     private readonly documents: EnvelopeDocumentsRepository,
   ) {}
+
+  private readonly profiles = new Map<string, PadesProfile>();
+
+  /** `GET /verify/by-hash/:sha256` — 404 for malformed input and for no match. */
+  async findByHash(sha256: string): Promise<{ readonly short_code: string }> {
+    if (!/^[0-9a-f]{64}$/i.test(sha256)) throw new NotFoundException('envelope_not_found');
+    const short_code = await this.repo.findShortCodeBySealedSha256(sha256.toLowerCase());
+    if (!short_code) throw new NotFoundException('envelope_not_found');
+    return { short_code };
+  }
 
   async verify(short_code: string): Promise<VerifyResponse> {
     // Validate short_code format before hitting the database — rejects
@@ -70,13 +84,19 @@ export class VerifyService {
         sent_at: envelope.sent_at,
         completed_at: envelope.completed_at,
         expires_at: envelope.expires_at,
+        sealed_at: envelope.status === 'completed' ? sealedAt(envelope, events) : null,
+        // The TSA that stamped the seal is not persisted per envelope yet.
+        tsa_name: null,
+        event_count: events.length,
+        seal: envelope.status === 'completed' ? await this.sealProfile(envelope) : null,
       },
       signers: envelope.signers.map((s) => ({
         id: s.id,
         name: s.name,
         email: s.email,
         role: s.role,
-        status: s.status,
+        // `bounced` is for the sender; the public page reports it as awaiting.
+        status: s.status === 'bounced' ? 'awaiting' : s.status,
         signed_at: s.signed_at,
         declined_at: s.declined_at,
       })),
@@ -86,6 +106,49 @@ export class VerifyService {
       audit_url,
       ...(documents !== null ? { documents } : {}),
     };
+  }
+
+  /**
+   * The PAdES level the sealed file(s) actually carry, read from the bytes;
+   * the weakest document wins. Null when a file cannot be read, so the page
+   * makes no claim it cannot back.
+   */
+  private async sealProfile(envelope: Envelope): Promise<PadesProfile | null> {
+    const docs = await this.documents.listByEnvelope(envelope.id);
+    const files = docs.flatMap((d) =>
+      d.sealed_file_path !== null && d.sealed_sha256 !== null
+        ? [{ path: d.sealed_file_path, sha256: d.sealed_sha256 }]
+        : [],
+    );
+    if (files.length === 0 && envelope.sealed_sha256 !== null) {
+      files.push({ path: `${envelope.id}/sealed.pdf`, sha256: envelope.sealed_sha256 });
+    }
+    if (files.length === 0) return null;
+    let weakest: PadesProfile | null = null;
+    for (const file of files) {
+      const profile = await this.profileOf(file.path, file.sha256);
+      if (profile === null) return null;
+      weakest = weakest === null ? profile : weakestProfile(weakest, profile);
+    }
+    return weakest;
+  }
+
+  private async profileOf(path: string, sha256: string): Promise<PadesProfile | null> {
+    const cached = this.profiles.get(sha256);
+    if (cached !== undefined) return cached;
+    let bytes: Buffer;
+    try {
+      bytes = await this.storage.download(path);
+    } catch {
+      return null;
+    }
+    const profile = detectPadesProfile(bytes);
+    if (this.profiles.size >= PROFILE_CACHE_MAX) {
+      const oldest = this.profiles.keys().next().value;
+      if (oldest !== undefined) this.profiles.delete(oldest);
+    }
+    this.profiles.set(sha256, profile);
+    return profile;
   }
 
   private async listDocuments(envelope_id: string, sealed: boolean): Promise<VerifyDocument[]> {
@@ -107,6 +170,14 @@ export class VerifyService {
     }
     return out;
   }
+}
+
+function sealedAt(envelope: Envelope, events: ReadonlyArray<EnvelopeEvent>): string | null {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const ev = events[i];
+    if (ev?.event_type === 'sealed') return ev.created_at;
+  }
+  return envelope.completed_at;
 }
 
 function redactEvent(ev: EnvelopeEvent): RedactedEvent {
@@ -141,6 +212,17 @@ export interface VerifyResponse {
     readonly sent_at: string | null;
     readonly completed_at: string | null;
     readonly expires_at: string;
+    /** When the PDF was sealed (the `sealed` event, else completed_at). Null until sealed. */
+    readonly sealed_at: string | null;
+    /** Timestamp authority behind the seal, when recorded. Not stored yet, so null. */
+    readonly tsa_name: string | null;
+    /** Number of audit events on the chain. */
+    readonly event_count: number;
+    /**
+     * PAdES level and signature timestamp read from the sealed PDF bytes
+     * (weakest document). Null until sealed, or when a file cannot be read.
+     */
+    readonly seal: PadesProfile | null;
   };
   readonly signers: ReadonlyArray<{
     readonly id: string;

@@ -5,42 +5,28 @@ import { UploadPage } from './UploadPage';
 import { seald } from '../../styles/theme';
 
 /**
- * Regression coverage for PR-7 (audit slice A — Sender):
- *   H-1  The heading + subtitle render centered above the dropzone
- *        instead of left-aligned at the 960 px Inner's left edge with
- *        empty whitespace to the right (which read as a broken
- *        two-column).
+ * Header regression coverage. The v2 redesign drops the centered sentence
+ * subtitle (PR-7 H-1 covered its alignment): the page is a left-aligned
+ * title with no explanatory text unless the host passes one.
  */
 
-function renderPage() {
+function renderPage(props: { subtitle?: string } = {}) {
   return render(
     <ThemeProvider theme={seald}>
-      <UploadPage onFileSelected={vi.fn()} />
+      <UploadPage onFileSelected={vi.fn()} {...props} />
     </ThemeProvider>,
   );
 }
 
-describe('UploadPage — audit-fix regressions (PR-7)', () => {
-  it('H-1: heading + subtitle render inside a centered text block', () => {
+describe('UploadPage header', () => {
+  it('renders the title and no subtitle by default', () => {
     renderPage();
-    const heading = screen.getByRole('heading', { level: 1, name: /start a new document/i });
-    // The heading's parent is the HeadingBlock styled-component, which
-    // applies `text-align: center`. Pull the rendered style rule out
-    // of the injected <style> tags and assert it sets center alignment.
-    const parent = heading.parentElement;
-    expect(parent).not.toBeNull();
-    const classes = (parent?.className ?? '').split(' ').filter(Boolean);
-    expect(classes.length).toBeGreaterThan(0);
-    const allStyles = Array.from(document.querySelectorAll('style'))
-      .map((s) => s.textContent ?? '')
-      .join('\n');
-    const matchingRule = classes
-      .map((cls) => {
-        const re = new RegExp(`\\.${cls}\\s*\\{[^}]*\\}`, 'i');
-        return allStyles.match(re)?.[0];
-      })
-      .find((r): r is string => !!r);
-    expect(matchingRule).toBeDefined();
-    expect(matchingRule).toMatch(/text-align:\s*center/i);
+    const heading = screen.getByRole('heading', { level: 1, name: /new document/i });
+    expect(heading.parentElement?.querySelector('p')).toBeNull();
+  });
+
+  it('still renders a subtitle when the host passes one', () => {
+    renderPage({ subtitle: 'Pick a file' });
+    expect(screen.getByText('Pick a file')).toBeInTheDocument();
   });
 });

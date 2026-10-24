@@ -17,10 +17,18 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
   // out-of-band so the public `Template` shape only carries the
   // boolean `has_example_pdf` flag the wire contract exposes.
   private readonly examplePaths = new Map<string, string | null>();
+  /** ids of soft-deleted rows (kept in `rows` so Undo can bring them back). */
+  private readonly deleted = new Set<string>();
 
   reset(): void {
     this.rows.clear();
     this.examplePaths.clear();
+    this.deleted.clear();
+  }
+
+  private live(owner_id: string, id: string): Template | null {
+    const t = this.rows.get(id);
+    return t && t.owner_id === owner_id && !this.deleted.has(id) ? t : null;
   }
 
   async create(input: CreateTemplateInput): Promise<Template> {
@@ -47,7 +55,7 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
 
   async findAllByOwner(owner_id: string): Promise<ReadonlyArray<Template>> {
     return [...this.rows.values()]
-      .filter((t) => t.owner_id === owner_id)
+      .filter((t) => t.owner_id === owner_id && !this.deleted.has(t.id))
       .sort((a, b) => {
         // last_used_at desc nulls last, then created_at desc
         if (a.last_used_at && b.last_used_at) {
@@ -60,13 +68,12 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
   }
 
   async findOneByOwner(owner_id: string, id: string): Promise<Template | null> {
-    const t = this.rows.get(id);
-    return t && t.owner_id === owner_id ? t : null;
+    return this.live(owner_id, id);
   }
 
   async update(owner_id: string, id: string, patch: UpdateTemplatePatch): Promise<Template | null> {
-    const existing = this.rows.get(id);
-    if (!existing || existing.owner_id !== owner_id) return null;
+    const existing = this.live(owner_id, id);
+    if (!existing) return null;
     const next: Template = {
       ...existing,
       ...patch,
@@ -77,10 +84,16 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
   }
 
   async delete(owner_id: string, id: string): Promise<boolean> {
-    const existing = this.rows.get(id);
-    if (!existing || existing.owner_id !== owner_id) return false;
-    this.rows.delete(id);
+    if (!this.live(owner_id, id)) return false;
+    this.deleted.add(id);
     return true;
+  }
+
+  override async restore(owner_id: string, id: string): Promise<Template | null> {
+    const t = this.rows.get(id);
+    if (!t || t.owner_id !== owner_id || !this.deleted.has(id)) return null;
+    this.deleted.delete(id);
+    return t;
   }
 
   async deleteAllByOwner(owner_id: string): Promise<number> {
@@ -88,6 +101,7 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
     for (const [id, row] of this.rows) {
       if (row.owner_id === owner_id) {
         this.rows.delete(id);
+        this.deleted.delete(id);
         this.examplePaths.delete(id);
         count++;
       }
@@ -96,8 +110,8 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
   }
 
   async incrementUseCount(owner_id: string, id: string): Promise<Template | null> {
-    const existing = this.rows.get(id);
-    if (!existing || existing.owner_id !== owner_id) return null;
+    const existing = this.live(owner_id, id);
+    if (!existing) return null;
     const now = new Date().toISOString();
     const next: Template = {
       ...existing,
@@ -114,8 +128,8 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
     id: string,
     path: string | null,
   ): Promise<Template | null> {
-    const existing = this.rows.get(id);
-    if (!existing || existing.owner_id !== owner_id) return null;
+    const existing = this.live(owner_id, id);
+    if (!existing) return null;
     this.examplePaths.set(id, path);
     const next: Template = {
       ...existing,
@@ -127,8 +141,7 @@ export class InMemoryTemplatesRepository extends TemplatesRepository {
   }
 
   async getExamplePdfPath(owner_id: string, id: string): Promise<string | null> {
-    const existing = this.rows.get(id);
-    if (!existing || existing.owner_id !== owner_id) return null;
+    if (!this.live(owner_id, id)) return null;
     return this.examplePaths.get(id) ?? null;
   }
 }

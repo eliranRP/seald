@@ -97,7 +97,11 @@ export class SigningOrderService {
    * invite rows carry a per-signer dedupe key, so a repeated call queues
    * nothing twice.
    */
-  async startStep(envelope: Envelope, invite: StepInvite): Promise<void> {
+  async startStep(
+    envelope: Envelope,
+    invite: StepInvite,
+    previousSignerName?: string,
+  ): Promise<void> {
     const event = await this.repo.appendEvent({
       envelope_id: envelope.id,
       actor_kind: 'system',
@@ -108,7 +112,7 @@ export class SigningOrderService {
         signer_ids: [...invite.signer_ids],
       },
     });
-    await this.queueInvites(envelope, invite.signer_ids, event.id);
+    await this.queueInvites(envelope, invite.signer_ids, event.id, invite.step, previousSignerName);
   }
 
   /**
@@ -153,29 +157,45 @@ export class SigningOrderService {
           },
         })
       ).id;
-    await this.queueInvites(envelope, signerIds, eventId);
+    await this.queueInvites(
+      envelope,
+      signerIds,
+      eventId,
+      step,
+      previousSignerOf(envelope, signingOrder),
+    );
   }
 
   private async queueInvites(
     envelope: Envelope,
     signerIds: ReadonlyArray<string>,
     sourceEventId: string,
+    step: number,
+    previousSignerName?: string,
   ): Promise<void> {
     const senderEmail = envelope.sender_email;
     if (!senderEmail) return;
     const publicUrl = this.env.APP_PUBLIC_URL.replace(/\/$/, '');
-    const payload = inviteEmailPayload(
-      envelope,
-      { email: senderEmail, name: envelope.sender_name },
-      publicUrl,
-    );
+    // Step 1 is the first invite. Every later step is "your turn": the
+    // signer before them just signed.
+    const kind = step > 1 ? 'your_turn' : 'invite';
+    const payload = {
+      ...inviteEmailPayload(
+        envelope,
+        { email: senderEmail, name: envelope.sender_name },
+        publicUrl,
+      ),
+      ...(kind === 'your_turn'
+        ? { previous_signer_name: previousSignerName ?? 'The previous signer' }
+        : {}),
+    };
     for (const signerId of signerIds) {
       const signer = envelope.signers.find((s) => s.id === signerId);
       if (!signer) continue;
       await insertOutboundEmailIdempotent(this.outboundEmails, {
         envelope_id: envelope.id,
         signer_id: signer.id,
-        kind: 'invite',
+        kind,
         to_email: signer.email,
         to_name: signer.name,
         source_event_id: sourceEventId,
@@ -184,4 +204,12 @@ export class SigningOrderService {
       });
     }
   }
+}
+
+/** Name of the signer who signed last before `signingOrder`, for the your-turn mail. */
+function previousSignerOf(envelope: Envelope, signingOrder: number): string | undefined {
+  const earlier = envelope.signers
+    .filter((s) => s.signing_order < signingOrder && s.signed_at !== null)
+    .sort((a, b) => (a.signed_at ?? '').localeCompare(b.signed_at ?? ''));
+  return earlier[earlier.length - 1]?.name;
 }

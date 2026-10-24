@@ -26,7 +26,7 @@ describe('DisconnectModal', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('eliran@example.com')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^disconnect$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^keep$/i })).toBeInTheDocument();
   });
 
   it('Cancel fires onClose; Disconnect fires onConfirm', async () => {
@@ -35,7 +35,7 @@ describe('DisconnectModal', () => {
     renderWithTheme(
       <DisconnectModal open accountEmail="x@y.com" onClose={onClose} onConfirm={onConfirm} />,
     );
-    await userEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^keep$/i }));
     expect(onClose).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole('button', { name: /^disconnect$/i }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
@@ -55,7 +55,7 @@ describe('DisconnectModal', () => {
       <DisconnectModal open pending accountEmail="x@y.com" onClose={vi.fn()} onConfirm={vi.fn()} />,
     );
     expect(screen.getByRole('button', { name: /^disconnect$/i })).toBeDisabled();
-    expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^keep$/i })).toBeDisabled();
   });
 
   it('traps Tab focus inside the alertdialog (Tab from last wraps to first)', () => {
@@ -105,6 +105,6 @@ describe('DisconnectModal', () => {
     expect(alert).toHaveTextContent(/couldn.?t disconnect/i);
     // Buttons are re-enabled so the user can retry or cancel.
     expect(screen.getByRole('button', { name: /^disconnect$/i })).not.toBeDisabled();
-    expect(screen.getByRole('button', { name: /cancel/i })).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: /^keep$/i })).not.toBeDisabled();
   });
 });

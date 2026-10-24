@@ -28,7 +28,7 @@ function renderAt(path: string) {
   return renderWithProviders(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
-        <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+        <Route path="/settings" element={<SettingsIndexPage />} />
         <Route
           path="/settings/automations"
           element={<AutomationsSettingsPage variant="desktop" />}
@@ -42,7 +42,7 @@ function renderAt(path: string) {
           element={<AutomationDetailSettingsPage variant="desktop" />}
         />
         <Route path="/settings/integrations" element={<h1>integrations stub</h1>} />
-        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        <Route path="/m/settings" element={<SettingsIndexPage />} />
         <Route
           path="/m/settings/automations"
           element={<AutomationsSettingsPage variant="mobile" />}
@@ -82,6 +82,7 @@ describe('automations settings pages', () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('/settings has an Automations row only with the flag on', () => {
@@ -99,7 +100,13 @@ describe('automations settings pages', () => {
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
   });
 
-  it('/m/settings links to the phone page', () => {
+  it('on a phone the settings index links to the phone page', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }));
     flagsOn(['workflowAutomations']);
     renderAt('/m/settings');
     expect(screen.getByRole('link', { name: 'Automations' })).toHaveAttribute(

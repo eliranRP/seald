@@ -30,7 +30,7 @@ export class InMemoryStepSweepRepository extends StepSweepRepository {
           (r) =>
             r.envelope_id === env.id &&
             r.signer_id === s.id &&
-            r.kind === 'invite' &&
+            (r.kind === 'invite' || r.kind === 'your_turn') &&
             (r.dedupe_key === `invite_step:${env.id}:${s.id}` ||
               Date.parse(r.created_at) >= Date.parse(invitedAt) - 60_000),
         );

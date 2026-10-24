@@ -79,6 +79,14 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // Account
   'GET /me': { tool: 'me_get' },
   // WP-45 (D5): each acts only after the owner approves with a fresh sign-in.
+  'GET /me/settings': {
+    excluded: 'owner_in_app_only',
+    note: 'The owner reads their own profile, signature and defaults in the app; an agent has me_get.',
+  },
+  'PATCH /me/settings': {
+    excluded: 'owner_in_app_only',
+    note: 'Edits the owner saved signature and notification switches, which an agent should not change.',
+  },
   'GET /me/export': { tool: 'account_export' },
   'DELETE /me': { tool: 'account_delete' },
   'GET /me/api-keys': { tool: 'api_keys_list' },
@@ -112,9 +120,16 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   // WP-24: through owner approval (envelopes_preview_send / _preview_remind preview them).
   'POST /envelopes/:id/send': { tool: 'envelopes_send' },
   'POST /envelopes/:id/cancel': { tool: 'envelopes_cancel' },
+  'POST /envelopes/:id/unsend': {
+    excluded: 'owner_in_app_only',
+    note: 'Undo toast in the app, 10 s after Send; an agent has cancel and update instead.',
+  },
   'POST /envelopes/:id/signers/:signer_id/remind': { tool: 'envelopes_remind' },
   'POST /envelopes/:id/signers': { tool: 'envelopes_add_signer' },
   'DELETE /envelopes/:id/signers/:signer_id': { tool: 'envelopes_remove_signer' },
+  'PATCH /envelopes/:id/signers/:signer_id': { tool: 'envelopes_fix_signer' },
+  // Envelope detail redesign: replace a signer. No tool yet.
+  'POST /envelopes/:id/signers/:signer_id/replace': { planned: 'step-16' },
   // WP-19 ships placement; suggestions (envelopes_suggest_fields, step 9) have no route.
   'PUT /envelopes/:id/fields': { tool: 'envelopes_place_fields' },
   'GET /envelopes/:id/events': { tool: 'envelopes_list_events' },
@@ -168,6 +183,10 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /contacts/:id': { tool: 'contacts_get' },
   'PATCH /contacts/:id': { tool: 'contacts_update' },
   'DELETE /contacts/:id': { tool: 'contacts_delete' },
+  // Contacts redesign: paste-a-list add, bulk delete, and the Undo for a delete.
+  'POST /contacts/bulk': { tool: 'contacts_import' },
+  'DELETE /contacts': { tool: 'contacts_delete' },
+  'POST /contacts/restore': { planned: 'step-16' },
 
   // Templates (steps 13 and 15): the listing, the schema read, the draft built
   // from a template and template authoring are tools. The example PDF and the
@@ -177,6 +196,9 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'GET /templates/:id': { tool: 'templates_get_schema' },
   'PATCH /templates/:id': { tool: 'templates_update' },
   'DELETE /templates/:id': { tool: 'templates_delete' },
+  // Templates redesign: duplicate a template, and the Undo for a delete. No tool yet.
+  'POST /templates/:id/duplicate': { planned: 'step-16' },
+  'POST /templates/:id/restore': { planned: 'step-16' },
   // envelopes_create_from_template bumps the use count itself, after success.
   'POST /templates/:id/use': { tool: 'envelopes_create_from_template' },
   'POST /templates/:id/apply': { tool: 'envelopes_create_from_template' },
@@ -197,6 +219,25 @@ export const ROUTE_COVERAGE: Readonly<Record<string, RouteCoverage>> = {
   'POST /bulk-batches/:id/cancel': {
     excluded: 'owner_in_app_only',
     note: 'Stops a batch the owner already approved. The owner stops it in the app; the agent polls batches_get.',
+  },
+  'POST /uploads/convert': {
+    excluded: 'owner_in_app_only',
+    note: 'Turns the file the owner picked on the upload screen into PDF bytes; an agent stages files with documents_upload.',
+  },
+  // Scan with phone (redesign v2 WS-J): the owner's browser hands a phone
+  // camera session a code. The two phone routes are @Public (the code is the
+  // credential) and never appear here.
+  'POST /scan-sessions': {
+    excluded: 'owner_in_app_only',
+    note: 'Opens a QR hand-off so the owner scans pages with a phone camera; an agent stages files with documents_upload.',
+  },
+  'GET /scan-sessions/:code': {
+    excluded: 'owner_in_app_only',
+    note: 'The upload screen polls it while the phone scans; an agent has no phone to wait on.',
+  },
+  'GET /scan-sessions/:code/pdf': {
+    excluded: 'owner_in_app_only',
+    note: 'Hands the scanned PDF to the upload screen once; an agent stages files with documents_upload.',
   },
   // WP-37: the template's direct link (the public `/direct-links/*` routes are
   // @Public). Creating, rotating or revoking a public link is the owner's call in the app.

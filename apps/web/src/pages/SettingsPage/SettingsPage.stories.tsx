@@ -26,7 +26,7 @@ export const Desktop: Story = {
     withFlags({ gdriveIntegration: true, mcpServer: true });
     return (
       <MemoryRouter initialEntries={['/settings']}>
-        <SettingsIndexPage variant="desktop" />
+        <SettingsIndexPage />
       </MemoryRouter>
     );
   },
@@ -37,7 +37,7 @@ export const Mobile: Story = {
     withFlags({ gdriveIntegration: true, mcpServer: true });
     return (
       <MemoryRouter initialEntries={['/m/settings']}>
-        <SettingsIndexPage variant="mobile" />
+        <SettingsIndexPage />
       </MemoryRouter>
     );
   },
@@ -48,7 +48,7 @@ export const DevelopersOnly: Story = {
     withFlags({ gdriveIntegration: false, publicApi: true });
     return (
       <MemoryRouter initialEntries={['/settings']}>
-        <SettingsIndexPage variant="desktop" />
+        <SettingsIndexPage />
       </MemoryRouter>
     );
   },

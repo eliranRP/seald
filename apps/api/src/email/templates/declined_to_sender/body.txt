@@ -1,16 +1,22 @@
-{{envelope_title}} was declined.
+A signer declined. Revise the document and send it again.
 
-{{decliner_name}} ({{decliner_email}}) declined to sign on
-{{declined_at_readable}}. The request has been canceled — no further
-action is needed from the other parties.
+{{decliner_name}} declined to sign.
 
-Reason provided:
+{{decliner_name}} ({{decliner_email}}) declined on {{declined_at_readable}}.
+The request was canceled. No action is needed from the other parties.
 
+Reason:
   {{decline_reason}}
 
-To try again, start a new envelope from the dashboard and upload the PDF.
-The original declined request is retained as audit evidence.
+  {{envelope_title}}
 
-  Open dashboard: {{dashboard_url}}
+Revise & resend:
+  {{dashboard_url}}
 
+The declined request stays on your account as audit evidence.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

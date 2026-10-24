@@ -77,6 +77,24 @@ export abstract class OutboundEmailsRepository {
   ): Promise<OutboundEmailRow | null>;
 
   /**
+   * The outbox row the email provider reported on, by its provider message
+   * id (`provider_id`). Null when no row carries it.
+   */
+  abstract findByProviderId(provider_id: string): Promise<OutboundEmailRow | null>;
+
+  /**
+   * Keep a provider webhook event in `email_webhooks`, keyed by the
+   * provider message id. The MCP send guard counts bounces and complaints
+   * from it. Telemetry only.
+   */
+  abstract recordProviderEvent(
+    provider: string,
+    event_type: string,
+    provider_id: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<void>;
+
+  /**
    * Atomically claim one due email (status in pending|failed, scheduled_for
    * <= now, attempts < max_attempts). Flips status to `sending` and bumps
    * `attempts` so concurrent workers never pick the same row.
@@ -112,6 +130,16 @@ export abstract class OutboundEmailsRepository {
    * `last_error` set to `reason`. The drain loop will not claim it again.
    */
   abstract markSkipped(id: string, reason: string): Promise<void>;
+
+  /**
+   * Undo after Send: flip every still-`pending` invite of the envelope to
+   * `canceled`, so the drain loop never claims it. Rows already claimed or
+   * sent are left alone and counted, so the caller can record both in the
+   * audit event.
+   */
+  abstract cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }>;
 }
 
 /**

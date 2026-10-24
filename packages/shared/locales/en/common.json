@@ -18,13 +18,147 @@
   "signing": {
     "common": {
       "cancel": "Cancel",
-      "apply": "Apply",
-      "moreActions": "More actions",
-      "fieldsOnPage": "Fields on this page"
+      "apply": "Apply"
     },
-    "stepLabels": {
-      "identity": "Identity",
-      "review": "Review"
+    "sign": {
+      "opening": "Opening your document…",
+      "header": {
+        "from": "from {{sender}}",
+        "download": "Download PDF",
+        "more": "More",
+        "moreMenu": "More options"
+      },
+      "menu": {
+        "decline": "Decline",
+        "notMe": "Not me?",
+        "withdraw": "Withdraw consent"
+      },
+      "consent": {
+        "aria": "Consent to sign electronically",
+        "asked": "{{sender}} asked you to sign",
+        "askedAnon": "You have been asked to sign",
+        "fieldsOne": "1 field · ~1 min",
+        "fieldsMany": "{{count}} fields · ~{{minutes}} min",
+        "agree": "I agree to sign electronically",
+        "alsoConfirm": "Also confirms: {{statement}}",
+        "disclosure": "Disclosure",
+        "start": "Start",
+        "errorAccept": "We could not record your acceptance. Please try again."
+      },
+      "bar": {
+        "aria": "Signing progress",
+        "progress": "{{done}} of {{total}}",
+        "required": "required",
+        "optional": "{{count}} optional",
+        "next": "Next",
+        "finish": "Finish"
+      },
+      "tag": {
+        "sign": "Sign",
+        "initial": "Initial",
+        "fill": "Fill",
+        "auto": "Auto"
+      },
+      "finish": {
+        "aria": "Finish signing",
+        "title": "Sign {{title}}",
+        "as": "as {{name}} · {{email}}",
+        "binding": "Legally binding · PAdES sealed",
+        "intent": "By clicking Sign, you intend to sign this document electronically. Legal effect depends on the document and the law that applies to it.",
+        "back": "Back",
+        "sign": "Sign",
+        "signatureAlt": "Signature",
+        "codeTitle": "Enter a new emailed code to finish signing",
+        "errorSubmit": "We could not submit right now. Please try again."
+      },
+      "decline": {
+        "title": "Decline to sign?",
+        "close": "Close",
+        "reason": "Reason",
+        "wrongPerson": "Wrong person",
+        "terms": "Terms",
+        "other": "Other",
+        "note": "Note to the sender (optional)",
+        "noteTo": "Note to {{sender}} (optional)",
+        "cancel": "Cancel",
+        "confirm": "Decline",
+        "error": "We could not decline right now. Please try again."
+      },
+      "notMe": {
+        "title": "Are you not the intended recipient?",
+        "body": "We'll let the sender know to send a fresh link to the right person. This is recorded in the audit trail and cannot be undone.",
+        "confirm": "This isn't me",
+        "cancel": "Cancel"
+      },
+      "withdraw": {
+        "title": "Withdraw consent to sign electronically?",
+        "body": "Seald operates electronically only — withdrawing consent ends this signing request without an alternative. The sender will be notified. This is recorded in the audit trail as consent_withdrawn (distinct from a decline).",
+        "keep": "Keep signing",
+        "confirm": "Withdraw consent",
+        "error": "We could not record your withdrawal right now. Please try again."
+      },
+      "done": {
+        "title": "Signed",
+        "senderGets": "{{sender}} gets it now.",
+        "senderGetsAnon": "The sender gets it now.",
+        "othersLeftOne": "1 other person still needs to sign.",
+        "othersLeftMany": "{{count}} other people still need to sign.",
+        "allSigned": "Everyone has signed.",
+        "count": "{{done}} of {{total}} signed",
+        "download": "Download",
+        "downloadLocked": "Download (after all sign)",
+        "preparing": "Preparing the signed PDF…",
+        "sealingHint": "We're finalizing the seal. This usually takes a few seconds.",
+        "saveCopy": "Save a copy to a free Seald account"
+      },
+      "declined": {
+        "title": "Declined",
+        "notified": "{{sender}} was notified.",
+        "notifiedAnon": "The sender was notified.",
+        "wrongRecipient": "Wrong recipient",
+        "wrongRecipientBody": "They can send a fresh link to the right person.",
+        "close": "Close"
+      },
+      "link": {
+        "signed": {
+          "title": "Already signed",
+          "on": "You signed on {{date}}.",
+          "body": "You already signed this document."
+        },
+        "declined": {
+          "title": "You declined this request",
+          "body": "Nothing more to do."
+        },
+        "expired": {
+          "title": "Link expired",
+          "ask": "Ask for a new link",
+          "requested": "Requested",
+          "sent": "{{sender}} will send a new link.",
+          "sentAnon": "The sender will send a new link.",
+          "error": "We could not send your request. Please try again.",
+          "noToken": "Ask the sender to send you a new link."
+        },
+        "withdrawn": {
+          "title": "Request withdrawn",
+          "body": "{{sender}} withdrew this request. Nothing to do.",
+          "bodyAnon": "The sender withdrew this request. Nothing to do."
+        },
+        "notYet": {
+          "title": "Not your turn yet",
+          "sent": "Sent",
+          "first": "{{name}} signs first",
+          "firstAnon": "Someone signs first",
+          "you": "You",
+          "body": "We'll email you when it's your turn.",
+          "checkAgain": "Check again"
+        },
+        "invalid": {
+          "title": "Link not valid",
+          "body": "Open the latest email from {{sender}}.",
+          "bodyAnon": "Open the latest email about this document.",
+          "retry": "Try again"
+        }
+      }
     },
     "rail": {
       "documentsToSign": "Documents to sign",
@@ -38,33 +172,7 @@
       "body": "We couldn't complete that action. Reloading the page usually resolves it.",
       "reload": "Reload"
     },
-    "notYourTurn": {
-      "title": "It's not your turn to sign yet",
-      "body": "The sender asked for this document to be signed in order. Someone ahead of you still needs to sign first.",
-      "nothingToDo": "There is nothing you need to do right now. We'll email you a signing link as soon as it's your turn.",
-      "checkAgain": "Check again"
-    },
     "entry": {
-      "loading": {
-        "title": "Opening your document…",
-        "body": "One moment while we set up your signing session."
-      },
-      "invalid": {
-        "title": "This signing link is invalid",
-        "body": "The link appears to be malformed. Ask the sender to send a fresh link to your email."
-      },
-      "burned": {
-        "title": "This signing link has already been used",
-        "body": "If you still need to sign, ask the sender to resend the invite — we'll issue a new link."
-      },
-      "notFound": {
-        "title": "We couldn't find this signing request",
-        "body": "Double-check the link in your email, or ask the sender to resend it."
-      },
-      "notYourTurn": {
-        "title": "It's not your turn to sign yet",
-        "body": "We'll email you a signing link as soon as it's your turn."
-      },
       "rateLimit": {
         "title": "Too many attempts",
         "body": "Please wait a moment and try the link again."
@@ -77,79 +185,13 @@
       "contactSupport": "Contact support",
       "helpSubject": "Signing help for envelope {{envelopeId}}"
     },
-    "declined": {
-      "headingWrongRecipient": "Thanks — we marked this link as the wrong recipient.",
-      "headingDeclined": "You declined this request.",
-      "letSender": "We've let {{sender}} know.",
-      "letSenderAnonymous": "We've let the sender know.",
-      "bodyWrongRecipient": "{{clause}} They can send a fresh link to the right person.",
-      "bodyDeclined": "{{clause}} No further action needed.",
-      "final": "This decision is final. The sender has been notified.",
-      "takeMeOut": "Take me out"
-    },
-    "done": {
-      "heading": "Signed.",
-      "body": "Your signature has been recorded. When everyone has signed, we'll email you a link to the sealed PDF.",
-      "downloadPdf": "Download signed PDF (.pdf)",
-      "preparing": "Preparing signed PDF…",
-      "sealingHint": "We're finalizing the seal. This usually takes a few seconds.",
-      "freeBeta": "Free during beta",
-      "saveTitle": "Create your free Seald account to save this.",
-      "saveAria": "Create your free Seald account",
-      "saveBody": "Save this document, request signatures from others, and access your full signing history.",
-      "emailLabel": "Your email",
-      "emailPlaceholder": "you@company.com",
-      "saveButton": "Save to my Seald account",
-      "noThanks": "No thanks, take me out",
-      "errorEmpty": "Please enter an email address.",
-      "errorInvalid": "Please enter a valid email address."
-    },
-    "prep": {
-      "chip": "Signature request",
-      "hero": "You've been asked to sign <em>{{title}}</em>.",
-      "subhero": "Confirm your details below and we'll walk you through each field.",
-      "signingAs": "Signing as",
-      "noAccount": "No Seald account required.",
-      "optOutSummary": "Need to opt out?",
-      "wrongRecipient": "Wrong recipient?",
-      "declineRequest": "Decline this request",
-      "busy": "One moment…",
-      "startSigning": "Start signing",
-      "declineConfirm": "Decline this signing request? The sender will be notified and the document will remain unsigned.",
-      "notMeTitle": "Are you not the intended recipient?",
-      "notMeBody": "We'll let the sender know to send a fresh link to the right person. This is recorded in the audit trail and cannot be undone.",
-      "errorAccept": "We could not record your acceptance. Please try again.",
-      "errorDecline": "We could not decline right now. Please try again.",
-      "errorWithdraw": "We could not record your withdrawal right now. Please try again."
-    },
     "fill": {
-      "stepLabel": "{{done}} of {{total}} fields",
-      "progressMobile": "{{done}} of {{total}} · {{percent}}%",
-      "progressDesktop": "{{done}} of {{total}} fields complete",
-      "jumpToNext": "Jump to next required field",
-      "fields": "Fields",
-      "decline": "Decline",
-      "nextField": "Next field",
-      "nextFieldAria": "Next field: {{label}} on page {{page}}",
-      "nextFieldAriaDocument": "Next field: {{label}} on page {{page}} of {{document}}",
-      "review": "Review & finish",
       "readOnly": "{{label}} (read-only)",
-      "optionalBlankTitle": "Optional fields blank",
-      "optionalBodyOne": "You have {{count}} optional field blank. Continue to review or fill them now?",
-      "optionalBodyMany": "You have {{count}} optional fields blank. Continue to review or fill them now?",
-      "fillNow": "Fill them now",
-      "continueToReview": "Continue to review",
-      "needHelp": "Need help",
-      "helpSubject": "Help with envelope {{envelopeId}}",
-      "toneFilled": "Filled",
-      "toneRequired": "Required",
-      "toneOptional": "Optional",
       "errorCheckbox": "Could not save that change. Please try again.",
       "errorField": "Could not save that field. Please try again.",
       "errorSignature": "Could not apply your signature. Please try again.",
       "errorSignatureSave": "Could not save your signature. Please try again.",
-      "signatureTooLarge": "That signature image is too large (max 512 KB). Please try a smaller image.",
-      "declineConfirm": "Decline this signing request? The sender will be notified and the document will remain unsigned."
+      "signatureTooLarge": "That signature image is too large (max 512 KB). Please try a smaller image."
     },
     "fieldLabel": {
       "signature": "Sign here",
@@ -162,18 +204,6 @@
       "number": "Number",
       "radio": "Choose one",
       "dropdown": "Select"
-    },
-    "reviewLabel": {
-      "signature": "Signature",
-      "initials": "Initials",
-      "name": "Name",
-      "date": "Date",
-      "text": "Text",
-      "email": "Email",
-      "checkbox": "Checkbox",
-      "number": "Number",
-      "radio": "Choice",
-      "dropdown": "Selection"
     },
     "fillError": {
       "tooLong": "Use at most {{limit}} characters.",
@@ -197,20 +227,6 @@
       "chooseOption": "Choose an option.",
       "required": "This field is required.",
       "selectOption": "Select an option"
-    },
-    "review": {
-      "heading": "Everything look right?",
-      "helper": "Once everyone has signed, we seal the document and email each signer a link to it.",
-      "checked": "✓ Checked",
-      "signatureAlt": "Signature",
-      "signAndSubmit": "Sign and submit",
-      "submitting": "Submitting…",
-      "codeTitle": "Enter a new emailed code to finish signing",
-      "backToFields": "Back to fields",
-      "errorSubmit": "We could not submit right now. Please try again.",
-      "errorField": "We could not update this field. Please try again.",
-      "errorSignature": "We could not update this signature. Please try again.",
-      "errorWithdraw": "We could not record your withdrawal right now. Please try again."
     },
     "accessCode": {
       "title": "Enter your emailed code",

@@ -15,6 +15,8 @@ export interface Database {
   // Migration 0012 — bookkeeping for deleted accounts. See the migration
   // header for the GDPR Art. 17(3)(b/e) carve-out rationale.
   deleted_user_tombstones: DeletedUserTombstonesTable;
+  // Migration 0043 — the sender's own settings (profile, signature, defaults).
+  user_settings: UserSettingsTable;
   // Migration 0013 — Drive integration (Phase 5 WT-A).
   gdrive_accounts: GDriveAccountsTable;
   // Migration 0017 — "Save envelope artifacts to Google Drive" bookkeeping.
@@ -40,6 +42,8 @@ export interface Database {
   oauth_authorization_codes: OAuthAuthorizationCodesTable;
   oauth_refresh_tokens: OAuthRefreshTokensTable;
   oauth_access_tokens: OAuthAccessTokensTable;
+  // Migration 0044 — scan with phone hand-off sessions (redesign v2 WS-J).
+  scan_sessions: ScanSessionsTable;
 }
 
 type Ts = ColumnType<Date, string | undefined, string | undefined>;
@@ -371,6 +375,20 @@ export interface DeletedUserTombstonesTable {
   deleted_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface UserSettingsTable {
+  user_id: string;
+  display_name: string | null;
+  signature_type: 'typed' | 'drawn' | 'uploaded';
+  signature_text: string | null;
+  signature_image: string | null;
+  initials: string | null;
+  notify_signed: boolean;
+  notify_daily_summary: boolean;
+  reminder_default: 'off' | '2d' | '3d' | 'weekly';
+  expiry_default_days: number;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export type TemplateFieldTypeDb = 'signature' | 'initial' | 'date' | 'text' | 'checkbox';
 
 /**
@@ -419,6 +437,8 @@ export interface TemplatesTable {
   delivery_mode: ColumnType<DeliveryModeDb, DeliveryModeDb | undefined, DeliveryModeDb | undefined>;
   uses_count: ColumnType<number, number | undefined, number | undefined>;
   last_used_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  // Migration 0042 — soft delete; null while the template is live.
+  deleted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -429,6 +449,8 @@ export interface ContactsTable {
   name: string;
   email: string;
   color: string;
+  // Migration 0041 — soft delete; null while the contact is live.
+  deleted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -457,6 +479,7 @@ export type FieldKindDb =
   | 'dropdown';
 export type SignatureFormatDb = 'drawn' | 'typed' | 'upload';
 export type ActorKindDb = 'sender' | 'signer' | 'system';
+export type SignerDeliveryStatusDb = 'delivered' | 'bounced';
 export type EventTypeDb =
   | 'created'
   | 'pdf_uploaded'
@@ -485,7 +508,11 @@ export type EventTypeDb =
   | 'access_code_failed'
   | 'approval_decided'
   | 'signer_corrected'
-  | 'expiry_changed';
+  | 'signer_replaced'
+  | 'expiry_changed'
+  | 'unsent'
+  // Migration 0040
+  | 'email_bounced';
 export type JobKindDb = 'seal' | 'audit_only';
 export type JobStatusDb = 'pending' | 'running' | 'done' | 'failed';
 
@@ -604,6 +631,14 @@ export interface EnvelopeSignersTable {
   // dispatched invite or reminder bumps access_token_sent_at (rotation).
   last_reminded_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   verification_checks: ColumnType<string[], string | undefined, string | undefined>;
+  // Migration 0040 — a hard bounce reported by the email provider.
+  delivery_status: ColumnType<
+    SignerDeliveryStatusDb,
+    SignerDeliveryStatusDb | undefined,
+    SignerDeliveryStatusDb | undefined
+  >;
+  bounced_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+  bounce_reason: string | null;
 
   viewed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
   tc_accepted_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
@@ -732,8 +767,12 @@ export type EmailKindDb =
   | 'bulk_complete'
   | 'automation_copy'
   | 'automation_disabled'
-  | 'signer_corrected';
-export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed';
+  | 'signer_corrected'
+  | 'signer_replaced'
+  | 'new_link_requested'
+  | 'your_turn'
+  | 'bounced_to_sender';
+export type EmailStatusDb = 'pending' | 'sending' | 'sent' | 'failed' | 'canceled';
 
 export interface OutboundEmailsTable {
   id: Generated<string>;
@@ -786,4 +825,22 @@ export interface EmailWebhooksTable {
   payload: ColumnType<Record<string, unknown>, string, never>;
   received_at: ColumnType<Date, string | undefined, never>;
   processed_at: ColumnType<Date | null, string | null | undefined, string | null | undefined>;
+}
+
+/** Migration 0044. A short-lived phone-to-computer scan hand-off; only the code's hash is kept. */
+export interface ScanSessionsTable {
+  id: Generated<string>;
+  owner_id: string;
+  code_hash: string;
+  status: ColumnType<
+    'pending' | 'uploading' | 'received' | 'consumed',
+    'pending' | 'uploading' | 'received' | 'consumed' | undefined,
+    'pending' | 'uploading' | 'received' | 'consumed'
+  >;
+  storage_key: ColumnType<string | null, string | null | undefined, string | null>;
+  page_count: ColumnType<number | null, number | null | undefined, number | null>;
+  byte_length: ColumnType<number | null, number | null | undefined, number | null>;
+  expires_at: ColumnType<Date, string, string>;
+  received_at: ColumnType<Date | null, string | null | undefined, string | null>;
+  created_at: ColumnType<Date, string | undefined, never>;
 }

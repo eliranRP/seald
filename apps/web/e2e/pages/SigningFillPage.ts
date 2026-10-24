@@ -4,30 +4,58 @@ export class SigningFillPage {
   constructor(private readonly page: Page) {}
 
   async expectVisible(): Promise<void> {
-    // The fill page renders the doc-title via RecipientHeader and the
-    // PageToolbar. Wait for the toolbar to be visible.
-    await expect(this.page.getByRole('button', { name: /decline/i })).toBeVisible();
+    // The document is open once the header's More menu is there.
+    await expect(this.page.getByRole('button', { name: 'More', exact: true })).toBeVisible();
+  }
+
+  /** The one consent step: tick the box, press Start. */
+  async agreeAndStart(): Promise<void> {
+    await this.page.getByRole('checkbox', { name: /agree to sign electronically/i }).check();
+    await this.page.getByRole('button', { name: /^start$/i }).click();
+  }
+
+  async expectConsentBar(): Promise<void> {
+    await expect(this.page.getByRole('button', { name: /^start$/i })).toBeVisible();
   }
 
   async drawSignature(): Promise<void> {
-    // Click the SignerField button. Its accessible label is
-    // "Sign here (required)" or "Sign here (optional)" (see
-    // apps/web/src/components/SignerField/SignerField.tsx). We anchor
-    // on the leading "Sign here (" so we don't also match the
-    // NextBtn aria-label which carries the same phrase as a substring
-    // ("Next field: Sign here on page 1"). Opens the SignatureCapture
-    // bottom sheet.
+    // The SignerField button's accessible label is "Sign here (required)"
+    // or "Sign here (optional)". Opens the signature sheet on the typed
+    // name; one tap on Sign adopts it.
     await this.page
       .getByRole('button', { name: /^sign here \(/i })
       .first()
       .click();
-    // The sheet defaults to the "type" tab; just hit Apply.
-    await this.page.getByRole('button', { name: /^apply$/i }).click();
+    await this.page
+      .getByRole('dialog', { name: /your signature/i })
+      .getByRole('button', { name: /^sign$/i })
+      .click();
   }
 
-  async continueToReview(): Promise<void> {
-    // The "Review & finish" button only appears once required fields are
-    // filled. Use the icon-prefixed label.
-    await this.page.getByRole('button', { name: /review.*finish/i }).click();
+  /** Finish in the bar, then Sign in the confirmation sheet. */
+  async finish(): Promise<void> {
+    await this.page.getByRole('button', { name: /^finish$/i }).click();
+    await this.page
+      .getByRole('dialog', { name: /finish signing/i })
+      .getByRole('button', { name: /^sign$/i })
+      .click();
+  }
+
+  async openMenu(): Promise<void> {
+    await this.page.getByRole('button', { name: 'More', exact: true }).click();
+  }
+
+  async decline(): Promise<void> {
+    await this.openMenu();
+    await this.page.getByRole('menuitem', { name: /^decline$/i }).click();
+    await this.page
+      .getByRole('dialog', { name: /decline to sign/i })
+      .getByRole('button', { name: /^decline$/i })
+      .click();
+  }
+
+  async openNotMe(): Promise<void> {
+    await this.openMenu();
+    await this.page.getByRole('menuitem', { name: /not me\?/i }).click();
   }
 }

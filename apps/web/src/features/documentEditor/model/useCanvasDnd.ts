@@ -39,6 +39,8 @@ interface UseCanvasDndReturn {
   readonly handlePaletteDragEnd: () => void;
   readonly handleCanvasDragOver: (e: DragEvent<HTMLDivElement>) => void;
   readonly handleCanvasDrop: (e: DragEvent<HTMLDivElement>, dropPage: number) => void;
+  /** Tap-to-place (phones): drop `kind` where the page was tapped. */
+  readonly placeKindAt: (kind: FieldKind, page: number, clientX: number, clientY: number) => void;
   readonly handleCanvasBackgroundClick: () => void;
   readonly handleCanvasMouseDown: (e: ReactMouseEvent<HTMLDivElement>, page: number) => void;
 }
@@ -89,14 +91,11 @@ export function useCanvasDnd({
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
-  const handleCanvasDrop = useCallback(
-    (e: DragEvent<HTMLDivElement>, dropPage: number): void => {
-      const kind = dragKindRef.current;
-      if (!kind) return;
-      e.preventDefault();
+  const placeKindAt = useCallback(
+    (kind: FieldKind, dropPage: number, clientX: number, clientY: number): void => {
       const rect = canvasRefsRef.current.get(dropPage)?.getBoundingClientRect();
-      const localX = (e.clientX - (rect?.left ?? 0)) / zoom;
-      const localY = (e.clientY - (rect?.top ?? 0)) / zoom;
+      const localX = (clientX - (rect?.left ?? 0)) / zoom;
+      const localY = (clientY - (rect?.top ?? 0)) / zoom;
       const kindSize = FIELD_SIZE[kind];
       const fw = kindSize?.w ?? FIELD_WIDTH;
       const fh = kindSize?.h ?? FIELD_HEIGHT;
@@ -135,7 +134,6 @@ export function useCanvasDnd({
       if (signers.length > 1) {
         setSignerPopoverFor(dropped.id);
       }
-      dragKindRef.current = null;
     },
     [
       canvasRefsRef,
@@ -147,6 +145,17 @@ export function useCanvasDnd({
       signers,
       zoom,
     ],
+  );
+
+  const handleCanvasDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>, dropPage: number): void => {
+      const kind = dragKindRef.current;
+      if (!kind) return;
+      e.preventDefault();
+      placeKindAt(kind, dropPage, e.clientX, e.clientY);
+      dragKindRef.current = null;
+    },
+    [placeKindAt],
   );
 
   const handleCanvasBackgroundClick = useCallback((): void => {
@@ -227,6 +236,7 @@ export function useCanvasDnd({
     handlePaletteDragEnd,
     handleCanvasDragOver,
     handleCanvasDrop,
+    placeKindAt,
     handleCanvasBackgroundClick,
     handleCanvasMouseDown,
   };

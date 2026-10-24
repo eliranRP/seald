@@ -1,119 +1,129 @@
 import { describe, it, expect, vi } from 'vitest';
+import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { SAMPLE_TEMPLATES as TEMPLATES } from '@/test/templateFixtures';
+import { axe } from 'vitest-axe';
+import type { TemplateSummary } from '@/features/templates';
 import { renderWithTheme } from '../../test/renderWithTheme';
-import { TemplateCard } from './TemplateCard';
+import { TemplateCard, templateMenuEntries, templateUsageText } from './TemplateCard';
 
-const TEMPLATE = TEMPLATES[0]!;
+const NOW = new Date('2026-10-23T12:00:00.000Z');
+const daysAgo = (d: number): string => new Date(NOW.getTime() - d * 86_400_000).toISOString();
+
+const TEMPLATE: TemplateSummary = {
+  id: 'tpl-nda',
+  name: 'NDA — standard',
+  pages: 3,
+  fieldCount: 4,
+  lastUsed: '10/20/2026',
+  lastUsedAt: daysAgo(3),
+  uses: 12,
+  cover: '#EEF2FF',
+  exampleFile: '',
+  fields: [],
+  tags: ['Legal'],
+  lastSigners: [
+    { id: 'c1', name: 'Hannah Wills', email: 'hannah@quill.vc', color: '#7DD3FC' },
+    { id: 'c2', name: 'You', email: 'you@seald.app', color: '#F472B6' },
+  ],
+};
+
+describe('templateUsageText', () => {
+  it('reads "Used 12× · 3d ago" for a used template', () => {
+    expect(templateUsageText(TEMPLATE, NOW)).toBe('Used 12× · 3d ago');
+  });
+  it('reads "Not used yet" for a template nobody has sent', () => {
+    expect(templateUsageText({ ...TEMPLATE, uses: 0, lastUsedAt: null }, NOW)).toBe('Not used yet');
+  });
+  it('drops the age when the last use time is unknown', () => {
+    expect(templateUsageText({ ...TEMPLATE, lastUsedAt: undefined }, NOW)).toBe('Used 12×');
+  });
+});
+
+describe('templateMenuEntries', () => {
+  it('lists the actions the host supplied, with Delete last behind a separator', () => {
+    const run = vi.fn();
+    const entries = templateMenuEntries(TEMPLATE, {
+      onEdit: run,
+      onDuplicate: run,
+      onEditTags: run,
+      onBulkSend: run,
+      onDirectLink: run,
+      onDelete: run,
+    });
+    expect(entries.map((e) => e.id)).toEqual([
+      'edit',
+      'duplicate',
+      'tags',
+      'bulk',
+      'link',
+      'sep',
+      'delete',
+    ]);
+    const del = entries[entries.length - 1];
+    expect(del && 'danger' in del ? del.danger : false).toBe(true);
+  });
+
+  it('leaves out actions that were not supplied, and the separator with no other action', () => {
+    expect(templateMenuEntries(TEMPLATE, { onDelete: vi.fn() }).map((e) => e.id)).toEqual([
+      'delete',
+    ]);
+    expect(templateMenuEntries(TEMPLATE, {})).toEqual([]);
+  });
+});
 
 describe('TemplateCard', () => {
-  it('renders the template name, page count chip, and stats', () => {
-    const onUse = vi.fn();
-    const { getByRole, getByText } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={onUse} />,
-    );
-    expect(getByRole('heading', { level: 3, name: TEMPLATE.name })).toBeInTheDocument();
-    // The MiniThumb pages chip ("6p") sits inside the thumbnail.
-    expect(getByText(`${TEMPLATE.pages}p`)).toBeInTheDocument();
-    // Stats row mentions field count + use count + last-used date.
-    expect(getByText(String(TEMPLATE.fieldCount))).toBeInTheDocument();
-    expect(getByText(`Used ${TEMPLATE.uses}×`)).toBeInTheDocument();
-    expect(getByText(TEMPLATE.lastUsed)).toBeInTheDocument();
+  it('is one button named by the template, with usage as its description', () => {
+    const { getByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
+    const card = getByRole('button', { name: 'NDA — standard' });
+    expect(card).toHaveAccessibleDescription(/Used 12×/);
   });
 
-  it('clicking the card root fires onUse with the template', async () => {
+  it('clicking the card uses the template', async () => {
     const onUse = vi.fn();
     const { getByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={onUse} />);
-    // Whole card is keyboard-actionable as a button labelled by the name.
-    await userEvent.click(getByRole('button', { name: TEMPLATE.name }));
+    await userEvent.click(getByRole('button', { name: 'NDA — standard' }));
     expect(onUse).toHaveBeenCalledWith(TEMPLATE);
   });
 
-  it('clicking the hover overlay Use button fires onUse without bubbling twice', async () => {
-    const onUse = vi.fn();
-    const { getByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={onUse} />);
-    await userEvent.click(getByRole('button', { name: `Use ${TEMPLATE.name}` }));
-    expect(onUse).toHaveBeenCalledTimes(1);
-    expect(onUse).toHaveBeenCalledWith(TEMPLATE);
-  });
-
-  it('clicking Edit fires onEdit and does not bubble to onUse', async () => {
+  it('opens the ⋯ menu without using the template, and runs the chosen action', async () => {
     const onUse = vi.fn();
     const onEdit = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={onUse} onEdit={onEdit} />,
-    );
-    await userEvent.click(getByRole('button', { name: `Edit ${TEMPLATE.name}` }));
-    expect(onEdit).toHaveBeenCalledWith(TEMPLATE);
-    expect(onUse).not.toHaveBeenCalled();
-  });
-
-  it('clicking Delete fires onDelete and does not bubble to onUse', async () => {
-    const onUse = vi.fn();
     const onDelete = vi.fn();
     const { getByRole } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={onUse} onDelete={onDelete} />,
+      <TemplateCard template={TEMPLATE} onUse={onUse} onEdit={onEdit} onDelete={onDelete} />,
     );
-    await userEvent.click(getByRole('button', { name: `Delete ${TEMPLATE.name}` }));
-    expect(onDelete).toHaveBeenCalledWith(TEMPLATE);
-    expect(onUse).not.toHaveBeenCalled();
-  });
-
-  it('clicking a tag pill fires onTagClick with the tag', async () => {
-    const onUse = vi.fn();
-    const onTagClick = vi.fn();
-    const tagged = { ...TEMPLATE, tags: ['Legal', 'Sales'] };
-    const { getByRole } = renderWithTheme(
-      <TemplateCard template={tagged} onUse={onUse} onTagClick={onTagClick} />,
-    );
-    await userEvent.click(getByRole('button', { name: 'Legal' }));
-    expect(onTagClick).toHaveBeenCalledWith('Legal');
-    expect(onUse).not.toHaveBeenCalled();
-  });
-
-  it('Tags overlay action fires onEditTags', async () => {
-    const onUse = vi.fn();
-    const onEditTags = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={onUse} onEditTags={onEditTags} />,
-    );
-    await userEvent.click(getByRole('button', { name: `Edit tags for ${TEMPLATE.name}` }));
-    expect(onEditTags).toHaveBeenCalledWith(TEMPLATE);
-  });
-
-  it('Link overlay action fires onDirectLink, and is absent without the callback', async () => {
-    const onDirectLink = vi.fn();
-    const { getByRole, queryByRole, rerender } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={vi.fn()} onDirectLink={onDirectLink} />,
-    );
-    await userEvent.click(getByRole('button', { name: `Direct link for ${TEMPLATE.name}` }));
-    expect(onDirectLink).toHaveBeenCalledWith(TEMPLATE);
-    rerender(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
-    expect(queryByRole('button', { name: `Direct link for ${TEMPLATE.name}` })).toBeNull();
-  });
-
-  it('hides Delete + Edit + Tags overlay actions when callbacks are not supplied', () => {
-    const { queryByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
-    expect(queryByRole('button', { name: new RegExp(`Edit ${TEMPLATE.name}$`, 'i') })).toBeNull();
-    expect(queryByRole('button', { name: new RegExp(`Delete ${TEMPLATE.name}$`, 'i') })).toBeNull();
+    await userEvent.click(getByRole('button', { name: 'More for NDA — standard' }));
+    const menu = getByRole('menu');
     expect(
-      queryByRole('button', { name: new RegExp(`Edit tags for ${TEMPLATE.name}$`, 'i') }),
-    ).toBeNull();
-  });
-
-  it('Bulk send overlay action fires onBulkSend and does not bubble to onUse', async () => {
-    const onUse = vi.fn();
-    const onBulkSend = vi.fn();
-    const { getByRole } = renderWithTheme(
-      <TemplateCard template={TEMPLATE} onUse={onUse} onBulkSend={onBulkSend} />,
-    );
-    await userEvent.click(getByRole('button', { name: `Bulk send ${TEMPLATE.name}` }));
-    expect(onBulkSend).toHaveBeenCalledWith(TEMPLATE);
+      within(menu)
+        .getAllByRole('menuitem')
+        .map((i) => i.textContent),
+    ).toEqual(['Edit', 'Delete']);
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Edit' }));
+    expect(onEdit).toHaveBeenCalledWith(TEMPLATE);
     expect(onUse).not.toHaveBeenCalled();
+    expect(onDelete).not.toHaveBeenCalled();
   });
 
-  it('hides the Bulk send action when onBulkSend is not supplied (flag off)', () => {
+  it('has no ⋯ button when there are no actions', () => {
     const { queryByRole } = renderWithTheme(<TemplateCard template={TEMPLATE} onUse={vi.fn()} />);
-    expect(queryByRole('button', { name: `Bulk send ${TEMPLATE.name}` })).toBeNull();
+    expect(queryByRole('button', { name: /^More for/ })).toBeNull();
+  });
+
+  it('compact: the ⋯ asks the host to open its sheet instead of a menu', async () => {
+    const onMore = vi.fn();
+    const { getByRole, queryByRole } = renderWithTheme(
+      <TemplateCard template={TEMPLATE} onUse={vi.fn()} onEdit={vi.fn()} compact onMore={onMore} />,
+    );
+    await userEvent.click(getByRole('button', { name: 'More for NDA — standard' }));
+    expect(onMore).toHaveBeenCalledWith(TEMPLATE);
+    expect(queryByRole('menu')).toBeNull();
+  });
+
+  it('has no axe violations', async () => {
+    const { container } = renderWithTheme(
+      <TemplateCard template={TEMPLATE} onUse={vi.fn()} onEdit={vi.fn()} />,
+    );
+    expect(await axe(container)).toHaveNoViolations();
   });
 });

@@ -1,8 +1,10 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ShieldCheck, Upload, X as XIcon } from 'lucide-react';
+import { PenLine, ShieldCheck, Undo2, Upload } from 'lucide-react';
 import { seald } from '@/styles/theme';
+import { Button } from '../Button';
 import { Icon } from '../Icon';
-import { SignatureMark } from '../SignatureMark';
+import { SegmentedControl } from '../SegmentedControl';
+import { SheetDialog } from '../SheetDialog';
 import type {
   SignatureCaptureFormat,
   SignatureCaptureKind,
@@ -10,29 +12,18 @@ import type {
   SignatureCaptureResult,
 } from './SignatureCapture.types';
 import {
-  ApplyBtn,
-  Backdrop,
-  CancelBtn,
-  CloseBtn,
   DrawCanvas,
   DrawHint,
-  Eyebrow,
-  Footer,
-  FooterActions,
-  FooterMeta,
-  HeaderRow,
-  InitialScript,
-  PreviewPanel,
-  Sheet,
-  Tab,
-  Tabs,
-  TextInput,
-  Title,
+  Ink,
+  Meta,
+  NameField,
+  Pad,
+  PadClear,
   UploadArea,
 } from './SignatureCapture.styles';
 import { getTypedPreference, saveTypedPreference } from './typedPreferences';
 
-function deriveInitialsFromName(name: string): string {
+export function deriveInitialsFromName(name: string): string {
   return name
     .split(/\s+/)
     .map((p) => p[0] ?? '')
@@ -86,7 +77,10 @@ async function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTMLCanvasElement {
+export function renderTypedToCanvas(
+  text: string,
+  kind: 'signature' | 'initials',
+): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = CAPTURE_WIDTH;
   canvas.height = CAPTURE_HEIGHT;
@@ -113,15 +107,31 @@ function renderTypedToCanvas(text: string, kind: 'signature' | 'initials'): HTML
 }
 
 /**
- * L2 bottom-sheet that captures a signature or initials. Tabs: type / draw /
- * upload. Emits a `SignatureCaptureResult` containing a PNG blob plus format
- * metadata (`font` for typed, `stroke_count` for drawn, `source_filename`
- * for upload) — directly compatible with the backend's `/sign/signature`
- * multipart body.
- *
- * Focus + a11y: when opened, focus moves to the close button. Escape closes.
- * Backdrop click also closes. The sheet itself traps focus implicitly via
- * tab order (Cancel / Apply are the last focusable elements).
+ * Typed signature or initials as the PNG result the API takes, with no UI.
+ * Used to adopt the signer's name (or the initials derived from it) in one
+ * step, without opening the sheet.
+ */
+export async function typedCaptureResult(
+  text: string,
+  kind: SignatureCaptureKind,
+): Promise<SignatureCaptureResult> {
+  const blob = await canvasToPngBlob(renderTypedToCanvas(text, kind));
+  return { blob, format: 'typed', font: 'Caveat', source_filename: `${kind}.png` };
+}
+
+const TAB_OPTIONS = [
+  { value: 'typed', label: 'Type' },
+  { value: 'drawn', label: 'Draw' },
+  { value: 'upload', label: 'Upload' },
+] as const;
+
+/**
+ * Signature sheet (canvas `Sign` boards): opens on the signer's name in
+ * script, one tap on Sign adopts it; Draw and Upload are the other tabs.
+ * A modal on a desktop, a bottom sheet on a phone. Emits a
+ * `SignatureCaptureResult` containing a PNG blob plus format metadata
+ * (`font` for typed, `stroke_count` for drawn, `source_filename` for
+ * upload), which is the backend's `/sign/signature` multipart body.
  */
 export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps>((props, ref) => {
   const { open, kind, defaultName, email = '', onCancel, onApply, ...rest } = props;
@@ -136,7 +146,6 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const drawingRef = useRef<boolean>(false);
-  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const reset = useCallback(() => {
     setTab('typed');
@@ -152,20 +161,8 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
   }, [defaultName, email, kind]);
 
   useEffect(() => {
-    if (!open) return undefined;
-    reset();
-    // Move focus to close button after mount so keyboard users have a
-    // predictable entry point.
-    const t = setTimeout(() => closeBtnRef.current?.focus(), 0);
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onCancel();
-    }
-    document.addEventListener('keydown', onKey);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open, onCancel, reset]);
+    if (open) reset();
+  }, [open, reset]);
 
   // Pointer handlers for draw tab.
   const posOnCanvas = (e: React.PointerEvent<HTMLCanvasElement>): { x: number; y: number } => {
@@ -236,15 +233,8 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
   const handleApply = async (): Promise<void> => {
     if (!canApply) return;
     if (tab === 'typed') {
-      const canvas = renderTypedToCanvas(typed, kind);
-      const blob = await canvasToPngBlob(canvas);
+      const result = await typedCaptureResult(typed, kind);
       saveTypedPreference({ email, kind, value: typed });
-      const result: SignatureCaptureResult = {
-        blob,
-        format: 'typed',
-        font: 'Caveat',
-        source_filename: `${kind}.png`,
-      };
       onApply(result);
       return;
     }
@@ -271,81 +261,57 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
     }
   };
 
-  if (!open) return null;
-
-  const eyebrowText = kind === 'signature' ? 'Add your signature' : 'Add your initials';
-  const titleText = kind === 'signature' ? 'Signature' : 'Initials';
+  const titleText = kind === 'signature' ? 'Your signature' : 'Your initials';
+  const nameLabel = kind === 'signature' ? 'Your full name' : 'Initials';
 
   return (
-    <Backdrop
-      role="dialog"
-      aria-modal="true"
-      aria-label={titleText}
-      onClick={onCancel}
-      ref={ref}
-      {...rest}
+    <SheetDialog
+      open={open}
+      onClose={onCancel}
+      title={titleText}
+      closeLabel="Cancel"
+      footer={
+        <Button
+          iconLeft={PenLine}
+          onClick={() => {
+            handleApply().catch(() => {
+              /* canvas export failed; the sheet stays open to try again */
+            });
+          }}
+          disabled={!canApply}
+        >
+          Sign
+        </Button>
+      }
     >
-      <Sheet onClick={(e) => e.stopPropagation()}>
-        <HeaderRow>
-          <div>
-            <Eyebrow>{eyebrowText}</Eyebrow>
-            <Title>{titleText}</Title>
-          </div>
-          <CloseBtn type="button" onClick={onCancel} aria-label="Cancel" ref={closeBtnRef}>
-            <Icon icon={XIcon} size={16} />
-          </CloseBtn>
-        </HeaderRow>
+      <div ref={ref} {...rest} style={{ display: 'contents' }} />
+      <SegmentedControl
+        block
+        aria-label="Signature type"
+        options={TAB_OPTIONS}
+        value={tab}
+        onChange={setTab}
+      />
 
-        <Tabs role="tablist">
-          <Tab
-            type="button"
-            role="tab"
-            aria-selected={tab === 'typed'}
-            $active={tab === 'typed'}
-            onClick={() => setTab('typed')}
-          >
-            type
-          </Tab>
-          <Tab
-            type="button"
-            role="tab"
-            aria-selected={tab === 'drawn'}
-            $active={tab === 'drawn'}
-            onClick={() => setTab('drawn')}
-          >
-            draw
-          </Tab>
-          <Tab
-            type="button"
-            role="tab"
-            aria-selected={tab === 'upload'}
-            $active={tab === 'upload'}
-            onClick={() => setTab('upload')}
-          >
-            upload
-          </Tab>
-        </Tabs>
-
-        {tab === 'typed' ? (
-          <div>
-            <TextInput
-              aria-label={kind === 'signature' ? 'Your full name' : 'Initials'}
+      {tab === 'typed' ? (
+        <>
+          <Pad>
+            <Ink $initials={kind === 'initials'}>{typed || '—'}</Ink>
+          </Pad>
+          <NameField>
+            <input
+              aria-label={nameLabel}
               value={typed}
               onChange={(e) => setTyped(e.target.value)}
-              placeholder={kind === 'signature' ? 'Your full name' : 'Initials'}
+              placeholder={nameLabel}
             />
-            <PreviewPanel>
-              {kind === 'signature' ? (
-                <SignatureMark name={typed} size={48} />
-              ) : (
-                <InitialScript>{typed || '—'}</InitialScript>
-              )}
-            </PreviewPanel>
-          </div>
-        ) : null}
+          </NameField>
+        </>
+      ) : null}
 
-        {tab === 'drawn' ? (
-          <div>
+      {tab === 'drawn' ? (
+        <div>
+          <Pad $draw>
             <DrawCanvas
               ref={canvasRef}
               width={CAPTURE_WIDTH}
@@ -357,65 +323,46 @@ export const SignatureCapture = forwardRef<HTMLDivElement, SignatureCaptureProps
               onPointerLeave={handleDrawEnd}
               data-stroke-count={strokeCount}
             />
-            <DrawHint>
-              {strokeCount === 0
-                ? 'Click and drag with your mouse or finger'
-                : `${strokeCount} stroke${strokeCount === 1 ? '' : 's'}`}
-              {strokeCount > 0 ? (
-                <>
-                  {' · '}
-                  <button
-                    type="button"
-                    onClick={clearDraw}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: 0,
-                      color: 'inherit',
-                      font: 'inherit',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                    }}
-                  >
-                    Clear
-                  </button>
-                </>
-              ) : null}
-            </DrawHint>
-          </div>
-        ) : null}
+            <PadClear>
+              <Button
+                variant="ghost"
+                size="sm"
+                iconLeft={Undo2}
+                onClick={clearDraw}
+                disabled={strokeCount === 0}
+              >
+                Clear
+              </Button>
+            </PadClear>
+          </Pad>
+          <DrawHint>
+            {strokeCount === 0
+              ? 'Click and drag with your mouse or finger'
+              : `${strokeCount} stroke${strokeCount === 1 ? '' : 's'}`}
+          </DrawHint>
+        </div>
+      ) : null}
 
-        {tab === 'upload' ? (
-          <UploadArea>
-            <Icon icon={Upload} size={24} />
-            <div>Upload an image of your signature (PNG or JPEG)</div>
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              onChange={handleUploadChoose}
-              aria-label="Choose signature image"
-            />
-            {uploadName ? <div style={{ fontSize: 11 }}>{uploadName}</div> : null}
-          </UploadArea>
-        ) : null}
+      {tab === 'upload' ? (
+        <UploadArea>
+          <Icon icon={Upload} size={24} />
+          <div>Upload an image of your signature (PNG or JPEG)</div>
+          <input
+            type="file"
+            accept="image/png,image/jpeg"
+            onChange={handleUploadChoose}
+            aria-label="Choose signature image"
+          />
+          {uploadName ? <div>{uploadName}</div> : null}
+        </UploadArea>
+      ) : null}
 
-        <Footer>
-          <FooterMeta>
-            <Icon icon={ShieldCheck} size={12} />
-            Recorded in the audit trail when you sign
-          </FooterMeta>
-          <FooterActions>
-            <CancelBtn type="button" onClick={onCancel}>
-              Cancel
-            </CancelBtn>
-            <ApplyBtn type="button" onClick={handleApply} disabled={!canApply}>
-              <Icon icon={Check} size={14} />
-              Apply
-            </ApplyBtn>
-          </FooterActions>
-        </Footer>
-      </Sheet>
-    </Backdrop>
+      <Meta>Used for every signature in this document.</Meta>
+      <Meta>
+        <Icon icon={ShieldCheck} size={12} />
+        Recorded in the audit trail when you sign
+      </Meta>
+    </SheetDialog>
   );
 });
 SignatureCapture.displayName = 'SignatureCapture';

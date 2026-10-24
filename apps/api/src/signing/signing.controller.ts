@@ -31,6 +31,7 @@ import { DeclineDto } from './dto/decline.dto';
 import { EsignDisclosureDto } from './dto/esign-disclosure.dto';
 import { FillFieldDto } from './dto/fill-field.dto';
 import { SignatureMetaDto } from './dto/signature-meta.dto';
+import { RequestLinkDto } from './dto/request-link.dto';
 import { StartSessionDto } from './dto/start-session.dto';
 import { SignerSession } from './signer-session.decorator';
 import { SignerSessionGuard, type SignerSessionContext } from './signer-session.guard';
@@ -131,6 +132,23 @@ export class SigningController {
       signer_id: result.signer_id,
       requires_tc_accept: result.requires_tc_accept,
     };
+  }
+
+  /**
+   * "Ask for a new link" on an expired link. Public, so it always answers
+   * 202 the same way; the service decides whether to notify the sender
+   * (expired envelope only, once per signer per day).
+   */
+  @Post('request-link')
+  @Throttle({ short: { limit: 3, ttl: 60_000 } })
+  @HttpCode(202)
+  async requestLink(@Body() dto: RequestLinkDto): Promise<{ status: 'requested' }> {
+    await this.svc.requestNewLink({
+      envelope_id: dto.envelope_id,
+      token: dto.token,
+      email: dto.email,
+    });
+    return { status: 'requested' };
   }
 
   @Get('me')

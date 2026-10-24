@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { screen, act } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { renderWithProviders } from '../../test/renderWithProviders';
+import type { AuthContextValue } from '../../providers/AuthProvider';
 import { AuthCallbackPage } from './AuthCallbackPage';
+
+function LocationProbe() {
+  const loc = useLocation();
+  return <p data-testid="where">{`${loc.pathname}${loc.search}`}</p>;
+}
 
 // Audit gap (2026-05-02): the original AuthCallbackPage.test.tsx only
 // asserts that the loading screen renders. The page also owns two
@@ -24,6 +30,7 @@ function renderAt(initialPath: string, auth: Parameters<typeof renderWithProvide
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
         <Route path="/signin" element={<h1>Sign-in landing</h1>} />
         <Route path="/documents" element={<h1>Documents dashboard</h1>} />
+        <Route path="/welcome" element={<h1>Welcome step</h1>} />
       </Routes>
     </MemoryRouter>,
     auth,
@@ -36,6 +43,56 @@ describe('AuthCallbackPage — provider redirects', () => {
       auth: { user: null, loading: false },
     });
     expect(await screen.findByRole('heading', { name: /sign-in landing/i })).toBeInTheDocument();
+  });
+
+  it('maps an expired magic link (error_code=otp_expired) to /signin?error=link_expired', async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/auth/callback?error=access_denied&error_code=otp_expired']}>
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/signin" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+      { auth: { user: null, loading: false } },
+    );
+    expect(await screen.findByTestId('where')).toHaveTextContent('/signin?error=link_expired');
+  });
+
+  it('reads the expiry code from the URL hash too', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/auth/callback#error=access_denied&error_code=otp_expired',
+    );
+    renderWithProviders(
+      <MemoryRouter initialEntries={['/auth/callback']}>
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path="/signin" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>,
+      { auth: { user: null, loading: false } },
+    );
+    expect(await screen.findByTestId('where')).toHaveTextContent('/signin?error=link_expired');
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('sends a brand-new account (no profile name) to /welcome', async () => {
+    renderAt('/auth/callback', {
+      auth: {
+        user: { id: 'u1', email: 'new@example.com', name: 'new' },
+        session: {
+          user: {
+            id: 'u1',
+            is_anonymous: false,
+            user_metadata: {},
+            created_at: '2026-05-01T00:00:00Z',
+          },
+        } as unknown as AuthContextValue['session'],
+        loading: false,
+      },
+    });
+    expect(await screen.findByRole('heading', { name: /welcome step/i })).toBeInTheDocument();
   });
 
   it('redirects to /documents once a real session resolves', async () => {

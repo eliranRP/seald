@@ -5,6 +5,13 @@ export interface AddSignerContact {
   readonly name: string;
   readonly email: string;
   readonly color: string;
+  /**
+   * Contacts page only: sent envelopes that list this email. Absent on
+   * contacts built elsewhere (signer pickers, guests).
+   */
+  readonly docsCount?: number | undefined;
+  /** ISO time of the latest send to this email; `null` when never. */
+  readonly lastSentAt?: string | null | undefined;
 }
 
 export interface AddSignerDropdownProps extends HTMLAttributes<HTMLDivElement> {

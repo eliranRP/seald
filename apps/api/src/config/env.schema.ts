@@ -92,6 +92,9 @@ const envSchema = z
 
     // Email provider-specific
     RESEND_API_KEY: z.string().optional(),
+    // Svix signing secret of the Resend webhook (`whsec_...`). Unset: POST
+    // /webhooks/resend answers 503 and bounces are not recorded.
+    RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
     SMTP_HOST: z.string().optional(),
     SMTP_PORT: z.coerce.number().int().positive().optional(),
     SMTP_USER: z.string().optional(),

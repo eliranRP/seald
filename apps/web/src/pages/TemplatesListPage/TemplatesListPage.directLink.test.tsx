@@ -16,6 +16,11 @@ vi.mock('@/features/templates/templatesApi', () => ({
   listTemplates: () => Promise.resolve(TEMPLATES),
   deleteTemplate: () => Promise.resolve(),
   updateTemplate: () => Promise.resolve(TEMPLATES[0]),
+  duplicateTemplateApi: () => Promise.resolve(TEMPLATES[0]),
+  restoreTemplate: () => Promise.resolve(TEMPLATES[0]),
+  applyTemplate: () => Promise.resolve([]),
+  bumpUseCount: () => Promise.resolve(TEMPLATES[0]),
+  fetchTemplateExamplePdf: () => Promise.reject(new Error('none')),
 }));
 
 import { TemplatesListPage } from './TemplatesListPage';
@@ -42,19 +47,19 @@ describe('TemplatesListPage direct link (WP-37)', () => {
     delete (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__;
   });
 
-  it('shows no Link action while directLinks is off', () => {
+  it('shows no Link action while directLinks is off', async () => {
     (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { directLinks: false };
     renderPage();
-    expect(
-      screen.queryByRole('button', { name: `Direct link for ${TEMPLATES[0]!.name}` }),
-    ).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: `More for ${TEMPLATES[0]!.name}` }));
+    expect(screen.queryByRole('menuitem', { name: 'Direct link' })).not.toBeInTheDocument();
   });
 
   it('opens the direct link settings from the card while directLinks is on, and closes them', async () => {
     (globalThis as unknown as FlagHost).__SEALD_FEATURE_OVERRIDES__ = { directLinks: true };
     renderPage();
     const name = TEMPLATES[0]!.name;
-    await userEvent.click(screen.getByRole('button', { name: `Direct link for ${name}` }));
+    await userEvent.click(screen.getByRole('button', { name: `More for ${name}` }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Direct link' }));
     const dialog = await screen.findByRole('dialog', { name: `Direct link for ${name}` });
     expect(dialog).toBeInTheDocument();
     expect(getMock).toHaveBeenCalledWith(

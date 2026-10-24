@@ -4,11 +4,13 @@ import { EmailCopyLinkMinter } from '../automations/actions/email/email-copy-lin
 import { ApprovalLinkMinter } from '../approvals/approval-link-minter.service';
 import { APP_ENV } from '../config/config.module';
 import type { AppEnv } from '../config/env.schema';
+import type { Envelope } from '../envelopes/envelope.entity';
 import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { resolveContentLocale } from '../i18n';
 import { AccessCodeMinter } from '../signing/access-auth/access-code-minter.service';
 import { isSignersTurn } from '../signing/signing-order';
 import { SigningTokenService } from '../signing/signing-token.service';
+import { buildEmailContextVars } from './email-context';
 import { EmailSendError, EmailSender, type EmailMessage } from './email-sender';
 import {
   OutboundEmailsRepository,
@@ -192,7 +194,16 @@ export class EmailDispatcherService {
         }
         payload = { ...payload, ...minted };
       }
-      const rendered = this.render(claimed, payload, await this.localeFor(claimed));
+      // One envelope read feeds both the locale and the status-card context.
+      const envelope = claimed.envelope_id
+        ? await this.envelopes.findByIdWithAll(claimed.envelope_id)
+        : null;
+      const rendered = this.render(
+        claimed,
+        payload,
+        this.localeFor(claimed, envelope),
+        this.contextVars(claimed, payload, envelope),
+      );
       if (!rendered) {
         await this.repo.markFailed(claimed.id, {
           error: `unknown_template_kind:${claimed.kind}`,
@@ -260,6 +271,8 @@ export class EmailDispatcherService {
     if (envelope.status !== 'awaiting_others') return false;
     if (!(Date.parse(envelope.expires_at) > Date.now())) return false;
     if (signer.signed_at !== null || signer.declined_at !== null) return false;
+    // A bounced address cannot receive the reminder; the sender is already told.
+    if (signer.delivery_status === 'bounced') return false;
     // WP-05: never hand a later sequential step its link early.
     if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) return false;
     if (row.payload['automated'] === true && !envelope.reminders_enabled) return false;
@@ -288,10 +301,8 @@ export class EmailDispatcherService {
    * sender-facing mail (`*_to_sender`, or any row with no signer) uses
    * envelope.locale ?? 'en'. Flag `i18n` off: always `en`, no lookup.
    */
-  private async localeFor(row: OutboundEmailRow): Promise<string> {
-    if (!isFeatureEnabled('i18n') || !row.envelope_id) return DEFAULT_LOCALE;
-    const envelope = await this.envelopes.findByIdWithAll(row.envelope_id);
-    if (!envelope) return DEFAULT_LOCALE;
+  private localeFor(row: OutboundEmailRow, envelope: Envelope | null): string {
+    if (!isFeatureEnabled('i18n') || !envelope) return DEFAULT_LOCALE;
     const signerFacing = row.signer_id !== null && !row.kind.endsWith('_to_sender');
     const signer = signerFacing
       ? envelope.signers.find((item) => item.id === row.signer_id)
@@ -302,10 +313,38 @@ export class EmailDispatcherService {
     });
   }
 
+  /**
+   * Status-card variables derived from the envelope at send time (progress
+   * dots, document meta line, defaults). The payload still wins over them.
+   */
+  private contextVars(
+    row: OutboundEmailRow,
+    payload: Readonly<Record<string, unknown>>,
+    envelope: Envelope | null,
+  ): Record<string, string> {
+    if (!envelope) return {};
+    const vars = buildEmailContextVars({
+      kind: row.kind,
+      signerId: row.signer_id,
+      envelope,
+      payload,
+      publicUrl: this.publicUrl,
+      now: new Date(),
+    });
+    // Reminders have no unsubscribe endpoint: the footer link opens the
+    // signing page, where Decline stops them.
+    const signUrl = payload['sign_url'];
+    if (row.kind === 'reminder' && typeof signUrl === 'string') {
+      vars['unsubscribe_url'] = signUrl;
+    }
+    return vars;
+  }
+
   private render(
     row: OutboundEmailRow,
     payload: Readonly<Record<string, unknown>>,
     locale: string,
+    context: Readonly<Record<string, string>> = {},
   ): ReturnType<TemplateService['render']> | null {
     if (!TEMPLATE_KINDS.has(row.kind)) return null;
     // The payload is a JSON blob; TemplateService expects a flat map of
@@ -314,7 +353,9 @@ export class EmailDispatcherService {
     // Per-row payload wins over the global legal-footer defaults so a
     // sender (e.g. an enterprise tenant) can override the postal block
     // without redeploying.
-    const vars: Record<string, string | number> = { ...this.legalFooterVars };
+    // Envelope-derived values (progress dots, doc meta line, defaults) sit
+    // between the footer defaults and the payload: the payload wins.
+    const vars: Record<string, string | number> = { ...this.legalFooterVars, ...context };
     for (const [k, v] of Object.entries(payload)) {
       if (typeof v === 'string' || typeof v === 'number') vars[k] = v;
       else if (v !== null && v !== undefined) vars[k] = String(v);
@@ -355,7 +396,7 @@ export class EmailDispatcherService {
 }
 
 /** Kinds whose email carries the signer's `/sign/…?t=` link. */
-const SIGNER_LINK_KINDS = new Set<string>(['invite', 'reminder']);
+const SIGNER_LINK_KINDS = new Set<string>(['invite', 'your_turn', 'reminder']);
 
 /** Kinds whose body is minted per attempt (a link token or a one-time code). */
 const PER_ATTEMPT_BODY_KINDS = new Set<string>([
@@ -383,6 +424,10 @@ const TEMPLATE_KINDS = new Set<string>([
   'automation_copy',
   'automation_disabled',
   'signer_corrected',
+  'signer_replaced',
+  'new_link_requested',
+  'your_turn',
+  'bounced_to_sender',
 ]);
 
 /**

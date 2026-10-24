@@ -148,29 +148,25 @@ When('the sender opens the recent envelope detail', async ({ page }) => {
 });
 
 When('the sender chooses the {string} download bundle', async ({ page }, _label: string) => {
-  // Open the split-button dropdown via its aria-label, then pick the
-  // bundle row by its accessible role + visible name. The visible
-  // title is "Full package" — matching loosely here so a copy tweak
-  // doesn't make the BDD brittle.
-  await page.getByRole('button', { name: /show all download options/i }).click();
-  await page.getByRole('menuitem', { name: /full package/i }).click();
+  // On a sealed envelope the main Download button is the bundle: the sealed
+  // PDF in one tab plus the audit trail as a download.
+  await page.getByRole('button', { name: 'Download', exact: true }).click();
   // Allow the bundle path to fire its anchors + listeners to enqueue.
   await page.waitForTimeout(300);
 });
 
 // BUG-1 step defs (`Then the envelope row tiles do not overflow the
 // viewport` + `Then the column-header strip is hidden`) were removed
-// 2026-05-03 when the mobile dashboard scenario was rewritten to assert
-// the redirect to /m/send. The dashboard never renders on a phone
-// viewport now, so no overflow / column-header assertion applies. The
-// "Then the URL is /m/send" step lives in sender-mobile.steps.ts.
+// 2026-05-03 with the mobile redirect. The dashboard is responsive now (and
+// the /m/send wizard is retired); `Then the URL is /documents` lives in
+// sender-mobile.steps.ts.
 
 Then('the row for the historical envelope shows its year', async ({ page }) => {
   // BUG-2: the row that points at HISTORICAL_SENT_AT (2024) must carry
   // "2024" in its rendered text. Without the fix only "Apr 02" would
   // appear and the year would be implicit, indistinguishable from a
   // current-year date.
-  const row = page.getByRole('button', { name: /Historical MSA/i });
+  const row = page.getByTestId('doc-row').filter({ hasText: /Historical MSA/i });
   await expect(row).toContainText('2024');
 });
 
@@ -178,7 +174,7 @@ Then('the row for the recent envelope omits the year', async ({ page }) => {
   // The recent envelope is in the *current* calendar year (2026, per
   // fixedNow). The dashboard should keep the compact "Apr 25" form so
   // the table doesn't widen on every row.
-  const row = page.getByRole('button', { name: /Recent NDA/i });
+  const row = page.getByTestId('doc-row').filter({ hasText: /Recent NDA/i });
   await expect(row).not.toContainText('2026');
 });
 

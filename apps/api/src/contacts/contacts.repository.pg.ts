@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import type { Kysely, Selectable } from 'kysely';
+import { sql, type Kysely, type Selectable } from 'kysely';
 import type { Database, ContactsTable } from '../../db/schema';
 import { DB_TOKEN } from '../db/db.provider';
-import type { Contact } from './contact.entity';
+import type { Contact, ContactWithStats } from './contact.entity';
 import {
   ContactEmailTakenError,
   ContactsRepository,
@@ -34,6 +34,9 @@ function isEmailUniqueViolation(err: unknown): boolean {
   if (typeof e.message === 'string' && e.message.includes('Key (owner_id,email)')) return true;
   return false;
 }
+
+/** How long a soft-deleted contact stays restorable. */
+const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function toDomain(r: Row): Contact {
   return {
@@ -77,9 +80,45 @@ export class ContactsPgRepository extends ContactsRepository {
       .selectFrom('contacts')
       .selectAll()
       .where('owner_id', '=', owner_id)
+      .where('deleted_at', 'is', null)
       .orderBy('created_at', 'desc')
       .execute();
     return rows.map(toDomain);
+  }
+
+  override async listWithStats(owner_id: string): Promise<ReadonlyArray<ContactWithStats>> {
+    const contacts = await this.findAllByOwner(owner_id);
+    if (contacts.length === 0) return [];
+    // One pass over the owner's sent envelopes: per signer email, how many
+    // envelopes and the latest send time. Matching is by lower-cased email
+    // because a signer can be typed in without being a saved contact.
+    const rows = await this.db
+      .selectFrom('envelope_signers as s')
+      .innerJoin('envelopes as e', 'e.id', 's.envelope_id')
+      .select([
+        sql<string>`lower(s.email)`.as('email'),
+        'e.id as envelope_id',
+        'e.sent_at as sent_at',
+      ])
+      .where('e.owner_id', '=', owner_id)
+      .where('e.sent_at', 'is not', null)
+      .execute();
+    const stats = new Map<string, { ids: Set<string>; last: number }>();
+    for (const r of rows) {
+      const entry = stats.get(r.email) ?? { ids: new Set<string>(), last: 0 };
+      entry.ids.add(r.envelope_id);
+      const t = r.sent_at ? new Date(r.sent_at).getTime() : 0;
+      if (t > entry.last) entry.last = t;
+      stats.set(r.email, entry);
+    }
+    return contacts.map((c) => {
+      const entry = stats.get(c.email.toLowerCase());
+      return {
+        ...c,
+        docs_count: entry ? entry.ids.size : 0,
+        last_sent_at: entry && entry.last > 0 ? new Date(entry.last).toISOString() : null,
+      };
+    });
   }
 
   async findOneByOwner(owner_id: string, id: string): Promise<Contact | null> {
@@ -88,6 +127,7 @@ export class ContactsPgRepository extends ContactsRepository {
       .selectAll()
       .where('owner_id', '=', owner_id)
       .where('id', '=', id)
+      .where('deleted_at', 'is', null)
       .executeTakeFirst();
     return row ? toDomain(row) : null;
   }
@@ -102,6 +142,7 @@ export class ContactsPgRepository extends ContactsRepository {
         .set({ ...patch, updated_at: new Date().toISOString() })
         .where('owner_id', '=', owner_id)
         .where('id', '=', id)
+        .where('deleted_at', 'is', null)
         .returningAll()
         .executeTakeFirst();
       return row ? toDomain(row) : null;
@@ -112,12 +153,57 @@ export class ContactsPgRepository extends ContactsRepository {
   }
 
   async delete(owner_id: string, id: string): Promise<boolean> {
-    const res = await this.db
+    const removed = await this.deleteMany(owner_id, [id]);
+    return removed.length > 0;
+  }
+
+  override async deleteMany(
+    owner_id: string,
+    ids: ReadonlyArray<string>,
+  ): Promise<ReadonlyArray<string>> {
+    // Opportunistic purge: rows past the Undo window are gone for good.
+    const cutoff = new Date(Date.now() - UNDO_WINDOW_MS);
+    await this.db
       .deleteFrom('contacts')
       .where('owner_id', '=', owner_id)
-      .where('id', '=', id)
-      .executeTakeFirst();
-    return (res?.numDeletedRows ?? 0n) > 0n;
+      .where('deleted_at', '<', cutoff)
+      .execute();
+    if (ids.length === 0) return [];
+    const now = new Date().toISOString();
+    const rows = await this.db
+      .updateTable('contacts')
+      .set({ deleted_at: now, updated_at: now })
+      .where('owner_id', '=', owner_id)
+      .where('id', 'in', [...ids])
+      .where('deleted_at', 'is', null)
+      .returning('id')
+      .execute();
+    return rows.map((r) => r.id);
+  }
+
+  override async restoreMany(
+    owner_id: string,
+    ids: ReadonlyArray<string>,
+  ): Promise<ReadonlyArray<Contact>> {
+    const restored: Contact[] = [];
+    // One at a time: a unique violation (the email was re-added while the
+    // contact sat in the Undo window) skips that contact, not the batch.
+    for (const id of ids) {
+      try {
+        const row = await this.db
+          .updateTable('contacts')
+          .set({ deleted_at: null, updated_at: new Date().toISOString() })
+          .where('owner_id', '=', owner_id)
+          .where('id', '=', id)
+          .where('deleted_at', 'is not', null)
+          .returningAll()
+          .executeTakeFirst();
+        if (row) restored.push(toDomain(row));
+      } catch (err) {
+        if (!isEmailUniqueViolation(err)) throw err;
+      }
+    }
+    return restored;
   }
 
   async deleteAllByOwner(owner_id: string): Promise<number> {

@@ -28,6 +28,8 @@ export interface TemplateSummary {
   readonly fieldCount: number;
   /** Display string like `Apr 22` — already formatted in the seed. */
   readonly lastUsed: string;
+  /** ISO time of the latest use, or null when never used (feeds "3d ago"). */
+  readonly lastUsedAt?: string | null | undefined;
   readonly uses: number;
   /** Cover-stripe color (hex). Drives the small accent on the template card. */
   readonly cover: string;
@@ -77,53 +79,6 @@ export function templateHasFieldType(template: TemplateSummary, type: TemplateFi
 }
 
 /**
- * Build a duplicate of `template` with a fresh id and `(copy)` suffix on the
- * name. Pure — callers thread the result back into local state. The id format
- * mirrors the seed so the templates list stays visually consistent until a
- * server-side templates service replaces this client-only seed.
- *
- * The suffix used to be `Math.random().toString(16).slice(2, 6)` — only
- * 16^4 = 65,536 distinct ids, which produces a >50% collision rate
- * after ~302 duplicates per the birthday paradox. Because the local
- * module store is keyed by id, a collision silently overwrites an
- * earlier card and the duplicate visually disappears. The QA audit
- * (qa/envelope-templates-break-tests) caught this: prefer
- * `crypto.randomUUID()` when available (modern browsers + Node), falling
- * back to a 16-hex-char (64-bit) random suffix otherwise. Either path
- * is collision-resistant for practical SPA usage.
- */
-export function duplicateTemplate(template: TemplateSummary): TemplateSummary {
-  const suffix = generateDuplicateSuffix();
-  return {
-    ...template,
-    id: `TPL-${suffix}`,
-    name: `${template.name} (copy)`,
-    uses: 0,
-    lastUsed: '—',
-  };
-}
-
-function generateDuplicateSuffix(): string {
-  // Browsers and Node 19+ expose `crypto.randomUUID()` on the globalThis
-  // `crypto` object. Use it when available; the surface is identical
-  // in both runtimes so no env detection branch is needed.
-  const c =
-    typeof globalThis !== 'undefined'
-      ? (globalThis as { readonly crypto?: { randomUUID?: () => string } }).crypto
-      : undefined;
-  if (c && typeof c.randomUUID === 'function') {
-    // Strip dashes to keep the legacy `TPL-XXXX...` visual shape.
-    return c.randomUUID().replace(/-/g, '').slice(0, 16).toUpperCase();
-  }
-  // Fallback — concatenate two `Math.random()` draws to reach 16 hex
-  // characters of entropy without needing the WebCrypto API.
-  return (
-    Math.random().toString(16).slice(2, 10).padStart(8, '0') +
-    Math.random().toString(16).slice(2, 10).padStart(8, '0')
-  ).toUpperCase();
-}
-
-/**
  * Production templates start as an empty list. Each user authors their
  * own — either via "New template" on `/templates`, or by clicking
  * "Save as template" on a finished envelope.
@@ -131,7 +86,7 @@ function generateDuplicateSuffix(): string {
  * The list is held in a lightweight module-scoped store so any page in
  * the SPA can read/write without a provider. Pages that own the list
  * (TemplatesListPage) call `setTemplates` after a save / delete so
- * sibling pages (UseTemplatePage, UploadRoute) see the change without
+ * sibling pages (the Use dialog, UploadRoute) see the change without
  * re-querying. Replaced wholesale by a server-side store once the
  * templates API client lands.
  *

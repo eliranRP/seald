@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { axe } from 'vitest-axe';
+import { ShieldCheck } from 'lucide-react';
 import { renderWithTheme } from '../../test/renderWithTheme';
 import { Badge } from './Badge';
 
@@ -41,5 +42,15 @@ describe('Badge', () => {
     const span = container.querySelector('[data-testid="badge"]');
     expect(span).not.toBeNull();
     expect(span).toHaveClass('custom');
+  });
+
+  it('renders an icon instead of the dot when icon is set', () => {
+    const { container } = renderWithTheme(
+      <Badge tone="emerald" icon={ShieldCheck}>
+        Sealed
+      </Badge>,
+    );
+    expect(container.querySelector('[data-part="icon"] svg')).not.toBeNull();
+    expect(container.querySelector('[data-part="dot"]')).toBeNull();
   });
 });

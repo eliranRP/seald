@@ -16,34 +16,30 @@ Given('the viewport is set to a 375x667 phone', async ({ page }) => {
 });
 
 When(
-  'the recipient opens the signing link and lands on the prep page',
+  'the recipient opens the signing link and lands on the document',
   async ({ signingEntryPage, signedEnvelope }) => {
     await signingEntryPage.goto(signedEnvelope.id);
     await signingEntryPage.startSigning();
   },
 );
 
-When('the recipient agrees and continues to fill', async ({ signingPrepPage, page }) => {
-  await signingPrepPage.agreeAndContinue();
-  await page.waitForURL(/\/sign\/[^/]+\/fill/);
+When('the recipient agrees and starts', async ({ signingFillPage }) => {
+  await signingFillPage.agreeAndStart();
 });
 
 When('the recipient opens the signature sheet', async ({ page }) => {
-  // Anchor on the leading "Sign here (" so we don't also match the
-  // NextBtn aria-label which carries the phrase as a substring
-  // ("Next field: Sign here on page 1"), introduced by the
-  // SigningFillPage audit (PR #257).
+  // Anchor on the leading "Sign here (" so only the field matches.
   await page
     .getByRole('button', { name: /^sign here \(/i })
     .first()
     .click();
 });
 
-Then('the sheet "Apply" button is visible inside the viewport', async ({ page }) => {
-  // The Apply button must be inside the visual viewport. Without the dvh
+Then('the sheet "Sign" button is visible inside the viewport', async ({ page }) => {
+  // The Sign button must be inside the visual viewport. Without the dvh
   // / safe-area fix the button sat below the viewport on a phone-sized
   // window and `toBeInViewport` fails.
-  const apply = page.getByRole('button', { name: /^apply$/i });
-  await expect(apply).toBeVisible();
-  await expect(apply).toBeInViewport();
+  const sign = page.getByRole('dialog').getByRole('button', { name: /^sign$/i });
+  await expect(sign).toBeVisible();
+  await expect(sign).toBeInViewport();
 });

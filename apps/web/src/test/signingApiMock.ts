@@ -62,6 +62,7 @@ export function makeSignMeResponse(overrides: Record<string, unknown> = {}) {
       expires_at: '2030-01-01T00:00:00.000Z',
       tc_version: '2026-04-24',
       privacy_version: '2026-04-24',
+      sender_name: 'Eliran Azulay',
     },
     signer: {
       id: MOCK_SIGNER_ID,

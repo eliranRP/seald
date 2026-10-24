@@ -1,5 +1,5 @@
 {
-  "server_version": "0.10.0",
+  "server_version": "0.13.0",
   "variants": {
     "all_flags_on": [
       {
@@ -1237,7 +1237,10 @@
                       "access_code_failed",
                       "approval_decided",
                       "signer_corrected",
-                      "expiry_changed"
+                      "signer_replaced",
+                      "expiry_changed",
+                      "unsent",
+                      "email_bounced"
                     ]
                   },
                   "actor_kind": {
@@ -14967,7 +14970,10 @@
                       "access_code_failed",
                       "approval_decided",
                       "signer_corrected",
-                      "expiry_changed"
+                      "signer_replaced",
+                      "expiry_changed",
+                      "unsent",
+                      "email_bounced"
                     ]
                   },
                   "actor_kind": {

@@ -23,6 +23,18 @@ export const AllVariants: Story = {
   ),
 };
 
+export const EnvelopeStatuses: Story = {
+  render: () => (
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {(
+        ['you', 'others', 'sealing', 'sealed', 'declined', 'expired', 'canceled', 'draft'] as const
+      ).map((s) => (
+        <StatusBadge key={s} status={s} />
+      ))}
+    </div>
+  ),
+};
+
 export const WithInteraction: Story = {
   render: () => <StatusBadge status="completed" />,
 };

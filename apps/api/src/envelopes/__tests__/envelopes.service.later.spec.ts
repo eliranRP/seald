@@ -193,6 +193,55 @@ describe('EnvelopesService: fix a signer and change an expiry', () => {
     });
   });
 
+  describe('replaceSigner', () => {
+    it('swaps the person: event, invite to the new address, note to the old one', async () => {
+      const { id, bob } = await sent();
+      const out = await svc.replaceSigner(
+        OWNER,
+        id,
+        bob,
+        { name: 'Jordan Lee', email: 'jordan@example.com' },
+        { ip: null, user_agent: null },
+        NOW,
+      );
+      expect(out.signer).toMatchObject({
+        id: bob,
+        email: 'jordan@example.com',
+        name: 'Jordan Lee',
+      });
+      expect(eventsOf(id, 'signer_replaced')[0]).toMatchObject({
+        signer_id: bob,
+        metadata: { previous_email: 'bob@example.com', new_email: 'jordan@example.com' },
+      });
+      expect(outbound.rows.map((r) => [r.kind, r.to_email])).toEqual([
+        ['invite', 'jordan@example.com'],
+        ['signer_replaced', 'bob@example.com'],
+      ]);
+    });
+
+    it('refuses the same address, a taken address and a signer who signed', async () => {
+      const { id, ada, bob } = await sent();
+      await expect(
+        svc.replaceSigner(OWNER, id, bob, { name: 'Bob', email: 'BOB@example.com' }),
+      ).rejects.toMatchObject({ message: 'signer_unchanged' });
+      await expect(
+        svc.replaceSigner(OWNER, id, bob, { name: 'X', email: 'ada@example.com' }),
+      ).rejects.toMatchObject({ message: 'signer_email_taken' });
+      const env = repo.envelopes.get(id);
+      if (!env) throw new Error('missing');
+      repo.envelopes.set(id, {
+        ...env,
+        signers: env.signers.map((x) =>
+          x.id === ada ? { ...x, signed_at: NOW.toISOString() } : x,
+        ),
+      });
+      await expect(
+        svc.replaceSigner(OWNER, id, ada, { name: 'X', email: 'x@example.com' }),
+      ).rejects.toMatchObject({ message: 'signer_already_signed' });
+      expect(outbound.rows).toEqual([]);
+    });
+  });
+
   describe('changeExpiry', () => {
     it('moves the expiry and records previous and new, with attribution', async () => {
       const { id } = await sent();

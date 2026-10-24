@@ -1,21 +1,19 @@
 import { Suspense, lazy } from 'react';
-import { Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
 import { AuthLoadingScreen } from './layout/AuthLoadingScreen';
 import { RequireAuth } from './layout/RequireAuth';
 import { RequireAuthOrGuest } from './layout/RequireAuthOrGuest';
 import { RedirectWhenAuthed } from './layout/RedirectWhenAuthed';
 import { RootLanding } from './layout/RootLanding';
-import { DashboardPage } from './pages/DashboardPage';
+import { DashboardPage, SentRedirect } from './pages/DashboardPage';
 import { ContactsPage } from './pages/ContactsPage';
 import { TemplatesListPage } from './pages/TemplatesListPage';
-import { UseTemplatePage } from './pages/UseTemplatePage';
+import { NewTemplateRoute } from './routes/NewTemplateRoute';
 import { BulkSendPage } from './pages/BulkSendPage';
 import { DebugAuthPage } from './pages/DebugAuthPage';
-import { SentConfirmationPage } from './pages/SentConfirmationPage';
-import { SignInPage } from './pages/SignInPage';
-import { SignUpPage } from './pages/SignUpPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { AuthPage } from './pages/AuthPage';
+import { WelcomePage } from './pages/WelcomePage';
 import { CheckEmailPage } from './pages/CheckEmailPage';
 import { AuthCallbackPage } from './pages/AuthCallbackPage';
 import { GDriveOAuthCallbackPage } from './pages/GDriveOAuthCallbackPage';
@@ -25,13 +23,15 @@ import {
   AutomationsSettingsPage,
   DevelopersSettingsPage,
   NewAutomationSettingsPage,
-  SettingsIndexPage,
+  SettingsPage,
+  SettingsRoot,
 } from './pages/SettingsPage';
 import { ApproveQueuePage } from './pages/ApproveQueuePage';
 import { RequireOwnerSession } from './features/approvals/RequireOwnerSession';
 import { RequireSignerSession } from './features/signing/RequireSignerSession';
 import { SigningErrorBoundary } from './features/signing/SigningErrorBoundary';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { NotFoundRoute } from './pages/NotFoundPage';
 
 // Code-split the authoring routes — they pull in pdfjs-dist via usePdfDocument
 // + the editor canvas, which dwarfs every other chunk. Pushing them behind
@@ -46,31 +46,16 @@ const TemplateEditorRoute = lazy(() =>
   import('./routes/TemplateEditorRoute').then((m) => ({ default: m.TemplateEditorRoute })),
 );
 
-// `/settings/integrations` — WT-B Drive integration page. Lazy because
-// the gdrive feature is gated behind `feature.gdriveIntegration` and
-// the typical first-time visitor won't reach this surface; keeping it
-// out of the dashboard chunk avoids paying for the OAuth scaffolding
-// up-front. Lives inside <AppShell /> so the existing mobile-redirect
-// rule (640 px → /m/send) covers it without a new redirect (rule 4.4).
-const IntegrationsPage = lazy(() =>
-  import('./routes/settings/integrations/IntegrationsPage').then((m) => ({
-    default: m.IntegrationsPage,
-  })),
-);
-
 // Code-split every signing page so recipients don't pay for the sender
 // bundle's Supabase / react-pdf weight on initial load.
 const SigningEntryPage = lazy(() =>
   import('./pages/SigningEntryPage').then((m) => ({ default: m.SigningEntryPage })),
 );
-const SigningPrepPage = lazy(() =>
-  import('./pages/SigningPrepPage').then((m) => ({ default: m.SigningPrepPage })),
-);
 const SigningFillPage = lazy(() =>
   import('./pages/SigningFillPage').then((m) => ({ default: m.SigningFillPage })),
 );
-const SigningReviewPage = lazy(() =>
-  import('./pages/SigningReviewPage').then((m) => ({ default: m.SigningReviewPage })),
+const SigningLinkPage = lazy(() =>
+  import('./pages/SigningLinkPage').then((m) => ({ default: m.SigningLinkPage })),
 );
 const SigningDonePage = lazy(() =>
   import('./pages/SigningDonePage').then((m) => ({ default: m.SigningDonePage })),
@@ -107,26 +92,21 @@ const ApproveReviewPage = lazy(() =>
   import('./pages/ApproveReviewPage').then((m) => ({ default: m.ApproveReviewPage })),
 );
 
-// Mobile-web sender flow. Lazy-loaded so the desktop dashboard / sign-in
-// bundle doesn't pay for the editor canvas + pdfjs weight (rule 2.5). Pulled
-// in for any viewport ≤ 640px when the user lands on the app root.
-const MobileSendPage = lazy(() =>
-  import('./pages/MobileSendPage').then((m) => ({ default: m.MobileSendPage })),
-);
-
-// Mobile integrations settings screen — connect/disconnect Google Drive.
-// Lazy-loaded alongside MobileSendPage (same audience, same reason).
-const MobileIntegrationsPage = lazy(() =>
-  import('./pages/MobileSendPage/screens/MWIntegrations').then((m) => ({
-    default: m.MWIntegrations,
-  })),
-);
+// Scan with phone (`/scan`, `/scan/:code`). Lazy so the camera + PDF-building
+// code (pdf-lib, qrcode) stays out of the dashboard / sign-in entry bundle.
+const ScanPage = lazy(() => import('./pages/ScanPage').then((m) => ({ default: m.ScanPage })));
 
 /**
  * Wraps the entire `/sign/*` subtree in a code-splitting boundary + a
  * signer-scoped error boundary. Recipients only download signing modules
  * on demand; render-time errors don't drag the sender app down with them.
  */
+/** `/sign/:id/prep` and `/review` no longer exist: send the old links to `/fill`. */
+function SigningStepRedirect() {
+  const { envelopeId } = useParams<{ readonly envelopeId: string }>();
+  return <Navigate to={`/sign/${envelopeId ?? ''}/fill`} replace />;
+}
+
 function SigningRouteRoot() {
   return (
     <SigningErrorBoundary>
@@ -153,11 +133,15 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route element={<RedirectWhenAuthed />}>
-        <Route path="/signin" element={<SignInPage />} />
-        <Route path="/signup" element={<SignUpPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/signin" element={<AuthPage />} />
+        <Route path="/signup" element={<AuthPage />} />
         <Route path="/check-email" element={<CheckEmailPage />} />
       </Route>
+      {/* No passwords any more: old reset emails and bookmarks land on sign-in. */}
+      <Route path="/forgot-password" element={<Navigate to="/signin" replace />} />
+      {/* New-account step (name + terms). Needs a session, so it lives outside
+          RedirectWhenAuthed; the page sends signed-out visitors to /signin. */}
+      <Route path="/welcome" element={<WelcomePage />} />
 
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       {/* Audit C: DebugAuthPage #4 — the /debug/auth surface is gated to
@@ -190,10 +174,29 @@ export function AppRoutes() {
       {/* Public verify surface. Anyone with a 13-char short_code can pull
           the envelope's metadata + audit timeline. No auth gate. */}
       <Route
+        path="/verify"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <VerifyPage />
+          </Suspense>
+        }
+      />
+      <Route
         path="/verify/:shortCode"
         element={
           <Suspense fallback={<AuthLoadingScreen />}>
             <VerifyPage />
+          </Suspense>
+        }
+      />
+
+      {/* Phone side of "Scan with phone". No sign-in: the code in the path is
+          the credential and reaches one scan session. Outside <AppShell />. */}
+      <Route
+        path="/scan/:code"
+        element={
+          <Suspense fallback={<AuthLoadingScreen />}>
+            <ScanPage />
           </Suspense>
         }
       />
@@ -242,16 +245,18 @@ export function AppRoutes() {
         />
       </Route>
 
-      {/* Public recipient signing flow. Entry, done, and declined are
-          accessible without a live session; prep / fill / review require the
-          `seald_sign` cookie set by /sign/start. */}
+      {/* Public recipient signing flow. Entry, link states, done, and declined
+          are accessible without a live session; fill requires the `seald_sign`
+          cookie set by /sign/start. The old prep and review steps are folded
+          into fill (consent bar, Finish sheet), so they redirect there. */}
       <Route element={<SigningRouteRoot />}>
         <Route path="/sign/:envelopeId" element={<SigningEntryPage />} />
         <Route element={<RequireSignerSession />}>
-          <Route path="/sign/:envelopeId/prep" element={<SigningPrepPage />} />
           <Route path="/sign/:envelopeId/fill" element={<SigningFillPage />} />
-          <Route path="/sign/:envelopeId/review" element={<SigningReviewPage />} />
         </Route>
+        <Route path="/sign/:envelopeId/prep" element={<SigningStepRedirect />} />
+        <Route path="/sign/:envelopeId/review" element={<SigningStepRedirect />} />
+        <Route path="/sign/:envelopeId/link/:state" element={<SigningLinkPage />} />
         <Route path="/sign/:envelopeId/done" element={<SigningDonePage />} />
         <Route path="/sign/:envelopeId/declined" element={<SigningDeclinedPage />} />
       </Route>
@@ -274,51 +279,45 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          <Route path="/document/:id/sent" element={<SentConfirmationPage />} />
+          <Route path="/document/:id/sent" element={<SentRedirect />} />
         </Route>
-        {/* Mobile-web send flow. Sits outside <AppShell /> on purpose — the
-            desktop NavBar would dominate a 375px viewport; the mobile flow
-            ships its own stepper + sticky CTA chrome. */}
-        <Route
-          path="/m/send"
-          element={
-            <ErrorBoundary>
-              <Suspense fallback={<AuthLoadingScreen />}>
-                <MobileSendPage />
-              </Suspense>
-            </ErrorBoundary>
-          }
-        />
-        {/* Bounce-back from Google's OAuth consent for the mobile flow.
-            Forwards into /m/send?gdrive_connected=1 so the picker auto-
-            opens once the new account row is in the React-Query cache.
-            Lives outside <AppShell /> for the same reason as /m/send. */}
+        {/* The separate mobile send wizard is retired (redesign v2): phones use
+            the responsive Home / Upload / Prepare screens. Old links and
+            bookmarks land on the screen that replaced them. */}
+        <Route path="/m/send" element={<Navigate to="/documents" replace />} />
+        {/* Bounce-back from Google's OAuth consent on a phone. Forwards into
+            the Upload screen with ?gdrive_connected=1 so the Drive picker
+            opens once the new account is loaded. */}
         <Route path="/m/send/drive" element={<MobileGdriveReturnPage />} />
-        {/* Mobile integrations settings — connect/disconnect Google Drive.
-            Lives outside <AppShell /> for the same reason as /m/send. */}
-        <Route
-          path="/m/send/settings"
-          element={
-            <Suspense fallback={<AuthLoadingScreen />}>
-              <MobileIntegrationsPage />
-            </Suspense>
-          }
-        />
+        {/* Retired: Drive settings live at /settings/integrations on every width. */}
+        <Route path="/m/send/settings" element={<Navigate to="/settings/integrations" replace />} />
       </Route>
 
       <Route element={<RequireAuth />}>
         <Route element={<AppShell />}>
           <Route path="/documents" element={<DashboardPage />} />
+          {/* Scan with phone: the QR dialog on a computer, the camera on a phone. */}
+          <Route
+            path="/scan"
+            element={
+              <Suspense fallback={<AuthLoadingScreen />}>
+                <ScanPage />
+              </Suspense>
+            }
+          />
           <Route path="/signers" element={<ContactsPage />} />
+          {/* One canonical URL for Contacts. */}
+          <Route path="/contacts" element={<Navigate to="/signers" replace />} />
           <Route path="/templates" element={<TemplatesListPage />} />
-          <Route path="/templates/:id/use" element={<UseTemplatePage />} />
+          {/* The Use dialog is part of the list page; this path stays as a deep link. */}
+          <Route path="/templates/:id/use" element={<TemplatesListPage />} />
+          <Route path="/templates/new" element={<NewTemplateRoute />} />
+          <Route path="/templates/new/use" element={<Navigate to="/templates/new" replace />} />
           {/* WP-36: bulk CSV send. The page itself shows "not available" with
               `bulkSend` off, so the route can stay mounted. */}
           <Route path="/templates/:id/bulk-send/:batchId?" element={<BulkSendPage />} />
-          {/* Step 3 of the templates wizard runs INSIDE AppShell so the
-              global NavBar stays visible across the entire wizard.
-              The TemplateFlowHeader (back / mode pill / step pills /
-              cancel) sits BELOW the NavBar as a sub-chrome bar. */}
+          {/* The template editor runs INSIDE AppShell so the global NavBar stays
+              visible; its own bar (name, Cancel, Save template) sits below it. */}
           <Route
             path="/templates/:id/edit"
             element={
@@ -327,9 +326,11 @@ export function AppRoutes() {
               </Suspense>
             }
           />
-          {/* Settings index (desktop). Rows show only for features whose flag
-              is on. The Integrations breadcrumb points back here. */}
-          <Route path="/settings" element={<SettingsIndexPage variant="desktop" />} />
+          {/* Settings: `/settings` is Profile on desktop and the section index on a
+              phone; `/settings/:section` is one section (profile, signature,
+              notifications, integrations, account). The flagged pages below
+              are static routes, so they win over `:section`. */}
+          <Route path="/settings" element={<SettingsRoot />} />
           <Route
             path="/settings/developers"
             element={<DevelopersSettingsPage variant="desktop" />}
@@ -349,19 +350,13 @@ export function AppRoutes() {
             path="/settings/automations/:id"
             element={<AutomationDetailSettingsPage variant="desktop" />}
           />
-          <Route
-            path="/settings/integrations"
-            element={
-              <Suspense fallback={<AuthLoadingScreen />}>
-                <IntegrationsPage />
-              </Suspense>
-            }
-          />
+          <Route path="/settings/:section" element={<SettingsPage />} />
         </Route>
-        {/* Mobile settings index + Developers. Outside <AppShell /> for the
-            same reason as /m/send: the phone has its own chrome. Guests are
-            sent away by RequireAuth (keys need an email on the account). */}
-        <Route path="/m/settings" element={<SettingsIndexPage variant="mobile" />} />
+        {/* Mobile Developers, Approvals and Automations. Outside <AppShell />
+            for the same reason as /m/send: the phone has its own chrome.
+            Guests are sent away by RequireAuth (keys need an email on the
+            account). The index itself is /settings on a phone. */}
+        <Route path="/m/settings" element={<Navigate to="/settings" replace />} />
         <Route path="/m/settings/approvals" element={<ApproveQueuePage variant="mobile" />} />
         <Route
           path="/m/settings/developers"
@@ -382,7 +377,8 @@ export function AppRoutes() {
       </Route>
 
       <Route index element={<RootLanding />} />
-      <Route path="*" element={<RootLanding />} />
+      {/* Unknown URLs get a real 404 (inside the shell when signed in). */}
+      <Route path="*" element={<NotFoundRoute />} />
     </Routes>
   );
 }

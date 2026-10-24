@@ -21,39 +21,6 @@ vi.mock('../lib/pdf', () => ({
   },
 }));
 
-vi.mock('../components/SignersStepCard', () => ({
-  SignersStepCard: (props: {
-    subtitle?: string;
-    onPickContact: (c: {
-      readonly id: string;
-      readonly name: string;
-      readonly email: string;
-      readonly color: string;
-    }) => void;
-    onContinue: () => void;
-  }): JSX.Element => (
-    <div>
-      <p>{props.subtitle}</p>
-      <button
-        type="button"
-        onClick={() =>
-          props.onPickContact({
-            id: 'c-jamie',
-            name: 'Jamie Okonkwo',
-            email: 'jamie@seald.app',
-            color: '#818CF8',
-          })
-        }
-      >
-        Add Jamie
-      </button>
-      <button type="button" onClick={() => props.onContinue()}>
-        Apply
-      </button>
-    </div>
-  ),
-}));
-
 function DraftProbe(): JSX.Element {
   const { documents } = useAppState();
   const draft = documents[0];
@@ -99,17 +66,14 @@ describe('UploadRoute with several files', () => {
     vi.restoreAllMocks();
   });
 
-  it('carries every picked PDF into the draft, in order, and says how many to sign', async () => {
+  it('carries every picked PDF into the draft, in order', async () => {
     setFlag(true);
     renderUpload();
-    fireEvent.change(screen.getByLabelText('Choose PDF files'), {
+    fireEvent.change(screen.getByLabelText('Choose files'), {
       target: { files: [pdf('Master agreement.pdf'), pdf('side letter.pdf'), pdf('Schedule.pdf')] },
     });
 
-    expect(await screen.findByText(/sign these 3 documents/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /add jamie/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
-
+    // No signer step any more: the editor opens straight away.
     const list = await screen.findByRole('list', { name: 'draft documents' });
     await waitFor(() => {
       expect(list.querySelectorAll('li')).toHaveLength(3);
@@ -125,11 +89,9 @@ describe('UploadRoute with several files', () => {
   it('a single picked PDF makes a plain single-document draft', async () => {
     setFlag(true);
     renderUpload();
-    fireEvent.change(screen.getByLabelText('Choose PDF files'), {
+    fireEvent.change(screen.getByLabelText('Choose files'), {
       target: { files: [pdf('only.pdf')] },
     });
-    fireEvent.click(await screen.findByRole('button', { name: /add jamie/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
 
     await screen.findByTestId('draft-title');
     expect(screen.getByTestId('draft-title')).toHaveTextContent('only');
@@ -139,11 +101,9 @@ describe('UploadRoute with several files', () => {
   it('with the flag off the picker takes one file and never builds a document list', async () => {
     setFlag(false);
     renderUpload();
-    const input = screen.getByLabelText('Choose PDF file');
+    const input = screen.getByLabelText('Choose file');
     expect(input).not.toHaveAttribute('multiple');
     fireEvent.change(input, { target: { files: [pdf('only.pdf')] } });
-    fireEvent.click(await screen.findByRole('button', { name: /add jamie/i }));
-    fireEvent.click(screen.getByRole('button', { name: /apply/i }));
     await screen.findByTestId('draft-title');
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
   });

@@ -208,6 +208,10 @@ contract is in `apps/api/src/config/env.schema.ts`, and
   client must use an https client id metadata document (CIMD).
 - `MCP_OAUTH_VERIFIED_CIMD_HOSTS`. CSV of hostnames whose CIMD clients the
   consent page does not label "unverified".
+- `RESEND_WEBHOOK_SECRET`. Svix signing secret (`whsec_...`) for
+  `POST /webhooks/resend`. Unset, the route answers 503. A hard
+  `email.bounced` marks the signer `delivery_status = 'bounced'` and mails
+  the sender (`bounced_to_sender`). Migration 0040.
 - `PDF_SIGNING_ALLOW_NOOP`. Strict boolean, read only when
   `PDF_SIGNING_PROVIDER` is unset. Production refuses to seal without a CMS
   signature unless this is `true`. Staging escape hatch only (S.3).
@@ -268,6 +272,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0036` MCP OAuth: OAuth 2.1 grant tables (WP-27).
 - `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
 - `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
+- `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 
 ### i18n
 

@@ -1,10 +1,17 @@
-The signing request expired.
+The signing link ran out. Ask for a new one in one tap.
 
-The signing window for "{{envelope_title}}" from {{sender_name}} closed
-on {{expired_at_readable}}. You no longer need to take action on this
-document.
+This signing link expired.
+The request from {{sender_name}} ended on {{expired_at_readable}}.
 
-If {{sender_name}} would like you to sign, they can send a fresh request
-from their dashboard.
+  {{envelope_title}}
 
+Ask for a new link:
+  {{new_link_url}}
+
+We will let {{sender_name}} know you asked.
+
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

@@ -9,19 +9,12 @@ Given('a sealed envelope ready for signing', async ({ signedEnvelope }) => {
 
 When(
   'the recipient signs and submits the envelope',
-  async ({
-    signingEntryPage,
-    signingPrepPage,
-    signingFillPage,
-    signingReviewPage,
-    signedEnvelope,
-  }) => {
+  async ({ signingEntryPage, signingFillPage, signedEnvelope }) => {
     await signingEntryPage.goto(signedEnvelope.id);
     await signingEntryPage.startSigning();
-    await signingPrepPage.agreeAndContinue();
+    await signingFillPage.agreeAndStart();
     await signingFillPage.drawSignature();
-    await signingFillPage.continueToReview();
-    await signingReviewPage.submit();
+    await signingFillPage.finish();
   },
 );
 

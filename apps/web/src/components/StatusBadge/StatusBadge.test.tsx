@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { axe } from 'vitest-axe';
 import { renderWithTheme } from '../../test/renderWithTheme';
-import { StatusBadge, STATUS_BADGE_MAP } from './StatusBadge';
+import { ENVELOPE_BADGE_MAP, StatusBadge, STATUS_BADGE_MAP } from './StatusBadge';
+import type { EnvelopeBadgeStatus } from './StatusBadge.types';
 import type { SignerStatus } from '../../types/sealdTypes';
 
 const pairs: ReadonlyArray<readonly [SignerStatus, string]> = [
@@ -34,5 +35,26 @@ describe('StatusBadge', () => {
       'draft',
       'expired',
     ]);
+  });
+
+  it.each<readonly [EnvelopeBadgeStatus, string]>([
+    ['you', 'Your turn'],
+    ['others', 'Waiting'],
+    ['sealing', 'Sealing'],
+    ['sealed', 'Sealed'],
+    ['declined', 'Declined'],
+    ['expired', 'Expired'],
+    ['canceled', 'Canceled'],
+    ['draft', 'Draft'],
+  ])('maps envelope status %s → %s with an icon', (status, label) => {
+    const { getByText, container } = renderWithTheme(<StatusBadge status={status} />);
+    expect(getByText(label)).toBeInTheDocument();
+    expect(container.querySelector('[data-part="icon"] svg')).not.toBeNull();
+    expect(ENVELOPE_BADGE_MAP[status].label).toBe(label);
+  });
+
+  it('accepts a label override', () => {
+    const { getByText } = renderWithTheme(<StatusBadge status="others" label="Waiting on Maya" />);
+    expect(getByText('Waiting on Maya')).toBeInTheDocument();
   });
 });

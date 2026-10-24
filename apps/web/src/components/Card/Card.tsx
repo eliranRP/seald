@@ -4,13 +4,15 @@ import type { CardProps } from './Card.types';
 import { CardRoot } from './Card.styles';
 
 export const Card = forwardRef<HTMLElement, CardProps>((props, ref) => {
-  const { elevated = false, padding = 6, children, ...rest } = props;
+  const { elevated = false, padding = 6, interactive = false, children, ...rest } = props;
   const isLabelled = Boolean(rest['aria-label'] || rest['aria-labelledby']);
   const tag: 'section' | 'div' = isLabelled ? 'section' : 'div';
   return (
     <CardRoot
       $elevated={elevated}
       $padding={padding}
+      $interactive={interactive}
+      data-interactive={interactive || undefined}
       {...rest}
       as={tag}
       ref={ref as Ref<HTMLDivElement>}

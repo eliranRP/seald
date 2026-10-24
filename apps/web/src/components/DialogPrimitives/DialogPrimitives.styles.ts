@@ -1,4 +1,5 @@
 import styled from 'styled-components';
+import { fadeIn, pop } from '@/styles/motion';
 
 /**
  * Shared modal backdrop — full-screen overlay with centered flex layout.
@@ -15,6 +16,7 @@ export const DialogBackdrop = styled.div`
   align-items: center;
   justify-content: center;
   padding: ${({ theme }) => theme.space[5]};
+  ${fadeIn}
 `;
 
 /**
@@ -32,6 +34,9 @@ export const DialogCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${({ theme }) => theme.space[4]};
+  max-height: 88vh;
+  overflow: auto;
+  ${pop}
 `;
 
 /**
@@ -62,4 +67,38 @@ export const DialogFooter = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: ${({ theme }) => theme.space[2]};
+`;
+
+/**
+ * Sectioned modal parts (canvas `.modal-head` / `.modal-body` /
+ * `.modal-foot`) for dialogs with a scrolling body. Use on a DialogCard
+ * with `padding: 0; gap: 0` (see `DialogSectionedCard`).
+ */
+export const DialogSectionedCard = styled(DialogCard)`
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+`;
+
+export const DialogHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: ${({ theme }) => theme.space[3]};
+  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[6]}`};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
+`;
+
+export const DialogBody = styled.div`
+  flex: 1;
+  min-height: 0;
+  padding: ${({ theme }) => theme.space[6]};
+  overflow: auto;
+`;
+
+export const DialogFoot = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: ${({ theme }) => theme.space[2]};
+  padding: ${({ theme }) => `${theme.space[4]} ${theme.space[6]}`};
+  border-top: 1px solid ${({ theme }) => theme.color.border[1]};
 `;

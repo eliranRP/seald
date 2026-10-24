@@ -3,6 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderSigningRoute } from '../../test/renderSigningRoute';
 import { MOCK_ENVELOPE_ID, createSigningApiMock } from '../../test/signingApiMock';
+import { readLinkHints } from '../../features/signing';
 
 vi.mock('../../lib/api/signApiClient', () => createSigningApiMock());
 
@@ -17,6 +18,7 @@ const TOKEN = 'a'.repeat(43);
 
 beforeEach(() => {
   post.mockReset();
+  window.sessionStorage.clear();
   // The page caches startSession promises in a module-level Map to dedupe
   // StrictMode double-invocation. Drain it between tests so each case
   // observes its own mockResolvedValueOnce / mockRejectedValueOnce.
@@ -35,16 +37,25 @@ function renderEntry(initialEntry: string) {
   });
 }
 
+function pathname(): string {
+  // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
+  return screen.getByTestId('__pathname__').textContent ?? '';
+}
+
+function refusal(status: number, message: string, extra: Record<string, unknown> = {}): Error {
+  return Object.assign(new Error(message), { status, ...extra });
+}
+
 describe('SigningEntryPage', () => {
-  it('renders the invalid-link state when ?t is missing', async () => {
+  it('sends a link without ?t to the invalid screen and never calls the API', async () => {
     renderEntry(`/sign/${MOCK_ENVELOPE_ID}`);
-    expect(
-      await screen.findByRole('heading', { name: /signing link is invalid/i }),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(pathname()).toBe(`/sign/${MOCK_ENVELOPE_ID}/link/invalid`);
+    });
     expect(post).not.toHaveBeenCalled();
   });
 
-  it('exchanges ?t= and navigates to /prep when tc not yet accepted', async () => {
+  it('exchanges ?t= and opens the document (fill) as a fresh link', async () => {
     post.mockResolvedValueOnce({
       data: {
         envelope_id: MOCK_ENVELOPE_ID,
@@ -67,89 +78,61 @@ describe('SigningEntryPage', () => {
       );
     });
     await waitFor(() => {
-      // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
-      expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}/prep`);
+      expect(pathname()).toBe(`/sign/${MOCK_ENVELOPE_ID}/fill`);
     });
   });
 
-  it('navigates straight to /fill when tc already accepted', async () => {
-    post.mockResolvedValueOnce({
-      data: {
-        envelope_id: MOCK_ENVELOPE_ID,
-        signer_id: 's1',
-        requires_tc_accept: false,
-      },
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {},
+  it('shows "Opening your document" while the exchange runs', async () => {
+    post.mockReturnValueOnce(new Promise(() => {}));
+    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+    expect(await screen.findByRole('heading', { name: /opening your document/i })).toBeVisible();
+  });
+
+  describe('link states', () => {
+    const cases: ReadonlyArray<readonly [string, Error, string]> = [
+      ['already_signed', refusal(409, 'already_signed', { reason: 'already_signed' }), 'signed'],
+      ['declined', refusal(409, 'already_declined', { reason: 'declined' }), 'declined'],
+      ['expired', refusal(410, 'envelope_terminal', { reason: 'expired' }), 'expired'],
+      ['canceled', refusal(410, 'envelope_terminal', { reason: 'canceled' }), 'withdrawn'],
+      ['not_your_turn', refusal(409, 'not_your_turn', { reason: 'not_your_turn' }), 'notyet'],
+      [
+        'bare 409 not_your_turn code',
+        refusal(409, 'Conflict', { code: 'not_your_turn' }),
+        'notyet',
+      ],
+      ['401', refusal(401, 'invalid_token'), 'invalid'],
+      ['400', refusal(400, 'token_malformed'), 'invalid'],
+      ['404', refusal(404, 'envelope_not_found'), 'invalid'],
+      ['410 without a reason', refusal(410, 'envelope_terminal'), 'invalid'],
+    ];
+
+    it.each(cases)('%s goes to the %s screen', async (_name, err, screenKey) => {
+      post.mockRejectedValueOnce(err);
+      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+      await waitFor(() => {
+        expect(pathname()).toBe(`/sign/${MOCK_ENVELOPE_ID}/link/${screenKey}`);
+      });
     });
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    await waitFor(() => {
-      expect(screen.getByTestId('__pathname__').textContent).toBe(`/sign/${MOCK_ENVELOPE_ID}/fill`);
+
+    it('keeps the sender, the turn and the token for the screen, and scrubs ?t= from the URL', async () => {
+      post.mockRejectedValueOnce(
+        refusal(409, 'not_your_turn', {
+          reason: 'not_your_turn',
+          waiting_on: 'Alex',
+          sender_name: 'Eliran Azulay',
+        }),
+      );
+      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
+      await waitFor(() => {
+        expect(pathname()).toBe(`/sign/${MOCK_ENVELOPE_ID}/link/notyet`);
+      });
+      expect(readLinkHints(MOCK_ENVELOPE_ID)).toEqual({
+        token: TOKEN,
+        sender_name: 'Eliran Azulay',
+        waiting_on: 'Alex',
+      });
+      expect(window.location.search).not.toContain('t=');
     });
-  });
-
-  it('maps 401 to the burned-link state', async () => {
-    const err = Object.assign(new Error('invalid_token'), { status: 401 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
-  });
-
-  it('maps 410 to the burned-link state', async () => {
-    const err = Object.assign(new Error('token_used'), { status: 410 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
-  });
-
-  // 409 covers the API's `ConflictException('already_signed')` and
-  // `already_declined` paths from `assertStillSignable`. Without this
-  // mapping the user sees "Something went wrong" — which was the bug
-  // reported on a re-clicked signing link.
-  it('maps 409 already_signed to the burned-link state', async () => {
-    const err = Object.assign(new Error('already_signed'), { status: 409 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
-  });
-
-  it('maps 409 already_declined to the burned-link state', async () => {
-    const err = Object.assign(new Error('already_declined'), { status: 409 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(await screen.findByRole('heading', { name: /already been used/i })).toBeInTheDocument();
-  });
-
-  // WP-06: a signer in a later step opens the link early. Friendly wait
-  // page, not the "already used" copy.
-  it('maps 409 not_your_turn to the not-your-turn page', async () => {
-    const err = Object.assign(new Error('not_your_turn'), { status: 409 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(
-      await screen.findByRole('heading', { name: /not your turn to sign yet/i }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /already been used/i })).not.toBeInTheDocument();
-  });
-
-  it('maps 404 to the not-found state', async () => {
-    const err = Object.assign(new Error('envelope_not_found'), { status: 404 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(
-      await screen.findByRole('heading', { name: /couldn't find this signing request/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('maps 400 malformed-token to the invalid state', async () => {
-    const err = Object.assign(new Error('token_malformed'), { status: 400 });
-    post.mockRejectedValueOnce(err);
-    renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-    expect(
-      await screen.findByRole('heading', { name: /signing link is invalid/i }),
-    ).toBeInTheDocument();
   });
 
   it('maps 429 to the rate-limit state', async () => {
@@ -204,8 +187,8 @@ describe('SigningEntryPage', () => {
     expect(status).toHaveAttribute('aria-live', 'polite');
   });
 
-  it('terminal error card carries role="alert"', async () => {
-    const err = Object.assign(new Error('not_found'), { status: 404 });
+  it('the retry copy carries role="alert"', async () => {
+    const err = Object.assign(new Error('boom'), { status: 500 });
     post.mockRejectedValueOnce(err);
     renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
     expect(await screen.findByRole('alert')).toBeInTheDocument();
@@ -214,7 +197,7 @@ describe('SigningEntryPage', () => {
   // Item 4 — the mailto: link must carry a subject prefilled with the
   // envelope id so support gets context.
   it('mailto: link encodes the envelope id in the subject', async () => {
-    const err = Object.assign(new Error('not_found'), { status: 404 });
+    const err = Object.assign(new Error('boom'), { status: 500 });
     post.mockRejectedValueOnce(err);
     renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
     const link = await screen.findByRole('link', { name: /contact support/i });
@@ -256,7 +239,7 @@ describe('SigningEntryPage', () => {
       config: {},
     });
 
-    it('shows the code screen instead of a session, then continues to /prep after a correct code', async () => {
+    it('shows the code screen instead of a session, then continues to the document after a correct code', async () => {
       post
         .mockResolvedValueOnce(
           ok({
@@ -302,7 +285,7 @@ describe('SigningEntryPage', () => {
       await waitFor(() => {
         // no semantic role: __pathname__ is a test-only sentinel probe from renderSigningRoute (rule 4.6 escape hatch)
         expect(screen.getByTestId('__pathname__').textContent).toBe(
-          `/sign/${MOCK_ENVELOPE_ID}/prep`,
+          `/sign/${MOCK_ENVELOPE_ID}/fill`,
         );
       });
     });
@@ -341,16 +324,6 @@ describe('SigningEntryPage', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
       expect(await screen.findByRole('alert')).toHaveTextContent(/not right/i);
       expect(screen.getByRole('heading', { name: /enter your emailed code/i })).toBeInTheDocument();
-    });
-
-    it('shows the not-your-turn page for the API body { error: not_your_turn }', async () => {
-      post.mockRejectedValueOnce(
-        Object.assign(new Error('Conflict'), { status: 409, code: 'not_your_turn' }),
-      );
-      renderEntry(`/sign/${MOCK_ENVELOPE_ID}?t=${TOKEN}`);
-      expect(
-        await screen.findByRole('heading', { name: /not your turn to sign yet/i }),
-      ).toBeInTheDocument();
     });
   });
 });

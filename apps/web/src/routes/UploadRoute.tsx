@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import styled from 'styled-components';
 import { isFeatureEnabled } from 'shared';
 import { UploadPage } from '../pages/UploadPage';
-import { SignersStepCard } from '../components/SignersStepCard';
-import type { SignersStepSigner } from '../components/SignersStepCard';
+import { FlowHeader } from '../components/FlowHeader';
 import type { DraftDocumentPart } from '../features/documentEditor/documents';
 import type { AddSignerContact } from '../components/AddSignerDropdown/AddSignerDropdown.types';
 import { TemplatePickerDialog } from '../components/TemplatePickerDialog';
 import { DrivePicker } from '../components/drive-picker';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
-import { seald } from '@/styles/theme';
-import { pickAvailableColor } from '../features/signers/pickAvailableColor';
+import { apiClient } from '../lib/api/apiClient';
+import { readIsMobileViewport } from '../hooks/useIsMobileViewport';
 import { usePdfDocument } from '../lib/pdf';
 import { ConversionFailedDialog, ImportOverlay, useDriveImport } from '../features/gdriveImport';
 import type { ImportPhase } from '../features/gdriveImport';
@@ -31,56 +31,66 @@ import {
 } from '../features/templates';
 import { listTemplates } from '../features/templates/templatesApi';
 import { buildDraftParts } from '../features/documentEditor/documents';
+import {
+  ConvertUploadError,
+  convertUploadToPdf,
+  isWordFile,
+} from '../features/documentEditor/upload/convertUpload';
+import { makeMeSigner } from '../features/documentEditor/upload/meSigner';
+import { TO_QUERY_PARAM, recipientFromQuery } from '../features/contacts/recipientFromQuery';
 
 const TEMPLATE_QUERY_PARAM = 'template';
+const GDRIVE_RETURN_PARAM = 'gdrive_connected';
+const RECENT_TEMPLATE_COUNT = 3;
 
-/**
- * Route wrapper around `UploadPage` that gates document creation on the
- * "add signers" dialog — the user must pick at least one signer before the
- * new document is created and routed to the editor.
- *
- * If the URL carries `?template=<id>` (set by `/templates/:id/use`'s
- * "Continue with this template" CTA), the route looks up the template,
- * shows a "Using template: <title>" banner, and after the uploaded PDF is
- * parsed projects the template's field layout onto the new document via
- * `resolveTemplateFields`. The pre-populated fields are written into the
- * draft so the editor renders them immediately. "Clear template" strips
- * the query arg and resets the pending field state.
- */
+const Page = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+`;
+
+const UPLOAD_STEPS = [
+  { label: 'Upload', state: 'active' },
+  { label: 'Prepare', state: 'todo' },
+  { label: 'Send', state: 'todo' },
+] as const;
+
 /**
  * Soft handshake from the templates wizard. When the user arrives via
  * `/templates/:id/use` Step 2 → Step 3, the wizard forwards the picked
  * PDF + signers via `location.state` so the editor can skip its own
- * upload screen and the signer dialog opens already populated. Each
- * field is optional — direct visits to `/document/new` from the nav
- * have no state and the route falls back to its standalone behavior.
+ * upload screen and open already populated. Each field is optional: direct
+ * visits to `/document/new` from the nav have no state.
  */
 interface UploadRouteHandoffState {
   readonly pendingFile?: File;
   readonly templateSigners?: ReadonlyArray<AddSignerContact>;
-  // Optional renamed title from the wizard. `string | undefined` (NOT
-  // `string | null`) so it follows the project's exactOptionalPropertyTypes
-  // convention — absent vs. present, no third "explicit null" form.
+  // `string | undefined` (NOT `string | null`) so it follows the project's
+  // exactOptionalPropertyTypes convention.
   readonly templateRename?: string;
 }
 
+/**
+ * Route wrapper around `UploadPage`. Picking a file (PDF or Word, from the
+ * computer, a template or Drive) analyses it and opens the editor with the
+ * sender already on the signer list: signers are chosen in the editor, not
+ * before it.
+ *
+ * Word files are converted to PDF on the server first. If the URL carries
+ * `?template=<id>` (set by `/templates/:id/use`), the template's field
+ * layout is projected onto the new document once the PDF is parsed.
+ */
 export function UploadRoute() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { contacts, createDocument, addContact, updateDocument } = useAppState();
+  const { createDocument, updateDocument, contacts } = useAppState();
   const { user: authUser } = useAuth();
-  const isGuest = authUser === null;
 
-  // Capture the handoff payload exactly once on mount. We can't keep
-  // re-deriving from `location.state`: the first useEffect below clears
-  // it (so the browser doesn't try to re-apply a stale File on
-  // back-then-forward), and any read after that returns null. If we
-  // derived `templateSignersFromHandoff` from `location.state` directly,
-  // it would flip true → false the moment the clear-state effect ran,
-  // which would un-suppress the auto-open dialog and re-show the
-  // signers picker right after the wizard already collected them
-  // (the "signers display more than once" bug).
+  // Capture the handoff payload exactly once on mount. The effect below
+  // clears `location.state` so the browser does not re-apply a stale File on
+  // back-then-forward; any later read would return null.
   const [initialHandoff] = useState<UploadRouteHandoffState | null>(
     () => (location.state ?? null) as UploadRouteHandoffState | null,
   );
@@ -95,35 +105,23 @@ export function UploadRoute() {
     // `location` updates or it would loop.
   }, []);
 
-  // Multi-document envelopes (WP-04, flag `multiDocumentEnvelopes`). With the
-  // flag off the dropzone takes one file and `extraFiles` is always empty.
+  // Multi-document envelopes (flag `multiDocumentEnvelopes`). With the flag
+  // off the dropzone takes one file and `extraFiles` is always empty.
   const multiDoc = isFeatureEnabled('multiDocumentEnvelopes');
   const [pdfFile, setPdfFile] = useState<File | null>(initialHandoff?.pendingFile ?? null);
   const [extraFiles, setExtraFiles] = useState<ReadonlyArray<File>>([]);
-  const [selectedSigners, setSelectedSigners] = useState<ReadonlyArray<AddSignerContact>>(
-    () => initialHandoff?.templateSigners ?? [],
-  );
-  const { numPages } = usePdfDocument(pdfFile);
+  const [converting, setConverting] = useState<File | null>(null);
+  const [conversionFailed, setConversionFailed] = useState(false);
+  const convertAbort = useRef<AbortController | null>(null);
+  const { numPages, error: pdfError } = usePdfDocument(pdfFile);
 
-  /**
-   * Live-subscribed list of templates. Drives the "Start from a
-   * template" CTA in the dropzone — hidden when empty (per design)
-   * and populated by `getTemplates()` once the seed/loader resolves.
-   * The subscription stays mounted so a save in another tab/page
-   * (e.g. "Save as template" on a finished envelope) shows up here
-   * without a refresh.
-   */
+  /** Live-subscribed templates: drive the Template tile and recent chips. */
   const [templates, setTemplatesState] = useState<ReadonlyArray<TemplateSummary>>(getTemplates);
   useEffect(() => {
     return subscribeToTemplates(() => setTemplatesState(getTemplates()));
   }, []);
-  // Hydrate the in-memory templates store from the server on mount.
-  // Without this the "Start from a template" CTA stayed hidden for
-  // anyone who landed on `/document/new` first — the store only got
-  // populated as a side effect of visiting `/templates` (the only
-  // other page that calls `listTemplates`). Soft-fail like
-  // TemplatesListPage: guests + offline get the empty list and the
-  // CTA simply stays hidden.
+  // Hydrate the in-memory store from the server so the tile shows for
+  // anyone who lands here first. Soft-fail: guests and offline get none.
   useEffect(() => {
     const ac = new AbortController();
     listTemplates(ac.signal)
@@ -137,11 +135,7 @@ export function UploadRoute() {
   }, []);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  // Google Drive integration (WT-E). Hidden entirely when the feature
-  // flag is off — the route renders no Drive surfaces at all so the
-  // bundle still tree-shakes the modal/picker for users on the dark
-  // build. When on, we read the connected accounts to drive the
-  // disabled-vs-active CTA state on the source card.
+  // Google Drive integration. Hidden entirely when the feature flag is off.
   const gdriveOn = isFeatureEnabled('gdriveIntegration');
   const accountsQuery = useGDriveAccounts();
   const accounts = gdriveOn ? (accountsQuery.data ?? []) : [];
@@ -149,18 +143,37 @@ export function UploadRoute() {
   const connectDrive = useConnectGDrive();
   const reconnectDrive = useReconnectGDrive();
   const handleConnectDrive = useCallback((): void => {
+    if (readIsMobileViewport()) {
+      // iOS Safari blocks the OAuth popup: full-page redirect instead. The
+      // API sends the phone back through `/m/send/drive` to this screen.
+      apiClient
+        .get<{ url: string }>(
+          `/integrations/gdrive/oauth/url?return=${encodeURIComponent('/m/send/drive')}`,
+        )
+        .then((res) => {
+          window.location.href = res.data.url;
+        })
+        .catch(() => undefined);
+      return;
+    }
     connectDrive.mutate();
   }, [connectDrive]);
-  // Wired into <DrivePicker onReconnect>. Picker-credentials returns 401
-  // `token-expired` when the stored refresh token was revoked; without
-  // this handler the picker silently opens + closes (Bug — user sees
-  // the 401 in DevTools and nothing in the UI). With it, the OAuth
-  // popup opens with prompt=consent so Google mints a fresh refresh
-  // token; the user can retry the picker after authorizing.
+  // Picker-credentials returns 401 `token-expired` when the stored refresh
+  // token was revoked; the OAuth popup (prompt=consent) mints a fresh one.
   const handleReconnectDrive = useCallback((): void => {
     reconnectDrive.mutate();
   }, [reconnectDrive]);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  // Back from Google's consent on a phone (`/m/send/drive` forwards here):
+  // open the Drive picker once the new account has loaded, then drop the arg.
+  const returnedFromDrive = searchParams.get(GDRIVE_RETURN_PARAM) === '1';
+  useEffect(() => {
+    if (!returnedFromDrive || !gdriveOn || driveAccountId === null) return;
+    setDrivePickerOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete(GDRIVE_RETURN_PARAM);
+    setSearchParams(next, { replace: true });
+  }, [returnedFromDrive, gdriveOn, driveAccountId, searchParams, setSearchParams]);
   const [driveImportPhase, setDriveImportPhase] = useState<ImportPhase | null>(null);
   const [driveImportFileName, setDriveImportFileName] = useState('');
   const doneTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -172,19 +185,17 @@ export function UploadRoute() {
       doneTimerRef.current = setTimeout(() => {
         setDriveImportPhase(null);
         setPdfFile(file);
-        setSelectedSigners([]);
       }, 800);
     },
   });
 
-  // Clean up done timer on unmount.
   useEffect(() => {
     return () => {
       if (doneTimerRef.current) clearTimeout(doneTimerRef.current);
+      convertAbort.current?.abort();
     };
   }, []);
 
-  // Map driveImport.state to overlay phase.
   useEffect(() => {
     const { kind } = driveImport.state;
     if (kind === 'starting') {
@@ -198,16 +209,9 @@ export function UploadRoute() {
     // `idle` is handled by onReady above (with 800ms done animation).
   }, [driveImport.state]);
 
-  // The upload-page entry doesn't host its own "use this template"
-  // experience — it only gates document creation on a PDF + signers.
-  // Picking a template here therefore hands off to the canonical
-  // `/templates/:id/use` flow (same destination as the TemplatesListPage
-  // "Use" CTA), which handles "Continue with the saved example PDF" vs.
-  // "Upload a new one" + signer collection before routing back to
-  // `/document/new` with `?template=<id>` and (when applicable) the
-  // location-state handoff. Stamping `?template=` from the picker on
-  // `/document/new` would leave the user stuck behind the upload
-  // dropzone with no way forward.
+  // Picking a template hands off to the canonical `/templates/:id/use`
+  // flow (same destination as the Templates list "Use" CTA), which handles
+  // "saved example" vs. "upload a new one" before routing back here.
   const handlePickTemplate = useCallback(
     (picked: TemplateSummary): void => {
       setPickerOpen(false);
@@ -216,11 +220,6 @@ export function UploadRoute() {
     [navigate],
   );
 
-  // Resolve the template from the query arg (local lookup today;
-  // TODO(api): swap for `GET /templates/:id` once the templates service
-  // ships). `templateMissing` is true when a `?template=` arg is present
-  // but doesn't match any known id — we surface a warning banner so the
-  // sender knows the editor will start empty.
   const templateIdFromQuery = searchParams.get(TEMPLATE_QUERY_PARAM);
   const template: TemplateSummary | null = useMemo(() => {
     if (!templateIdFromQuery) return null;
@@ -228,130 +227,100 @@ export function UploadRoute() {
   }, [templateIdFromQuery]);
   const templateMissing = templateIdFromQuery !== null && template === null;
 
-  /**
-   * Once a templates-wizard handoff carries both signers AND a parsed
-   * file, we want to skip the picker entirely and go straight to the
-   * editor. Auto-confirm fires once numPages is known (or after a
-   * 3s timeout if PDF.js fails to parse). The previous incarnation of
-   * this hook also opened a popup-modal picker; that's gone now —
-   * the inline `SignersStepCard` below replaces it.
-   */
-  const handoffHasSigners = (initialHandoff?.templateSigners?.length ?? 0) > 0;
-
-  const handleFilesSelected = useCallback((files: ReadonlyArray<File>) => {
-    const [first, ...rest] = files;
-    if (!first) return;
-    setPdfFile(first);
-    setExtraFiles(rest);
-    setSelectedSigners([]);
-  }, []);
-
-  const handleFileSelected = useCallback((file: File) => {
-    setPdfFile(file);
+  const resetFiles = useCallback((): void => {
+    convertAbort.current?.abort();
+    convertAbort.current = null;
+    setPdfFile(null);
     setExtraFiles([]);
-    setSelectedSigners([]);
-    // The "Analyzing your document" loader plays automatically while
-    // the PDF parses (`pdfFile && numPages <= 0` branch in render).
-    // Once `numPages > 0`, the SignersStepCard takes over.
+    setConverting(null);
+    setConversionFailed(false);
   }, []);
 
-  const handleCreateContact = useCallback(
-    (name: string, email: string) => {
-      // Guest senders aren't authenticated, so the contacts API rejects
-      // POST /contacts with 401. The previous implementation swallowed
-      // that rejection silently, leaving the picker counter stuck at
-      // "0 selected" with no signer ever added — the entire guest send
-      // flow was unreachable. Mirror UseTemplatePage.createGuestSigner:
-      // synthesize a local-only signer (no API round-trip) so the user
-      // can keep moving. The signer is carried in `selectedSigners` and
-      // pushed to the server later as part of the envelope POST when the
-      // sender clicks "Send to sign".
-      const synthLocalSigner = (): AddSignerContact => {
-        // Pick the lowest-index palette color not already in use by the
-        // current envelope roster. `prev.length % palette.length` reused
-        // colors after a mid-list signer was removed; this walks the
-        // palette and picks the first free entry instead.
-        const used = [...contacts.map((c) => c.color), ...selectedSigners.map((s) => s.color)];
-        return {
-          id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-          name,
-          email,
-          color: pickAvailableColor(seald.color.signer, used),
-        };
-      };
+  const startConversion = useCallback((word: File): void => {
+    convertAbort.current?.abort();
+    const ac = new AbortController();
+    convertAbort.current = ac;
+    setConverting(word);
+    setConversionFailed(false);
+    convertUploadToPdf(word, ac.signal)
+      .then((pdf) => {
+        if (ac.signal.aborted) return;
+        setConverting(null);
+        setPdfFile(pdf);
+      })
+      .catch((err: unknown) => {
+        if (ac.signal.aborted) return;
+        if (err instanceof ConvertUploadError || err instanceof Error) {
+          setConversionFailed(true);
+        }
+      });
+  }, []);
 
-      if (isGuest) {
-        setSelectedSigners((prev) => {
-          if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) return prev;
-          return [...prev, synthLocalSigner()];
-        });
+  const handleFileSelected = useCallback(
+    (file: File) => {
+      setExtraFiles([]);
+      if (isWordFile(file)) {
+        setPdfFile(null);
+        startConversion(file);
         return;
       }
-
-      addContact(name, email)
-        .then((created) => {
-          setSelectedSigners((prev) => [...prev, created]);
-        })
-        .catch(() => {
-          // Authenticated user but the contacts service is unreachable —
-          // fall back to a local-only signer so the sender still finishes
-          // the envelope. The contact won't be persisted to the address
-          // book, but the envelope POST will still carry the signer.
-          setSelectedSigners((prev) => {
-            if (prev.some((s) => s.email.toLowerCase() === email.toLowerCase())) return prev;
-            return [...prev, synthLocalSigner()];
-          });
-        });
+      setConverting(null);
+      setPdfFile(file);
     },
-    [addContact, contacts, isGuest, selectedSigners],
+    [startConversion],
   );
 
-  const handleRemoveSelected = useCallback((id: string) => {
-    setSelectedSigners((prev) => prev.filter((s) => s.id !== id));
-  }, []);
+  const handleFilesSelected = useCallback(
+    (files: ReadonlyArray<File>) => {
+      const [first, ...rest] = files;
+      if (!first) return;
+      handleFileSelected(first);
+      setExtraFiles(rest);
+    },
+    [handleFileSelected],
+  );
 
   const confirmWith = useCallback(
     (extraParts: ReadonlyArray<DraftDocumentPart>) => {
-      if (!pdfFile || selectedSigners.length === 0) return;
+      if (!pdfFile) return;
       const resolvedPages = Math.max(1, numPages);
       const id = createDocument(pdfFile, resolvedPages);
 
-      // Pre-populate fields when the sender came from a template. Pages
-      // that don't exist on the new PDF (e.g. layout asks for `page: 5`
-      // on a 3-page upload) are filtered out by `resolveTemplateFields`;
-      // we surface a console warning so the dropoff is observable.
+      // Signers: the wizard's roster when it handed one over, otherwise just
+      // the sender ("Me"); everyone else is added in the editor. Guests have
+      // no identity yet, so they start with an empty list.
+      const handoffSigners = initialHandoff?.templateSigners ?? [];
+      const hasIdentity = authUser !== null && authUser.email.length > 0;
+      let signers: ReadonlyArray<AddSignerContact> = [];
+      if (handoffSigners.length > 0) signers = handoffSigners;
+      else if (authUser !== null && hasIdentity) signers = [makeMeSigner(authUser)];
+
+      // `?to=<email>` (Contacts → Send): the person is already on the list.
+      const toSigner = recipientFromQuery(searchParams.get(TO_QUERY_PARAM), contacts, signers);
+      if (toSigner) signers = [...signers, toSigner];
+
+      // Pre-populate fields when the sender came from a template. Pages that
+      // don't exist on the new PDF are filtered out by `resolveTemplateFields`.
       let pendingFields: ReturnType<typeof rebindFieldsToSigners> = [];
       if (template) {
-        // Pass `lastSigners` so the resolver backfills `signerRoleId`
-        // for legacy templates — keeps the rebind stable when the user
-        // mid-list-removes a signer in the wizard.
         const resolved = resolveTemplateFields(
           template.fields,
           resolvedPages,
           template.lastSigners,
         );
-        pendingFields = rebindFieldsToSigners(resolved, selectedSigners);
+        pendingFields = rebindFieldsToSigners(resolved, signers);
         if (resolvedPages < template.pages) {
-          // Use console.warn so the SPA's debug build flags the gap. The
-          // banner already informs the user; this is for engineering.
           console.warn(
             `[templates] Uploaded PDF has ${resolvedPages} pages but template "${template.name}" was authored on ${template.pages}; some fields may have been skipped.`,
           );
         }
-        // TODO(api): POST /templates/:id/use — bumps `uses_count` server-side
-        // once the templates service lands. Today we just log; the local
-        // `TEMPLATES` array is read-only seed data.
+        // TODO(api): POST /templates/:id/use bumps `uses_count` server-side.
         console.info(`[templates] uses_count++ for ${template.id}`);
       }
 
-      // `fromTemplateId` lets the editor render the contextual banner
-      // and trigger the SendConfirmDialog when the user later sends.
-      // `fromTemplateFreshUpload` flips when the user came in via the
-      // wizard's "Upload a new one" branch (the saved layout adapted
-      // to a different doc, vs. landing on the saved example).
       const cameFromUpload = initialHandoff?.pendingFile != null;
       updateDocument(id, {
-        signers: selectedSigners.map((s) => ({
+        signers: signers.map((s) => ({
           id: s.id,
           name: s.name,
           email: s.email,
@@ -364,17 +333,19 @@ export function UploadRoute() {
       });
       setPdfFile(null);
       setExtraFiles([]);
-      setSelectedSigners([]);
       navigate(`/document/${id}`);
     },
     [
       pdfFile,
-      selectedSigners,
+      numPages,
       createDocument,
       updateDocument,
-      numPages,
       navigate,
       template,
+      authUser,
+      contacts,
+      searchParams,
+      initialHandoff?.templateSigners,
       initialHandoff?.pendingFile,
     ],
   );
@@ -396,124 +367,85 @@ export function UploadRoute() {
       .catch(() => confirmWith([]));
   }, [confirmWith, extraFiles, multiDoc, pdfFile]);
 
-  /**
-   * Back from the SignersStepCard — drop the picked file + signers and
-   * return to the upload dropzone. Called from the card's "Back" link
-   * footer; previously this closed a modal dialog.
-   */
-  const handleCancelDialog = useCallback(() => {
-    setPdfFile(null);
-    setExtraFiles([]);
-    setSelectedSigners([]);
-  }, []);
-
-  // When the templates wizard handed off both signers AND a parsed PDF,
-  // skip the upload page + dialog entirely and drop the user straight
-  // into the editor. The wizard already collected everything we need,
-  // so the upload page would just be a flash of the analyzing loader
-  // followed by an awkward "Where did my signers go?" if we let the
-  // dialog gate this. We wait for `numPages > 0` because
-  // `createDocument` needs the resolved page count to size the editor;
-  // until then the user sees the analyzing spinner like a normal upload.
-  // Use a ref guard so we only fire once even if React re-runs the
-  // effect (e.g. handleConfirm bumping local state in a way that
-  // re-triggers it before navigation lands).
-  const handoffAutoConfirmedRef = useRef(false);
+  // Once the PDF is parsed there is nothing left to ask: open the editor.
+  // The ref guard fires once per picked file even if the effect re-runs.
+  const confirmedFileRef = useRef<File | null>(null);
   useEffect(() => {
-    if (handoffAutoConfirmedRef.current) return;
-    if (!handoffHasSigners) return;
-    if (!pdfFile) return;
-    if (selectedSigners.length === 0) return;
-    if (numPages <= 0) return;
-    handoffAutoConfirmedRef.current = true;
+    if (!pdfFile || numPages <= 0) return;
+    if (confirmedFileRef.current === pdfFile) return;
+    confirmedFileRef.current = pdfFile;
     handleConfirm();
-  }, [handoffHasSigners, pdfFile, selectedSigners, numPages, handleConfirm]);
+  }, [pdfFile, numPages, handleConfirm]);
+
+  // A PDF that cannot be parsed would spin forever: show the failure card.
+  const analysisFailed = pdfFile !== null && pdfError !== null;
 
   const handleClearTemplate = useCallback((): void => {
-    // Strip the `template` arg only — preserve any other query params the
-    // entry might one day carry. Also drop the in-progress file so the
-    // sender starts from a clean slate; otherwise the dialog would still
-    // be queued to open with no template-derived fields.
+    // Strip the `template` arg only; preserve any other query params.
     const next = new URLSearchParams(searchParams);
     next.delete(TEMPLATE_QUERY_PARAM);
     setSearchParams(next, { replace: true });
-    setPdfFile(null);
-    setExtraFiles([]);
-    setSelectedSigners([]);
-  }, [searchParams, setSearchParams]);
+    resetFiles();
+  }, [resetFiles, searchParams, setSearchParams]);
+
+  const handleRetryConversion = useCallback((): void => {
+    if (converting) startConversion(converting);
+    else resetFiles();
+  }, [converting, resetFiles, startConversion]);
 
   let bannerTitle: string | undefined;
   if (template) bannerTitle = template.name;
   else if (templateMissing) bannerTitle = 'Template not found — starting empty';
   const bannerTone: 'info' | 'warning' = templateMissing ? 'warning' : 'info';
 
+  const activeFile = converting ?? pdfFile;
+  let status: 'idle' | 'analyzing' | 'converting' = 'idle';
+  if (converting) status = 'converting';
+  else if (pdfFile) status = 'analyzing';
+  const recent = templates.slice(0, RECENT_TEMPLATE_COUNT).map((t) => ({
+    id: t.id,
+    name: t.name,
+    signers: t.lastSigners?.length,
+  }));
+
   return (
-    <>
-      {/*
-        Two-mode rendering: until the PDF is uploaded we show the
-        UploadPage's drop surface; once it's parsed we swap to the same
-        SignersStepCard the templates wizard uses. This unifies the
-        signer-picking surface across the regular sign flow and the
-        templates flow per operator feedback. The "Analyzing" loader
-        still gets a brief moment to play if numPages is still 0 by the
-        time the file lands.
-      */}
-      {!pdfFile || (pdfFile && numPages <= 0) ? (
-        <UploadPage
-          onFileSelected={handleFileSelected}
-          {...(multiDoc ? { multiple: true, onFilesSelected: handleFilesSelected } : {})}
-          status={pdfFile ? 'analyzing' : 'idle'}
-          {...(pdfFile ? { analyzingFileName: pdfFile.name } : {})}
-          {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
-          templateBannerTone={bannerTone}
-          {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
-          {...(templates.length > 0 ? { onPickTemplate: () => setPickerOpen(true) } : {})}
-          {...(gdriveOn && driveAccountId !== null
-            ? { onPickDrive: () => setDrivePickerOpen(true) }
-            : {})}
-          {...(gdriveOn && driveAccountId === null ? { onConnectDrive: handleConnectDrive } : {})}
-        />
-      ) : (
-        <SignersStepCard
-          mode="new"
-          // Envelope-flow copy — the signer flow at /document/new is
-          // sending a real envelope, not authoring a template, so the
-          // template-flavoured defaults baked into SignersStepCard
-          // ("Pick the people who will fill this template.") are
-          // overridden with envelope-appropriate language.
-          heading="Who needs to sign this?"
-          subtitle={
-            extraFiles.length > 0
-              ? `Pick the people who'll fill out and sign these ${String(extraFiles.length + 1)} documents.`
-              : "Pick the people who'll fill out and sign this document."
-          }
-          signers={selectedSigners.map(
-            (c): SignersStepSigner => ({
-              id: c.id,
-              contactId: c.id,
-              name: c.name,
-              email: c.email,
-              color: c.color,
-            }),
-          )}
-          contacts={contacts}
-          onPickContact={(contact) => {
-            // Toggle: clicking an already-selected contact removes it
-            // (matches the templates wizard's SignersStepCard semantics).
-            setSelectedSigners((prev) => {
-              const exists = prev.some((s) => s.id === contact.id);
-              return exists ? prev.filter((s) => s.id !== contact.id) : [...prev, contact];
-            });
-          }}
-          onCreateGuest={(name, email) => {
-            handleCreateContact(name, email);
-          }}
-          onRemoveSigner={(id) => handleRemoveSelected(id)}
-          onContinue={handleConfirm}
-          onBack={handleCancelDialog}
-          continueLabel="Continue to fields"
-        />
-      )}
+    <Page>
+      <FlowHeader
+        steps={UPLOAD_STEPS}
+        onClose={() => navigate('/documents')}
+        closeLabel="Back to documents"
+      />
+      <UploadPage
+        allowWord
+        showSources
+        onFileSelected={handleFileSelected}
+        {...(multiDoc ? { multiple: true, onFilesSelected: handleFilesSelected } : {})}
+        status={status}
+        {...(activeFile
+          ? { analyzingFileName: activeFile.name, analyzingFileSize: activeFile.size }
+          : {})}
+        {...(pdfFile && numPages > 0 ? { analyzedPages: numPages } : {})}
+        conversionFailed={conversionFailed || analysisFailed}
+        onCancelAnalysis={resetFiles}
+        onRetryConversion={handleRetryConversion}
+        {...(bannerTitle ? { templateBannerTitle: bannerTitle } : {})}
+        templateBannerTone={bannerTone}
+        {...(template || templateMissing ? { onClearTemplate: handleClearTemplate } : {})}
+        {...(templates.length > 0
+          ? {
+              onPickTemplate: () => setPickerOpen(true),
+              templateCount: templates.length,
+              recentTemplates: recent,
+              onPickRecentTemplate: (id: string) =>
+                navigate(`/templates/${encodeURIComponent(id)}/use`),
+            }
+          : {})}
+        onScan={() => navigate('/scan')}
+        {...(gdriveOn && driveAccountId !== null
+          ? { onPickDrive: () => setDrivePickerOpen(true) }
+          : {})}
+        {...(gdriveOn && driveAccountId === null ? { onConnectDrive: handleConnectDrive } : {})}
+      />
       <TemplatePickerDialog
         open={pickerOpen}
         templates={templates}
@@ -548,6 +480,6 @@ export function UploadRoute() {
         }}
         onClose={() => driveImport.reset()}
       />
-    </>
+    </Page>
   );
 }

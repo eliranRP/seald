@@ -1,8 +1,6 @@
 import {
   type CanActivate,
-  ConflictException,
   type ExecutionContext,
-  GoneException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -16,6 +14,7 @@ import {
   SignerSessionVerifyError,
 } from './signer-session.service';
 import { isSignersTurn } from './signing-order';
+import { notYourTurn, terminalGone } from './link-state';
 
 /**
  * Shape attached to `req` after successful authentication. Signer endpoints
@@ -82,14 +81,14 @@ export class SignerSessionGuard implements CanActivate {
       throw new UnauthorizedException('invalid_signer_session');
     }
     if (envelope.status !== 'awaiting_others') {
-      throw new GoneException('envelope_terminal');
+      throw terminalGone(envelope, signer);
     }
     if (signer.signed_at !== null || signer.declined_at !== null) {
-      throw new GoneException('envelope_terminal');
+      throw terminalGone(envelope, signer);
     }
     // WP-05: a later sequential step cannot act before its turn.
     if (!isSignersTurn(envelope.delivery_mode, envelope.signers, signer.id)) {
-      throw new ConflictException('not_your_turn');
+      throw notYourTurn(envelope);
     }
 
     req.signerSession = { envelope, signer };

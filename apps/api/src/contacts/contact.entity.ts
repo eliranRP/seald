@@ -12,3 +12,13 @@ export interface Contact {
   readonly created_at: string;
   readonly updated_at: string;
 }
+
+/**
+ * A contact plus what the Contacts page shows beside it: how many sent
+ * envelopes list this email as a signer, and when the latest one went out.
+ * Computed on read from `envelope_signers`; nothing is stored on the contact.
+ */
+export interface ContactWithStats extends Contact {
+  readonly docs_count: number;
+  readonly last_sent_at: string | null;
+}

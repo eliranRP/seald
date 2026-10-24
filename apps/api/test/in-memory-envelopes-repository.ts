@@ -20,6 +20,7 @@ import type {
   StepInvite,
   SubmitResult,
   UpdateDraftMetadataPatch,
+  UnsendOutcome,
 } from '../src/envelopes/envelopes.repository';
 import type { DeliveryMode } from 'shared';
 import { initialInvitees, nextStepInvitees, stepOf } from '../src/signing/signing-order';
@@ -145,6 +146,10 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
 
   async findByShortCode(short_code: string): Promise<Envelope | null> {
     return [...this.envelopes.values()].find((e) => e.short_code === short_code) ?? null;
+  }
+
+  async findShortCodeBySealedSha256(sha256: string): Promise<string | null> {
+    return [...this.envelopes.values()].find((e) => e.sealed_sha256 === sha256)?.short_code ?? null;
   }
 
   // e2e fixtures persist access_token_hash in a side map since the domain
@@ -505,6 +510,9 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
       status: 'awaiting',
       viewed_at: null,
       tc_accepted_at: null,
+      ...(patch.email !== undefined && patch.email.toLowerCase() !== before.email.toLowerCase()
+        ? { delivery_status: 'delivered' as const }
+        : {}),
     };
     this.envelopes.set(envelope_id, {
       ...env,
@@ -513,6 +521,31 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     this.signerTokenHashes.delete(signer_id);
     this.reminderClock.set(signer_id, { invitedAt: now.toISOString(), lastRemindedAt: null });
     return { previous: { name: before.name, email: before.email }, signer };
+  }
+
+  async markSignerBounced(
+    signer_id: string,
+    _reason: string | null,
+    _now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null> {
+    for (const env of this.envelopes.values()) {
+      const before = env.signers.find((s) => s.id === signer_id);
+      if (!before) continue;
+      if (
+        before.signed_at !== null ||
+        before.declined_at !== null ||
+        before.delivery_status === 'bounced'
+      ) {
+        return null;
+      }
+      const signer: EnvelopeSigner = { ...before, status: 'bounced', delivery_status: 'bounced' };
+      this.envelopes.set(env.id, {
+        ...env,
+        signers: env.signers.map((s) => (s.id === signer_id ? signer : s)),
+      });
+      return { envelope_id: env.id, signer };
+    }
+    return null;
   }
 
   async updateOpenExpiry(
@@ -785,6 +818,41 @@ export class InMemoryEnvelopesRepository extends EnvelopesRepository {
     const next: Envelope = { ...env, status: 'canceled', updated_at: now };
     this.envelopes.set(envelope_id, next);
     return { envelope: next, notifiedSignerIds, alreadySignedSignerIds };
+  }
+
+  async unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' };
+    if (env.status !== 'awaiting_others' || env.sent_at === null) {
+      return { ok: false, reason: 'not_sent' };
+    }
+    if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
+      return { ok: false, reason: 'window_expired' };
+    }
+    if (
+      env.signers.some(
+        (s) => s.viewed_at !== null || s.signed_at !== null || s.declined_at !== null,
+      )
+    ) {
+      return { ok: false, reason: 'signer_engaged' };
+    }
+    const next: Envelope = {
+      ...env,
+      status: 'draft',
+      sent_at: null,
+      updated_at: now.toISOString(),
+    };
+    for (const s of env.signers) {
+      this.signerTokenHashes.delete(s.id);
+      this.invitedAt.delete(s.id);
+    }
+    this.envelopes.set(envelope_id, next);
+    return { ok: true, envelope: next };
   }
 
   async listReminderCandidates(

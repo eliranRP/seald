@@ -71,7 +71,15 @@ export class SeededUserFixture {
         confirmed_at: new Date(ISSUED_AT * 1000).toISOString(),
         last_sign_in_at: new Date(ISSUED_AT * 1000).toISOString(),
         app_metadata: { provider: 'email', providers: ['email'] },
-        user_metadata: { full_name: user.fullName, name: user.fullName },
+        // A seeded account with a name has already been through /welcome; an
+        // empty `fullName` seeds a brand-new account that still owes it.
+        user_metadata: user.fullName
+          ? {
+              full_name: user.fullName,
+              name: user.fullName,
+              terms_accepted_at: new Date(ISSUED_AT * 1000).toISOString(),
+            }
+          : {},
         identities: [],
         created_at: new Date(ISSUED_AT * 1000).toISOString(),
         updated_at: new Date(ISSUED_AT * 1000).toISOString(),

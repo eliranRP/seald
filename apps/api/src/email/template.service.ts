@@ -42,7 +42,11 @@ export type EmailTemplateKind =
   | 'bulk_complete'
   | 'automation_copy'
   | 'automation_disabled'
-  | 'signer_corrected';
+  | 'signer_corrected'
+  | 'signer_replaced'
+  | 'new_link_requested'
+  | 'your_turn'
+  | 'bounced_to_sender';
 
 interface CompiledTemplate {
   readonly html: string;
@@ -121,12 +125,14 @@ export class TemplateService implements OnModuleInit {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="format-detection" content="telephone=no,email=no,address=no,date=no">
 <meta name="x-apple-disable-message-reformatting">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${title}</title>
 <style>
 ${this.sharedCss}
 </style>
 </head>
-<body>
+<body id="body" style="margin:0;padding:0;background:#f3f6fa;" bgcolor="#f3f6fa">
 ${fragment}
 </body>
 </html>`;
@@ -196,6 +202,10 @@ const TITLES: Record<string, string> = {
   automation_copy: 'Seald — Automation notice',
   automation_disabled: 'Seald — Automation turned off',
   signer_corrected: 'Seald — Recipient changed',
+  signer_replaced: 'Seald — You no longer need to sign',
+  new_link_requested: 'Seald — New link requested',
+  your_turn: 'Seald — Your turn to sign',
+  bounced_to_sender: 'Seald — Email bounced',
 };
 
 function prettyTitle(kind: string): string {
@@ -232,6 +242,31 @@ function isTrustedHtmlKey(key: string): boolean {
   return key.endsWith('_html');
 }
 
+/**
+ * Keys whose HTML value is an email address or the 13-character short code.
+ * Gmail and Apple Mail turn those into blue underlined links on their own, so
+ * a zero-width joiner (U+200D) goes after the `@` and in the middle of the
+ * code. It is invisible and breaks the detector's pattern. These keys are
+ * used only as text in the templates, never inside an `href`; the plain-text
+ * twin is not touched.
+ */
+const AUTO_LINK_EMAIL_KEYS = new Set([
+  'sender_email',
+  'signer_email',
+  'decliner_email',
+  'bounced_email',
+  'approver_email',
+]);
+const ZWJ = '\u200d';
+
+function shieldAutoLink(key: string, escaped: string): string {
+  if (key === 'short_code') {
+    return escaped.length > 6 ? `${escaped.slice(0, 6)}${ZWJ}${escaped.slice(6)}` : escaped;
+  }
+  if (AUTO_LINK_EMAIL_KEYS.has(key)) return escaped.replace(/@/g, `@${ZWJ}`);
+  return escaped;
+}
+
 function interpolate(
   source: string,
   vars: Readonly<Record<string, string | number>>,
@@ -247,7 +282,7 @@ function interpolate(
     }
     const stringified = typeof v === 'number' ? String(v) : v;
     if (escapeForHtml && !isTrustedHtmlKey(key)) {
-      return escapeHtml(stringified);
+      return shieldAutoLink(key, escapeHtml(stringified));
     }
     return stringified;
   });

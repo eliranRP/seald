@@ -1,21 +1,32 @@
 // ————— L0 Tokens —————
 export { GlobalStyles } from './styles/globalStyles';
 export { seald } from './styles/theme';
+export * from './styles/motion';
 export type { SealdTheme } from './styles/theme';
 
 // ————— L1 Primitives —————
 export * from './components/Avatar';
 export * from './components/Badge';
+export * from './components/Banner';
 export * from './components/Button';
 export * from './components/Card';
+export * from './components/CheckChip';
 export * from './components/DocThumb';
+export * from './components/EmptyState';
 export * from './components/Icon';
+export * from './components/InfoChip';
+export * from './components/Menu';
+export * from './components/MiniTrack';
+export * from './components/SegmentedControl';
 export * from './components/SignatureMark';
+export * from './components/Skeleton';
+export * from './components/Spinner';
 export * from './components/TextField';
 
 // ————— L2 Domain —————
 export * from './components/AddSignerDropdown';
 export * from './components/FieldsPlacedList';
+export * from './components/MobileNav';
 export * from './components/PageThumbStrip';
 export * from './components/PageToolbar';
 export * from './components/PlacedField';

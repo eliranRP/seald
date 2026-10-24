@@ -1,13 +1,16 @@
+The sender corrected the recipient. Your link no longer works.
+
 You are no longer a recipient of this signature request.
+{{sender_name}} corrected the recipient details.
 
-{{sender_name}} corrected the recipient details for "{{envelope_title}}".
+  {{envelope_title}}
+
 The signing link we sent to this address no longer works, and nothing you
-started is stored.
+started is stored. If you expected to sign this and believe this is an error,
+please contact {{sender_name}} directly.
 
-If you expected to sign this and believe this is an error, please contact
-{{sender_name}} directly.
-
-Reference: {{short_code}}
-{{verify_url}}
-
+Verify · {{short_code}}
+  {{verify_url}}
+Simple e-signature · ESIGN/UETA · Legal info: {{public_url}}/legal/esign-disclosure
+{{legal_entity}} · {{legal_postal}}
 Sent via Seald · {{public_url}}

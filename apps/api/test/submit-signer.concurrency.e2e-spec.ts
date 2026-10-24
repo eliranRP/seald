@@ -83,6 +83,21 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     await db?.destroy();
   });
 
+  /**
+   * `scheduled_for` defaults to the database's now(), while the dispatcher
+   * claims rows due by the Node clock. A container clock a few ms ahead
+   * left a just-queued row "not due yet" and the flush skipped it. Mark
+   * the envelope's pending rows due a minute ago before each flush.
+   */
+  async function makeDue(envelopeId: string): Promise<void> {
+    await pool!.query(
+      `update public.outbound_emails
+          set scheduled_for = now() - interval '1 minute'
+        where envelope_id = $1 and status = 'pending'`,
+      [envelopeId],
+    );
+  }
+
   it('seals exactly once when the last two signatures land together', async () => {
     if (!pool || !db || !repo) throw new Error('postgres harness did not start');
     const pg = pool;
@@ -262,6 +277,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
     });
     const sender = new RecordingSender();
     const dispatcher = buildDispatcher(outbound, sender, envelopes, tokens);
+    await makeDue(draft.id);
     await dispatcher.flushOnce(50, { envelopeIds: [draft.id] });
     const inviteToken = sender.tokenAt(0, draft.id);
     expect(await storedHash()).toBe(tokens.hash(inviteToken));
@@ -276,6 +292,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       dedupe_key: `reminder:${signer.id}`,
       payload: base,
     });
+    await makeDue(draft.id);
     await dispatcher.flushOnce(50, { envelopeIds: [draft.id] });
     const reminderToken = sender.tokenAt(1, draft.id);
     expect(reminderToken).not.toBe(inviteToken);
@@ -358,6 +375,7 @@ describePg('submitSigner concurrency (real Postgres)', () => {
       envelopes,
       new SigningTokenService(),
     );
+    await makeDue(sent.envelope.id);
     await dispatcher.flushOnce(50, { envelopeIds: [sent.envelope.id] });
 
     const reminderRows = await pg.query<{ n: string }>(

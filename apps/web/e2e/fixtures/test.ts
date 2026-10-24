@@ -5,19 +5,15 @@ import { SeededUserFixture } from './seededUser';
 import { SignedEnvelopeFixture } from './signedEnvelope';
 import { FixedNowFixture } from './fixedNow';
 import { SignInPage } from '../pages/SignInPage';
-import { SignUpPage } from '../pages/SignUpPage';
-import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
+import { WelcomePage } from '../pages/WelcomePage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { UploadPage } from '../pages/UploadPage';
-import { MobileSendPage } from '../pages/MobileSendPage';
 import { DocumentEditorPage } from '../pages/DocumentEditorPage';
 import { SentConfirmationPage } from '../pages/SentConfirmationPage';
 import { ContactsPage } from '../pages/ContactsPage';
 import { TemplatesListPage } from '../pages/TemplatesListPage';
 import { SigningEntryPage } from '../pages/SigningEntryPage';
-import { SigningPrepPage } from '../pages/SigningPrepPage';
 import { SigningFillPage } from '../pages/SigningFillPage';
-import { SigningReviewPage } from '../pages/SigningReviewPage';
 import { SigningDonePage } from '../pages/SigningDonePage';
 import { SigningDeclinedPage } from '../pages/SigningDeclinedPage';
 
@@ -51,19 +47,15 @@ type Fixtures = {
   signedEnvelope: SignedEnvelopeFixture;
   fixedNow: FixedNowFixture;
   signInPage: SignInPage;
-  signUpPage: SignUpPage;
-  forgotPasswordPage: ForgotPasswordPage;
+  welcomePage: WelcomePage;
   dashboardPage: DashboardPage;
   uploadPage: UploadPage;
-  mobileSendPage: MobileSendPage;
   documentEditorPage: DocumentEditorPage;
   sentConfirmationPage: SentConfirmationPage;
   contactsPage: ContactsPage;
   templatesListPage: TemplatesListPage;
   signingEntryPage: SigningEntryPage;
-  signingPrepPage: SigningPrepPage;
   signingFillPage: SigningFillPage;
-  signingReviewPage: SigningReviewPage;
   signingDonePage: SigningDonePage;
   signingDeclinedPage: SigningDeclinedPage;
 };
@@ -105,20 +97,14 @@ export const test = base.extend<Fixtures>({
   signInPage: async ({ page }, use) => {
     await use(new SignInPage(page));
   },
-  signUpPage: async ({ page }, use) => {
-    await use(new SignUpPage(page));
-  },
-  forgotPasswordPage: async ({ page }, use) => {
-    await use(new ForgotPasswordPage(page));
+  welcomePage: async ({ page }, use) => {
+    await use(new WelcomePage(page));
   },
   dashboardPage: async ({ page }, use) => {
     await use(new DashboardPage(page));
   },
   uploadPage: async ({ page }, use) => {
     await use(new UploadPage(page));
-  },
-  mobileSendPage: async ({ page }, use) => {
-    await use(new MobileSendPage(page));
   },
   documentEditorPage: async ({ page }, use) => {
     await use(new DocumentEditorPage(page));
@@ -135,14 +121,8 @@ export const test = base.extend<Fixtures>({
   signingEntryPage: async ({ page }, use) => {
     await use(new SigningEntryPage(page));
   },
-  signingPrepPage: async ({ page }, use) => {
-    await use(new SigningPrepPage(page));
-  },
   signingFillPage: async ({ page }, use) => {
     await use(new SigningFillPage(page));
-  },
-  signingReviewPage: async ({ page }, use) => {
-    await use(new SigningReviewPage(page));
   },
   signingDonePage: async ({ page }, use) => {
     await use(new SigningDonePage(page));

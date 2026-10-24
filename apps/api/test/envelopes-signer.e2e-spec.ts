@@ -234,7 +234,13 @@ describe('Signing — /sign/start (e2e)', () => {
         .post('/sign/start')
         .send({ envelope_id: envId, token: plaintextToken });
       expect(res.status).toBe(409);
-      expect(res.body).toEqual({ error: 'already_signed' });
+      // The signer link page also gets the sealed copy's code and the signed time.
+      expect(res.body).toEqual({
+        error: 'already_signed',
+        reason: 'already_signed',
+        short_code: expect.any(String),
+        signed_at: expect.any(String),
+      });
     });
 
     it('replay after decline: terminal envelope short-circuits to 410', async () => {
@@ -246,7 +252,42 @@ describe('Signing — /sign/start (e2e)', () => {
         .post('/sign/start')
         .send({ envelope_id: envId, token: plaintextToken });
       expect(res.status).toBe(410);
-      expect(res.body).toEqual({ error: 'envelope_terminal' });
+      expect(res.body).toEqual({ error: 'envelope_terminal', reason: 'canceled' });
+    });
+
+    it('an expired envelope answers 410 with reason expired', async () => {
+      const { envId, plaintextToken } = await buildSentEnvelope();
+      const e = envelopesRepo.envelopes.get(envId)!;
+      envelopesRepo.envelopes.set(envId, { ...e, status: 'expired' });
+
+      const res = await request(app.getHttpServer())
+        .post('/sign/start')
+        .send({ envelope_id: envId, token: plaintextToken });
+      expect(res.status).toBe(410);
+      expect(res.body).toEqual({ error: 'envelope_terminal', reason: 'expired' });
+    });
+  });
+
+  describe('POST /sign/request-link', () => {
+    it('answers 202 whatever the outcome and queues one sender notice for an expired link', async () => {
+      const { envId, plaintextToken } = await buildSentEnvelope();
+      const e = envelopesRepo.envelopes.get(envId)!;
+      envelopesRepo.envelopes.set(envId, { ...e, status: 'expired' });
+
+      const first = await request(app.getHttpServer())
+        .post('/sign/request-link')
+        .send({ envelope_id: envId, token: plaintextToken });
+      expect(first.status).toBe(202);
+      expect(first.body).toEqual({ status: 'requested' });
+      const again = await request(app.getHttpServer())
+        .post('/sign/request-link')
+        .send({ envelope_id: envId, token: plaintextToken });
+      expect(again.status).toBe(202);
+
+      const mails = outbound.rows.filter(
+        (m) => m.kind === 'new_link_requested' && m.envelope_id === envId,
+      );
+      expect(mails).toHaveLength(1);
     });
   });
 
@@ -290,7 +331,7 @@ describe('Signing — /sign/start (e2e)', () => {
       envelopesRepo.envelopes.set(envId, { ...e, status: 'declined' });
       const res = await request(app.getHttpServer()).get('/sign/me').set('Cookie', cookie);
       expect(res.status).toBe(410);
-      expect(res.body).toEqual({ error: 'envelope_terminal' });
+      expect(res.body).toMatchObject({ error: 'envelope_terminal' });
     });
   });
 
@@ -658,7 +699,7 @@ describe('Signing — /sign/start (e2e)', () => {
       // rejects with 410.
       const second = await request(app.getHttpServer()).post('/sign/submit').set('Cookie', cookie);
       expect(second.status).toBe(410);
-      expect(second.body).toEqual({ error: 'envelope_terminal' });
+      expect(second.body).toMatchObject({ error: 'envelope_terminal' });
     });
   });
 
@@ -851,7 +892,7 @@ describe('Signing — /sign/start (e2e)', () => {
         .post('/sign/start')
         .send({ envelope_id: envId, token: signerB.plaintextToken });
       expect(res.status).toBe(410);
-      expect(res.body).toEqual({ error: 'envelope_terminal' });
+      expect(res.body).toMatchObject({ error: 'envelope_terminal' });
     });
 
     it('multi-signer: happy path — both sign, envelope seals only after the last', async () => {
@@ -932,7 +973,7 @@ describe('Signing — /sign/start (e2e)', () => {
         .send({});
       // Guard short-circuits before service; 410 envelope_terminal.
       expect(res.status).toBe(410);
-      expect(res.body).toEqual({ error: 'envelope_terminal' });
+      expect(res.body).toMatchObject({ error: 'envelope_terminal' });
     });
   });
 });

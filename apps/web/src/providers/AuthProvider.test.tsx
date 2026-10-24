@@ -28,6 +28,8 @@ const { supabaseAuth, listeners } = vi.hoisted(() => {
       }),
       signInAnonymously: vi.fn<SignInAnonymously>(async () => ({ data: null, error: null })),
       signOut: vi.fn<SignOut>(async () => ({ error: null })),
+      signInWithOtp: vi.fn(async (_args: unknown) => ({ data: {}, error: null as unknown })),
+      updateUser: vi.fn(async (_args: unknown) => ({ data: {}, error: null as unknown })),
     },
   };
 });
@@ -300,5 +302,50 @@ describe('AuthProvider', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.user?.avatarUrl).toBe('https://lh3.googleusercontent.com/a/Y');
+  });
+
+  it('signInWithEmailLink asks Supabase for a magic link that returns through /auth/callback', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.signInWithEmailLink('hannah@quill.vc');
+    });
+
+    expect(supabaseAuth.signInWithOtp).toHaveBeenCalledWith({
+      email: 'hannah@quill.vc',
+      options: {
+        shouldCreateUser: true,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+  });
+
+  it('signInWithEmailLink surfaces the Supabase error (for 429 handling)', async () => {
+    supabaseAuth.signInWithOtp.mockResolvedValueOnce({ data: {}, error: { status: 429 } });
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await expect(
+      act(async () => {
+        await result.current.signInWithEmailLink('hannah@quill.vc');
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+  });
+
+  it('completeProfile writes the name and the terms timestamp in one updateUser call', async () => {
+    const { result } = renderHook(() => useAuth(), { wrapper });
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.completeProfile('  Hannah Wills ');
+    });
+
+    const call = supabaseAuth.updateUser.mock.calls[0]?.[0] as {
+      data: { full_name: string; name: string; terms_accepted_at: string };
+    };
+    expect(call.data.full_name).toBe('Hannah Wills');
+    expect(call.data.name).toBe('Hannah Wills');
+    expect(Number.isNaN(Date.parse(call.data.terms_accepted_at))).toBe(false);
   });
 });

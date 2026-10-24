@@ -8,8 +8,10 @@ export interface CreateSignatureRequestDialogSigner {
   readonly color: string;
 }
 
-export interface CreateSignatureRequestDialogProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, 'onSelect'> {
+export interface CreateSignatureRequestDialogProps extends Omit<
+  HTMLAttributes<HTMLDivElement>,
+  'onSelect'
+> {
   readonly open: boolean;
   /** Signers already added to this document. Rendered as rows the user can remove. */
   readonly signers: ReadonlyArray<CreateSignatureRequestDialogSigner>;

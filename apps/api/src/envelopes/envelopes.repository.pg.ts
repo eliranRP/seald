@@ -41,6 +41,7 @@ import {
   type ReminderCandidate,
   type SetSigningOrderInput,
   type UpdateDraftMetadataPatch,
+  type UnsendOutcome,
 } from './envelopes.repository';
 import {
   inviteNextStep,
@@ -129,6 +130,7 @@ function asNullableNumber(v: unknown): number | null {
 function deriveSignerStatus(row: SignerRow): EnvelopeSigner['status'] {
   if (row.declined_at !== null) return 'declined';
   if (row.signed_at !== null) return 'completed';
+  if (row.delivery_status === 'bounced') return 'bounced';
   if (row.viewed_at !== null) return 'viewing';
   return 'awaiting';
 }
@@ -150,6 +152,7 @@ function toSignerDomain(row: SignerRow): EnvelopeSigner {
     ...(isFeatureEnabled('signingOrder') ? { invited_at: toIso(row.invited_at) } : {}),
     // WP-38: reaches the wire only with `i18n` on.
     ...(isFeatureEnabled('i18n') ? { locale: row.locale ?? null } : {}),
+    delivery_status: row.delivery_status,
   };
 }
 
@@ -274,6 +277,7 @@ function toListItem(row: EnvelopeRow, signerRows: ReadonlyArray<SignerRow>): Env
       color: s.color,
       status: deriveSignerStatus(s),
       signed_at: toIso(s.signed_at),
+      delivery_status: s.delivery_status,
     })),
   };
 }
@@ -365,6 +369,22 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       this.loadFields(row.id),
     ]);
     return toEnvelopeDomain(row, signers, fields);
+  }
+
+  async findShortCodeBySealedSha256(sha256: string): Promise<string | null> {
+    const direct = await this.db
+      .selectFrom('envelopes')
+      .select('short_code')
+      .where('sealed_sha256', '=', sha256)
+      .executeTakeFirst();
+    if (direct) return direct.short_code;
+    const viaDocument = await this.db
+      .selectFrom('envelope_documents')
+      .innerJoin('envelopes', 'envelopes.id', 'envelope_documents.envelope_id')
+      .select('envelopes.short_code')
+      .where('envelope_documents.sealed_sha256', '=', sha256)
+      .executeTakeFirst();
+    return viaDocument?.short_code ?? null;
   }
 
   async findSignerByAccessTokenHash(
@@ -1105,6 +1125,10 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
             ...(patch.name !== undefined ? { name: patch.name } : {}),
             ...(patch.email !== undefined ? { email: patch.email } : {}),
             ...(emailChanged ? { contact_id: null } : {}),
+            // A new address starts with a clean delivery record.
+            ...(emailChanged
+              ? { delivery_status: 'delivered' as const, bounced_at: null, bounce_reason: null }
+              : {}),
             // The old link no longer matches; the dispatcher mints a new
             // token when the fresh invite goes out.
             access_token_hash: null,
@@ -1145,6 +1169,27 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       if (isSignerEmailUniqueViolation(err)) throw new EnvelopeSignerEmailTakenError();
       throw err;
     }
+  }
+
+  async markSignerBounced(
+    signer_id: string,
+    reason: string | null,
+    now: Date,
+  ): Promise<{ readonly envelope_id: string; readonly signer: EnvelopeSigner } | null> {
+    const row = await this.db
+      .updateTable('envelope_signers')
+      .set({
+        delivery_status: 'bounced',
+        bounced_at: now.toISOString(),
+        bounce_reason: reason,
+      })
+      .where('id', '=', signer_id)
+      .where('delivery_status', '=', 'delivered')
+      .where('signed_at', 'is', null)
+      .where('declined_at', 'is', null)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? { envelope_id: row.envelope_id, signer: toSignerDomain(row) } : null;
   }
 
   async updateOpenExpiry(
@@ -1505,6 +1550,58 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
       if (!envelope) return null;
       return { envelope, notifiedSignerIds, alreadySignedSignerIds };
+    });
+  }
+
+  async unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome> {
+    return this.db.transaction().execute(async (trx) => {
+      // Lock the row so a concurrent first view or signature cannot slip in
+      // between the checks below and the status flip.
+      const env = await trx
+        .selectFrom('envelopes')
+        .select(['id', 'owner_id', 'status', 'sent_at'])
+        .where('id', '=', envelope_id)
+        .forUpdate()
+        .executeTakeFirst();
+      if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' } as const;
+      if (env.status !== 'awaiting_others' || env.sent_at === null) {
+        return { ok: false, reason: 'not_sent' } as const;
+      }
+      if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
+        return { ok: false, reason: 'window_expired' } as const;
+      }
+      const signers = await trx
+        .selectFrom('envelope_signers')
+        .select(['id', 'viewed_at', 'signed_at', 'declined_at'])
+        .where('envelope_id', '=', envelope_id)
+        .execute();
+      if (
+        signers.some((s) => s.viewed_at !== null || s.signed_at !== null || s.declined_at !== null)
+      ) {
+        return { ok: false, reason: 'signer_engaged' } as const;
+      }
+      const stamp = now.toISOString();
+      const updated = await trx
+        .updateTable('envelopes')
+        .set({ status: 'draft', sent_at: null, updated_at: stamp })
+        .where('id', '=', envelope_id)
+        .where('owner_id', '=', owner_id)
+        .where('status', '=', 'awaiting_others')
+        .executeTakeFirst();
+      if ((updated?.numUpdatedRows ?? 0n) === 0n) return { ok: false, reason: 'not_sent' } as const;
+      await trx
+        .updateTable('envelope_signers')
+        .set({ access_token_hash: null, access_token_sent_at: null, invited_at: null })
+        .where('envelope_id', '=', envelope_id)
+        .execute();
+      const envelope = await this.findByIdWithAllTrx(trx, envelope_id);
+      if (!envelope) return { ok: false, reason: 'not_found' } as const;
+      return { ok: true, envelope } as const;
     });
   }
 

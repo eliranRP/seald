@@ -43,7 +43,19 @@ export abstract class TemplatesRepository {
     id: string,
     patch: UpdateTemplatePatch,
   ): Promise<Template | null>;
+  /**
+   * Soft delete (sets `deleted_at`) and purge this owner's rows soft-deleted
+   * more than 24 hours ago. True when a live row was removed.
+   */
   abstract delete(owner_id: string, id: string): Promise<boolean>;
+  /**
+   * Undo a soft delete (the "Template deleted" Undo toast). Null when the
+   * row is missing, not deleted, or owned by someone else. Adapters with no
+   * soft delete (test doubles) may keep the default, which restores nothing.
+   */
+  async restore(_owner_id: string, _id: string): Promise<Template | null> {
+    return null;
+  }
   /**
    * Bump `uses_count` and set `last_used_at = now()` for the given
    * template. Returns null if the template doesn't exist or isn't owned

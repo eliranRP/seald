@@ -64,6 +64,7 @@ export {
   ACTOR_KINDS,
   EVENT_TYPES,
   SIGNER_UI_STATUSES,
+  SIGNER_DELIVERY_STATUSES,
   uuid,
   iso,
   sha256,
@@ -103,6 +104,7 @@ export type {
   ActorKind,
   EventType,
   SignerUiStatus,
+  SignerDeliveryStatus,
   Field,
   GdriveExportState,
   EnvelopeGdriveSaveResult,
@@ -232,3 +234,11 @@ export * from './mcp-send';
 export * from './mcp-later';
 export * from './mcp-account';
 export * from './mcp-oauth';
+export {
+  CONTACT_EMAIL_MAX,
+  guessContactName,
+  isEmailShape,
+  splitEmailList,
+} from './contacts';
+export * from './user-settings';
+export * from './scan-sessions';

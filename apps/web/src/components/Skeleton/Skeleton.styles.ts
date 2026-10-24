@@ -1,10 +1,6 @@
-import styled, { css, keyframes } from 'styled-components';
+import styled, { css } from 'styled-components';
+import { MOTION_KEYFRAMES } from '@/styles/motion';
 import type { SkeletonVariant } from './Skeleton.types';
-
-const shimmer = keyframes`
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-`;
 
 function toCss(value: number | string | undefined): string | undefined {
   if (value === undefined) return undefined;
@@ -21,19 +17,18 @@ interface RootProps {
 export const SkeletonRoot = styled.span<RootProps>`
   display: inline-block;
   vertical-align: middle;
-  background-color: ${({ theme }) => theme.color.ink[150]};
+  background-color: ${({ theme }) => theme.color.ink[100]};
   background-image: linear-gradient(
     90deg,
-    ${({ theme }) => theme.color.ink[150]} 0%,
-    ${({ theme }) => theme.color.ink[100]} 50%,
-    ${({ theme }) => theme.color.ink[150]} 100%
+    ${({ theme }) => theme.color.ink[100]} 0%,
+    ${({ theme }) => theme.color.ink[150]} 50%,
+    ${({ theme }) => theme.color.ink[100]} 100%
   );
   background-size: 200% 100%;
   background-position: 200% 0;
   border-radius: ${({ theme, $variant }) => {
     if ($variant === 'circle') return theme.radius.pill;
-    if ($variant === 'rect') return theme.radius.xs;
-    return theme.radius.sm;
+    return theme.radius.xs;
   }};
   width: ${({ $width, $variant }) => toCss($width) ?? ($variant === 'text' ? '100%' : '100%')};
   height: ${({ $height, $variant }) => toCss($height) ?? ($variant === 'text' ? '14px' : '1em')};
@@ -46,9 +41,9 @@ export const SkeletonRoot = styled.span<RootProps>`
   ${({ $animated }) =>
     $animated &&
     css`
-      animation: ${shimmer} 1.4s ease-in-out infinite;
+      animation: ${MOTION_KEYFRAMES.shimmer} 1.4s ease infinite;
     `}
   @media (prefers-reduced-motion: reduce) {
-    animation: none;
+    animation: none !important;
   }
 `;

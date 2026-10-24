@@ -58,14 +58,14 @@ describe('AppShell error boundary (route-crash containment)', () => {
 
     // Boundary surfaces the recoverable fallback inside <Content>.
     expect(getByRole('alert')).toBeInTheDocument();
-    expect(getByRole('heading', { name: /something went wrong/i })).toBeInTheDocument();
+    expect(getByRole('heading', { name: /something broke/i })).toBeInTheDocument();
     expect(getByRole('button', { name: /try again/i })).toBeInTheDocument();
 
     // NavBar still rendered above the boundary — the user can still click
     // away to a working route. This is the regression: pre-fix, an
     // uncaught render error in any route blanked the entire tree.
     expect(getByRole('navigation')).toBeInTheDocument();
-    expect(getByRole('button', { name: /^Documents$/i })).toBeInTheDocument();
+    expect(getByRole('link', { name: /^Documents$/i })).toBeInTheDocument();
 
     // Legal footer (issue #39) is below the boundary in the same Shell —
     // it must also survive a route crash so consent withdrawal stays as

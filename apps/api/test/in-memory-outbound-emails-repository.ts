@@ -77,6 +77,26 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       .sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
   }
 
+  readonly providerEvents: Array<{
+    readonly provider: string;
+    readonly event_type: string;
+    readonly provider_id: string;
+    readonly payload: Readonly<Record<string, unknown>>;
+  }> = [];
+
+  async recordProviderEvent(
+    provider: string,
+    event_type: string,
+    provider_id: string,
+    payload: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
+    this.providerEvents.push({ provider, event_type, provider_id, payload });
+  }
+
+  async findByProviderId(provider_id: string): Promise<OutboundEmailRow | null> {
+    return this.rows.find((r) => r.provider_id === provider_id) ?? null;
+  }
+
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
@@ -87,7 +107,7 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
         (r) =>
           r.envelope_id === envelope_id &&
           r.signer_id === signer_id &&
-          (r.kind === 'invite' || r.kind === 'reminder') &&
+          (r.kind === 'invite' || r.kind === 'your_turn' || r.kind === 'reminder') &&
           !(options?.excludeAutomated && r.payload['automated'] === true),
       )
       .sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
@@ -129,6 +149,25 @@ export class InMemoryOutboundEmailsRepository extends OutboundEmailsRepository {
       sent_at: sent_at.toISOString(),
       last_error: null,
     };
+  }
+
+  async cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }> {
+    let canceled = 0;
+    let alreadyHandled = 0;
+    for (let i = 0; i < this.rows.length; i++) {
+      const row = this.rows[i]!;
+      if (row.envelope_id !== envelope_id || (row.kind !== 'invite' && row.kind !== 'your_turn'))
+        continue;
+      if (row.status === 'pending') {
+        this.rows[i] = { ...row, status: 'canceled' };
+        canceled++;
+      } else if (row.status === 'sending' || row.status === 'sent') {
+        alreadyHandled++;
+      }
+    }
+    return { canceled, alreadyHandled };
   }
 
   async markSkipped(id: string, reason: string): Promise<void> {

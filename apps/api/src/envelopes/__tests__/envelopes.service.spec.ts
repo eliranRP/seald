@@ -29,6 +29,7 @@ import type {
   EnvelopeEvent,
   EnvelopeField,
   EnvelopeSigner,
+  UnsendOutcome,
 } from '../envelopes.repository';
 import {
   EnvelopeSignerEmailTakenError,
@@ -159,6 +160,10 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
 
   async findByIdWithAll(id: string) {
     return this.envelopes.get(id) ?? null;
+  }
+
+  async findShortCodeBySealedSha256(sha256: string) {
+    return [...this.envelopes.values()].find((e) => e.sealed_sha256 === sha256)?.short_code ?? null;
   }
 
   async findByShortCode(short_code: string) {
@@ -386,6 +391,9 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async correctSigner(): Promise<never> {
     throw new Error('not exercised here');
   }
+  async markSignerBounced(): Promise<never> {
+    throw new Error('not exercised here');
+  }
   async updateOpenExpiry(): Promise<never> {
     throw new Error('not exercised here');
   }
@@ -414,6 +422,37 @@ class FakeEnvelopesRepo extends EnvelopesRepository {
   async declineSigner(): Promise<Envelope | null> {
     throw new Error('not_implemented_in_fake');
   }
+  async unsendEnvelope(
+    envelope_id: string,
+    owner_id: string,
+    now: Date,
+    windowMs: number,
+  ): Promise<UnsendOutcome> {
+    const env = this.envelopes.get(envelope_id);
+    if (!env || env.owner_id !== owner_id) return { ok: false, reason: 'not_found' };
+    if (env.status !== 'awaiting_others' || env.sent_at === null) {
+      return { ok: false, reason: 'not_sent' };
+    }
+    if (now.getTime() - new Date(env.sent_at).getTime() > windowMs) {
+      return { ok: false, reason: 'window_expired' };
+    }
+    if (
+      env.signers.some(
+        (s) => s.viewed_at !== null || s.signed_at !== null || s.declined_at !== null,
+      )
+    ) {
+      return { ok: false, reason: 'signer_engaged' };
+    }
+    const next: Envelope = {
+      ...env,
+      status: 'draft',
+      sent_at: null,
+      updated_at: now.toISOString(),
+    };
+    this.envelopes.set(envelope_id, next);
+    return { ok: true, envelope: next };
+  }
+
   async cancelEnvelope(
     envelope_id: string,
     owner_id: string,
@@ -571,6 +610,10 @@ class FakeOutbound extends OutboundEmailsRepository {
   async listByEnvelope(envelope_id: string): Promise<readonly OutboundEmailRow[]> {
     return this.rows.filter((r) => r.envelope_id === envelope_id);
   }
+  async findByProviderId(): Promise<null> {
+    return null;
+  }
+  async recordProviderEvent(): Promise<void> {}
   async findLastInviteOrReminder(
     envelope_id: string,
     signer_id: string,
@@ -596,6 +639,24 @@ class FakeOutbound extends OutboundEmailsRepository {
   async markFailed(): Promise<void> {
     /* unused by service-level tests */
   }
+  async cancelPendingInvites(
+    envelope_id: string,
+  ): Promise<{ readonly canceled: number; readonly alreadyHandled: number }> {
+    let canceled = 0;
+    let alreadyHandled = 0;
+    for (let i = 0; i < this.rows.length; i++) {
+      const row = this.rows[i] as OutboundEmailRow;
+      if (row.envelope_id !== envelope_id || row.kind !== 'invite') continue;
+      if (row.status === 'pending') {
+        this.rows[i] = { ...row, status: 'canceled' };
+        canceled++;
+      } else if (row.status === 'sending' || row.status === 'sent') {
+        alreadyHandled++;
+      }
+    }
+    return { canceled, alreadyHandled };
+  }
+
   async markSkipped(): Promise<void> {
     /* unused by service-level tests */
   }

@@ -1,4 +1,5 @@
-export { SignatureCapture } from './SignatureCapture';
+export { SignatureCapture, typedCaptureResult, deriveInitialsFromName } from './SignatureCapture';
+export { getTypedPreference } from './typedPreferences';
 export type {
   SignatureCaptureProps,
   SignatureCaptureFormat,

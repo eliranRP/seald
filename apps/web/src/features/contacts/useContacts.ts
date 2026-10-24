@@ -1,7 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
-import { createContact, deleteContact, listContacts, updateContactApi } from './contactsApi';
-import type { CreateContactInput, UpdateContactInput } from './contactsApi';
+import {
+  bulkCreateContacts,
+  createContact,
+  deleteContact,
+  deleteContacts,
+  listContacts,
+  restoreContacts,
+  updateContactApi,
+} from './contactsApi';
+import type {
+  BulkCreateContactsResult,
+  CreateContactInput,
+  UpdateContactInput,
+} from './contactsApi';
 
 /**
  * Query key for the authenticated user's contact list. Exported so callers
@@ -129,5 +141,51 @@ export function useDeleteContactMutation() {
     onError: (_err, _id, ctx) => {
       if (ctx?.previous) qc.setQueryData(CONTACTS_KEY, ctx.previous);
     },
+  });
+}
+
+/** `POST /contacts/bulk`. Refetches the list: the server picks names and colours. */
+export function useBulkCreateContactsMutation() {
+  const qc = useQueryClient();
+  return useMutation<BulkCreateContactsResult, Error, ReadonlyArray<string>>({
+    mutationFn: (emails) => bulkCreateContacts(emails),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CONTACTS_KEY }),
+  });
+}
+
+/**
+ * `DELETE /contacts` (several at once, soft). Optimistic remove; the rows come
+ * back through `useRestoreContactsMutation` while the Undo toast is up.
+ */
+export function useDeleteContactsMutation() {
+  const qc = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    ReadonlyArray<string>,
+    { readonly previous: ReadonlyArray<AddSignerContact> | undefined }
+  >({
+    mutationFn: (ids) => deleteContacts(ids),
+    onMutate: async (ids) => {
+      await qc.cancelQueries({ queryKey: CONTACTS_KEY });
+      const previous = qc.getQueryData<ReadonlyArray<AddSignerContact>>(CONTACTS_KEY);
+      const gone = new Set(ids);
+      qc.setQueryData<ReadonlyArray<AddSignerContact>>(CONTACTS_KEY, (prev) =>
+        (prev ?? []).filter((c) => !gone.has(c.id)),
+      );
+      return { previous };
+    },
+    onError: (_err, _ids, ctx) => {
+      if (ctx?.previous) qc.setQueryData(CONTACTS_KEY, ctx.previous);
+    },
+  });
+}
+
+/** `POST /contacts/restore`: the Undo of a delete. Refetches the list. */
+export function useRestoreContactsMutation() {
+  const qc = useQueryClient();
+  return useMutation<ReadonlyArray<AddSignerContact>, Error, ReadonlyArray<string>>({
+    mutationFn: (ids) => restoreContacts(ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: CONTACTS_KEY }),
   });
 }

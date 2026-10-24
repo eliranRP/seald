@@ -9,6 +9,8 @@ import { LoggingEmailSender } from './logging-email-sender';
 import { OutboundEmailsRepository } from './outbound-emails.repository';
 import { OutboundEmailsPgRepository } from './outbound-emails.repository.pg';
 import { ResendEmailSender } from './resend-email-sender';
+import { ResendWebhookController } from './webhooks/resend-webhook.controller';
+import { ResendWebhookService } from './webhooks/resend-webhook.service';
 import { TemplateService } from './template.service';
 
 /**
@@ -23,8 +25,10 @@ import { TemplateService } from './template.service';
 @Global()
 @Module({
   imports: [forwardRef(() => EnvelopesModule)],
+  controllers: [ResendWebhookController],
   providers: [
     TemplateService,
+    ResendWebhookService,
     EmailDispatcherService,
     EmailWorkerService,
     { provide: OutboundEmailsRepository, useClass: OutboundEmailsPgRepository },

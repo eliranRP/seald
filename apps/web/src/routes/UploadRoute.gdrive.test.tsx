@@ -67,9 +67,9 @@ vi.mock('../components/drive-picker', () => ({
 
 import { UploadRoute } from './UploadRoute';
 
-function renderRoute() {
+function renderRoute(entry = '/document/new') {
   return renderWithProviders(
-    <MemoryRouter initialEntries={['/document/new']}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/document/new" element={<UploadRoute />} />
       </Routes>
@@ -105,19 +105,17 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     isFeatureEnabledSpy.mockReturnValue(false);
     mockAccounts(true);
     renderRoute();
-    expect(
-      screen.queryByRole('button', { name: /pick from google drive/i }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /connect google drive/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/from google drive/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: /google drive/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/google drive/i)).not.toBeInTheDocument();
   });
 
   it('shows the Drive card with active CTA when flag is on AND an account is connected', () => {
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(true);
     renderRoute();
-    const cta = screen.getByRole('button', { name: /pick from google drive/i });
+    const cta = screen.getByRole('radio', { name: /google drive/i });
     expect(cta).toBeEnabled();
+    expect(cta).toHaveTextContent(/docs, word/i);
   });
 
   it('shows an enabled "Connect Google Drive" CTA when flag is on but no account, and opens the OAuth popup inline (no /settings navigation)', () => {
@@ -135,10 +133,9 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     const cta = screen.getByRole('button', { name: /connect google drive/i });
     expect(cta).toBeEnabled();
     expect(cta.getAttribute('title')).toBeNull();
-    // The legacy "Pick from Google Drive" label must be gone in the
-    // not-connected state — otherwise the user is misled into
-    // expecting the picker to open.
-    expect(screen.queryByRole('button', { name: /pick from google drive/i })).toBeNull();
+    // Not connected: the tile says "Connect" so the user is not misled
+    // into expecting the picker to open.
+    expect(cta).toHaveTextContent(/connect/i);
     fireEvent.click(cta);
     // Activating the CTA fires the connect mutation (which opens the
     // OAuth popup inline) — never navigates away.
@@ -150,7 +147,7 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     mockAccounts(true);
     renderRoute();
     expect(screen.queryByTestId('drive-picker-stub')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /pick from google drive/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /google drive/i }));
     expect(screen.getByTestId('drive-picker-stub')).toBeInTheDocument();
   });
 
@@ -163,9 +160,26 @@ describe('UploadRoute Drive integration (WT-E)', () => {
     isFeatureEnabledSpy.mockReturnValue(true);
     mockAccounts(true);
     renderRoute();
-    fireEvent.click(screen.getByRole('button', { name: /pick from google drive/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /google drive/i }));
     expect(reconnectMutateMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: /trigger reconnect/i }));
     expect(reconnectMutateMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Phone: Google's consent is a full-page redirect that returns through
+  // /m/send/drive to /document/new?gdrive_connected=1 (the old /m/send wizard
+  // used to consume that arg).
+  it('opens the Drive picker when it lands back from Google with ?gdrive_connected=1', () => {
+    isFeatureEnabledSpy.mockReturnValue(true);
+    mockAccounts(true);
+    renderRoute('/document/new?gdrive_connected=1');
+    expect(screen.getByTestId('drive-picker-stub')).toBeInTheDocument();
+  });
+
+  it('does not open the picker on a plain visit', () => {
+    isFeatureEnabledSpy.mockReturnValue(true);
+    mockAccounts(true);
+    renderRoute();
+    expect(screen.queryByTestId('drive-picker-stub')).not.toBeInTheDocument();
   });
 });

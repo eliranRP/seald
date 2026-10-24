@@ -33,6 +33,7 @@ import { InMemoryStorageService } from './in-memory-storage';
 import { setFlag, startFakeTsa, tryGenerateP12, TS_NODE_BIN } from './pades-e2e-harness';
 import { stubGdriveForEnvelopeDetail } from './stub-gdrive-for-envelope-detail';
 import { buildTestJwks } from './test-jwks';
+import { detectPadesProfile } from '../src/sealing/pades-profile';
 
 /**
  * WP-03 multi-file envelopes, end to end through AppModule with a real
@@ -177,6 +178,8 @@ describeOrSkip('Multi-file envelopes (e2e, WP-03)', () => {
       'PAdES-B-LTA: /DocTimeStamp after /DSS covers the file; messageImprint matches',
     );
     expect(result.status).toBe(0);
+    // The verify page's PAdES and Timestamped claims come from this read.
+    expect(detectPadesProfile(pdf)).toEqual({ level: 'B-LTA', timestamped: true });
   }
 
   async function draftWithSigner(title: string): Promise<{ envId: string; signerId: string }> {

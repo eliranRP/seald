@@ -1,98 +1,377 @@
-<div class="wrap">
-  <div class="card">
-    <div class="accent accent-amber"></div>
-    <table
-      role="presentation"
-      class="masthead"
-      cellspacing="0"
-      cellpadding="0"
-      border="0"
-      style="border-bottom: 1px solid #e2e8f0; width: 100%; border-collapse: collapse"
-    >
-      <tr>
-        <td style="padding: 20px 0 20px 28px; width: 38px; vertical-align: middle; line-height: 0">
-          <span
-            style="
-              display: inline-block;
-              width: 28px;
-              height: 28px;
-              border-radius: 7px;
-              background: #4f46e5;
-              color: #ffffff;
-              font-family: Georgia, 'Source Serif 4', serif;
-              font-weight: 600;
-              font-size: 16px;
-              text-align: center;
-              line-height: 28px;
-              vertical-align: middle;
-              text-decoration: none;
-            "
-            >S</span
-          >
-        </td>
-        <td
-          style="
-            padding: 20px 28px 20px 10px;
-            vertical-align: middle;
-            font-family:
-              Source Serif 4,
-              Georgia,
-              serif;
-            font-weight: 500;
-            font-size: 18px;
-            color: #0b1220;
-            letter-spacing: -0.01em;
-          "
-        >
-          Seald
-        </td>
-      </tr>
-    </table>
-    <div class="body">
-      {{updated_html}}
-      <span class="kicker kicker-amber">Approval needed · {{key_name}}</span>
-      <h1>{{action_label}}?</h1>
+<div
+  style="
+    display: none;
+    max-height: 0;
+    overflow: hidden;
+    mso-hide: all;
+    font-size: 1px;
+    line-height: 1px;
+    color: #f3f6fa;
+    opacity: 0;
+  "
+>
+  Approve or deny in one tap. This request expires in 24
+  hours.&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;
+</div>
+<table
+  role="presentation"
+  width="100%"
+  cellspacing="0"
+  cellpadding="0"
+  border="0"
+  bgcolor="#f3f6fa"
+  style="width: 100%; background: #f3f6fa"
+>
+  <tr>
+    <td align="center" style="padding: 32px 16px">
       <table
         role="presentation"
+        width="560"
         cellspacing="0"
         cellpadding="0"
         border="0"
-        style="margin-top: 8px; border-collapse: collapse; font-size: 14px; color: #1f2937"
+        style="width: 100%; max-width: 560px"
       >
         <tr>
-          <td style="padding: 4px 16px 4px 0; color: #64748b; vertical-align: top">Document</td>
-          <td style="padding: 4px 0; overflow-wrap: anywhere">
-            <b
-              style="display: inline-block; color: #0b1220; font-weight: 600; text-decoration: none"
-              >{{title}}</b
-            >
+          <td
+            class="card"
+            bgcolor="#ffffff"
+            style="
+              padding: 32px 32px 28px;
+              background: #ffffff;
+              border: 1px solid #e2e8f0;
+              border-radius: 16px;
+            "
+          >
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+              <tr>
+                <td align="left" style="padding: 0 0 8px">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                    <tr>
+                      <td
+                        width="28"
+                        height="28"
+                        align="center"
+                        valign="middle"
+                        bgcolor="#4f46e5"
+                        style="
+                          width: 28px;
+                          height: 28px;
+                          border-radius: 7px;
+                          background: #4f46e5;
+                          color: #ffffff;
+                          font-family: Georgia, 'Times New Roman', serif;
+                          font-weight: 600;
+                          font-size: 16px;
+                          line-height: 28px;
+                          text-align: center;
+                        "
+                      >
+                        S
+                      </td>
+                      <td
+                        valign="middle"
+                        style="
+                          padding: 0 0 0 8px;
+                          font-family: Georgia, 'Times New Roman', serif;
+                          font-weight: 500;
+                          font-size: 18px;
+                          color: #131a2b;
+                          letter-spacing: -0.01em;
+                        "
+                      >
+                        Seald
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 16px 0 0">
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    align="center"
+                  >
+                    <tr>
+                      <td
+                        width="56"
+                        height="56"
+                        align="center"
+                        valign="middle"
+                        bgcolor="#fef3c7"
+                        style="
+                          width: 56px;
+                          height: 56px;
+                          border-radius: 28px;
+                          background: #fef3c7;
+                          color: #92400e;
+                          font-family: Arial, Helvetica, sans-serif;
+                          font-size: 24px;
+                          font-weight: 700;
+                          line-height: 56px;
+                          text-align: center;
+                        "
+                      >
+                        !
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 16px 0 0">
+                  <h1
+                    style="
+                      margin: 0;
+                      font-family: Georgia, 'Times New Roman', serif;
+                      font-size: 24px;
+                      line-height: 30px;
+                      font-weight: 500;
+                      color: #131a2b;
+                      text-align: center;
+                    "
+                  >
+                    {{action_label}}?
+                  </h1>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 8px 0 0">
+                  <p
+                    style="
+                      margin: 0;
+                      font-family:
+                        -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                      font-size: 15px;
+                      line-height: 22px;
+                      color: #475569;
+                      text-align: center;
+                    "
+                  >
+                    Asked by {{key_name}}
+                  </p>
+                </td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 12px 0 0">{{updated_html}}</td>
+              </tr>
+              <tr>
+                <td align="center" style="padding: 16px 0 0">
+                  <table
+                    role="presentation"
+                    cellspacing="0"
+                    cellpadding="0"
+                    border="0"
+                    align="center"
+                    style="border-collapse: collapse"
+                  >
+                    <tr>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 16px 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #64748b;
+                          text-align: left;
+                        "
+                      >
+                        Document
+                      </td>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #131a2b;
+                          text-align: left;
+                          overflow-wrap: anywhere;
+                        "
+                      >
+                        <b style="color: #131a2b; font-weight: 600">{{title}}</b>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 16px 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #64748b;
+                          text-align: left;
+                        "
+                      >
+                        Pages
+                      </td>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #131a2b;
+                          text-align: left;
+                          overflow-wrap: anywhere;
+                        "
+                      >
+                        {{page_count_readable}}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 16px 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #64748b;
+                          text-align: left;
+                        "
+                      >
+                        Asked by
+                      </td>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #131a2b;
+                          text-align: left;
+                          overflow-wrap: anywhere;
+                        "
+                      >
+                        {{key_name}}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 16px 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #64748b;
+                          text-align: left;
+                        "
+                      >
+                        Approver
+                      </td>
+                      <td
+                        valign="top"
+                        style="
+                          padding: 4px 0;
+                          font-family:
+                            -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                          font-size: 14px;
+                          line-height: 20px;
+                          color: #131a2b;
+                          text-align: left;
+                          overflow-wrap: anywhere;
+                        "
+                      >
+                        {{approver_html}}
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+              <tr>
+                <td align="left" style="padding: 0px 0 0">{{destination_html}}</td>
+              </tr>
+              <tr>
+                <td align="left" style="padding: 0px 0 0">{{recipients_html}}</td>
+              </tr>
+              <tr>
+                <td align="left" style="padding: 0px 0 0">{{actions_html}}</td>
+              </tr>
+              <tr>
+                <td
+                  align="center"
+                  style="
+                    padding: 12px 0 0;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                    font-size: 12px;
+                    line-height: 18px;
+                    color: #64748b;
+                    text-align: center;
+                  "
+                >
+                  Expires in 24h
+                </td>
+              </tr>
+              <tr>
+                <td
+                  align="center"
+                  style="
+                    padding: 4px 0 0;
+                    font-family:
+                      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                    font-size: 12px;
+                    line-height: 18px;
+                    color: #64748b;
+                    text-align: center;
+                  "
+                >
+                  Only approve if you asked for this. Don't let an assistant or other software open
+                  this link. Didn't ask for this? Deny and revoke the key.
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
         <tr>
-          <td style="padding: 4px 16px 4px 0; color: #64748b">Pages</td>
-          <td style="padding: 4px 0">{{page_count_readable}}</td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 16px 4px 0; color: #64748b">Asked by</td>
-          <td style="padding: 4px 0">{{key_name}}</td>
-        </tr>
-        <tr>
-          <td style="padding: 4px 16px 4px 0; color: #64748b">Approver</td>
-          <td style="padding: 4px 0">{{approver_html}}</td>
+          <td align="center" style="padding: 16px 8px 0">
+            <div
+              class="foot"
+              style="
+                font-family:
+                  -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+                font-size: 12px;
+                line-height: 18px;
+                color: #64748b;
+                text-align: center;
+              "
+            >
+              Simple e-signature · ESIGN/UETA ·
+              <a
+                href="{{public_url}}/legal/esign-disclosure"
+                style="color: #64748b; text-decoration: underline"
+                >Legal info</a
+              ><br />
+              <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
+              Sent via Seald ·
+              <a href="{{privacy_url}}" style="color: #64748b; text-decoration: underline"
+                >Privacy</a
+              >
+              ·
+              <a href="{{preferences_url}}" style="color: #64748b; text-decoration: underline"
+                >Questions about these emails</a
+              >
+            </div>
+          </td>
         </tr>
       </table>
-      {{destination_html}} {{recipients_html}} {{actions_html}}
-      <p class="muted" style="margin: 4px 0 0; color: #64748b; font-size: 13px">Expires in 24h</p>
-      <p class="muted" style="margin: 8px 0 0; color: #64748b; font-size: 13px">
-        Only approve if you asked for this. Don't let an assistant or other software open this link.
-        Didn't ask for this? Deny and revoke the key.
-      </p>
-    </div>
-    <div class="foot">
-      <strong style="color: #1f2937">{{legal_entity}}</strong> · {{legal_postal}}<br />
-      Sent over HTTPS. Documents are stored in access-controlled cloud storage.<br />
-      <a href="{{public_url}}">{{public_url}}</a> · <a href="{{privacy_url}}">Privacy</a> ·
-      <a href="{{preferences_url}}">Questions about these emails</a>
-    </div>
-  </div>
-</div>
+    </td>
+  </tr>
+</table>

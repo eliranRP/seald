@@ -16,9 +16,6 @@ const DEFAULT_USER: AuthUser = {
 async function asyncNoop(): Promise<void> {
   return Promise.resolve();
 }
-async function asyncSignUp(): Promise<{ readonly needsEmailConfirmation: boolean }> {
-  return { needsEmailConfirmation: false };
-}
 function noop(): void {
   /* test stub */
 }
@@ -29,11 +26,9 @@ function buildContext(override: Partial<AuthContextValue>): AuthContextValue {
     user: DEFAULT_USER,
     guest: false,
     loading: false,
-    signInWithPassword: asyncNoop,
-    signUpWithPassword: asyncSignUp,
+    signInWithEmailLink: asyncNoop,
+    completeProfile: asyncNoop,
     signInWithGoogle: asyncNoop,
-    resetPassword: asyncNoop,
-    resendSignUpConfirmation: asyncNoop,
     signOut: asyncNoop,
     enterGuestMode: asyncNoop,
     exitGuestMode: noop,

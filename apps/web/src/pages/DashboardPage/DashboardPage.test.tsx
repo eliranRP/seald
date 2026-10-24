@@ -1,359 +1,380 @@
-import { describe, expect, it, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DashboardPage } from './DashboardPage';
+import { SentRedirect } from './SentRedirect';
 import { renderWithProviders } from '../../test/renderWithProviders';
 
-// The dashboard now reads envelopes straight from /envelopes via axios.
-// We mock the shared apiClient and have it return a small seed list so
-// the existing filter/empty-state assertions still work.
-vi.mock('../../lib/api/apiClient', () => {
-  const SEED = [
+const mocks = vi.hoisted(() => ({ items: [] as unknown[] }));
+
+vi.mock('../../lib/api/apiClient', () => ({
+  apiClient: {
+    get: vi.fn(async (url: string) => {
+      if (url.startsWith('/envelopes')) {
+        return { data: { items: mocks.items, next_cursor: null }, status: 200 };
+      }
+      return { data: {}, status: 200 };
+    }),
+    post: vi.fn(async () => ({ data: {}, status: 201 })),
+    patch: vi.fn(async () => ({ data: {}, status: 200 })),
+    delete: vi.fn(async () => ({ data: null, status: 204 })),
+  },
+}));
+
+const HOUR = 3_600_000;
+
+function seed(): unknown[] {
+  const ago = (ms: number): string => new Date(Date.now() - ms).toISOString();
+  const base = {
+    original_pages: 2,
+    expires_at: '2099-01-01T00:00:00Z',
+    tags: [],
+    completed_at: null,
+  };
+  return [
     {
-      id: 'env-msa',
-      title: 'Master Services Agreement',
-      short_code: 'MSA-ABCD-1234',
-      status: 'awaiting_others',
-      original_pages: 4,
-      sent_at: '2026-04-01T00:00:00Z',
-      completed_at: null,
-      expires_at: '2030-01-01T00:00:00Z',
-      created_at: '2026-04-01T00:00:00Z',
-      updated_at: '2026-04-01T00:00:00Z',
-      signers: [
-        {
-          id: 's1',
-          name: 'Ada Lovelace',
-          email: 'ada@example.com',
-          color: '#4F46E5',
-          status: 'awaiting',
-          signed_at: null,
-        },
-      ],
-    },
-    {
-      // Viewer (renderWithProviders default user `jamie@seald.app`) is
-      // one of this envelope's pending signers — must bucket as
-      // "Awaiting you", not "Awaiting others".
+      ...base,
       id: 'env-self',
-      title: 'Self-sign — Jamie CV',
-      short_code: 'CV-JAMIE-2026',
+      title: 'NDA — Quill Capital',
+      short_code: 'QX7M2A',
       status: 'awaiting_others',
-      original_pages: 2,
-      sent_at: '2026-04-15T00:00:00Z',
-      completed_at: null,
-      expires_at: '2030-01-01T00:00:00Z',
-      created_at: '2026-04-15T00:00:00Z',
-      updated_at: '2026-04-15T00:00:00Z',
+      sent_at: ago(3 * HOUR),
+      created_at: ago(3 * HOUR),
+      updated_at: ago(1_000),
       signers: [
-        {
-          id: 's-self',
-          name: 'Jamie Doe',
-          email: 'jamie@seald.app',
-          color: '#10B981',
-          status: 'awaiting',
-          signed_at: null,
-        },
+        { id: 's1', name: 'Jonah Park', email: 'jonah@example.com', status: 'completed' },
+        { id: 's2', name: 'Jamie Doe', email: 'jamie@seald.app', status: 'awaiting' },
       ],
     },
     {
+      ...base,
+      id: 'env-msa',
+      title: 'Advisory agreement — Farrow',
+      short_code: 'AD7F2Q',
+      status: 'awaiting_others',
+      tags: ['Client'],
+      sent_at: ago(120 * HOUR),
+      created_at: ago(120 * HOUR),
+      updated_at: ago(2_000),
+      signers: [
+        { id: 's3', name: 'Hannah Wills', email: 'hannah@example.com', status: 'awaiting' },
+        { id: 's4', name: 'Maya Raskin', email: 'maya@example.com', status: 'awaiting' },
+      ],
+    },
+    {
+      ...base,
       id: 'env-offer',
       title: 'Offer letter — M. Chen',
-      short_code: 'OFF-ZZZZ-9999',
+      short_code: '7QX4M2',
       status: 'completed',
-      original_pages: 2,
-      sent_at: '2026-03-10T00:00:00Z',
-      completed_at: '2026-03-11T00:00:00Z',
-      expires_at: '2030-01-01T00:00:00Z',
-      created_at: '2026-03-10T00:00:00Z',
-      updated_at: '2026-03-11T00:00:00Z',
-      signers: [
-        {
-          id: 's2',
-          name: 'M. Chen',
-          email: 'chen@example.com',
-          color: '#10B981',
-          status: 'completed',
-          signed_at: '2026-03-11T00:00:00Z',
-        },
-      ],
+      sent_at: ago(130 * HOUR),
+      completed_at: ago(100 * HOUR),
+      created_at: ago(130 * HOUR),
+      updated_at: ago(100 * HOUR),
+      signers: [{ id: 's5', name: 'Meilin Chen', email: 'chen@example.com', status: 'completed' }],
     },
     {
+      ...base,
       id: 'env-vendor',
       title: 'Vendor onboarding — Argus',
-      short_code: 'VEN-QQQQ-5555',
+      short_code: 'VA0G3E',
       status: 'draft',
-      original_pages: 1,
       sent_at: null,
-      completed_at: null,
-      expires_at: '2030-01-01T00:00:00Z',
-      created_at: '2026-04-02T00:00:00Z',
-      updated_at: '2026-04-02T00:00:00Z',
+      created_at: ago(500 * HOUR),
+      updated_at: ago(500 * HOUR),
       signers: [],
     },
-  ];
-  return {
-    apiClient: {
-      get: vi.fn(async (url: string) => {
-        if (url.startsWith('/envelopes')) {
-          return { data: { items: SEED, next_cursor: null }, status: 200 };
-        }
-        if (url === '/contacts') return { data: [], status: 200 };
-        return { data: {}, status: 200 };
-      }),
-      post: vi.fn(async () => ({ data: {}, status: 201 })),
-      patch: vi.fn(async () => ({ data: {}, status: 200 })),
-      delete: vi.fn(async () => ({ data: null, status: 204 })),
+    {
+      ...base,
+      id: 'env-lease',
+      title: 'Lease renewal — 44 Maple',
+      short_code: 'LR55QD',
+      status: 'declined',
+      sent_at: ago(300 * HOUR),
+      created_at: ago(300 * HOUR),
+      updated_at: ago(290 * HOUR),
+      signers: [
+        { id: 's6', name: 'Carmen Ortiz', email: 'carmen@example.com', status: 'declined' },
+      ],
     },
-  };
-});
+  ];
+}
 
-function renderDashboard(initialPath = '/documents') {
+async function apiMock() {
+  const { apiClient } = await import('../../lib/api/apiClient');
+  return apiClient as unknown as {
+    post: ReturnType<typeof vi.fn>;
+    patch: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
+  };
+}
+
+function renderHome(
+  entry: string | { pathname: string; state: unknown } = '/documents',
+  options: Parameters<typeof renderWithProviders>[1] = {},
+) {
   return renderWithProviders(
-    <MemoryRouter initialEntries={[initialPath]}>
+    <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/documents" element={<DashboardPage />} />
+        <Route path="/document/:id/sent" element={<SentRedirect />} />
+        <Route path="/document/new" element={<div>upload page</div>} />
+        <Route path="/document/:id" element={<div>detail page</div>} />
       </Routes>
     </MemoryRouter>,
+    options,
   );
 }
 
-/**
- * The `/envelopes` URLs the mocked apiClient was called with, oldest →
- * newest. With server-side filtering the mock can't actually narrow the
- * list, so the contract we assert is "the request carried the right
- * `?bucket=`/`?q=`/`?sort=` params".
- */
-async function envelopeUrls(): Promise<readonly string[]> {
-  const { apiClient } = await import('../../lib/api/apiClient');
-  const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
-  return getMock.mock.calls.map((c) => String(c[0])).filter((u) => u.startsWith('/envelopes'));
-}
+beforeEach(async () => {
+  mocks.items = seed();
+  const api = await apiMock();
+  api.post.mockClear();
+  api.patch.mockClear();
+});
 
 describe('DashboardPage', () => {
-  it('renders the heading and every envelope by default (no status filter)', async () => {
-    renderDashboard();
+  it('shows the heading, status tabs with counts and rows grouped by recency', async () => {
+    renderHome();
+    expect(screen.getByRole('heading', { level: 1, name: 'Documents' })).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
+      await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
     ).toBeInTheDocument();
-    // No default filter — a fresh visit shows the whole list.
-    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
-    expect(screen.getByText(/vendor onboarding — argus/i)).toBeInTheDocument();
-    expect(screen.getByText(/offer letter — m\. chen/i)).toBeInTheDocument();
-  });
-
-  it('pushes the picked status bucket onto the /envelopes request (server-side filter)', async () => {
-    renderDashboard();
-    await screen.findByText(/master services agreement/i);
-    // Open the Status chip and pick ONLY "Draft" (no defaults to fight).
-    fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
-    fireEvent.click(await screen.findByLabelText('Draft'));
-    await waitFor(async () => {
-      expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
-    });
-    // The toolbar's bucket counts come from a SECOND, unfiltered fetch —
-    // so a `bucket`-less request is still in flight alongside the filtered
-    // one. (When no filter is active React Query merges the two.)
-    expect((await envelopeUrls()).some((u) => !/bucket=/.test(u))).toBe(true);
-    // …and the toolbar still shows the full roster of buckets, including
-    // the "Sealed" one that the table filter excluded.
-    expect(await screen.findByLabelText('Sealed')).toBeInTheDocument();
-  });
-
-  it('"Clear filters" drops the bucket param from the /envelopes request', async () => {
-    renderDashboard('/documents?status=draft');
-    await screen.findByText(/vendor onboarding — argus/i);
-    // The initial fetch carried the URL's bucket.
-    expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: /clear all filters/i }));
-    await waitFor(async () => {
-      const urls = await envelopeUrls();
-      expect(urls[urls.length - 1]).not.toMatch(/bucket=/);
-    });
-    // Rows are still there (the mock returns the full seed regardless).
-    expect(await screen.findByText(/master services agreement/i)).toBeInTheDocument();
-  });
-
-  it('exposes a link to start a new document', () => {
-    renderDashboard();
-    expect(screen.getByRole('button', { name: /new document/i })).toBeInTheDocument();
-  });
-
-  // The dashboard's masthead is rendered through `PageHeader size='md'`
-  // — a 36 px H1 instead of the kit-default 48 px so the stat-tile row
-  // doesn't compete with it. We can't read the computed font-size in
-  // jsdom reliably; assert the heading exists at level 1 and that the
-  // `<h1>` element carries the size token attribute the styled-
-  // component sets (via the `$size` prop, surfaced to the DOM by
-  // styled-components as a `data-` selector class).
-  it('renders the masthead as a level-1 heading', () => {
-    renderDashboard();
-    expect(
-      screen.getByRole('heading', { level: 1, name: /everything you've sent/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('renders a tag row as 2 chips + a +N overflow chip when there are 3+ tags', async () => {
-    const { apiClient } = await import('../../lib/api/apiClient');
-    const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
-    // Override the seed for THIS test only: a single envelope with
-    // five tags. The +N chip should read "+3" and carry an accessible
-    // "3 more tags" label for screen-reader users.
-    getMock.mockImplementationOnce(async (url: string) => {
-      if (url.startsWith('/envelopes')) {
-        return {
-          data: {
-            items: [
-              {
-                id: 'env-tagged',
-                title: 'Tagged envelope',
-                short_code: 'TAG-1',
-                status: 'awaiting_others',
-                original_pages: 1,
-                sent_at: '2026-04-01T00:00:00Z',
-                completed_at: null,
-                expires_at: '2030-01-01T00:00:00Z',
-                created_at: '2026-04-01T00:00:00Z',
-                updated_at: '2026-04-01T00:00:00Z',
-                signers: [],
-                tags: ['legal', 'urgent', 'q2', 'sales', 'enterprise'],
-              },
-            ],
-            next_cursor: null,
-          },
-          status: 200,
-        };
-      }
-      if (url === '/contacts') return { data: [], status: 200 };
-      return { data: {}, status: 200 };
-    });
-    renderDashboard();
-    await screen.findByText(/tagged envelope/i);
-    expect(screen.getByText('legal')).toBeInTheDocument();
-    expect(screen.getByText('urgent')).toBeInTheDocument();
-    expect(screen.queryByText('q2')).toBeNull();
-    expect(screen.queryByText('sales')).toBeNull();
-    expect(screen.queryByText('enterprise')).toBeNull();
-    expect(screen.getByLabelText('3 more tags')).toBeInTheDocument();
-  });
-
-  it('renders a "Showing N documents" caption matching the visible row count', async () => {
-    renderDashboard();
-    // Seed has 4 envelopes (all unfiltered).
-    expect(await screen.findByText(/showing 4 documents/i)).toBeInTheDocument();
-  });
-
-  // Regression: when the dashboard viewer is one of an envelope's
-  // pending signers, the row should show the actionable "Awaiting you"
-  // indigo badge — not "Awaiting others". The previous logic stubbed
-  // `awaitingYou` to 0 so users self-signing their own envelopes saw
-  // no actionable state on the dashboard.
-  it('shows the Awaiting-you badge for envelopes where viewer is a pending signer', async () => {
-    renderDashboard();
-    // Wait for the row to mount.
-    await screen.findByText(/self-sign — jamie cv/i);
-    // The self-sign envelope row carries the indigo "Awaiting you" badge.
-    expect(screen.getAllByText(/awaiting you/i).length).toBeGreaterThan(0);
-  });
-
-  it('counts the viewer as Awaiting you in the stat tile and the toolbar Status chip', async () => {
-    renderDashboard();
-    await screen.findByText(/self-sign — jamie cv/i);
-    // Open the Status chip; the "Awaiting you" option carries the count.
-    fireEvent.click(screen.getByRole('button', { name: /^status filter$/i }));
-    const opt = await screen.findByLabelText('Awaiting you');
-    // Walk up to the row and look for the count rendered next to the
-    // option label. The styled OptionCount uses the mono font; we
-    // just assert "1" is present in the row.
-    const row = opt.closest('label');
-    expect(row?.textContent ?? '').toMatch(/1/);
-  });
-
-  it('reads the initial filter from the ?status= query param and forwards it as ?bucket=', async () => {
-    renderDashboard('/documents?status=draft');
-    await screen.findByText(/vendor onboarding — argus/i);
-    expect((await envelopeUrls()).some((u) => /bucket=draft/.test(u))).toBe(true);
-  });
-
-  it('forwards the search box text as ?q= on the /envelopes request', async () => {
-    renderDashboard('/documents?q=argus');
-    await screen.findByText(/vendor onboarding — argus/i);
-    expect((await envelopeUrls()).some((u) => /[?&]q=argus/.test(u))).toBe(true);
-  });
-
-  it('clicking the "Awaiting others" stat tile toggles its filter (pressed state + bucket query)', async () => {
-    renderDashboard();
-    await screen.findByText(/master services agreement/i);
-    const tile = () => screen.getByRole('button', { name: /awaiting others/i });
-    expect(tile()).toHaveAttribute('aria-pressed', 'false');
-
-    fireEvent.click(tile());
-    await waitFor(() => expect(tile()).toHaveAttribute('aria-pressed', 'true'));
-    expect((await envelopeUrls()).some((u) => /bucket=awaiting_others/.test(u))).toBe(true);
-
-    // Clicking the already-active tile clears every filter.
-    fireEvent.click(tile());
-    await waitFor(() => expect(tile()).toHaveAttribute('aria-pressed', 'false'));
-  });
-
-  it('the "Sealed this month" stat tile maps to bucket=sealed + date=thisMonth', async () => {
-    renderDashboard();
-    await screen.findByText(/master services agreement/i);
-    fireEvent.click(screen.getByRole('button', { name: /sealed this month/i }));
-    await waitFor(async () => {
-      const u = (await envelopeUrls()).at(-1) ?? '';
-      expect(u).toMatch(/bucket=sealed/);
-      expect(u).toMatch(/date=thisMonth/);
-    });
-    expect(screen.getByRole('button', { name: /sealed this month/i })).toHaveAttribute(
-      'aria-pressed',
+    const tabs = screen.getByRole('tablist', { name: 'Status' });
+    expect(within(tabs).getByRole('tab', { name: /^All/ })).toHaveAttribute(
+      'aria-selected',
       'true',
     );
+    expect(within(tabs).getByRole('tab', { name: /To sign/ })).toHaveTextContent('1');
+    expect(within(tabs).getByRole('tab', { name: /Waiting/ })).toHaveTextContent('1');
+    expect(within(tabs).getByRole('tab', { name: /Stopped/ })).toHaveTextContent('1');
+    expect(screen.getByRole('region', { name: 'Today' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'This week' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Earlier' })).toBeInTheDocument();
+    expect(screen.getByText('5 documents')).toBeInTheDocument();
   });
 
-  it('the "Avg. turnaround" stat tile is not clickable', async () => {
-    renderDashboard();
-    await screen.findByText(/master services agreement/i);
-    expect(screen.queryByRole('button', { name: /avg\. turnaround/i })).toBeNull();
-  });
-
-  it('clicking a column header cycles the server-side sort params and re-queries', async () => {
-    // Resolve the mocked apiClient so we can inspect the URLs it was
-    // called with — the server does the sort, so the contract we test
-    // is "the request carried the right ?sort=&dir=".
-    const { apiClient } = await import('../../lib/api/apiClient');
-    const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>;
-    const lastEnvelopeUrl = (): string =>
-      String(
-        [...getMock.mock.calls].reverse().find((c) => String(c[0]).startsWith('/envelopes'))![0],
-      );
-
-    renderDashboard();
-    await screen.findByText(/master services agreement/i);
-    // Initial fetch carries the default sort explicitly (server treats
-    // `date desc` the same as no params).
-    expect(lastEnvelopeUrl()).toMatch(/sort=date&dir=desc/);
-
-    // Click "Document" → ?sort=title&dir=asc, refetch.
-    fireEvent.click(screen.getByRole('button', { name: /^document$/i }));
-    await waitFor(() => {
-      expect(lastEnvelopeUrl()).toMatch(/sort=title&dir=asc/);
-    });
-    // The header now advertises its sort direction.
+  it('narrows the table when a tab is picked', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('tab', { name: /Sealed/ }));
     expect(
-      screen.getByRole('button', { name: /^document/i }).closest('[aria-sort]'),
-    ).toHaveAttribute('aria-sort', 'ascending');
+      screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('1 document')).toBeInTheDocument();
+  });
 
-    // Click again → ?sort=title&dir=desc.
-    fireEvent.click(screen.getByRole('button', { name: /^document/i }));
-    await waitFor(() => {
-      expect(lastEnvelopeUrl()).toMatch(/sort=title&dir=desc/);
-    });
+  const DEBOUNCED = { timeout: 5000 };
 
-    // Click a third time → back to the default order.
-    fireEvent.click(screen.getByRole('button', { name: /^document/i }));
-    await waitFor(() => {
-      expect(lastEnvelopeUrl()).toMatch(/sort=date&dir=desc/);
+  it('searches, shows a removable chip, and the No matches state', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search documents' }), {
+      target: { value: 'lease' },
     });
+    // Search is debounced (200 ms) before the list re-renders; leave room for
+    // a busy runner instead of the 1 s default.
+    await waitFor(
+      () =>
+        expect(
+          screen.queryByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
+        ).not.toBeInTheDocument(),
+      DEBOUNCED,
+    );
+    expect(
+      screen.getByRole('checkbox', { name: 'Select Lease renewal — 44 Maple' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Remove .*lease/i })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search documents' }), {
+      target: { value: 'zebra' },
+    });
+    expect(await screen.findByText('No matches', undefined, DEBOUNCED)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(
+      await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
+    ).toBeInTheDocument();
+  });
+
+  it('filters by tag from the Tags menu', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('button', { name: /^Tags:/ }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'client' }));
+    expect(
+      screen.queryByRole('checkbox', { name: 'Select Offer letter — M. Chen' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
+    ).toBeInTheDocument();
+  });
+
+  it('puts what needs you in a strip of action cards', async () => {
+    renderHome();
+    const strip = await screen.findByRole('region', { name: 'Needs you' });
+    expect(await within(strip).findByText('NDA — Quill Capital')).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Sign' })).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Remind' })).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Revise' })).toBeInTheDocument();
+    fireEvent.click(within(strip).getByRole('button', { name: 'Sign' }));
+    expect(await screen.findByText('detail page')).toBeInTheDocument();
+  });
+
+  it('reminds every waiting signer from the row action', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('button', { name: 'Remind Advisory agreement — Farrow' }));
+    const api = await apiMock();
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(2));
+    expect(api.post.mock.calls.map((c) => String(c[0]))).toEqual([
+      '/envelopes/env-msa/signers/s3/remind',
+      '/envelopes/env-msa/signers/s4/remind',
+    ]);
+  });
+
+  it('opens a row menu with the document actions', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(
+      screen.getByRole('button', { name: 'More actions for Advisory agreement — Farrow' }),
+    );
+    const menu = screen.getByRole('menu', { name: 'Actions for Advisory agreement — Farrow' });
+    for (const name of ['Open', 'Remind all', 'Copy link', 'Add tag', 'Cancel request']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument();
+    }
+  });
+
+  it('replaces the toolbar with a bulk bar once rows are selected', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Offer letter — M. Chen' }));
+    const bar = screen.getByRole('toolbar', { name: 'Bulk actions' });
+    expect(within(bar).getByText('2 selected')).toBeInTheDocument();
+    for (const name of ['Remind', 'Download', 'Tag', 'Delete']) {
+      expect(within(bar).getByRole('button', { name })).toBeInTheDocument();
+    }
+    fireEvent.click(within(bar).getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByRole('toolbar', { name: 'Bulk actions' })).not.toBeInTheDocument();
+  });
+
+  it('offers the three ways to start from the New menu', async () => {
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('button', { name: 'More ways to start' }));
+    const menu = screen.getByRole('menu', { name: 'New document' });
+    expect(within(menu).getByRole('menuitem', { name: 'Upload file' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'From template' })).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: 'Scan with phone' })).toBeInTheDocument();
+  });
+
+  it('shows the first-run block for an account with no documents', async () => {
+    mocks.items = [];
+    renderHome();
+    expect(await screen.findByText('Send your first document')).toBeInTheDocument();
+    expect(screen.queryByRole('tablist', { name: 'Status' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose file' }));
+    expect(await screen.findByText('upload page')).toBeInTheDocument();
+  });
+
+  it('shows All caught up when nothing waits on you', async () => {
+    mocks.items = (seed() as Array<{ id: string }>).filter((e) => e.id !== 'env-self');
+    renderHome();
+    await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    fireEvent.click(screen.getByRole('tab', { name: /To sign/ }));
+    expect(screen.getByText('All caught up')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View waiting' }));
+    expect(screen.getByRole('tab', { name: /Waiting/ })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('DashboardPage after Send', () => {
+  it('shows the Sent toast with Undo, and undo returns the document to draft', async () => {
+    renderHome({ pathname: '/documents', state: { justSent: 'env-msa' } });
+    expect(await screen.findByText('Sent to 2 signers')).toBeInTheDocument();
+    const api = await apiMock();
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/envelopes/env-msa/unsend', undefined, {}),
+    );
+    expect(await screen.findByText('Send cancelled · Saved as draft')).toBeInTheDocument();
+  });
+
+  it('says so when it is too late to undo', async () => {
+    const api = await apiMock();
+    api.post.mockRejectedValueOnce({
+      response: { status: 409, data: { error: 'unsend_window_expired' } },
+    });
+    renderHome({ pathname: '/documents', state: { justSent: 'env-msa' } });
+    await screen.findByText('Sent to 2 signers');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(await screen.findByText('Too late to undo')).toBeInTheDocument();
+  });
+
+  it('sends a guest from the retired /sent page back to the editor entry', async () => {
+    renderHome('/document/env-msa/sent', { auth: { user: null, guest: true } });
+    expect(await screen.findByText('upload page')).toBeInTheDocument();
+  });
+
+  it('redirects the retired /document/:id/sent page to the list with the same state', async () => {
+    renderHome('/document/env-msa/sent');
+    expect(await screen.findByText('Sent to 2 signers')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Documents' })).toBeInTheDocument();
+  });
+});
+
+describe('DashboardPage delivery problems', () => {
+  it('fixes a bounced address inline and resends', async () => {
+    const items = seed() as Array<{ id: string; signers: Array<{ status: string }> }>;
+    const msa = items.find((e) => e.id === 'env-msa');
+    if (msa?.signers[0]) msa.signers[0].status = 'bounced';
+    mocks.items = items;
+    renderHome();
+    const strip = await screen.findByRole('region', { name: 'Needs you' });
+    await within(strip).findByText(/hannah@example.com/);
+    fireEvent.click(within(strip).getByRole('button', { name: 'Fix email' }));
+    const field = within(strip).getByLabelText('Email address for Hannah Wills');
+    fireEvent.change(field, { target: { value: 'hannah@farow.co' } });
+    fireEvent.click(within(strip).getByRole('button', { name: 'Resend' }));
+    const api = await apiMock();
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/envelopes/env-msa/signers/s3', {
+        email: 'hannah@farow.co',
+      }),
+    );
+    expect(await screen.findByText('Resent to hannah@farow.co')).toBeInTheDocument();
+  });
+});
+
+describe('DashboardPage on a phone', () => {
+  it('lists documents as cards and opens a row sheet from the more button', async () => {
+    const original = window.matchMedia;
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+    try {
+      renderHome();
+      await screen.findByRole('button', { name: 'More actions for Offer letter — M. Chen' });
+      expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole('button', { name: 'More actions for Offer letter — M. Chen' }),
+      );
+      const sheet = await screen.findByRole('dialog', { name: 'Row actions' });
+      expect(within(sheet).getByRole('button', { name: 'Download' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /^Filter/ }));
+      expect(await screen.findByRole('dialog', { name: 'Filter' })).toBeInTheDocument();
+    } finally {
+      window.matchMedia = original;
+    }
   });
 });

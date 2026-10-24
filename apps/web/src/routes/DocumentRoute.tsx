@@ -18,6 +18,8 @@ import type { AddSignerContact } from '../components/AddSignerDropdown/AddSigner
 import type { PlacedFieldValue } from '../components/PlacedField/PlacedField.types';
 import { placementMeta } from '@/features/documentEditor/fieldProperties';
 import { seald } from '@/styles/theme';
+import { pickAvailableColor } from '../features/signers/pickAvailableColor';
+import { isMeSignerId } from '../features/documentEditor/upload/meSigner';
 import { usePdfDocument } from '../lib/pdf';
 import { useAppState } from '../providers/AppStateProvider';
 import { useAuth } from '../providers/AuthProvider';
@@ -229,37 +231,69 @@ export function DocumentRoute() {
     [drafts],
   );
 
-  const handleAddSignerFromContact = useCallback(
-    (contact: AddSignerContact) => {
+  const handleAddSignersFromContacts = useCallback(
+    (picked: ReadonlyArray<AddSignerContact>) => {
       if (!doc) return;
-      if (doc.signers.some((s) => s.id === contact.id)) return;
+      const fresh = picked.filter((c) => !doc.signers.some((s) => s.id === c.id));
+      if (fresh.length === 0) return;
       updateDocument(doc.id, {
         signers: [
           ...doc.signers,
-          { id: contact.id, name: contact.name, email: contact.email, color: contact.color },
+          ...fresh.map((c) => ({ id: c.id, name: c.name, email: c.email, color: c.color })),
         ],
       });
     },
     [doc, updateDocument],
   );
 
+  const handleAddSignerFromContact = useCallback(
+    (contact: AddSignerContact) => handleAddSignersFromContacts([contact]),
+    [handleAddSignersFromContacts],
+  );
+
   const handleCreateSigner = useCallback(
     (name: string, email: string) => {
       if (!doc) return;
+      const docId = doc.id;
+      // A signer that lives only on this draft: guests cannot call the
+      // contacts API (401), and an authed sender whose contacts service is
+      // unreachable still finishes the envelope. The envelope POST carries
+      // the name and email inline, so nothing else is needed.
+      const addLocal = (): void => {
+        const current = getDocument(docId);
+        if (!current) return;
+        if (current.signers.some((s) => s.email.toLowerCase() === email.toLowerCase())) return;
+        const used = [...contacts.map((c) => c.color), ...current.signers.map((s) => s.color)];
+        updateDocument(docId, {
+          signers: [
+            ...current.signers,
+            {
+              id: `guest-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+              name,
+              email,
+              color: pickAvailableColor(seald.color.signer, used),
+            },
+          ],
+        });
+      };
+      if (guest) {
+        addLocal();
+        return;
+      }
       addContact(name, email)
         .then((created) => {
-          updateDocument(doc.id, {
+          const current = getDocument(docId);
+          if (!current) return;
+          updateDocument(docId, {
             signers: [
-              ...doc.signers,
+              ...current.signers,
               { id: created.id, name: created.name, email: created.email, color: created.color },
             ],
           });
         })
-        .catch(() => {
-          /* swallowed — the contact simply doesn't get attached */
-        });
+        .catch(addLocal);
     },
-    [doc, addContact, updateDocument],
+    [doc, guest, addContact, contacts, getDocument, updateDocument],
   );
 
   const handleRemoveSigner = useCallback(
@@ -443,7 +477,12 @@ export function DocumentRoute() {
         // fallback for guest senders, and "View envelope" from /sent would
         // land on an empty editor instead of the original draft.
         sendDocument(doc.id, result.envelope_id);
-        navigate(`/document/${result.envelope_id}/sent`);
+        if (guest) {
+          // Guests have no dashboard: they land on the sent confirmation.
+          navigate(`/document/${result.envelope_id}/sent`);
+        } else {
+          navigate('/documents', { state: { justSent: result.envelope_id } });
+        }
       } catch (err) {
         setSendError(friendlySendError(err));
       }
@@ -459,6 +498,7 @@ export function DocumentRoute() {
       sendDocument,
       sendEnvelope,
       canvasHeight,
+      guest,
     ],
   );
 
@@ -647,6 +687,7 @@ export function DocumentRoute() {
     return <EnvelopeDetailPage />;
   }
 
+  const youId = doc.signers.find((s) => isMeSignerId(s.id))?.id;
   const sendInFlight = sendEnvelope.phase !== 'idle' && sendEnvelope.phase !== 'error';
 
   return (
@@ -701,12 +742,17 @@ export function DocumentRoute() {
               sendTotals: {
                 fieldCount: doc.fields.length,
                 signatureFieldCount: doc.fields.filter((f) => f.type === 'signature').length,
+                signerIdsWithSignature: doc.fields
+                  .filter((f) => f.type === 'signature')
+                  .flatMap((f) => f.signerIds),
               },
             }
           : {})}
         signers={doc.signers}
         contacts={contacts}
         onAddSignerFromContact={handleAddSignerFromContact}
+        onAddSignersFromContacts={handleAddSignersFromContacts}
+        {...(youId !== undefined ? { youId } : {})}
         onCreateSigner={handleCreateSigner}
         onRemoveSigner={handleRemoveSigner}
         onSend={handleSend}
