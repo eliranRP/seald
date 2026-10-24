@@ -29,11 +29,11 @@
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
-    "cspell": "^10",
+    "cspell": "^10.4.0",
     "gherkin-lint": "^4.2.4",
     "husky": "9.1.7",
     "lint-staged": "15.2.10",
-    "prettier": "3.8.3",
+    "prettier": "3.9.10",
     "typescript": "5.6.3"
   },
   "pnpm": {
@@ -61,10 +61,12 @@
       "file-type@>=13.0.0 <21.3.2": ">=21.3.2",
       "esbuild@<0.25.0": ">=0.25.0",
       "fast-xml-builder@<1.2.0": ">=1.2.0",
-      "fast-uri@<3.1.8": "3.1.8",
+      "fast-uri@<3.1.9": "3.1.9",
       "form-data@>=4.0.0 <4.0.6": "4.0.6",
       "js-yaml@>=4.0.0 <4.3.2": "4.3.2",
       "multer@>=2.0.0 <2.5.0": "2.5.0",
+      "esbuild@>=0.27.3 <0.28.1": "^0.28.1",
+      "@babel/core@<=7.29.0": "7.29.6",
       "zod@>=4.0.0 <4.6.6": "4.6.7",
       "undici@>=8.0.0 <8.12.2": "^8.12.2",
       "@types/react": "^19",
