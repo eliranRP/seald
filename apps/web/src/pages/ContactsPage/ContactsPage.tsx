@@ -37,7 +37,9 @@ import { useAppState } from '@/providers/AppStateProvider';
 import {
   AvatarStack,
   BulkBar,
+  BulkClear,
   BulkLabel,
+  Cell,
   CheckBox,
   Count,
   DocsLink,
@@ -352,7 +354,6 @@ export function ContactsPage(): JSX.Element {
               ) : (
                 <>
                   <Title>Contacts</Title>
-                  {loading ? null : <Count>{contacts.length}</Count>}
                   <Spacer />
                   <Button
                     variant="ghost"
@@ -382,7 +383,7 @@ export function ContactsPage(): JSX.Element {
 
           {contacts.length > 0 ? (
             <Toolbar>
-              <Button variant="secondary" size="sm" iconLeft={ArrowUpDown} onClick={toggleSort}>
+              <Button variant="secondary" iconLeft={ArrowUpDown} onClick={toggleSort}>
                 {sortLabel}
               </Button>
               <Spacer />
@@ -443,7 +444,9 @@ export function ContactsPage(): JSX.Element {
                     <Ellipsis>{c.name}</Ellipsis>
                     <Quiet>{c.email}</Quiet>
                   </MobileName>
-                  <MobileMeta>{`${String(c.docsCount ?? 0)} docs`}</MobileMeta>
+                  <MobileMeta>
+                    {(c.docsCount ?? 0) === 1 ? '1 doc' : `${String(c.docsCount ?? 0)} docs`}
+                  </MobileMeta>
                 </MobileRow>
               ))}
             </MobileList>
@@ -453,9 +456,9 @@ export function ContactsPage(): JSX.Element {
         {selectMode ? (
           <BulkBar role="toolbar" aria-label="Selection actions">
             <BulkLabel>{`${String(selectedCount)} selected`}</BulkLabel>
-            <Button variant="ghost" size="sm" onClick={clearSelection}>
+            <BulkClear variant="ghost" size="sm" onClick={clearSelection}>
               Clear
-            </Button>
+            </BulkClear>
             <Button
               variant="danger"
               size="sm"
@@ -535,7 +538,7 @@ export function ContactsPage(): JSX.Element {
             <Count aria-label={`${String(contacts.length)} contacts`}>{contacts.length}</Count>
           )}
           <Spacer />
-          {isEmpty ? null : (
+          {isEmpty || loading ? null : (
             <Button variant="primary" iconLeft={UserPlus} onClick={() => setAdding(true)}>
               Add
             </Button>
@@ -577,7 +580,7 @@ export function ContactsPage(): JSX.Element {
         ) : (
           <Table role="table" aria-label="Contacts" aria-busy={loading || undefined}>
             <THead role="row">
-              <span role="columnheader">
+              <Cell role="columnheader">
                 <CheckBox
                   type="checkbox"
                   aria-label="Select all"
@@ -585,7 +588,7 @@ export function ContactsPage(): JSX.Element {
                   disabled={loading || visible.length === 0}
                   onChange={toggleAll}
                 />
-              </span>
+              </Cell>
               <span role="columnheader">Name</span>
               <span role="columnheader">Email</span>
               <span role="columnheader">Documents</span>
@@ -611,20 +614,20 @@ export function ContactsPage(): JSX.Element {
                   const docs = c.docsCount ?? 0;
                   return (
                     <Row key={c.id} role="row" $selected={selected.has(c.id)}>
-                      <span role="cell">
+                      <Cell role="cell">
                         <CheckBox
                           type="checkbox"
                           aria-label={`Select ${c.name}`}
                           checked={selected.has(c.id)}
                           onChange={() => toggleOne(c.id)}
                         />
-                      </span>
+                      </Cell>
                       <NameCell role="cell">
                         <Avatar name={c.name} size={32} />
                         <Ellipsis>{c.name}</Ellipsis>
                       </NameCell>
                       <Quiet role="cell">{c.email}</Quiet>
-                      <span role="cell">
+                      <Cell role="cell">
                         {docs > 0 ? (
                           <DocsLink
                             href={openDocs(c)}
@@ -638,7 +641,7 @@ export function ContactsPage(): JSX.Element {
                         ) : (
                           <Meta>{docsLabel(0)}</Meta>
                         )}
-                      </span>
+                      </Cell>
                       <Meta role="cell">{docs > 0 ? relativeAgo(c.lastSentAt) : 'never'}</Meta>
                       <RowActions role="cell">
                         <Button
@@ -687,9 +690,9 @@ export function ContactsPage(): JSX.Element {
       {selectedCount > 0 ? (
         <BulkBar role="toolbar" aria-label="Bulk actions">
           <BulkLabel>{`${String(selectedCount)} selected`}</BulkLabel>
-          <Button variant="ghost" size="sm" onClick={clearSelection}>
+          <BulkClear variant="ghost" size="sm" onClick={clearSelection}>
             Clear
-          </Button>
+          </BulkClear>
           <Button
             variant="danger"
             size="sm"
