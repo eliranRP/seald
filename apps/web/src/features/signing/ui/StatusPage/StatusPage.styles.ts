@@ -5,23 +5,37 @@ import type { StatusTone } from './StatusPage.types';
 export const Page = styled.div`
   min-height: 100vh;
   min-height: 100dvh;
-  background: ${({ theme }) => theme.color.bg.surface};
+  background: ${({ theme }) => theme.color.bg.app};
+
+  @media (max-width: 640px) {
+    background: ${({ theme }) => theme.color.bg.subtle};
+  }
 `;
 
-/** Centred status column (canvas `.state-page`). */
+/**
+ * Status column (canvas `.state-page`): centred in the space under the 64px
+ * header on desktop; top-aligned under the 56px header on mobile (16px page
+ * gutter + 40px top padding).
+ */
 export const Column = styled.main`
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: ${({ theme }) => theme.space[4]};
   max-width: 440px;
+  min-height: calc(100vh - 64px);
+  min-height: calc(100dvh - 64px);
   margin: 0 auto;
-  padding: 96px ${({ theme }) => theme.space[6]};
+  padding: ${({ theme }) => `${theme.space[6]} ${theme.space[6]}`};
   text-align: center;
   ${rise}
 
   @media (max-width: 640px) {
-    padding-top: ${({ theme }) => theme.space[16]};
+    justify-content: flex-start;
+    min-height: 0;
+    padding: 56px ${({ theme }) => theme.space[6]} ${({ theme }) => theme.space[10]};
   }
 `;
 
@@ -48,13 +62,25 @@ export const Disc = styled.span<{ readonly $tone: StatusTone }>`
   }};
 `;
 
-export const Title = styled.h1`
+/**
+ * Canvas `.h1` (32px) on desktop, `.h1-m` (28px) on mobile. While busy
+ * ("Opening …") it is the quiet `.body` line under the spinner instead.
+ */
+export const Title = styled.h1<{ readonly $busy: boolean }>`
   margin: 0;
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.x3l};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
-  letter-spacing: -0.01em;
-  color: ${({ theme }) => theme.color.fg[1]};
+  font-family: ${({ theme, $busy }) => ($busy ? theme.font.sans : theme.font.serif)};
+  font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.bodyMd : theme.font.size.x4l)};
+  font-weight: ${({ theme, $busy }) =>
+    $busy ? theme.font.weight.regular : theme.font.weight.medium};
+  line-height: ${({ theme, $busy }) =>
+    $busy ? theme.font.lineHeight.normal : theme.font.lineHeight.tight};
+  letter-spacing: ${({ theme, $busy }) =>
+    $busy ? theme.font.tracking.normal : theme.font.tracking.tight};
+  color: ${({ theme, $busy }) => ($busy ? theme.color.fg[2] : theme.color.fg[1])};
+
+  @media (max-width: 640px) {
+    font-size: ${({ theme, $busy }) => ($busy ? theme.font.size.caption : theme.font.size.x3l)};
+  }
 `;
 
 export const Body = styled.div`
@@ -63,7 +89,8 @@ export const Body = styled.div`
   align-items: center;
   gap: ${({ theme }) => theme.space[4]};
   width: 100%;
-  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
@@ -74,12 +101,12 @@ export const ActionLink = styled.a`
   justify-content: center;
   gap: ${({ theme }) => theme.space[2]};
   height: 44px;
-  padding: 0 ${({ theme }) => theme.space[5]};
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.sm};
+  padding: 0 18px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.paper};
   color: ${({ theme }) => theme.color.fg[1]};
-  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   text-decoration: none;
 
@@ -96,7 +123,8 @@ export const ActionLink = styled.a`
 export const TextLink = styled.a`
   display: inline-flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
+  justify-content: center;
+  gap: 6px;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   color: ${({ theme }) => theme.color.indigo[700]};

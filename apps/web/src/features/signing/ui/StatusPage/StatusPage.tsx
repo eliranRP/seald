@@ -21,7 +21,7 @@ export function StatusPage(props: StatusPageProps) {
             <IconGlyph size={32} strokeWidth={2} />
           </Disc>
         )}
-        <Title>{title}</Title>
+        <Title $busy={busy}>{title}</Title>
         {children ? <Body>{children}</Body> : null}
       </Column>
     </Page>

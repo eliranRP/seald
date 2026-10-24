@@ -19,10 +19,14 @@ export const Page = styled.div<{
   width: ${({ $width }) => `${$width}px`};
   min-height: 740px;
   background: ${({ theme }) => theme.color.paper};
-  border-radius: ${({ theme }) => theme.radius.xs};
+  border-radius: ${({ theme }) => theme.radius.hair};
   box-shadow: ${({ theme }) => theme.shadow.paper};
-  padding: ${({ $pdfMode }) => ($pdfMode ? '0' : '56px 64px')};
+  padding: ${({ $pdfMode }) => ($pdfMode ? '0' : '40px 48px')};
   overflow: hidden;
+
+  @media (max-width: 640px) {
+    padding: ${({ $pdfMode }) => ($pdfMode ? '0' : '28px 32px')};
+  }
 `;
 
 export const Heading = styled.div`

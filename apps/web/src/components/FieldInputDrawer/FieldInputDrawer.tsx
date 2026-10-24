@@ -9,6 +9,7 @@ import {
   CloseBtn,
   ErrorText,
   Footer,
+  Handle,
   HeaderRow,
   Input,
   Sheet,
@@ -124,10 +125,11 @@ export const FieldInputDrawer = forwardRef<HTMLDivElement, FieldInputDrawerProps
       {...rest}
     >
       <Sheet onClick={(e) => e.stopPropagation()} ref={sheetRef}>
+        <Handle aria-hidden="true" />
         <HeaderRow>
           <Title>{label}</Title>
           <CloseBtn type="button" onClick={onCancel} aria-label="Cancel">
-            <Icon icon={XIcon} size={16} />
+            <Icon icon={XIcon} size={20} />
           </CloseBtn>
         </HeaderRow>
 

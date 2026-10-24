@@ -11,7 +11,7 @@ export const Backdrop = styled.div`
   height: 100vh;
   height: 100svh;
   height: 100dvh;
-  background: rgba(11, 18, 32, 0.5);
+  background: rgba(11, 18, 32, 0.32);
   z-index: ${({ theme }) => theme.z.modal};
   display: flex;
   align-items: flex-end;
@@ -27,55 +27,78 @@ export const Sheet = styled.div`
      than the page jumping. */
   max-height: 100dvh;
   overflow-y: auto;
+  box-sizing: border-box;
   background: ${({ theme }) => theme.color.paper};
-  border-radius: 20px 20px 0 0;
-  /* Reserve space for the iPhone home indicator (the 34pt strip below
-     the bottom edge). \`env(safe-area-inset-bottom)\` is 0 on devices
-     without a notch, so this is safe everywhere. */
-  padding: ${({ theme }) => theme.space[6]} 28px calc(28px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -10px 40px rgba(11, 18, 32, 0.2);
+  border-radius: ${({ theme }) => `${theme.radius.xl} ${theme.radius.xl} 0 0`};
+  /* Canvas \`.sheet\` (8 16 24), plus the iPhone home indicator strip;
+     \`env(safe-area-inset-bottom)\` is 0 on devices without a notch. */
+  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[4]}
+    calc(${({ theme }) => theme.space[6]} + env(safe-area-inset-bottom, 0px));
+  box-shadow: ${({ theme }) => theme.shadow.xl};
+`;
+
+/** Canvas `.sheet-handle`: decorative grab bar. */
+export const Handle = styled.div`
+  width: 36px;
+  height: 4px;
+  margin: 4px auto 12px;
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[300]};
 `;
 
 export const HeaderRow = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: ${({ theme }) => theme.space[4]};
+  padding: 0 0 ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[1]};
 `;
 
+/** Canvas `.h3`: 16px semibold. */
 export const Title = styled.div`
-  font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h5};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.body};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
+/** Canvas ghost icon button, 44 x 44. */
 export const CloseBtn = styled.button`
-  width: 32px;
-  height: 32px;
-  border-radius: ${({ theme }) => theme.radius.sm};
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: ${({ theme }) => theme.radius.md};
   background: transparent;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
   cursor: pointer;
-  color: ${({ theme }) => theme.color.fg[3]};
+  color: ${({ theme }) => theme.color.fg[2]};
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  &:hover {
+    background: ${({ theme }) => theme.color.bg.subtle};
+  }
   &:focus-visible {
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
 `;
 
+/** Canvas `.field` at the 44px sheet height. */
 export const Input = styled.input<{ readonly $invalid: boolean }>`
   width: 100%;
-  padding: 12px 16px;
+  height: 44px;
+  padding: 0 ${({ theme }) => theme.space[3]};
   border: 1px solid
-    ${({ theme, $invalid }) => ($invalid ? theme.color.danger[500] : theme.color.border[2])};
+    ${({ theme, $invalid }) => ($invalid ? theme.color.danger[500] : theme.color.border[1])};
   border-radius: ${({ theme }) => theme.radius.md};
+  background: ${({ theme }) => theme.color.paper};
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-family: ${({ theme }) => theme.font.sans};
+  color: ${({ theme }) => theme.color.fg[1]};
   box-sizing: border-box;
+  &::placeholder {
+    color: ${({ theme }) => theme.color.ink[500]};
+  }
   &:focus-visible {
     outline: none;
     border-color: ${({ theme }) => theme.color.indigo[500]};
@@ -93,31 +116,57 @@ export const Footer = styled.div`
   display: flex;
   justify-content: flex-end;
   gap: ${({ theme }) => theme.space[2]};
-  margin-top: ${({ theme }) => theme.space[5]};
+  margin-top: ${({ theme }) => theme.space[3]};
+
+  @media (max-width: 640px) {
+    & > * {
+      flex: 1;
+    }
+  }
 `;
 
+/** Canvas `.btn.btn-ghost`. */
 export const CancelBtn = styled.button`
-  padding: 10px 16px;
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
+  height: 44px;
+  padding: 0 18px;
+  border: 0;
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
+  background: transparent;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[2]};
   cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.color.bg.subtle};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
 `;
 
+/** Canvas `.btn.btn-primary`. */
 export const ApplyBtn = styled.button`
-  padding: 10px 18px;
+  height: 44px;
+  padding: 0 18px;
   border: none;
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.ink[900]};
-  color: ${({ theme }) => theme.color.paper};
-  font-size: ${({ theme }) => theme.font.size.caption};
+  background: ${({ theme }) => theme.color.indigo[600]};
+  color: ${({ theme }) => theme.color.fgOnAccent};
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   cursor: pointer;
+  &:hover {
+    background: ${({ theme }) => theme.color.indigo[700]};
+  }
+  &:focus-visible {
+    outline: none;
+    box-shadow: ${({ theme }) => theme.shadow.focus};
+  }
   &:disabled {
-    background: ${({ theme }) => theme.color.ink[300]};
+    opacity: 0.5;
     cursor: not-allowed;
   }
 `;

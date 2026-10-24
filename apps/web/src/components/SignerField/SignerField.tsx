@@ -57,6 +57,11 @@ function isImageUrl(v: string): boolean {
   return v.startsWith('blob:') || v.startsWith('data:') || /^https?:\/\//.test(v);
 }
 
+/** Script ink size for a filled signature / initials: 18px to 28px. */
+function inkSize(px: number): number {
+  return Math.min(28, Math.max(18, px));
+}
+
 /**
  * L2 component — absolute-positioned in-doc field the recipient taps to fill.
  *
@@ -116,9 +121,11 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
         />
       );
     } else if (kind === 'signature') {
-      inner = <SignatureMark name={v} size={Math.max(16, h - 18)} />;
+      // Canvas `.sfield .sig-ink`: 28px script at full size, smaller on
+      // the scaled-down mobile page.
+      inner = <SignatureMark name={v} size={inkSize(h - 18)} />;
     } else {
-      inner = <InitialScript $size={Math.max(18, h - 18)}>{v}</InitialScript>;
+      inner = <InitialScript $size={inkSize(h - 5)}>{v}</InitialScript>;
     }
   } else if (kind === 'checkbox') {
     const checked = value === true;
@@ -131,11 +138,11 @@ export const SignerField = forwardRef<HTMLButtonElement, SignerFieldProps>((prop
     let text = '';
     if (typeof value === 'string') text = value;
     else if (typeof value === 'boolean') text = String(value);
-    inner = <FilledText $mono={kind === 'date'}>{text}</FilledText>;
+    inner = <FilledText>{text}</FilledText>;
   } else {
     inner = (
       <EmptyLabel>
-        <Icon icon={KIND_ICON[kind]} size={12} />
+        <Icon icon={KIND_ICON[kind]} size={14} />
         {label}
         {showRequired ? <RequiredStar aria-hidden="true">*</RequiredStar> : null}
       </EmptyLabel>
