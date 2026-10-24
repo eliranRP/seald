@@ -31,6 +31,7 @@ import { setFlag, startFakeTsa, tryGenerateP12, TS_NODE_BIN } from './pades-e2e-
 import { dispatchSignToken } from './dispatched-sign-links';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
+import { detectPadesProfile } from '../src/sealing/pades-profile';
 
 /**
  * WP-01 sealing hardening, end to end through AppModule with a real P12
@@ -234,6 +235,8 @@ describeOrSkip('Sealing hardening — B-LTA, appended certificate, declined.pdf 
       'PAdES-B-LTA: /DocTimeStamp after /DSS covers the file; messageImprint matches',
     );
     expect(result.status).toBe(0);
+    // The verify page's PAdES and Timestamped claims come from this read.
+    expect(detectPadesProfile(pdf)).toEqual({ level: 'B-LTA', timestamped: true });
   }
 
   it('seals a completed envelope to PAdES-B-LTA', async () => {

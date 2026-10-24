@@ -85,6 +85,7 @@ describe('VerifyController', () => {
   const storage = {
     createSignedUrl: jest.fn(),
     exists: jest.fn(),
+    download: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -95,6 +96,8 @@ describe('VerifyController', () => {
     repo.verifyEventChain.mockResolvedValue({ chain_intact: true });
     storage.createSignedUrl.mockReset();
     storage.exists.mockReset();
+    storage.download.mockReset();
+    storage.download.mockRejectedValue(new Error('not found'));
 
     const moduleRef = await Test.createTestingModule({
       controllers: [VerifyController],
@@ -326,6 +329,37 @@ describe('VerifyController', () => {
     it('404s when no envelope sealed that file', async () => {
       repo.findShortCodeBySealedSha256.mockResolvedValueOnce(null);
       await expect(controller.byHash(SHA)).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('seal profile', () => {
+    function sealedEnvelope(sealed_sha256: string): Envelope {
+      return { ...ENVELOPE, sealed_sha256 };
+    }
+
+    it('reports what the sealed bytes carry and reads each sealed file once', async () => {
+      const envelope = sealedEnvelope('c'.repeat(64));
+      repo.findByShortCode.mockResolvedValue(envelope);
+      repo.listEventsForEnvelope.mockResolvedValue([]);
+      // No CAdES signature in the bytes (a Noop seal): no level is claimed.
+      storage.download.mockResolvedValue(Buffer.from('%PDF-1.7\n%%EOF\n', 'latin1'));
+      const first = await controller.verify(envelope.short_code);
+      expect(first.envelope.seal).toEqual({ level: 'none', timestamped: false });
+      expect(storage.download).toHaveBeenCalledWith(`${envelope.id}/sealed.pdf`);
+      await controller.verify(envelope.short_code);
+      expect(storage.download).toHaveBeenCalledTimes(1);
+    });
+
+    it('is null when the sealed file cannot be read, and before sealing', async () => {
+      repo.findByShortCode.mockResolvedValueOnce(sealedEnvelope('d'.repeat(64)));
+      repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+      const unreadable = await controller.verify('u82ZmvdxwG3CU');
+      expect(unreadable.envelope.seal).toBeNull();
+
+      repo.findByShortCode.mockResolvedValueOnce({ ...ENVELOPE, status: 'awaiting_others' });
+      repo.listEventsForEnvelope.mockResolvedValueOnce([]);
+      const pending = await controller.verify('u82ZmvdxwG3CU');
+      expect(pending.envelope.seal).toBeNull();
     });
   });
 });

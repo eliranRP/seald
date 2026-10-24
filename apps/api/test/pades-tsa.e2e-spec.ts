@@ -26,6 +26,7 @@ import { InMemoryStorageService } from './in-memory-storage';
 import { buildTestJwks } from './test-jwks';
 import { EnvelopeDocumentsRepository } from '../src/envelopes/documents/envelope-documents.repository';
 import { InMemoryEnvelopeDocumentsRepository } from './in-memory-envelope-documents-repository';
+import { detectPadesProfile } from '../src/sealing/pades-profile';
 
 /**
  * PAdES-B-T (RFC 3161 timestamp embedded in PKCS#7 unsignedAttrs) e2e test.
@@ -379,6 +380,8 @@ describeOrSkip('PAdES-B-T — real P12 + embedded TSA timestamp (e2e)', () => {
     execFileSync('mkdir', ['-p', outDir]);
     const out = join(outDir, 'pades-b-t.signed.pdf');
     writeFileSync(out, signed);
+    // No /DSS yet: the verify page may claim B-T and Timestamped, not B-LT.
+    expect(detectPadesProfile(signed)).toEqual({ level: 'B-T', timestamped: true });
     console.log(`[pades-tsa test] PAdES-B-T artifact written to ${out}`);
   });
 
