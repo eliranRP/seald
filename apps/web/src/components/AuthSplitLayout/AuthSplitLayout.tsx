@@ -46,29 +46,19 @@ export const AuthSplitLayout = forwardRef<HTMLDivElement, AuthSplitLayoutProps>(
     <Root ref={ref} $panel={!hidePanel} {...rest}>
       <Main>
         <Logo href="/" aria-label="Seald home">
-          <LogoMark aria-hidden="true">
-            <svg viewBox="0 0 40 40" width="16" height="16" fill="none" aria-hidden="true">
-              <g transform="translate(6, 6)">
-                <path
-                  d="M2 22 C 6 20, 10 14, 14 12 L 22 4 L 26 8 L 18 16 C 16 20, 10 24, 4 26 Z"
-                  fill="currentColor"
-                />
-                <path
-                  d="M22 4 L 24 2 C 25 1, 26.5 1, 27.5 2 L 28 2.5 C 29 3.5, 29 5, 28 6 L 26 8 Z"
-                  fill="currentColor"
-                  opacity="0.7"
-                />
-              </g>
-            </svg>
-          </LogoMark>
+          <LogoMark aria-hidden="true">S</LogoMark>
           <span aria-hidden="true">Seald</span>
         </Logo>
         <Body>{children}</Body>
         <FootRow aria-label="Legal and accessibility">
           <a href="/legal/terms">Terms</a>
+          <span aria-hidden="true">·</span>
           <a href="/legal/privacy">Privacy</a>
+          <span aria-hidden="true">·</span>
           <a href="/legal/accessibility">Accessibility</a>
+          <span aria-hidden="true">·</span>
           <a href="/legal/responsible-disclosure">Report a vulnerability</a>
+          <span aria-hidden="true">·</span>
           <FootLinkButton
             type="button"
             data-testid="footer-manage-cookies"
@@ -90,7 +80,9 @@ export const AuthSplitLayout = forwardRef<HTMLDivElement, AuthSplitLayoutProps>(
               <PaperLine $w="92%" />
               <PaperLine $w="97%" />
               <PaperLine $w="64%" />
-              <SigField>Hannah Wills</SigField>
+              <SigField>
+                <span>Hannah Wills</span>
+              </SigField>
               <PaperLine $w="100%" />
               <PaperLine $w="88%" />
             </Paper>
