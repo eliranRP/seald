@@ -18,3 +18,13 @@ export function useFocusedShell(): void {
     return () => setFocused(false);
   }, [setFocused]);
 }
+
+/**
+ * Render-only form of `useFocusedShell` so a page can focus the shell
+ * conditionally, e.g. `{isMobile ? <FocusedShell /> : null}` where the phone
+ * board gives the page its own header.
+ */
+export function FocusedShell(): null {
+  useFocusedShell();
+  return null;
+}

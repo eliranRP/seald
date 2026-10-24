@@ -59,7 +59,7 @@ import { useSaveEnvelopeToGdrive } from '@/features/gdriveExport';
 import { SigningOrderSteps } from '@/features/signers/signingOrder';
 import { useReminderToggle } from '@/hooks/useReminderToggle';
 import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
-import { useFocusedShell } from '@/layout/shellChrome';
+import { FocusedShell } from '@/layout/shellChrome';
 import { formatShortDate, formatShortDateOrDash } from '@/lib/dateFormat';
 import { ActivityCard } from './ActivityCard';
 import { DownloadSplitButton } from './DownloadSplitButton';
@@ -100,15 +100,6 @@ import {
   Wrap,
   ChipLink,
 } from './EnvelopeDetailPage.styles';
-
-/**
- * The mobile board gives this page its own header and action bar, so the
- * app top bar and bottom nav step aside while it is open on a phone.
- */
-function FocusedOnMobile() {
-  useFocusedShell();
-  return null;
-}
 
 interface ActionToast {
   readonly kind: 'success' | 'danger';
@@ -597,7 +588,7 @@ export function EnvelopeDetailPage() {
   if (q.isPending) {
     return (
       <Wrap>
-        {isMobile ? <FocusedOnMobile /> : null}
+        {isMobile ? <FocusedShell /> : null}
         {mobileTop('', false)}
         <Inner aria-busy="true">
           <Skeleton width={320} height={36} />
@@ -724,7 +715,7 @@ export function EnvelopeDetailPage() {
 
   return (
     <Wrap>
-      {isMobile ? <FocusedOnMobile /> : null}
+      {isMobile ? <FocusedShell /> : null}
       {mobileTop(envelope.title, moreEntries.length > 0)}
       <Inner>
         <BackRow>

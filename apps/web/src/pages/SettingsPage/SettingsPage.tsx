@@ -2,6 +2,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readIsMobileViewport } from '@/hooks/useIsMobileViewport';
+import { FocusedShell } from '@/layout/shellChrome';
 import { AccountSection } from './AccountSection';
 import { IntegrationsSection } from './IntegrationsSection';
 import { NotificationsSection } from './NotificationsSection';
@@ -51,6 +52,9 @@ export function SettingsPage() {
 
   return (
     <Page>
+      {/* The phone board gives each section its own back header in place of
+          the app top bar and bottom nav. */}
+      {readIsMobileViewport() ? <FocusedShell /> : null}
       <PageTitle>Settings</PageTitle>
       <MobileTop>
         <BackLink to="/settings" aria-label="Back to settings">
