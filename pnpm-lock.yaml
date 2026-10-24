@@ -19,8 +19,8 @@ overrides:
   form-data@>=4.0.0 <4.0.6: 4.0.6
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
   multer@>=2.0.0 <2.5.0: 2.5.0
-  undici@>=8.0.0 <8.12.2: 8.12.3
   zod@>=4.0.0 <4.6.6: 4.6.7
+  undici@>=8.0.0 <8.12.2: ^8.12.2
   '@types/react': ^19
   '@types/react-dom': ^19
   lodash: ^4.18.0
@@ -140,7 +140,7 @@ importers:
         specifier: ^0.29.0
         version: 0.29.0
       multer:
-        specifier: 2.5.0
+        specifier: ^2.5.0
         version: 2.5.0
       node-forge:
         specifier: 1.4.0
@@ -8421,10 +8421,6 @@ packages:
     resolution: {integrity: sha512-TkRKr9sUTxEH8MdfuCSP7VizJyzRNMjj2J2do2Jr3Kym598JVdEksuzPQCnlFPW4ky9Q+iA+ma9BGm06XQBy8g==}
     engines: {node: '>= 0.6'}
 
-  type-is@2.0.1:
-    resolution: {integrity: sha512-OZs6gsjF4vMp32qrCbiVSkrFmXtG/AZhY3t0iAMrMBiAZyV9oALtXO8hsrHbMXF9x6L3grlFuwW2oAz7cav+Gw==}
-    engines: {node: '>= 0.6'}
-
   type-is@2.1.0:
     resolution: {integrity: sha512-faYHw0anBbc/kWF3zFTEnxSFOAGUX9GFbOBthvDdLsIlEoWOFOtS0zgCiQYwIskL9iGXZL3kAXD8OoZ4GmMATA==}
     engines: {node: '>= 18'}
@@ -14904,7 +14900,7 @@ snapshots:
       send: 1.2.1
       serve-static: 2.2.1
       statuses: 2.0.2
-      type-is: 2.0.1
+      type-is: 2.1.0
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
@@ -18376,12 +18372,6 @@ snapshots:
     dependencies:
       media-typer: 0.3.0
       mime-types: 2.1.35
-
-  type-is@2.0.1:
-    dependencies:
-      content-type: 1.0.5
-      media-typer: 1.1.0
-      mime-types: 3.0.2
 
   type-is@2.1.0:
     dependencies:
