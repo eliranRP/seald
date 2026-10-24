@@ -204,6 +204,9 @@ describe('DashboardPage', () => {
   it('filters by tag from the Tags menu', async () => {
     renderHome();
     await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
+    // The date / people / tag menus sit behind one Filter button.
+    expect(screen.queryByRole('button', { name: /^Tags:/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
     fireEvent.click(screen.getByRole('button', { name: /^Tags:/ }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'client' }));
     expect(
@@ -212,6 +215,16 @@ describe('DashboardPage', () => {
     expect(
       screen.getByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
     ).toBeInTheDocument();
+  });
+
+  it('states each row status as one sentence', async () => {
+    renderHome();
+    const row = (await screen.findAllByTestId('doc-row')).find((r) =>
+      within(r).queryByText('Advisory agreement — Farrow'),
+    );
+    expect(row).toBeDefined();
+    expect(within(row as HTMLElement).getByText(/^Waiting for /)).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText(/ of \d+ signed$/)).toBeInTheDocument();
   });
 
   it('puts what needs you in a strip of action cards', async () => {

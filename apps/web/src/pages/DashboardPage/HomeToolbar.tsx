@@ -152,6 +152,9 @@ export function HomeToolbar(props: HomeToolbarProps) {
   const { filters, onChange, onClear, people, tags, mobile, searchOpen = false } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(filters.query);
+  // Desktop: the date / people / tag menus stay folded behind one Filter
+  // button until asked for, so the toolbar reads as "search + filter + sort".
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Keep the box in step when the query is cleared from a chip.
   useEffect(() => setDraft(filters.query), [filters.query]);
@@ -262,6 +265,9 @@ export function HomeToolbar(props: HomeToolbarProps) {
   }
 
   const activeCount = chips.length;
+  const refineCount =
+    (filters.date !== 'any' ? 1 : 0) + filters.people.length + filters.tags.length;
+  const showRefine = filtersOpen || refineCount > 0;
   const search = (
     <SearchField>
       <Search size={16} aria-hidden />
@@ -309,27 +315,41 @@ export function HomeToolbar(props: HomeToolbarProps) {
       ) : (
         <ToolbarRow>
           {search}
-          <SelectMenu
-            label={DATE_LABEL[filters.date]}
-            aria={`Date: ${DATE_LABEL[filters.date]}`}
-            icon={Calendar}
-            isSet={filters.date !== 'any'}
-            items={dateItems}
-          />
-          <SelectMenu
-            label={peopleLabel}
-            aria={`People: ${peopleLabel}`}
-            icon={Users}
-            isSet={filters.people.length > 0}
-            items={peopleItems}
-          />
-          <SelectMenu
-            label={tagsLabel}
-            aria={`Tags: ${tagsLabel}`}
-            icon={TagIcon}
-            isSet={filters.tags.length > 0}
-            items={tagItems}
-          />
+          <SelectButton
+            type="button"
+            $set={refineCount > 0}
+            aria-expanded={showRefine}
+            onClick={() => setFiltersOpen((o) => !o)}
+          >
+            <ListFilter size={16} aria-hidden />
+            Filter
+            {refineCount > 0 ? <CountPill $accent>{refineCount}</CountPill> : null}
+          </SelectButton>
+          {showRefine ? (
+            <>
+              <SelectMenu
+                label={DATE_LABEL[filters.date]}
+                aria={`Date: ${DATE_LABEL[filters.date]}`}
+                icon={Calendar}
+                isSet={filters.date !== 'any'}
+                items={dateItems}
+              />
+              <SelectMenu
+                label={peopleLabel}
+                aria={`People: ${peopleLabel}`}
+                icon={Users}
+                isSet={filters.people.length > 0}
+                items={peopleItems}
+              />
+              <SelectMenu
+                label={tagsLabel}
+                aria={`Tags: ${tagsLabel}`}
+                icon={TagIcon}
+                isSet={filters.tags.length > 0}
+                items={tagItems}
+              />
+            </>
+          ) : null}
           <Spacer />
           <SortMenu label={SORT_LABEL[filters.sort]} items={sortItems} mobile={false} />
         </ToolbarRow>

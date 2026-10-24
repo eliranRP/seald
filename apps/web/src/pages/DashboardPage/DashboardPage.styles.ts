@@ -1,5 +1,6 @@
-import styled, { css, keyframes } from 'styled-components';
+import styled, { css, keyframes, type DefaultTheme } from 'styled-components';
 import { truncateText, visuallyHidden } from '@/styles/mixins';
+import type { StatusTone } from './rowModel';
 
 /** Phones: the design's mobile layout (HomeMobile) takes over. */
 export const MOBILE = '640px';
@@ -105,6 +106,14 @@ export const Eyebrow = styled.h2`
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
+/** A tab's count: plain muted digits beside the label. */
+export const TabCount = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  font-weight: ${({ theme }) => theme.font.weight.regular};
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-variant-numeric: tabular-nums;
+`;
+
 export const CountPill = styled.span<{ $accent?: boolean }>`
   display: inline-flex;
   align-items: center;
@@ -176,13 +185,12 @@ export const NeedCard = styled.div`
   }
 `;
 
-const NEED_TONES = {
-  indigo: { bg: 'indigo', fg: 'indigo' },
-  amber: { bg: 'warn', fg: 'warn' },
-  red: { bg: 'danger', fg: 'danger' },
-} as const;
-export type NeedTone = keyof typeof NEED_TONES;
+export type NeedTone = 'indigo' | 'amber' | 'red';
 
+/**
+ * Neutral on purpose: the card's one colored element is its action button,
+ * so "what do I do" reads before "what kind of item is this".
+ */
 export const NeedIcon = styled.span<{ $tone: NeedTone }>`
   flex: none;
   display: inline-flex;
@@ -191,9 +199,9 @@ export const NeedIcon = styled.span<{ $tone: NeedTone }>`
   width: 32px;
   height: 32px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  background: ${({ theme, $tone }) => theme.color[NEED_TONES[$tone].bg][50]};
+  background: ${({ theme }) => theme.color.ink[100]};
   color: ${({ theme, $tone }) =>
-    $tone === 'indigo' ? theme.color.indigo[700] : theme.color[NEED_TONES[$tone].fg][700]};
+    $tone === 'red' ? theme.color.danger[700] : theme.color.ink[600]};
 `;
 
 export const NeedBody = styled.div`
@@ -316,19 +324,6 @@ export const Tab = styled.button<{ $active: boolean }>`
     &:hover {
       color: ${({ theme, $active }) => ($active ? theme.color.paper : theme.color.fg[1])};
     }
-  }
-`;
-
-export const AvgMeta = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: none;
-  font-size: ${({ theme }) => theme.font.size.caption};
-  color: ${({ theme }) => theme.color.fg[3]};
-
-  @media (max-width: ${MOBILE}) {
-    display: none;
   }
 `;
 
@@ -482,6 +477,11 @@ export const TableShell = styled.div`
   border-radius: ${({ theme }) => theme.radius.lg};
   overflow: hidden;
 
+  /* Once anything is selected, every row shows its checkbox. */
+  &:has(input[type='checkbox']:checked) [data-testid='doc-row'] > input[type='checkbox'] {
+    opacity: 1;
+  }
+
   @media (max-width: ${MOBILE}) {
     background: none;
     border: 0;
@@ -517,7 +517,6 @@ export const GroupLabel = styled.h3`
   letter-spacing: ${({ theme }) => theme.font.tracking.wider};
   text-transform: uppercase;
   color: ${({ theme }) => theme.color.fg[3]};
-  background: ${({ theme }) => theme.color.ink[50]};
   border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
 
   @media (max-width: ${MOBILE}) {
@@ -548,7 +547,8 @@ export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: b
   box-sizing: border-box;
   border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
   background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : 'transparent')};
-  ${({ theme, $hot, $selected }) => ($hot && !$selected ? `background: ${theme.color.ink[50]};` : '')}
+  ${({ theme, $hot, $selected }) =>
+    $hot && !$selected ? `background: ${theme.color.ink[50]};` : ''}
   transition: background ${({ theme }) => theme.motion.durFast};
 
   ${({ $fresh }) =>
@@ -563,7 +563,8 @@ export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: b
       : ''}
 
   &:hover {
-    background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : theme.color.ink[50])};
+    background: ${({ theme, $selected }) =>
+      $selected ? theme.color.indigo[50] : theme.color.ink[50]};
   }
 
   /* The row's actions rest hidden and show on hover, focus, or while its menu is open. */
@@ -576,8 +577,23 @@ export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: b
   &:focus-within > [data-part='row-actions'] {
     opacity: 1;
   }
+
+  /* Checkboxes too: they rest hidden until hover or focus, and all show once
+     anything is selected (the TableShell rule below). */
+  & > input[type='checkbox'] {
+    opacity: 0;
+    transition: opacity ${({ theme }) => theme.motion.durFast}
+      ${({ theme }) => theme.motion.easeStandard};
+  }
+  &:hover > input[type='checkbox'],
+  & > input[type='checkbox']:focus-visible,
+  & > input[type='checkbox']:checked {
+    opacity: 1;
+  }
+
   @media (hover: none) {
-    & > [data-part='row-actions'] {
+    & > [data-part='row-actions'],
+    & > input[type='checkbox'] {
       opacity: 1;
     }
   }
@@ -622,46 +638,6 @@ export const DocCell = styled.div`
   min-width: 0;
 `;
 
-/** Canvas `.doc-thumb`: a 32×40 page with three text lines; sealed adds a green check. */
-export const RowThumb = styled.span<{ $sealed?: boolean }>`
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  flex: none;
-  width: 32px;
-  height: 40px;
-  box-sizing: border-box;
-  padding: 0 6px;
-  border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.xxs};
-  background: ${({ theme }) => theme.color.paper};
-
-  & > i {
-    display: block;
-    height: 2px;
-    border-radius: 1px;
-    background: ${({ theme }) => theme.color.ink[200]};
-  }
-  & > i:last-of-type {
-    width: 60%;
-  }
-  & > svg {
-    position: absolute;
-    right: -5px;
-    bottom: -5px;
-    width: 14px;
-    height: 14px;
-    padding: 2.5px;
-    box-sizing: border-box;
-    border-radius: 50%;
-    background: ${({ theme }) => theme.color.success[500]};
-    color: ${({ theme }) => theme.color.paper};
-    box-shadow: 0 0 0 2px ${({ theme }) => theme.color.paper};
-  }
-`;
-
 export const DocText = styled.div`
   display: flex;
   flex-direction: column;
@@ -701,12 +677,6 @@ export const DocSub = styled.div`
   margin-top: 2px;
 `;
 
-export const Mono = styled.span`
-  font-family: ${({ theme }) => theme.font.mono};
-  font-size: ${({ theme }) => theme.font.size.xs};
-  color: ${({ theme }) => theme.color.fg[3]};
-`;
-
 export const Tag = styled.span`
   display: inline-flex;
   align-items: center;
@@ -730,20 +700,54 @@ export const StatusCell = styled.div`
   min-width: 0;
 `;
 
-export const StatusMeta = styled.div`
+function dotColor(theme: DefaultTheme, tone: StatusTone): string {
+  switch (tone) {
+    case 'accent':
+      return theme.color.indigo[600];
+    case 'success':
+      return theme.color.success[500];
+    case 'danger':
+      return theme.color.danger[500];
+    case 'neutral':
+      return theme.color.ink[300];
+  }
+}
+
+/**
+ * The row's status: a small dot (the only color in the row) and one plain
+ * sentence such as "Waiting for Bob".
+ */
+export const StatusText = styled.span<{ $tone: StatusTone; $strong?: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
   min-width: 0;
   max-width: 100%;
-  font-size: ${({ theme }) => theme.font.size.caption};
-  line-height: 1.5;
-  color: ${({ theme }) => theme.color.fg[3]};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
+  font-weight: ${({ theme, $strong }) =>
+    $strong ? theme.font.weight.semibold : theme.font.weight.regular};
+  color: ${({ theme, $strong }) => ($strong ? theme.color.fg[1] : theme.color.fg[2])};
   ${truncateText}
 
-  & > svg {
+  &::before {
+    content: '';
     flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: ${({ theme, $tone }) => dotColor(theme, $tone)};
   }
+
+  @media (max-width: ${MOBILE}) {
+    font-size: ${({ theme }) => theme.font.size.caption};
+  }
+`;
+
+/** Muted "1 of 2 signed". */
+export const SignedText = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-variant-numeric: tabular-nums;
 `;
 
 export const SignersCell = styled.div`
