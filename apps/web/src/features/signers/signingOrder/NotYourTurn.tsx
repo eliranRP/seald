@@ -24,12 +24,12 @@ export function NotYourTurn({ onRetry, waitingOn, senderName }: NotYourTurnProps
     <StatusPage tone="neutral" icon={Clock} title={t('signing.sign.link.notYet.title')}>
       <Steps role="status" aria-live="polite">
         <Step>
-          <Avatar name={senderName ?? '?'} size={40} tone="emerald" />
+          <Avatar name={senderName ?? '?'} size={36} tone="emerald" />
           <Label>{t('signing.sign.link.notYet.sent')}</Label>
         </Step>
         <Line aria-hidden="true" />
         <Step>
-          <Avatar name={waitingOn ?? '?'} size={40} tone="amber" />
+          <Avatar name={waitingOn ?? '?'} size={36} tone="amber" />
           <Label $strong>
             {waitingOn
               ? t('signing.sign.link.notYet.first', { name: waitingOn })
@@ -38,7 +38,7 @@ export function NotYourTurn({ onRetry, waitingOn, senderName }: NotYourTurnProps
         </Step>
         <Line aria-hidden="true" />
         <Step>
-          <Avatar name={t('signing.sign.link.notYet.you')} size={40} tone="indigo" />
+          <Avatar name={t('signing.sign.link.notYet.you')} size={36} tone="indigo" />
           <Label>{t('signing.sign.link.notYet.you')}</Label>
         </Step>
       </Steps>

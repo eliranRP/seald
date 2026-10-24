@@ -10,7 +10,11 @@ const stateColors = (t: DefaultTheme, state: CheckChipState) =>
     off: { bg: t.color.ink[100], fg: t.color.fg[3] },
   })[state];
 
-export const CheckChipRoot = styled.span<{ $state: CheckChipState; $index: number }>`
+export const CheckChipRoot = styled.span<{
+  $state: CheckChipState;
+  $index: number;
+  $large: boolean;
+}>`
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -23,6 +27,18 @@ export const CheckChipRoot = styled.span<{ $state: CheckChipState; $index: numbe
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   white-space: nowrap;
+  ${({ $large, theme }) =>
+    $large
+      ? `
+    height: 36px;
+    padding: 0 14px;
+    font-size: ${theme.font.size.bodyMd};
+
+    @media (max-width: 640px) {
+      height: 40px;
+    }
+  `
+      : ''}
   ${rise}
   ${({ $index }) => stagger($index)}
 `;

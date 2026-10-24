@@ -140,7 +140,7 @@ export function IntegrationsSection() {
           const needsReconnect = account.tokenStatus === 'reconnect_required';
           return (
             <AccountLine key={account.id}>
-              <Avatar name={account.email} size={40} />
+              <Avatar name={account.email} size={36} />
               <Grow>
                 <AccountEmail>{account.email}</AccountEmail>
                 <Meta>

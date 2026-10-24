@@ -28,7 +28,9 @@ export const IconSlot = styled.span`
 
 export const Input = styled.input<{ $hasIcon: boolean; $invalid: boolean }>`
   width: 100%;
-  padding: ${({ $hasIcon }) => ($hasIcon ? '11px 14px 11px 36px' : '11px 14px')};
+  box-sizing: border-box;
+  height: 40px;
+  padding: ${({ $hasIcon }) => ($hasIcon ? '0 14px 0 36px' : '0 14px')};
   border: 1px solid
     ${({ theme, $invalid }) => ($invalid ? theme.color.danger[500] : theme.color.border[1])};
   border-radius: ${({ theme }) => theme.radius.md};
@@ -48,6 +50,10 @@ export const Input = styled.input<{ $hasIcon: boolean; $invalid: boolean }>`
     background: ${({ theme }) => theme.color.bg.app};
     color: ${({ theme }) => theme.color.fg[4]};
     cursor: not-allowed;
+  }
+  @media (max-width: 640px) {
+    height: 44px;
+    font-size: ${({ theme }) => theme.font.size.body};
   }
 `;
 

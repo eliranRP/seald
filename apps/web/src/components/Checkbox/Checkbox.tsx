@@ -7,11 +7,11 @@ import type { CheckboxProps } from './Checkbox.types';
  * its native semantics so role "checkbox" and the accessible name come free.
  */
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>((props, ref) => {
-  const { checked, onChange, label, hint, disabled = false, ...rest } = props;
+  const { checked, onChange, label, hint, disabled = false, compact = false, ...rest } = props;
   const hintId = useId();
   const labelId = useId();
   return (
-    <Root $disabled={disabled}>
+    <Root $disabled={disabled} $compact={compact}>
       <Input
         {...rest}
         ref={ref}

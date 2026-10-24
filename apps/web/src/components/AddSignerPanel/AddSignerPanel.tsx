@@ -94,7 +94,7 @@ export const AddSignerPanel = forwardRef<HTMLDivElement, AddSignerPanelProps>((p
                 aria-label={`Add ${c.name}`}
                 onClick={() => onAddContacts([c])}
               >
-                <Avatar name={c.name} size={40} />
+                <Avatar name={c.name} size={36} />
               </RecentButton>
             ))}
           </RecentRow>
