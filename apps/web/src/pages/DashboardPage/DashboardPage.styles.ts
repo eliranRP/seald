@@ -1,15 +1,16 @@
 import styled, { css, keyframes } from 'styled-components';
-import { truncateText } from '@/styles/mixins';
+import { truncateText, visuallyHidden } from '@/styles/mixins';
 
 /** Phones: the design's mobile layout (HomeMobile) takes over. */
 export const MOBILE = '640px';
 
+/* No scroll box of its own: the shell's content area scrolls, so the legal
+   footer follows the list instead of sitting over it. */
 export const Main = styled.div`
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   min-width: 0;
-  overflow: auto;
   padding: ${({ theme }) => theme.space[8]} ${({ theme }) => theme.space[12]}
-    ${({ theme }) => theme.space[20]};
+    ${({ theme }) => theme.space[16]};
 
   @media (max-width: ${MOBILE}) {
     padding: ${({ theme }) => theme.space[4]} ${({ theme }) => theme.space[4]}
@@ -40,7 +41,7 @@ export const PageTitle = styled.h1`
   flex: 1 1 auto;
   font-family: ${({ theme }) => theme.font.serif};
   font-size: ${({ theme }) => theme.font.size.x4l};
-  font-weight: ${({ theme }) => theme.font.weight.semibold};
+  font-weight: ${({ theme }) => theme.font.weight.medium};
   line-height: ${({ theme }) => theme.font.lineHeight.tight};
   letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
@@ -50,9 +51,22 @@ export const PageTitle = styled.h1`
   }
 `;
 
+/**
+ * Phones: the search button beside the title. Negative margins keep the
+ * 44px touch target from making the title row taller than the title.
+ */
+export const HeaderSearch = styled.span`
+  display: inline-flex;
+  margin: -6px -10px -6px 0;
+`;
+
 /** Split primary button: main action + chevron that opens the New menu. */
 export const SplitGroup = styled.div`
   display: inline-flex;
+
+  @media (max-width: ${MOBILE}) {
+    display: none;
+  }
 
   & > button:first-child {
     border-top-right-radius: 0;
@@ -70,6 +84,10 @@ export const Section = styled.section`
   flex-direction: column;
   gap: ${({ theme }) => theme.space[3]};
   min-width: 0;
+
+  @media (max-width: ${MOBILE}) {
+    gap: ${({ theme }) => theme.space[2]};
+  }
 `;
 
 export const SectionHead = styled.div`
@@ -95,12 +113,12 @@ export const CountPill = styled.span<{ $accent?: boolean }>`
   height: 20px;
   padding: 0 6px;
   border-radius: ${({ theme }) => theme.radius.pill};
-  font-size: ${({ theme }) => theme.font.size.badge};
+  font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: 1;
   font-variant-numeric: tabular-nums;
-  background: ${({ theme, $accent }) =>
-    $accent ? theme.color.indigo[600] : theme.color.bg.subtle};
-  color: ${({ theme, $accent }) => ($accent ? theme.color.fgOnAccent : theme.color.fg[2])};
+  background: ${({ theme, $accent }) => ($accent ? theme.color.indigo[50] : theme.color.ink[100])};
+  color: ${({ theme, $accent }) => ($accent ? theme.color.indigo[800] : theme.color.ink[600])};
 `;
 
 export const MoreLink = styled.button`
@@ -140,12 +158,21 @@ export const NeedCard = styled.div`
   background: ${({ theme }) => theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
   border-radius: ${({ theme }) => theme.radius.lg};
-  box-shadow: ${({ theme }) => theme.shadow.xs};
 
   @media (max-width: ${MOBILE}) {
     flex: 0 0 248px;
     width: 248px;
+    gap: 10px;
+    padding: 10px 10px 10px 12px;
     scroll-snap-align: start;
+
+    /* The icon-only action is a 36px square on the phone card. */
+    & > button:last-child {
+      width: 36px;
+      height: 36px;
+      min-height: 36px;
+      border-radius: ${({ theme }) => theme.radius.md};
+    }
   }
 `;
 
@@ -223,7 +250,7 @@ export const TabsRow = styled.div`
   display: flex;
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[2]};
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
 
   @media (max-width: ${MOBILE}) {
     border-bottom: 0;
@@ -247,7 +274,7 @@ export const TabList = styled.div`
 export const Tab = styled.button<{ $active: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: ${({ theme }) => theme.space[2]};
   flex: none;
   height: 44px;
   padding: 0 ${({ theme }) => theme.space[3]};
@@ -259,7 +286,8 @@ export const Tab = styled.button<{ $active: boolean }>`
   cursor: pointer;
   font: inherit;
   font-size: ${({ theme }) => theme.font.size.bodySm};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+  font-weight: ${({ theme, $active }) =>
+    $active ? theme.font.weight.semibold : theme.font.weight.medium};
   color: ${({ theme, $active }) => ($active ? theme.color.fg[1] : theme.color.fg[3])};
   transition: color ${({ theme }) => theme.motion.durFast} ${({ theme }) => theme.motion.easeOut};
 
@@ -272,15 +300,22 @@ export const Tab = styled.button<{ $active: boolean }>`
     border-radius: ${({ theme }) => theme.radius.xs};
   }
 
+  /* Phones: the design's status pills (canvas \`.pill\`, 44px touch height). */
   @media (max-width: ${MOBILE}) {
+    gap: 6px;
     border: 1px solid ${({ theme }) => theme.color.border[1]};
     border-radius: ${({ theme }) => theme.radius.pill};
     margin-bottom: 0;
-    background: ${({ theme, $active }) =>
-      $active ? theme.color.indigo[50] : theme.color.bg.surface};
+    font-size: ${({ theme }) => theme.font.size.caption};
+    font-weight: ${({ theme }) => theme.font.weight.medium};
+    background: ${({ theme, $active }) => ($active ? theme.color.ink[900] : theme.color.paper)};
     border-color: ${({ theme, $active }) =>
-      $active ? theme.color.indigo[300] : theme.color.border[1]};
-    color: ${({ theme, $active }) => ($active ? theme.color.indigo[700] : theme.color.fg[2])};
+      $active ? theme.color.ink[900] : theme.color.border[1]};
+    color: ${({ theme, $active }) => ($active ? theme.color.paper : theme.color.fg[2])};
+
+    &:hover {
+      color: ${({ theme, $active }) => ($active ? theme.color.paper : theme.color.fg[1])};
+    }
   }
 `;
 
@@ -310,7 +345,7 @@ export const SearchField = styled.label`
   gap: ${({ theme }) => theme.space[2]};
   width: 320px;
   max-width: 100%;
-  height: 44px;
+  height: 40px;
   padding: 0 ${({ theme }) => theme.space[3]};
   box-sizing: border-box;
   border: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -337,6 +372,11 @@ export const SearchField = styled.label`
   @media (max-width: ${MOBILE}) {
     flex: 1 1 100%;
     width: auto;
+    height: 44px;
+
+    input {
+      font-size: ${({ theme }) => theme.font.size.body};
+    }
   }
 `;
 
@@ -358,16 +398,16 @@ export const Spacer = styled.span`
 `;
 
 /** A button that opens a menu and shows the picked value (`is-set`). */
-export const SelectButton = styled.button<{ $set?: boolean }>`
+export const SelectButton = styled.button<{ $set?: boolean; $tall?: boolean }>`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 44px;
+  gap: ${({ theme }) => theme.space[2]};
+  height: ${({ $tall }) => ($tall ? '44px' : '40px')};
   padding: 0 ${({ theme }) => theme.space[3]};
-  border: 1px solid ${({ theme, $set }) => ($set ? theme.color.indigo[300] : theme.color.border[1])};
+  border: 1px solid ${({ theme, $set }) => ($set ? theme.color.indigo[200] : theme.color.border[1])};
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme, $set }) => ($set ? theme.color.indigo[50] : theme.color.bg.surface)};
-  color: ${({ theme, $set }) => ($set ? theme.color.indigo[700] : theme.color.fg[2])};
+  background: ${({ theme, $set }) => ($set ? theme.color.indigo[50] : theme.color.paper)};
+  color: ${({ theme, $set }) => ($set ? theme.color.indigo[800] : theme.color.fg[1])};
   font: inherit;
   font-size: ${({ theme }) => theme.font.size.bodySm};
   font-weight: ${({ theme }) => theme.font.weight.medium};
@@ -392,12 +432,12 @@ export const ChipsRow = styled.div`
 export const Chip = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  height: 28px;
-  padding: 0 4px 0 12px;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px 0 12px;
   border-radius: ${({ theme }) => theme.radius.pill};
   background: ${({ theme }) => theme.color.indigo[50]};
-  color: ${({ theme }) => theme.color.indigo[700]};
+  color: ${({ theme }) => theme.color.indigo[800]};
   font-size: ${({ theme }) => theme.font.size.caption};
   font-weight: ${({ theme }) => theme.font.weight.medium};
 
@@ -405,8 +445,9 @@ export const Chip = styled.span`
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
     border: 0;
     border-radius: ${({ theme }) => theme.radius.pill};
     background: none;
@@ -449,9 +490,10 @@ export const TableShell = styled.div`
   }
 `;
 
+/** Canvas `.thead` / `.trow` columns: check, document, status, signers, updated, actions. */
 const ROW_GRID = css`
   display: grid;
-  grid-template-columns: 24px minmax(0, 1.8fr) minmax(130px, 0.9fr) minmax(130px, 0.9fr) 72px 190px;
+  grid-template-columns: 28px minmax(0, 2.4fr) minmax(0, 1.7fr) minmax(0, 1.2fr) 88px 172px;
   align-items: center;
   column-gap: ${({ theme }) => theme.space[4]};
   padding: 0 ${({ theme }) => theme.space[5]};
@@ -459,29 +501,29 @@ const ROW_GRID = css`
 
 export const THead = styled.div`
   ${ROW_GRID}
-  height: 40px;
-  border-bottom: 1px solid ${({ theme }) => theme.color.border[2]};
-  background: ${({ theme }) => theme.color.bg.subtle};
+  height: 44px;
+  border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
   font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: ${({ theme }) => theme.font.tracking.wide};
-  text-transform: uppercase;
   color: ${({ theme }) => theme.color.fg[3]};
 `;
 
 export const GroupLabel = styled.h3`
   margin: 0;
-  padding: 10px ${({ theme }) => theme.space[5]} 6px;
+  padding: ${({ theme }) => theme.space[3]} ${({ theme }) => theme.space[5]} 6px;
   font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
+  line-height: 1.5;
   letter-spacing: ${({ theme }) => theme.font.tracking.wider};
   text-transform: uppercase;
   color: ${({ theme }) => theme.color.fg[3]};
-  background: ${({ theme }) => theme.color.bg.surface};
+  background: ${({ theme }) => theme.color.ink[50]};
+  border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
 
   @media (max-width: ${MOBILE}) {
-    padding: 0 0 ${({ theme }) => theme.space[2]};
+    padding: 0;
     background: none;
+    border-bottom: 0;
   }
 `;
 
@@ -500,11 +542,13 @@ const newFade = keyframes`
 export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: boolean }>`
   ${ROW_GRID}
   position: relative;
-  min-height: 72px;
-  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
+  min-height: 64px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  box-sizing: border-box;
+  border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
   background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : 'transparent')};
-  ${({ theme, $hot, $selected }) =>
-    $hot && !$selected ? `background: ${theme.color.bg.subtle};` : ''}
+  ${({ theme, $hot, $selected }) => ($hot && !$selected ? `background: ${theme.color.ink[50]};` : '')}
   transition: background ${({ theme }) => theme.motion.durFast};
 
   ${({ $fresh }) =>
@@ -519,8 +563,23 @@ export const TRow = styled.div<{ $selected?: boolean; $hot?: boolean; $fresh?: b
       : ''}
 
   &:hover {
-    background: ${({ theme, $selected }) =>
-      $selected ? theme.color.indigo[50] : theme.color.bg.subtle};
+    background: ${({ theme, $selected }) => ($selected ? theme.color.indigo[50] : theme.color.ink[50])};
+  }
+
+  /* The row's actions rest hidden and show on hover, focus, or while its menu is open. */
+  & > [data-part='row-actions'] {
+    opacity: ${({ $hot }) => ($hot ? 1 : 0)};
+    transition: opacity ${({ theme }) => theme.motion.durFast}
+      ${({ theme }) => theme.motion.easeStandard};
+  }
+  &:hover > [data-part='row-actions'],
+  &:focus-within > [data-part='row-actions'] {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    & > [data-part='row-actions'] {
+      opacity: 1;
+    }
   }
 `;
 
@@ -529,12 +588,12 @@ export const MCard = styled.div<{ $selected?: boolean; $fresh?: boolean }>`
   align-items: center;
   gap: ${({ theme }) => theme.space[3]};
   min-height: 64px;
-  padding: ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[2]}
-    ${({ theme }) => theme.space[2]} ${({ theme }) => theme.space[3]};
+  box-sizing: border-box;
+  padding: ${({ theme }) => theme.space[3]};
   background: ${({ theme, $selected }) =>
     $selected ? theme.color.indigo[50] : theme.color.bg.surface};
   border: 1px solid ${({ theme }) => theme.color.border[1]};
-  border-radius: ${({ theme }) => theme.radius.lg};
+  border-radius: ${({ theme }) => theme.radius.md};
 
   ${({ $fresh }) =>
     $fresh
@@ -559,8 +618,48 @@ export const RowCheck = styled.input`
 export const DocCell = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
+  gap: ${({ theme }) => theme.space[2]};
   min-width: 0;
+`;
+
+/** Canvas `.doc-thumb`: a 32×40 page with three text lines; sealed adds a green check. */
+export const RowThumb = styled.span<{ $sealed?: boolean }>`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  flex: none;
+  width: 32px;
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.xxs};
+  background: ${({ theme }) => theme.color.paper};
+
+  & > i {
+    display: block;
+    height: 2px;
+    border-radius: 1px;
+    background: ${({ theme }) => theme.color.ink[200]};
+  }
+  & > i:last-of-type {
+    width: 60%;
+  }
+  & > svg {
+    position: absolute;
+    right: -5px;
+    bottom: -5px;
+    width: 14px;
+    height: 14px;
+    padding: 2.5px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: ${({ theme }) => theme.color.success[500]};
+    color: ${({ theme }) => theme.color.paper};
+    box-shadow: 0 0 0 2px ${({ theme }) => theme.color.paper};
+  }
 `;
 
 export const DocText = styled.div`
@@ -597,7 +696,7 @@ export const DocTitleButton = styled.button`
 export const DocSub = styled.div`
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[2]};
+  gap: 6px;
   min-width: 0;
   margin-top: 2px;
 `;
@@ -609,30 +708,42 @@ export const Mono = styled.span`
 `;
 
 export const Tag = styled.span`
-  padding: 0 6px;
-  border-radius: ${({ theme }) => theme.radius.xxs};
-  background: ${({ theme }) => theme.color.bg.subtle};
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 ${({ theme }) => theme.space[2]};
+  border-radius: ${({ theme }) => theme.radius.pill};
+  background: ${({ theme }) => theme.color.ink[150]};
   font-size: ${({ theme }) => theme.font.size.micro};
   font-weight: ${({ theme }) => theme.font.weight.medium};
-  color: ${({ theme }) => theme.color.fg[2]};
+  line-height: 1;
+  color: ${({ theme }) => theme.color.ink[600]};
 `;
 
+/** Badge and its reason sit on one line, wrapping only when the column is too narrow. */
 export const StatusCell = styled.div`
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
   min-width: 0;
 `;
 
 export const StatusMeta = styled.div`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  min-width: 0;
   max-width: 100%;
-  font-size: ${({ theme }) => theme.font.size.xs};
+  font-size: ${({ theme }) => theme.font.size.caption};
+  line-height: 1.5;
   color: ${({ theme }) => theme.color.fg[3]};
   ${truncateText}
+
+  & > svg {
+    flex: none;
+  }
 `;
 
 export const SignersCell = styled.div`
@@ -656,6 +767,17 @@ export const RowActions = styled.div`
   position: relative;
 `;
 
+/** Mobile: the result count at the end of the Filter / Recent / Select row. */
+export const ResultCount = styled.span`
+  font-size: ${({ theme }) => theme.font.size.caption};
+  color: ${({ theme }) => theme.color.fg[3]};
+  font-variant-numeric: tabular-nums;
+`;
+
+export const SrOnly = styled.span`
+  ${visuallyHidden}
+`;
+
 export const Footer = styled.div`
   font-size: ${({ theme }) => theme.font.size.caption};
   color: ${({ theme }) => theme.color.fg[3]};
@@ -663,8 +785,8 @@ export const Footer = styled.div`
 
 export const SkeletonRow = styled.div`
   ${ROW_GRID}
-  min-height: 72px;
-  border-top: 1px solid ${({ theme }) => theme.color.border[2]};
+  min-height: 64px;
+  border-bottom: 1px solid ${({ theme }) => theme.color.ink[150]};
 
   @media (max-width: ${MOBILE}) {
     display: flex;

@@ -11,7 +11,7 @@ export const InfoChip = forwardRef<HTMLSpanElement, InfoChipProps>((props, ref) 
   const { icon, children, ...rest } = props;
   return (
     <InfoChipRoot ref={ref} {...rest}>
-      {icon ? <Icon icon={icon} size={16} /> : null}
+      {icon ? <Icon icon={icon} size={14} /> : null}
       {children}
     </InfoChipRoot>
   );

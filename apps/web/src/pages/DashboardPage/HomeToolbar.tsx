@@ -19,7 +19,9 @@ import type { DatePreset, PersonOption, SortKey, ViewFilters } from '@/features/
 import {
   Chip,
   ChipsRow,
+  CountPill,
   Kbd,
+  ResultCount,
   SearchField,
   SelectButton,
   Spacer,
@@ -49,6 +51,10 @@ export interface HomeToolbarProps {
   readonly mobile: boolean;
   readonly onOpenFilterSheet: () => void;
   readonly onStartSelecting: () => void;
+  /** Phones: the search field shows only once the header's search button opened it. */
+  readonly searchOpen?: boolean | undefined;
+  /** Phones: the number of documents listed, shown at the end of the row. */
+  readonly resultCount?: number | undefined;
 }
 
 interface SelectMenuProps {
@@ -91,6 +97,42 @@ function SelectMenu(props: SelectMenuProps) {
   );
 }
 
+interface SortMenuProps {
+  readonly label: string;
+  readonly items: ReadonlyArray<MenuEntry>;
+  readonly mobile: boolean;
+}
+
+/** Canvas sort control: a plain ghost "Recent" button with the sort icon, no chevron. */
+function SortMenu({ label, items, mobile }: SortMenuProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLButtonElement | null>(null);
+  return (
+    <MenuAnchor>
+      <Button
+        ref={ref}
+        variant="ghost"
+        size={mobile ? 'md' : 'sm'}
+        iconLeft={ArrowDownUp}
+        aria-label="Sort"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {label}
+      </Button>
+      <Menu
+        open={open}
+        onClose={() => setOpen(false)}
+        items={items}
+        anchorRef={ref}
+        align={mobile ? 'start' : 'end'}
+        aria-label="Sort"
+      />
+    </MenuAnchor>
+  );
+}
+
 /** "Anyone" / the one picked name / "3 people". */
 function summarize(
   picked: ReadonlyArray<string>,
@@ -107,7 +149,7 @@ function toggle(list: ReadonlyArray<string>, value: string): string[] {
 
 /** Search, date / people / tag filters, sort, and the applied-filter chips. */
 export function HomeToolbar(props: HomeToolbarProps) {
-  const { filters, onChange, onClear, people, tags, mobile } = props;
+  const { filters, onChange, onClear, people, tags, mobile, searchOpen = false } = props;
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [draft, setDraft] = useState(filters.query);
 
@@ -230,6 +272,8 @@ export function HomeToolbar(props: HomeToolbarProps) {
         aria-label="Search documents"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        // Phones open the field from the header's search button, so focus it.
+        autoFocus={mobile && searchOpen}
       />
       <Kbd aria-hidden>/</Kbd>
     </SearchField>
@@ -238,28 +282,30 @@ export function HomeToolbar(props: HomeToolbarProps) {
   return (
     <>
       {mobile ? (
-        <ToolbarRow>
-          {search}
-          <Button
-            variant="secondary"
-            iconLeft={ListFilter}
-            aria-haspopup="dialog"
-            onClick={props.onOpenFilterSheet}
-          >
-            Filter{activeCount > 0 ? ` (${activeCount})` : ''}
-          </Button>
-          <SelectMenu
-            label={SORT_LABEL[filters.sort]}
-            aria="Sort"
-            icon={ArrowDownUp}
-            isSet={false}
-            items={sortItems}
-          />
-          <Spacer />
-          <Button variant="ghost" iconLeft={CircleCheck} onClick={props.onStartSelecting}>
-            Select
-          </Button>
-        </ToolbarRow>
+        <>
+          {searchOpen || draft !== '' ? <ToolbarRow>{search}</ToolbarRow> : null}
+          <ToolbarRow>
+            <SelectButton
+              type="button"
+              $tall
+              $set={activeCount > 0}
+              aria-haspopup="dialog"
+              onClick={props.onOpenFilterSheet}
+            >
+              <ListFilter size={16} aria-hidden />
+              Filter
+              {activeCount > 0 ? <CountPill $accent>{activeCount}</CountPill> : null}
+            </SelectButton>
+            <SortMenu label={SORT_LABEL[filters.sort]} items={sortItems} mobile />
+            <Spacer />
+            <Button variant="ghost" iconLeft={CircleCheck} onClick={props.onStartSelecting}>
+              Select
+            </Button>
+            {props.resultCount !== undefined ? (
+              <ResultCount aria-hidden>{props.resultCount}</ResultCount>
+            ) : null}
+          </ToolbarRow>
+        </>
       ) : (
         <ToolbarRow>
           {search}
@@ -285,14 +331,7 @@ export function HomeToolbar(props: HomeToolbarProps) {
             items={tagItems}
           />
           <Spacer />
-          <SelectMenu
-            label={SORT_LABEL[filters.sort]}
-            aria="Sort"
-            icon={ArrowDownUp}
-            isSet={false}
-            items={sortItems}
-            align="end"
-          />
+          <SortMenu label={SORT_LABEL[filters.sort]} items={sortItems} mobile={false} />
         </ToolbarRow>
       )}
       {hasActiveFilters(filters) ? (

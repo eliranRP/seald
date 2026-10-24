@@ -52,7 +52,7 @@ export function ConsentBar(props: ConsentBarProps) {
   return (
     <Bar aria-label={t('signing.sign.consent.aria')}>
       <Who>
-        <Avatar name={senderName ?? '?'} size={40} tone="indigo" />
+        <Avatar name={senderName ?? '?'} size={36} tone="indigo" />
         <WhoText>
           <Asked>
             {senderName

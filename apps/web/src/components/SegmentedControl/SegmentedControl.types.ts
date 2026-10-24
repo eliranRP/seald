@@ -21,4 +21,6 @@ export interface SegmentedControlProps<T extends string = string> extends Omit<
   readonly block?: boolean | undefined;
   /** Icon above label, 56px tall (mobile pickers). */
   readonly stacked?: boolean | undefined;
+  /** `lg`: 44px segments (52px control), the phone touch height. */
+  readonly size?: 'md' | 'lg' | undefined;
 }

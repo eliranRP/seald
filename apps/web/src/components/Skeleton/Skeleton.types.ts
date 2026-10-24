@@ -1,6 +1,7 @@
 import type { HTMLAttributes } from 'react';
 
-export type SkeletonVariant = 'text' | 'rect' | 'circle';
+/** `pill`: fully rounded bar, for badge / chip placeholders. */
+export type SkeletonVariant = 'text' | 'rect' | 'circle' | 'pill';
 
 export interface SkeletonProps extends HTMLAttributes<HTMLSpanElement> {
   /**

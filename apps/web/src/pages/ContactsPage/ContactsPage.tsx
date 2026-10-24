@@ -439,7 +439,7 @@ export function ContactsPage(): JSX.Element {
                   aria-pressed={selectMode ? selected.has(c.id) : undefined}
                   onClick={() => (selectMode ? toggleOne(c.id) : setSheetFor(c))}
                 >
-                  <Avatar name={c.name} size={40} />
+                  <Avatar name={c.name} size={36} />
                   <MobileName>
                     <Ellipsis>{c.name}</Ellipsis>
                     <Quiet>{c.email}</Quiet>
@@ -475,7 +475,7 @@ export function ContactsPage(): JSX.Element {
           {sheetFor ? (
             <>
               <SheetHead>
-                <Avatar name={sheetFor.name} size={40} />
+                <Avatar name={sheetFor.name} size={36} />
                 <MobileName>
                   <Ellipsis>{sheetFor.name}</Ellipsis>
                   <Quiet>{sheetFor.email}</Quiet>

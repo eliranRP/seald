@@ -126,7 +126,7 @@ function VerifyContent({ data, matchedFile }: VerifyContentProps) {
         <Avatars aria-label="Signers">
           {data.signers.map((s) => (
             <AvatarSlot key={s.id} $faded={s.status !== 'completed' && s.status !== 'declined'}>
-              <Avatar name={s.name} size={40} tone={signerTone(s.status)} title={s.name} />
+              <Avatar name={s.name} size={36} tone={signerTone(s.status)} title={s.name} />
             </AvatarSlot>
           ))}
         </Avatars>

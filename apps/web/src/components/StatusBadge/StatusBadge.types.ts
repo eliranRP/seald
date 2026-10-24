@@ -6,17 +6,15 @@ import type { SignerStatus } from '@/types/sealdTypes';
  * sealed · declined · expired · canceled · draft.
  */
 export type EnvelopeBadgeStatus =
-  | 'you'
-  | 'others'
-  | 'sealing'
-  | 'sealed'
-  | 'declined'
-  | 'expired'
-  | 'canceled'
-  | 'draft';
+  'you' | 'others' | 'sealing' | 'sealed' | 'declined' | 'expired' | 'canceled' | 'draft';
 
 export interface StatusBadgeProps {
   readonly status: SignerStatus | EnvelopeBadgeStatus;
   /** Override the default label (e.g. "Waiting on Maya"). */
   readonly label?: string | undefined;
+  /**
+   * Icon only (canvas mobile card `.badge` with just its `.ic`): the label
+   * becomes the badge's accessible name (`role="img"`).
+   */
+  readonly iconOnly?: boolean | undefined;
 }

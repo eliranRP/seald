@@ -20,7 +20,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>((props, ref) => {
   return (
     <BadgeRoot ref={ref} $tone={tone} {...rest}>
       {lead}
-      <span>{children}</span>
+      {children === null || children === undefined ? null : <span>{children}</span>}
     </BadgeRoot>
   );
 });
