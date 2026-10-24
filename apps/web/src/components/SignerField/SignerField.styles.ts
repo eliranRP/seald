@@ -109,10 +109,11 @@ export const FieldTag = styled.span`
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   white-space: nowrap;
   pointer-events: none;
+  /* Mobile: the tag sits on top of the field's left edge (canvas Sign-M). */
   @media (max-width: 640px) {
     right: auto;
     left: 0;
-    top: -14px;
+    top: -26px;
     transform: none;
   }
 `;
@@ -131,22 +132,35 @@ export const AutoTag = styled.span`
   letter-spacing: 0.04em;
 `;
 
+/** Canvas `.sfield`: 12px semibold label after a 14px kind icon. */
 export const EmptyLabel = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: ${({ theme }) => theme.font.size.micro};
+  min-width: 0;
+  font-size: ${({ theme }) => theme.font.size.xs};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
-  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  /* The mobile page is scaled down: 12px kind icon (canvas Sign-M). */
+  @media (max-width: 640px) {
+    & > span:first-child,
+    & svg {
+      width: 12px;
+      height: 12px;
+    }
+  }
 `;
 
 export const RequiredStar = styled.span`
   color: ${({ theme }) => theme.color.danger[500]};
 `;
 
-export const FilledText = styled.span<{ readonly $mono: boolean }>`
-  font-family: ${({ theme, $mono }) => ($mono ? theme.font.mono : theme.font.sans)};
-  font-size: ${({ theme }) => theme.font.size.caption};
+/** Canvas `.sfield.is-done`: the value in 12px medium, dates included. */
+export const FilledText = styled.span`
+  min-width: 0;
+  font-family: ${({ theme }) => theme.font.sans};
+  font-size: ${({ theme }) => theme.font.size.xs};
   color: ${({ theme }) => theme.color.fg[1]};
   font-weight: ${({ theme }) => theme.font.weight.medium};
   overflow: hidden;
@@ -158,7 +172,7 @@ export const InitialScript = styled.span<{ readonly $size: number }>`
   font-family: ${({ theme }) => theme.font.script};
   font-size: ${({ $size }) => `${$size}px`};
   color: ${({ theme }) => theme.color.fg[1]};
-  font-weight: ${({ theme }) => theme.font.weight.medium};
+  font-weight: ${({ theme }) => theme.font.weight.semibold};
   line-height: 1;
 `;
 

@@ -25,8 +25,8 @@ export function SignHeader(props: SignHeaderProps) {
   const t = useT();
 
   return (
-    <Top>
-      <Logo>
+    <Top $doc={Boolean(title)}>
+      <Logo $doc={Boolean(title)}>
         <LogoMark aria-hidden="true">S</LogoMark>
         <Wordmark>Seald</Wordmark>
       </Logo>

@@ -38,11 +38,11 @@ export const Note = styled.textarea`
   min-height: 88px;
   padding: 12px;
   resize: vertical;
-  border: 1px solid ${({ theme }) => theme.color.border[2]};
-  border-radius: ${({ theme }) => theme.radius.sm};
+  border: 1px solid ${({ theme }) => theme.color.border[1]};
+  border-radius: ${({ theme }) => theme.radius.md};
   background: ${({ theme }) => theme.color.paper};
   font: inherit;
-  font-size: ${({ theme }) => theme.font.size.bodyMd};
+  font-size: ${({ theme }) => theme.font.size.bodySm};
   color: ${({ theme }) => theme.color.fg[1]};
 
   &:focus-visible {
