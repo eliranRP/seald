@@ -1,6 +1,6 @@
 import type { HTMLAttributes } from 'react';
 
-export type AvatarSize = 24 | 28 | 32 | 36 | 40 | 56;
+export type AvatarSize = 24 | 28 | 32 | 36 | 40 | 56 | 64;
 /** `neutral` is the canvas `.av-none` grey (same tint as `slate`). */
 export type AvatarTone = 'indigo' | 'emerald' | 'amber' | 'danger' | 'slate' | 'neutral';
 

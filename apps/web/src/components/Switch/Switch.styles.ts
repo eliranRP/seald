@@ -1,8 +1,8 @@
 import styled from 'styled-components';
 
 /**
- * A 40x24 track with a 16px knob, in a 44px square tap target. Geometry
- * comes from the 4px space scale, like `ReminderToggle`.
+ * Canvas `.switch-track`: a 36x20 track with a 16px knob inset 2px, in a
+ * 44px square tap target.
  */
 export const Root = styled.label`
   display: inline-flex;
@@ -24,8 +24,8 @@ export const Root = styled.label`
 
 export const Input = styled.input`
   appearance: none;
-  width: ${({ theme }) => theme.space[10]};
-  height: ${({ theme }) => theme.space[6]};
+  width: 36px;
+  height: 20px;
   margin: 0;
   flex-shrink: 0;
   border-radius: ${({ theme }) => theme.radius.pill};
@@ -38,12 +38,13 @@ export const Input = styled.input`
   &::after {
     content: '';
     position: absolute;
-    top: ${({ theme }) => theme.space[1]};
-    left: ${({ theme }) => theme.space[1]};
+    top: 2px;
+    left: 2px;
     width: ${({ theme }) => theme.space[4]};
     height: ${({ theme }) => theme.space[4]};
     border-radius: ${({ theme }) => theme.radius.pill};
     background: ${({ theme }) => theme.color.paper};
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.2);
     transition: transform ${({ theme }) => theme.motion.durFast}
       ${({ theme }) => theme.motion.easeStandard};
   }
@@ -60,7 +61,8 @@ export const Input = styled.input`
     outline-color: ${({ theme }) => theme.color.border.focus};
   }
 
-  &:disabled {
+  /* A locked switch that is on reads as fully on; only an off one fades. */
+  &:disabled:not(:checked) {
     opacity: 0.5;
   }
 `;
