@@ -71,7 +71,7 @@ export function ProfileSection() {
     <Section aria-label="Profile">
       <Panel>
         <ProfileHead>
-          <Avatar name={draft || (user?.email ?? '')} size={56} />
+          <Avatar name={draft || (user?.email ?? '')} size={64} tone="indigo" />
           <Stack $gap={8} style={{ flex: 1 }}>
             <Eyebrow as="label" htmlFor="settings-full-name">
               Full name
