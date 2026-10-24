@@ -21,20 +21,20 @@ Feature: Public verifier surfaces seal + audit-chain trust signals
     Given a sealed envelope is published at short code "TyPeSc4leH1"
     And the viewport is set to a 390x844 phone
     When the user opens "/verify/TyPeSc4leH1"
-    Then the verify verdict heading font size is the "x3l" token
-    And the verify document title font size is the "lg" token
+    Then the verify verdict heading font size is the "x4l" token
+    And the verify document title font size is the "body" token
     And the verify page does not overflow horizontally
     When the viewport is set to a 640x900 window
-    Then the verify verdict heading font size is the "x3l" token
-    And the verify document title font size is the "lg" token
+    Then the verify verdict heading font size is the "x4l" token
+    And the verify document title font size is the "body" token
     And the verify page does not overflow horizontally
     When the viewport is set to a 641x900 window
     Then the verify verdict heading font size is the "x5l" token
-    And the verify document title font size is the "lg" token
+    And the verify document title font size is the "body" token
     And the verify page does not overflow horizontally
     When the viewport is set to a 1440x900 desktop
     Then the verify verdict heading font size is the "x5l" token
-    And the verify document title font size is the "lg" token
+    And the verify document title font size is the "body" token
     And the verify page does not overflow horizontally
 
   @verify @smoke

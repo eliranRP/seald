@@ -137,7 +137,7 @@ Then(
  * (that file sits outside the e2e rootDir).
  */
 function headingTokenSize(name: string): string {
-  if (name !== 'x3l' && name !== 'x5l' && name !== 'lg') {
+  if (!['x4l', 'x5l', 'body'].includes(name)) {
     throw new Error(`unsupported heading size token: ${name}`);
   }
   const source = readFileSync(join(process.cwd(), 'src/styles/theme.ts'), 'utf8');
