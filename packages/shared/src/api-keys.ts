@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isoDateTimeOffset } from './iso-datetime';
 
 /**
  * API keys (docs/design/mcp-server.md § API keys, parity plan WP-14).
@@ -88,7 +89,7 @@ export function requiresFreshLogin(scopes: readonly string[]): boolean {
 export const API_KEY_STATUSES = ['active', 'expired', 'revoked'] as const;
 export type ApiKeyStatus = (typeof API_KEY_STATUSES)[number];
 
-const isoDate = z.string().datetime({ offset: true });
+const isoDate = isoDateTimeOffset();
 
 /** One row of `GET /me/api-keys`. Never carries the secret or its hash. */
 export const ApiKeySchema = z.object({

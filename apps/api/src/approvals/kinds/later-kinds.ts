@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { uuid } from 'shared';
+import { isoDateTimeOffset, uuid } from 'shared';
 import { z } from 'zod';
 import type { ApprovalKindHandler, DescribedSubject } from './approval-kind';
 import {
@@ -28,7 +28,7 @@ type FixSignerArgs = z.infer<typeof FixSignerArgs>;
 
 const ChangeExpiryArgs = z.strictObject({
   envelope_id: uuid,
-  expires_at: z.string().datetime({ offset: true }),
+  expires_at: isoDateTimeOffset(),
 });
 type ChangeExpiryArgs = z.infer<typeof ChangeExpiryArgs>;
 
