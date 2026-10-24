@@ -167,16 +167,22 @@ describe('DashboardPage', () => {
     expect(screen.getByText('1 document')).toBeInTheDocument();
   });
 
+  const DEBOUNCED = { timeout: 5000 };
+
   it('searches, shows a removable chip, and the No matches state', async () => {
     renderHome();
     await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search documents' }), {
       target: { value: 'lease' },
     });
-    await waitFor(() =>
-      expect(
-        screen.queryByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
-      ).not.toBeInTheDocument(),
+    // Search is debounced (200 ms) before the list re-renders; leave room for
+    // a busy runner instead of the 1 s default.
+    await waitFor(
+      () =>
+        expect(
+          screen.queryByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
+        ).not.toBeInTheDocument(),
+      DEBOUNCED,
     );
     expect(
       screen.getByRole('checkbox', { name: 'Select Lease renewal — 44 Maple' }),
@@ -186,7 +192,7 @@ describe('DashboardPage', () => {
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search documents' }), {
       target: { value: 'zebra' },
     });
-    expect(await screen.findByText('No matches')).toBeInTheDocument();
+    expect(await screen.findByText('No matches', undefined, DEBOUNCED)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
     expect(
       await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
