@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Clock, Cloud, HardDrive, UserPlus } from 'lucide-react';
+import { AlertTriangle, Clock, Folder, HardDrive, UserPlus } from 'lucide-react';
 import { isFeatureEnabled } from 'shared';
 import type { ApiError } from '@/lib/api/apiClient';
 import { Avatar } from '@/components/Avatar';
@@ -123,7 +123,7 @@ export function IntegrationsSection() {
           </IntegrationLogo>
           <Grow>
             <CardTitle>Google Drive</CardTitle>
-            <Meta>{cardMeta(accounts, unavailable)}</Meta>
+            <Meta as="div">{cardMeta(accounts, unavailable)}</Meta>
           </Grow>
           {accounts.length === 0 ? (
             <GoogleButton
@@ -143,7 +143,7 @@ export function IntegrationsSection() {
               <Avatar name={account.email} size={40} />
               <Grow>
                 <AccountEmail>{account.email}</AccountEmail>
-                <Meta>
+                <Meta as="div">
                   Connected {formatConnected(account.connectedAt)} ·{' '}
                   {formatUsed(account.lastUsedAt)}
                 </Meta>
@@ -194,13 +194,15 @@ export function IntegrationsSection() {
 
       <RowsCard>
         {['Dropbox', 'OneDrive'].map((name, i, all) => (
-          <Row key={name} $last={i === all.length - 1}>
+          <Row key={name} $last={i === all.length - 1} $min={56}>
             <RowIcon>
-              <Icon icon={Cloud} size={14} />
+              <Icon icon={Folder} size={14} />
             </RowIcon>
             <RowLabel>{name}</RowLabel>
             <Spacer />
-            <Badge tone="neutral">Soon</Badge>
+            <Badge tone="neutral" dot={false}>
+              Soon
+            </Badge>
           </Row>
         ))}
       </RowsCard>

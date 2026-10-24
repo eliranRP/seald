@@ -1,5 +1,5 @@
-import { Link, Navigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { Navigate, useParams } from 'react-router-dom';
+import { ChevronLeft } from 'lucide-react';
 import { Icon } from '@/components/Icon';
 import { readIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { AccountSection } from './AccountSection';
@@ -9,6 +9,7 @@ import { SettingsIndexPage } from './SettingsIndexPage';
 import { ProfileSection } from './ProfileSection';
 import { SignatureSection } from './SignatureSection';
 import {
+  BackLink,
   Layout,
   MobileTitle,
   MobileTop,
@@ -52,9 +53,9 @@ export function SettingsPage() {
     <Page>
       <PageTitle>Settings</PageTitle>
       <MobileTop>
-        <Link to="/settings" aria-label="Back to settings">
-          <Icon icon={ArrowLeft} size={20} />
-        </Link>
+        <BackLink to="/settings" aria-label="Back to settings">
+          <Icon icon={ChevronLeft} size={20} />
+        </BackLink>
         <MobileTitle>{current?.label}</MobileTitle>
       </MobileTop>
       <Layout>

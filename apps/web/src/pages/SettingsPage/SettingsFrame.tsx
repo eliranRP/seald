@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import styled from 'styled-components';
 
 export type SettingsVariant = 'desktop' | 'mobile';
@@ -13,11 +13,12 @@ export interface SettingsFrameProps {
   readonly children: ReactNode;
 }
 
+/** Same canvas `.container` as the Settings page: 1280 max, 32/48/64 padding. */
 const DesktopPage = styled.div`
   width: 100%;
-  max-width: 720px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: ${({ theme }) => `${theme.space[6]} ${theme.space[4]} ${theme.space[20]}`};
+  padding: ${({ theme }) => `${theme.space[8]} ${theme.space[12]} ${theme.space[16]}`};
 `;
 
 const MobilePage = styled.div`
@@ -31,9 +32,10 @@ const MobileHeader = styled.header`
   z-index: 60;
   display: flex;
   align-items: center;
-  gap: ${({ theme }) => theme.space[3]};
-  height: 52px;
-  padding: env(safe-area-inset-top) ${({ theme }) => theme.space[3]} 0;
+  gap: ${({ theme }) => theme.space[2]};
+  height: 56px;
+  padding: env(safe-area-inset-top) ${({ theme }) => theme.space[2]} 0
+    ${({ theme }) => theme.space[4]};
   box-sizing: content-box;
   background: ${({ theme }) => theme.color.paper};
   border-bottom: 1px solid ${({ theme }) => theme.color.border[1]};
@@ -44,8 +46,8 @@ const BackButton = styled.button`
   height: 44px;
   border: none;
   border-radius: ${({ theme }) => theme.radius.md};
-  background: ${({ theme }) => theme.color.bg.sunken};
-  color: ${({ theme }) => theme.color.fg[1]};
+  background: transparent;
+  color: ${({ theme }) => theme.color.fg[2]};
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -59,13 +61,14 @@ const BackButton = styled.button`
 
 const MobileTitle = styled.h1`
   margin: 0;
-  font-size: 17px;
+  font-size: ${({ theme }) => theme.font.size.body};
+  line-height: ${({ theme }) => theme.font.lineHeight.normal};
   font-weight: ${({ theme }) => theme.font.weight.semibold};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
 const MobileBody = styled.div`
-  padding: ${({ theme }) => `${theme.space[5]} ${theme.space[4]}`};
+  padding: ${({ theme }) => theme.space[4]};
 `;
 
 const Crumbs = styled.nav`
@@ -85,11 +88,14 @@ const CrumbLink = styled(Link)`
   }
 `;
 
+/** Canvas `.h1`: 32px serif, 1.1 line height, -0.02em. */
 const DesktopTitle = styled.h1`
   margin: ${({ theme }) => `${theme.space[4]} 0 ${theme.space[6]}`};
   font-family: ${({ theme }) => theme.font.serif};
-  font-size: ${({ theme }) => theme.font.size.h2};
+  font-size: ${({ theme }) => theme.font.size.x4l};
   font-weight: ${({ theme }) => theme.font.weight.medium};
+  line-height: ${({ theme }) => theme.font.lineHeight.tight};
+  letter-spacing: ${({ theme }) => theme.font.tracking.tight};
   color: ${({ theme }) => theme.color.fg[1]};
 `;
 
@@ -111,7 +117,7 @@ export function SettingsFrame({ variant, title, backTo, children }: SettingsFram
               navigate(backTo ?? '/m/send');
             }}
           >
-            <ArrowLeft size={20} aria-hidden />
+            <ChevronLeft size={20} aria-hidden />
           </BackButton>
           <MobileTitle>{title}</MobileTitle>
         </MobileHeader>

@@ -7,13 +7,15 @@ import { Button } from '@/components/Button';
 import { Toast } from '@/components/Toast';
 import { GoogleMark } from './GoogleMark';
 import {
+  BadgeMark,
   DirtyBar,
+  EmailLine,
   Eyebrow,
   FieldError,
-  InlineRow,
   Meta,
   NameInput,
   Panel,
+  ProfileHead,
   Section,
   Spacer,
   Stack,
@@ -68,7 +70,7 @@ export function ProfileSection() {
   return (
     <Section aria-label="Profile">
       <Panel>
-        <InlineRow $gap={20}>
+        <ProfileHead>
           <Avatar name={draft || (user?.email ?? '')} size={56} />
           <Stack $gap={8} style={{ flex: 1 }}>
             <Eyebrow as="label" htmlFor="settings-full-name">
@@ -87,18 +89,20 @@ export function ProfileSection() {
               <FieldError role="alert">Use at least {NAME_MIN} characters.</FieldError>
             ) : null}
           </Stack>
-        </InlineRow>
+        </ProfileHead>
         <Stack $gap={8}>
           <Eyebrow>Email</Eyebrow>
-          <InlineRow $gap={10}>
+          <EmailLine>
             <Meta>{user?.email ?? ''}</Meta>
             {provider === 'google' ? (
-              <Badge tone="neutral">
-                <GoogleMark />
-                Google
+              <Badge tone="neutral" dot={false}>
+                <BadgeMark>
+                  <GoogleMark />
+                  Google
+                </BadgeMark>
               </Badge>
             ) : null}
-          </InlineRow>
+          </EmailLine>
         </Stack>
       </Panel>
 

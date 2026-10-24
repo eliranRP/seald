@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Mail } from 'lucide-react';
 import { AuthFormColumn, AuthMeta, AuthTitle } from '../AuthSplitLayout';
 import { Banner } from '../Banner';
-import { Button } from '../Button';
 import { ButtonRoot } from '../Button/Button.styles';
 import { Icon } from '../Icon';
 import { Toast } from '../Toast';
 import type { CheckEmailPanelProps } from './CheckEmailPanel.types';
 import { mailLinksFor } from './mailProviders';
-import { MailRow, ResendRow, StateIcon, Strong } from './CheckEmailPanel.styles';
+import { MailRow, ResendRow, StateIcon, Strong, TouchButton } from './CheckEmailPanel.styles';
 
 const DEFAULT_COOLDOWN_S = 30;
 const RATE_LIMIT_COOLDOWN_S = 60;
@@ -92,20 +91,25 @@ export function CheckEmailPanel(props: CheckEmailPanelProps) {
             $fullWidth={false}
             $iconOnly={false}
           >
-            <Icon icon={Mail} size={16} />
+            <Icon icon={Mail} size={14} />
             {link.label}
           </ButtonRoot>
         ))}
       </MailRow>
       <ResendRow>
         <AuthMeta>{"Didn't get it?"}</AuthMeta>
-        <Button variant="ghost" size="sm" disabled={resendOff} onClick={() => void handleResend()}>
+        <TouchButton
+          variant="ghost"
+          size="sm"
+          disabled={resendOff}
+          onClick={() => void handleResend()}
+        >
           {resendLabel}
-        </Button>
+        </TouchButton>
       </ResendRow>
-      <Button variant="ghost" size="sm" onClick={onChangeEmail}>
+      <TouchButton variant="ghost" size="sm" onClick={onChangeEmail}>
         Use a different email
-      </Button>
+      </TouchButton>
       {toast ? (
         <Toast title="New link sent" duration={TOAST_MS} onClose={() => setToast(false)} />
       ) : null}
