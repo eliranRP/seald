@@ -1,5 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { API_KEY_PREFIX, API_KEY_PREFIX_SECRET_CHARS } from 'shared';
+import { sha256Base64url, sha256Hex } from '../common/sha256';
 
 /**
  * API key secret format (docs/design/mcp-server.md § API keys, Generation).
@@ -40,24 +41,13 @@ export interface ParsedApiKey {
 }
 
 function checksumOf(body: string): string {
-  // SHA-256 is deliberate: the input is a 256-bit random API key, not a
-  // human-chosen password, so a slow KDF adds no brute-force resistance and
-  // would put bcrypt/argon2 cost on every authenticated request. Reviewed on
-  // PR #380; see docs/design/mcp-server.md § API keys.
-  // codeql[js/insufficient-password-hash]
-  return createHash('sha256')
-    .update(`${API_KEY_PREFIX}${body}`)
-    .digest('base64url')
-    .slice(0, CHECKSUM_CHARS);
+  // Not a password hash: see common/sha256.ts.
+  return sha256Base64url(`${API_KEY_PREFIX}${body}`).slice(0, CHECKSUM_CHARS);
 }
 
 export function hashSecret(secret: string): string {
-  // SHA-256 is deliberate: the input is a 256-bit random API key, not a
-  // human-chosen password, so a slow KDF adds no brute-force resistance and
-  // would put bcrypt/argon2 cost on every authenticated request. Reviewed on
-  // PR #380; see docs/design/mcp-server.md § API keys.
-  // codeql[js/insufficient-password-hash]
-  return createHash('sha256').update(secret).digest('hex');
+  // Not a password hash: 256-bit random secret, see common/sha256.ts.
+  return sha256Hex(secret);
 }
 
 function prefixOf(secret: string): string {

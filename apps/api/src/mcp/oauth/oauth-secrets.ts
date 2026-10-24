@@ -1,5 +1,6 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { MCP_OAUTH_ACCESS_TOKEN_PREFIX, MCP_OAUTH_REFRESH_TOKEN_PREFIX } from 'shared';
+import { sha256Hex } from '../../common/sha256';
 
 /**
  * Opaque OAuth secrets: 32 random bytes, base64url, behind a fixed
@@ -16,7 +17,8 @@ export interface MintedSecret {
 }
 
 export function hashSecret(token: string): string {
-  return createHash('sha256').update(token, 'utf8').digest('hex');
+  // Not a password hash: 256-bit random token, see common/sha256.ts.
+  return sha256Hex(token);
 }
 
 function mint(prefix: string): MintedSecret {

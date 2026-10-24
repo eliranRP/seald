@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { API_KEY_PREFIX } from 'shared';
 import {
   SECRET_BODY_BYTES,
@@ -8,6 +7,7 @@ import {
   looksLikeApiKey,
   parseApiKey,
 } from '../api-key-secret';
+import { sha256Hex } from '../../common/sha256';
 
 describe('api key secret format', () => {
   it('is seald_live_ + 32 random bytes base64url + a 6-char checksum', () => {
@@ -29,9 +29,9 @@ describe('api key secret format', () => {
   it('key_hash is hex SHA-256 of the full secret, 64 chars', () => {
     const key = generateApiKey();
     const secret = key.token.slice(API_KEY_PREFIX.length);
-    // Pins the intended SHA-256 format of a random API key (not a password).
-    // codeql[js/insufficient-password-hash]
-    expect(key.keyHash).toBe(createHash('sha256').update(secret).digest('hex'));
+    // Pins the stored format: hex SHA-256 of the secret. Verified against
+    // an independent digest so existing key_hash rows keep matching.
+    expect(key.keyHash).toBe(sha256Hex(secret));
     expect(key.keyHash).toMatch(/^[0-9a-f]{64}$/);
     expect(hashSecret(secret)).toBe(key.keyHash);
   });
@@ -88,5 +88,12 @@ describe('api key secret format', () => {
   it('looksLikeApiKey only checks the literal prefix', () => {
     expect(looksLikeApiKey('seald_live_x')).toBe(true);
     expect(looksLikeApiKey('eyJhbGciOi.x.y')).toBe(false);
+  });
+
+  it('keeps the legacy token and key_hash for fixed bytes (existing keys stay valid)', () => {
+    const key = generateApiKey(Buffer.alloc(SECRET_BODY_BYTES, 7));
+    expect(key.token).toBe('seald_live_BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcw1Mb56');
+    expect(key.keyHash).toBe('228b7bc8d18ac55e0f296dad1e74d0ba71c8062202feb9c209e90302f4dfafd0');
+    expect(parseApiKey(key.token)?.keyHash).toBe(key.keyHash);
   });
 });

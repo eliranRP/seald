@@ -1,5 +1,5 @@
-import { createHash } from 'node:crypto';
 import { Injectable, Optional } from '@nestjs/common';
+import { sha256Hex } from '../common/sha256';
 import { PassthroughTransactionRunner, TransactionRunner } from '../db/transaction-runner';
 import { canonicalJsonValue } from '../envelopes/event-hash';
 import { IdempotencyRecordsRepository } from './idempotency-records.repository';
@@ -87,9 +87,7 @@ export class IdempotencyService {
 
   static requestHash(path: string, args: Readonly<Record<string, unknown>>): string {
     const { idempotency_key: _key, ...rest } = args;
-    return createHash('sha256')
-      .update(`${path}\n${canonicalJsonValue(rest)}`, 'utf8')
-      .digest('hex');
+    return sha256Hex(`${path}\n${canonicalJsonValue(rest)}`);
   }
 
   async begin(scope: IdempotencyScope): Promise<IdempotencyBegin> {
