@@ -25,6 +25,12 @@ export interface PageThumbRailProps extends Omit<HTMLAttributes<HTMLElement>, 'o
    * "which pages still need fields" without reading numbers.
    */
   readonly signerDotsByPage?: Readonly<Record<number, ReadonlyArray<string>>> | undefined;
+  /**
+   * `floating` (default): the glass pane over the canvas. `column`: the
+   * Prepare board's `.thumbs` column, a full-height 104px strip with 72px
+   * thumbs and the page number under each.
+   */
+  readonly variant?: 'floating' | 'column' | undefined;
   /** aria-label for the wrapping <nav>. Defaults to "Page navigation". */
   readonly label?: string | undefined;
 }

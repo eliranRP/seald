@@ -6,11 +6,12 @@ import {
   Check,
   Download,
   File as FileIcon,
-  FileUp,
   LayoutTemplate,
   Loader2,
+  PanelsTopLeft,
   RefreshCw,
   Smartphone,
+  Upload,
   UploadCloud,
 } from 'lucide-react';
 import { Button } from '@/components/Button';
@@ -459,9 +460,13 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
           ) : null}
 
           {hasSources ? (
-            <Sources role="radiogroup" aria-label="Source">
+            <Sources
+              role="radiogroup"
+              aria-label="Source"
+              $count={1 + (onPickTemplate ? 1 : 0) + (driveHandler ? 1 : 0) + (onScan ? 1 : 0)}
+            >
               <SourceTile
-                icon={FileUp}
+                icon={Upload}
                 label="Upload file"
                 {...(isMobile ? {} : { meta: allowWord ? 'PDF, Word' : 'PDF' })}
                 stacked={isMobile}
@@ -470,7 +475,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
               />
               {onPickTemplate ? (
                 <SourceTile
-                  icon={LayoutTemplate}
+                  icon={PanelsTopLeft}
                   label="Template"
                   {...(!isMobile && templateCount !== undefined
                     ? { meta: `${String(templateCount)} saved` }
@@ -544,7 +549,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
               ) : (
                 <>
                   <DropIcon $error={false}>
-                    <UploadCloud size={48} strokeWidth={1.5} aria-hidden />
+                    <Upload size={48} strokeWidth={1.75} aria-hidden />
                   </DropIcon>
                   <DropHeading>{dropHeadingText}</DropHeading>
                   {hasSources ? null : <DropSubheading>{effectiveDropSubheading}</DropSubheading>}
@@ -556,11 +561,11 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                   {hasSources ? (
                     <MetaRow>
                       <IconMeta>
-                        <Icon icon={FileIcon} size={14} />
+                        <Icon icon={FileIcon} size={isMobile ? 14 : 16} />
                         {allowWord ? 'PDF, Word' : 'PDF'}
                       </IconMeta>
                       <IconMeta>
-                        <Icon icon={Download} size={14} />
+                        <Icon icon={Download} size={isMobile ? 14 : 16} />
                         {`${String(sizeMb)} MB max`}
                       </IconMeta>
                     </MetaRow>
@@ -616,6 +621,7 @@ export const UploadPage = forwardRef<HTMLDivElement, UploadPageProps>((props, re
                     key={t.id}
                     name={t.name}
                     signers={t.signers}
+                    card={isMobile}
                     onClick={() => onPickRecentTemplate(t.id)}
                   />
                 ))}

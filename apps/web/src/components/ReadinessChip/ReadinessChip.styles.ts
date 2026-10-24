@@ -20,6 +20,14 @@ export const Chip = styled.button<{ $ok: boolean }>`
     outline: none;
     box-shadow: ${({ theme }) => theme.shadow.focus};
   }
+
+  /* PrepareMobile: icon-only 44px circle. */
+  @media (max-width: 640px) {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+  }
 `;
 
 export const Text = styled.span`

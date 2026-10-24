@@ -16,11 +16,11 @@ function baseProps() {
 }
 
 describe('PageToolbar', () => {
-  it('renders "currentPage / totalPages" in the mono font', () => {
+  it('renders "currentPage / totalPages" with tabular figures (canvas .meta label)', () => {
     const { getByText } = renderWithTheme(<PageToolbar {...baseProps()} />);
     const indicator = getByText('2 / 4');
     expect(indicator).toBeInTheDocument();
-    expect(getComputedStyle(indicator).fontFamily).toMatch(/JetBrains Mono/);
+    expect(getComputedStyle(indicator).fontVariantNumeric).toBe('tabular-nums');
   });
 
   it('fires onNextPage when Next is clicked', async () => {

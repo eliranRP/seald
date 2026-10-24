@@ -414,6 +414,7 @@ export function UploadRoute() {
         steps={UPLOAD_STEPS}
         onClose={() => navigate('/documents')}
         closeLabel="Back to documents"
+        mobileTitle="New document"
       />
       <UploadPage
         allowWord

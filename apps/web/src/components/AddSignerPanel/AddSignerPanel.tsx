@@ -1,7 +1,6 @@
 import { forwardRef, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Check, UserPlus, Users } from 'lucide-react';
-import { Avatar } from '../Avatar';
 import { Button } from '../Button';
 import { TextField } from '../TextField';
 import type { AddSignerContact } from '../AddSignerDropdown/AddSignerDropdown.types';
@@ -14,6 +13,7 @@ import {
   FormCard,
   FormError,
   RecentButton,
+  RecentInitials,
   RecentRow,
   Root,
   SavedNote,
@@ -21,6 +21,15 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DEFAULT_MAX_RECENT = 5;
+
+function initials(name: string): string {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => (part[0] ?? '').toUpperCase())
+    .slice(0, 2)
+    .join('');
+}
 
 function nameFromEmail(email: string): string {
   return email.split('@')[0] ?? email;
@@ -94,7 +103,7 @@ export const AddSignerPanel = forwardRef<HTMLDivElement, AddSignerPanelProps>((p
                 aria-label={`Add ${c.name}`}
                 onClick={() => onAddContacts([c])}
               >
-                <Avatar name={c.name} size={40} />
+                <RecentInitials aria-hidden>{initials(c.name)}</RecentInitials>
               </RecentButton>
             ))}
           </RecentRow>
