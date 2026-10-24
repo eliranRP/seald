@@ -35,22 +35,21 @@ describe('NotificationsSection', () => {
     expect(declined).toBeDisabled();
   });
 
-  it('starts with Someone signs on and Daily summary off', async () => {
+  it('starts with Someone signs on and shows no Daily summary switch yet', async () => {
     renderWithProviders(<NotificationsSection />);
     expect(await screen.findByRole('switch', { name: 'Someone signs' })).toBeChecked();
-    expect(screen.getByRole('switch', { name: 'Daily summary' })).not.toBeChecked();
+    // Hidden until the daily-summary email exists.
+    expect(screen.queryByRole('switch', { name: 'Daily summary' })).not.toBeInTheDocument();
   });
 
-  it('saves the Daily summary switch at once', async () => {
+  it('saves the Someone signs switch at once', async () => {
     const user = userEvent.setup();
     renderWithProviders(<NotificationsSection />);
-    const sw = await screen.findByRole('switch', { name: 'Daily summary' });
+    const sw = await screen.findByRole('switch', { name: 'Someone signs' });
     await user.click(sw);
-    expect(sw).toBeChecked();
+    expect(sw).not.toBeChecked();
     await waitFor(() =>
-      expect(patchMock).toHaveBeenCalledWith('/me/settings', {
-        notify: { daily_summary: true },
-      }),
+      expect(patchMock).toHaveBeenCalledWith('/me/settings', { notify: { signed: false } }),
     );
   });
 

@@ -4,6 +4,7 @@ import { isFeatureEnabled } from 'shared';
 import { Button } from '@/components/Button';
 import { ButtonRoot } from '@/components/Button/Button.styles';
 import { Icon } from '@/components/Icon';
+import { padesLabel } from '@/features/verify';
 import type { VerifyResponse } from '@/features/verify';
 import { formatDateTime } from './verdict';
 import {
@@ -82,6 +83,7 @@ export function TechDetails({ data, sealed, tampered, onCopy }: TechDetailsProps
   const docs = isFeatureEnabled('multiDocumentEnvelopes') ? (data.documents ?? []) : [];
   const multiDoc = docs.length > 1;
   const events = envelope.event_count ?? data.events.length;
+  const pades = padesLabel(envelope.seal);
   const sealedAt = envelope.sealed_at ?? envelope.completed_at;
   const stamp = `${formatDateTime(sealedAt)}${envelope.tsa_name ? ` · ${envelope.tsa_name}` : ''}`;
 
@@ -152,8 +154,14 @@ export function TechDetails({ data, sealed, tampered, onCopy }: TechDetailsProps
                   ) : null,
                 ])
               : null}
-            {sealed ? <Row label="Signature" value="PAdES B-LT" dash onCopy={onCopy} /> : null}
-            {sealed ? <Row label="Timestamp" value={stamp} onCopy={onCopy} /> : null}
+            {sealed && pades ? <Row label="Signature" value={pades} dash onCopy={onCopy} /> : null}
+            {sealed ? (
+              <Row
+                label={envelope.seal?.timestamped ? 'Timestamp' : 'Sealed'}
+                value={stamp}
+                onCopy={onCopy}
+              />
+            ) : null}
             <Row label="Audit events" value={`${events} · hash-chained`} onCopy={onCopy} />
           </KvList>
           <DetailsFoot>

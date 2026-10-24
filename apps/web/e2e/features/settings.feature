@@ -18,7 +18,7 @@ Feature: Settings sections and account actions
     When the sender opens "/settings/notifications"
     Then the "Completed" switch is on and cannot be changed
     And the "Declined, expired, bounced" switch is on and cannot be changed
-    And the "Daily summary" switch is off
+    And there is no "Daily summary" switch
 
   @settings @smoke
   Scenario: Delete account stays disabled until DELETE is typed

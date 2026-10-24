@@ -2,6 +2,7 @@ export { useVerifyEnvelope, VERIFY_KEY } from './model/useVerifyEnvelope';
 export { sha256Hex, fileProblem, MAX_VERIFY_FILE_BYTES } from './model/sha256';
 export type { FileCheckProblem } from './model/sha256';
 export { lookupShortCodeByHash } from './model/lookupByHash';
+export { padesLabel } from './model/types';
 export type {
   VerifyResponse,
   VerifyEnvelope,
@@ -11,4 +12,6 @@ export type {
   VerifyEvent,
   VerifyEventActorKind,
   VerifyEventType,
+  VerifyPadesLevel,
+  VerifySeal,
 } from './model/types';

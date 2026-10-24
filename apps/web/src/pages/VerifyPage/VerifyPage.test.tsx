@@ -71,6 +71,7 @@ const SIGNED: VerifyResponse = {
     sealed_at: '2026-04-25T21:21:07Z',
     tsa_name: 'DigiCert TSA',
     event_count: 11,
+    seal: { level: 'B-LTA', timestamped: true },
   },
   signers: [
     {
@@ -136,7 +137,7 @@ describe('VerifyPage result', () => {
     expect(screen.getByRole('img', { name: 'Eliran Azulay' })).toBeInTheDocument();
     expect(screen.getByText(/Unchanged since seal/)).toBeInTheDocument();
     expect(screen.getByText(/Audit chain intact/)).toBeInTheDocument();
-    expect(screen.getByText(/PAdES B-LT/)).toBeInTheDocument();
+    expect(screen.getByText(/PAdES B-LTA/)).toBeInTheDocument();
     expect(screen.getByText(/Timestamped/)).toBeInTheDocument();
     expect(screen.getByText('Verification by Seald')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /technical details/i })).toHaveAttribute(
@@ -144,6 +145,28 @@ describe('VerifyPage result', () => {
       'false',
     );
     expect(screen.queryByLabelText('Sealed SHA-256 hash')).not.toBeInTheDocument();
+  });
+
+  it('claims no PAdES level or timestamp the API did not read from the sealed file', async () => {
+    get.mockResolvedValueOnce({
+      data: { ...SIGNED, envelope: { ...SIGNED.envelope, seal: null } },
+    });
+    renderAt(`/verify/${CODE}`);
+    expect(await screen.findByRole('heading', { level: 1, name: 'Authentic' })).toBeInTheDocument();
+    expect(screen.queryByText(/PAdES/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Timestamped/)).not.toBeInTheDocument();
+  });
+
+  it('shows the level the seal degraded to, without Timestamped', async () => {
+    get.mockResolvedValueOnce({
+      data: {
+        ...SIGNED,
+        envelope: { ...SIGNED.envelope, seal: { level: 'B-B', timestamped: false } },
+      },
+    });
+    renderAt(`/verify/${CODE}`);
+    expect(await screen.findByText(/PAdES B-B/)).toBeInTheDocument();
+    expect(screen.queryByText(/Timestamped/)).not.toBeInTheDocument();
   });
 
   it('opens the technical details with full hashes, timestamp and event count', async () => {

@@ -50,8 +50,8 @@ Then('the {string} switch is on and cannot be changed', async ({ page }, name: s
   await expect(sw).toBeDisabled();
 });
 
-Then('the {string} switch is off', async ({ page }, name: string) => {
-  await expect(page.getByRole('switch', { name })).not.toBeChecked();
+Then('there is no {string} switch', async ({ page }, name: string) => {
+  await expect(page.getByRole('switch', { name })).toHaveCount(0);
 });
 
 When('the sender chooses Delete', async ({ page }) => {

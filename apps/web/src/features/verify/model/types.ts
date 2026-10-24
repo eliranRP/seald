@@ -53,6 +53,23 @@ export interface VerifyEnvelope {
   readonly tsa_name?: string | null;
   /** Number of audit events on the chain. */
   readonly event_count?: number;
+  /**
+   * PAdES level and signature timestamp the API read from the sealed PDF
+   * (weakest document). Null or absent: no claim is shown.
+   */
+  readonly seal?: VerifySeal | null;
+}
+
+export type VerifyPadesLevel = 'none' | 'B-B' | 'B-T' | 'B-LT' | 'B-LTA';
+
+export interface VerifySeal {
+  readonly level: VerifyPadesLevel;
+  readonly timestamped: boolean;
+}
+
+/** "PAdES B-LTA", or null when the sealed file proves no PAdES level. */
+export function padesLabel(seal: VerifySeal | null | undefined): string | null {
+  return seal && seal.level !== 'none' ? `PAdES ${seal.level}` : null;
 }
 
 export interface VerifySigner {

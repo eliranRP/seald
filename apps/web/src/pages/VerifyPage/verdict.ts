@@ -1,5 +1,6 @@
 import { AlertTriangle, Ban, Clock, ShieldCheck, TimerOff, XCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { padesLabel } from '@/features/verify';
 import type { VerifyEvent, VerifyResponse, VerifySigner } from '@/features/verify';
 import type { VerdictTone } from './VerifyPage.styles';
 
@@ -72,6 +73,7 @@ export function deriveVerdict(data: VerifyResponse): VerdictModel {
   if (envelope.status === 'completed') {
     const sealedOn = formatDate(envelope.sealed_at ?? envelope.completed_at);
     const signed = `${done} of ${signers.length} signed`;
+    const pades = padesLabel(envelope.seal);
     return {
       word: intact ? 'Authentic' : 'Tampered',
       tone: intact ? 'ok' : 'bad',
@@ -82,8 +84,9 @@ export function deriveVerdict(data: VerifyResponse): VerdictModel {
       chips: [
         { label: 'Unchanged since seal', state: 'ok' },
         chain,
-        { label: 'PAdES B-LT', state: 'ok' },
-        { label: 'Timestamped', state: 'ok' },
+        // Only what the API read from the sealed bytes (never a static claim).
+        ...(pades ? [{ label: pades, state: 'ok' } as const] : []),
+        ...(envelope.seal?.timestamped ? [{ label: 'Timestamped', state: 'ok' } as const] : []),
       ],
       sealed: true,
       tampered: !intact,

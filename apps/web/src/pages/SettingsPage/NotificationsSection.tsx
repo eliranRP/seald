@@ -40,7 +40,8 @@ const ROWS: ReadonlyArray<SwitchRow> = [
   { id: 'signed', label: 'Someone signs', icon: Mail, locked: false },
   { id: 'completed', label: 'Completed', icon: CheckCircle2, locked: true },
   { id: 'declined', label: 'Declined, expired, bounced', icon: XCircle, locked: true },
-  { id: 'daily_summary', label: 'Daily summary', icon: Bell, locked: false },
+  // "Daily summary" stays hidden until the daily-summary email exists; the
+  // `notify.daily_summary` preference is kept in the API for it.
 ];
 
 /**
@@ -55,12 +56,12 @@ export function NotificationsSection() {
 
   function isOn(row: SwitchRow): boolean {
     if (row.locked) return true;
-    return row.id === 'signed' ? current.notify.signed : current.notify.daily_summary;
+    return current.notify.signed;
   }
 
   function toggle(row: SwitchRow, on: boolean): void {
     if (row.locked) return;
-    update.mutate({ notify: row.id === 'signed' ? { signed: on } : { daily_summary: on } });
+    update.mutate({ notify: { signed: on } });
   }
 
   return (
