@@ -113,8 +113,27 @@ jobs:
             git clean -fd
             echo "deployed SHA: $(git rev-parse HEAD)"
 
+            # Self-heal: free disk before the build. The PR #380 deploy
+            # (2026-10-23) failed with ENOSPC on a full root volume while
+            # the old container kept serving stale code. Build cache older
+            # than a week goes every time; under 5 GB free, all unused
+            # build cache and images go too. Neither touches running
+            # containers or volumes.
+            df -h / || true
+            sudo docker builder prune -f --filter until=168h || true
+            free_kb=$(df --output=avail -k / | tail -1 | tr -d ' ')
+            if [ "${free_kb:-0}" -lt 5242880 ]; then
+              echo "Under 5 GB free; pruning all unused build cache and images"
+              sudo docker builder prune -af || true
+              sudo docker image prune -af || true
+            fi
+            df -h / || true
+
             sudo docker compose pull || true
             sudo docker compose up -d --build --force-recreate api
+
+            # Drop the image the rebuild just replaced (dangling only).
+            sudo docker image prune -f || true
 
             # Health probe: api:3000 is exposed only on the docker
             # network. Probe via the caddy container so we exercise
