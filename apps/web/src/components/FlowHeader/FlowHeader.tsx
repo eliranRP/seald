@@ -5,9 +5,14 @@ import type { FlowHeaderProps } from './FlowHeader.types';
 import { useFocusedShell } from '@/layout/shellChrome';
 import {
   Left,
+  Logo,
+  LogoMark,
+  LogoWord,
   Meta,
+  MobileTitle,
   Right,
   Root,
+  StepCount,
   StepItem,
   StepLabel,
   StepList,
@@ -19,15 +24,28 @@ import {
 
 /**
  * Header of the document flow (Upload, Prepare, Send): close button and
- * title on the left, the step track in the middle, actions on the right.
- * On phones the track becomes a thin segmented bar under the title.
+ * title (or the Seald logo) on the left, the step track in the middle,
+ * actions on the right. On phones the row is the 56px `.m-top` bar (title
+ * only, or `mobileTitle` with an "n/N" step count) and the track becomes a
+ * thin segmented bar under it.
  */
 export const FlowHeader = forwardRef<HTMLElement, FlowHeaderProps>((props, ref) => {
   // The flow header replaces the app top bar (design: Upload / Prepare).
   useFocusedShell();
-  const { steps, onClose, closeLabel = 'Close', title, meta, children, ...rest } = props;
+  const {
+    steps,
+    onClose,
+    closeLabel = 'Close',
+    title,
+    meta,
+    mobileTitle,
+    children,
+    ...rest
+  } = props;
+  const activeIndex = steps.findIndex((s) => s.state === 'active');
+  const hasActions = children !== undefined && children !== null;
   return (
-    <Root {...rest} ref={ref}>
+    <Root {...rest} ref={ref} $padBar={title !== undefined}>
       <Left>
         {onClose ? (
           <Button variant="ghost" iconOnly iconLeft={X} aria-label={closeLabel} onClick={onClose} />
@@ -37,7 +55,14 @@ export const FlowHeader = forwardRef<HTMLElement, FlowHeaderProps>((props, ref) 
             <Title>{title}</Title>
             {meta ? <Meta>{meta}</Meta> : null}
           </TitleBlock>
-        ) : null}
+        ) : (
+          <Logo aria-hidden>
+            <LogoMark>S</LogoMark>
+            <LogoWord>Seald</LogoWord>
+          </Logo>
+        )}
+        {/* Visual only: the page keeps its own (visually hidden) h1. */}
+        {!title && mobileTitle ? <MobileTitle aria-hidden>{mobileTitle}</MobileTitle> : null}
       </Left>
       <StepList aria-label="Progress">
         {steps.map((step, i) => (
@@ -54,7 +79,12 @@ export const FlowHeader = forwardRef<HTMLElement, FlowHeaderProps>((props, ref) 
           </StepItem>
         ))}
       </StepList>
-      <Right>{children}</Right>
+      <Right>
+        {children}
+        {!hasActions && activeIndex >= 0 ? (
+          <StepCount aria-hidden>{`${String(activeIndex + 1)}/${String(steps.length)}`}</StepCount>
+        ) : null}
+      </Right>
     </Root>
   );
 });
