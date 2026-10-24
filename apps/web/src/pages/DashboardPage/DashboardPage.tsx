@@ -4,26 +4,19 @@ import {
   Bell,
   Ban,
   ChevronDown,
-  Clock,
   Download,
   Eye,
-  Inbox,
   LayoutTemplate,
   Link2,
-  PenLine,
   Search,
-  ShieldCheck,
   Smartphone,
   Tag as TagIcon,
   Trash2,
   Undo2,
   Upload,
   X,
-  XCircle,
-  FilePen,
   CircleCheck,
 } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { EnvelopeListItem } from 'shared';
@@ -44,7 +37,6 @@ import {
   copyDocumentLink,
   downloadEnvelopes,
   fixBouncedEmail,
-  formatTurnaround,
   groupByRecency,
   hasActiveFilters,
   needsYouCards,
@@ -67,7 +59,6 @@ import { useIsMobileViewport } from '@/hooks/useIsMobileViewport';
 import { useAuth } from '@/providers/AuthProvider';
 import { ConfirmDialog } from './ConfirmDialog';
 import {
-  AvgMeta,
   BulkBar,
   Footer,
   GroupLabel,
@@ -86,7 +77,7 @@ import {
   TableShell,
   TabsRow,
   THead,
-  CountPill,
+  TabCount,
   RowCheck,
   Spacer,
 } from './DashboardPage.styles';
@@ -98,13 +89,13 @@ import type { SheetAction } from './MobileSheets';
 import { NeedsYouStrip } from './NeedsYouStrip';
 import { TagDialog } from './TagDialog';
 
-const TAB_META: Record<DashboardTab, { label: string; icon: LucideIcon }> = {
-  all: { label: 'All', icon: Inbox },
-  you: { label: 'To sign', icon: PenLine },
-  others: { label: 'Waiting', icon: Clock },
-  sealed: { label: 'Sealed', icon: ShieldCheck },
-  drafts: { label: 'Drafts', icon: FilePen },
-  stopped: { label: 'Stopped', icon: XCircle },
+const TAB_META: Record<DashboardTab, { label: string }> = {
+  all: { label: 'All' },
+  you: { label: 'To sign' },
+  others: { label: 'Waiting' },
+  sealed: { label: 'Sealed' },
+  drafts: { label: 'Drafts' },
+  stopped: { label: 'Stopped' },
 };
 
 /** Undo stays on screen this long after Send. */
@@ -222,7 +213,6 @@ export function DashboardPage() {
   const cards = useMemo(() => needsYouCards(items, viewerEmail, now), [items, viewerEmail, now]);
   const people = useMemo(() => uniquePeople(items), [items]);
   const tags = useMemo(() => uniqueTags(items), [items]);
-  const avg = useMemo(() => formatTurnaround(items), [items]);
   const filtered = hasActiveFilters(filters);
   const firstRun = !loading && !query.isError && items.length === 0;
 
@@ -642,7 +632,6 @@ export function DashboardPage() {
               <TabList role="tablist" aria-label="Status">
                 {DASHBOARD_TABS.map((key) => {
                   const meta = TAB_META[key];
-                  const Icon = meta.icon;
                   const active = filters.tab === key;
                   return (
                     <Tab
@@ -653,28 +642,14 @@ export function DashboardPage() {
                       $active={active}
                       onClick={() => patchFilters({ tab: key })}
                     >
-                      <Icon size={mobile ? 14 : 16} aria-hidden />
                       {meta.label}
-                      {loading ? (
-                        <Skeleton variant="circle" width={20} height={20} />
-                      ) : (
-                        <CountPill
-                          $accent={active && !mobile}
-                          aria-label={`${counts[key]} documents`}
-                        >
-                          {counts[key]}
-                        </CountPill>
+                      {loading ? null : (
+                        <TabCount aria-label={`${counts[key]} documents`}>{counts[key]}</TabCount>
                       )}
                     </Tab>
                   );
                 })}
               </TabList>
-              {avg !== null ? (
-                <AvgMeta>
-                  <Clock size={14} aria-hidden />
-                  {avg} avg
-                </AvgMeta>
-              ) : null}
             </TabsRow>
 
             {bulkOn ? (
