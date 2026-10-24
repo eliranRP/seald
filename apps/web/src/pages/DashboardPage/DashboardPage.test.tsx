@@ -169,6 +169,8 @@ describe('DashboardPage', () => {
 
   const DEBOUNCED = { timeout: 5000 };
 
+  // Two debounced waits of up to 5 s each: the 5 s default test timeout
+  // fired first on a busy runner, before either wait could give up.
   it('searches, shows a removable chip, and the No matches state', async () => {
     renderHome();
     await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' });
@@ -197,7 +199,7 @@ describe('DashboardPage', () => {
     expect(
       await screen.findByRole('checkbox', { name: 'Select Advisory agreement — Farrow' }),
     ).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it('filters by tag from the Tags menu', async () => {
     renderHome();
