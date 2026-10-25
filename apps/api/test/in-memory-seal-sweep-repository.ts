@@ -89,4 +89,23 @@ export class InMemorySealSweepRepository extends SealSweepRepository {
     }
     return acted;
   }
+
+  async reclaimStaleAuditJobs(
+    runningStartedBefore: Date,
+    limit: number,
+  ): Promise<ReadonlyArray<{ readonly envelopeId: string; readonly requeued: boolean }>> {
+    const out: Array<{ envelopeId: string; requeued: boolean }> = [];
+    for (const job of this.envelopes.jobs) {
+      if (out.length >= limit) break;
+      if (job.kind !== 'audit_only' || job.status !== 'running') continue;
+      const since = this.runningSince.get(job.id);
+      if (!since || since.getTime() >= runningStartedBefore.getTime()) continue;
+      const requeued = job.attempts < job.max_attempts;
+      job.status = requeued ? 'pending' : 'failed';
+      job.scheduled_for = new Date().toISOString();
+      this.runningSince.delete(job.id);
+      out.push({ envelopeId: job.envelope_id, requeued });
+    }
+    return out;
+  }
 }

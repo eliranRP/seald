@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import type { NextFunction, Request, Response } from 'express';
 import { createConfiguredApp } from './app-setup';
 import { edgeProxyGuard } from './edge/proxy-guard';
+import { installFastLatin1 } from './edge/fast-latin1';
 
 /**
  * Supabase Edge Function entry (AWS exit plan, WS-0).
@@ -14,6 +15,7 @@ import { edgeProxyGuard } from './edge/proxy-guard';
 const EDGE_PORT = 8000;
 
 export async function bootstrapEdge(functionName: string): Promise<void> {
+  installFastLatin1();
   // Nest's default on a boot error is process.abort(), which the edge
   // runtime ignores, leaving a half-built app. Throw instead so the worker
   // fails visibly and the gateway reports it.

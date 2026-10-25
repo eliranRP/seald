@@ -16,6 +16,7 @@ import { EnvelopesPgRepository } from '../envelopes/envelopes.repository.pg';
 import { AccessAuthPgRepository } from '../signing/access-auth/access-auth.repository.pg';
 import { AccessCodeMinter } from '../signing/access-auth/access-code-minter.service';
 import { SigningTokenService } from '../signing/signing-token.service';
+import { installFastLatin1 } from './fast-latin1';
 
 /**
  * Entry for the `email-worker` Edge Function (docs/supabase-native-architecture.md).
@@ -35,6 +36,7 @@ export interface EmailWorker {
 export const EMAIL_BATCH_SIZE = 25;
 
 export function createEmailWorker(source: NodeJS.ProcessEnv = process.env): EmailWorker {
+  installFastLatin1();
   const env = parseEnv(source);
   const db = createDb(env, { maxConnections: 2 });
   const templates = new TemplateService();

@@ -14,6 +14,7 @@ import { SealingService } from '../sealing/sealing.service';
 import { runOneSealStep, type SealStepOutcome } from '../sealing/seal-step-runner';
 import { TsaClient } from '../sealing/tsa-client';
 import { SupabaseStorageService } from '../storage/storage.service';
+import { installFastLatin1 } from './fast-latin1';
 
 /**
  * Entry for the `seal-worker` Edge Function (docs/supabase-native-architecture.md).
@@ -29,6 +30,7 @@ export interface SealWorker {
 }
 
 export function createSealWorker(source: NodeJS.ProcessEnv = process.env): SealWorker {
+  installFastLatin1();
   const env = parseEnv(source);
   // One step at a time per worker: a couple of connections is plenty, and
   // the transaction-mode connection pool (port 6543) multiplexes them.

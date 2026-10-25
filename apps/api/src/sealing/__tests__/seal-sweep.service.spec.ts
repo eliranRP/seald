@@ -54,6 +54,14 @@ class FakeRepo extends SealSweepRepository {
     this.requeueCalls.push(c.envelopeId);
     return !this.lostRace.has(c.envelopeId);
   }
+
+  readonly auditCalls: Date[] = [];
+  auditResult: Array<{ envelopeId: string; requeued: boolean }> = [];
+
+  async reclaimStaleAuditJobs(runningStartedBefore: Date) {
+    this.auditCalls.push(runningStartedBefore);
+    return this.auditResult;
+  }
 }
 
 function service(repo: SealSweepRepository, workerEnabled = false): SealSweepService {
@@ -134,6 +142,17 @@ describe('SealSweepService.sweep', () => {
     repo.lostRace.add('e-a');
     const res = await service(repo).sweep(NOW);
     expect(res).toMatchObject({ requeued: 1, skipped: 1, requeued_envelope_ids: ['e-b'] });
+  });
+
+  it('reclaims stale audit_only jobs with the same 15 minute staleness window', async () => {
+    const repo = new FakeRepo([]);
+    repo.auditResult = [
+      { envelopeId: 'e-declined', requeued: true },
+      { envelopeId: 'e-expired', requeued: false },
+    ];
+    const res = await service(repo).sweep(NOW);
+    expect(repo.auditCalls).toEqual([new Date(NOW.getTime() - 15 * MIN)]);
+    expect(res).toMatchObject({ audit_requeued: 1, audit_failed: 1, requeued: 0 });
   });
 });
 

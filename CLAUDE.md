@@ -119,7 +119,12 @@ SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   `envelope_jobs.progress` (migration 0048). Every step must stay
   idempotent and well under 1 s of CPU. `P12TsaSigner` signs with native
   digests and `crypto.sign` (never `privateEncrypt`: wrong on the edge
-  runtime); output is byte-identical to forge's.
+  runtime); output is byte-identical to forge's. Deno's `Buffer#toString`
+  is ~100x slower than Node's for `latin1`/`binary`, so the edge entries
+  install `installFastLatin1()` (`src/edge/fast-latin1.ts`) and the DSS /
+  B-LTA code decodes a PDF to text once per pass, never per lookup. With
+  both, an 8.5 MB document seals within 150 MB and 2 s CPU. The seal sweep
+  also reclaims `audit_only` jobs left `running` by a killed worker.
 
 ### Google Drive integration env vars
 
