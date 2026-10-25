@@ -9,6 +9,7 @@ import { DriveImportService } from './drive-import.service';
 import { ConversionController } from './conversion.controller';
 import { ConversionGateway } from './conversion.gateway';
 import { makeDriveFetcher, makeGotenbergClient } from './conversion.adapters';
+import { makeDriveDocxConverter } from './drive-docx-converter';
 import {
   CONVERSION_ASSET_WRITER,
   CONVERSION_MAX_BYTES,
@@ -29,8 +30,30 @@ const DriveFetcherProvider: Provider = {
 const GotenbergClientProvider: Provider = {
   provide: GOTENBERG_CLIENT,
   inject: [APP_ENV],
-  useFactory: (env: AppEnv): GotenbergClient => makeGotenbergClient(env.GDRIVE_GOTENBERG_URL),
+  useFactory: (env: AppEnv): GotenbergClient => selectWordConverter(env),
 };
+
+/**
+ * Drive API converter when the converter account is configured (required
+ * on Supabase Edge: no sidecar there), else the Gotenberg sidecar.
+ */
+export function selectWordConverter(
+  env: Pick<
+    AppEnv,
+    | 'GDRIVE_CONVERTER_REFRESH_TOKEN'
+    | 'GDRIVE_OAUTH_CLIENT_ID'
+    | 'GDRIVE_OAUTH_CLIENT_SECRET'
+    | 'GDRIVE_GOTENBERG_URL'
+  >,
+  fetchImpl: typeof fetch = fetch,
+): GotenbergClient {
+  const { GDRIVE_CONVERTER_REFRESH_TOKEN: refreshToken } = env;
+  const { GDRIVE_OAUTH_CLIENT_ID: clientId, GDRIVE_OAUTH_CLIENT_SECRET: clientSecret } = env;
+  if (refreshToken && clientId && clientSecret) {
+    return makeDriveDocxConverter({ clientId, clientSecret, refreshToken }, fetchImpl);
+  }
+  return makeGotenbergClient(env.GDRIVE_GOTENBERG_URL, fetchImpl);
+}
 
 const ConversionMaxBytesProvider: Provider = {
   provide: CONVERSION_MAX_BYTES,
