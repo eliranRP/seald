@@ -106,7 +106,7 @@ export function makeDriveDocxConverter(
       const exInit: RequestInit = { headers: auth };
       if (signal) exInit.signal = signal;
       const ex = await fetchImpl(
-        `${FILES_URL}/${encodeURIComponent(id)}/export?mimeType=application%2Fpdf`,
+        `${FILES_URL}/${encodeURIComponent(id)}/export?mimeType=${encodeURIComponent('application/pdf')}`,
         exInit,
       );
       const pdf = Buffer.from(await ex.arrayBuffer());

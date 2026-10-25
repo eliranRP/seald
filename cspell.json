@@ -527,7 +527,8 @@
     "hsts",
     "deutan",
     "protan",
-    "describedby"
+    "describedby",
+    "pooler"
   ],
   "ignoreRegExpList": [
     "Base64",
