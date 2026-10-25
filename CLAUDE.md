@@ -7,7 +7,8 @@ ignore the AI-specific sections.
 ## Branch + push conventions
 
 - Default branch: **`main`**. Day-to-day commits go directly to `main`.
-  Every CI gate, every deploy (Cloudflare Pages, EC2 Caddy, Docker, Terraform),
+  Every CI gate, every deploy (Cloudflare Pages on push; Supabase Edge Functions by
+  dispatching `deploy-supabase.yml`),
   and every release fires off `main`. There is no `develop` branch — it was
   removed on 2026-04-28 once we standardized on a single trunk.
 - Direct push to `main` is allowed for committers; CI is the gate.
@@ -135,13 +136,13 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
 - `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
 - `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
   (default `60`); WT-A-2
-- `GDRIVE_GOTENBERG_URL` — internal URL of the Gotenberg sidecar
-  (default `http://gotenberg:3000`); WT-D. Optional; production on
-  Supabase Edge converts through Google Drive instead.
+- `GDRIVE_CONVERTER_REFRESH_TOKEN` — `drive.file` refresh token of the
+  dedicated converter Google account; production (Edge) converts Word
+  files through the Drive API with it.
+- `GDRIVE_GOTENBERG_URL` — optional Gotenberg URL for a self-hosted Node
+  process; unused on Edge.
 - `GDRIVE_CONVERSION_MAX_BYTES` — hard size cap for Drive bytes in and
-  Gotenberg PDFs out (default `26214400` = 25 MiB); WT-D. Raising it
-  without re-checking the Gotenberg memory budget will OOM the
-  sidecar.
+  converted PDFs out (default `26214400` = 25 MiB); WT-D.
 - `GDRIVE_PICKER_DEVELOPER_KEY` — Google Cloud API key with the Picker
   API enabled (referrer-restricted to `seald.nromomentum.com` in prod).
   Vended to the SPA via `GET /integrations/gdrive/picker-credentials`
@@ -306,7 +307,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 ### Sprint history
 
 - **Sprint 1 (PR #9)** — PAdES B-T conformance + production hardening.
-- **Sprint 2 (PR #12)** — KMS-backed sealing + multi-TSA fallback +
+- **Sprint 2 (PR #12)** — KMS-backed sealing (removed 2026-10-25, AWS exit) + multi-TSA fallback +
   verifier CI.
 - **Sprint 3 (PR #10)** — PAdES B-LT (DSS) + tamper-evident audit chain.
 - **Post-sprint-2** — PR #14 (B-LTA archive timestamp), PR #15
@@ -391,7 +392,7 @@ multi-bug batches.
 
 All five MVP deferrals were resolved on 2026-04-24. See
 `memory/project_phase3_mvp_deferrals.md` before touching PAdES/TSA/
-migrations/Terraform.
+migrations.
 
 ## Repo layout
 
@@ -401,10 +402,8 @@ apps/
   web/      React + Vite + Vitest SPA
 packages/
   shared/   Cross-package types and helpers
-deploy/
-  Caddyfile, terraform/
 .github/workflows/
-  ci.yml, deploy.yml, deploy-cloudflare.yml, docker.yml, terraform.yml
+  ci.yml, deploy-supabase.yml, deploy-cloudflare.yml, backup-supabase.yml
 ```
 
 Path alias `@/*` applies to `apps/web/src/*` only (configured in
@@ -450,8 +449,10 @@ Architecture:
   `apps/landing/_worker.js` into the deploy, and deploys. Cloudflare
   Pages coerces `_redirects` 200 rewrites into 308 redirects, so SPA
   routes stay in the worker (`SPA_EXACT` / `SPA_PREFIXES`) instead.
-- API stays on the EC2 Caddy at `api.seald.nromomentum.com`. The web
-  block was removed from `deploy/Caddyfile` on 2026-04-25.
+- API: `api.seald.nromomentum.com` is also a GoDaddy CNAME to
+  `seald-landing.pages.dev`; the worker proxies it to the `seald`
+  Supabase Edge Function (see "API hostname proxy" below). EC2/Caddy
+  were retired on 2026-10-25.
 
 Required GH secrets (already provisioned):
 
@@ -474,8 +475,8 @@ First-deploy workflow:
 CLOUDFLARE_API_TOKEN`. The deploy workflow will then auto-create
    the project on its next run with no human action needed.
 
-2. **DNS** — `gh workflow run terraform.yml --ref main -f action=apply`
-   flips `seald.nromomentum.com` from A record (EC2) to CNAME → CF Pages.
+2. **DNS** — GoDaddy CNAMEs `seald` and `api.seald` →
+   `seald-landing.pages.dev` (managed by hand; Terraform was removed).
 
 3. **Domain attach** — happens automatically inside the
    `Deploy (Cloudflare Pages — landing + SPA merged)` workflow on every
@@ -514,5 +515,5 @@ Routes added by the parity work (all SPA shell, same worker rules):
 
 ## Self-hosting
 
-Required services, env vars per enabled flag, boot-time migrations and the
-Gotenberg sidecar are in [`docs/self-hosting.md`](docs/self-hosting.md).
+Required services, env vars per enabled flag, migrations, Word conversion
+and the Edge deploy are in [`docs/self-hosting.md`](docs/self-hosting.md).

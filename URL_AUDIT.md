@@ -9,7 +9,7 @@ Cloudflare Pages cutover for the SPA.
 |---|---|---|
 | Landing site (Astro `/`) | `https://seald.nromomentum.com` | Cloudflare Pages |
 | SPA (everything else) | `https://seald.nromomentum.com` | Cloudflare Pages, `_redirects` rewrites every non-static path to `/app.html`. **No `/app` prefix.** |
-| API | `https://api.seald.nromomentum.com` | EC2 + Caddy, unchanged |
+| API | `https://api.seald.nromomentum.com` | Cloudflare Pages worker → Supabase Edge Function `seald` (EC2 + Caddy retired 2026-10-25) |
 | Verify (public) | `https://seald.nromomentum.com/verify/<short_code>` | **No `/code/` segment** — fixed in this audit. |
 | Sign | `https://seald.nromomentum.com/sign/<envelope_id>?t=<token>` | Unchanged |
 | Sealed/audit anchors | `…/verify/<short_code>#sealed` / `#audit` | Unchanged |
@@ -48,13 +48,12 @@ disagreed with both the SPA and the audit PDF.
 | `apps/api/src/sealing/audit-pdf.tsx:60` | JSDoc — example public URL |
 | `apps/api/src/signing/signing.controller.ts:39-40` | JSDoc — CORS origin |
 | `apps/api/scripts/render-audit-samples.{ts,cjs}`, `render-audit-sample.ts`, `verify-emails.ts` | Sample/script renderers |
-| `docker-compose.yml`, `.github/workflows/terraform.yml` | Deploy/CI defaults |
 
 ### `api.seald.nromomentum.com` references (canonical API host)
 
 | File | Purpose |
 |---|---|
-| `docker-compose.yml`, `.github/workflows/deploy.yml` | Caddy + deploy defaults |
+| `apps/landing/_worker.js` (via Pages var `API_HOSTNAME`) | API hostname proxy |
 | `apps/api/src/signing/signing.controller.ts:40` | JSDoc |
 
 ### Verify URL composition (already correct)

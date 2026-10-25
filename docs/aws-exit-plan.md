@@ -1,7 +1,21 @@
 # AWS exit plan: run Seald on Supabase Free
 
-Status: proposal (2026-10-24). Goal: $0/month hosting, with as much as
-possible inside Supabase. Dropping small features is acceptable.
+Status: **completed (2026-10-25). Archived; kept as a historical record.**
+Goal was $0/month hosting, with as much as possible inside Supabase.
+
+> **Outcome.** Production now runs as Supabase Edge Functions (`seald`,
+> `seal-worker`, `email-worker`) driven by pg_cron, with
+> `api.seald.nromomentum.com` served through the Cloudflare Pages worker
+> (`seald-landing`). Sealing uses a P12 from function secrets; Drive tokens
+> are wrapped with `GDRIVE_TOKEN_WRAP_KEY` (`local:v1`, all rows re-wrapped
+> before KMS deletion). Nightly encrypted backups run in
+> `backup-supabase.yml`. The EC2 instance, Elastic IP, security groups,
+> Secrets Manager secret, KMS keys and IAM resources were deleted and the
+> AWS account was closed. The KMS signer, Terraform, Docker/Caddy files
+> and the EC2 workflows were removed from the repo (PR #403). For the
+> current setup see `docs/self-hosting.md` and `docs/agents/RELEASE.md`.
+> Everything below describes the plan as written before the cut-over;
+> file and workflow names in it may no longer exist.
 
 ## 1. What AWS does today
 

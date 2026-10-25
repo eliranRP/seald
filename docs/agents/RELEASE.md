@@ -7,14 +7,14 @@ Two hosts:
 
 | What | Where | Workflow |
 | --- | --- | --- |
-| API, sealing worker, Gotenberg, Caddy | EC2, `/opt/seald`, root `docker-compose.yml` | `.github/workflows/deploy.yml` |
-| Marketing site + SPA on `seald.nromomentum.com` | Cloudflare Pages project `seald-landing` | `.github/workflows/deploy-cloudflare.yml` |
+| API (`seald`), sealing worker (`seal-worker`), email worker (`email-worker`) | Supabase Edge Functions (project ref in `SUPABASE_PROJECT_REF`); pg_cron drives the workers | `.github/workflows/deploy-supabase.yml` (manual dispatch) |
+| Marketing site + SPA on `seald.nromomentum.com`, and the `api.seald.nromomentum.com` proxy | Cloudflare Pages project `seald-landing` | `.github/workflows/deploy-cloudflare.yml` |
 
-`docker.yml` builds a GHCR image on every push to `main` and on tags
-`v*`. The API deploy does **not** wait for that workflow. The host
-checks out source and runs `docker compose up -d --build`. A comment in
-`deploy.yml` still says the job runs only after the Docker workflow
-succeeds. The `on:` block does not.
+`api.seald.nromomentum.com` is a GoDaddy CNAME to `seald-landing.pages.dev`.
+`apps/landing/_worker.js` proxies that host to the `seald` function with
+`EDGE_PROXY_SECRET` and the client IP. The former EC2 / Docker / Caddy /
+Terraform / AWS KMS setup was retired on 2026-10-25 (see
+`docs/aws-exit-plan.md`).
 
 ## 1. Pull request
 
@@ -43,31 +43,28 @@ GitHub skips a workflow with `paths-ignore` only when **every** file in
 the push matches the ignore list. A `paths:` filter runs when **any**
 file matches.
 
-### API — `deploy.yml`
+### API — `deploy-supabase.yml`
 
-Triggers:
+A push to `main` does **not** deploy the API. Dispatch
+`Deploy (Supabase Edge Functions)` after merging an API or
+`packages/shared` change:
 
-- `push` to `main`, ignored when the push is only:
-  - `**/*.md`
-  - `deploy/terraform/**`
-  - `.github/workflows/terraform.yml`
-  - `apps/web/**`
-- `workflow_dispatch` with input `ref` (branch, tag, or SHA; default
-  `main`)
+```sh
+gh workflow run deploy-supabase.yml --ref main -f ref=main -f migrate=true
+```
 
-A web-only push does not rebuild the API. A push that touches
-`packages/shared/**` or `apps/api/**` does. Docs-only pushes do not.
-
-The site deploy is `deploy-cloudflare.yml`. There is no
-`deploy-web.yml`.
-
-Concurrency group `deploy`, `cancel-in-progress: false`.
+Inputs: `ref` (branch, tag, or SHA; default `main`) and `migrate`
+(default `true`). Concurrency group `deploy-supabase`,
+`cancel-in-progress: false`.
 
 GitHub Actions secrets used (names only):
 
-- `DEPLOY_SSH_HOST`
-- `DEPLOY_SSH_USER`
-- `DEPLOY_SSH_KEY`
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_PROJECT_REF`
+- `SUPABASE_DB_URL`
+
+Function env vars are Supabase function secrets (`supabase secrets set`),
+not GitHub secrets. The workflow never reads them.
 
 ### Web — `deploy-cloudflare.yml`
 
@@ -83,7 +80,8 @@ Triggers:
 - `workflow_dispatch` with input `ref` (default `main`)
 
 An API-only push does not deploy the site. A `packages/shared` change
-deploys **both** the site and the API. Docs-only pushes do not.
+deploys the site; the API still needs a `deploy-supabase.yml` dispatch.
+Docs-only pushes deploy nothing.
 
 Concurrency group `deploy-cloudflare`, `cancel-in-progress: false`.
 
@@ -100,54 +98,46 @@ them in the GitHub secret does nothing until the next Cloudflare deploy.
 
 ## 3. API deploy, step by step
 
-1. Checkout the workflow repo (the SSH script does not deploy that
-   checkout; it deploys whatever the host fetches).
-2. SSH to the EC2 host and `cd /opt/seald`.
-3. `chown` the tree back to the SSH user (break-glass sudo edits
-   otherwise leave root-owned git objects).
-4. `REF` is `inputs.ref` or `main`.
-5. `git fetch`, stash local dirt, `git checkout "$REF"`,
-   `git reset --hard "origin/$REF"`, `git clean -fd`.
-6. `docker compose pull` (failure ignored), then
-   `docker compose up -d --build --force-recreate api`.
-7. For up to 30 tries, 2 seconds apart, run inside `seald-caddy-1`:
-
-   `wget -qO- http://api:3000/health`
-
-   and require the body to contain `"status":"ok"`. Otherwise the job
-   prints the last 200 lines of API logs and fails.
+1. Checkout `inputs.ref` (a SHA works).
+2. `pnpm install --frozen-lockfile`, then build `shared`, `api`, and the
+   function bundles (`pnpm --filter api build:edge`).
+3. If `migrate` is true, run `apps/api/scripts/migrate.sh` against
+   `SUPABASE_DB_URL`.
+4. `supabase functions deploy` for `seald`, `seal-worker`, and
+   `email-worker` (`--no-verify-jwt --use-docker`; `--use-api` hits
+   HTTP 413 on the `seald` bundle).
+5. Poll `https://<ref>.supabase.co/functions/v1/seald/health` up to six
+   times, 10 seconds apart, and fail unless it returns 200.
 
 ### Migrations
 
-The image entrypoint is `apps/api/scripts/entrypoint.sh`.
-
-1. If `SEALD_API_SECRET_ID` is set, fetch that Secrets Manager JSON and
-   export each key **only when the variable is currently unset**.
-   `apps/api/.env` on the host wins over the secret.
-2. Unless `SKIP_MIGRATIONS=1`, run `apps/api/scripts/migrate.sh`.
-3. Exec `node` on the compiled API. `WORKER_ENABLED=true` in compose, so
-   the sealing worker runs in the same process.
-
+Migrations run only in the workflow step above, never at function boot.
 `migrate.sh` needs `DATABASE_URL`. It creates `public.schema_migrations`
 if missing, then applies top-level `apps/api/db/migrations/*.sql` in
 lexicographic order, one transaction per file, and inserts the filename.
 Already-applied names are skipped. A top-level `*_down.sql` aborts the
-boot. Files in `migrations/down/` are never applied here.
+run. Files in `migrations/down/` are never applied here.
 
-The single-node compose file leaves `SKIP_MIGRATIONS` at `0`, so every
-API container boot migrates.
+### Workers and schedules
+
+There is no long-lived process (`WORKER_ENABLED=false`). pg_cron calls
+`seal-worker`, `email-worker`, and the `seald` cron routes with the
+`X-Cron-Secret` header; the secret is the Vault entry
+`seald_cron_secret` (same value as `CRON_SECRET`). Schedules are
+installed by `public.seald_install_edge_schedules(<functions base URL>)`
+and removed by `public.seald_remove_edge_schedules()` (migration 0049).
+Check `cron.job_run_details` and `net._http_response` when a job looks
+stuck.
 
 ### API rollback
 
 The workflow has no down-migration step.
 
-**Code.** Dispatch `deploy.yml` with `ref` set to a **branch or tag name
-that exists on `origin`**. The script resets to `origin/$REF`. A raw
-commit SHA checks out, then `git reset --hard origin/<sha>` fails
-because that remote ref does not exist. To roll back to a SHA, point a
-branch at it and dispatch the branch name, or revert on `main` and push.
+**Code.** Dispatch `deploy-supabase.yml` with `ref` set to the older
+branch, tag, or SHA and `migrate=false`. Prefer reverting on `main` and
+redeploying so `main` matches production.
 
-**Schema.** Rolling the image back does not undo SQL. `migrate.sh` will
+**Schema.** Rolling the functions back does not undo SQL. `migrate.sh` will
 not re-run an applied file and will not run down scripts. From `0013`
 up, a paired file exists under `apps/api/db/migrations/down/`. `0001`–
 `0012` have no down file. An operator applies a down script by hand and
@@ -163,7 +153,7 @@ fix migration.
 ## 4. Web deploy, step by step
 
 1. Checkout `inputs.ref` or the push ref. A SHA works here
-   (`actions/checkout`); this is unlike the API script.
+   (`actions/checkout`), as it does for the API.
 2. `pnpm install --frozen-lockfile`, `pnpm --filter shared build`.
 3. Build the SPA with the three `VITE_*` secrets. Build the landing site.
 4. Merge into `apps/landing/dist`:
@@ -218,10 +208,10 @@ has no "rollback to previous deployment" step.
 ### Feature flags
 
 `packages/shared/src/feature-flags.ts` is a compile-time `const`. The SPA
-build inlines it. The API reads it when the process starts. There is no
+build inlines it. The API bundle also bakes it in at build time. There is no
 admin toggle. Flipping `gdriveIntegration` or `gdriveMultiAccount`
-requires a commit to `shared` and a push to `main`, which deploys both
-the site and the API. A runtime check of the secret store will not
+requires a commit to `shared`, a push to `main` (which deploys the site),
+and a `deploy-supabase.yml` dispatch for the API. A runtime check of the secret store will not
 change the flag.
 
 ## 5. What to verify after a production deploy
@@ -229,10 +219,11 @@ change the flag.
 API:
 
 - `https://api.seald.nromomentum.com/health` → `{"status":"ok"}`
-- The Actions log for `deploy.yml` contains `/health OK after`
+- The `deploy-supabase.yml` run ends with `bridge healthy`
 - A signed-in action you changed (upload, send, or the new endpoint)
-- If the migration was new: API logs contain `migrate: apply <file>` on
-  first boot and `migrate: skip <file>` on the next recreate
+- If the migration was new: the workflow's migrate step logs
+  `migrate: apply <file>`
+- Cron jobs still succeed (`cron.job_run_details`)
 
 Site:
 
@@ -245,24 +236,20 @@ Site:
 
 ## 6. Gotchas
 
-- Docs-only and Design-Guide-only pushes skip CI (`ci.yml`) and both
-  deploys. They do not skip `docker.yml`. That workflow has no path
-  filter, so a docs-only push to `main` still builds and pushes the
-  GHCR image.
-- A push to `main` that touches `deploy/terraform/**` or
-  `.github/workflows/terraform.yml` runs `terraform apply -auto-approve`.
-  Pull requests that touch those paths only plan. The comment at the
-  top of `terraform.yml` says pushes only plan. The apply step's `if:`
-  is what runs. See `CODEBASE_GUIDE.md`.
-- Web-only pushes skip the API deploy. API-only pushes skip Cloudflare.
-- `packages/shared` pushes deploy both.
+- Merging an API change does not deploy it. Dispatch
+  `deploy-supabase.yml`; until then production runs the previous bundle.
+- Docs-only and Design-Guide-only pushes skip CI (`ci.yml`) and the
+  Cloudflare deploy.
+- `packages/shared` pushes deploy the site automatically; the API still
+  needs a dispatch.
 - Feature flags and `VITE_*` values change only on a new build, not when
   someone edits a dashboard secret and waits.
-- API `workflow_dispatch` of a raw SHA fails on `git reset --hard origin/<sha>`.
+- Pages variables `API_HOSTNAME`, `API_PROXY_ORIGIN`, and the secret
+  `EDGE_PROXY_SECRET` must stay set on `seald-landing`, or
+  `api.seald.nromomentum.com` stops reaching the API. `EDGE_PROXY_SECRET`
+  must match the function secret of the same name.
 - Schema rollback is manual and incomplete before migration `0013`.
 - New SPA paths belong in `_worker.js`, not in `_redirects`.
 - The worker tests do not cover every route in `AppRoutes.tsx`.
-- `deploy.yml` does not wait for `docker.yml`. A green image build is
-  not the production API.
 - `CLOUDFLARE_API_TOKEN` without Pages Edit cannot create the project
   the first time. Later deploys only need to upload.

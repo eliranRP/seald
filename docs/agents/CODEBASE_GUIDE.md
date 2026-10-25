@@ -33,9 +33,9 @@ Production hosts:
 | Auth | Supabase JWT (JWKS) for senders. Separate HttpOnly cookie JWT for signers. |
 | Files | Private Supabase Storage bucket `envelopes` |
 | PDF | `pdfjs-dist` in the browser. `pdf-lib`, `@signpdf/*`, `@react-pdf/renderer` on the API. |
-| Sealing | PAdES B-T, then B-LT (DSS), optional B-LTA. KMS, local P12, or noop signer. |
+| Sealing | PAdES B-T, then B-LT (DSS), optional B-LTA. Local P12 (from Edge function secrets) or noop signer. |
 | Email | HTML templates + Postgres outbox. `logging` or Resend. |
-| Drive | Google OAuth, scope `drive.file` only, optional Gotenberg conversion |
+| Drive | Google OAuth, scope `drive.file` only, Word conversion via the Drive API (Gotenberg optional off Edge) |
 | Tests | Vitest (web), Jest (api unit + e2e), Playwright + playwright-bdd (web e2e), Storybook + Chromatic |
 | Observability | Sentry on the web (`@sentry/react`). API logs via Nest's built-in `Logger`. No metrics endpoint. |
 
@@ -46,10 +46,9 @@ apps/web/          React SPA. Routes, pages, components, features, styles.
 apps/api/          NestJS API, SQL migrations, sealing, email, Drive.
 apps/landing/      Astro marketing and legal pages. Owns `/` in production.
 packages/shared/   Cross-package types, Zod contracts, feature flags.
-deploy/            Caddyfile, Terraform, compose notes.
 Design-Guide/      Static HTML design kits. Not imported by the app.
 docs/              Contributor docs, specs, and this folder.
-.github/workflows/ CI, Playwright, Cloudflare, Docker, Terraform.
+.github/workflows/ CI, Playwright, Cloudflare, Supabase deploy, backup.
 ```
 
 `apps/web/src/` is the SPA. Path alias `@/*` maps to `apps/web/src/*`
@@ -86,13 +85,13 @@ Browser
        ├─ /                Astro landing (apps/landing)
        └─ other SPA routes app.html  (built from apps/web)
             ├─ Supabase Auth (sender session, JWT)
-            └─ Axios  →  api.seald.nromomentum.com  (Nest)
+            └─ Axios  →  api.seald.nromomentum.com  (Pages worker proxy
+                         →  Supabase Edge Function `seald`, Nest bridge)
                               ├─ Postgres (Kysely, service role, RLS on)
                               ├─ Supabase Storage (private PDFs)
-                              ├─ AWS KMS (PDF signing, Drive token wrap)
                               ├─ TSA + OCSP/CRL (sealing)
                               ├─ Resend (email)
-                              └─ Gotenberg (Drive doc → PDF, private network)
+                              └─ Google Drive API (Word → PDF conversion)
 ```
 
 Signer requests do not send the Supabase JWT. They send the `seald_sign`
@@ -284,7 +283,7 @@ schema in `apps/api/db/schema.ts`). Repositories are a port
 | Me | `/me/export`, `DELETE /me` | DSAR export and account deletion. Idempotent. |
 | Cron | `/internal/cron` | `POST /expire`, `POST /flush-emails`, `POST /reminders`. Header `X-Cron-Secret`. |
 | Drive | `/integrations/gdrive` | OAuth, accounts, file proxy, picker credentials. 404 when the flag is off. 503 when OAuth env is missing. |
-| Conversion | `/integrations/gdrive/conversion` | Create, poll, cancel a Gotenberg job. |
+| Conversion | `/integrations/gdrive/conversion` | Create, poll, cancel a conversion job (Drive API on Edge; Gotenberg if `GDRIVE_GOTENBERG_URL` is set elsewhere). |
 | Sealing | no HTTP | Worker only. |
 | Email | no HTTP | Outbox + worker. Cron flushes it. |
 
@@ -320,7 +319,7 @@ paired down file (`apps/api/test/migrations-convention.spec.ts`).
 | `0010_template_example_pdf.sql` | Example PDF path |
 | `0011_event_type_esign_ux.sql` | Disclosure, intent, consent-withdrawn events |
 | `0012_preserve_envelopes_on_user_delete.sql` | Keep envelopes when a user is deleted; tombstones |
-| `0013_gdrive_accounts.sql` | KMS-wrapped Drive refresh tokens |
+| `0013_gdrive_accounts.sql` | Drive refresh tokens, envelope-encrypted (wrap key is now `GDRIVE_TOKEN_WRAP_KEY`, `local:v1`) |
 | `0014_repair_gdrive_accounts.sql` | Idempotent repair |
 | `0015_enable_rls_missing_tables.sql` | RLS on tombstones and `schema_migrations` |
 | `0016_envelopes_tags.sql` | `envelopes.tags` jsonb |
@@ -338,12 +337,11 @@ All of this is `apps/api/src/sealing/`.
 
 | File | Role |
 | --- | --- |
-| `sealing.module.ts` | Signer factory: KMS, else P12, else noop. Misconfig must throw, not downgrade. |
+| `sealing.module.ts` | Signer factory: P12, else noop. Misconfig must throw, not downgrade. |
 | `sealing.service.ts` | Burn-in, sign, audit PDF, enqueue email |
 | `worker.service.ts` | Job poller |
-| `pades-signer.ts` | `KmsPadesSigner`, `P12PadesSigner`, `NoopPadesSigner` |
+| `pades-signer.ts` | `P12PadesSigner`, `NoopPadesSigner` |
 | `p12-tsa-signer.ts` | Local P12 signer with an optional timestamp |
-| `kms-cms-signer.ts` | CMS built by hand so the private key stays in KMS |
 | `burn-in-fields.ts` | Draws completed field values onto the PDF pages |
 | `audit-pdf.tsx` | React-PDF certificate of completion |
 | `tsa-client.ts` | RFC 3161 client. Rotates `PDF_SIGNING_TSA_URLS`. |
@@ -408,9 +406,9 @@ The SPA throws at startup if either Supabase variable is missing
 enabled on that Supabase project. Without it, "Skip — try it without an
 account" stays on `/signin` and shows an error.
 
-Full stack in Docker: root `docker-compose.yml` runs `api` (migrations on
-boot), `gotenberg` (no public port), and `caddy`. Deploy SSH uses that
-file only.
+There is no Docker stack. Run the API locally with `pnpm --filter api
+start:dev` against a Supabase project or local Postgres; production runs
+as Supabase Edge Functions (`docs/self-hosting.md`).
 
 ## How to test and build
 
@@ -463,7 +461,7 @@ diffs. A docs-only push to `main` still skips the workflow.
 
 Jobs, in order: path filter, install, lint (typecheck + lint), pnpm audit,
 API unit, web Vitest with coverage, Storybook build, one Playwright spec
-(`e2e/template-sign-flow.spec.ts`), API e2e (LocalStack KMS), `pades-verify`,
+(`e2e/template-sign-flow.spec.ts`), API e2e (incl. PAdES), `pades-verify`,
 commitlint, then an aggregate `ci-success` job.
 
 Other workflows that run on pull requests (same docs `paths-ignore` as
@@ -471,21 +469,12 @@ CI): `playwright.yml` (full e2e + BDD), `security.yml` (Trivy, gitleaks, pnpm au
 gherkin-lint, cspell). Chromatic is not in CI; run
 `pnpm --filter web chromatic` locally.
 
-Deploy and infra: `deploy.yml` (SSH + Docker Compose for the API on push
-to `main`, ignores `apps/web/**`), `deploy-cloudflare.yml` (landing + SPA
-merge), `docker.yml` (GHCR image on every push to `main` and on `v*` tags;
-no path filter), `terraform.yml`. A pull request that touches
-`deploy/terraform/**` only plans. A **push to `main`** that touches
-`deploy/terraform/**` or `terraform.yml` runs `terraform apply -auto-approve`
-(`terraform.yml` apply step: push to `main`, or a manual dispatch whose
-`action` input is `apply`). The comment at the top of that workflow says
-pushes only plan. The step `if:` is what runs. Manual dispatch can also
-`plan` or `destroy`.
-
-Dispatch-only ops workflows (they do not run on push): `prod-diagnose.yml`,
-`prod-restore.yml`, `inspect-prod-containers.yml`, `restart-gotenberg.yml`,
-`seed-secrets-manager.yml`, `set-app-public-url.yml`,
-`set-gdrive-oauth-env.yml`, `set-gdrive-picker-env.yml`.
+Deploy and ops: `deploy-supabase.yml` (manual dispatch; migrations, then
+the `seald`, `seal-worker`, and `email-worker` Edge Functions),
+`deploy-cloudflare.yml` (landing + SPA merge, on push to `main`),
+`backup-supabase.yml` (nightly encrypted database + storage backup), and
+`supabase-keepalive.yml`. The EC2, Docker, and Terraform workflows were
+removed with the AWS exit (2026-10-25).
 
 ### Deploy shape
 
@@ -493,8 +482,9 @@ Dispatch-only ops workflows (they do not run on push): `prod-diagnose.yml`,
   builds both, renames the SPA `index.html` to `app.html`, and copies
   `apps/landing/_worker.js` into the deploy. Step-by-step is in
   `docs/agents/RELEASE.md`.
-- API: EC2, Caddy, the root compose file. `deploy/Caddyfile` no longer
-  serves the web bundle.
+- API: Supabase Edge Functions, reached at `api.seald.nromomentum.com`
+  through the same Pages worker (`API_HOSTNAME`, `API_PROXY_ORIGIN`,
+  `EDGE_PROXY_SECRET`). pg_cron drives the workers.
 
 ## Conventions reviewers enforce
 
@@ -579,4 +569,4 @@ failure; add a new commit.
 - PAdES verification uses `pades-verify-helpers.ts`.
 - Feature-off Drive returns 404, not an empty 200.
 - New SPA paths are added to `apps/landing/_worker.js`.
-- Secrets (`GDRIVE_OAUTH_CLIENT_SECRET`, service-role keys, KMS material) never land in git or in `VITE_*` variables.
+- Secrets (`GDRIVE_OAUTH_CLIENT_SECRET`, service-role keys, signing P12, wrap keys) never land in git or in `VITE_*` variables.
