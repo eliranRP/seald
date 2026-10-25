@@ -156,13 +156,25 @@ export function HomeToolbar(props: HomeToolbarProps) {
   // button until asked for, so the toolbar reads as "search + filter + sort".
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // The query this box last sent. When that value comes back as
+  // `filters.query` it is our own, possibly after the user typed on, so
+  // only a different value (a chip cleared it) resets the box.
+  const sentQuery = useRef(filters.query);
+
   // Keep the box in step when the query is cleared from a chip.
-  useEffect(() => setDraft(filters.query), [filters.query]);
+  useEffect(() => {
+    if (filters.query === sentQuery.current) return;
+    sentQuery.current = filters.query;
+    setDraft(filters.query);
+  }, [filters.query]);
 
   // Debounce typing into the filter state.
   useEffect(() => {
     if (draft === filters.query) return undefined;
-    const t = setTimeout(() => onChange({ query: draft }), 200);
+    const t = setTimeout(() => {
+      sentQuery.current = draft;
+      onChange({ query: draft });
+    }, 200);
     return () => clearTimeout(t);
   }, [draft, filters.query, onChange]);
 
