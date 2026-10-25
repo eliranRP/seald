@@ -93,6 +93,12 @@ file caps it at 1.5 GB RAM and 1.5 vCPU. The API reaches it at
 `GDRIVE_GOTENBERG_URL` (default `http://gotenberg:3000`). PDF and existing
 Google Docs or docx imports do not depend on it.
 
+Without a sidecar (Supabase Edge Functions), set
+`GDRIVE_CONVERTER_REFRESH_TOKEN`: a `drive.file` refresh token for one
+dedicated Google account, issued to `GDRIVE_OAUTH_CLIENT_ID`. Word files are
+then uploaded to that account as a Google Doc, exported as PDF and deleted.
+Users do not need Drive connected. Drive exports cap at 10 MB of PDF.
+
 `GDRIVE_CONVERSION_MAX_BYTES` (default 25 MiB) caps the input and the PDF
 output. Raising it without re-checking the Gotenberg memory limit can OOM the
 sidecar.

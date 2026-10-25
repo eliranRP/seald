@@ -292,6 +292,14 @@ const envSchema = z
      */
     GDRIVE_GOTENBERG_URL: z.string().url().default('http://gotenberg:3000'),
     /**
+     * Refresh token of the dedicated Google "converter" account (scope
+     * `drive.file`, issued to GDRIVE_OAUTH_CLIENT_ID). When set together
+     * with the OAuth client id/secret, Word → PDF conversion runs through
+     * the Drive API instead of Gotenberg. Required on Supabase Edge, where
+     * there is no sidecar; optional on the docker-compose stack.
+     */
+    GDRIVE_CONVERTER_REFRESH_TOKEN: z.string().min(1).optional(),
+    /**
      * Hard size cap for inbound Drive bytes + outbound Gotenberg PDFs.
      * Default 25 MiB matches the WT-A-1 contract (`file-too-large`
      * error code returned to the SPA at this threshold). Raising it
