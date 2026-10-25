@@ -41,6 +41,11 @@ app should lean on those instead of rebuilding them in a Node server.
    envelope, cancel, correct a signer) are SQL functions (`security
 definer`, called by RPC) so the rules live in one transaction in
    Postgres.
+   Where a row carries columns the owner must not get (signer token
+   hashes, IPs, storage paths), the read is a `security definer` RPC that
+   filters on `auth.uid()` and returns exactly the API's JSON, and the
+   table stays closed to the Data API (RLS on, no policy). Step 4 does this
+   for the lists (migration 0050).
 4. **Functions are for what Postgres cannot do:** PDF work, crypto, outbound
    HTTP (email, TSA, OCSP, Google, webhooks), public token-based flows, and
    protocol endpoints with fixed URLs.
@@ -101,6 +106,12 @@ so AWS can be switched off as soon as sealing and the workers run natively.
   with `EDGE_PROXY_SECRET`, the `deploy-supabase` and `backup-supabase`
   workflows, the Drive token re-wrap script, and the runbook in
   `docs/self-hosting.md`.
+- Step 4 started: the dashboard list, contacts and templates read through
+  `seald_list_envelopes` / `_contacts` / `_templates` (migration 0050) with
+  supabase-js, behind `ownerReadRpcs` (off). Each falls back to the API
+  when the RPC fails. `owner-read-rpcs.pg.e2e-spec.ts` checks each RPC
+  against the API's output and proves other users and `anon` get nothing.
+  Envelope detail is next.
 
 ## Rules for the new code
 

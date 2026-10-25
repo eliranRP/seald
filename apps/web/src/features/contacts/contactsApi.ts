@@ -1,6 +1,7 @@
 import type { AxiosRequestConfig } from 'axios';
 import type { AddSignerContact } from '@/components/AddSignerDropdown/AddSignerDropdown.types';
 import { apiClient } from '@/lib/api/apiClient';
+import { readViaOwnerRpc } from '@/lib/supabase/ownerRpc';
 
 /**
  * Shape the API returns for a single contact. Mirrors the Nest
@@ -44,10 +45,13 @@ function configWithSignal(signal?: AbortSignal): AxiosRequestConfig {
 }
 
 export async function listContacts(signal?: AbortSignal): Promise<ReadonlyArray<AddSignerContact>> {
-  const { data } = await apiClient.get<ReadonlyArray<ApiContact>>(
-    '/contacts',
-    configWithSignal(signal),
-  );
+  const data = await readViaOwnerRpc('seald_list_contacts', undefined, signal, async () => {
+    const res = await apiClient.get<ReadonlyArray<ApiContact>>(
+      '/contacts',
+      configWithSignal(signal),
+    );
+    return res.data;
+  });
   return data.map(toAddSignerContact);
 }
 

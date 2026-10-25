@@ -1,5 +1,6 @@
 import type { AxiosRequestConfig } from 'axios';
 import { apiClient } from '@/lib/api/apiClient';
+import { readViaOwnerRpc } from '@/lib/supabase/ownerRpc';
 import { seald } from '@/styles/theme';
 import type {
   ResolvedField,
@@ -88,10 +89,13 @@ function configWithSignal(signal?: AbortSignal): AxiosRequestConfig {
 }
 
 export async function listTemplates(signal?: AbortSignal): Promise<ReadonlyArray<TemplateSummary>> {
-  const { data } = await apiClient.get<ReadonlyArray<ApiTemplate>>(
-    '/templates',
-    configWithSignal(signal),
-  );
+  const data = await readViaOwnerRpc('seald_list_templates', undefined, signal, async () => {
+    const res = await apiClient.get<ReadonlyArray<ApiTemplate>>(
+      '/templates',
+      configWithSignal(signal),
+    );
+    return res.data;
+  });
   return data.map(toSummary);
 }
 

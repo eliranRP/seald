@@ -244,7 +244,9 @@ ship `true` since the parity flag flip (`multiDocumentEnvelopes`, `signingOrder`
 `mcpOauth`, `workflowAutomations`, `publicApi`, `bulkSend`, `directLinks`,
 `i18n`). Turning one off again is a one-line PR. `mcpOauth` needs `mcpServer`. The
 API key routes and the approval routes are on when `mcpServer` or
-`publicApi` is on. `gdriveIntegration` is `true` and predates this work.
+`publicApi` is on. `gdriveIntegration` is `true` and predates this work. `ownerReadRpcs` (off)
+switches the SPA's list reads to the migration 0050 RPCs, falling back to the
+API when an RPC fails.
 Two changes are not flag-gated: the B-LTA timestamp (S.7, when a TSA is
 configured) and migration 0027 (invite and manual-reminder rows no longer
 store the plaintext signing link).
@@ -295,6 +297,7 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
 - `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
 - `0049` edge schedules: `seald_install_edge_schedules(functions_url)` / `seald_remove_edge_schedules()`, the pg_cron + pg_net jobs for the Edge Functions. Inert until an operator runs the installer at cut-over (needs the Vault secret `seald_cron_secret`).
+- `0050` owner read RPCs: `seald_list_envelopes(p_limit)`, `seald_list_contacts()`, `seald_list_templates()`, `security definer` on `auth.uid()`, the same JSON as the API routes; execute for `authenticated` only (step 4 of docs/supabase-native-architecture.md). Read by the SPA while `ownerReadRpcs` is on.
 - `0048` envelope job progress: `envelope_jobs.progress`, the step state of a multi-step seal on the `seal-worker` Edge Function (S.9).
 - `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 

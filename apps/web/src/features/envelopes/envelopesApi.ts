@@ -7,17 +7,12 @@ import type {
   FieldMetaOptions,
 } from 'shared';
 import { apiClient } from '@/lib/api/apiClient';
+import { readViaOwnerRpc } from '@/lib/supabase/ownerRpc';
 
 /* ---------------- Wire-level types (mirror the Nest responses) ---------------- */
 
 export type EnvelopeStatus =
-  | 'draft'
-  | 'awaiting_others'
-  | 'sealing'
-  | 'completed'
-  | 'declined'
-  | 'expired'
-  | 'canceled';
+  'draft' | 'awaiting_others' | 'sealing' | 'completed' | 'declined' | 'expired' | 'canceled';
 
 export type SignerRole = 'proposer' | 'signatory' | 'validator' | 'witness';
 export type SignerUiStatus = 'awaiting' | 'viewing' | 'completed' | 'declined' | 'bounced';
@@ -193,8 +188,29 @@ export async function listEnvelopes(
   if (params.tags?.length) query.set('tags', params.tags.join(','));
   const q = query.toString();
   const url = q ? `/envelopes?${q}` : '/envelopes';
-  const { data } = await apiClient.get<EnvelopeListResponse>(url, configWithSignal(signal));
-  return data;
+  const viaApi = async (): Promise<EnvelopeListResponse> => {
+    const { data } = await apiClient.get<EnvelopeListResponse>(url, configWithSignal(signal));
+    return data;
+  };
+  // The RPC serves the dashboard's read (newest first, first page); any
+  // filter, other sort or cursor still goes to the API.
+  return isNewestFirstPage(params)
+    ? readViaOwnerRpc('seald_list_envelopes', { p_limit: params.limit ?? 100 }, signal, viaApi)
+    : viaApi();
+}
+
+function isNewestFirstPage(p: ListEnvelopesParams): boolean {
+  return (
+    !p.statuses?.length &&
+    !p.cursor &&
+    (p.sort ?? 'date') === 'date' &&
+    (p.dir ?? 'desc') === 'desc' &&
+    !p.q &&
+    !p.bucket?.length &&
+    !p.date &&
+    !p.signer?.length &&
+    !p.tags?.length
+  );
 }
 
 export async function getEnvelope(id: string, signal?: AbortSignal): Promise<Envelope> {
