@@ -145,6 +145,8 @@ export class SealingService {
    *   1. `appendCertificate` only: render the pre-seal certificate once and
    *      park it in Storage, so every document gets the same pages.
    *   2. One document per step: burn-in, sign, B-LT/B-LTA, upload sealed.pdf.
+   *      Outside one process (the edge worker) this is two steps: burn-in +
+   *      sign, parked at `sealParkedSignedPath`; then B-LT/B-LTA + upload.
    *   3. audit.pdf, the status flip and the completion emails.
    */
   async processSealStep(
@@ -216,10 +218,14 @@ export class SealingService {
         sealed.push({ item, ...recorded });
         continue;
       }
-      const done = await this.sealDocument(envelope, item, certificate);
+      const done = await this.sealDocument(envelope, item, certificate, progress, scratch);
+      if ('parked' in done) {
+        return { done: false, progress: { ...progress, pendingUpgrade: done.parked } };
+      }
+      const rest = withoutPendingUpgrade(progress);
       return {
         done: false,
-        progress: { ...progress, documents: [...progress.documents, { ord: item.ord, ...done }] },
+        progress: { ...rest, documents: [...rest.documents, { ord: item.ord, ...done.record }] },
       };
     }
     for (const done of sealed) {
@@ -280,30 +286,81 @@ export class SealingService {
     envelope: Envelope,
     item: SealPlanItem,
     certificate: Buffer | null,
-  ): Promise<SealedDocumentRecordFields> {
-    if (item.originalPath === null) {
-      throw new Error(`document ${item.doc?.id ?? item.ord} of ${envelope.id} has no original`);
-    }
-    const originalBytes = await this.storage.download(item.originalPath);
-    let sealedBytes = await this.burnIn(envelope, originalBytes, item.fields);
-    if (certificate !== null) sealedBytes = await appendPdfPages(sealedBytes, certificate);
-    const signed = await this.pades.sign(sealedBytes);
+    progress: SealProgress,
+    scratch: SealStepScratch,
+  ): Promise<{ parked: PendingUpgrade } | { record: SealedDocumentRecordFields }> {
+    const signed = await this.signedForUpgrade(
+      envelope.id,
+      item.ord,
+      progress,
+      scratch,
+      async () => {
+        if (item.originalPath === null) {
+          throw new Error(`document ${item.doc?.id ?? item.ord} of ${envelope.id} has no original`);
+        }
+        const originalBytes = await this.storage.download(item.originalPath);
+        let sealedBytes = await this.burnIn(envelope, originalBytes, item.fields);
+        if (certificate !== null) sealedBytes = await appendPdfPages(sealedBytes, certificate);
+        return this.pades.sign(sealedBytes);
+      },
+    );
+    if ('parked' in signed) return signed;
     // PAdES B-T -> B-LT (/DSS) -> B-LTA (document timestamp), each step an
     // ISO 32000-1 section 7.5.6 incremental update that leaves the B-T
     // bytes untouched. Every step degrades to the previous level on failure.
     const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
     const sealedPath = documentSealedPath(envelope.id, item.doc?.id ?? '', item.ord);
     await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
+    await this.dropParked(envelope.id, signed.parkedPath);
     // Count pages on the sealed file itself: with `appendCertificate` it
     // carries the certificate pages after the original ones, so it can
     // differ from original_pages.
     const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
     return {
-      path: sealedPath,
-      sha256: sha256Hex(signedBytes),
-      pages: sealedPdfDoc.getPageCount(),
-      timestampApplied: signed.timestampApplied,
+      record: {
+        path: sealedPath,
+        sha256: sha256Hex(signedBytes),
+        pages: sealedPdfDoc.getPageCount(),
+        timestampApplied: signed.timestampApplied,
+      },
     };
+  }
+
+  /**
+   * The B-T signed bytes of document `ord`, ready for the B-LT/B-LTA
+   * upgrade. In one process `sign` runs and the caller upgrades at once.
+   * Otherwise the first step signs and parks the result (`parked`), and the
+   * next step reads it back, so the two halves get a CPU budget each.
+   */
+  private async signedForUpgrade(
+    envelopeId: string,
+    ord: number,
+    progress: SealProgress,
+    scratch: SealStepScratch,
+    sign: () => Promise<{ pdf: Buffer; timestampApplied: boolean }>,
+  ): Promise<
+    | { parked: PendingUpgrade }
+    | { pdf: Buffer; timestampApplied: boolean; parkedPath: string | null }
+  > {
+    const pending = progress.pendingUpgrade;
+    if (pending !== undefined && pending.ord === ord) {
+      const pdf = await this.storage.download(pending.signedPath);
+      return { pdf, timestampApplied: pending.timestampApplied, parkedPath: pending.signedPath };
+    }
+    const signed = await sign();
+    if (scratch.inProcess) return { ...signed, parkedPath: null };
+    const signedPath = sealParkedSignedPath(envelopeId, ord);
+    await this.storage.upload(signedPath, signed.pdf, 'application/pdf');
+    return { parked: { ord, signedPath, timestampApplied: signed.timestampApplied } };
+  }
+
+  private async dropParked(envelopeId: string, path: string | null): Promise<void> {
+    if (path === null) return;
+    await this.storage.remove([path]).catch((err: unknown) => {
+      this.logger.warn(
+        `could not remove ${path} for ${envelopeId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    });
   }
 
   /**
@@ -384,8 +441,9 @@ export class SealingService {
   /** Runs every step of an audit_only job in this process (Docker worker, tests). */
   async processAuditOnlyJob(envelope_id: string): Promise<void> {
     let progress: SealProgress = EMPTY_SEAL_PROGRESS;
+    const scratch: SealStepScratch = { inProcess: true };
     for (;;) {
-      const step = await this.processAuditOnlyStep(envelope_id, progress);
+      const step = await this.processAuditOnlyStep(envelope_id, progress, scratch);
       if (step.done) return;
       progress = step.progress;
     }
@@ -398,6 +456,7 @@ export class SealingService {
   async processAuditOnlyStep(
     envelope_id: string,
     progress: SealProgress,
+    scratch: SealStepScratch = {},
   ): Promise<{ done: true } | { done: false; progress: SealProgress }> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
@@ -407,10 +466,14 @@ export class SealingService {
     const plan = await this.planDocuments(envelope);
     for (const item of plan) {
       if (progress.declined?.includes(item.ord)) continue;
-      await this.writeDeclinedPdf(envelope, item);
+      const written = await this.writeDeclinedPdf(envelope, item, progress, scratch);
+      if (written !== null) {
+        return { done: false, progress: { ...progress, pendingUpgrade: written.parked } };
+      }
+      const rest = withoutPendingUpgrade(progress);
       return {
         done: false,
-        progress: { ...progress, declined: [...(progress.declined ?? []), item.ord] },
+        progress: { ...rest, declined: [...(rest.declined ?? []), item.ord] },
       };
     }
 
@@ -441,27 +504,40 @@ export class SealingService {
    * can check it came from Seald. Burns in no signer data. Skipped for a
    * non-terminal status, and when original.pdf is missing (logged).
    */
-  private async writeDeclinedPdf(envelope: Envelope, item: SealPlanItem): Promise<void> {
+  /** Null when declined.pdf is written (or skipped); `parked` after the sign half. */
+  private async writeDeclinedPdf(
+    envelope: Envelope,
+    item: SealPlanItem,
+    progress: SealProgress,
+    scratch: SealStepScratch,
+  ): Promise<{ parked: PendingUpgrade } | null> {
     const banner = NOT_SIGNED_BANNERS[envelope.status];
-    if (banner === undefined) return;
-    let originalBytes: Buffer;
-    try {
-      if (item.originalPath === null) throw new Error('no original path');
-      originalBytes = await this.storage.download(item.originalPath);
-    } catch (err) {
-      this.logger.warn(
-        `audit_only job for ${envelope.id}: no original for document ${item.ord}, skipping its declined.pdf (${err instanceof Error ? err.message : String(err)})`,
-      );
-      return;
+    if (banner === undefined) return null;
+    let originalBytes: Buffer | null = null;
+    const resuming = progress.pendingUpgrade?.ord === item.ord;
+    if (!resuming) {
+      try {
+        if (item.originalPath === null) throw new Error('no original path');
+        originalBytes = await this.storage.download(item.originalPath);
+      } catch (err) {
+        this.logger.warn(
+          `audit_only job for ${envelope.id}: no original for document ${item.ord}, skipping its declined.pdf (${err instanceof Error ? err.message : String(err)})`,
+        );
+        return null;
+      }
     }
-    const stamped = await stampNotSignedBanner(originalBytes, banner);
-    const signed = await this.pades.sign(stamped);
+    const signed = await this.signedForUpgrade(envelope.id, item.ord, progress, scratch, async () =>
+      this.pades.sign(await stampNotSignedBanner(originalBytes as Buffer, banner)),
+    );
+    if ('parked' in signed) return signed;
     const sealed = await this.dss.upgradeToBLt(signed.pdf);
     const path =
       item.doc === null
         ? declinedPdfPath(envelope.id)
         : documentDeclinedPath(envelope.id, item.doc.id, item.ord);
     await this.storage.upload(path, sealed, 'application/pdf');
+    await this.dropParked(envelope.id, signed.parkedPath);
+    return null;
   }
 
   /**
@@ -577,6 +653,18 @@ export interface SealProgress {
   readonly documents: ReadonlyArray<{ readonly ord: number } & SealedDocumentRecordFields>;
   /** audit_only jobs: documents whose declined.pdf is already written, by `ord`. */
   readonly declined?: ReadonlyArray<number>;
+  /**
+   * A document signed (PAdES B-T) and parked in Storage, waiting for its
+   * B-LT/B-LTA upgrade in the next step. Edge only: signing and upgrading
+   * a large PDF do not fit one 2 s CPU budget together.
+   */
+  readonly pendingUpgrade?: PendingUpgrade;
+}
+
+export interface PendingUpgrade {
+  readonly ord: number;
+  readonly signedPath: string;
+  readonly timestampApplied: boolean;
 }
 
 export const EMPTY_SEAL_PROGRESS: SealProgress = { documents: [] };
@@ -586,6 +674,16 @@ export interface SealStepScratch {
   certificate?: Buffer;
   /** Every step runs in this process: skip parking the certificate in Storage. */
   inProcess?: boolean;
+}
+
+/** Where a multi-step seal parks a signed document before its B-LT/B-LTA upgrade. */
+export function sealParkedSignedPath(envelopeId: string, ord: number): string {
+  return `${envelopeId}/seal-work/${ord}.signed.pdf`;
+}
+
+function withoutPendingUpgrade(progress: SealProgress): SealProgress {
+  const { pendingUpgrade: _done, ...rest } = progress;
+  return rest;
 }
 
 /** Where a multi-step seal parks the certificate between steps. */

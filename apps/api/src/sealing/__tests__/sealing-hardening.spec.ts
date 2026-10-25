@@ -10,7 +10,12 @@ import { makeEnvelope, makeEvent, makeSigner } from '../../../test/factories';
 import { declinedPdfPath } from '../declined-pdf-path';
 import type { DssInjector } from '../dss-injector';
 import { PadesSigner, type PadesSignResult } from '../pades-signer';
-import { SealingService } from '../sealing.service';
+import {
+  EMPTY_SEAL_PROGRESS,
+  SealingService,
+  sealParkedSignedPath,
+  type SealProgress,
+} from '../sealing.service';
 import { InMemoryEnvelopeDocumentsRepository } from '../../../test/in-memory-envelope-documents-repository';
 
 /**
@@ -51,6 +56,9 @@ function makeHarness(envelope: Envelope, events: EnvelopeEvent[], seed: Map<stri
     },
     async upload(path: string, body: Buffer): Promise<void> {
       files.set(path, Buffer.from(body));
+    },
+    async remove(paths: string[]): Promise<void> {
+      for (const p of paths) files.delete(p);
     },
   } as unknown as StorageService;
   const repo = {
@@ -235,4 +243,71 @@ describe('SealingService — appended pre-seal certificate (WP-01 item 3)', () =
     expect(await pageCount(h.signer.inputs[0]!)).toBe(2 + auditPages);
     expect(await pageCount(h.files.get(`${ENV_ID}/sealed.pdf`)!)).toBe(2 + auditPages);
   }, 120_000);
+});
+
+describe('SealingService — sign and B-LT/B-LTA in separate edge steps (S.9)', () => {
+  it('audit_only: parks the signed declined.pdf, upgrades it next step, then drops the parked copy', async () => {
+    const h = makeHarness(
+      makeEnvelope({ id: ENV_ID, status: 'expired' }),
+      EVENTS,
+      new Map([[`${ENV_ID}/original.pdf`, await pdfWithPages(2)]]),
+    );
+    const parked = sealParkedSignedPath(ENV_ID, 1);
+
+    const first = await h.svc.processAuditOnlyStep(ENV_ID, EMPTY_SEAL_PROGRESS);
+    expect(first.done).toBe(false);
+    const p1 = (first as { progress: SealProgress }).progress;
+    expect(p1.pendingUpgrade).toEqual({ ord: 1, signedPath: parked, timestampApplied: true });
+    expect(h.files.has(parked)).toBe(true);
+    expect(h.files.has(declinedPdfPath(ENV_ID))).toBe(false);
+    expect(h.signer.inputs).toHaveLength(1);
+    expect(h.dssCalls).toHaveLength(0);
+
+    const parkedBytes = h.files.get(parked)!;
+    const second = await h.svc.processAuditOnlyStep(ENV_ID, p1);
+    const p2 = (second as { progress: SealProgress }).progress;
+    expect(p2.pendingUpgrade).toBeUndefined();
+    expect(p2.declined).toEqual([1]);
+    expect(h.signer.inputs).toHaveLength(1);
+    expect(h.dssCalls).toEqual([parkedBytes]);
+    expect(h.files.has(declinedPdfPath(ENV_ID))).toBe(true);
+    expect(h.files.has(parked)).toBe(false);
+
+    expect(await h.svc.processAuditOnlyStep(ENV_ID, p2)).toEqual({ done: true });
+    expect(h.auditSet).toEqual([`${ENV_ID}/audit.pdf`]);
+  });
+
+  it('seal: the document step splits the same way; in one process it stays one step', async () => {
+    const envelope = makeEnvelope({
+      id: ENV_ID,
+      status: 'sealing',
+      signers: [makeSigner({ status: 'completed', signed_at: '2026-04-25T10:05:00.000Z' })],
+      fields: [],
+    });
+    const seed = new Map([[`${ENV_ID}/original.pdf`, await pdfWithPages(2)]]);
+    const parked = sealParkedSignedPath(ENV_ID, 1);
+
+    const edge = makeHarness(envelope, EVENTS, seed);
+    await withFlag('appendCertificate', false, async () => {
+      const first = await edge.svc.processSealStep(ENV_ID, EMPTY_SEAL_PROGRESS);
+      const p1 = (first as { progress: SealProgress }).progress;
+      expect(p1.pendingUpgrade?.signedPath).toBe(parked);
+      expect(p1.documents).toEqual([]);
+      expect(edge.files.has(`${ENV_ID}/sealed.pdf`)).toBe(false);
+
+      const second = await edge.svc.processSealStep(ENV_ID, p1);
+      const p2 = (second as { progress: SealProgress }).progress;
+      expect(p2.pendingUpgrade).toBeUndefined();
+      expect(p2.documents.map((d) => d.ord)).toEqual([1]);
+      expect(edge.dssCalls).toHaveLength(1);
+      expect(edge.files.has(parked)).toBe(false);
+      expect(await pageCount(edge.files.get(`${ENV_ID}/sealed.pdf`)!)).toBe(2);
+    });
+
+    const docker = makeHarness(envelope, EVENTS, seed);
+    await withFlag('appendCertificate', false, () => docker.svc.processSealJob(ENV_ID));
+    expect([...docker.files.keys()].some((k) => k.includes('/seal-work/'))).toBe(false);
+    expect(docker.signer.inputs).toHaveLength(1);
+    expect(docker.dssCalls).toHaveLength(1);
+  });
 });
