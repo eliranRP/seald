@@ -242,7 +242,7 @@ ship `true` since the parity flag flip (`multiDocumentEnvelopes`, `signingOrder`
 `mcpOauth`, `workflowAutomations`, `publicApi`, `bulkSend`, `directLinks`,
 `i18n`). Turning one off again is a one-line PR. `mcpOauth` needs `mcpServer`. The
 API key routes and the approval routes are on when `mcpServer` or
-`publicApi` is on. `gdriveIntegration` is `true` and predates this work. `ownerReadRpcs` (off)
+`publicApi` is on. `gdriveIntegration` is `true` and predates this work. `ownerReadRpcs` (on)
 switches the SPA's list reads to the migration 0050 RPCs, falling back to the
 API when an RPC fails.
 Two changes are not flag-gated: the B-LTA timestamp (S.7, when a TSA is

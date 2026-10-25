@@ -39,6 +39,12 @@ vi.mock('./lib/supabase/supabaseClient', () => {
         resetPasswordForEmail: async () => ({ data: {}, error: null }),
         signOut: async () => ({ error: null }),
       },
+      // The owner list RPCs (ownerReadRpcs) answer with an error, so the
+      // reads fall back to the mocked API client below.
+      rpc: () => {
+        const result = Promise.resolve({ data: null, error: { message: 'rpc not mocked' } });
+        return Object.assign(result, { abortSignal: () => result });
+      },
     },
     setKeepSignedIn: () => {},
     getKeepSignedIn: () => true,
