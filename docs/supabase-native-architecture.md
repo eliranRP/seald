@@ -84,8 +84,8 @@ so AWS can be switched off as soon as sealing and the workers run natively.
 
 1. **Core extraction + `seal-worker`.** Sealing is what does not fit the
    bridge, so it moves first: framework-free sealing core, steps persisted
-   between invocations, pgmq queue, pg_cron trigger. AWS EC2 can go after
-   this step and step 2.
+   between invocations, pgmq queue, pg_cron trigger. AWS EC2 could go after
+   this step and step 2 (done: EC2 retired 2026-10-25).
 2. **`email-worker` and `jobs`.** Replace the in-process loops.
 3. **Cut-over:** Cloudflare routing, secrets, backups (aws-exit-plan
    WS-6..WS-8). Decommission AWS.

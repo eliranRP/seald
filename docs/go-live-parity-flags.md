@@ -1,5 +1,11 @@
 # Go live: parity features (PR #380 + #382)
 
+> **Archived (2026-10-25).** This runbook targets the retired EC2 host
+> (`/opt/seald`, `deploy.yml`, `PDF_SIGNING_PROVIDER=kms`). Production now
+> runs on Supabase Edge Functions; set env vars as Supabase function
+> secrets and deploy with `deploy-supabase.yml` (see
+> `docs/self-hosting.md` and `docs/agents/RELEASE.md`). Kept for history.
+
 What you need to set, where, and in what order, so that turning on the 13
 parity feature flags (PR #382) does not take the API down.
 

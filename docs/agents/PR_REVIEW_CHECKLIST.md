@@ -213,7 +213,7 @@ re-count lines; that file's numbers are stale.
 - [ ] Object storage stays private. Downloads go through signed URLs issued
       by the API.
 - [ ] Drive scope is unchanged: `https://www.googleapis.com/auth/drive.file`.
-- [ ] Drive refresh tokens stay KMS-wrapped. Logs do not print tokens,
+- [ ] Drive refresh tokens stay envelope-encrypted under `GDRIVE_TOKEN_WRAP_KEY`. Logs do not print tokens,
       PDFs, or email bodies.
 - [ ] RLS is not opened up so the browser can query tables. The API is the
       gate.
