@@ -51,14 +51,15 @@ const external = [
 
 // Deno resolves Node built-ins only with the `node:` prefix; esbuild keeps
 // a bare `require('buffer')` as `import 'buffer'`, so add the prefix.
+const builtins = new Set(builtinModules.filter((m) => !m.startsWith('_')));
 const nodeBuiltinPrefix = {
   name: 'node-builtin-prefix',
   setup(b) {
-    const names = builtinModules
-      .filter((m) => !m.startsWith('_'))
-      .map((m) => m.replace(/\//g, '\\/'));
-    const filter = new RegExp(`^(${names.join('|')})(\\/.*)?$`);
-    b.onResolve({ filter }, (args) => ({ path: `node:${args.path}`, external: true }));
+    // Candidate bare specifiers only; the Set decides, so no regex is built
+    // from module names.
+    b.onResolve({ filter: /^[a-z][a-z0-9_/]*$/ }, (args) =>
+      builtins.has(args.path) ? { path: `node:${args.path}`, external: true } : undefined,
+    );
   },
 };
 
