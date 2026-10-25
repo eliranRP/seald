@@ -1,7 +1,9 @@
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { KMSClient, GenerateDataKeyCommand, DecryptCommand } from '@aws-sdk/client-kms';
+import { parseAutomationSecretsKey } from '../../automations/actions/webhook/secret-box';
 import type { AppEnv } from '../../config/env.schema';
+import { LOCAL_WRAP_KEY_ID, LocalWrapKmsClient } from './local-wrap-kms-client';
 
 /**
  * Port over the subset of KMS operations the OAuth refresh-token store
@@ -57,21 +59,43 @@ export class AwsKmsClient implements KmsClientPort {
 export class GDriveKmsService {
   private readonly client: KmsClientPort;
   private readonly keyArn: string;
+  private readonly legacy: { readonly client: KmsClientPort; readonly keyArn: string } | null;
 
-  constructor(client: KmsClientPort, keyArn: string) {
+  /**
+   * `legacy` decrypts rows whose stored key id is not `keyArn`: the rows
+   * still wrapped by AWS KMS while the local wrap key takes over (AWS exit
+   * plan, WS-3). New rows are always wrapped by `client`.
+   */
+  constructor(
+    client: KmsClientPort,
+    keyArn: string,
+    legacy: { readonly client: KmsClientPort; readonly keyArn: string } | null = null,
+  ) {
     this.client = client;
     this.keyArn = keyArn;
+    this.legacy = legacy;
   }
 
   static fromEnv(env: AppEnv): GDriveKmsService {
     const arn = env.GDRIVE_TOKEN_KMS_KEY_ARN;
     const region = env.GDRIVE_TOKEN_KMS_REGION;
-    if (!arn || !region) {
+    const aws =
+      arn && region ? { client: new AwsKmsClient(new KMSClient({ region })), keyArn: arn } : null;
+    const wrapKey = parseAutomationSecretsKey(env.GDRIVE_TOKEN_WRAP_KEY);
+    if (wrapKey) {
+      return new GDriveKmsService(new LocalWrapKmsClient(wrapKey), LOCAL_WRAP_KEY_ID, aws);
+    }
+    if (!aws) {
       throw new Error(
-        'gdrive_kms_misconfigured: GDRIVE_TOKEN_KMS_KEY_ARN + GDRIVE_TOKEN_KMS_REGION required',
+        'gdrive_kms_misconfigured: GDRIVE_TOKEN_WRAP_KEY, or GDRIVE_TOKEN_KMS_KEY_ARN + GDRIVE_TOKEN_KMS_REGION, required',
       );
     }
-    return new GDriveKmsService(new AwsKmsClient(new KMSClient({ region })), arn);
+    return new GDriveKmsService(aws.client, aws.keyArn);
+  }
+
+  /** Key id that `encrypt` stamps on new rows. */
+  get currentKeyArn(): string {
+    return this.keyArn;
   }
 
   async encrypt(
@@ -106,7 +130,11 @@ export class GDriveKmsService {
     }
   }
 
-  async decrypt(ciphertext: Buffer, _kmsKeyArn: string, aad?: Buffer): Promise<string> {
+  async decrypt(ciphertext: Buffer, kmsKeyArn: string, aad?: Buffer): Promise<string> {
+    const client =
+      this.legacy && kmsKeyArn !== this.keyArn && kmsKeyArn === this.legacy.keyArn
+        ? this.legacy.client
+        : this.client;
     if (ciphertext.length < 4 + 12 + 16) throw new Error('gdrive_kms_decrypt_failed');
     const wrappedLen = ciphertext.readUInt32BE(0);
     const offset = 4 + wrappedLen;
@@ -116,7 +144,7 @@ export class GDriveKmsService {
     const enc = ciphertext.subarray(offset + 28);
     let dataKey: Buffer;
     try {
-      dataKey = await this.client.decrypt(wrapped);
+      dataKey = await client.decrypt(wrapped);
     } catch {
       throw new Error('gdrive_kms_decrypt_failed');
     }

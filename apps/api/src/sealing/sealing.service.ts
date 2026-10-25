@@ -124,7 +124,34 @@ export class SealingService {
     }));
   }
 
+  /** Runs every step of a seal job in this process (Docker worker, tests). */
   async processSealJob(envelope_id: string): Promise<void> {
+    let progress: SealProgress = EMPTY_SEAL_PROGRESS;
+    // Same process for every step, so the certificate stays in memory.
+    const scratch: SealStepScratch = { inProcess: true };
+    for (;;) {
+      const step = await this.processSealStep(envelope_id, progress, scratch);
+      if (step.done) return;
+      progress = step.progress;
+    }
+  }
+
+  /**
+   * One step of a seal job. The Supabase edge worker runs one step per
+   * invocation, because the runtime counts CPU per worker and a whole seal
+   * does not fit (docs/supabase-native-architecture.md). The caller keeps
+   * `progress` between steps; it is plain JSON. Steps, each idempotent:
+   *
+   *   1. `appendCertificate` only: render the pre-seal certificate once and
+   *      park it in Storage, so every document gets the same pages.
+   *   2. One document per step: burn-in, sign, B-LT/B-LTA, upload sealed.pdf.
+   *   3. audit.pdf, the status flip and the completion emails.
+   */
+  async processSealStep(
+    envelope_id: string,
+    progress: SealProgress,
+    scratch: SealStepScratch = {},
+  ): Promise<{ done: true } | { done: false; progress: SealProgress }> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
     if (envelope.status === 'completed') {
@@ -132,7 +159,7 @@ export class SealingService {
       // completion row was queued. Re-enter only the fan-out; dedupe
       // keys keep it to one mail per party.
       await this.enqueueCompletionEmails(envelope);
-      return;
+      return { done: true };
     }
     if (envelope.status !== 'sealing') {
       // Envelope raced into a non-sealing state (declined, expired). Bail
@@ -140,14 +167,14 @@ export class SealingService {
       this.logger.warn(
         `seal job for ${envelope_id}: envelope in status ${envelope.status}, skipping`,
       );
-      return;
+      return { done: true };
     }
 
     const plan = await this.planDocuments(envelope);
 
     // Events + signer details feed both the optional pre-seal certificate
-    // and audit.pdf. Nothing appends an event between here and the audit
-    // render, so one read serves both.
+    // and audit.pdf. The envelope stays `sealing` across steps, so nothing
+    // appends an event between the certificate and the audit render.
     const [events, signerDetails] = await Promise.all([
       this.repo.listEventsForEnvelope(envelope_id),
       this.repo.listSignerAuditDetails(envelope_id),
@@ -157,49 +184,43 @@ export class SealingService {
     // pages are appended to every document before its seal.
     let certificate: Buffer | null = null;
     if (isFeatureEnabled('appendCertificate')) {
-      certificate = await buildAuditPdf({
-        envelope,
-        events,
-        signerDetails,
-        sealedSha256: null,
-        sealedPages: null,
-        publicUrl: this.env.APP_PUBLIC_URL,
-        cmsSealApplied: this.pades.appliesCmsSeal,
-        // Unknown before sign(); the pre-seal copy is the hedged "when
-        // available" wording either way.
-        timestampApplied: true,
-        preSeal: { chainHeadSha256: chainHeadHex(events) },
-        ...auditDocumentsInput(plan, null),
-      });
+      const certificatePath = sealCertificatePath(envelope_id);
+      if (!progress.certificateReady) {
+        const rendered = await buildAuditPdf({
+          envelope,
+          events,
+          signerDetails,
+          sealedSha256: null,
+          sealedPages: null,
+          publicUrl: this.env.APP_PUBLIC_URL,
+          cmsSealApplied: this.pades.appliesCmsSeal,
+          // Unknown before sign(); the pre-seal copy is the hedged "when
+          // available" wording either way.
+          timestampApplied: true,
+          preSeal: { chainHeadSha256: chainHeadHex(events) },
+          ...auditDocumentsInput(plan, null),
+        });
+        if (!scratch.inProcess) {
+          await this.storage.upload(certificatePath, rendered, 'application/pdf');
+        }
+        scratch.certificate = rendered;
+        return { done: false, progress: { ...progress, certificateReady: true } };
+      }
+      certificate = scratch.certificate ?? (await this.storage.download(certificatePath));
     }
 
     const sealed: SealedDocument[] = [];
     for (const item of plan) {
-      if (item.originalPath === null) {
-        throw new Error(`document ${item.doc?.id ?? item.ord} of ${envelope_id} has no original`);
+      const recorded = progress.documents.find((d) => d.ord === item.ord);
+      if (recorded) {
+        sealed.push({ item, ...recorded });
+        continue;
       }
-      const originalBytes = await this.storage.download(item.originalPath);
-      let sealedBytes = await this.burnIn(envelope, originalBytes, item.fields);
-      if (certificate !== null) sealedBytes = await appendPdfPages(sealedBytes, certificate);
-      const signed = await this.pades.sign(sealedBytes);
-      // PAdES B-T -> B-LT (/DSS) -> B-LTA (document timestamp), each step an
-      // ISO 32000-1 section 7.5.6 incremental update that leaves the B-T
-      // bytes untouched. Every step degrades to the previous level on failure.
-      const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
-      const sealedSha = sha256Hex(signedBytes);
-      const sealedPath = documentSealedPath(envelope_id, item.doc?.id ?? '', item.ord);
-      await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
-      // Count pages on the sealed file itself: with `appendCertificate` it
-      // carries the certificate pages after the original ones, so it can
-      // differ from original_pages.
-      const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
-      sealed.push({
-        item,
-        path: sealedPath,
-        sha256: sealedSha,
-        pages: sealedPdfDoc.getPageCount(),
-        timestampApplied: signed.timestampApplied,
-      });
+      const done = await this.sealDocument(envelope, item, certificate);
+      return {
+        done: false,
+        progress: { ...progress, documents: [...progress.documents, { ord: item.ord, ...done }] },
+      };
     }
     for (const done of sealed) {
       if (done.item.doc !== null) {
@@ -235,15 +256,54 @@ export class SealingService {
       const fresh = await this.repo.findByIdWithAll(envelope_id);
       if (fresh?.status === 'completed') {
         await this.enqueueCompletionEmails(fresh);
-        return;
+        return { done: true };
       }
       this.logger.warn(
         `seal job for ${envelope_id}: transitionToSealed lost the race, artifacts orphaned`,
       );
-      return;
+      return { done: true };
     }
 
     await this.enqueueCompletionEmails(updated);
+    if (certificate !== null && !scratch.inProcess) {
+      await this.storage.remove([sealCertificatePath(envelope_id)]).catch((err: unknown) => {
+        this.logger.warn(
+          `seal job for ${envelope_id}: could not remove the parked certificate (${err instanceof Error ? err.message : String(err)})`,
+        );
+      });
+    }
+    return { done: true };
+  }
+
+  /** Burn-in, PAdES seal and upload of one document (a seal step). */
+  private async sealDocument(
+    envelope: Envelope,
+    item: SealPlanItem,
+    certificate: Buffer | null,
+  ): Promise<SealedDocumentRecordFields> {
+    if (item.originalPath === null) {
+      throw new Error(`document ${item.doc?.id ?? item.ord} of ${envelope.id} has no original`);
+    }
+    const originalBytes = await this.storage.download(item.originalPath);
+    let sealedBytes = await this.burnIn(envelope, originalBytes, item.fields);
+    if (certificate !== null) sealedBytes = await appendPdfPages(sealedBytes, certificate);
+    const signed = await this.pades.sign(sealedBytes);
+    // PAdES B-T -> B-LT (/DSS) -> B-LTA (document timestamp), each step an
+    // ISO 32000-1 section 7.5.6 incremental update that leaves the B-T
+    // bytes untouched. Every step degrades to the previous level on failure.
+    const signedBytes = await this.dss.upgradeToBLt(signed.pdf);
+    const sealedPath = documentSealedPath(envelope.id, item.doc?.id ?? '', item.ord);
+    await this.storage.upload(sealedPath, signedBytes, 'application/pdf');
+    // Count pages on the sealed file itself: with `appendCertificate` it
+    // carries the certificate pages after the original ones, so it can
+    // differ from original_pages.
+    const sealedPdfDoc = await PDFDocument.load(signedBytes, { updateMetadata: false });
+    return {
+      path: sealedPath,
+      sha256: sha256Hex(signedBytes),
+      pages: sealedPdfDoc.getPageCount(),
+      timestampApplied: signed.timestampApplied,
+    };
   }
 
   /**
@@ -321,7 +381,24 @@ export class SealingService {
     }
   }
 
+  /** Runs every step of an audit_only job in this process (Docker worker, tests). */
   async processAuditOnlyJob(envelope_id: string): Promise<void> {
+    let progress: SealProgress = EMPTY_SEAL_PROGRESS;
+    for (;;) {
+      const step = await this.processAuditOnlyStep(envelope_id, progress);
+      if (step.done) return;
+      progress = step.progress;
+    }
+  }
+
+  /**
+   * One step of an audit_only job, for the same reason as `processSealStep`:
+   * one sealed declined.pdf per step, then audit.pdf + setAuditFile.
+   */
+  async processAuditOnlyStep(
+    envelope_id: string,
+    progress: SealProgress,
+  ): Promise<{ done: true } | { done: false; progress: SealProgress }> {
     const envelope = await this.repo.findByIdWithAll(envelope_id);
     if (!envelope) throw new NotFoundException('envelope_not_found');
 
@@ -329,7 +406,12 @@ export class SealingService {
     // paths, so the job stays idempotent. One stamped copy per document.
     const plan = await this.planDocuments(envelope);
     for (const item of plan) {
+      if (progress.declined?.includes(item.ord)) continue;
       await this.writeDeclinedPdf(envelope, item);
+      return {
+        done: false,
+        progress: { ...progress, declined: [...(progress.declined ?? []), item.ord] },
+      };
     }
 
     const [events, signerDetails] = await Promise.all([
@@ -350,6 +432,7 @@ export class SealingService {
     const auditPath = `${envelope_id}/audit.pdf`;
     await this.storage.upload(auditPath, auditBytes, 'application/pdf');
     await this.repo.setAuditFile(envelope_id, auditPath);
+    return { done: true };
   }
 
   /**
@@ -472,12 +555,42 @@ interface SealPlanItem {
   readonly fields: ReadonlyArray<EnvelopeField>;
 }
 
-interface SealedDocument {
-  readonly item: SealPlanItem;
+interface SealedDocumentRecordFields {
   readonly path: string;
   readonly sha256: string;
   readonly pages: number;
   readonly timestampApplied: boolean;
+}
+
+interface SealedDocument extends SealedDocumentRecordFields {
+  readonly item: SealPlanItem;
+}
+
+/**
+ * What a seal job has finished so far, carried between steps (plain JSON;
+ * the edge worker stores it on `envelope_jobs.progress`, migration 0048).
+ */
+export interface SealProgress {
+  /** The pre-seal certificate is parked at `sealCertificatePath`. */
+  readonly certificateReady?: boolean;
+  /** Documents already sealed and uploaded, by `ord`. */
+  readonly documents: ReadonlyArray<{ readonly ord: number } & SealedDocumentRecordFields>;
+  /** audit_only jobs: documents whose declined.pdf is already written, by `ord`. */
+  readonly declined?: ReadonlyArray<number>;
+}
+
+export const EMPTY_SEAL_PROGRESS: SealProgress = { documents: [] };
+
+/** In-memory carry-over for steps that run in the same process. */
+export interface SealStepScratch {
+  certificate?: Buffer;
+  /** Every step runs in this process: skip parking the certificate in Storage. */
+  inProcess?: boolean;
+}
+
+/** Where a multi-step seal parks the certificate between steps. */
+export function sealCertificatePath(envelopeId: string): string {
+  return `${envelopeId}/seal-work/certificate.pdf`;
 }
 
 /** `documents` for buildAuditPdf: only set for a multi-file envelope, so a

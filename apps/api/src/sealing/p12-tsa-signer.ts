@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, sign } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Signer } from '@signpdf/utils';
 import forge from 'node-forge';
@@ -41,15 +41,33 @@ export class P12TsaSigner extends Signer {
     this.passphrase = passphrase;
   }
 
-  override async sign(pdfBuffer: Buffer, signingTime?: Date): Promise<Buffer> {
-    // ---- 1. P12 → cert + private key ----
+  /**
+   * Decrypting the P12 (PBE) and importing the key are the same on every
+   * seal, so do them once per signer. Parsing on each call cost a large
+   * share of a seal's CPU budget on the edge function (AWS exit plan, WS-0).
+   */
+  private keyMaterial(): {
+    certBags: forge.pkcs12.Bag[];
+    privateKey: forge.pki.rsa.PrivateKey;
+  } {
+    if (this.parsed) return this.parsed;
     const oidCertBag = forge.pki.oids.certBag as string;
     const oidKeyBag = forge.pki.oids.pkcs8ShroudedKeyBag as string;
     const p12Asn1 = forge.asn1.fromDer(this.p12Buffer.toString('binary'));
     const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, this.passphrase);
     const certBags = p12.getBags({ bagType: oidCertBag })[oidCertBag]!;
     const keyBags = p12.getBags({ bagType: oidKeyBag })[oidKeyBag]!;
-    const privateKey = keyBags[0]!.key as forge.pki.rsa.PrivateKey;
+    const forgeKey = keyBags[0]!.key as forge.pki.rsa.PrivateKey;
+    this.parsed = { certBags, privateKey: withNativeRsaSign(forgeKey) };
+    return this.parsed;
+  }
+
+  private parsed: { certBags: forge.pkcs12.Bag[]; privateKey: forge.pki.rsa.PrivateKey } | null =
+    null;
+
+  override async sign(pdfBuffer: Buffer, signingTime?: Date): Promise<Buffer> {
+    // ---- 1. P12 → cert + private key ----
+    const { certBags, privateKey } = this.keyMaterial();
 
     // ---- 2. Build PKCS#7 SignedData ----
     const p7 = forge.pkcs7.createSignedData();
@@ -112,7 +130,9 @@ export class P12TsaSigner extends Signer {
         signingCertificateV2,
       ] as Parameters<typeof p7.addSigner>[0]['authenticatedAttributes'],
     });
-    p7.sign({ detached: true });
+    // Native digests (PDF byte range, signed attributes), and the recorded
+    // signed-attributes bytes withNativeRsaSign signs natively.
+    withNativeDigests(() => p7.sign({ detached: true }));
 
     // Defense-in-depth: assert the produced CMS carries the modern ESS
     // attribute (signing-certificate-v2) and NOT the deprecated SHA-1
@@ -162,6 +182,129 @@ export class P12TsaSigner extends Signer {
     const der = forge.asn1.toDer(pkcs7Asn1).getBytes();
     return Buffer.from(der, 'binary');
   }
+}
+
+/** forge digest name -> node:crypto digest name, for the digests a CMS seal uses. */
+const NODE_DIGESTS: Readonly<Record<string, string>> = {
+  sha256: 'sha256',
+  sha384: 'sha384',
+  sha512: 'sha512',
+};
+
+/** Fixed digest parameters (algorithm name, block and digest length) forge reads. */
+const REFERENCE_DIGESTS: Readonly<Record<string, forge.md.MessageDigest>> = {
+  sha256: forge.md.sha256.create(),
+  sha384: forge.md.sha384.create(),
+  sha512: forge.md.sha512.create(),
+};
+
+/** Bytes forge fed into a digest since its last `start()`, for digests we watch. */
+const digestInputs = new WeakMap<forge.md.MessageDigest, string[]>();
+
+/**
+ * Signed attributes are a couple of KB. Content digests (the PDF byte
+ * range) are much larger and are never signed directly, so stop recording
+ * past this size; `withNativeRsaSign` then falls back to forge.
+ */
+const MAX_CAPTURED_BYTES = 64 * 1024;
+
+/**
+ * A forge-compatible message digest computed by node:crypto. forge's pure-JS
+ * SHA-256 over the PDF byte range cost about 100 ms per 5 MB; native is
+ * about 1 ms. It also records its input (up to MAX_CAPTURED_BYTES) so
+ * `withNativeRsaSign` can sign the signed attributes natively.
+ */
+function nativeMessageDigest(name: string): forge.md.MessageDigest {
+  const reference = REFERENCE_DIGESTS[name]!;
+  let hash = createHash(NODE_DIGESTS[name]!);
+  let chunks: string[] = [];
+  let size = 0;
+  const md = {
+    algorithm: reference.algorithm,
+    blockLength: reference.blockLength,
+    digestLength: reference.digestLength,
+    start() {
+      hash = createHash(NODE_DIGESTS[name]!);
+      chunks = [];
+      size = 0;
+      digestInputs.set(md, chunks);
+      return md;
+    },
+    update(msg: string, encoding?: 'raw' | 'utf8') {
+      const bytes = encoding === 'utf8' ? forge.util.encodeUtf8(msg) : msg;
+      hash.update(Buffer.from(bytes, 'binary'));
+      size += bytes.length;
+      if (size <= MAX_CAPTURED_BYTES) chunks.push(bytes);
+      else digestInputs.delete(md);
+      return md;
+    },
+    digest() {
+      return forge.util.createBuffer(hash.copy().digest('binary'));
+    },
+  } as unknown as forge.md.MessageDigest;
+  digestInputs.set(md, chunks);
+  return md;
+}
+
+/**
+ * Runs `fn` (a synchronous `p7.sign()`) with every SHA-2 digest forge
+ * creates replaced by `nativeMessageDigest`. forge's pkcs7 creates its
+ * digests inside `sign()`, so this is the only point to attach. `fn` is
+ * synchronous, so nothing else can run while the factories are swapped,
+ * and they are restored even when it throws.
+ */
+export function withNativeDigests<T>(fn: () => T): T {
+  const factories = forge.md as unknown as Record<string, { create: () => forge.md.MessageDigest }>;
+  const originals = Object.keys(NODE_DIGESTS).map((name) => {
+    const factory = factories[name];
+    if (!factory) return null;
+    const create = factory.create;
+    factory.create = () => nativeMessageDigest(name);
+    return { factory, create };
+  });
+  try {
+    return fn();
+  } finally {
+    for (const original of originals) {
+      if (original) original.factory.create = original.create;
+    }
+  }
+}
+
+/**
+ * Returns the forge key with its RSA private-key operation done by
+ * node:crypto instead of forge's pure-JS big-integer math, which was the
+ * single largest CPU cost of a seal. Everything else forge does (CMS
+ * structure, signed attributes, DER) is unchanged.
+ *
+ * forge's pkcs7 calls `key.sign(md, 'RSASSA-PKCS1-V1_5')` with `md` holding
+ * the signed attributes. Under `withNativeDigests` we have the bytes and sign them with `crypto.sign`, the one RSA call
+ * that is correct on both Node and the Supabase edge runtime (its
+ * `privateEncrypt` produces signatures that do not verify). PKCS#1 v1.5 is
+ * deterministic, so the output equals forge's; a spec pins that. If the
+ * input was not captured, or does not hash to `md`'s digest, forge signs as
+ * before: the fast path can never produce a different signature.
+ */
+export function withNativeRsaSign(key: forge.pki.rsa.PrivateKey): forge.pki.rsa.PrivateKey {
+  // PKCS#8 PEM: the edge runtime's node:crypto rejects a PKCS#1 PEM.
+  const nativeKey = forge.pki.privateKeyInfoToPem(
+    forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(key)),
+  );
+  const fast = Object.create(key) as forge.pki.rsa.PrivateKey;
+  fast.sign = (md: forge.md.MessageDigest, scheme?: unknown): forge.Bytes => {
+    const forgeSign = () => key.sign(md, scheme as 'RSASSA-PKCS1-V1_5');
+    const chunks = digestInputs.get(md);
+    const algorithm = NODE_DIGESTS[md.algorithm];
+    if ((scheme !== undefined && scheme !== 'RSASSA-PKCS1-V1_5') || !chunks || !algorithm) {
+      return forgeSign();
+    }
+    const data = Buffer.from(chunks.join(''), 'binary');
+    if (createHash(algorithm).update(data).digest('binary') !== md.digest().getBytes()) {
+      return forgeSign();
+    }
+    return sign(algorithm, data, nativeKey).toString('binary');
+  };
+  return fast;
 }
 
 // --------------------------------------------------------------------

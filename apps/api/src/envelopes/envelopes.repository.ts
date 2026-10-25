@@ -175,6 +175,8 @@ export interface ClaimedJob {
   readonly kind: 'seal' | 'audit_only';
   readonly attempts: number;
   readonly max_attempts: number;
+  /** Migration 0048: what earlier steps of this job finished (SealProgress JSON), or null. */
+  readonly progress?: unknown;
 }
 
 /**
@@ -595,6 +597,17 @@ export abstract class EnvelopesRepository {
    * terminal `failed`. `last_error` is always recorded.
    */
   abstract failJob(job_id: string, error: string): Promise<void>;
+
+  /**
+   * A claimed job finished one step and has more (the edge worker runs one
+   * seal step per invocation). Stores `progress`, puts the job back to
+   * `pending` for right now, and gives back the attempt the claim took: a
+   * step that succeeded is not a failed try. Implemented by the PG
+   * repository and the in-memory double; other doubles never run steps.
+   */
+  async yieldJob(_job_id: string, _progress: unknown): Promise<void> {
+    throw new Error('yieldJob is not implemented by this repository');
+  }
 
   /**
    * Row-conditional transition envelope.status = 'sealing' → 'sealed'. Stamps

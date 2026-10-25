@@ -1,0 +1,105 @@
+name: Deploy (Supabase Edge Functions)
+
+# docs/supabase-native-architecture.md. Manual only until the cut-over in
+# docs/self-hosting.md ("Supabase Edge Functions"); the EC2 deploy
+# (deploy.yml) stays the production path until then.
+#
+# Secrets (repository settings):
+#   SUPABASE_ACCESS_TOKEN  personal access token for `supabase functions deploy`
+#   SUPABASE_PROJECT_REF   the project ref, e.g. abcdefghijklmnopqrst
+#   SUPABASE_DB_URL        session-mode connection string for migrations
+# Function secrets (env vars) are set once with `supabase secrets set`, not
+# here, so this workflow never handles them.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or SHA to deploy'
+        required: true
+        default: 'main'
+      migrate:
+        description: 'Apply database migrations first'
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-supabase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  deploy:
+    name: Build bundles, migrate, deploy functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Check secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          missing=""
+          [ -n "$SUPABASE_ACCESS_TOKEN" ] || missing="$missing SUPABASE_ACCESS_TOKEN"
+          [ -n "$SUPABASE_PROJECT_REF" ] || missing="$missing SUPABASE_PROJECT_REF"
+          [ -n "$SUPABASE_DB_URL" ] || missing="$missing SUPABASE_DB_URL"
+          if [ -n "$missing" ]; then
+            echo "::error::missing repository secrets:$missing"
+            exit 1
+          fi
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared + api, then the function bundles
+        run: |
+          pnpm --filter shared build
+          pnpm --filter api build
+          pnpm --filter api build:edge
+
+      - name: Apply migrations
+        if: ${{ inputs.migrate }}
+        env:
+          DATABASE_URL: ${{ secrets.SUPABASE_DB_URL }}
+          MIGRATIONS_DIR: ${{ github.workspace }}/apps/api/db/migrations
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          sh apps/api/scripts/migrate.sh
+
+      - name: Deploy functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for fn in seald seal-worker email-worker; do
+            pnpm dlx supabase@2.122.0 functions deploy "$fn" \
+              --project-ref "$SUPABASE_PROJECT_REF" --no-verify-jwt --use-api
+          done
+
+      - name: Smoke test the bridge
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' \
+              "https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/seald/health")
+            [ "$code" = "200" ] && echo "bridge healthy" && exit 0
+            sleep 10
+          done
+          echo "::error::bridge /health did not answer 200 (last: $code)"
+          exit 1

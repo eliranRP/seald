@@ -119,6 +119,12 @@ const envSchema = z
 
     // PDF signing provider-specific
     PDF_SIGNING_LOCAL_P12_PATH: z.string().optional(),
+    /**
+     * The same PKCS#12 file, base64-encoded, for hosts with no file to mount
+     * (the Supabase Edge Function). Wins over PDF_SIGNING_LOCAL_P12_PATH,
+     * like the inline KMS cert PEM wins over its path.
+     */
+    PDF_SIGNING_LOCAL_P12_BASE64: z.string().optional(),
     PDF_SIGNING_LOCAL_P12_PASS: z.string().optional(),
     PDF_SIGNING_SSLCOM_CLIENT_ID: z.string().optional(),
     PDF_SIGNING_SSLCOM_CLIENT_SECRET: z.string().optional(),
@@ -157,6 +163,15 @@ const envSchema = z
      * keeping API nodes worker-disabled.
      */
     WORKER_ENABLED: strictBooleanString(false),
+
+    /**
+     * Shared secret between the Cloudflare Pages worker that proxies the API
+     * hostname and the bridge Edge Function (src/edge/proxy-guard.ts). With
+     * it set, only proxied requests may set the client IP, and direct calls
+     * to the function URL are refused except health and cron. Required for
+     * the bridge in production; unused by the Docker deploy.
+     */
+    EDGE_PROXY_SECRET: z.string().min(32).optional(),
 
     /**
      * Bulk send throttle (WP-36): most envelopes the bulk worker creates and
@@ -233,6 +248,13 @@ const envSchema = z
     GDRIVE_OAUTH_REDIRECT_URI: z.string().url().optional(),
     GDRIVE_TOKEN_KMS_KEY_ARN: z.string().optional(),
     GDRIVE_TOKEN_KMS_REGION: z.string().optional(),
+    /**
+     * Local AES-GCM key, 32 bytes (64 hex characters, or base64 of 32 bytes) that
+     * wraps the per-row data keys instead of AWS KMS (AWS exit plan, WS-3).
+     * When set, new tokens are wrapped with it; rows still wrapped by the
+     * KMS key above decrypt through KMS while both are configured.
+     */
+    GDRIVE_TOKEN_WRAP_KEY: z.string().optional(),
     GDRIVE_API_RATE_PER_USER: z.coerce.number().int().positive().optional(),
     GDRIVE_API_RATE_WINDOW_SECONDS: z.coerce.number().int().positive().optional(),
     /**
@@ -361,6 +383,17 @@ const envSchema = z
       });
     }
 
+    if (env.GDRIVE_TOKEN_WRAP_KEY !== undefined && env.GDRIVE_TOKEN_WRAP_KEY !== '') {
+      if (!parseAutomationSecretsKey(env.GDRIVE_TOKEN_WRAP_KEY)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['GDRIVE_TOKEN_WRAP_KEY'],
+          message:
+            'GDRIVE_TOKEN_WRAP_KEY must be 32 bytes: 64 hex characters or base64 of 32 bytes',
+        });
+      }
+    }
+
     if (env.EMAIL_PROVIDER === 'resend' && !env.RESEND_API_KEY) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -382,14 +415,21 @@ const envSchema = z
     }
 
     if (env.PDF_SIGNING_PROVIDER === 'local' && env.NODE_ENV !== 'test') {
-      for (const key of ['PDF_SIGNING_LOCAL_P12_PATH', 'PDF_SIGNING_LOCAL_P12_PASS'] as const) {
-        if (!env[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} required when PDF_SIGNING_PROVIDER=local and NODE_ENV!=test`,
-          });
-        }
+      if (!env.PDF_SIGNING_LOCAL_P12_PATH && !env.PDF_SIGNING_LOCAL_P12_BASE64) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PDF_SIGNING_LOCAL_P12_PATH'],
+          message:
+            'PDF_SIGNING_LOCAL_P12_PATH or PDF_SIGNING_LOCAL_P12_BASE64 required when PDF_SIGNING_PROVIDER=local and NODE_ENV!=test',
+        });
+      }
+      if (!env.PDF_SIGNING_LOCAL_P12_PASS) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PDF_SIGNING_LOCAL_P12_PASS'],
+          message:
+            'PDF_SIGNING_LOCAL_P12_PASS required when PDF_SIGNING_PROVIDER=local and NODE_ENV!=test',
+        });
       }
     }
 

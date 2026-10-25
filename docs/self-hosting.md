@@ -120,3 +120,65 @@ not the web host.
 container on port 3000. Caddy handles certificates with no extra config
 beyond the domain. Keep the Gotenberg and database ports off the public
 network.
+
+## Supabase Edge Functions (no server)
+
+The free-tier deployment (docs/supabase-native-architecture.md) runs the API
+as Supabase Edge Functions instead of a container: `seald` (the whole API,
+the bridge while routes move), `seal-worker` (one PAdES step per call) and
+`email-worker` (one outbox batch per call), driven by pg_cron. The Docker
+deploy above keeps working; nothing here changes it until the cut-over.
+
+### Function secrets
+
+Set once with `supabase secrets set --project-ref <ref> --env-file <file>`.
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided by the platform.
+
+- Everything in "Base env" and "Env vars per enabled flag", with
+  `DATABASE_URL` pointing at the transaction pooler (port 6543).
+- `WORKER_ENABLED=false`: there is no long-lived process; pg_cron drives the
+  work.
+- `PDF_SIGNING_PROVIDER=local`, `PDF_SIGNING_LOCAL_P12_BASE64`
+  (`base64 -w0 seald.p12`), `PDF_SIGNING_LOCAL_P12_PASS`,
+  `PDF_SIGNING_TSA_URLS`. The key lives in the function secrets, not an HSM.
+- `GDRIVE_TOKEN_WRAP_KEY` (`openssl rand -hex 32`) instead of the KMS pair.
+- `EDGE_PROXY_SECRET` (`openssl rand -hex 32`): required by the bridge in
+  production; the same value goes on the Cloudflare Pages project.
+
+### Cloudflare Pages variables
+
+On `seald-landing`: `API_HOSTNAME=api.seald.nromomentum.com`,
+`API_PROXY_ORIGIN=https://<ref>.supabase.co/functions/v1` and the secret
+`EDGE_PROXY_SECRET`. Attach `api.seald.nromomentum.com` as a custom domain
+of the project. `apps/landing/_worker.js` then proxies that host to the
+bridge with the real client IP; direct calls to the function URL are refused
+except `/health` and `/internal/cron/*`.
+
+### Cut-over runbook
+
+1. Deploy: run the `Deploy (Supabase Edge Functions)` workflow (secrets
+   `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`, `SUPABASE_DB_URL`). It
+   applies migrations, deploys the three functions and checks `/health`.
+2. Re-wrap Drive tokens while AWS still answers:
+   `pnpm --filter api exec ts-node scripts/rewrap-gdrive-tokens.ts`, then
+   again with `--apply` once the dry run reports no failures.
+3. Smoke test on the raw function URL with the proxy headers: sign in,
+   send, sign, seal; `verify-pades` on the sealed PDF; `/verify/:id` shows
+   `chain_intact`.
+4. Stop the EC2 workers (`WORKER_ENABLED=false`, or stop the API container).
+5. Schedules, in the SQL editor:
+   `select vault.create_secret('<CRON_SECRET>', 'seald_cron_secret');`
+   then `select public.seald_install_edge_schedules('https://<ref>.supabase.co/functions/v1');`
+6. Point `api.seald.nromomentum.com` at the Pages project (CNAME, like the
+   apex) and remove the A record to the EC2 elastic IP.
+7. Watch function logs, `cron.job_run_details` and `net._http_response`
+   for 48 hours. Rollback: `select public.seald_remove_edge_schedules();`,
+   DNS back to the elastic IP, start the EC2 workers.
+
+### Backups
+
+Supabase Free has none. The `Backup (Supabase database + storage)` workflow
+runs nightly once `SUPABASE_DB_URL` and `BACKUP_AGE_RECIPIENT` (an `age`
+public key) are set; add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` to
+include the `envelopes` bucket. Backups are encrypted before upload and
+kept 30 days as workflow artifacts. Restore is in the workflow header.

@@ -1805,6 +1805,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           scheduled_for: new Date().toISOString(),
           started_at: null,
           finished_at: null,
+          progress: null,
         }),
       )
       .returning(['id'])
@@ -1822,6 +1823,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       kind: 'seal' | 'audit_only';
       attempts: number;
       max_attempts: number;
+      progress: unknown;
     }>`
       with next_job as (
         select id from envelope_jobs
@@ -1839,7 +1841,7 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
           last_error = null
       from next_job
       where j.id = next_job.id
-      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts
+      returning j.id, j.envelope_id, j.kind, j.attempts, j.max_attempts, j.progress
     `.execute(this.db);
     const row = result.rows[0];
     if (!row) return null;
@@ -1849,7 +1851,22 @@ export class EnvelopesPgRepository extends EnvelopesRepository {
       kind: row.kind,
       attempts: row.attempts,
       max_attempts: row.max_attempts,
+      progress: row.progress ?? null,
     };
+  }
+
+  override async yieldJob(job_id: string, progress: unknown): Promise<void> {
+    await this.db
+      .updateTable('envelope_jobs')
+      .set({
+        status: 'pending',
+        attempts: sql<number>`greatest(attempts - 1, 0)`,
+        scheduled_for: new Date().toISOString(),
+        progress: JSON.stringify(progress),
+      })
+      .where('id', '=', job_id)
+      .where('status', '=', 'running')
+      .execute();
   }
 
   async finishJob(job_id: string): Promise<void> {

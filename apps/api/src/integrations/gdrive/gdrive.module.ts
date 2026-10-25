@@ -80,7 +80,8 @@ const DriveUploaderProvider: Provider = {
       inject: [APP_ENV],
       useFactory: (env: AppEnv): GDriveKmsService => {
         const logger = new Logger('GDriveModule');
-        if (!env.GDRIVE_TOKEN_KMS_KEY_ARN || !env.GDRIVE_TOKEN_KMS_REGION) {
+        const awsReady = Boolean(env.GDRIVE_TOKEN_KMS_KEY_ARN && env.GDRIVE_TOKEN_KMS_REGION);
+        if (!awsReady && !env.GDRIVE_TOKEN_WRAP_KEY) {
           // Feature off / not yet provisioned. The controller's feature
           // flag guard 404s every route; this stub will never be called.
           logger.warn('GDriveKmsService: env not provisioned (feature off). Stub installed.');

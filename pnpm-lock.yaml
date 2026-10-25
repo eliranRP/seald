@@ -138,6 +138,9 @@ importers:
       jose:
         specifier: ^6.2.13
         version: 6.2.13
+      jpeg-js:
+        specifier: ^0.4.4
+        version: 0.4.4
       kysely:
         specifier: ^0.29.7
         version: 0.29.7
@@ -153,6 +156,9 @@ importers:
       pg:
         specifier: ^8.23.1
         version: 8.23.1
+      pngjs:
+        specifier: ^7
+        version: 7.0.0
       qrcode:
         specifier: ^1.5
         version: 1.5.4
@@ -168,9 +174,6 @@ importers:
       shared:
         specifier: workspace:*
         version: link:../../packages/shared
-      sharp:
-        specifier: ^0.35.5
-        version: 0.35.5(@types/node@20.16.10)
       zod:
         specifier: 4.6.7
         version: 4.6.7
@@ -183,7 +186,7 @@ importers:
         version: 10.6.0
       '@nestjs/cli':
         specifier: ^11.0.24
-        version: 11.0.24(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(prettier@3.9.10)
+        version: 11.0.24(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(esbuild@0.28.2)(prettier@3.9.10)
       '@nestjs/schematics':
         specifier: ^11.0.0
         version: 11.1.0(chokidar@4.0.3)(prettier@3.9.10)(typescript@5.6.3)
@@ -214,6 +217,9 @@ importers:
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       '@types/qrcode':
         specifier: ^1.5.6
         version: 1.5.6
@@ -232,6 +238,9 @@ importers:
       canvas:
         specifier: ^3.2.3
         version: 3.2.3
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       eslint:
         specifier: 8.57.1
         version: 8.57.1
@@ -247,12 +256,15 @@ importers:
       pg-mem:
         specifier: ^3.0.14
         version: 3.0.14(kysely@0.29.7)
+      sharp:
+        specifier: ^0.35.5
+        version: 0.35.5(@types/node@20.16.10)
       supertest:
         specifier: ^7.0.0
         version: 7.2.2
       ts-jest:
         specifier: ^29.4.15
-        version: 29.4.15(@babel/core@7.29.6)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.6))(jest-util@30.4.1)(jest@30.4.2(@types/node@20.16.10)(ts-node@10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3)))(typescript@5.6.3)
+        version: 29.4.15(@babel/core@7.29.6)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.6))(esbuild@0.28.2)(jest-util@30.4.1)(jest@30.4.2(@types/node@20.16.10)(ts-node@10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3)))(typescript@5.6.3)
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3)
@@ -3537,6 +3549,9 @@ packages:
   '@types/pg@8.20.0':
     resolution: {integrity: sha512-bEPFOaMAHTEP1EzpvHTbmwR8UsFyHSKsRisLIHVMXnpNefSbGA1bD6CVy+qKjGSqmZqNqBDV2azOBo8TgkcVow==}
 
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
+
   '@types/qrcode@1.5.6':
     resolution: {integrity: sha512-te7NQcV2BOvdj2b1hCAHzAoMNuj65kNBMz0KBaxM6c3VGBOhU0dURQKOtH8CFNI/dsKkwlv32p26qYQTWoB5bw==}
 
@@ -6299,6 +6314,9 @@ packages:
   jose@6.2.13:
     resolution: {integrity: sha512-7TIg10ZE1x82YediN+lcrPNvGMKge9yFHQD+Qho/b8y2adfugU3AsvvHfxV0fzyFllT6l9xCjf4RWY9g/Z9PJQ==}
 
+  jpeg-js@0.4.4:
+    resolution: {integrity: sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg==}
+
   js-md4@0.3.2:
     resolution: {integrity: sha512-/GDnfQYsltsjRswQhN9fhv3EMw2sCpUdrdxyWDOUK7eyD++r3gRhzgiQgc/x4MAv2i1iuQ4lxO5mvqM3vj4bwA==}
 
@@ -7279,6 +7297,10 @@ packages:
   pngjs@5.0.0:
     resolution: {integrity: sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==}
     engines: {node: '>=10.13.0'}
+
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -11199,7 +11221,7 @@ snapshots:
       '@tybys/wasm-util': 0.10.4
     optional: true
 
-  '@nestjs/cli@11.0.24(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(prettier@3.9.10)':
+  '@nestjs/cli@11.0.24(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(esbuild@0.28.2)(prettier@3.9.10)':
     dependencies:
       '@angular-devkit/core': 19.2.27(chokidar@4.0.3)
       '@angular-devkit/schematics': 19.2.27(chokidar@4.0.3)
@@ -11210,14 +11232,14 @@ snapshots:
       chokidar: 4.0.3
       cli-table3: 0.6.5
       commander: 4.1.1
-      fork-ts-checker-webpack-plugin: 9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21)))
+      fork-ts-checker-webpack-plugin: 9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2))
       glob: 13.0.6
       node-emoji: 1.11.0
       ora: 5.4.1
       tsconfig-paths: 4.2.0
       tsconfig-paths-webpack-plugin: 4.2.0
       typescript: 5.9.3
-      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))
+      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)
       webpack-node-externals: 3.0.0
     optionalDependencies:
       '@swc/core': 1.16.20(@swc/helpers@0.5.21)
@@ -12362,6 +12384,10 @@ snapshots:
       '@types/node': 20.16.10
       pg-protocol: 1.13.0
       pg-types: 2.2.0
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 25.7.0
 
   '@types/qrcode@1.5.6':
     dependencies:
@@ -14832,7 +14858,7 @@ snapshots:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
 
-  fork-ts-checker-webpack-plugin@9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))):
+  fork-ts-checker-webpack-plugin@9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)):
     dependencies:
       '@babel/code-frame': 7.29.0
       chalk: 4.1.2
@@ -14847,7 +14873,7 @@ snapshots:
       semver: 7.8.5
       tapable: 2.3.3
       typescript: 5.9.3
-      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))
+      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)
 
   form-data@4.0.6:
     dependencies:
@@ -15886,6 +15912,8 @@ snapshots:
 
   jose@6.2.13: {}
 
+  jpeg-js@0.4.4: {}
+
   js-md4@0.3.2: {}
 
   js-md5@0.8.3: {}
@@ -16843,6 +16871,8 @@ snapshots:
       fflate: 0.8.3
 
   pngjs@5.0.0: {}
+
+  pngjs@7.0.0: {}
 
   possible-typed-array-names@1.1.0: {}
 
@@ -17925,15 +17955,16 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  terser-webpack-plugin@5.4.0(@swc/core@1.16.20(@swc/helpers@0.5.21))(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))):
+  terser-webpack-plugin@5.4.0(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.46.2
-      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))
+      webpack: 5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)
     optionalDependencies:
       '@swc/core': 1.16.20(@swc/helpers@0.5.21)
+      esbuild: 0.28.2
 
   terser@5.46.2:
     dependencies:
@@ -18023,7 +18054,7 @@ snapshots:
 
   ts-dedent@2.2.0: {}
 
-  ts-jest@29.4.15(@babel/core@7.29.6)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.6))(jest-util@30.4.1)(jest@30.4.2(@types/node@20.16.10)(ts-node@10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3)))(typescript@5.6.3):
+  ts-jest@29.4.15(@babel/core@7.29.6)(@jest/transform@30.4.1)(@jest/types@30.4.1)(babel-jest@30.4.1(@babel/core@7.29.6))(esbuild@0.28.2)(jest-util@30.4.1)(jest@30.4.2(@types/node@20.16.10)(ts-node@10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3)))(typescript@5.6.3):
     dependencies:
       bs-logger: 0.2.6
       fast-json-stable-stringify: 2.1.0
@@ -18041,6 +18072,7 @@ snapshots:
       '@jest/transform': 30.4.1
       '@jest/types': 30.4.1
       babel-jest: 30.4.1(@babel/core@7.29.6)
+      esbuild: 0.28.2
       jest-util: 30.4.1
 
   ts-node@10.9.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(@types/node@20.16.10)(typescript@5.6.3):
@@ -18564,7 +18596,7 @@ snapshots:
 
   webpack-virtual-modules@0.6.2: {}
 
-  webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21)):
+  webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2):
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.9
@@ -18587,7 +18619,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.3
-      terser-webpack-plugin: 5.4.0(@swc/core@1.16.20(@swc/helpers@0.5.21))(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21)))
+      terser-webpack-plugin: 5.4.0(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2)(webpack@5.106.2(@swc/core@1.16.20(@swc/helpers@0.5.21))(esbuild@0.28.2))
       watchpack: 2.5.1
       webpack-sources: 3.3.4
     transitivePeerDependencies:

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import forge from 'node-forge';
@@ -151,7 +151,38 @@ describe('selectPadesSigner (rule S.1)', () => {
           tsaOff,
           quietLogger(),
         ),
-      ).toThrow(/PDF_SIGNING_PROVIDER=local but PDF_SIGNING_LOCAL_P12_PATH not set/);
+      ).toThrow(
+        /PDF_SIGNING_PROVIDER=local but PDF_SIGNING_LOCAL_P12_PATH or PDF_SIGNING_LOCAL_P12_BASE64 not set/,
+      );
+    });
+
+    it('builds P12PadesSigner from an inline base64 P12 with no file (edge function)', () => {
+      const logger = quietLogger();
+      const signer = selectPadesSigner(
+        makeEnv({
+          PDF_SIGNING_PROVIDER: 'local',
+          PDF_SIGNING_LOCAL_P12_BASE64: readFileSync(p12Path).toString('base64'),
+          PDF_SIGNING_LOCAL_P12_PASS: p12Pass,
+        }),
+        tsaOff,
+        logger,
+      );
+      expect(signer).toBeInstanceOf(P12PadesSigner);
+      expect(logger.logs.join('\n')).toContain('p12=PDF_SIGNING_LOCAL_P12_BASE64');
+    });
+
+    it('prefers the inline P12 over a path that does not exist', () => {
+      const signer = selectPadesSigner(
+        makeEnv({
+          PDF_SIGNING_PROVIDER: 'local',
+          PDF_SIGNING_LOCAL_P12_PATH: join(dir, 'nope.p12'),
+          PDF_SIGNING_LOCAL_P12_BASE64: readFileSync(p12Path).toString('base64'),
+          PDF_SIGNING_LOCAL_P12_PASS: p12Pass,
+        }),
+        tsaOff,
+        quietLogger(),
+      );
+      expect(signer).toBeInstanceOf(P12PadesSigner);
     });
 
     it('throws when the P12 password is missing', () => {
@@ -172,7 +203,9 @@ describe('selectPadesSigner (rule S.1)', () => {
             tsaOff,
             quietLogger(),
           ),
-        ).toThrow(/PDF_SIGNING_LOCAL_P12_PATH, PDF_SIGNING_LOCAL_P12_PASS not set/);
+        ).toThrow(
+          /PDF_SIGNING_LOCAL_P12_PATH or PDF_SIGNING_LOCAL_P12_BASE64, PDF_SIGNING_LOCAL_P12_PASS not set/,
+        );
       }
     });
 

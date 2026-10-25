@@ -79,6 +79,9 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   `PDF_SIGNING_KMS_CERT_PEM` or `_PATH`, `PDF_SIGNING_TSA_URLS` (CSV;
   rotated on failure by `MultiTsaClient`; legacy singular
   `PDF_SIGNING_TSA_URL` still honored).
+  For `local`, the P12 comes from `PDF_SIGNING_LOCAL_P12_PATH` or, on
+  hosts with no file to mount (the Supabase Edge Function),
+  `PDF_SIGNING_LOCAL_P12_BASE64`, which wins over the path.
   `PDF_SIGNING_PROVIDER` has no default: unset means `NoopPadesSigner`,
   which production refuses unless `PDF_SIGNING_ALLOW_NOOP=true`
   (strict boolean string; staging escape hatch only). A set provider
@@ -112,6 +115,16 @@ SHA-256(canonical-JSON of prior row)`; `GET /verify/:envelopeId`
   There is one `audit.pdf` that lists every document's original and sealed
   hash, and one event chain (S.6). A single-document envelope, or one with
   no document rows, seals exactly as before.
+- **S.9** Step-wise sealing (docs/supabase-native-architecture.md).
+  `SealingService.processSealStep` / `processAuditOnlyStep` run one step
+  (certificate, one document, or audit.pdf + completion) and return a
+  plain-JSON `SealProgress`; `processSealJob` loops them in memory (Docker
+  worker, tests). The `seal-worker` Edge Function runs one step per
+  invocation via `runOneSealStep` and stores progress on
+  `envelope_jobs.progress` (migration 0048). Every step must stay
+  idempotent and well under 1 s of CPU. `P12TsaSigner` signs with native
+  digests and `crypto.sign` (never `privateEncrypt`: wrong on the edge
+  runtime); output is byte-identical to forge's.
 
 ### Google Drive integration env vars
 
@@ -125,6 +138,10 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
 - `GDRIVE_TOKEN_KMS_KEY_ARN` — AWS KMS CMK ARN used to wrap per-row DEKs
   for refresh-token storage (envelope AES-256-GCM)
 - `GDRIVE_TOKEN_KMS_REGION` — AWS region for the CMK
+- `GDRIVE_TOKEN_WRAP_KEY` — 32-byte local wrap key (64 hex) that replaces
+  the CMK for new rows (`kms_key_arn = 'local:v1'`; AWS exit plan, WS-3).
+  While the two KMS vars are also set, rows they wrapped still decrypt
+  through KMS.
 - `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
 - `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
   (default `60`); WT-A-2
@@ -212,6 +229,11 @@ contract is in `apps/api/src/config/env.schema.ts`, and
   `POST /webhooks/resend`. Unset, the route answers 503. A hard
   `email.bounced` marks the signer `delivery_status = 'bounced'` and mails
   the sender (`bounced_to_sender`). Migration 0040.
+- `EDGE_PROXY_SECRET` (>= 32 chars). Shared by the Cloudflare Pages worker
+  and the `seald` bridge Edge Function (`apps/api/src/edge/proxy-guard.ts`).
+  Required for the bridge in production: only proxied requests may set the
+  client IP, and direct calls to the function URL are refused except
+  `/health` and `/internal/cron/*`. Unused by the Docker deploy.
 - `PDF_SIGNING_ALLOW_NOOP`. Strict boolean, read only when
   `PDF_SIGNING_PROVIDER` is unset. Production refuses to seal without a CMS
   signature unless this is `true`. Staging escape hatch only (S.3).
@@ -272,6 +294,8 @@ Parity-plan migrations (each has a paired down in `down/`; `0038` is unused):
 - `0036` MCP OAuth: OAuth 2.1 grant tables (WP-27).
 - `0037` automation auto-disable: disable record on the recipe after 20 consecutive failures (WP-34).
 - `0039` MCP "Later" list: `signer_corrected` and `expiry_changed` events, `signer_corrected` mail kind (WP-26).
+- `0049` edge schedules: `seald_install_edge_schedules(functions_url)` / `seald_remove_edge_schedules()`, the pg_cron + pg_net jobs for the Edge Functions. Inert until an operator runs the installer at cut-over (needs the Vault secret `seald_cron_secret`).
+- `0048` envelope job progress: `envelope_jobs.progress`, the step state of a multi-step seal on the `seal-worker` Edge Function (S.9).
 - `0044` scan sessions: `scan_sessions`, the 10 minute phone-to-computer hand-off for "Scan with phone" (redesign v2 WS-J; only the code's hash is stored). The phone page `/scan/:code` needs `camera=(self)` in the Permissions-Policy of `apps/landing/_worker.js` and `public/_headers`.
 
 ### i18n
@@ -488,6 +512,11 @@ Routes added by the parity work (all SPA shell, same worker rules):
   `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, and no
   cookie-consent beacon. Do not drop these headers or the beacon strip.
 - `/d/` (prefix, `SPA_PREFIXES`): template direct signing links (WP-37).
+- API hostname proxy: with `API_HOSTNAME`, `API_PROXY_ORIGIN` and
+  `EDGE_PROXY_SECRET` set on the Pages project, `_worker.js` (`apiProxyUrl`)
+  sends that host's requests to the `seald` Edge Function, adding the
+  proxy secret and `CF-Connecting-IP`. Inert until those are set; see
+  `docs/self-hosting.md` ("Supabase Edge Functions").
 - `/api/v1/*` is not a Pages route. It is the public REST API (WP-35) on
   the API host, `api.seald.nromomentum.com`, behind `publicApi`. The worker
   must not catch it.

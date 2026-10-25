@@ -51,22 +51,26 @@ export function createDbProvider(): FactoryProvider<Kysely<Database>> {
   return {
     provide: DB_TOKEN,
     inject: [APP_ENV],
-    useFactory: (env: AppEnv) => {
-      const sslDisabled = /[?&]sslmode=disable(&|$)/.test(env.DATABASE_URL);
-      const pool = new Pool({
-        connectionString: stripSslMode(env.DATABASE_URL),
-        max: 10,
-        idleTimeoutMillis: 30_000,
-        // Supabase uses a managed CA; do not require CA verification locally.
-        // In production the host may inject NODE_EXTRA_CA_CERTS to tighten this.
-        ssl: sslDisabled ? false : { rejectUnauthorized: false },
-      });
-      attachPoolErrorListener(pool);
-      // Joins an ambient transaction when one is open (WP-24); otherwise
-      // every call goes straight to this instance, as before.
-      return withAmbientTransactions(
-        new Kysely<Database>({ dialect: new PostgresDialect({ pool }) }),
-      );
-    },
+    useFactory: (env: AppEnv) => createDb(env),
   };
+}
+
+/**
+ * The Kysely instance behind DB_TOKEN. Exported for entries that wire
+ * services without Nest (the seal-worker Edge Function).
+ */
+export function createDb(env: AppEnv, opts: { maxConnections?: number } = {}): Kysely<Database> {
+  const sslDisabled = /[?&]sslmode=disable(&|$)/.test(env.DATABASE_URL);
+  const pool = new Pool({
+    connectionString: stripSslMode(env.DATABASE_URL),
+    max: opts.maxConnections ?? 10,
+    idleTimeoutMillis: 30_000,
+    // Supabase uses a managed CA; do not require CA verification locally.
+    // In production the host may inject NODE_EXTRA_CA_CERTS to tighten this.
+    ssl: sslDisabled ? false : { rejectUnauthorized: false },
+  });
+  attachPoolErrorListener(pool);
+  // Joins an ambient transaction when one is open (WP-24); otherwise
+  // every call goes straight to this instance, as before.
+  return withAmbientTransactions(new Kysely<Database>({ dialect: new PostgresDialect({ pool }) }));
 }

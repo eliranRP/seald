@@ -1488,7 +1488,7 @@ describe('SigningService.setSignature', () => {
     expect(spy.setSignerSignatureCalls[0]!.input.kind).toBe('initials');
   });
 
-  it('accepts a valid JPEG and re-encodes it to PNG via sharp', async () => {
+  it('accepts a valid JPEG and re-encodes it to PNG', async () => {
     const spy = emptySpy();
     const svc = buildService(spy);
     const jpeg = await tinyJpeg();
@@ -1503,13 +1503,13 @@ describe('SigningService.setSignature', () => {
     );
   });
 
-  it('400 image_unreadable when sharp rejects the bytes (corrupt PNG header)', async () => {
+  it('400 image_unreadable when the decoder rejects the bytes (corrupt PNG header)', async () => {
     const svc = buildService(emptySpy());
     // Has the PNG magic so it passes the sniff, but is otherwise garbage so
-    // sharp's parse throws — we map to BadRequestException image_unreadable.
+    // the decoder throws — we map to BadRequestException image_unreadable.
     const corrupt = Buffer.concat([
       Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      Buffer.from('totally not a real PNG body, sharp will choke on this'),
+      Buffer.from('totally not a real PNG body, the decoder will choke on this'),
     ]);
     await expect(
       svc.setSignature(envelopeAwaitingOthers(), freshSigner(), corrupt, { format: 'drawn' }),

@@ -82,29 +82,38 @@ export class P12PadesSigner extends PadesSigner {
   private readonly p12Bytes: Buffer;
   private readonly passphrase: string;
   private readonly tsa: TsaClient | null;
+  private tsaSigner: P12TsaSigner | null = null;
 
   // Instantiated via useFactory in SealingModule, not via Nest DI —
   // hence no @Inject() decorator here.
   constructor(env: AppEnv, tsa: TsaClient | null) {
     super();
     const path = env.PDF_SIGNING_LOCAL_P12_PATH;
+    const inline = env.PDF_SIGNING_LOCAL_P12_BASE64;
     const pass = env.PDF_SIGNING_LOCAL_P12_PASS;
-    if (!path || !pass) {
+    if ((!path && !inline) || !pass) {
       throw new Error(
-        'P12PadesSigner requires PDF_SIGNING_LOCAL_P12_PATH + PDF_SIGNING_LOCAL_P12_PASS',
+        'P12PadesSigner requires PDF_SIGNING_LOCAL_P12_PATH or PDF_SIGNING_LOCAL_P12_BASE64, + PDF_SIGNING_LOCAL_P12_PASS',
       );
     }
-    try {
-      this.p12Bytes = readFileSync(path);
-    } catch (err) {
-      throw new Error(
-        `P12PadesSigner: cannot read P12 at ${path}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    if (inline) {
+      this.p12Bytes = Buffer.from(inline, 'base64');
+      if (this.p12Bytes.length === 0) {
+        throw new Error('P12PadesSigner: PDF_SIGNING_LOCAL_P12_BASE64 decodes to zero bytes');
+      }
+    } else {
+      try {
+        this.p12Bytes = readFileSync(path as string);
+      } catch (err) {
+        throw new Error(
+          `P12PadesSigner: cannot read P12 at ${path}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
     this.passphrase = pass;
     this.tsa = tsa;
     this.logger.log(
-      `P12 keypair loaded from ${path} (${this.p12Bytes.length} bytes); TSA ${this.tsa ? 'enabled' : 'disabled'}`,
+      `P12 keypair loaded from ${inline ? 'PDF_SIGNING_LOCAL_P12_BASE64' : path} (${this.p12Bytes.length} bytes); TSA ${this.tsa ? 'enabled' : 'disabled'}`,
     );
   }
 
@@ -145,9 +154,9 @@ export class P12PadesSigner extends PadesSigner {
     // With TSA → PAdES-B-T (full cryptographic chain-of-custody including
     // trusted time attestation). Without TSA → PAdES-B-B (signature only).
     // Production deploys MUST configure PDF_SIGNING_TSA_URL.
-    const signer = this.tsa
-      ? new P12TsaSigner(this.p12Bytes, this.passphrase, this.tsa)
-      : new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
+    // One P12TsaSigner per process: it caches the decrypted key material.
+    this.tsaSigner ??= this.tsa ? new P12TsaSigner(this.p12Bytes, this.passphrase, this.tsa) : null;
+    const signer = this.tsaSigner ?? new P12Signer(this.p12Bytes, { passphrase: this.passphrase });
     const pdfOut = await new SignPdf().sign(withPlaceholder, signer);
     // P12TsaSigner throws if the TSA round-trip fails, so a returned
     // buffer from that path includes the timestamp. No TSA client means

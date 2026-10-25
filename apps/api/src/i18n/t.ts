@@ -18,8 +18,14 @@ import { DEFAULT_LOCALE, LOCALE_NAMESPACES, matchSupportedLocale, type Locale } 
 type Catalog = { readonly [key: string]: string | Catalog };
 
 function localesRoot(): string {
-  // `shared` resolves to <pkg>/dist/index.js (commonjs) in both src and dist runs.
-  return resolve(dirname(require.resolve('shared')), '..', 'locales');
+  try {
+    // `shared` resolves to <pkg>/dist/index.js (commonjs) in both src and dist runs.
+    return resolve(dirname(require.resolve('shared')), '..', 'locales');
+  } catch {
+    // The edge-function bundle (scripts/build-edge.mjs) bundles `shared` in, so
+    // there is no package to resolve; it serves the catalogs under __dirname.
+    return resolve(__dirname, 'locales');
+  }
 }
 
 const cache = new Map<string, Catalog>();
