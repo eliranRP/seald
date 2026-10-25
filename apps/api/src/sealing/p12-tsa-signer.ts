@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { constants, createHash, createPrivateKey, privateEncrypt } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Signer } from '@signpdf/utils';
 import forge from 'node-forge';
@@ -41,15 +41,33 @@ export class P12TsaSigner extends Signer {
     this.passphrase = passphrase;
   }
 
-  override async sign(pdfBuffer: Buffer, signingTime?: Date): Promise<Buffer> {
-    // ---- 1. P12 → cert + private key ----
+  /**
+   * Decrypting the P12 (PBE) and importing the key are the same on every
+   * seal, so do them once per signer. Parsing on each call cost a large
+   * share of a seal's CPU budget on the edge function (AWS exit plan, WS-0).
+   */
+  private keyMaterial(): {
+    certBags: forge.pkcs12.Bag[];
+    privateKey: forge.pki.rsa.PrivateKey;
+  } {
+    if (this.parsed) return this.parsed;
     const oidCertBag = forge.pki.oids.certBag as string;
     const oidKeyBag = forge.pki.oids.pkcs8ShroudedKeyBag as string;
     const p12Asn1 = forge.asn1.fromDer(this.p12Buffer.toString('binary'));
     const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, false, this.passphrase);
     const certBags = p12.getBags({ bagType: oidCertBag })[oidCertBag]!;
     const keyBags = p12.getBags({ bagType: oidKeyBag })[oidKeyBag]!;
-    const privateKey = keyBags[0]!.key as forge.pki.rsa.PrivateKey;
+    const forgeKey = keyBags[0]!.key as forge.pki.rsa.PrivateKey;
+    this.parsed = { certBags, privateKey: withNativeRsaSign(forgeKey) };
+    return this.parsed;
+  }
+
+  private parsed: { certBags: forge.pkcs12.Bag[]; privateKey: forge.pki.rsa.PrivateKey } | null =
+    null;
+
+  override async sign(pdfBuffer: Buffer, signingTime?: Date): Promise<Buffer> {
+    // ---- 1. P12 → cert + private key ----
+    const { certBags, privateKey } = this.keyMaterial();
 
     // ---- 2. Build PKCS#7 SignedData ----
     const p7 = forge.pkcs7.createSignedData();
@@ -162,6 +180,56 @@ export class P12TsaSigner extends Signer {
     const der = forge.asn1.toDer(pkcs7Asn1).getBytes();
     return Buffer.from(der, 'binary');
   }
+}
+
+/**
+ * Returns the forge key with its RSA private-key operation done by
+ * node:crypto instead of forge's pure-JS big-integer math, which was the
+ * single largest CPU cost of a seal. Everything else forge does (CMS
+ * structure, signed attributes, DER) is unchanged.
+ *
+ * forge's pkcs7 calls `key.sign(md, 'RSASSA-PKCS1-V1_5')`. PKCS#1 v1.5 is
+ * deterministic: EMSA-PKCS1-v1_5 wraps the digest in a DigestInfo and the
+ * private operation with type-1 padding is exactly `privateEncrypt` with
+ * RSA_PKCS1_PADDING, so the bytes match forge's own output. A spec pins that.
+ */
+export function withNativeRsaSign(key: forge.pki.rsa.PrivateKey): forge.pki.rsa.PrivateKey {
+  const nativeKey = createPrivateKey(forge.pki.privateKeyToPem(key));
+  const fast = Object.create(key) as forge.pki.rsa.PrivateKey;
+  fast.sign = (md: forge.md.MessageDigest, scheme?: unknown): forge.Bytes => {
+    if (scheme !== undefined && scheme !== 'RSASSA-PKCS1-V1_5') {
+      return key.sign(md, scheme as 'RSASSA-PKCS1-V1_5');
+    }
+    const oid = forge.pki.oids[md.algorithm] as string | undefined;
+    if (!oid) throw new Error(`native_rsa_sign_unknown_digest: ${md.algorithm}`);
+    const digestInfo = forge.asn1.create(
+      forge.asn1.Class.UNIVERSAL,
+      forge.asn1.Type.SEQUENCE,
+      true,
+      [
+        forge.asn1.create(forge.asn1.Class.UNIVERSAL, forge.asn1.Type.SEQUENCE, true, [
+          forge.asn1.create(
+            forge.asn1.Class.UNIVERSAL,
+            forge.asn1.Type.OID,
+            false,
+            forge.asn1.oidToDer(oid).getBytes(),
+          ),
+          forge.asn1.create(forge.asn1.Class.UNIVERSAL, forge.asn1.Type.NULL, false, ''),
+        ]),
+        forge.asn1.create(
+          forge.asn1.Class.UNIVERSAL,
+          forge.asn1.Type.OCTETSTRING,
+          false,
+          md.digest().getBytes(),
+        ),
+      ],
+    );
+    const der = Buffer.from(forge.asn1.toDer(digestInfo).getBytes(), 'binary');
+    return privateEncrypt({ key: nativeKey, padding: constants.RSA_PKCS1_PADDING }, der).toString(
+      'binary',
+    );
+  };
+  return fast;
 }
 
 // --------------------------------------------------------------------

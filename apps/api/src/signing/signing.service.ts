@@ -11,7 +11,6 @@ import {
   UnprocessableEntityException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
-import sharp from 'sharp';
 import type { SignatureFormat } from 'shared';
 import {
   CURRENT_SIGNER_AUTH_TIER,
@@ -36,6 +35,7 @@ import { EnvelopesRepository } from '../envelopes/envelopes.repository';
 import { StorageService } from '../storage/storage.service';
 import { AccessAuthService } from './access-auth/access-auth.service';
 import { validateFieldFill } from './field-value-validator';
+import { normalizeSignatureImage } from './signature-image';
 import { signatureStoragePath } from './signature-paths';
 import { SignerSessionService } from './signer-session.service';
 import { isSignersTurn } from './signing-order';
@@ -793,7 +793,7 @@ export class SigningService {
   }
 
   /**
-   * Accept a signature image (PNG or JPEG), normalize via sharp to a
+   * Accept a signature image (PNG or JPEG), normalize (signature-image.ts) to a
    * canonical 600×200 PNG, upload to a deterministic path that depends on
    * the capture *kind*, and stamp the matching column set on the signer
    * row (signature_* for full signatures, initials_* for initials).
@@ -837,13 +837,7 @@ export class SigningService {
 
     let canonical: Buffer;
     try {
-      canonical = await sharp(image)
-        .resize(SIGNATURE_TARGET_WIDTH, SIGNATURE_TARGET_HEIGHT, {
-          fit: 'inside',
-          withoutEnlargement: false,
-        })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
+      canonical = normalizeSignatureImage(image, SIGNATURE_TARGET_WIDTH, SIGNATURE_TARGET_HEIGHT);
     } catch {
       throw new BadRequestException('image_unreadable');
     }

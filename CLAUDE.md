@@ -79,6 +79,9 @@ in `apps/api/src/sealing/`. Full pipeline + module-factory selection in
   `PDF_SIGNING_KMS_CERT_PEM` or `_PATH`, `PDF_SIGNING_TSA_URLS` (CSV;
   rotated on failure by `MultiTsaClient`; legacy singular
   `PDF_SIGNING_TSA_URL` still honored).
+  For `local`, the P12 comes from `PDF_SIGNING_LOCAL_P12_PATH` or, on
+  hosts with no file to mount (the Supabase Edge Function),
+  `PDF_SIGNING_LOCAL_P12_BASE64`, which wins over the path.
   `PDF_SIGNING_PROVIDER` has no default: unset means `NoopPadesSigner`,
   which production refuses unless `PDF_SIGNING_ALLOW_NOOP=true`
   (strict boolean string; staging escape hatch only). A set provider
@@ -125,6 +128,10 @@ The `apps/api/src/integrations/gdrive/` module reads these at startup:
 - `GDRIVE_TOKEN_KMS_KEY_ARN` — AWS KMS CMK ARN used to wrap per-row DEKs
   for refresh-token storage (envelope AES-256-GCM)
 - `GDRIVE_TOKEN_KMS_REGION` — AWS region for the CMK
+- `GDRIVE_TOKEN_WRAP_KEY` — 32-byte local wrap key (64 hex) that replaces
+  the CMK for new rows (`kms_key_arn = 'local:v1'`; AWS exit plan, WS-3).
+  While the two KMS vars are also set, rows they wrapped still decrypt
+  through KMS.
 - `GDRIVE_API_RATE_PER_USER` — token-bucket capacity (default `30`); WT-A-2
 - `GDRIVE_API_RATE_WINDOW_SECONDS` — token-bucket refill window seconds
   (default `60`); WT-A-2

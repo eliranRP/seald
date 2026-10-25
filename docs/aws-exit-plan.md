@@ -8,13 +8,13 @@ possible inside Supabase. Dropping small features is acceptable.
 Postgres and Storage are already on Supabase, and the SPA and landing page
 are on Cloudflare Pages (free). AWS hosts only these:
 
-| AWS piece                      | Used for                                                       | Approx. cost |
-| ------------------------------ | -------------------------------------------------------------- | ------------ |
-| EC2 `t4g.small` + EIP + EBS    | Nest API, in-process workers, Caddy (TLS), Gotenberg sidecar   | ~$15-17/mo   |
-| KMS key `sealing-kms`          | Asymmetric key that signs every PAdES seal (`KmsPadesSigner`)  | ~$1/mo + ops |
-| KMS key `gdrive-token-kms`     | Wraps the per-row DEKs for Google Drive refresh tokens         | ~$1/mo + ops |
-| Secrets Manager `api` secret   | Runtime env blob loaded by `scripts/entrypoint.sh`             | ~$0.40/mo    |
-| IAM role / instance profile    | Lets the EC2 box call KMS and Secrets Manager                  | free         |
+| AWS piece                    | Used for                                                      | Approx. cost |
+| ---------------------------- | ------------------------------------------------------------- | ------------ |
+| EC2 `t4g.small` + EIP + EBS  | Nest API, in-process workers, Caddy (TLS), Gotenberg sidecar  | ~$15-17/mo   |
+| KMS key `sealing-kms`        | Asymmetric key that signs every PAdES seal (`KmsPadesSigner`) | ~$1/mo + ops |
+| KMS key `gdrive-token-kms`   | Wraps the per-row DEKs for Google Drive refresh tokens        | ~$1/mo + ops |
+| Secrets Manager `api` secret | Runtime env blob loaded by `scripts/entrypoint.sh`            | ~$0.40/mo    |
+| IAM role / instance profile  | Lets the EC2 box call KMS and Secrets Manager                 | free         |
 
 Code that touches AWS: `apps/api/src/sealing/kms-cms-signer.ts`,
 `pades-signer.ts`, `integrations/gdrive/gdrive-kms.service.ts`,
@@ -85,6 +85,37 @@ with pdf-lib instead of react-pdf. The last-resort plan B is outside
 Supabase: Oracle Cloud Always Free ARM VM running the existing
 `docker-compose.yml` unchanged, minus KMS.
 
+#### WS-0 results (2026-10-25, local `supabase/edge-runtime:v1.77.8`)
+
+Measured with the runtime's own CPU limits (soft 1 s, hard 2 s, 256 MB),
+not on the hosted platform yet.
+
+- **The API runs as one function.** `pnpm --filter api build:edge` bundles
+  `dist/` to an 8.99 MB ESM file (minified) plus 1.47 MB of embedded
+  templates, fonts and locales. `/health` answers 200; warm requests take
+  3-8 ms.
+- **Runtime rules found on the way, all handled in the edge entry:**
+  Node built-ins need the `node:` prefix; `Buffer`/`process`/`global` are
+  not globals for local modules; `Deno.env.set` is not allowed; synchronous
+  file APIs only work while the entry module is still evaluating, so the
+  bundled assets are served from memory by `supabase/functions/seald/asset-fs.ts`;
+  Nest's `abortOnError` must be off or a boot error leaves a half-built app.
+- **CPU is counted per worker, not per request.** Past the soft limit the
+  worker is retired after its current request; past the hard limit it is
+  killed mid-request. So a worker's budget includes its own boot.
+- **Cold start: 0.7-1.0 s CPU** (most of it parsing the 9 MB bundle; Nest
+  boot is about 0.17 s).
+- **Sealing does not fit as one job.** The first seal on a worker costs
+  about 1.2-2.0 s CPU; a warm one about 0.6-1.0 s. Boot plus a first seal
+  is over the 2 s hard limit. The biggest costs were forge's pure-JS RSA
+  (now native `node:crypto`, byte-identical output) and react-pdf's font
+  shaping and stream compression for `audit.pdf`.
+- **Next:** split sealing so the PAdES seal and the `audit.pdf` render run
+  as separate jobs (each on its own invocation), shrink the bundle that
+  sealing loads, and confirm the hosted platform's limits with one real
+  deploy before the cut-over.
+- `sharp` is replaced by a pure-JS PNG/JPEG normalizer (WS-5 done).
+
 ### WS-1 Secrets: Secrets Manager → Supabase function secrets
 
 - `supabase secrets set --env-file` from the current blob. Remove
@@ -105,8 +136,8 @@ Supabase: Oracle Cloud Always Free ARM VM running the existing
   (e.g. `http://timestamp.digicert.com`).
 - **Trade-off:** the key is no longer held in a non-extractable HSM.
   Anyone with project-owner access can read it. Accept this for the
-  free tier and record it in `SECURITY.md`. F-15 (HSM rotation runbook) is
-  moot until a paid tier returns.
+  free tier and record it in `docs/self-hosting.md` at the cut-over. F-15
+  (HSM rotation runbook) is moot until a paid tier returns.
 - Delete `KmsCmsSigner`/`KmsPadesSigner` and `@aws-sdk/client-kms` only after
   the cut-over is proven. Until then keep them as dead code behind
   `PDF_SIGNING_PROVIDER=kms` so rollback is a config change.
@@ -122,6 +153,11 @@ Supabase: Oracle Cloud Always Free ARM VM running the existing
   `gdrive_accounts` row with KMS and re-wrap it with the local key. Mark the
   rows with a new `kms_key_arn` value such as `local:v1`, so the code can
   tell old rows from new. If we skip this step, users reconnect Drive.
+- Status: `LocalWrapKmsClient` and the dual read are in. With
+  `GDRIVE_TOKEN_WRAP_KEY` set, new rows are stamped `local:v1`; rows still
+  stamped with the KMS ARN decrypt through KMS while both are configured.
+  The re-wrap script is still to do. Same trade-off as WS-2: the wrap key
+  lives in the function secrets.
 
 ### WS-4 Workers: in-process loops → pg_cron ticks
 
@@ -198,14 +234,14 @@ Supabase: Oracle Cloud Always Free ARM VM running the existing
 
 ## 5. What we give up
 
-| Item                               | Outcome                                                        |
-| ---------------------------------- | -------------------------------------------------------------- |
-| HSM-backed sealing key             | Software key in secrets (security downgrade, documented)       |
-| .docx import from Drive            | Kept if Drive-native conversion works, else dropped            |
-| Instant background work            | Common path still instant via `waitUntil`; retries ≤ 30-60 s   |
-| Automation webhook IP pinning      | Kept if spike item 5 passes, else resolve-then-check or turn `workflowAutomations` webhooks off |
-| Daily managed DB backups           | Replaced by our own nightly encrypted dump                     |
-| Large files                        | 50 MB Storage cap (25 MB Drive cap already lower)              |
+| Item                          | Outcome                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| HSM-backed sealing key        | Software key in secrets (security downgrade, documented)                                        |
+| .docx import from Drive       | Kept if Drive-native conversion works, else dropped                                             |
+| Instant background work       | Common path still instant via `waitUntil`; retries ≤ 30-60 s                                    |
+| Automation webhook IP pinning | Kept if spike item 5 passes, else resolve-then-check or turn `workflowAutomations` webhooks off |
+| Daily managed DB backups      | Replaced by our own nightly encrypted dump                                                      |
+| Large files                   | 50 MB Storage cap (25 MB Drive cap already lower)                                               |
 
 ## 6. Cut-over sequence
 

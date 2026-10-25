@@ -35,6 +35,8 @@
   "useGitignore": false,
   "allowCompoundWords": true,
   "words": [
+    "EMSA",
+    "IHDR",
     "segbar",
     "sfield",
     "eliranrp",

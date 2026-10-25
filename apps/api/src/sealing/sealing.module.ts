@@ -64,23 +64,27 @@ export function selectPadesSigner(
 
   if (provider === 'local') {
     const p12Path = env.PDF_SIGNING_LOCAL_P12_PATH;
+    const p12Inline = env.PDF_SIGNING_LOCAL_P12_BASE64;
     const p12Pass = env.PDF_SIGNING_LOCAL_P12_PASS;
-    if (!p12Path && !p12Pass && env.NODE_ENV === 'test') {
+    if (!p12Path && !p12Inline && !p12Pass && env.NODE_ENV === 'test') {
       logger.warn(
         'PadesSigner: NoopPadesSigner (NODE_ENV=test, PDF_SIGNING_PROVIDER=local with no P12 configured)',
       );
       return new NoopPadesSigner();
     }
-    if (!p12Path || !p12Pass) {
+    if ((!p12Path && !p12Inline) || !p12Pass) {
       const missing: string[] = [];
-      if (!p12Path) missing.push('PDF_SIGNING_LOCAL_P12_PATH');
+      if (!p12Path && !p12Inline) {
+        missing.push('PDF_SIGNING_LOCAL_P12_PATH or PDF_SIGNING_LOCAL_P12_BASE64');
+      }
       if (!p12Pass) missing.push('PDF_SIGNING_LOCAL_P12_PASS');
       throw new Error(`PDF_SIGNING_PROVIDER=local but ${missing.join(', ')} not set`);
     }
-    if (!existsSync(p12Path)) {
+    if (!p12Inline && p12Path && !existsSync(p12Path)) {
       throw new Error(`PDF_SIGNING_PROVIDER=local but the P12 file ${p12Path} does not exist`);
     }
-    logger.log(`PadesSigner: P12PadesSigner (p12=${p12Path}; TSA=${tsaLabel})`);
+    const source = p12Inline ? 'PDF_SIGNING_LOCAL_P12_BASE64' : p12Path;
+    logger.log(`PadesSigner: P12PadesSigner (p12=${source}; TSA=${tsaLabel})`);
     return new P12PadesSigner(env, tsaReady ? tsa : null);
   }
 

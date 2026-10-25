@@ -54,3 +54,4 @@ apps/web/e2e/.bdd/
 .visual-diff/
 # Internal audit reports (gap analyses, inventories) — never published
 .audit/
+supabase/functions/seald/dist/
