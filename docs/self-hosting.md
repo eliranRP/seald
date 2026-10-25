@@ -130,6 +130,10 @@ routes move), `seal-worker` (one PAdES step per call) and `email-worker`
 
 Set once with `supabase secrets set --project-ref <ref> --env-file <file>`.
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided by the platform.
+The injected service key is the legacy JWT; on a project with legacy keys
+disabled, set the `sb_secret_...` key as `SEALD_SERVICE_ROLE_KEY`, which wins
+(Supabase refuses secret names starting with `SUPABASE_`). The full list of
+operator inputs is in [`supabase-cutover-inputs.md`](supabase-cutover-inputs.md).
 
 - Everything in "Base env" and "Env vars per enabled flag", with
   `DATABASE_URL` pointing at the transaction pooler (port 6543).
